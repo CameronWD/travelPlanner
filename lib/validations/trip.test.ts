@@ -219,3 +219,33 @@ describe("createTripSchema — New trip flow fields", () => {
     expect(r).not.toHaveProperty("fromShareToken");
   });
 });
+
+describe("tripSchema — homeTimezone", () => {
+  const base = { name: "Trip", homeCurrency: "AUD" };
+
+  it("rejects an unrecognised IANA zone", () => {
+    const r = tripSchema.safeParse({ ...base, homeTimezone: "Mars/Olympus" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.flatten().fieldErrors.homeTimezone).toBeDefined();
+    }
+  });
+
+  it("accepts a valid IANA zone", () => {
+    const r = tripSchema.safeParse({ ...base, homeTimezone: "Australia/Brisbane" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.homeTimezone).toBe("Australia/Brisbane");
+  });
+
+  it("accepts an empty string (treated as not sent)", () => {
+    const r = tripSchema.safeParse({ ...base, homeTimezone: "" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.homeTimezone).toBe("");
+  });
+
+  it("createTripSchema carries homeTimezone through (built from tripFields)", () => {
+    const r = createTripSchema.safeParse({ ...base, homeTimezone: "Australia/Brisbane" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.homeTimezone).toBe("Australia/Brisbane");
+  });
+});

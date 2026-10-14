@@ -606,6 +606,25 @@ describe("createTrip", () => {
     expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" }) });
   });
 
+  it("computes homeTimezone from the home country when none is sent", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-tz" });
+    await createTrip({
+      name: "Oz", homeCurrency: "AUD", homeName: "Gold Coast", homeLat: -28.0, homeLng: 153.43, homeCountryCode: "au",
+    });
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeTimezone: "Australia/Sydney" }) });
+  });
+
+  it("a sent homeTimezone wins over the guessed one", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-tz2" });
+    await createTrip({
+      name: "Oz", homeCurrency: "AUD", homeName: "Gold Coast", homeLat: -28.0, homeLng: 153.43, homeCountryCode: "au",
+      homeTimezone: "Australia/Brisbane",
+    });
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeTimezone: "Australia/Brisbane" }) });
+  });
+
   it("creates rough stops in order and sends the traveller to the Globe", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1" });
     tripCreateMock.mockResolvedValue({ id: "trip-p" });
@@ -918,6 +937,145 @@ describe("updateTrip", () => {
     expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.not.objectContaining({ homeCountryCode: expect.anything() }),
     }));
+  });
+
+  describe("homeTimezone", () => {
+    it("home base cleared (homeName: \"\") → homeTimezone: null", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney", homeCountryCode: "au", homeTimezone: "Australia/Sydney" });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: null }),
+      }));
+    });
+
+    it("homeTimezone sent (non-empty), home base stays set, name unchanged → the sent value", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney", homeCountryCode: "au", homeTimezone: "Australia/Sydney" });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney", homeTimezone: "Australia/Brisbane" });
+
+      expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Brisbane" }),
+      }));
+    });
+
+    it("homeTimezone sent (non-empty) also wins on a name change", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Paris", homeCountryCode: "fr", homeTimezone: "Europe/Paris" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney", homeTimezone: "Australia/Brisbane" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Brisbane" }),
+      }));
+    });
+
+    it("name changed, geocoded country ≠ before.homeCountryCode → guesses the new country's zone", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Paris", homeCountryCode: "fr", homeTimezone: "Europe/Paris" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Sydney" }),
+      }));
+    });
+
+    it("name changed, same country, but before.homeTimezone was null → guesses anyway", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Gold Coast", homeCountryCode: "au", homeTimezone: null });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Sydney" }),
+      }));
+    });
+
+    it("name changed, same country, a zone already set → unchanged (omitted)", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Gold Coast", homeCountryCode: "au", homeTimezone: "Australia/Brisbane" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.not.objectContaining({ homeTimezone: expect.anything() }),
+      }));
+    });
+
+    it("homeName key absent and no homeTimezone sent → unchanged (omitted)", async () => {
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.not.objectContaining({ homeTimezone: expect.anything() }),
+      }));
+    });
+
+    it("homeName key absent but homeTimezone sent, home base already set → writes it", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney", homeCountryCode: "au", homeTimezone: "Australia/Sydney" });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeTimezone: "Australia/Brisbane" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Brisbane" }),
+      }));
+    });
+
+    it("homeTimezone sent while no Home base exists before or after → ignored (omitted)", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: null, homeCountryCode: null, homeTimezone: null });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeTimezone: "Australia/Brisbane" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.not.objectContaining({ homeTimezone: expect.anything() }),
+      }));
+    });
+
+    it("name changed, geocode fails → keeps the existing zone (omitted)", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Gold Coast", homeCountryCode: "au", homeTimezone: "Australia/Brisbane" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Nowheresville" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.not.objectContaining({ homeTimezone: expect.anything() }),
+      }));
+    });
+
+    it("home base set for the first time via a rename (before.homeName null) → guesses from the geocoded country", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: null, homeCountryCode: null, homeTimezone: null });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Sydney" }),
+      }));
+    });
   });
 
   it("re-derives the slug from the saved name on every save and returns it (a rename moves it; an unchanged name keeps it)", async () => {
