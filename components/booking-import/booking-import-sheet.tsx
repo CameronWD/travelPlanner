@@ -83,7 +83,13 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
   // it: a sibling confirm needing the same Stop awaits this instead of
   // sending its own create (fix round 1 - concurrent confirms otherwise both
   // see an empty createdStops.current and each send the Stop, doubling it).
-  const pendingStops = React.useRef<Record<string, Promise<string | undefined>>>({});
+  const pendingStops = React.useRef<Record<string, Promise<{ id?: string; error?: string }>>>({});
+  // A Proposal's own clientId while its own confirm() call is already
+  // running: a second tap on the same card before claimStops resolves must
+  // not send its booking a second time (fix round 2 - the card's status only
+  // flips to "confirming" once React commits that state, which can land
+  // after a near-simultaneous second tap).
+  const confirming = React.useRef<Set<string>>(new Set());
 
   function reset() {
     setPhase({ kind: "pick" });
@@ -93,6 +99,7 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     attached.current = false;
     createdStops.current = {};
     pendingStops.current = {};
+    confirming.current = new Set();
   }
 
   async function read(file: File | null, pasted: string) {
@@ -144,91 +151,124 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
    * Claims every proposed Stop a Proposal still needs (or, confirming a Stop
    * directly, the Stop itself): Stops nobody is creating yet are returned in
    * `owned` for this call to send, and are marked pending for any sibling
-   * that asks next; Stops someone else is already creating are awaited here
-   * so `resolved` always carries the real id by the time this returns.
+   * that asks next. A Stop someone else is already creating is awaited here;
+   * if that creation fails without saving the Stop, this call reclaims it on
+   * the next pass instead of sending a request with an unresolved `proposed:`
+   * reference that is guaranteed to fail (fix round 2) - `ownerError` carries
+   * the failed owner's message, for the rare case this call still ends up
+   * owning nothing (defensive: the retry loop normally claims it instead).
    * `release` must be called exactly once, after this call's own
    * confirmProposal settles, to hand the result to any sibling waiting on it.
    */
-  async function claimStops(proposal: Proposal): Promise<{ owned: StopProposal[]; resolved: Record<string, string>; release(created: Record<string, string>): void }> {
-    const refs = proposal.kind === "stop" ? [proposal.clientId] : proposalStopRefs(proposal);
-    const needed = refs.filter((id) => !createdStops.current[id]);
-    const toOwn = needed.filter((id) => !pendingStops.current[id]);
-    const toAwait = needed.filter((id) => pendingStops.current[id]);
+  async function claimStops(
+    proposal: Proposal,
+  ): Promise<{ owned: StopProposal[]; resolved: Record<string, string>; ownerError?: string; release(created: Record<string, string>, error?: string): void }> {
+    const resolvers = new Map<string, (result: { id?: string; error?: string }) => void>();
+    const owned: StopProposal[] = [];
+    let ownerError: string | undefined;
 
-    const owned = toOwn
-      .map((id) => (proposal.kind === "stop" && id === proposal.clientId ? proposal : entries[id]?.proposal))
-      .filter((p): p is StopProposal => p?.kind === "stop");
+    for (;;) {
+      const refs = proposal.kind === "stop" ? [proposal.clientId] : proposalStopRefs(proposal);
+      const needed = refs.filter((id) => !createdStops.current[id] && !owned.some((s) => s.clientId === id));
+      if (needed.length === 0) break;
 
-    const resolvers = new Map<string, (id: string | undefined) => void>();
-    for (const stop of owned) {
-      pendingStops.current[stop.clientId] = new Promise<string | undefined>((resolve) => resolvers.set(stop.clientId, resolve));
+      const toOwn = needed.filter((id) => !pendingStops.current[id]);
+      const toAwait = needed.filter((id) => pendingStops.current[id]);
+
+      for (const id of toOwn) {
+        const stop = proposal.kind === "stop" && id === proposal.clientId ? proposal : entries[id]?.proposal;
+        if (stop?.kind !== "stop") continue;
+        pendingStops.current[id] = new Promise((resolve) => resolvers.set(id, resolve));
+        owned.push(stop);
+      }
+      if (toAwait.length === 0) break;
+
+      // Each pass either claims what's left or waits once more on exactly what's still pending.
+      await Promise.all(
+        toAwait.map(async (id) => {
+          const result = await pendingStops.current[id];
+          if (!result.id && result.error) ownerError = result.error;
+        }),
+      );
+      // Loop again: an id now in createdStops.current (its owner succeeded)
+      // drops out of `needed` next pass; one whose owner failed (pendingStops
+      // cleared, still not created) gets claimed by this call instead.
     }
-
-    const resolved: Record<string, string> = { ...createdStops.current };
-    await Promise.all(
-      toAwait.map(async (id) => {
-        const real = await pendingStops.current[id];
-        if (real) resolved[id] = real;
-      }),
-    );
 
     return {
       owned,
-      resolved,
-      release(created) {
-        for (const [id, resolve] of resolvers) {
-          resolve(created[id]);
-          delete pendingStops.current[id];
+      resolved: { ...createdStops.current },
+      ownerError,
+      release(created, error) {
+        for (const stop of owned) {
+          resolvers.get(stop.clientId)?.({ id: created[stop.clientId], error });
+          delete pendingStops.current[stop.clientId];
         }
       },
     };
   }
 
   /** Confirms one Proposal (optionally an edited version), saving any proposed Stop it needs first. */
-  async function confirm(clientId: string, edited?: Proposal): Promise<ConfirmProposalResult> {
+  async function confirm(clientId: string, edited?: Proposal): Promise<ConfirmProposalResult | undefined> {
+    // A second tap on the same card while its first confirm() is still
+    // working out which Stop(s) it needs must not send its booking twice
+    // (fix round 2): the UI only disables Confirm once React commits the
+    // "confirming" status set just below, which a near-simultaneous second
+    // tap can land before.
+    if (confirming.current.has(clientId) || entries[clientId]?.status === "confirmed") return undefined;
+    confirming.current.add(clientId);
     const proposal = edited ?? entries[clientId].proposal;
-    const claim = await claimStops(proposal);
-
-    // Confirming a proposed Stop that a sibling already claimed: nothing
-    // left to send, just reflect that creation's outcome.
-    if (proposal.kind === "stop" && !claim.owned.some((s) => s.clientId === proposal.clientId)) {
-      const createdId = claim.resolved[proposal.clientId];
-      const result: ConfirmProposalResult = createdId
-        ? { ok: true, createdId, createdStops: {} }
-        : { ok: false, message: M.generic, createdStops: {} };
-      setEntries((prev) => ({ ...prev, [clientId]: { ...prev[clientId], status: createdId ? "confirmed" : "pending", error: createdId ? null : M.generic } }));
-      return result;
-    }
-
-    const needs = proposal.kind === "stop" ? [] : claim.owned;
-    const busy = [clientId, ...needs.map((s) => s.clientId)];
-    setEntries((prev) => {
-      const next = { ...prev };
-      for (const id of busy) next[id] = { ...next[id], status: "confirming", error: null };
-      return next;
-    });
-    let res: ConfirmProposalResult;
+    setEntries((prev) => ({ ...prev, [clientId]: { ...prev[clientId], status: "confirming", error: null } }));
     try {
-      res = await confirmProposal(tripId, { proposal, proposedStops: needs, resolvedStops: claim.resolved }, forkId);
-    } catch {
-      res = { ok: false, message: M.generic, createdStops: {} };
-    }
-    createdStops.current = { ...createdStops.current, ...res.createdStops };
-    claim.release(res.createdStops);
-    setEntries((prev) => {
-      const next = { ...prev };
-      for (const id of busy) {
-        const saved = id === clientId ? res.ok : Boolean(createdStops.current[id]);
-        next[id] = {
-          proposal: id === clientId ? proposal : next[id].proposal,
-          status: saved ? "confirmed" : "pending",
-          error: id === clientId && !res.ok ? res.message : null,
-        };
+      const claim = await claimStops(proposal);
+
+      // Confirming a proposed Stop that a sibling already created: nothing
+      // left to send, just reflect that creation's outcome.
+      if (proposal.kind === "stop" && !claim.owned.some((s) => s.clientId === proposal.clientId)) {
+        const createdId = claim.resolved[proposal.clientId];
+        if (createdId) {
+          setEntries((prev) => ({ ...prev, [clientId]: { ...prev[clientId], status: "confirmed", error: null } }));
+          return { ok: true, createdId, createdStops: {} };
+        }
+        const message = claim.ownerError ?? M.generic;
+        setEntries((prev) => ({ ...prev, [clientId]: { ...prev[clientId], status: "pending", error: message } }));
+        return { ok: false, message, createdStops: {} };
       }
-      return next;
-    });
-    if (res.ok) await attachOriginal(proposal.kind, res.createdId);
-    return res;
+
+      const needs = proposal.kind === "stop" ? [] : claim.owned;
+      if (needs.length > 0) {
+        setEntries((prev) => {
+          const next = { ...prev };
+          for (const stop of needs) next[stop.clientId] = { ...next[stop.clientId], status: "confirming", error: null };
+          return next;
+        });
+      }
+      const busy = [clientId, ...needs.map((s) => s.clientId)];
+      let res: ConfirmProposalResult;
+      try {
+        res = await confirmProposal(tripId, { proposal, proposedStops: needs, resolvedStops: claim.resolved }, forkId);
+      } catch {
+        res = { ok: false, message: M.generic, createdStops: {} };
+      }
+      createdStops.current = { ...createdStops.current, ...res.createdStops };
+      claim.release(res.createdStops, res.ok ? undefined : res.message);
+      setEntries((prev) => {
+        const next = { ...prev };
+        for (const id of busy) {
+          const saved = id === clientId ? res.ok : Boolean(createdStops.current[id]);
+          next[id] = {
+            proposal: id === clientId ? proposal : next[id].proposal,
+            status: saved ? "confirmed" : "pending",
+            error: id === clientId && !res.ok ? res.message : null,
+          };
+        }
+        return next;
+      });
+      if (res.ok) await attachOriginal(proposal.kind, res.createdId);
+      return res;
+    } finally {
+      confirming.current.delete(clientId);
+    }
   }
 
   function discard(clientId: string) {

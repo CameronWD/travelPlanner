@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
 import type { BookingImportResult, ProposalBase } from "@/lib/booking-import/types";
@@ -164,5 +164,65 @@ describe("BookingImportSheet", () => {
     await userEvent.click(within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText(M.attachFailed)).toBeInTheDocument();
     expect(within(screen.getByTestId("proposal-p1")).getByText("Added")).toBeInTheDocument();
+  });
+
+  it("tapping Confirm twice before its Stop resolves only sends the booking once (fix round 2)", async () => {
+    open();
+    await pasteAndRead();
+    let resolveFirst!: (value: { ok: true; createdId: string; createdStops: Record<string, string> }) => void;
+    m.confirmProposal.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
+    );
+    m.confirmProposal.mockResolvedValue({ ok: true, createdId: "a-new", createdStops: {} });
+
+    const p1Confirm = within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" });
+    const p2Confirm = within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" });
+
+    // p1 owns creating the shared Stop and is left pending; p2 starts waiting
+    // on it, then gets tapped again before React can disable its button -
+    // both taps land before any state commits, in a single act().
+    fireEvent.click(p1Confirm);
+    // Let p1's confirm() run up to its (mocked, still-pending) network call,
+    // so resolveFirst is captured before this test uses it below.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      fireEvent.click(p2Confirm);
+      fireEvent.click(p2Confirm);
+    });
+
+    resolveFirst({ ok: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
+    await waitFor(() => expect(m.confirmProposal.mock.calls.length).toBeGreaterThanOrEqual(2));
+
+    const p2Calls = m.confirmProposal.mock.calls.filter(
+      ([, request]) => (request as { proposal: { clientId: string } }).proposal.clientId === "p2",
+    );
+    expect(p2Calls).toHaveLength(1);
+  });
+
+  it("when the owner fails before creating the Stop, the waiting sibling creates it itself", async () => {
+    open();
+    await pasteAndRead();
+    let resolveFirst!: (value: { ok: false; message: string; createdStops: Record<string, string> }) => void;
+    m.confirmProposal.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
+    );
+    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "a-new", createdStops: { s1: "stop-new" } });
+
+    const p1Confirm = within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" });
+    const p2Confirm = within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" });
+    await userEvent.click(p1Confirm);
+    await userEvent.click(p2Confirm);
+
+    expect(m.confirmProposal).toHaveBeenCalledTimes(1);
+    // p1 fails without ever saving the Stop.
+    resolveFirst({ ok: false, message: "Arrival must be after departure", createdStops: {} });
+    await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(2));
+
+    const p2Call = m.confirmProposal.mock.calls[1][1] as { proposedStops: Array<{ clientId: string }>; resolvedStops: Record<string, string> };
+    expect(p2Call.proposedStops.map((s) => s.clientId)).toEqual(["s1"]);
+    expect(p2Call.resolvedStops).toEqual({});
+    await waitFor(() => expect(within(screen.getByTestId("proposal-p2")).getByText("Added")).toBeInTheDocument());
   });
 });
