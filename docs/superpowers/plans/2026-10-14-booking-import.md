@@ -5715,6 +5715,72 @@ Claude-Session: https://claude.ai/code/session_016qk1WSH7fazH5aFbzXXbu5"
 
 ---
 
+### Task 11b: Widen currencies to every Frankfurter-supported code
+
+Added in session at Cam's request (spec section "Currencies (added in session)").
+Independent of Tasks 1-11 except that `lib/booking-import/build.ts` (Task 5)
+reads the currency list and must pick the new codes up with no change.
+
+**Files:**
+- Modify: `lib/currencies.ts` (the `CURRENCIES` list)
+- Modify: `lib/currency-for-country.ts` (`BY_COUNTRY`)
+- Check, and modify only if they hard-code the old 10: every consumer —
+  `lib/new-trip/draft.ts`, `lib/validations/{accommodation,trip,cost,transport,item}.ts`,
+  `lib/mcp/tools/{bookings-write,trips-stops-write}.ts` (incl. any MCP tool
+  description text listing currencies), `lib/booking-import/build.ts`,
+  `components/ui/{money-input,currency-row}.tsx`,
+  `components/trip/{other-cost-editor,inline-cost-fields}.tsx`,
+  `components/trip/settings/trip-details-form.tsx`, and their tests.
+- Test: `lib/currencies.test.ts` (create if absent), `lib/currency-for-country.test.ts`
+  (create if absent), `lib/booking-import/build.test.ts` (one case).
+
+**Interfaces:**
+- Consumes: `CURRENCIES`, `CURRENCY_CODES`, `currencyName` (unchanged shapes);
+  `decimalsFor` in `lib/money.ts` (already lists KRW and ISK as 0 decimals).
+- Produces: the same exports with 30 codes. No new exports.
+
+**The list (exact, from https://api.frankfurter.dev/v1/currencies, fetched 2026-10-14):**
+AUD, BRL, CAD, CHF, CNY, CZK, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, ISK,
+JPY, KRW, MXN, MYR, NOK, NZD, PHP, PLN, RON, SEK, SGD, THB, TRY, USD, ZAR.
+Keep the existing 10 first, in their current order (AUD, NZD, USD, EUR, GBP,
+JPY, CHF, CAD, SGD, THB) so pickers don't reshuffle; then the 20 new ones
+alphabetically by code. Names: use the plain English names (e.g. "Chinese Yuan",
+"Hong Kong Dollar", "Icelandic Króna", "South Korean Won", "Polish Złoty",
+"Turkish Lira", "South African Rand", "Israeli New Shekel"). Symbols: take
+what `Intl.NumberFormat("en-AU", { style: "currency", currency, currencyDisplay: "narrowSymbol" })`
+renders where it is a real symbol (₩, ₹, ₪, ₱, zł, ₺, R, kr, Ft, Kč, Rp,
+RM, R$, HK$, MX$ or "$"-disambiguated forms, lei, ¥ for CNY → use "CN¥" to
+disambiguate from JPY); otherwise the code. Follow the existing entries' style
+(e.g. "A$", "NZ$" disambiguate dollars).
+
+`BY_COUNTRY` additions (everyday currency only): BR BRL; CN CNY; CZ CZK;
+DK DKK, FO DKK, GL DKK; HK HKD; HU HUF; ID IDR; IL ILS, PS ILS; IN INR,
+BT INR; IS ISK; KR KRW; MX MXN; MY MYR; NO NOK, SJ NOK, BV NOK; PH PHP;
+PL PLN; RO RON; SE SEK; TR TRY; ZA ZAR, LS ZAR, NA ZAR. Update the file's
+header comment if it mentions the count.
+
+- [ ] **Step 1: Write the failing tests**
+  - `CURRENCY_CODES` has exactly the 30 codes above (as a set), no duplicates,
+    and the first 10 are the original 10 in order.
+  - Every `CURRENCIES` entry has a non-empty name and symbol.
+  - `currencyForCountry("KR") === "KRW"`, `("IS") === "ISK"`, `("ZA") === "ZAR"`,
+    `("DK") === "DKK"`, `("VN") === undefined` (not supported).
+  - `parseAmountToMinor`/`formatMoney` round-trip: `KRW` "45000" → 45000 minor,
+    `ISK` "12500" → 12500, `HUF` "1234.50" → 123450 (2 decimals per ISO 4217).
+  - Cost validation (`lib/validations/cost.ts`) accepts `KRW` and still rejects `VND`.
+  - Booking import (`build.test.ts`): a Proposal with cost `{ amount: "45000", currency: "KRW" }`
+    keeps its Cost as `costMinor: 45000, currency: "KRW"`; one in `VND` still drops
+    the Cost with its note.
+- [ ] **Step 2: Run them to see them fail.** `npx vitest run <those test files>`
+- [ ] **Step 3: Implement** the list, the map, and any consumer that hard-coded
+  the old ten (grep for each of the old codes in string arrays, `z.enum([`, and
+  MCP description text).
+- [ ] **Step 4: Run them to see them pass**, then the task-done tier:
+  `npx vitest related --run <changed source files>` + `npx tsc --noEmit` + `npx eslint <changed files>`.
+  Snapshot or picker tests that enumerate currencies may need updating; update
+  them to the new list, never delete them.
+- [ ] **Step 5: Commit** — `feat(money): offer every currency Frankfurter has rates for (30)`, with the two trailer lines.
+
 ### Task 12: Branch verification and follow-ups
 
 **Files:**

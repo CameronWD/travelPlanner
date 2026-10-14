@@ -165,5 +165,13 @@ also switches on the dormant suggestions and packing features (TC-01).
 6. Edit with live preview.
 7. Privacy page, DEPLOY.md, removal of the old parser.
 
+**Currencies (added in session).** Widen TEEPEE's currency list from 10 to
+every currency Frankfurter (the ECB rates `lib/fx.ts` uses) supports — 30 in
+all, adding BRL, CNY, CZK, DKK, HKD, HUF, IDR, ILS, INR, ISK, KRW, MXN, MYR,
+NOK, PHP, PLN, RON, SEK, TRY, ZAR — everywhere a currency can be chosen, not
+only in the importer. Currencies the ECB does not publish (VND, AED, MAD, EGP,
+PEN, ARS, KWD…) stay out; a Booking import in one of them still drops its Cost
+with a note.
+
 **Out of scope (decided):** `.msg` and HEIC; MCP access to Booking imports;
 resuming an abandoned import; moving Stop dates; a per-feature model override.
