@@ -1,7 +1,6 @@
 import "server-only";
 import PostalMime from "postal-mime";
 import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
-import { validateUpload } from "@/lib/storage";
 import { htmlToText } from "./html-to-text";
 import { checkBookingFile, imageTypeOf, MAX_EML_ATTACHMENTS, MAX_EML_TEXT_CHARS, MAX_PDF_PAGES } from "./limits";
 import { BOOKING_IMPORT_MESSAGES as M } from "./messages";
@@ -49,16 +48,12 @@ async function prepareFile(file: File): Promise<PreparedInput> {
   const bytes = new Uint8Array(await file.arrayBuffer());
 
   if (check.kind === "pdf") {
-    const upload = validateUpload({ mime: "application/pdf", size: file.size });
-    if (!upload.ok) return invalid(upload.error);
     const pages = await pdfPageCount(bytes);
     if (!pages) return UNREADABLE;
     if (pages > MAX_PDF_PAGES) return invalid(M.tooManyPages);
     return { ok: true, source: "pdf", parts: [{ type: "pdf", base64: toBase64(bytes) }] };
   }
   if (check.kind === "image") {
-    const upload = validateUpload({ mime: check.mediaType, size: file.size });
-    if (!upload.ok) return invalid(upload.error);
     return { ok: true, source: "image", parts: [{ type: "image", mediaType: check.mediaType, base64: toBase64(bytes) }] };
   }
   return prepareEml(bytes);

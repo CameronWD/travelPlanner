@@ -366,7 +366,7 @@ const ALLOWED_MIMES = new Set([
 ]);
 
 /** Maximum upload size: 10 MiB. */
-const MAX_BYTES = 10 * 1024 * 1024;
+export const MAX_BYTES = 10 * 1024 * 1024;
 
 type ValidateUploadOk = { ok: true };
 type ValidateUploadError = { ok: false; error: string };

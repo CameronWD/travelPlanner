@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { MAX_BYTES } from "@/lib/storage";
 import { BOOKING_IMPORT_MESSAGES as M } from "./messages";
 import { checkBookingFile, MAX_IMPORT_BYTES } from "./limits";
 
 const f = (name: string, type: string, size = 1_000) => ({ name, type, size });
+
+// A file accepted for import must still be attachable when the Proposal is
+// confirmed, so our ceiling can never exceed validateUpload's (lib/storage.ts).
+it("MAX_IMPORT_BYTES does not exceed storage's own upload ceiling", () => {
+  expect(MAX_IMPORT_BYTES).toBeLessThanOrEqual(MAX_BYTES);
+});
 
 describe("checkBookingFile", () => {
   it("accepts PDFs, the four image types and .eml, by extension or MIME type", () => {
