@@ -34,6 +34,8 @@ export const BOOKING_IMPORT_MESSAGES = {
     `The price is ${amount} ${currency}, a currency Teepee can't track yet. Add the cost yourself.`,
   unreadableAmount: (amount: string, currency: string) =>
     `The price ${amount} ${currency} didn't look like a number, so we left the cost out. Add it yourself.`,
+  dotThousands: (amount: string, currency: string, read: string) =>
+    `${amount} ${currency} was read as ${read} ${currency}, taking the dot as a thousands separator. Check the cost.`,
   unreadablePaidAmount: (amount: string, currency: string) =>
     `The amount paid, ${amount} ${currency}, didn't look like a number, so we couldn't mark this Paid. Check it yourself.`,
   homeTimezoneGuess: (homeName: string, zone: string) =>

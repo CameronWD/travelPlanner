@@ -115,9 +115,18 @@ const lowest = (cs: Confidence[]): Confidence => cs.reduce<Confidence>((a, b) =>
  * a comma as its decimal mark, so "45,000" there is always forty-five
  * thousand, never 45.000.
  */
-function normaliseAmountForParsing(raw: string, currency: string): string {
+function normaliseAmountForParsing(raw: string, currency: string, doubleCheck: string[]): string {
   const s = raw.trim();
   if (decimalsFor(currency) === 0) return s;
+  // "1.234" in a two-decimal currency: a dot before exactly three digits
+  // (repeated) is a thousands separator as printed in much of Europe, never
+  // a third decimal place, so read it as 1234.00 and say so (final review #7).
+  if (decimalsFor(currency) === 2 && /^\d{1,3}(\.\d{3})+$/.test(s)) {
+    const whole = s.replace(/\./g, "");
+    const note = M.dotThousands(s, currency, `${whole}.00`);
+    if (!doubleCheck.includes(note)) doubleCheck.push(note);
+    return whole;
+  }
   // "45,50": the sole comma, with one or two trailing digits, is the decimal mark.
   if (/^-?\d+,\d{1,2}$/.test(s)) return s.replace(",", ".");
   // "1.234,50": dot(s) as thousands separators, a trailing ",dd" as the decimal mark.
@@ -132,13 +141,13 @@ function costFields(cost: ExtractedCost | null, bookedOn: string | null, today: 
     doubleCheck.push(M.unsupportedCurrency(cost.amount.trim(), currency));
     return {};
   }
-  const costMinor = parseAmountToMinor(normaliseAmountForParsing(cost.amount, currency), currency);
+  const costMinor = parseAmountToMinor(normaliseAmountForParsing(cost.amount, currency, doubleCheck), currency);
   if (costMinor === null || costMinor < 0) {
     doubleCheck.push(M.unreadableAmount(cost.amount.trim(), currency));
     return {};
   }
   if (!cost.paidAmount) return { costMinor, currency };
-  const paidMinor = parseAmountToMinor(normaliseAmountForParsing(cost.paidAmount, currency), currency);
+  const paidMinor = parseAmountToMinor(normaliseAmountForParsing(cost.paidAmount, currency, doubleCheck), currency);
   if (paidMinor === null || paidMinor < 0) {
     doubleCheck.push(M.unreadablePaidAmount(cost.paidAmount.trim(), currency));
     return { costMinor, currency };

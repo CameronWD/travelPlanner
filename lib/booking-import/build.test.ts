@@ -223,6 +223,19 @@ describe("buildProposals: Costs", () => {
     const euroThousands = byId(buildProposals(report(item({ title: "Tour" }, { amount: "1.234,50", currency: "EUR", paidAmount: null, paidDate: null })), CTX).proposals, "p1");
     expect(euroThousands.input).toMatchObject({ costMinor: 123_450, currency: "EUR" });
   });
+
+  it("reads \"1.234\" in a two-decimal currency as one thousand two hundred and thirty-four, with a note (final review #7)", () => {
+    const p = byId(buildProposals(report(item({ title: "Tour" }, { amount: "1.234", currency: "EUR", paidAmount: "1.234", paidDate: "2026-10-01" })), CTX).proposals, "p1");
+    expect(p.input).toMatchObject({ costMinor: 123_400, currency: "EUR", paidMinor: 123_400 });
+    expect(p.doubleCheck.filter((n) => n === M.dotThousands("1.234", "EUR", "1234.00"))).toHaveLength(1);
+
+    const plain = byId(buildProposals(report(item({ title: "Museum" }, { amount: "12.34", currency: "EUR", paidAmount: null, paidDate: null })), CTX).proposals, "p1");
+    expect(plain.input).toMatchObject({ costMinor: 1_234 });
+    expect(plain.doubleCheck.some((n) => n.includes("thousands separator"))).toBe(false);
+
+    const yen = byId(buildProposals(report(item({ title: "Tea" }, { amount: "1.234", currency: "JPY", paidAmount: null, paidDate: null })), CTX).proposals, "p1");
+    expect(yen.doubleCheck.some((n) => n.includes("thousands separator"))).toBe(false);
+  });
 });
 
 describe("buildProposals: things to do, car hire, gaps", () => {
