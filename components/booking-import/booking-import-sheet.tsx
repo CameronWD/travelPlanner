@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { FileUp, Sparkles } from "lucide-react";
+import { FileUp, Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,7 +27,7 @@ import { confirmProposal, importBooking } from "@/server/actions/booking-import"
 import { ProposalCard, type ProposalStatus } from "./proposal-card";
 import { ProposalEditor } from "./proposal-editor";
 
-const TARGET_TYPE = { transport: "TRANSPORT", accommodation: "ACCOMMODATION", item: "ITEM", stop: "STOP" } as const;
+const TARGET_TYPE = { transport: "TRANSPORT", accommodation: "ACCOMMODATION", item: "ITEM" } as const;
 
 interface Entry {
   proposal: Proposal;
@@ -137,7 +137,9 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
   async function attachOriginal(kind: Proposal["kind"], id: string) {
     const file = keptFile.current;
     // Pasted text and .eml attach nothing (validateUpload takes images and PDFs only).
-    if (attached.current || !file || /\.eml$/i.test(file.name) || file.type === "message/rfc822") return;
+    // A Stop is never the booking's home: confirming a New stop first leaves
+    // the file for the first Transport, Accommodation or Item (final review #4).
+    if (kind === "stop" || attached.current || !file || /\.eml$/i.test(file.name) || file.type === "message/rfc822") return;
     attached.current = true;
     const fd = new FormData();
     fd.set("file", file);
@@ -311,7 +313,17 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     });
   }
 
-  if (phase.kind === "reading") return <p role="status" className="text-sm font-semibold">Reading your booking…</p>;
+  if (phase.kind === "reading") {
+    return (
+      <div role="status" className="flex items-start gap-3">
+        <Loader2 className="mt-0.5 size-5 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-semibold">Reading your booking…</p>
+          <p className="text-xs text-muted-foreground">This usually takes 5 to 20 seconds.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (phase.kind === "failed") {
     return (

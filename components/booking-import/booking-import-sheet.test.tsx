@@ -109,6 +109,38 @@ describe("BookingImportSheet", () => {
     expect(m.uploadAttachment).toHaveBeenCalledTimes(1);
   });
 
+  it("confirming the New stop first leaves the original file for the booking confirmed next (final review #4)", async () => {
+    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
+    open();
+    const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });
+    await userEvent.upload(screen.getByLabelText("Booking file"), pdf);
+    const group = await screen.findByRole("region", { name: "New stop: Lisbon" });
+    await userEvent.click(within(group).getAllByRole("button", { name: "Confirm" })[0]);
+    await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(1));
+    expect(m.confirmProposal.mock.calls[0][1].proposal.clientId).toBe("s1");
+    await within(group).findByText("Added");
+    expect(m.uploadAttachment).not.toHaveBeenCalled();
+
+    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "t-new", createdStops: {} });
+    await userEvent.click(within(screen.getByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(m.uploadAttachment).toHaveBeenCalledTimes(1));
+    const upload = m.uploadAttachment.mock.calls[0][0] as FormData;
+    expect([upload.get("targetType"), upload.get("targetId")]).toEqual(["TRANSPORT", "t-new"]);
+  });
+
+  it("shows a spinner and how long reading usually takes while the booking is read", async () => {
+    let finish: (r: BookingImportResult) => void = () => {};
+    m.importBooking.mockReturnValue(new Promise<BookingImportResult>((r) => { finish = r; }));
+    open();
+    await pasteAndRead();
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Reading your booking…");
+    expect(status).toHaveTextContent("This usually takes 5 to 20 seconds.");
+    expect(status.querySelector(".animate-spin")).not.toBeNull();
+    await act(async () => finish(RESULT));
+    await screen.findByRole("region", { name: "New stop: Lisbon" });
+  });
+
   it("a failed booking keeps its saved Stop and shows the error on the card", async () => {
     m.confirmProposal.mockResolvedValue({ ok: false, message: "Arrival must be after departure", createdStops: { s1: "stop-new" } });
     open();
