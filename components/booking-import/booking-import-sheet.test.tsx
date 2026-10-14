@@ -120,4 +120,49 @@ describe("BookingImportSheet", () => {
     expect(screen.queryByTestId("proposal-p1")).toBeNull();
     expect(screen.queryByTestId("proposal-p2")).toBeNull();
   });
+
+  it("concurrent sibling confirms resolve a shared proposed Stop only once (fix round 1)", async () => {
+    open();
+    await pasteAndRead();
+    let resolveFirst!: (value: { ok: true; createdId: string; createdStops: Record<string, string> }) => void;
+    m.confirmProposal.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
+    );
+    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "a-new", createdStops: {} });
+
+    const p1Confirm = within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" });
+    const p2Confirm = within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" });
+    await userEvent.click(p1Confirm);
+    await userEvent.click(p2Confirm);
+
+    // p2 is still waiting on p1's in-flight creation of the shared Stop: it has not sent anything yet.
+    expect(m.confirmProposal).toHaveBeenCalledTimes(1);
+
+    resolveFirst({ ok: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
+    await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(2));
+
+    const stopSends = m.confirmProposal.mock.calls.filter(([, request]) =>
+      (request as { proposedStops: Array<{ clientId: string }> }).proposedStops.some((s) => s.clientId === "s1"),
+    );
+    expect(stopSends).toHaveLength(1);
+    expect(m.confirmProposal.mock.calls[1][1]).toMatchObject({ proposedStops: [], resolvedStops: { s1: "stop-new" } });
+  });
+
+  it("a successful confirm from pasted text never calls uploadAttachment", async () => {
+    open();
+    await pasteAndRead();
+    await userEvent.click(within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(1));
+    expect(m.uploadAttachment).not.toHaveBeenCalled();
+  });
+
+  it("a failed upload shows the attachFailed notice and the record stays confirmed", async () => {
+    m.uploadAttachment.mockResolvedValue({ success: false, error: "no space" });
+    open();
+    const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });
+    await userEvent.upload(screen.getByLabelText("Booking file"), pdf);
+    await userEvent.click(within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText(M.attachFailed)).toBeInTheDocument();
+    expect(within(screen.getByTestId("proposal-p1")).getByText("Added")).toBeInTheDocument();
+  });
 });

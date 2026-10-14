@@ -79,6 +79,11 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
   const keptFile = React.useRef<File | null>(null);
   const attached = React.useRef(false);
   const createdStops = React.useRef<Record<string, string>>({});
+  // A proposed Stop's clientId while some confirm() call is already creating
+  // it: a sibling confirm needing the same Stop awaits this instead of
+  // sending its own create (fix round 1 - concurrent confirms otherwise both
+  // see an empty createdStops.current and each send the Stop, doubling it).
+  const pendingStops = React.useRef<Record<string, Promise<string | undefined>>>({});
 
   function reset() {
     setPhase({ kind: "pick" });
@@ -87,6 +92,7 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     keptFile.current = null;
     attached.current = false;
     createdStops.current = {};
+    pendingStops.current = {};
   }
 
   async function read(file: File | null, pasted: string) {
@@ -134,13 +140,67 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     }
   }
 
+  /**
+   * Claims every proposed Stop a Proposal still needs (or, confirming a Stop
+   * directly, the Stop itself): Stops nobody is creating yet are returned in
+   * `owned` for this call to send, and are marked pending for any sibling
+   * that asks next; Stops someone else is already creating are awaited here
+   * so `resolved` always carries the real id by the time this returns.
+   * `release` must be called exactly once, after this call's own
+   * confirmProposal settles, to hand the result to any sibling waiting on it.
+   */
+  async function claimStops(proposal: Proposal): Promise<{ owned: StopProposal[]; resolved: Record<string, string>; release(created: Record<string, string>): void }> {
+    const refs = proposal.kind === "stop" ? [proposal.clientId] : proposalStopRefs(proposal);
+    const needed = refs.filter((id) => !createdStops.current[id]);
+    const toOwn = needed.filter((id) => !pendingStops.current[id]);
+    const toAwait = needed.filter((id) => pendingStops.current[id]);
+
+    const owned = toOwn
+      .map((id) => (proposal.kind === "stop" && id === proposal.clientId ? proposal : entries[id]?.proposal))
+      .filter((p): p is StopProposal => p?.kind === "stop");
+
+    const resolvers = new Map<string, (id: string | undefined) => void>();
+    for (const stop of owned) {
+      pendingStops.current[stop.clientId] = new Promise<string | undefined>((resolve) => resolvers.set(stop.clientId, resolve));
+    }
+
+    const resolved: Record<string, string> = { ...createdStops.current };
+    await Promise.all(
+      toAwait.map(async (id) => {
+        const real = await pendingStops.current[id];
+        if (real) resolved[id] = real;
+      }),
+    );
+
+    return {
+      owned,
+      resolved,
+      release(created) {
+        for (const [id, resolve] of resolvers) {
+          resolve(created[id]);
+          delete pendingStops.current[id];
+        }
+      },
+    };
+  }
+
   /** Confirms one Proposal (optionally an edited version), saving any proposed Stop it needs first. */
   async function confirm(clientId: string, edited?: Proposal): Promise<ConfirmProposalResult> {
     const proposal = edited ?? entries[clientId].proposal;
-    const needs = proposalStopRefs(proposal)
-      .filter((id) => !createdStops.current[id])
-      .map((id) => entries[id]?.proposal)
-      .filter((p): p is StopProposal => p?.kind === "stop");
+    const claim = await claimStops(proposal);
+
+    // Confirming a proposed Stop that a sibling already claimed: nothing
+    // left to send, just reflect that creation's outcome.
+    if (proposal.kind === "stop" && !claim.owned.some((s) => s.clientId === proposal.clientId)) {
+      const createdId = claim.resolved[proposal.clientId];
+      const result: ConfirmProposalResult = createdId
+        ? { ok: true, createdId, createdStops: {} }
+        : { ok: false, message: M.generic, createdStops: {} };
+      setEntries((prev) => ({ ...prev, [clientId]: { ...prev[clientId], status: createdId ? "confirmed" : "pending", error: createdId ? null : M.generic } }));
+      return result;
+    }
+
+    const needs = proposal.kind === "stop" ? [] : claim.owned;
     const busy = [clientId, ...needs.map((s) => s.clientId)];
     setEntries((prev) => {
       const next = { ...prev };
@@ -149,11 +209,12 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     });
     let res: ConfirmProposalResult;
     try {
-      res = await confirmProposal(tripId, { proposal, proposedStops: needs, resolvedStops: createdStops.current }, forkId);
+      res = await confirmProposal(tripId, { proposal, proposedStops: needs, resolvedStops: claim.resolved }, forkId);
     } catch {
       res = { ok: false, message: M.generic, createdStops: {} };
     }
     createdStops.current = { ...createdStops.current, ...res.createdStops };
+    claim.release(res.createdStops);
     setEntries((prev) => {
       const next = { ...prev };
       for (const id of busy) {
