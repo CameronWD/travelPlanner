@@ -18,7 +18,7 @@ export function createRateLimiter(opts: {
   limit: number;
   windowMs: number;
   now?: () => number;
-}): { allow(key: string): boolean } {
+}): { allow(key: string): boolean; retryAfterMs(key: string): number } {
   const { limit, windowMs, now = () => Date.now() } = opts;
   const entries = new Map<string, Entry>();
 
@@ -46,6 +46,13 @@ export function createRateLimiter(opts: {
       }
 
       return false;
+    },
+
+    /** Milliseconds until `key`'s window resets; 0 when it has none open. */
+    retryAfterMs(key: string): number {
+      const entry = entries.get(key);
+      if (!entry) return 0;
+      return Math.max(0, windowMs - (now() - entry.windowStart));
     },
   };
 }
