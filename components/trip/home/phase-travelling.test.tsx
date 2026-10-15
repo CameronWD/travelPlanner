@@ -594,9 +594,10 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     expect(findElementByType(tree, EmptyState)?.props.title).toBe("Nothing planned");
   });
 
-  it("never frames money per person — shared pot only", async () => {
+  it("never frames money per person", async () => {
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    expect(dom.textContent).not.toMatch(/shared pot/i);
     expect(dom.textContent).not.toMatch(/per person|each owes|split/i);
   });
 

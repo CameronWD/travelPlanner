@@ -1,13 +1,13 @@
 import type { Route } from "next";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SharedPotTile } from "./shared-pot-tile";
+import { TripCostTile } from "./trip-cost-tile";
 
-type Props = Parameters<typeof SharedPotTile>[0];
+type Props = Parameters<typeof TripCostTile>[0];
 
 function renderTile(overrides: Partial<Props> = {}) {
   return render(
-    <SharedPotTile
+    <TripCostTile
       href={"/trips/t1/budget" as Route}
       hasCover
       costTotalMinor={1_110_000}
@@ -19,10 +19,11 @@ function renderTile(overrides: Partial<Props> = {}) {
   );
 }
 
-describe("SharedPotTile", () => {
-  it("has a Shared pot h2, the abbreviated total and the paid progress bar", () => {
+describe("TripCostTile", () => {
+  it("has a Trip cost h2, the abbreviated total and the paid progress bar", () => {
     renderTile();
-    expect(screen.getByRole("heading", { level: 2, name: /shared pot/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Trip cost" })).toBeInTheDocument();
+    expect(screen.queryByText(/shared pot/i)).toBeNull();
     expect(screen.getByText("$11.1k")).toBeInTheDocument();
     expect(screen.getByText("planned so far")).toBeInTheDocument();
     const bar = screen.getByRole("progressbar", { name: "Paid" });
@@ -56,7 +57,7 @@ describe("SharedPotTile", () => {
     renderTile({ costTotalMinor: 95_050, paidTotalMinor: 11_520 });
     expect(screen.getByText("$950.50")).toBeInTheDocument();
     expect(screen.getByText(/\$115\.20 paid/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /\$950\.50 planned/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Trip cost: \$950\.50 planned/ })).toBeInTheDocument();
   });
 
   it("uses the narrow symbol for the next payment, like the total", () => {

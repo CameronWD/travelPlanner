@@ -191,7 +191,7 @@ export async function PhasePlanning({
       tone="sun"
       label="Cost so far"
       value={formatMoneyCompact(budget.grandTotal.costTotalMinor, homeCurrency)}
-      sub={<>{formatMoneyCompact(budget.grandTotal.paidTotalMinor, homeCurrency)} paid · shared pot</>}
+      sub={<>{formatMoneyCompact(budget.grandTotal.paidTotalMinor, homeCurrency)} paid</>}
       href={tripPath(slug, "/budget")}
     />,
     <StatTile

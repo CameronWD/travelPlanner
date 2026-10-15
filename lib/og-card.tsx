@@ -47,8 +47,8 @@ export function DefaultOgCard(): ReactElement {
     <div style={{ width: 1200, height: 630, display: "flex", background: OG_COLOURS.coral, padding: 64, fontFamily: "Jakarta", color: OG_COLOURS.ink, position: "relative" }}>
       <div style={{ display: "flex", flexDirection: "column", flex: 1, background: OG_COLOURS.paper, border: `4px solid ${OG_COLOURS.ink}`, borderRadius: 40, boxShadow: `12px 12px 0 ${OG_COLOURS.ink}`, padding: "52px 60px" }}>
         <Wordmark h={48} />
-        <div style={{ display: "flex", marginTop: "auto", fontFamily: "Bricolage", fontSize: 100, lineHeight: 0.92, letterSpacing: "-0.045em", maxWidth: 760 }}>Plan the trip together.</div>
-        <div style={{ display: "flex", marginTop: 18, fontSize: 32, fontWeight: 700, color: OG_COLOURS.muted }}>Stops, beds, trains and the shared pot, in one place.</div>
+        <div style={{ display: "flex", marginTop: "auto", fontFamily: "Bricolage", fontSize: 100, lineHeight: 0.92, letterSpacing: "-0.045em", maxWidth: 760 }}>Your whole trip, in one place.</div>
+        <div style={{ display: "flex", marginTop: 18, fontSize: 32, fontWeight: 700, color: OG_COLOURS.muted }}>Stops, trains, beds and budget. On your own or together.</div>
       </div>
       <div style={{ position: "absolute", right: 110, top: 96, display: "flex", transform: "rotate(8deg)" }}><Mark size={190} /></div>
     </div>

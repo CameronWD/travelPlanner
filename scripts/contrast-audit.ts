@@ -992,7 +992,7 @@ const EXPECTED_EXEMPTIONS: ExemptionAllowlistEntry[] = [
     matches: (row) => row.exemptAncestorTag === "a" && ancestorHasClass(row, "leaflet-control-zoom-out"),
   },
   {
-    // The 88px/50px coral "." that closes "Plan it with your people" on the
+    // The 88px/50px coral "." that closes "Your whole trip, in one place" on the
     // light-only landing (app/landing/landing.tsx). 2.7:1 against the cream
     // ground, needs 3:1. It is punctuation painted as a brand flourish: the
     // sentence reads without it, it is aria-hidden on the element itself

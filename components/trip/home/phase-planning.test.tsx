@@ -664,9 +664,10 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     expect(findElementByType(await render(), RouteMapLoader)).toBeNull();
   });
 
-  it("never frames money per person — shared pot only", async () => {
+  it("never frames money per person", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const html = renderToStaticMarkup((await render()) as Parameters<typeof renderToStaticMarkup>[0]);
+    expect(html).not.toMatch(/shared pot/i);
     expect(html).not.toMatch(/per person|each owes|split/i);
   });
 });
@@ -904,7 +905,7 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     expect(JSON.stringify(transportFindManyMock.mock.calls[0][0])).not.toContain("surpriseMarker");
   });
 
-  it("a hidden-owner Cost counts in the Shared pot total but is not an upcoming payment line", async () => {
+  it("a hidden-owner Cost counts in the Trip cost total but is not an upcoming payment line", async () => {
     const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
     const budgetMod = await import("@/lib/budget");
     vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(((i: { costs: unknown[] }) => i.costs) as never);

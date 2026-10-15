@@ -54,8 +54,9 @@ describe("SpendSoFarTile", () => {
     expect(screen.queryByText(/under|over/)).toBeNull();
   });
 
-  it("is a shared pot — never per person", () => {
+  it("never frames money per person", () => {
     const { container } = renderTile();
+    expect(container.textContent).not.toMatch(/shared pot/i);
     expect(container.textContent).not.toMatch(/per person|each/i);
   });
 });

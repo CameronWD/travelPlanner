@@ -4,7 +4,7 @@
  *
  * Called by both Home trees on the same request: the phone Planning/Final-prep
  * Phase (components/trip/home/phase-planning.tsx) and the desktop (lg+) Home's
- * Shared pot / Route map / "Sort these out" tiles (app/(app)/trips/[tripId]/
+ * Trip cost / Route map / "Sort these out" tiles (app/(app)/trips/[tripId]/
  * page.tsx). Wrapped in React's `cache()` so the second call on a request is
  * free when both pass the same `trip` object (the page does).
  *

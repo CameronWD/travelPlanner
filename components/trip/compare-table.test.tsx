@@ -135,11 +135,11 @@ describe("CompareTable — metric rows", () => {
     expect(table.getByText(/^Projected end$/i)).toBeInTheDocument();
   });
 
-  it("renders the Trip cost row (shared-pot wording, was \"Budget\")", () => {
+  it("never frames money per person", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     const table = within(screen.getAllByTestId("plan-card")[0]);
     expect(table.getByText(/^Trip cost$/i)).toBeInTheDocument();
-    expect(table.getByText(/^shared pot$/i)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/shared pot/i);
     expect(document.body.textContent).not.toMatch(/per person|each owes|split/i);
   });
 

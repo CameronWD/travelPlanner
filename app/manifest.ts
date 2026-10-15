@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Teepee",
     short_name: "Teepee",
-    description: "Plan it with your people.",
+    description: "Your whole trip, in one place.",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",

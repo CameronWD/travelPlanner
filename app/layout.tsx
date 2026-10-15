@@ -38,7 +38,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: { default: "Teepee", template: "%s · Teepee" },
-  description: "Plan it with your people.",
+  description: "Your whole trip, in one place.",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },

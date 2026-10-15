@@ -90,7 +90,7 @@ describe("RootPage", () => {
     authMock.mockResolvedValue(null);
     render(await RootPage({ searchParams: Promise.resolve({}) }));
     expect(redirectMock).not.toHaveBeenCalled();
-    expect(screen.getAllByRole("heading", { level: 1, name: /Plan it with your people/ })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1, name: /Your whole trip, in one place/ })[0]).toBeInTheDocument();
   });
 
   it("shows the landing, not a redirect, when the session's user no longer exists (no /trips ↔ / loop)", async () => {
@@ -98,7 +98,7 @@ describe("RootPage", () => {
     findUnique.mockResolvedValue(null);
     render(await RootPage({ searchParams: Promise.resolve({}) }));
     expect(redirectMock).not.toHaveBeenCalled();
-    expect(screen.getAllByRole("heading", { level: 1, name: /Plan it with your people/ })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1, name: /Your whole trip, in one place/ })[0]).toBeInTheDocument();
   });
 
   it("titles the page a bare 'Teepee'", () => {

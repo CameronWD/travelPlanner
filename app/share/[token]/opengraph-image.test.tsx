@@ -44,7 +44,8 @@ describe("Share link OG image (SHARE.md §3)", () => {
   it("a revoked or unknown token gets the site card and no trip data", async () => {
     shareFindFirstMock.mockResolvedValue(null);
     const out = await html("gone");
-    expect(out).toContain("Plan the trip together.");
+    expect(out).toContain("Your whole trip, in one place.");
+    expect(out).not.toContain("shared pot");
     expect(stopFindManyMock).not.toHaveBeenCalled();
   });
 

@@ -14,13 +14,13 @@ const spend = (o: Partial<SpendSoFar> = {}): SpendSoFar => ({
 });
 
 describe("SpendSoFarCard compact (trip home, Task 10b)", () => {
-  it("renders the kit 'Spent' glance: a Card with label, shared-pot note, paid figure and cost sub-line", () => {
+  it("never frames money per person", () => {
     const { container } = render(<SpendSoFarCard compact spend={spend()} homeCurrency="AUD" />);
     const card = container.firstChild as HTMLElement;
     expect(card.className).toMatch(/\bborder-2\b/);
     expect(card.className).toMatch(/\bshadow-hard-\d\b/);
     expect(screen.getByRole("heading", { name: "Paid so far" })).toBeInTheDocument();
-    expect(screen.getByText("shared pot")).toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/shared pot/i);
     expect(card.textContent).toContain("200.00");
     expect(card.textContent).toMatch(/of .*680\.00 cost · .*50\.00 under/);
     expect(card.textContent).not.toMatch(/per person|each owes|split/i);

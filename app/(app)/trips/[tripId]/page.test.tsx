@@ -484,7 +484,7 @@ describe("Trip Home, composed with its layout", () => {
       expect([...row!.querySelectorAll("li")].map((li) => li.textContent)).toContain("3Chapters");
     });
 
-    it("fills the grid with Shared pot, Route map and Sort these out — and no Reminders panel", async () => {
+    it("fills the grid with Trip cost, Route map and Sort these out — and no Reminders panel", async () => {
       mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, homeCurrency: "AUD" });
       loaderData.current = {
         ...loaderData.current,
