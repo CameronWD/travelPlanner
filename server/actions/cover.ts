@@ -8,10 +8,9 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { reportError } from "@/lib/error-sink";
 import { checkQuota } from "@/lib/storage-quota";
 import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
+import { type ActionResult, formFail } from "@/lib/action-result";
 
-export type CoverActionResult =
-  | { success: true }
-  | { success: false; error: string };
+export type CoverActionResult = ActionResult;
 
 /**
  * Set (or replace) a trip's cover photo. FormData: tripId (string), file (File).
@@ -22,10 +21,10 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   const file = formData.get("file");
 
   if (typeof tripId !== "string" || !tripId) {
-    return { success: false, error: "Missing tripId." };
+    return formFail("Missing tripId.");
   }
   if (!(file instanceof File)) {
-    return { success: false, error: "No file provided." };
+    return formFail("No file provided.");
   }
   // The declared type is the client's word; the small copy is accepted only
   // when its bytes really are a WebP (RIFF….WEBP).
@@ -35,22 +34,22 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
 
   const validation = validateUpload({ mime: file.type, size: file.size });
   if (!validation.ok) {
-    return { success: false, error: validation.error };
+    return formFail(validation.error);
   }
   if (!file.type.startsWith("image/")) {
-    return { success: false, error: "Cover must be an image (PNG, JPEG, WebP or GIF)." };
+    return formFail("Cover must be an image (PNG, JPEG, WebP or GIF).");
   }
 
   // Quota (spec 2026-10-02 §B): a Trip cover creates no Attachment row, so
   // it counts only toward the global cap.
   const quota = await checkQuota({ tripId: null, size: file.size + (small?.length ?? 0) });
-  if (!quota.ok) return { success: false, error: quota.error };
+  if (!quota.ok) return formFail(quota.error);
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: { coverImageKey: true, coverSmallKey: true },
   });
-  if (!trip) return { success: false, error: "Trip not found." };
+  if (!trip) return formFail("Trip not found.");
 
   const bytes = Buffer.from(await file.arrayBuffer());
   let key: string;
@@ -70,7 +69,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
       route: "server/actions/cover.ts#setTripCover",
       source: "server",
     });
-    return { success: false, error: "Couldn't upload the cover photo. Nothing was saved. Try again." };
+    return formFail("Couldn't upload the cover photo. Nothing was saved. Try again.");
   }
 
   // Schedule the previous cover blob for retention/sweep (ARCH-DAT-3) rather
@@ -106,7 +105,7 @@ export async function removeTripCover(tripId: string): Promise<CoverActionResult
     where: { id: tripId },
     select: { coverImageKey: true, coverSmallKey: true },
   });
-  if (!trip) return { success: false, error: "Trip not found." };
+  if (!trip) return formFail("Trip not found.");
 
   if (trip.coverImageKey) {
     // Schedule for retention/sweep (ARCH-DAT-3) rather than destroying now.
@@ -134,7 +133,7 @@ function clampUnit(n: number): number {
  */
 export async function setCoverFocal(tripId: string, x: number, y: number): Promise<CoverActionResult> {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return { success: false, error: "That point isn't on the photo." };
+    return formFail("That point isn't on the photo.");
   }
 
   await requireTripAccess(tripId);

@@ -348,7 +348,7 @@ describe("uploadAttachment", () => {
     const result = await uploadAttachment(makeFormData());
     expect(result).toEqual({
       success: false,
-      error: "This Trip has used its 500 MB of file storage. Delete some files to add more.",
+      errors: { _: ["This Trip has used its 500 MB of file storage. Delete some files to add more."] },
     });
     expect(attachmentCreateMock).not.toHaveBeenCalled();
     expect(storageSaveMock).not.toHaveBeenCalled();
@@ -373,7 +373,7 @@ describe("uploadAttachment", () => {
     const result = await uploadAttachment(fd);
     expect(result).toEqual({
       success: false,
-      error: "Teepee's file storage is full. Cam has been told.",
+      errors: { _: ["Teepee's file storage is full. Cam has been told."] },
     });
     expect(storageSaveMock).not.toHaveBeenCalled();
     expect(attachmentCreateMock).not.toHaveBeenCalled();
@@ -414,7 +414,7 @@ describe("uploadAttachment", () => {
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.error).toBe("Couldn't upload the file. Nothing was saved. Try again.");
+      expect(result.errors._![0]).toBe("Couldn't upload the file. Nothing was saved. Try again.");
       expect(attachmentDeleteMock).toHaveBeenCalledWith({
         where: { id: ATTACHMENT_ID },
       });
@@ -540,7 +540,7 @@ describe("uploadAttachment", () => {
       const result = await uploadAttachment(makeJournalFormData());
       expect(result).toEqual({
         success: false,
-        error: "You already have a photo for this day.",
+        errors: { _: ["You already have a photo for this day."] },
         code: "JOURNAL_PHOTO_EXISTS",
       });
       expect(attachmentCreateMock).not.toHaveBeenCalled();
@@ -792,7 +792,7 @@ describe("setAttachmentTitle", () => {
   it("refuses a title over 120 characters without writing", async () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
     const result = await setAttachmentTitle(ATTACHMENT_ID, "x".repeat(121));
-    expect(result).toEqual({ success: false, error: "Title must be 120 characters or fewer." });
+    expect(result).toEqual({ success: false, errors: { _: ["Title must be 120 characters or fewer."] } });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 });
@@ -812,7 +812,7 @@ describe("linkAttachmentToItem", () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
     itemFindFirstMock.mockResolvedValue(null);
     const result = await linkAttachmentToItem(ATTACHMENT_ID, "other-trip-item");
-    expect(result).toEqual({ success: false, error: "That item isn't on this trip." });
+    expect(result).toEqual({ success: false, errors: { _: ["That item isn't on this trip."] } });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -825,7 +825,7 @@ describe("linkAttachmentToItem", () => {
   it("refuses a file uploaded on a Stop, Transport or Accommodation", async () => {
     attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), targetType: "STOP", targetId: "s1" });
     const result = await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
-    expect(result).toEqual({ success: false, error: "Only trip-level files can be linked to an item." });
+    expect(result).toEqual({ success: false, errors: { _: ["Only trip-level files can be linked to an item."] } });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 

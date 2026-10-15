@@ -43,8 +43,8 @@ describe("toastRefused", () => {
     toastRefused({ _: ["Nope."] }, "Couldn't do that.");
     expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Nope." });
   });
-  it("toasts a plain string reason as-is", () => {
-    toastRefused("File is someone else's.", "Couldn't do that.");
+  it("toasts the server's own words from a full ActionFailure", () => {
+    toastRefused({ success: false, errors: { _: ["File is someone else's."] } }, "Couldn't do that.");
     expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "File is someone else's." });
   });
   it("uses the fallback when there's no reason", () => {

@@ -513,7 +513,7 @@ describe("setBuyState", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "Only a Packing item can be marked to buy.",
+      errors: { _: ["Only a Packing item can be marked to buy."] },
     });
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
   });
@@ -559,7 +559,7 @@ describe("setBuyState", () => {
 
     const result = await setBuyState("ci-1", "BOGUS" as unknown as "NEEDED");
 
-    expect(result).toEqual({ success: false, error: "Invalid buy state." });
+    expect(result).toEqual({ success: false, errors: { _: ["Invalid buy state."] } });
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
   });
 });

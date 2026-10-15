@@ -13,6 +13,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 import { travellerName, type TravellerLike } from "@/lib/traveller";
 
 interface Member {
@@ -71,7 +72,7 @@ export function InvitePanel({
     startInviteTransition(async () => {
       const result = await inviteToTrip(tripId, emailValue);
       if (!result.success) {
-        setInviteError(result.error);
+        setInviteError(firstErrorMessage(result, "Couldn't send that invite."));
       } else {
         setEmailValue("");
         setInviteSuccess(true);
@@ -100,7 +101,7 @@ export function InvitePanel({
     const result = await removeTripMember(tripId, m.userId);
     setRemovingUserId(null);
     if (!result.success) {
-      toast({ title: result.error, variant: "destructive" });
+      toast({ title: firstErrorMessage(result, "Couldn't do that."), variant: "destructive" });
     }
   }
 
@@ -118,7 +119,7 @@ export function InvitePanel({
       if (result.success) {
         router.push("/trips");
       } else {
-        toast({ title: result.error, variant: "destructive" });
+        toast({ title: firstErrorMessage(result, "Couldn't do that."), variant: "destructive" });
       }
     });
   }

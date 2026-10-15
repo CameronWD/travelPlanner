@@ -397,7 +397,7 @@ describe("createFork", () => {
 
       expect(res).toEqual({
         success: false,
-        error: expect.stringMatching(/limit|cap|maximum/i),
+        errors: { _: [expect.stringMatching(/limit|cap|maximum/i)] },
       });
       expect(txMock).not.toHaveBeenCalled();
     });
@@ -425,7 +425,7 @@ describe("createFork", () => {
 
       const res = await createFork("trip-1", "Plan B");
 
-      expect(res).toEqual({ success: false, error: expect.stringMatching(/what-if plans/i) });
+      expect(res).toEqual({ success: false, errors: { _: [expect.stringMatching(/what-if plans/i)] } });
       expect(txMock).not.toHaveBeenCalled();
     });
   });
@@ -441,7 +441,7 @@ describe("createFork", () => {
 
       const res = await createFork("trip-1", "Plan B");
 
-      expect(res).toEqual({ success: false, error: expect.any(String) });
+      expect(res).toEqual({ success: false, errors: { _: [expect.any(String)] } });
       expect(txMock).not.toHaveBeenCalled();
     });
 
@@ -455,7 +455,7 @@ describe("createFork", () => {
 
       const res = await createFork("trip-1");
 
-      expect(res).toEqual({ success: false, error: expect.any(String) });
+      expect(res).toEqual({ success: false, errors: { _: [expect.any(String)] } });
       expect(txMock).not.toHaveBeenCalled();
     });
   });
@@ -975,14 +975,14 @@ describe("renameFork", () => {
   it("returns error for empty name (empty string)", async () => {
     const res = await renameFork("fork-1", "");
 
-    expect(res).toEqual({ success: false, error: expect.any(String) });
+    expect(res).toEqual({ success: false, errors: { _: [expect.any(String)] } });
     expect(forkUpdateMock).not.toHaveBeenCalled();
   });
 
   it("returns error for whitespace-only name", async () => {
     const res = await renameFork("fork-1", "   ");
 
-    expect(res).toEqual({ success: false, error: expect.any(String) });
+    expect(res).toEqual({ success: false, errors: { _: [expect.any(String)] } });
     expect(forkUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -1657,7 +1657,7 @@ describe("promoteFork", () => {
 
       const result = await promoteFork("fork-9");
 
-      expect(result).toEqual({ success: false, error: expect.any(String) });
+      expect(result).toEqual({ success: false, errors: { _: [expect.any(String)] } });
       expect(txMock).not.toHaveBeenCalled();
     });
 
@@ -1679,7 +1679,7 @@ describe("promoteFork", () => {
 
       const result = await promoteFork("fork-9");
 
-      expect(result).toEqual({ success: false, error: expect.stringMatching(/what-if plans/i) });
+      expect(result).toEqual({ success: false, errors: { _: [expect.stringMatching(/what-if plans/i)] } });
       expect(txMock).not.toHaveBeenCalled();
     });
   });
@@ -1693,7 +1693,7 @@ describe("promoteFork", () => {
 
       const result = await promoteFork("fork-9");
 
-      expect(result).toEqual({ success: false, error: expect.any(String) });
+      expect(result).toEqual({ success: false, errors: { _: [expect.any(String)] } });
       expect(txMock).not.toHaveBeenCalled();
     });
 
@@ -1705,7 +1705,7 @@ describe("promoteFork", () => {
 
       const result = await promoteFork("fork-9");
 
-      expect(result).toEqual({ success: false, error: expect.any(String) });
+      expect(result).toEqual({ success: false, errors: { _: [expect.any(String)] } });
       expect(txMock).not.toHaveBeenCalled();
     });
 

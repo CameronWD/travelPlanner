@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 interface DangerZoneProps {
   tripId: string;
@@ -39,7 +40,7 @@ export function DangerZone({ tripId, tripName }: DangerZoneProps) {
       const result = await deleteTrip(tripId);
       // If deleteTrip succeeds it redirects (throws), so we only land here on error.
       if (!result.success) {
-        setError(result.error);
+        setError(firstErrorMessage(result, "Couldn't delete the trip."));
         setOpen(false);
       }
     });

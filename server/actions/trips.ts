@@ -27,7 +27,7 @@ import {
   type CreateTripInput,
   type TripInput,
 } from "@/lib/validations/trip";
-import { type ActionResult, fail, validationResult } from "@/lib/action-result";
+import { type ActionResult, fail, formFail, validationResult } from "@/lib/action-result";
 
 export type CreateTripResult = ActionResult<{ tripId: string; href: Route }>;
 
@@ -381,7 +381,7 @@ export async function updateTrip(
 // setTripHardEndDate — focused write for the Plan overview's inline control
 // ---------------------------------------------------------------------------
 
-export type SetHardEndDateResult = { success: true } | { success: false; error: string };
+export type SetHardEndDateResult = ActionResult;
 
 /**
  * Set or clear a trip's hard end date. Pass null/"" to clear. Validates the
@@ -396,14 +396,14 @@ export async function setTripHardEndDate(
   const value = hardEndDate && hardEndDate.trim() !== "" ? hardEndDate.trim() : null;
   if (value !== null) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return { success: false, error: "Date must be in YYYY-MM-DD format." };
+      return formFail("Date must be in YYYY-MM-DD format.");
     }
     const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
     if (!trip) {
-      return { success: false, error: "Trip not found." };
+      return formFail("Trip not found.");
     }
     if (trip.startDate && value < trip.startDate) {
-      return { success: false, error: "Hard end date must be on or after the start date." };
+      return formFail("Hard end date must be on or after the start date.");
     }
   }
 
@@ -420,9 +420,7 @@ export async function setTripHardEndDate(
 // deleteTrip
 // ---------------------------------------------------------------------------
 
-export type DeleteTripResult =
-  | { success: true }
-  | { success: false; error: string };
+export type DeleteTripResult = ActionResult;
 
 /**
  * Soft-delete a trip (ADR 0067). Owner-only, plus any operator listed in
@@ -445,7 +443,7 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
   // required — requireTripAccess above already notFound()s for non-members,
   // and an admin gets no bypass of it (ADR 0045).
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can delete the trip." };
+    return formFail("Only the trip owner can delete the trip.");
   }
 
   await db.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
@@ -460,9 +458,7 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
 // restoreTrip
 // ---------------------------------------------------------------------------
 
-export type RestoreTripResult =
-  | { success: true; slug: string }
-  | { success: false; error: string };
+export type RestoreTripResult = ActionResult<{ slug: string }>;
 
 /**
  * Restore a Trip out of Recently deleted (ADR 0067). Clears `deletedAt` and
@@ -482,7 +478,7 @@ export async function restoreTrip(tripId: string): Promise<RestoreTripResult> {
   });
 
   if (!membership || !isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can restore the trip." };
+    return formFail("Only the trip owner can restore the trip.");
   }
 
   const trip = await db.trip.update({
@@ -500,9 +496,7 @@ export async function restoreTrip(tripId: string): Promise<RestoreTripResult> {
 // duplicateTrip
 // ---------------------------------------------------------------------------
 
-export type DuplicateTripResult =
-  | { success: true; tripId: string; slug: string }
-  | { success: false; error: string };
+export type DuplicateTripResult = ActionResult<{ tripId: string; slug: string }>;
 
 /**
  * Duplicate a trip. Creates a new trip with the same structure but with all
@@ -529,7 +523,7 @@ export async function duplicateTrip(
   // any member. Without this, a Traveller could mint a fully-owned copy of
   // someone else's trip, members and all.
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can duplicate the trip." };
+    return formFail("Only the trip owner can duplicate the trip.");
   }
 
   const source = await db.trip.findUnique({
@@ -543,7 +537,7 @@ export async function duplicateTrip(
       checklistItems: true,
     },
   });
-  if (!source) return { success: false, error: "Trip not found" };
+  if (!source) return formFail("Trip not found");
 
   // Resolve emails for every OTHER source member up front — the source of
   // truth for who gets invited to the copy. A member id that doesn't resolve
@@ -762,9 +756,7 @@ export async function setForksEnabled(tripId: string, enabled: boolean): Promise
 // Anything that needs a post-mutation membership answer must query
 // db.tripMember directly rather than go back through the guard.
 
-export type RemoveTripMemberResult =
-  | { success: true }
-  | { success: false; error: string };
+export type RemoveTripMemberResult = ActionResult;
 
 /**
  * Remove a Traveller from a trip. Owner-only (plus an ADMIN_EMAILS operator
@@ -791,14 +783,13 @@ export async function removeTripMember(
   const { user, membership } = await requireTripAccess(tripId);
 
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can remove a traveller." };
+    return formFail("Only the trip owner can remove a traveller.");
   }
 
   if (userId === user.id && membership.role === "owner") {
-    return {
-      success: false,
-      error: "You can't remove yourself as the owner. The owner role can't be transferred to another traveller yet.",
-    };
+    return formFail(
+      "You can't remove yourself as the owner. The owner role can't be transferred to another traveller yet.",
+    );
   }
 
   // The TARGET's role, not the caller's (final fix wave, I1). The gate above
@@ -817,11 +808,9 @@ export async function removeTripMember(
   });
 
   if (targetMembership?.role === "owner") {
-    return {
-      success: false,
-      error:
-        "You can't remove the trip's owner. A trip with no owner could never be deleted, duplicated or invited to again.",
-    };
+    return formFail(
+      "You can't remove the trip's owner. A trip with no owner could never be deleted, duplicated or invited to again.",
+    );
   }
 
   // Uncached, direct lookup — deliberately not routed back through
@@ -844,9 +833,7 @@ export async function removeTripMember(
   return { success: true };
 }
 
-export type LeaveTripResult =
-  | { success: true }
-  | { success: false; error: string };
+export type LeaveTripResult = ActionResult;
 
 /**
  * Leave a trip the current user is a member of. The owner cannot leave at
@@ -865,10 +852,9 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
   const { user, membership } = await requireTripAccess(tripId);
 
   if (membership.role === "owner") {
-    return {
-      success: false,
-      error: "As the owner, you can't leave this trip. The owner role can't be transferred to another traveller yet.",
-    };
+    return formFail(
+      "As the owner, you can't leave this trip. The owner role can't be transferred to another traveller yet.",
+    );
   }
 
   // Surprise (CONTEXT.md): nobody else could reveal their Surprises.

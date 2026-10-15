@@ -13,7 +13,7 @@ import {
   type ChecklistItemUpdateInput,
 } from "@/lib/validations/checklist";
 import { mergeTemplateTexts } from "@/lib/checklists";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, formFail, validationResult } from "@/lib/action-result";
 import { buyStateSchema, type BuyState } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import {
@@ -314,16 +314,16 @@ export async function toggleChecklistItem(
 export async function setBuyState(
   itemId: string,
   buy: BuyState | null,
-): Promise<{ success: true } | { success: false; error: string }> {
+): Promise<ActionResult> {
   const item = await requireChecklistItemAccess(itemId);
 
   if (item.kind !== "PACKING") {
-    return { success: false, error: "Only a Packing item can be marked to buy." };
+    return formFail("Only a Packing item can be marked to buy.");
   }
 
   const parsedBuy = buyStateSchema.nullable().safeParse(buy);
   if (!parsedBuy.success) {
-    return { success: false, error: "Invalid buy state." };
+    return formFail("Invalid buy state.");
   }
 
   await db.checklistItem.update({

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { linkAttachmentToItem } from "@/server/actions/attachments";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 export interface LinkTargetGroup {
   stopName: string;
@@ -33,7 +34,7 @@ function Body({ file, targets, onOpenChange, onSaved }: Omit<FileLinkDialogProps
         onOpenChange(false);
         onSaved?.();
       } else {
-        setError(result.error);
+        setError(firstErrorMessage(result, "Couldn't link that file."));
       }
     });
   }

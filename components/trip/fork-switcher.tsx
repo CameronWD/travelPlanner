@@ -26,6 +26,7 @@ import { createFork, renameFork, discardFork } from "@/server/actions/forks";
 import { MAX_FORKS } from "@/lib/fork-plan";
 import type { TripPhase } from "@/lib/trip-phase";
 import { useTripHref } from "@/components/trip/use-trip-href";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,7 +89,7 @@ function RenameDialogForm({
         onRenamed();
         onClose();
       } else {
-        setError(result.error);
+        setError(firstErrorMessage(result, "Couldn't rename that plan."));
       }
     });
   }
@@ -165,7 +166,7 @@ function CreateVariantForm({
     startTransition(async () => {
       const result = await createFork(tripId, name.trim() || undefined, sourceForkId);
       if (result.success) { onCreated(result.forkId); onClose(); }
-      else setError(result.error);
+      else setError(firstErrorMessage(result, "Couldn't create that plan."));
     });
   }
 

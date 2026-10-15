@@ -14,6 +14,7 @@ import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } 
 import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { type ActionResult, formFail } from "@/lib/action-result";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
@@ -41,9 +42,7 @@ export async function listForks(tripId: string): Promise<ForkListItem[]> {
   });
 }
 
-export type CreateForkResult =
-  | { success: true; forkId: string }
-  | { success: false; error: string };
+export type CreateForkResult = ActionResult<{ forkId: string }>;
 
 /**
  * Deep-copy a plan into a new Fork within a transaction, remapping foreign
@@ -81,12 +80,12 @@ export async function createFork(
       },
     },
   });
-  if (!trip) return { success: false, error: "Trip not found" };
+  if (!trip) return formFail("Trip not found");
 
   // Plan variants are opt-in per trip (spec B3) — the switcher is hidden when
   // off; this is the server-side half of that gate.
   if (!trip.forksEnabled) {
-    return { success: false, error: PLAN_VARIANTS_OFF_ERROR };
+    return formFail(PLAN_VARIANTS_OFF_ERROR);
   }
 
   // 3. Phase gate — forking is only allowed before departure
@@ -99,19 +98,13 @@ export async function createFork(
       }),
     );
   } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "What-if plans are only available before the trip starts.",
-    };
+    return formFail(err instanceof Error ? err.message : "What-if plans are only available before the trip starts.");
   }
 
   // 4. Soft cap — check before opening the transaction
   const count = await db.fork.count({ where: { tripId } });
   if (count >= MAX_FORKS) {
-    return {
-      success: false,
-      error: `You have reached the maximum of ${MAX_FORKS} what-if plans. Discard one first.`,
-    };
+    return formFail(`You have reached the maximum of ${MAX_FORKS} what-if plans. Discard one first.`);
   }
 
   // 5. Load six source entity collections, scoped to the source plan
@@ -318,7 +311,7 @@ export async function createFork(
 // Result type shared by renameFork / discardFork
 // ---------------------------------------------------------------------------
 
-export type ForkMutationResult = { success: true } | { success: false; error: string };
+export type ForkMutationResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // renameFork
@@ -338,7 +331,7 @@ export async function renameFork(
   // 1. Parse & validate
   const parsed = renameSchema.safeParse({ name });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
+    return formFail(parsed.error.issues[0]?.message ?? "Invalid name");
   }
   const trimmedName = parsed.data.name;
 
@@ -816,7 +809,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
 // promoteFork
 // ---------------------------------------------------------------------------
 
-export type PromoteForkResult = { success: true } | { success: false; error: string };
+export type PromoteForkResult = ActionResult;
 
 /**
  * Promote a fork to become the new real plan.
@@ -843,13 +836,13 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   // query, since requireForkAccess's return shape doesn't carry the role.
   const { membership } = await requireTripAccess(tripId);
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can make this the real plan." };
+    return formFail("Only the trip owner can make this the real plan.");
   }
 
   // A dormant Fork (plan variants off, spec B3) can't be promoted — promoting
   // discards the real plan, so it must never happen from a hidden variant.
   if (!trip.forksEnabled) {
-    return { success: false, error: PLAN_VARIANTS_OFF_ERROR };
+    return formFail(PLAN_VARIANTS_OFF_ERROR);
   }
 
   // 2. Phase gate
@@ -869,10 +862,7 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
       }),
     );
   } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "What-if plans are only available before the trip starts.",
-    };
+    return formFail(err instanceof Error ? err.message : "What-if plans are only available before the trip starts.");
   }
 
   // 3. Transaction — strictly ordered

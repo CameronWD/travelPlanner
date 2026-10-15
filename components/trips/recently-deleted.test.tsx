@@ -73,7 +73,10 @@ describe("RecentlyDeleted", () => {
   });
 
   it("shows a destructive toast with the server's error when restore fails, and does not navigate", async () => {
-    restoreTrip.mockResolvedValue({ success: false, error: "Only the trip owner can restore the trip." });
+    restoreTrip.mockResolvedValue({
+      success: false,
+      errors: { _: ["Only the trip owner can restore the trip."] },
+    });
     render(<RecentlyDeleted trips={[trip({})]} now={NOW} />);
     screen.getByRole("button", { name: "Restore" }).click();
     await vi.waitFor(() => expect(restoreTrip).toHaveBeenCalledWith("t1"));

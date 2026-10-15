@@ -32,13 +32,12 @@ export function formError(x: ActionFailure | FieldErrors | undefined): string | 
 }
 
 /**
- * The action answered `success: false` (spec 2026-10-06 §E): say what the
- * server said — a field-error dict or a plain `error` string — else the
- * fallback. The server answered, so the connection is not the reason.
+ * The action answered `success: false` (spec 2026-10-06 §E, ADR 0074): say
+ * what the server said — a field-error dict or full `ActionFailure` — else
+ * the fallback. The server answered, so the connection is not the reason.
  */
-export function toastRefused(reason: FieldErrors | string | undefined, fallback: string): void {
-  const title = typeof reason === "string" ? reason : firstErrorMessage(reason, fallback);
-  toast({ variant: "destructive", title });
+export function toastRefused(reason: ActionFailure | FieldErrors | undefined, fallback: string): void {
+  toast({ variant: "destructive", title: firstErrorMessage(reason, fallback) });
 }
 
 /**

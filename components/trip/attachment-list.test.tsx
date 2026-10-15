@@ -371,7 +371,10 @@ describe("AttachmentList", () => {
   });
 
   it("toasts the server's reason when deleteAttachment refuses (spec 2026-10-06 §E)", async () => {
-    vi.mocked(deleteAttachment).mockResolvedValueOnce({ success: false, error: "You can't delete someone else's file." });
+    vi.mocked(deleteAttachment).mockResolvedValueOnce({
+      success: false,
+      errors: { _: ["You can't delete someone else's file."] },
+    });
     const user = userEvent.setup();
     render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />);
     await user.click(screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }));

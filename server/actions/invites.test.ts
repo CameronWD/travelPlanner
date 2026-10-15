@@ -88,7 +88,7 @@ describe("inviteToTrip", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/email/i);
+      expect(result.errors._?.[0]).toMatch(/email/i);
     }
     expect(inviteUpsertMock).not.toHaveBeenCalled();
   });
@@ -103,7 +103,7 @@ describe("inviteToTrip", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/already a member/i);
+      expect(result.errors._?.[0]).toMatch(/already a member/i);
     }
     expect(inviteUpsertMock).not.toHaveBeenCalled();
   });
@@ -220,7 +220,7 @@ describe("inviteToTrip", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "Only the trip owner can invite someone to this trip.",
+      errors: { _: ["Only the trip owner can invite someone to this trip."] },
     });
     expect(inviteUpsertMock).not.toHaveBeenCalled();
   });
@@ -261,7 +261,7 @@ describe("cancelInvite", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/not found/i);
+      expect(result.errors._?.[0]).toMatch(/not found/i);
     }
     expect(inviteDeleteMock).not.toHaveBeenCalled();
   });

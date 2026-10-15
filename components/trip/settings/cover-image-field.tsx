@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field, useFieldControl } from "@/components/ui/field";
 import { SM_HIT } from "@/components/ui/touch-target";
 import { toast } from "@/components/ui/use-toast";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 import { ImagePlus } from "lucide-react";
 
 export interface CoverImageFieldProps {
@@ -65,7 +66,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
     setFocal({ x, y });
     startTransition(async () => {
       const r = await setCoverFocal(tripId, x, y);
-      if (!r.success) toast({ variant: "destructive", title: r.error });
+      if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't update the focal point.") });
     });
   }
 
@@ -86,7 +87,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
       if (small) fd.set("fileSmall", small);
       try {
         const r = await setTripCover(fd);
-        if (!r.success) toast({ variant: "destructive", title: r.error });
+        if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't upload that cover.") });
       } catch {
         // The action reports its own failures; reaching here means the request
         // itself died (network, platform limit) — don't invent a size excuse.
@@ -98,7 +99,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
   function onRemove() {
     startTransition(async () => {
       const r = await removeTripCover(tripId);
-      if (!r.success) toast({ variant: "destructive", title: r.error });
+      if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't remove the cover.") });
     });
   }
 

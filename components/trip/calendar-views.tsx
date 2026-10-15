@@ -174,7 +174,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
           const result = isIdea
             ? await scheduleItem(itemId, { date: dateISO })
             : await rescheduleItem(itemId, dateISO);
-          if (!result.success) toastRefused(result.errors.date?.[0], "Couldn't move that item.");
+          if (!result.success) toastRefused(result.errors, "Couldn't move that item.");
         } catch {
           toastRejected("Couldn't move that item.");
         }

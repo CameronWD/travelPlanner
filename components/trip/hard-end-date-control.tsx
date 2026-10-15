@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/date-field";
 import { setTripHardEndDate } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 import { formatLongDate } from "@/lib/dates";
 
 interface HardEndDateControlProps {
@@ -36,7 +37,7 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate, label }: Ha
     startTransition(async () => {
       const r = await setTripHardEndDate(tripId, next);
       if (!r.success) {
-        toast({ variant: "destructive", title: r.error });
+        toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't update the home-by date.") });
       } else {
         setEditing(false);
       }
