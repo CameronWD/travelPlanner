@@ -2948,7 +2948,9 @@ being closed by a different shape of fix than the one suggested is still closed.
   surprised Item shows only its date, time and who's planning it. One loader
   (`lib/surprise-visibility.ts`) and one guard (`lib/surprise-guard.ts`)
   back every one of the roughly thirty readers, held to that by
-  `lib/surprise-readers.guard.test.ts`.
+  `readPlan`'s required viewer argument (lib/plan-reads.ts) for Plan pages and
+  by the slim `lib/surprise-readers.guard.test.ts` for the rest (ADR 0072,
+  amended 2026-10-15).
 - **TC-13 · Drop the Auth.js tables (Account, Session, VerificationToken)
   and the migration's Google-link copy once main has run on Better Auth for
   a release (and the now unused `User.emailVerified` timestamp); also gate /oauth2/create-client and update-client behind the

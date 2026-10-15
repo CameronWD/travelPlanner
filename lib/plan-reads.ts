@@ -139,6 +139,7 @@ export type PlanCostRow = Prisma.CostGetPayload<{ select: typeof COST_SELECT }>;
 export type PlanChapterRow = Prisma.ChapterGetPayload<{ select: typeof PLAN_CHAPTER_SELECT }>;
 
 export type PlanRows = {
+  /** The cached Trip shell; its `stops` are always the real plan's dated Stops, even when `plan` is a Fork — use `stops` below for this Plan. */
   trip: TripHeader;
   plan: PlanId;
   fork: { id: string; name: string } | null;
@@ -150,7 +151,10 @@ export type PlanRows = {
   accommodations: PlanAccommodationRow[];
   /** Only what the viewer may see, plus one placeholder per hidden root Item of THIS plan. */
   items: PlanItemRow[];
-  /** Unfiltered: hidden Costs stay in totals (callers pass `visibility.hiddenOwnerIds` to the budget). */
+  /**
+   * Unfiltered: hidden Costs stay in totals (callers pass `visibility.hiddenOwnerIds` to the budget).
+   * A caller that renders Cost lines must drop the ones whose `ownerId` is in `visibility.hiddenOwnerIds`.
+   */
   costs: PlanCostRow[];
   exchangeRates: { base: string; quote: string; rate: number; manual: boolean; fetchedAt: Date | null }[];
   /** [] when the Trip's chapters toggle is off (a disabled Trip renders flat). Dated and rough. */
@@ -261,8 +265,8 @@ export const readPlan: (tripId: string, viewer: PlanViewer, plan: PlanId) => Pro
 
     return {
       trip,
-      plan: plan ?? null,
-      fork: fork ?? null,
+      plan,
+      fork,
       visibility: v,
       stops: orderPlanStops(maskPlanStops(stopRows, v)),
       transports,

@@ -103,10 +103,13 @@ rather than trying to ask "surprised to whom".
 - The planner's own Calendar feed lacks their Surprise's inside while it is
   live, even though they are never one of the surprised — the cost of the
   feed having no viewer to exempt them with.
-- A new reader of Item or Accommodation rows must import
+- A page reading a Plan goes through `readPlan` (lib/plan-reads.ts), whose
+  viewer is a required argument, so it cannot forget the Surprise rules. A
+  reader that does not route through `readPlan` must import
   `lib/surprise-visibility.ts` (or, for Attachment bytes,
-  `lib/surprise-guard.ts`) or it fails `lib/surprise-readers.guard.test.ts`
-  before it ships.
+  `lib/surprise-guard.ts`) or it fails the slim
+  `lib/surprise-readers.guard.test.ts` before it ships; that list shrinks as
+  readers move onto `readPlan` (amended 2026-10-15).
 - Once revealed, a stamped Activity row shows in the feed in its place,
   alongside one new line naming who revealed it; none of the rows that were
   hidden while the Surprise was live are counted as unread on reveal, since

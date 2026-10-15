@@ -105,6 +105,23 @@ describe("readPlan", () => {
     expect(db.fork.findFirst).not.toHaveBeenCalled();
   });
 
+  it("notFound for a Fork id that is not this Trip's", async () => {
+    db.fork.findFirst.mockResolvedValue(null);
+    await expect(readPlan("trip-1", "u1", "someone-elses-fork")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(db.stop.findMany).not.toHaveBeenCalled();
+  });
+
+  it("a Fork resolved by resolvePlanParam is read through the cached readFork, not re-queried", async () => {
+    // React cache() memoises only inside a server render, so the dedupe is
+    // pinned by asserting both paths make the identical readFork call.
+    readTripShell.mockResolvedValue(shell({ forksEnabled: true, chaptersEnabled: true }));
+    db.fork.findFirst.mockResolvedValue({ id: "fork-1", name: "Plan B" });
+    const { plan } = await resolvePlanParam("trip-1", "fork-1");
+    await readPlan("trip-1", "u1", plan);
+    const expected = { where: { id: "fork-1", tripId: "trip-1" }, select: { id: true, name: true } };
+    expect(db.fork.findFirst.mock.calls.map((c) => c[0])).toEqual([expected, expected]);
+  });
+
   it("notFound for a missing or Recently deleted Trip", async () => {
     readTripShell.mockResolvedValueOnce(null);
     await expect(readPlan("trip-1", "u1", null)).rejects.toThrow("NEXT_NOT_FOUND");
