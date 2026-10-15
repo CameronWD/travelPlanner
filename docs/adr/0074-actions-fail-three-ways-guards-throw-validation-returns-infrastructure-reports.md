@@ -4,6 +4,12 @@
 Accepted (2026-10-14). Decided in the tidy-up grilling
 (`docs/specs/2026-10-14-tidy-up-pass.md`, card D).
 
+**Amended 2026-10-15.** Rule 2 first said `lib/server-action-exports.test.ts`
+"asserts the return type". It does not: it pins the exported names, and no
+type-level assertion on the return type exists. The whole-branch review
+ruled against adding one; rule 2 now names the two source-scanning tests
+that actually hold the shape. The decision itself is unchanged.
+
 ## Context
 
 By October 2026 the 175 exported Server Actions returned five different
@@ -29,8 +35,13 @@ Underneath, three conventions were already in force but never written down.
    `ActionResult<T>`. A failure is `fail(errors, code?)`: field errors keyed
    by field, form-level errors under `"_"`, and an optional machine-readable
    `code` (for example `"disabled"`, `"rate-limited"`) where the UI branches
-   on the reason. `"_form"` is retired. `lib/server-action-exports.test.ts`
-   asserts the return type, so a sixth shape cannot appear.
+   on the reason. `"_form"` is retired. What enforces the shape (amended
+   2026-10-15, below): `lib/action-result.guard.test.ts` scans every
+   `server/actions` source for the legacy shapes (`success: false, error`,
+   `_form`, `ok:`), and `lib/server-action-exports.test.ts` pins every
+   `"use server"` module's exports to an allowlist, so a new action is
+   reviewed the moment it appears. There is no type-level assertion on the
+   return type.
 3. **Infrastructure reports.** A failure that is nobody's input (storage,
    mail, the AI call, a swallowed Activity write) goes to `reportError`
    (ADR 0059) and the action still returns a result the UI can show.

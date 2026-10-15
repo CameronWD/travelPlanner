@@ -382,11 +382,33 @@ action, not a missing guard.
   stated rationale matches the code.
 
 ### ARCH-TEN-5 · A Stop's `chapterId` is written from client input without confirming the Chapter belongs to the same Trip
-**CLOSED (2026-10-15, chore/tidy-up-1-foundations):** `createStop` now checks the
-Chapter's `tripId`, not just its `forkId` (commit `fa60fd17`, test "TB-03" in
-`server/actions/stops.test.ts`). More generally: every write that accepts a
-client `forkId` now goes through `requirePlanAccess` (`lib/guards.ts`), the
-same guard behind the Chapter check.
+**CLOSED (2026-10-15, chore/tidy-up-1-foundations):** every path that writes a
+client-supplied `chapterId`, or reads/writes a Chapter by a client id, now
+refuses a Chapter outside the Stop's own Trip **and** plan (`chapter.tripId ===
+stop.tripId && chapter.forkId === stop.forkId`, the "Chapter does not belong to
+this plan" field error) before anything is written:
+- `createStop` ×2 — the insert-after path and the append path (commit `fa60fd17`,
+  test "TB-03");
+- `updateStop`'s rough branch, `reorderStops` (every target Chapter must be in the
+  plan-scoped read) and `restoreStops` (every snapshotted Chapter must be in a
+  `{ tripId, plan }` read) — commit `0aafcaa8`;
+- `firmUpSegment` — the Chapter is read and updated only `where { id, tripId,
+  ...planScope(plan) }`; any other id is `notFound()` before the first Stop write
+  (`0aafcaa8`);
+- `assignStopToChapter` (`chapters.ts`) already checked Trip and plan, and now also
+  goes through `requireRowAccess("stop")` (`62dca8c2`).
+Tests: "ARCH-TEN-5: a Chapter from another Trip is refused on every Chapter write" in
+`server/actions/stops.test.ts`. `firmUpSegment`, `firmUpTrip`, `reorderStops`,
+`restoreStops` and `createAccommodation` also now take their `forkId` through
+`requirePlanAccess` (`76c99ddd`).
+
+**Containment, honestly (2026-10-15):** the "write damage is contained" line below was
+wrong. `recomputeChapterSpans` is scoped, but `firmUpSegment` read and
+`db.chapter.update`d its Chapter by bare id: once a foreign `chapterId` had been planted
+on one of the caller's own rough Stops (through `updateStop`, `reorderStops` or
+`restoreStops`), firming up that segment overwrote the other Trip's Chapter dates and
+wrote its name into the caller's Activity. A two-step cross-tenant write, gated by cuid
+guessability like `ARCH-TEN-1`. Closed by the scoping above; no evidence it was used.
 - **Severity: P2** · **Blocks rollout: no** — write damage is contained.
   `recomputeChapterSpans` only iterates chapters it read `where { tripId, ...planScope }`
   (`stop-flow.ts:88-91, 104-107`), so a foreign `chapterId` cannot write into another

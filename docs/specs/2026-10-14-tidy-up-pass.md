@@ -70,7 +70,7 @@ Per `CLAUDE.md`. In addition:
 
 | Id | Where | What | Card |
 |---|---|---|---|
-| TB-01 | `lib/nav-counts.ts:134` | Sidebar badge omits `homeTimezone` from the Flag input; `flagEmptyDays` and `flagReturnLegAfterHardEnd` read it (`lib/flags.ts:943, 968`). Badge and Summary can disagree. | B |
+| TB-01 | `lib/nav-counts.ts:134` | Sidebar badge omits `homeTimezone` from the Flag input; `flagEmptyDays` and `flagReturnLegAfterHardEnd` read it (`lib/flags.ts:943, 968`). Badge and Summary can disagree. Fixed in 1.B for `homeTimezone`; the whole-branch review (2026-10-15) found a second cause — the badge dropped Surprise placeholders that Summary counts — fixed then too (see 1.B). | B |
 | TB-02 | `lib/compare.ts` via `computePlanMetrics` | Compare shows Nights 0 for the real plan where Summary says 34 (LA-215). | B |
 | TB-03 | `server/actions/stops.ts:191-196, 329-334` | `createStop` checks the Chapter by `forkId` only; a real-plan Chapter from another Trip passes (ARCH-TEN-5). | C |
 | TB-04 | `server/actions/stops.ts:495` vs `components/trip/stop-form-dialog.tsx:457` | `updateStop` returns the ADR 0073 refusal under `"_"`; the form renders `"_form"`. | D |
@@ -102,6 +102,14 @@ Per `CLAUDE.md`. In addition:
   selects in `nav-counts`, `next-steps-loader`, `desktop-home-loader` and
   `compare` are deleted. TB-01 and TB-02 fixed here with their tests. Once
   1.A lands, `loadFlagRows` is a projection of the Plan reader.
+- *As built (amended 2026-10-15):* `loadFlagRows` is **not** a projection of
+  `readPlan`; it keeps its own five reads (Trip, Stops, Transports,
+  Accommodation, Items) through the viewer's Surprise fragments. It now also
+  appends the plan's Surprise placeholders (one per hidden root Item, masked
+  to `{ id, stopId, category: "OTHER", date, startTime, endTime, lat: null,
+  lng: null }`) so the badge counts the same days as Summary (`0887555a`).
+  `homeTimezone` is required on `HomeTripInput` and `PhasePlanning`'s trip
+  type so TB-01 cannot silently recur (`109b53e7`).
 
 ### 1.A · One Plan reader behind the pages
 - [x] Done — `9e6a542a`/`67660302`/`867a033b`, plus pages `d37da0a8`,
@@ -121,6 +129,12 @@ Per `CLAUDE.md`. In addition:
   argument and the type system enforces it.
 - Page tests rewritten per Q10.
 - Closes NAV-03's data half (header data from the layout's read).
+- *As built (amended 2026-10-15):* Share and its `opengraph-image`
+  deliberately stay **off** `readPlan`: ADR 0051's floor wants their own
+  dial-gated reads, so an off dial means the query never runs. Share
+  reuses only `mergePlanItems`; the OG image reads through
+  `loadShareStops`. `loadNavCounts` still has its own Trip read — through
+  `loadFlagRows`' `trip.findUnique` — rather than reading the header.
 
 ### 1.C · One entity guard and one plan guard
 - [x] Done — `dc3da59c`, `5c995eb3`, `1841fc57`/`46bb8356`, `d0e2f18d`,
@@ -132,6 +146,17 @@ Per `CLAUDE.md`. In addition:
   chapters, stop-flow, booking import) calls `requirePlanAccess`. Not found
   on failure (Q4). Closes ARCH-TEN-5 (TB-03), ARCH-TEN-9 (`targetId` on
   `uploadAttachment` / `addNote` goes through `requireRowAccess`), BI-12.
+- *Added by the whole-branch review (2026-10-15):* five more writers took a
+  client `forkId` with only `requireTripAccess` and now call
+  `requirePlanAccess` — `firmUpSegment`, `firmUpTrip`, `reorderStops`,
+  `restoreStops`, `createAccommodation` (`76c99ddd`). ARCH-TEN-5 needed the
+  Chapter check on `updateStop` (rough), `reorderStops`, `restoreStops` and
+  `firmUpSegment` too, not only `createStop` (`0aafcaa8`).
+  `assignStopToChapter` (`chapters.ts`) goes through `requireRowAccess`, so
+  a surprised Traveller is refused (`62dca8c2`). Two inline cost guards remain
+  by design: `markCostPaid`/`markCostUnpaid` keep their own equivalent
+  access check, already reviewed and listed under the sitrep's "Deliberate —
+  do not fix these".
 - ARCH-TEN-10: cancelling an Invite requires owner-or-admin, the same
   predicate as creating one. **ARCH-TEN-11 was struck, not built** — see the
   dated note on it in `docs/architecture-sitrep-2026-09-22.md`: its premise
@@ -144,8 +169,16 @@ Per `CLAUDE.md`. In addition:
 - Per ADR 0074. `fail()` gains `code`; `"_form"` retired at its five
   writers and ten readers; `formError()` and `firstErrorMessage()` in
   `action-failure.ts`; the two private copies deleted; `run-tool.ts` loses
-  its shape-sniffing; `server-action-exports.test.ts` asserts the return
-  type. TB-04 fixed with a test that the Stop form shows the refusal.
+  its shape-sniffing. TB-04 fixed with a test that the Stop form shows the
+  refusal.
+- *Amended 2026-10-15:* there is no return-type assertion (ruled against
+  adding one). The shape is held by `lib/action-result.guard.test.ts`, which
+  scans `server/actions` for the legacy shapes (`success: false, error`,
+  `_form`, `ok:`), and `lib/server-action-exports.test.ts`, which pins every
+  `"use server"` module's exports to an allowlist. The three admin panels
+  (`access-requests`, `allowed-emails`, `error-reports`) still read
+  `errors._form` and were missed by the first grep (it skipped `app/`); they
+  now read `formError()` (`5d0564b1`). ADR 0074 rule 2 amended to match.
 
 ### 1.F · Duplicate reads the real plan only
 - [x] Done — `b9472599`.
