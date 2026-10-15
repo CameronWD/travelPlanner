@@ -3,28 +3,32 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { render, screen } from "@testing-library/react";
+import type { PlanRows } from "@/lib/plan-reads";
+import type { item } from "@/test/builders";
 
-// The Surprise suite at the bottom renders the page against mocked reads; the
-// source-level suites above it never touch these mocks.
-const mockDb = vi.hoisted(() => ({
-  trip: { findUnique: vi.fn() },
-  stop: { findMany: vi.fn() },
-  transport: { findMany: vi.fn() },
-  accommodation: { findMany: vi.fn() },
-  item: { findMany: vi.fn() },
-  cost: { findMany: vi.fn() },
-  exchangeRate: { findMany: vi.fn() },
-}));
-vi.mock("@/lib/db", () => ({ db: mockDb }));
+// print/page.tsx is a heavy async server component, but since Task 14 its
+// one read is `readPlan` (lib/plan-reads.ts) — mocked here with a prebuilt
+// `PlanRows`, the shape a real call would have produced for the scenario.
+// `readPlan`'s own masking/placeholder/query-shape behaviour (which Costs,
+// which Items, in what order, which fragment went where) is pinned in
+// lib/plan-reads.test.ts; this file only has to prove the PAGE renders a
+// given PlanRows correctly.
+
+const { readPlanMock } = vi.hoisted(() => ({ readPlanMock: vi.fn() }));
+
 vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("notFound"); }) }));
+// The page itself no longer imports `@/lib/db` (Task 14), but the real
+// `@/lib/plan-reads` module (kept for its pure maskPlanStops/mergePlanItems
+// helpers, below) imports it at module scope, same as every other reader —
+// stub it so that import doesn't try to open Postgres.
+vi.mock("@/lib/db", () => ({ db: {} }));
+vi.mock("@/lib/plan-reads", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/plan-reads")>();
+  return { ...actual, readPlan: readPlanMock };
+});
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn(async () => ({ user: { id: "u-viewer", email: "v@example.com" }, membership: { role: "member" } })),
 }));
-const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
-vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
-  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
-});
 // Real buildBudget runs (never faked) — wrapped in a spy so a test can read
 // what it was called with and what it computed, without changing behaviour.
 const { buildBudgetSpy } = vi.hoisted(() => ({ buildBudgetSpy: vi.fn() }));
@@ -113,55 +117,83 @@ describe("Print view — tokens only (Task 15)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// PlanRows construction for the Surprise + phone-width suites below.
+// ---------------------------------------------------------------------------
+
+const { planRows } = await import("@/test/builders/plan-rows");
+const { maskPlanStops, mergePlanItems } = await import("@/lib/plan-reads");
+const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+const { trip, stop, transport, stay, cost } = await import("@/test/builders");
+
+/**
+ * Build the `PlanRows` a real `readPlan` call would have handed back for a
+ * scenario — reusing the reader's own (pure) `maskPlanStops`/`mergePlanItems`
+ * rather than re-implementing the merge.
+ */
+function rowsFrom({
+  trip: tripRow,
+  stops = [],
+  transports = [],
+  accommodations = [],
+  items = [],
+  costs = [],
+  exchangeRates = [],
+  visibility = NO_SURPRISES,
+}: {
+  trip: ReturnType<typeof trip>;
+  stops?: ReturnType<typeof stop>[];
+  transports?: ReturnType<typeof transport>[];
+  accommodations?: ReturnType<typeof stay>[];
+  items?: ReturnType<typeof item>[];
+  costs?: ReturnType<typeof cost>[];
+  exchangeRates?: PlanRows["exchangeRates"];
+  visibility?: PlanRows["visibility"];
+}): PlanRows {
+  return planRows({
+    trip: { ...tripRow, members: [], stops: [] } as unknown as PlanRows["trip"],
+    plan: null,
+    fork: null,
+    visibility,
+    stops: maskPlanStops(stops, visibility) as unknown as PlanRows["stops"],
+    transports: transports as unknown as PlanRows["transports"],
+    accommodations: accommodations as unknown as PlanRows["accommodations"],
+    items: mergePlanItems(items, visibility, null) as unknown as PlanRows["items"],
+    costs: costs as unknown as PlanRows["costs"],
+    exchangeRates,
+    chapters: [],
+    budgetItems: items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date })),
+    budgetAccommodations: accommodations.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut })),
+  });
+}
+
+async function renderPrint() {
+  const { default: PrintPage } = await import("./page");
+  return renderToStaticMarkup(await PrintPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+}
+
 describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
-  const ROME = {
-    id: "s1", name: "Rome", country: "Italy", lat: null, lng: null, timezone: "Europe/Rome",
-    arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0, notes: "Balloon booked for the 3rd",
-  };
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
-    mockDb.trip.findUnique.mockResolvedValue({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" });
-    mockDb.stop.findMany.mockResolvedValue([ROME]);
-    mockDb.transport.findMany.mockResolvedValue([]);
-    mockDb.accommodation.findMany.mockResolvedValue([]);
-    mockDb.item.findMany.mockResolvedValue([]);
-    mockDb.cost.findMany.mockResolvedValue([]);
-    mockDb.exchangeRate.findMany.mockResolvedValue([]);
-    loadSurpriseVisibilityMock.mockResolvedValue(
-      hiddenVisibility({
-        hiddenStopIds: ["s1"],
-        placeholders: [
-          placeholderItem({ id: "i-dinner", stopId: null, date: "2026-01-03", startTime: "19:30" }),
-          placeholderItem({ id: "i-fork", stopId: null, date: "2026-01-03", forkId: "fork-1" }),
-        ],
-      }),
-    );
-  });
-
-  async function renderPrint() {
-    const { default: PrintPage } = await import("./page");
-    return renderToStaticMarkup(await PrintPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
-  }
-
-  it("asks the visibility loader for this viewer before the wave", async () => {
-    const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-order");
-    await renderPrint();
-    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u-viewer");
-    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.item.findMany);
-    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.stop.findMany);
-  });
-
-  it("spreads the fragments into the Accommodation and Item reads; Costs stay whole for the totals", async () => {
-    const { MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
-    await renderPrint();
-    expect(mockDb.accommodation.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.accommodation);
-    expect(mockDb.item.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.item);
-    expect(mockDb.cost.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
   });
 
   it("prints a real-plan placeholder as an Item titled Surprise, and never a hidden Stop's notes", async () => {
+    const visibility = hiddenVisibility({
+      hiddenStopIds: ["s1"],
+      placeholders: [
+        placeholderItem({ id: "i-dinner", stopId: null, date: "2026-01-03", startTime: "19:30" }),
+        placeholderItem({ id: "i-fork", stopId: null, date: "2026-01-03", forkId: "fork-1" }),
+      ],
+    });
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" }),
+        stops: [stop({ id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0, notes: "Balloon booked for the 3rd" })],
+        visibility,
+      }),
+    );
+
     const html = await renderPrint();
     expect(html).toContain("Surprise");
     expect(html.match(/>Surprise</g)).toHaveLength(1); // the Fork's placeholder stays in its Fork
@@ -169,10 +201,25 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
   });
 
   it("Budget Summary: a Cost owned by a hidden Item folds into one Surprise row, and the grand total keeps the money", async () => {
-    mockDb.cost.findMany.mockResolvedValue([
-      { id: "c-hidden", costMinor: 40000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ITEM", ownerId: "i-dinner", label: null, category: null },
-      { id: "c-plain", costMinor: 10000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "OTHER", ownerId: null, label: "Visa", category: "Admin" },
-    ]);
+    const visibility = hiddenVisibility({
+      hiddenStopIds: ["s1"],
+      placeholders: [
+        placeholderItem({ id: "i-dinner", stopId: null, date: "2026-01-03", startTime: "19:30" }),
+        placeholderItem({ id: "i-fork", stopId: null, date: "2026-01-03", forkId: "fork-1" }),
+      ],
+    });
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" }),
+        stops: [stop({ id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0 })],
+        visibility,
+        costs: [
+          cost({ id: "c-hidden", costMinor: 40000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ITEM", ownerId: "i-dinner", label: null, category: null }),
+          cost({ id: "c-plain", costMinor: 10000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "OTHER", ownerId: null, label: "Visa", category: "Admin" }),
+        ],
+      }),
+    );
+
     const html = await renderPrint();
     expect(html).toContain('<span class="text-muted-foreground">Surprise</span>'); // the byCategory row label
     expect(html).toContain("GBP 400.00"); // 40000 minor folded into the Surprise row
@@ -181,20 +228,23 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
   });
 
   it("a hidden Accommodation's row still reaches buildBudget's byStop placement, and its name never prints", async () => {
-    // The filtered (rendered) read excludes the Accommodation inside hidden
-    // Stop s1; the second, unfiltered read — used ONLY to feed buildBudget —
-    // still carries it, so byStop places its Cost on the real Stop (s1)
-    // instead of the trip-wide bucket.
-    mockDb.accommodation.findMany.mockImplementation((args: { where: Record<string, unknown> }) =>
-      Promise.resolve(
-        "AND" in args.where
-          ? []
-          : [{ id: "acc-1", stopId: "s1", name: "The Hideaway Inn", checkIn: "2026-01-02", checkOut: "2026-01-04" }],
-      ),
-    );
-    mockDb.cost.findMany.mockResolvedValue([
-      { id: "c-acc", costMinor: 20000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null, category: null },
-    ]);
+    // The filtered (rendered) `accommodations` excludes the Accommodation
+    // inside hidden Stop s1; `budgetAccommodations` — unfiltered, used ONLY
+    // to feed buildBudget (lib/plan-reads.ts) — still carries it, so byStop
+    // places its Cost on the real Stop (s1) instead of the trip-wide bucket.
+    const visibility = hiddenVisibility({ hiddenStopIds: ["s1"] });
+    const rows = rowsFrom({
+      trip: trip({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" }),
+      stops: [stop({ id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0 })],
+      visibility,
+      costs: [
+        cost({ id: "c-acc", costMinor: 20000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null, category: null }),
+      ],
+    });
+    rows.accommodations = []; // what the viewer may render — hidden one excluded
+    rows.budgetAccommodations = [{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04" }];
+    readPlanMock.mockResolvedValue(rows);
+
     const html = await renderPrint();
     const result = buildBudgetSpy.mock.calls[0][1] as { byStop: Array<{ stopId: string | null; costTotalMinor: number }> };
     const s1Row = result.byStop.find((r) => r.stopId === "s1");
@@ -206,30 +256,27 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
 });
 
 describe("Print view — phone-width route rows (LA-150)", () => {
-  const ROME = {
-    id: "s1", name: "Rome", country: "Italy", lat: null, lng: null, timezone: "Europe/Rome",
-    arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 0, notes: null,
-  };
-  const FLORENCE = { ...ROME, id: "s2", name: "Florence", arriveDate: "2026-01-03", departDate: "2026-01-05", sortOrder: 1 };
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
-    mockDb.trip.findUnique.mockResolvedValue({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" });
-    mockDb.stop.findMany.mockResolvedValue([ROME, FLORENCE]);
-    mockDb.transport.findMany.mockResolvedValue([
-      { id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Rome (FCO)", arrPlace: "Florence (FLR)", depAt: null, arrAt: null, reference: "LH2476", notes: null, sortOrder: 0 },
-    ]);
-    mockDb.accommodation.findMany.mockResolvedValue([
-      { id: "a1", stopId: "s1", name: "The Bloomsbury Hotel", address: "16-22 Great Russell St", checkIn: "2026-01-01", checkOut: "2026-01-03", checkInTime: null, checkOutTime: null, link: null, booking: null, notes: null },
-    ]);
-    mockDb.item.findMany.mockResolvedValue([]);
-    mockDb.cost.findMany.mockResolvedValue([]);
-    mockDb.exchangeRate.findMany.mockResolvedValue([]);
-    loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   });
 
   it("puts the hotel name over its address below sm, and the flight Ref under the route", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" }),
+        stops: [
+          stop({ id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 0 }),
+          stop({ id: "s2", name: "Florence", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-03", departDate: "2026-01-05", sortOrder: 1 }),
+        ],
+        transports: [
+          transport({ id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Rome (FCO)", arrPlace: "Florence (FLR)", depAt: null, arrAt: null, reference: "LH2476", sortOrder: 0 }),
+        ],
+        accommodations: [
+          stay({ id: "a1", stopId: "s1", name: "The Bloomsbury Hotel", address: "16-22 Great Russell St", checkIn: "2026-01-01", checkOut: "2026-01-03" }),
+        ],
+      }),
+    );
+
     const { default: PrintPage } = await import("./page");
     render(await PrintPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
 

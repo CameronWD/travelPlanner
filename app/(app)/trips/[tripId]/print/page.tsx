@@ -9,9 +9,7 @@ import {
   LogOut,
   Clock,
 } from "lucide-react";
-import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
-import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
+import { readPlan } from "@/lib/plan-reads";
 import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
@@ -64,169 +62,44 @@ export default async function PrintPage({
   const { tripId } = await params;
   const { user } = await requireTripAccess(tripId);
 
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      homeCurrency: true,
-      homeTimezone: true,
-    },
-  });
-  if (!trip) notFound();
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+  const rows = await readPlan(tripId, user.id, null);
+  const { trip } = rows;
   // The printable itinerary and budget are both anchored to the trip window;
   // a date-less trip has no dated plan to print yet.
   if (!trip.startDate || !trip.endDate) notFound();
 
   const { homeCurrency, startDate, endDate } = trip;
-
-  // Policy (not a BND-2 spelling exemption): this dated view deliberately
-  // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
-
-  // Surprise (ADR 0051): known before the wave so the queries below leave
-  // what this viewer may not see inside in the database.
-  const v = await loadSurpriseVisibility(tripId, user.id);
-
-  // Fetch all the trip data we need for the print view
-  const [rawStops, transports, accommodations, itemRows, costs, exchangeRates, budgetItemRows, budgetAccommodationRows] =
-    await Promise.all([
-      db.stop.findMany({
-        // Rough (date-less) stops are excluded from the dated print view.
-        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          name: true,
-          country: true,
-          lat: true,
-          lng: true,
-          timezone: true,
-          arriveDate: true,
-          departDate: true,
-          sortOrder: true,
-          notes: true,
-        },
-      }),
-      db.transport.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          mode: true,
-          fromStopId: true,
-          toStopId: true,
-          depPlace: true,
-          arrPlace: true,
-          depAt: true,
-          arrAt: true,
-          reference: true,
-          notes: true,
-          sortOrder: true,
-          depIsHome: true,
-          arrIsHome: true,
-        },
-      }),
-      db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-        orderBy: { checkIn: "asc" },
-        select: {
-          id: true,
-          stopId: true,
-          name: true,
-          address: true,
-          checkIn: true,
-          checkOut: true,
-          checkInTime: true,
-          checkOutTime: true,
-          confirmation: true,
-        },
-      }),
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.item },
-        orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          stopId: true,
-          address: true,
-          link: true,
-          booking: true,
-        },
-      }),
-      // Unfiltered: the print view shows no Cost lines, only buildBudget's totals.
-      db.cost.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          costMinor: true,
-          paidMinor: true,
-          currency: true,
-          rateToHome: true,
-          paidAt: true,
-          ownerType: true,
-          ownerId: true,
-          label: true,
-          category: true,
-          settlement: true,
-        },
-      }),
-      db.exchangeRate.findMany({
-        where: { tripId },
-        select: { base: true, quote: true, rate: true },
-      }),
-      // Unfiltered, minimal: buildBudget's byStop/byDay place a cost by its
-      // owner's real stop/date, so a hidden Item's or Accommodation's row
-      // has to be here even though it's filtered out of `items`/
-      // `accommodations` above. Used ONLY to build buildBudget's input
-      // below — never rendered.
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN },
-        select: { id: true, stopId: true, category: true, date: true },
-      }),
-      db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
-        select: { id: true, stopId: true, checkIn: true, checkOut: true },
-      }),
-    ]);
-
-  // Apply FX rates to costs
-  const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
-
+  const v = rows.visibility;
+  const transports = rows.transports;
+  const accommodations = rows.accommodations;
   // A hidden real-plan Item prints as its placeholder titled "Surprise" (date
-  // and time only); every Item carries its Surprise view.
-  const items = [
-    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
-    ...v.placeholderItems
-      .filter((p) => p.forkId === null)
-      .map((p) => ({
-        id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-        stopId: p.stopId, address: p.address, link: p.link, booking: p.booking, surprise: p.surprise,
-      })),
-  ];
+  // and time only); every Item already carries its Surprise view (readPlan).
+  const items = rows.items;
+  const exchangeRates = rows.exchangeRates;
 
-  // Hidden Stops keep their shell, notes blanked.
-  // Non-null at runtime: the query filters rough (date-less) stops out.
-  const stops = maskSurpriseStops(rawStops, v, v.views.stops).map((s) => ({
+  // Apply FX rates to costs (costs are unfiltered — the print view shows no
+  // Cost lines, only buildBudget's totals).
+  const costsWithRates = applyFxRatesToCosts({ costs: rows.costs, exchangeRates, homeCurrency });
+
+  // Hidden Stops keep their shell, notes blanked; rough (date-less) Stops are
+  // excluded from the dated print view. Non-null at runtime below: the
+  // filter keeps only dated Stops.
+  const stops = rows.stops.filter((s) => s.arriveDate !== null).map((s) => ({
     ...s,
     timezone: s.timezone ?? "UTC",
     arriveDate: s.arriveDate!,
     departDate: s.departDate!,
   }));
 
-  // Surprise (ADR 0051): unfiltered, minimal — not the `items`/
-  // `accommodations` above (those are filtered for rendering and have no
-  // Accommodation placeholder), so a hidden owner's row is here for
-  // byStop/byDay to place its cost on the right Stop/day. Never rendered.
-  const budgetItems: BudgetItem[] = budgetItemRows;
-  const budgetAccommodations: BudgetAccommodation[] = budgetAccommodationRows;
+  // Surprise (ADR 0051): unfiltered, minimal — not `items`/`accommodations`
+  // above (those are filtered for rendering and have no Accommodation
+  // placeholder), so a hidden owner's row is here for byStop/byDay to place
+  // its cost on the right Stop/day. Never rendered.
+  const budgetItems: BudgetItem[] = rows.budgetItems;
+  const budgetAccommodations: BudgetAccommodation[] = rows.budgetAccommodations;
 
   const budget = buildBudget({
     homeCurrency,
