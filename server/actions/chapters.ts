@@ -1,6 +1,5 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
@@ -248,12 +247,10 @@ export async function assignStopToChapter(
   stopId: string,
   chapterId: string | null,
 ): Promise<ChapterActionResult> {
-  const stop = await db.stop.findUnique({
-    where: { id: stopId },
-    select: { id: true, tripId: true, forkId: true, arriveDate: true, chapterId: true },
-  });
-  if (!stop) notFound();
-  await requireTripAccess(stop.tripId);
+  // The one entity guard (ADR 0074 rule 1): load → notFound → trip access →
+  // refuse a Traveller surprised by this Stop (CONTEXT.md Surprise: they can
+  // look at it from outside but not touch it).
+  const { row: stop } = await requireRowAccess("stop", stopId);
 
   if (!canAssignToChapter(stop)) {
     return { success: false, errors: { _: ["A dated stop's chapter follows its dates. Drag or re-date it to move."] } };
