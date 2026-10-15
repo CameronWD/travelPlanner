@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { relativeTime } from "@/lib/relative-time";
+import { formError } from "@/components/ui/action-failure";
 import {
   clearErrorReport,
   clearAllErrorReports,
@@ -52,7 +53,7 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
       if (result.success) {
         setReports((prev) => prev.filter((r) => r.id !== report.id));
       } else {
-        setMessage(result.errors._form?.[0] ?? "Couldn't clear that error.");
+        setMessage(formError(result) ?? "Couldn't clear that error.");
       }
     } catch {
       setMessage("Couldn't clear that error.");
@@ -82,7 +83,7 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
       if (result.success) {
         setReports([]);
       } else {
-        setMessage(result.errors._form?.[0] ?? "Couldn't clear all errors.");
+        setMessage(formError(result) ?? "Couldn't clear all errors.");
       }
     } catch {
       setMessage("Couldn't clear all errors.");

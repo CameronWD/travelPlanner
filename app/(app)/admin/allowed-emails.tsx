@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { relativeTime } from "@/lib/relative-time";
+import { formError } from "@/components/ui/action-failure";
 import {
   revokeAllowedEmail,
   type AllowedEmailView,
@@ -56,7 +57,7 @@ export function AllowedEmailsPanel({ initial, now, viewerEmail }: AllowedEmailsP
     if (result.success) {
       setEntries((prev) => prev.filter((e) => e.id !== entry.id));
     } else {
-      setMessage(result.errors._form?.[0] ?? "Couldn't revoke that address.");
+      setMessage(formError(result) ?? "Couldn't revoke that address.");
     }
   }
 

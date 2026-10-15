@@ -80,11 +80,22 @@ describe("AccessRequestsPanel", () => {
   it("keeps the row and shows an error message when approve fails", async () => {
     approveAccessRequest.mockResolvedValue({
       success: false,
-      errors: { _form: ["That access request no longer exists."] },
+      errors: { _: ["That access request no longer exists."] },
     });
     render(<AccessRequestsPanel initial={requests} now={NOW} />);
     await userEvent.click(screen.getByRole("button", { name: /approve/i }));
     expect(await screen.findByText("That access request no longer exists.")).toBeInTheDocument();
+    expect(screen.getByText("friend@example.com")).toBeInTheDocument();
+  });
+
+  it("shows the server's form-level message when dismiss fails", async () => {
+    dismissAccessRequest.mockResolvedValue({
+      success: false,
+      errors: { _: ["That request has already been resolved."] },
+    });
+    render(<AccessRequestsPanel initial={requests} now={NOW} />);
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(await screen.findByText("That request has already been resolved.")).toBeInTheDocument();
     expect(screen.getByText("friend@example.com")).toBeInTheDocument();
   });
 
