@@ -2,7 +2,7 @@ import { vi, type Mock } from "vitest";
 
 const METHODS = ["findUnique", "findFirst", "findMany", "count", "create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany", "aggregate"] as const;
 type Method = (typeof METHODS)[number];
-export type MockDelegate = Record<Method, Mock>;
+type MockDelegate = Record<Method, Mock>;
 export type MockDb<K extends string> = Record<K, MockDelegate> & {
   $transaction: Mock;
   $queryRaw: Mock;

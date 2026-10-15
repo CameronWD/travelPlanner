@@ -42,7 +42,7 @@ import {
 // Pure assembler
 // ---------------------------------------------------------------------------
 
-export interface RawAllStopRow {
+interface RawAllStopRow {
   id: string;
   name: string;
   lat?: number | null;
@@ -136,7 +136,7 @@ export function flagsFromRows({
 // ---------------------------------------------------------------------------
 
 /** The Trip fields every `detectFlags` caller needs (TB-01: all ten, every time). */
-export const FLAG_TRIP_SELECT = {
+const FLAG_TRIP_SELECT = {
   startDate: true,
   endDate: true,
   drivingWindingFactor: true,
@@ -149,7 +149,7 @@ export const FLAG_TRIP_SELECT = {
   roundTrip: true,
 } as const;
 
-export const FLAG_STOP_SELECT = {
+const FLAG_STOP_SELECT = {
   id: true,
   name: true,
   lat: true,
@@ -162,7 +162,7 @@ export const FLAG_STOP_SELECT = {
   pinned: true,
 } as const;
 
-export const FLAG_TRANSPORT_SELECT = {
+const FLAG_TRANSPORT_SELECT = {
   id: true,
   fromStopId: true,
   toStopId: true,
@@ -173,7 +173,7 @@ export const FLAG_TRANSPORT_SELECT = {
   arrIsHome: true,
 } as const;
 
-export const FLAG_ACCOMMODATION_SELECT = {
+const FLAG_ACCOMMODATION_SELECT = {
   id: true,
   stopId: true,
   checkIn: true,
@@ -181,7 +181,7 @@ export const FLAG_ACCOMMODATION_SELECT = {
   name: true,
 } as const;
 
-export const FLAG_ITEM_SELECT = {
+const FLAG_ITEM_SELECT = {
   id: true,
   stopId: true,
   category: true,

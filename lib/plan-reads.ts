@@ -29,7 +29,7 @@ import type { SurpriseView } from "@/lib/surprise";
 /** A Traveller id, or null for the public (Share, Calendar feed): surprised by every live Surprise. */
 export type PlanViewer = string | null;
 
-export const PLAN_STOP_SELECT = {
+const PLAN_STOP_SELECT = {
   id: true,
   tripId: true,
   forkId: true,
@@ -49,7 +49,7 @@ export const PLAN_STOP_SELECT = {
   chapterSortOrder: true,
 } as const;
 
-export const PLAN_TRANSPORT_SELECT = {
+const PLAN_TRANSPORT_SELECT = {
   id: true,
   mode: true,
   fromStopId: true,
@@ -87,7 +87,7 @@ export const PLAN_ACCOMMODATION_SELECT = {
   lng: true,
 } as const;
 
-export const PLAN_ITEM_SELECT = {
+const PLAN_ITEM_SELECT = {
   id: true,
   tripId: true,
   forkId: true,
@@ -125,7 +125,7 @@ export const COST_SELECT = {
   settlement: true,
 } as const;
 
-export const PLAN_CHAPTER_SELECT = { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true } as const;
+const PLAN_CHAPTER_SELECT = { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true } as const;
 
 const EXCHANGE_RATE_SELECT = { base: true, quote: true, rate: true, manual: true, fetchedAt: true } as const;
 // `title`/`name` ride along for the Budget page's Cost owner labels: a Cost on a
@@ -134,12 +134,12 @@ const EXCHANGE_RATE_SELECT = { base: true, quote: true, rate: true, manual: true
 const BUDGET_ITEM_SELECT = { id: true, stopId: true, category: true, date: true, title: true } as const;
 const BUDGET_ACCOMMODATION_SELECT = { id: true, stopId: true, checkIn: true, checkOut: true, name: true } as const;
 
-export type PlanStopRow = Prisma.StopGetPayload<{ select: typeof PLAN_STOP_SELECT }> & { surprise: SurpriseView | null };
-export type PlanTransportRow = Prisma.TransportGetPayload<{ select: typeof PLAN_TRANSPORT_SELECT }>;
-export type PlanAccommodationRow = Prisma.AccommodationGetPayload<{ select: typeof PLAN_ACCOMMODATION_SELECT }>;
-export type PlanItemRow = (Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }> | PlaceholderItem) & { surprise: SurpriseView | null };
-export type PlanCostRow = Prisma.CostGetPayload<{ select: typeof COST_SELECT }>;
-export type PlanChapterRow = Prisma.ChapterGetPayload<{ select: typeof PLAN_CHAPTER_SELECT }>;
+type PlanStopRow = Prisma.StopGetPayload<{ select: typeof PLAN_STOP_SELECT }> & { surprise: SurpriseView | null };
+type PlanTransportRow = Prisma.TransportGetPayload<{ select: typeof PLAN_TRANSPORT_SELECT }>;
+type PlanAccommodationRow = Prisma.AccommodationGetPayload<{ select: typeof PLAN_ACCOMMODATION_SELECT }>;
+type PlanItemRow = (Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }> | PlaceholderItem) & { surprise: SurpriseView | null };
+type PlanCostRow = Prisma.CostGetPayload<{ select: typeof COST_SELECT }>;
+type PlanChapterRow = Prisma.ChapterGetPayload<{ select: typeof PLAN_CHAPTER_SELECT }>;
 
 export type PlanRows = {
   /** The cached Trip shell; its `stops` are always the real plan's dated Stops, even when `plan` is a Fork — use `stops` below for this Plan. */
