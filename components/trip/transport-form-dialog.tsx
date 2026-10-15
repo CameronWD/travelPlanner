@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { createTransport, updateTransport } from "@/server/actions/transport";
-import { parseAmountToMinor } from "@/lib/money";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 import type { TransportCardTransport } from "./transport-card";
@@ -33,12 +32,13 @@ import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { useEntityForm } from "@/components/ui/use-entity-form";
-import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import type { CostSettlement, TransportMode } from "@/lib/enum-values";
-import type { ActionResult } from "@/lib/action-result";
+import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fields";
+import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
+import { seedCostFormState } from "@/components/money/cost-fields/cost-form-state";
+import type { TransportMode } from "@/lib/enum-values";
+import { fail, type ActionResult } from "@/lib/action-result";
 import type { ProposedTransportInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
-import { seedCost } from "./cost-seed";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 import { NoteThread, type NoteView } from "@/components/trip/note-thread";
@@ -447,39 +447,20 @@ function TransportForm({
   const { t: timing } = useMotionTiming();
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
-  // import), else empty. `paidAt` is the sole "is this paid" signal (ADR 0037);
-  // a new cost is Before you go until the Traveller says otherwise.
-  const [seed] = React.useState(() => seedCost(singleCost, proposed, defaultCurrency));
-  const [costAmount, setCostAmount] = React.useState(seed.costAmount);
-  const [currency, setCurrency] = React.useState(seed.currency);
-  const [paidAmount, setPaidAmount] = React.useState(seed.paidAmount);
-  const [paidAt, setPaidAt] = React.useState(seed.paidAt);
-  const [paid, setPaid] = React.useState(seed.paid);
-  const [settlement, setSettlement] = React.useState<CostSettlement>(seed.settlement);
+  // import), else empty — the rules are cost-form-state.ts's (card 2.I).
+  const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
+  const cost = useCostFields(costSeed);
   // Cost starts collapsed behind "+ Add cost" unless a cost already exists.
   const [showCost, setShowCost] = React.useState(
     Boolean(singleCost || hasMultipleCosts || proposed?.costMinor !== undefined),
   );
 
   // UI-only state (showTimes, selectedAt, showCost) is not input.
-  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, notesText, costAmount, currency, paidAmount, paidAt, paid, settlement });
+  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, notesText, cost: cost.dirtyValues });
 
   // The would-be create/update input, exactly as typed.
   function buildInput() {
-    const costMinor = costAmount.trim()
-      ? (parseAmountToMinor(costAmount, currency) ?? undefined)
-      : undefined;
-    // Gated on the amount actually *parsing*, not just being non-blank —
-    // a pasted "$150.00" or a lone "-" is non-blank text but parses to
-    // null, and un-ticking Paid (or ticking it and then clearing/breaking
-    // the amount) must all clear the payment. The invariant is
-    // one-directional (ADR 0037): a paid *date* requires an amount, but an
-    // amount with no date is a legal, honest, incomplete record — so we
-    // never invent a date here. `todayLocalISO()` is only used for the
-    // interactive pre-fill in InlineCostFields, where the user can see and
-    // edit it before saving; it is never fabricated at submit time.
-    const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
-    const hasPaidAmount = parsedPaidMinor !== null;
+    const c = cost.payload();
 
     // depAt/arrAt stay offset-less "YYYY-MM-DDTHH:mm" wall-time strings —
     // we submit the raw datetime-local value exactly as typed; the server
@@ -513,8 +494,7 @@ function TransportForm({
       }
     })();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const input: any = {
+    const input = {
       mode: mode as TransportMode,
       ...fromFields,
       ...toFields,
@@ -524,17 +504,8 @@ function TransportForm({
       notes: notesText.trim() || undefined,
       // A proposed Stop id must never become an anchor: confirmProposal computes it.
       anchorStopId: onSubmitOverride ? undefined : anchorForSubmit(),
-      ...(costMinor !== undefined && {
-        costMinor,
-        currency,
-        // Un-ticking (or breaking) Paid must never clear the paid amount —
-        // it survives as history (CONTEXT.md "Paid") — so we omit
-        // paidMinor entirely rather than sending null. Only the date is
-        // explicitly cleared.
-        paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-        paidAt: hasPaidAmount ? paidAt || null : null,
-        settlement,
-      }),
+      // An invalid Cost is left out of the draft; submit refuses it first.
+      ...(c.kind === "ok" && c.fields),
     };
     return input;
   }
@@ -542,7 +513,9 @@ function TransportForm({
   useDraftReporter(onDraftChange, buildInput);
 
   const { errors, isPending, onSubmit } = useEntityForm({
-    submit: () => {
+    submit: async () => {
+      const c = cost.payload();
+      if (c.kind === "invalid") return fail(c.errors);
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && transport
@@ -860,19 +833,8 @@ function TransportForm({
           </div>
           {showCost && (
             <InlineCostFields
+              {...cost.fieldProps}
               hasMultipleCosts={hasMultipleCosts}
-              costAmount={costAmount}
-              onCostChange={setCostAmount}
-              currency={currency}
-              onCurrencyChange={setCurrency}
-              paid={paid}
-              onPaidChange={setPaid}
-              paidAmount={paidAmount}
-              onPaidAmountChange={setPaidAmount}
-              paidAt={paidAt}
-              onPaidAtChange={setPaidAt}
-              settlement={settlement}
-              onSettlementChange={setSettlement}
               errors={errors}
               disabled={isPending}
               paired

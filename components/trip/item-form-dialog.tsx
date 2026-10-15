@@ -27,17 +27,16 @@ import { toastRefused, toastRejected, formError } from "@/components/ui/action-f
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
-import { parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
-import { InlineCostFields } from "@/components/trip/inline-cost-fields";
-import type { CostSettlement } from "@/lib/enum-values";
-import type { ActionResult } from "@/lib/action-result";
+import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fields";
+import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
+import { seedCostFormState } from "@/components/money/cost-fields/cost-form-state";
+import { fail, type ActionResult } from "@/lib/action-result";
 import type { ProposedItemInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
-import { seedCost } from "./cost-seed";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SM_HIT } from "@/components/ui/touch-target";
@@ -524,37 +523,18 @@ function ItemForm({
   const surpriseChanged = surpriseForIds.join(",") !== initialSurpriseForIds.join(",");
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
-  // import), else empty. `paidAt` is the sole "is this paid" signal (ADR 0037);
-  // a new cost is Before you go until the Traveller says otherwise.
-  const [seed] = React.useState(() => seedCost(singleCost, proposed, defaultCurrency));
-  const [costAmount, setCostAmount] = React.useState(seed.costAmount);
-  const [currency, setCurrency] = React.useState(seed.currency);
-  const [paidAmount, setPaidAmount] = React.useState(seed.paidAmount);
-  const [paidAt, setPaidAt] = React.useState(seed.paidAt);
-  const [paid, setPaid] = React.useState(seed.paid);
-  const [settlement, setSettlement] = React.useState<CostSettlement>(seed.settlement);
+  // import), else empty — the rules are cost-form-state.ts's (card 2.I).
+  const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
+  const cost = useCostFields(costSeed);
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, surpriseForIds, costAmount, currency, paidAmount, paidAt, paid, settlement });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, surpriseForIds, cost: cost.dirtyValues });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
 
   // The would-be create/update input, exactly as typed.
   function buildInput() {
-    const costMinor = costAmount.trim()
-      ? (parseAmountToMinor(costAmount, currency) ?? undefined)
-      : undefined;
-    // Gated on the amount actually *parsing*, not just being non-blank —
-    // a pasted "$150.00" or a lone "-" is non-blank text but parses to
-    // null, and un-ticking Paid (or ticking it and then clearing/breaking
-    // the amount) must all clear the payment. The invariant is
-    // one-directional (ADR 0037): a paid *date* requires an amount, but an
-    // amount with no date is a legal, honest, incomplete record — so we
-    // never invent a date here. `todayLocalISO()` is only used for the
-    // interactive pre-fill in InlineCostFields, where the user can see and
-    // edit it before saving; it is never fabricated at submit time.
-    const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
-    const hasPaidAmount = parsedPaidMinor !== null;
+    const c = cost.payload();
 
     const input = {
       title,
@@ -571,17 +551,8 @@ function ItemForm({
       hiddenFromShares,
       // Only a change is sent: an unchanged set leaves the Surprise alone (and lets a helper edit the Item).
       ...(surpriseOthers && surpriseChanged && { surpriseForIds }),
-      ...(costMinor !== undefined && {
-        costMinor,
-        currency,
-        // Un-ticking (or breaking) Paid must never clear the paid amount —
-        // it survives as history (CONTEXT.md "Paid") — so we omit
-        // paidMinor entirely rather than sending null. Only the date is
-        // explicitly cleared.
-        paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-        paidAt: hasPaidAmount ? paidAt || null : null,
-        settlement,
-      }),
+      // An invalid Cost is left out of the draft; submit refuses it first.
+      ...(c.kind === "ok" && c.fields),
     };
     return input;
   }
@@ -589,7 +560,9 @@ function ItemForm({
   useDraftReporter(onDraftChange, buildInput);
 
   const { errors, isPending, onSubmit } = useEntityForm({
-    submit: () => {
+    submit: async () => {
+      const c = cost.payload();
+      if (c.kind === "invalid") return fail(c.errors);
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && item
@@ -877,19 +850,8 @@ function ItemForm({
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
       <div className="sm:col-span-2 flex flex-col gap-4">
         <InlineCostFields
+          {...cost.fieldProps}
           hasMultipleCosts={hasMultipleCosts}
-          costAmount={costAmount}
-          onCostChange={setCostAmount}
-          currency={currency}
-          onCurrencyChange={setCurrency}
-          paid={paid}
-          onPaidChange={setPaid}
-          paidAmount={paidAmount}
-          onPaidAmountChange={setPaidAmount}
-          paidAt={paidAt}
-          onPaidAtChange={setPaidAt}
-          settlement={settlement}
-          onSettlementChange={setSettlement}
           errors={errors}
           disabled={isPending}
           paired

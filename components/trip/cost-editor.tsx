@@ -13,7 +13,9 @@ import {
 import { FormError } from "@/components/ui/form-error";
 import { DateField } from "@/components/ui/date-field";
 import { CostSummary } from "./cost-summary";
-import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fields";
+import { setPaid } from "@/components/money/cost-fields/cost-form-state";
+import { todayLocalISO } from "@/lib/dates";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
@@ -163,7 +165,7 @@ function CostDialogForm({
             currency={form.currency}
             onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
             paid={form.paid}
-            onPaidChange={(v) => setForm((f) => ({ ...f, paid: v }))}
+            onPaidChange={(v) => setForm((f) => ({ ...f, ...setPaid(f, v, todayLocalISO()) }))}
             paidAmount={form.paidAmount}
             onPaidAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
             paidAt={form.paidAt}

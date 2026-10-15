@@ -42,12 +42,14 @@ describe("InlineCostFields", () => {
     expect(screen.getByLabelText(/you paid amount/i)).toBeInTheDocument();
   });
 
-  it("prefills the paid amount from the cost when Paid is ticked", async () => {
+  // The pre-fill moved into the state (setPaid / useCostFields — card 2.I);
+  // the fields only report the tick.
+  it("reports ticking Paid and leaves the pre-fill to the state", async () => {
     const user = userEvent.setup();
     const props = renderFields();
     await user.click(screen.getByRole("checkbox", { name: /paid/i }));
     expect(props.onPaidChange).toHaveBeenCalledWith(true);
-    expect(props.onPaidAmountChange).toHaveBeenCalledWith("340.00");
+    expect(props.onPaidAmountChange).not.toHaveBeenCalled();
   });
 
   it("surfaces the missing-amount error on the paid field", () => {
