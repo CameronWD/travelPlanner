@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Wallet } from "lucide-react";
-import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
-import { tripSlugFor } from "@/lib/trip-slug-read";
-import { readTripShell } from "@/lib/trip-shell-reads";
+import { readPlan, resolvePlanParam } from "@/lib/plan-reads";
 import { tripPath } from "@/lib/trip-path";
-import { planScope, resolvePlan } from "@/lib/plan-scope";
 import { chapterForStop } from "@/lib/chapters";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -35,25 +30,6 @@ import { BreakdownCard } from "@/components/money/breakdown-card";
 import { RatesStrip } from "@/components/money/rates-strip";
 
 export const metadata: Metadata = { title: "Money" };
-
-// ---------------------------------------------------------------------------
-// Data fetching
-// ---------------------------------------------------------------------------
-
-const COST_SELECT = {
-  id: true,
-  costMinor: true,
-  paidMinor: true,
-  currency: true,
-  rateToHome: true,
-  paidAt: true,
-  dueDate: true,
-  ownerType: true,
-  ownerId: true,
-  label: true,
-  category: true,
-  settlement: true,
-} as const;
 
 // ---------------------------------------------------------------------------
 // Layout constants (exported for unit tests) — MONEY.md §7
@@ -89,22 +65,14 @@ export default async function BudgetPage({
   const { plan, by: rawBy } = await searchParams;
   const { user } = await requireTripAccess(tripId);
 
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true, forksEnabled: true, homeTimezone: true },
-  });
-  if (!trip) notFound();
-
-  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
-  // Otherwise validate the fork exists for this trip; fall back to real plan if not.
-  const selectedForkId = resolvePlan({ plan, forksEnabled: trip.forksEnabled });
-  const activeFork = selectedForkId
-    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
-    : null;
-  const activeForkId = activeFork ? activeFork.id : null;
-
-  const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
-  const members = shell?.members.map((m) => m.user) ?? [];
+  // One fork gate (lib/plan-reads.ts): Plan variants off (spec B3) or a Fork
+  // that isn't this Trip's → the real plan. Then every Plan row in one read,
+  // the viewer's Surprises applied (ADR 0072).
+  const { plan: activeForkId, fork: activeFork } = await resolvePlanParam(tripId, plan);
+  const planRows = await readPlan(tripId, user.id, activeForkId);
+  const trip = planRows.trip;
+  const slug = trip.slug ?? tripId;
+  const members = trip.members.map((m) => m.user);
 
   // Cost creation writes to the real plan (createCost carries no fork
   // context), so a variant gets no + Add a cost rather than misfiled data.
@@ -112,7 +80,7 @@ export default async function BudgetPage({
     <MoneyHeader
       tripId={tripId}
       slug={slug}
-      tripName={shell?.name ?? ""}
+      tripName={trip.name}
       meta={meta}
       members={members}
       homeCurrency={trip.homeCurrency}
@@ -149,46 +117,20 @@ export default async function BudgetPage({
   // Surprise (ADR 0051): hidden Costs stay in the totals but fold into one
   // "Surprise" byCategory row (buildBudgetFromRows below); this page renders
   // no Cost lines until the "lines" (toPayInputs/costRows) below drop them.
-  const v = await loadSurpriseVisibility(tripId, user.id);
+  const v = planRows.visibility;
 
-  // Fetch everything in parallel
-  const [allCosts, stops, items, accommodations, transports, exchangeRates, chapters] = await Promise.all([
-    db.cost.findMany({
-      where: { tripId, ...planScope(activeForkId) },
-      orderBy: { createdAt: "asc" },
-      select: COST_SELECT,
-    }),
-    db.stop.findMany({
-      // Rough (date-less) stops carry no costs onto the dated budget.
-      where: { tripId, ...planScope(activeForkId), arriveDate: { not: null } },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true, countryCode: true },
-    }),
-    db.item.findMany({
-      where: { tripId, ...planScope(activeForkId) },
-      select: { id: true, stopId: true, category: true, date: true, title: true },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, ...planScope(activeForkId) },
-      select: { id: true, stopId: true, checkIn: true, checkOut: true, name: true },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...planScope(activeForkId) },
-      select: { id: true, fromStopId: true, toStopId: true, depAt: true, mode: true, depIsHome: true },
-    }),
-    db.exchangeRate.findMany({
-      // Exchange rates are trip-wide, not plan-scoped (CONTEXT.md).
-      where: { tripId },
-      select: { base: true, quote: true, rate: true, manual: true, fetchedAt: true },
-    }),
-    db.chapter.findMany({
-      // Rough (date-less) chapters have no dated window, so buildBudget would
-      // emit a blank $0 row for each — match the summary page and exclude them.
-      where: { tripId, ...planScope(activeForkId), startDate: { not: null } },
-      orderBy: { startDate: "asc" },
-      select: { id: true, name: true, colour: true, startDate: true, endDate: true },
-    }),
-  ]);
+  // Costs are unfiltered (hidden ones stay in the totals). Rough (date-less)
+  // stops carry no costs onto the dated budget, and rough chapters have no
+  // dated window (buildBudget would emit a blank $0 row for each — match the
+  // summary page and exclude them). Exchange rates are trip-wide (CONTEXT.md).
+  const allCosts = planRows.costs;
+  const stops = planRows.stops.filter((s) => s.arriveDate);
+  const chapters = planRows.chapters.filter((c) => c.startDate);
+  const { transports, exchangeRates } = planRows;
+  // Unfiltered and minimal: buildBudget places a hidden owner's Cost by its
+  // real stop/date, and the owner labels below cover Wishlist ideas too.
+  const items = planRows.budgetItems;
+  const accommodations = planRows.budgetAccommodations;
 
   const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
 
@@ -206,7 +148,7 @@ export default async function BudgetPage({
     })),
   });
 
-  // Non-null at runtime: the query filters rough (date-less) stops out.
+  // Non-null at runtime: rough (date-less) stops are filtered out above.
   // Still assembled here (not just inside buildBudgetFromRows) —
   // stopChapterColour below reuses it for the breakdown rows.
   const budgetStops: BudgetStopWithDates[] = stops.map((s) => ({
@@ -220,7 +162,7 @@ export default async function BudgetPage({
 
   // The roll-up itself: lib/budget-loader.ts's `buildBudgetFromRows` is the
   // same input-assembly + buildBudget() call `get_budget`'s loadBudget uses,
-  // run here against rows this page already fetched above (no new queries —
+  // run here against the Plan rows read above (no new queries —
   // allCosts/items/accommodations/transports/chapters are all reused for
   // ownerName, the Rates strip, etc. too).
   const budget = buildBudgetFromRows({

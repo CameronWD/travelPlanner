@@ -190,8 +190,8 @@ function rowsFrom({
     costs: costs as unknown as PlanRows["costs"],
     exchangeRates,
     chapters: chapters as unknown as PlanRows["chapters"],
-    budgetItems: items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date })),
-    budgetAccommodations: accommodations.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut })),
+    budgetItems: items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date, title: i.title })),
+    budgetAccommodations: accommodations.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut, name: a.name })),
   });
 }
 
@@ -470,12 +470,12 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
       visibility: hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }),
     });
     rows.accommodations = []; // what the viewer may render — hidden one excluded
-    rows.budgetAccommodations = [{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04" }];
+    rows.budgetAccommodations = [{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04", name: "The Hideaway Inn" }];
     readPlanMock.mockResolvedValue(rows);
 
     const html = render(await renderSummary()).container.innerHTML;
     const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { accommodations: Array<Record<string, unknown>> };
-    expect(input.accommodations).toEqual([{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04" }]);
+    expect(input.accommodations).toEqual([{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04", name: "The Hideaway Inn" }]);
     expect(html).not.toContain("The Hideaway Inn");
   });
 });

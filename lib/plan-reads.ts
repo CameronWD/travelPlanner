@@ -128,8 +128,11 @@ export const COST_SELECT = {
 export const PLAN_CHAPTER_SELECT = { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true } as const;
 
 const EXCHANGE_RATE_SELECT = { base: true, quote: true, rate: true, manual: true, fetchedAt: true } as const;
-const BUDGET_ITEM_SELECT = { id: true, stopId: true, category: true, date: true } as const;
-const BUDGET_ACCOMMODATION_SELECT = { id: true, stopId: true, checkIn: true, checkOut: true } as const;
+// `title`/`name` ride along for the Budget page's Cost owner labels: a Cost on a
+// Wishlist idea (no Stop, no date) or a hidden owner is not in `items` /
+// `accommodations`, but still needs its label wherever its line is shown.
+const BUDGET_ITEM_SELECT = { id: true, stopId: true, category: true, date: true, title: true } as const;
+const BUDGET_ACCOMMODATION_SELECT = { id: true, stopId: true, checkIn: true, checkOut: true, name: true } as const;
 
 export type PlanStopRow = Prisma.StopGetPayload<{ select: typeof PLAN_STOP_SELECT }> & { surprise: SurpriseView | null };
 export type PlanTransportRow = Prisma.TransportGetPayload<{ select: typeof PLAN_TRANSPORT_SELECT }>;
@@ -156,12 +159,16 @@ export type PlanRows = {
    * A caller that renders Cost lines must drop the ones whose `ownerId` is in `visibility.hiddenOwnerIds`.
    */
   costs: PlanCostRow[];
-  exchangeRates: { base: string; quote: string; rate: number; manual: boolean; fetchedAt: Date | null }[];
+  exchangeRates: Prisma.ExchangeRateGetPayload<{ select: typeof EXCHANGE_RATE_SELECT }>[];
   /** [] when the Trip's chapters toggle is off (a disabled Trip renders flat). Dated and rough. */
   chapters: PlanChapterRow[];
-  /** Unfiltered, minimal rows for buildBudget's byStop/byDay placement (never rendered). */
-  budgetItems: { id: string; stopId: string | null; category: string; date: string | null }[];
-  budgetAccommodations: { id: string; stopId: string; checkIn: string; checkOut: string }[];
+  /**
+   * Unfiltered, minimal rows for buildBudget's byStop/byDay placement and the
+   * Cost owner-label map (`title`/`name`). Never rendered as rows; a label is
+   * shown only on a Cost line, which callers already drop for hidden owners.
+   */
+  budgetItems: { id: string; stopId: string | null; category: string; date: string | null; title: string }[];
+  budgetAccommodations: { id: string; stopId: string; checkIn: string; checkOut: string; name: string }[];
 };
 
 /** One Fork of this Trip, or null. Cached so `resolvePlanParam` and `readPlan` share it within a request. */
@@ -258,7 +265,8 @@ export const readPlan: (tripId: string, viewer: PlanViewer, plan: PlanId) => Pro
             })
           : Promise.resolve([]),
         // Unfiltered, minimal: buildBudget places a cost by its owner's real
-        // stop/date, so a hidden owner's row has to be here. Never rendered.
+        // stop/date, so a hidden owner's row has to be here. Never rendered
+        // as a row (title/name only label a Cost line).
         db.item.findMany({ where: scope, select: BUDGET_ITEM_SELECT }),
         db.accommodation.findMany({ where: scope, select: BUDGET_ACCOMMODATION_SELECT }),
       ]);

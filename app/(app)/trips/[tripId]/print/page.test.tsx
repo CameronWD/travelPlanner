@@ -163,8 +163,8 @@ function rowsFrom({
     costs: costs as unknown as PlanRows["costs"],
     exchangeRates,
     chapters: [],
-    budgetItems: items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date })),
-    budgetAccommodations: accommodations.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut })),
+    budgetItems: items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date, title: i.title })),
+    budgetAccommodations: accommodations.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut, name: a.name })),
   });
 }
 
@@ -242,7 +242,7 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
       ],
     });
     rows.accommodations = []; // what the viewer may render — hidden one excluded
-    rows.budgetAccommodations = [{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04" }];
+    rows.budgetAccommodations = [{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04", name: "The Hideaway Inn" }];
     readPlanMock.mockResolvedValue(rows);
 
     const html = await renderPrint();

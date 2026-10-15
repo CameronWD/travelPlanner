@@ -48,6 +48,11 @@ vi.mock("@/lib/globe-suggestions", () => ({ suggestMarkersForTrip: () => [] }));
 vi.mock("@/components/trip/variant-banner", () => ({ VariantBanner: () => null }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async () => "t1" }));
+// The `?plan=` gate (lib/plan-reads.ts resolvePlanParam) runs for real over
+// this Trip shell and `db.fork`; the page's own Trip read (ideas + Stops for
+// the map filter) stays on `db.trip`.
+const shell = vi.hoisted(() => ({ current: { forksEnabled: false } }));
+vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => shell.current), readTripHeader: vi.fn(async () => shell.current) }));
 vi.mock("@/components/trip/add-item-from-url", () => ({ AddItemFromUrl: () => null }));
 vi.mock("@/components/trip/wishlist-board", () => ({
   WishlistBoard: (props: Record<string, unknown>) => {
@@ -78,6 +83,8 @@ beforeEach(() => {
   stopFindManyMock.mockResolvedValue([]);
   loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   for (const k of Object.keys(boardProps)) delete boardProps[k];
+  shell.current = { forksEnabled: false };
+  forkFindFirstMock.mockResolvedValue(null);
   tripFindUniqueMock.mockResolvedValue({
     id: "t1",
     name: "Europe",
@@ -124,6 +131,7 @@ describe("WishlistPage — the current Plan's Stops for Schedule (spec 2026-10-0
       id: "t1", name: "Europe", startDate: "2026-07-01", endDate: "2026-07-20",
       homeCurrency: "USD", forksEnabled: true, stops: [], items: [],
     });
+    shell.current = { forksEnabled: true };
     forkFindFirstMock.mockResolvedValue({ id: "fork-1", name: "Italy first" });
     await renderPage({ plan: "fork-1" });
     expect(stopFindManyMock).toHaveBeenCalledWith(
@@ -167,6 +175,7 @@ describe("WishlistPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => 
       id: "t1", name: "Europe", startDate: "2026-07-01", endDate: "2026-07-20",
       homeCurrency: "USD", forksEnabled: true, stops: [], items: [IDEA],
     });
+    shell.current = { forksEnabled: true };
     loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
     await renderPage();
     expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", "u1");
@@ -181,5 +190,21 @@ describe("WishlistPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => 
     loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
     await renderPage();
     expect(JSON.stringify(tripFindUniqueMock.mock.calls[0][0])).not.toContain("surpriseMarker");
+  });
+});
+
+describe("WishlistPage — the ?plan= gate (resolvePlanParam)", () => {
+  it("ignores ?plan= when Plan variants are off", async () => {
+    await renderPage({ plan: "fork-1" });
+    expect(forkFindFirstMock).not.toHaveBeenCalled();
+    expect(boardProps.activeForkId).toBeNull();
+  });
+
+  it("falls back to the real plan for a Fork that isn't this Trip's", async () => {
+    shell.current = { forksEnabled: true };
+    await renderPage({ plan: "stranger" });
+    expect(forkFindFirstMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "stranger", tripId: "t1" } }));
+    expect(boardProps.activeForkId).toBeNull();
+    expect(stopFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "t1", forkId: null } }));
   });
 });

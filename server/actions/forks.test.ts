@@ -281,6 +281,12 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/item-photo-copy", () => ({ copyItemPhoto: copyItemPhotoMock }));
+// getComparison reads every plan through the Plan reader (lib/plan-reads.ts),
+// mocked with the PlanRows a real call would hand back (`planRows()`); its
+// query shapes, plan scoping and Surprise masking are pinned in
+// lib/plan-reads.test.ts. The promote preview keeps its own `db` reads.
+const { readPlanMock } = vi.hoisted(() => ({ readPlanMock: vi.fn() }));
+vi.mock("@/lib/plan-reads", () => ({ readPlan: readPlanMock }));
 // Surprise (ADR 0051): getPromotionPreview asks the visibility loader and
 // spreads its fragments into its own queries; the loader is tested on its own.
 const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
@@ -297,6 +303,7 @@ import { createFork, renameFork, discardFork, getComparison, getPromotionPreview
 import { formatMoney } from "@/lib/money";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+import { planRows } from "@/test/builders/plan-rows";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1123,16 +1130,34 @@ describe("getComparison", () => {
     homeCurrency: "AUD",
     drivingWindingFactor: 1.3,
     drivingAvgSpeedKph: 80,
+    forksEnabled: true,
+    roundTrip: false,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    homeTimezone: null,
+    members: [],
+    stops: [],
   };
+  /** Per-plan Stops a test sets; `readPlan` hands back PlanRows with them (empty otherwise). */
+  let stopsByPlan: Record<string, unknown[]> = {};
+  const rowsFor = (plan: string | null) =>
+    planRows({
+      trip: tripRow as never,
+      plan,
+      fork: plan ? { id: plan, name: plan } : null,
+      stops: (stopsByPlan[plan ?? "real"] ?? []) as never,
+      transports: [],
+      accommodations: [],
+      items: [],
+      costs: [],
+      exchangeRates: [],
+    });
 
   beforeEach(() => {
-    tripFindUniqueMock.mockResolvedValue(tripRow);
-    exchangeRateFindManyMock.mockResolvedValue([]);
-    stopFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([]);
-    accommodationFindManyMock.mockResolvedValue([]);
-    itemFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([]);
+    stopsByPlan = {};
+    readPlanMock.mockImplementation(async (_tripId: string, _viewer: string | null, plan: string | null) => rowsFor(plan));
   });
 
   afterEach(() => {
@@ -1141,14 +1166,7 @@ describe("getComparison", () => {
       user: { id: "user-1" },
       membership: { role: "owner" },
     });
-    tripFindUniqueMock.mockResolvedValue(tripRow);
     forkFindManyMock.mockResolvedValue([]);
-    exchangeRateFindManyMock.mockResolvedValue([]);
-    stopFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([]);
-    accommodationFindManyMock.mockResolvedValue([]);
-    itemFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([]);
     computePlanMetricsMock.mockReturnValue({
       stopCount: 0,
       nightTotal: 0,
@@ -1199,57 +1217,34 @@ describe("getComparison", () => {
   });
 
   describe("per-plan scoped loading", () => {
-    it("loads the real plan's six collections with forkId: null", async () => {
+    it("reads the real plan through the Plan reader, for this viewer", async () => {
       forkFindManyMock.mockResolvedValue([]);
 
       await getComparison("trip-1");
 
-      expect(stopFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
-      );
-      expect(transportFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
-      );
-      expect(accommodationFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
-      );
-      expect(itemFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
-      );
-      expect(costFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
-      );
+      expect(readPlanMock).toHaveBeenCalledTimes(1);
+      expect(readPlanMock).toHaveBeenCalledWith("trip-1", "user-1", null);
     });
 
-    it("loads each fork's collections scoped to its forkId", async () => {
+    it("reads each fork's plan by its forkId", async () => {
       forkFindManyMock.mockResolvedValue([
         { id: "fork-A", name: "Variant A", sortOrder: 0 },
       ]);
 
       await getComparison("trip-1");
 
-      // The fork's stop query should use forkId: "fork-A"
-      expect(stopFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-A" }) }),
-      );
-      expect(costFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-A" }) }),
-      );
+      expect(readPlanMock).toHaveBeenCalledWith("trip-1", "user-1", null);
+      expect(readPlanMock).toHaveBeenCalledWith("trip-1", "user-1", "fork-A");
     });
 
-    it("loads exchangeRates once (trip-scoped, not per plan)", async () => {
-      forkFindManyMock.mockResolvedValue([
-        { id: "fork-A", name: "Variant A", sortOrder: 0 },
-        { id: "fork-B", name: "Variant B", sortOrder: 1 },
-      ]);
+    it("passes each plan's exchange rates to computePlanMetrics", async () => {
+      const rates = [{ base: "EUR", quote: "AUD", rate: 1.6, manual: false, fetchedAt: new Date("2026-10-01") }];
+      readPlanMock.mockImplementation(async (_t: string, _v: string | null, plan: string | null) => ({ ...rowsFor(plan), exchangeRates: rates }));
+      forkFindManyMock.mockResolvedValue([]);
 
       await getComparison("trip-1");
 
-      // Should be called exactly once regardless of plan count
-      expect(exchangeRateFindManyMock).toHaveBeenCalledTimes(1);
-      expect(exchangeRateFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1" }) }),
-      );
+      expect(computePlanMetricsMock).toHaveBeenCalledWith(expect.objectContaining({ exchangeRates: rates }));
     });
   });
 
@@ -1297,20 +1292,18 @@ describe("getComparison", () => {
           timezone: "Australia/Sydney",
         },
       ];
-      // stopFindManyMock returns real stops when called with forkId: null
-      stopFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
-        if (args.where.forkId === null) return Promise.resolve(realStops);
-        return Promise.resolve([]);
-      });
-      forkFindManyMock.mockResolvedValue([]);
+      // readPlan hands back the real stops for the real plan (forkId: null)
+      stopsByPlan = { real: realStops };
+      forkFindManyMock.mockResolvedValue([{ id: "fork-A", name: "Variant A", sortOrder: 0 }]);
 
       await getComparison("trip-1");
 
-      expect(computePlanMetricsMock).toHaveBeenCalledWith(
+      expect(computePlanMetricsMock.mock.calls[0][0]).toEqual(
         expect.objectContaining({
           stops: realStops,
         }),
       );
+      expect(computePlanMetricsMock.mock.calls[1][0]).toEqual(expect.objectContaining({ stops: [] }));
     });
 
     it("puts computePlanMetrics result as the metrics field of each plan", async () => {
@@ -1337,12 +1330,10 @@ describe("getComparison", () => {
     });
   });
 
-  it("selects forksEnabled so the Compare page can gate on it", async () => {
-    await getComparison("trip-1");
+  it("carries forksEnabled so the Compare page can gate on it", async () => {
+    const result = await getComparison("trip-1");
 
-    expect(tripFindUniqueMock).toHaveBeenCalledWith(
-      expect.objectContaining({ select: expect.objectContaining({ forksEnabled: true }) }),
-    );
+    expect(result.trip.forksEnabled).toBe(true);
   });
 
   describe("auth", () => {

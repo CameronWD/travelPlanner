@@ -24,8 +24,8 @@ export function planRows(o: Partial<PlanRows> = {}): PlanRows {
     costs: f.costs,
     exchangeRates: [],
     chapters: [],
-    budgetItems: f.items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date })),
-    budgetAccommodations: f.stays.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut })),
+    budgetItems: f.items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date, title: i.title })),
+    budgetAccommodations: f.stays.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut, name: a.name })),
     ...o,
   };
 }

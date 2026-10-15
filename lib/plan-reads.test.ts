@@ -185,13 +185,13 @@ describe("readPlan", () => {
     expect(whereOf("chapter")).toEqual({ tripId: "trip-1", forkId: null });
   });
 
-  it("costs are unfiltered and budgetItems/budgetAccommodations are the minimal unfiltered rows", async () => {
+  it("costs are unfiltered and budgetItems/budgetAccommodations are the minimal unfiltered rows (with title/name for Cost labels)", async () => {
     loadSurpriseVisibility.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["stop-1"], placeholders: [placeholderItem({ id: "item-x" })] }));
     db.cost.findMany.mockResolvedValue([cost(), cost({ id: "cost-hidden", ownerId: "item-x" })]);
-    db.item.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "item-x", stopId: "stop-1", category: "FOOD", date: "2026-11-02" }]);
+    db.item.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "item-x", stopId: "stop-1", category: "FOOD", date: "2026-11-02", title: "Secret dinner" }]);
     db.accommodation.findMany
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: "acc-1", stopId: "stop-1", checkIn: "2026-11-01", checkOut: "2026-11-04" }]);
+      .mockResolvedValueOnce([{ id: "acc-1", stopId: "stop-1", checkIn: "2026-11-01", checkOut: "2026-11-04", name: "Hotel Avenida" }]);
 
     const rows = await readPlan("trip-1", "u1", null);
 
@@ -199,11 +199,11 @@ describe("readPlan", () => {
     expect(db.cost.findMany.mock.calls[0][0].select).toBe(COST_SELECT);
     expect(rows.costs.map((c) => c.id)).toEqual(["cost-1", "cost-hidden"]);
     expect(whereOf("item", 1)).toEqual({ tripId: "trip-1", forkId: null });
-    expect(db.item.findMany.mock.calls[1][0].select).toEqual({ id: true, stopId: true, category: true, date: true });
+    expect(db.item.findMany.mock.calls[1][0].select).toEqual({ id: true, stopId: true, category: true, date: true, title: true });
     expect(whereOf("accommodation", 1)).toEqual({ tripId: "trip-1", forkId: null });
-    expect(db.accommodation.findMany.mock.calls[1][0].select).toEqual({ id: true, stopId: true, checkIn: true, checkOut: true });
-    expect(rows.budgetItems).toEqual([{ id: "item-x", stopId: "stop-1", category: "FOOD", date: "2026-11-02" }]);
-    expect(rows.budgetAccommodations).toEqual([{ id: "acc-1", stopId: "stop-1", checkIn: "2026-11-01", checkOut: "2026-11-04" }]);
+    expect(db.accommodation.findMany.mock.calls[1][0].select).toEqual({ id: true, stopId: true, checkIn: true, checkOut: true, name: true });
+    expect(rows.budgetItems).toEqual([{ id: "item-x", stopId: "stop-1", category: "FOOD", date: "2026-11-02", title: "Secret dinner" }]);
+    expect(rows.budgetAccommodations).toEqual([{ id: "acc-1", stopId: "stop-1", checkIn: "2026-11-01", checkOut: "2026-11-04", name: "Hotel Avenida" }]);
   });
 
   it("COST_SELECT is the union of the private copies (dueDate included)", () => {
