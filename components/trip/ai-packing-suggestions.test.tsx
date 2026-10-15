@@ -15,7 +15,7 @@ import { addChecklistItem, addChecklistItems } from "@/server/actions/checklists
 import { AiPackingSuggestions } from "./ai-packing-suggestions";
 
 const draft = (items: string[]) =>
-  vi.mocked(aiDraftPackingList).mockResolvedValue({ ok: true, data: { items } });
+  vi.mocked(aiDraftPackingList).mockResolvedValue({ success: true, data: { items } });
 
 async function draftAndWait(user: ReturnType<typeof userEvent.setup>, items: string[]) {
   draft(items);

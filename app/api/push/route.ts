@@ -40,7 +40,7 @@ export async function POST(req: Request): Promise<Response> {
     // else) are the caller's problem — 400. "internal" (an unexpected DB
     // failure inside the action) is ours, and reporting it as 400 would mask
     // a server fault as a client error on a path nobody is watching.
-    const status = result.ok ? 200 : result.reason === "internal" ? 500 : 400;
+    const status = result.success ? 200 : result.code === "internal" ? 500 : 400;
     return NextResponse.json(result, { status });
   } catch (err) {
     // requireUser() redirects when signed out, and Next's redirect() throws

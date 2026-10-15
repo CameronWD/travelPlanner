@@ -19,6 +19,8 @@ import {
   type Proposal,
   type StopProposal,
 } from "@/lib/booking-import/types";
+import { fail, formFail, FORM_ERROR_KEY } from "@/lib/action-result";
+import { formError } from "@/components/ui/action-failure";
 import { cn } from "@/lib/cn";
 import { formatDateRange, formatNights, nightsBetween } from "@/lib/dates";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
@@ -127,9 +129,9 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     try {
       result = await importBooking(fd);
     } catch {
-      result = { ok: false, reason: "busy", message: M.busy };
+      result = formFail(M.busy, "busy");
     }
-    if (!result.ok) return setPhase({ kind: "failed", message: result.message, retry: result.reason === "busy" });
+    if (!result.success) return setPhase({ kind: "failed", message: formError(result) ?? M.generic, retry: result.code === "busy" });
     setEntries(Object.fromEntries(result.proposals.map((p) => [p.clientId, { proposal: p, status: "pending" as const, error: null }])));
     setPhase({ kind: "results", partial: result.partial, context: result.context });
   }
@@ -235,11 +237,11 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
         const createdId = claim.resolved[proposal.clientId];
         if (createdId) {
           setEntries((prev) => ({ ...prev, [clientId]: { ...prev[clientId], status: "confirmed", error: null } }));
-          return { ok: true, createdId, createdStops: {} };
+          return { success: true, createdId, createdStops: {} };
         }
         const message = claim.ownerError ?? M.generic;
         setEntries((prev) => ({ ...prev, [clientId]: { ...prev[clientId], status: "pending", error: message } }));
-        return { ok: false, message, createdStops: {} };
+        return fail({ [FORM_ERROR_KEY]: [message] }, { createdStops: {} });
       }
 
       const needs = proposal.kind === "stop" ? [] : claim.owned;
@@ -255,23 +257,23 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
       try {
         res = await confirmProposal(tripId, { proposal, proposedStops: needs, resolvedStops: claim.resolved }, forkId);
       } catch {
-        res = { ok: false, message: M.generic, createdStops: {} };
+        res = fail({ [FORM_ERROR_KEY]: [M.generic] }, { createdStops: {} });
       }
       createdStops.current = { ...createdStops.current, ...res.createdStops };
-      claim.release(res.createdStops, res.ok ? undefined : res.message);
+      claim.release(res.createdStops, res.success ? undefined : formError(res));
       setEntries((prev) => {
         const next = { ...prev };
         for (const id of busy) {
-          const saved = id === clientId ? res.ok : Boolean(createdStops.current[id]);
+          const saved = id === clientId ? res.success : Boolean(createdStops.current[id]);
           next[id] = {
             proposal: id === clientId ? proposal : next[id].proposal,
             status: saved ? "confirmed" : "pending",
-            error: id === clientId && !res.ok ? res.message : null,
+            error: id === clientId && !res.success ? (formError(res) ?? M.generic) : null,
           };
         }
         return next;
       });
-      if (res.ok) await attachOriginal(proposal.kind, res.createdId);
+      if (res.success) await attachOriginal(proposal.kind, res.createdId);
       return res;
     } finally {
       confirming.current.delete(clientId);
@@ -298,7 +300,7 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
   async function confirmEdited(next: Proposal): Promise<ConfirmProposalResult> {
     const res = await confirm(next.clientId, { ...next, highlight: [], missing: [] });
     // undefined: this Proposal is already being confirmed (or is saved).
-    return res ?? { ok: false, message: M.generic, createdStops: {} };
+    return res ?? fail({ [FORM_ERROR_KEY]: [M.generic] }, { createdStops: {} });
   }
 
   function discard(clientId: string) {

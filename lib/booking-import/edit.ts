@@ -36,7 +36,12 @@ export function mergeStopEdit(prev: ProposedStopInput, edited: ProposedStopInput
   return defined({ ...edited, ...(samePlace && !edited.countryCode && prev.countryCode ? { countryCode: prev.countryCode } : {}) });
 }
 
-/** A confirm's outcome as the form dialog's submit expects it; the message shows as the form-level line. */
+/**
+ * A confirm's outcome as the form dialog's submit expects it. `ConfirmProposalResult`
+ * is already an `ActionResult` (ADR 0074) — its extra `createdId`/`createdStops`
+ * fields are just along for the ride — so this is a type-narrowing pass-through,
+ * kept so callers don't depend on `ConfirmProposalResult`'s own shape.
+ */
 export function toActionResult(res: ConfirmProposalResult): ActionResult {
-  return res.ok ? { success: true } : { success: false, errors: { _: [res.message], ...(res.errors ?? {}) } };
+  return res;
 }

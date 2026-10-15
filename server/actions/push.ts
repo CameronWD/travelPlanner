@@ -1,5 +1,6 @@
 "use server";
 
+import { ok, formFail, type ActionResult } from "@/lib/action-result";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { deviceLabelFromUserAgent } from "@/lib/device-label";
@@ -9,12 +10,12 @@ import { reportError } from "@/lib/error-sink";
 // Result types
 // ---------------------------------------------------------------------------
 
-export type PushActionResult =
-  | { ok: true }
-  // `reason: "conflict"` means the endpoint belongs to someone else. The
-  // client acts on precisely this case by minting a fresh endpoint, so it
-  // must be distinguishable from a generic failure (ADR 0053).
-  | { ok: false; error: string; reason?: "conflict" };
+/**
+ * `code: "conflict"` means the endpoint belongs to someone else. The
+ * client acts on precisely this case by minting a fresh endpoint, so it
+ * must be distinguishable from a generic failure (ADR 0053).
+ */
+export type PushActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Shared shape
@@ -70,12 +71,10 @@ export async function subscribeToPush(sub: {
       select: { userId: true },
     });
     if (existing && existing.userId !== user.id) {
-      return {
-        ok: false,
-        error:
-          "This device is already enabled for another account. Turn it off there, or press Enable again.",
-        reason: "conflict",
-      };
+      return formFail(
+        "This device is already enabled for another account. Turn it off there, or press Enable again.",
+        "conflict",
+      );
     }
 
     await db.pushSubscription.upsert({
@@ -98,13 +97,13 @@ export async function subscribeToPush(sub: {
       },
     });
 
-    return { ok: true };
+    return ok();
   } catch (err) {
     await reportError(err, {
       route: "server/actions/push.ts#subscribeToPush",
       source: "server",
     });
-    return { ok: false, error: "Couldn't enable push on this device. Try again." };
+    return formFail("Couldn't enable push on this device. Try again.");
   }
 }
 
@@ -124,13 +123,13 @@ export async function unsubscribeFromPush(
       where: { endpoint, userId: user.id },
     });
 
-    return { ok: true };
+    return ok();
   } catch (err) {
     await reportError(err, {
       route: "server/actions/push.ts#unsubscribeFromPush",
       source: "server",
     });
-    return { ok: false, error: "Couldn't remove this device's push subscription. Try again." };
+    return formFail("Couldn't remove this device's push subscription. Try again.");
   }
 }
 
@@ -143,14 +142,14 @@ export interface HealRotatedInput {
   userAgent?: string;
 }
 
-export type HealRotatedResult =
-  | { ok: true; mode: "updated" | "registered" }
-  // `reason` discriminates whose fault a failure is, for the route that
-  // exposes this action over HTTP (app/api/push/route.ts): "invalid" and
-  // "forbidden" are the caller's problem (bad key material, or trying to
-  // touch an endpoint that isn't theirs) and map to 400; "internal" is ours
-  // (an unexpected DB failure) and must not be reported as a client error.
-  | { ok: false; error: string; reason: "invalid" | "forbidden" | "internal" };
+/**
+ * `code` discriminates whose fault a failure is, for the route that exposes
+ * this action over HTTP (app/api/push/route.ts): "invalid" and "forbidden"
+ * are the caller's problem (bad key material, or trying to touch an endpoint
+ * that isn't theirs) and map to 400; "internal" is ours (an unexpected DB
+ * failure) and must not be reported as a client error.
+ */
+export type HealRotatedResult = ActionResult<{ mode: "updated" | "registered" }>;
 
 /**
  * Heal a **Device** whose push endpoint rotated underneath it.
@@ -199,7 +198,7 @@ export async function healRotatedSubscription(
   // degraded key, it is no key at all, and a row without usable keys is a
   // Device that LOOKS confirmed and can never receive a push.
   if (!input.keys?.p256dh || !input.keys?.auth) {
-    return { ok: false, error: "No usable key material.", reason: "invalid" };
+    return formFail("No usable key material.", "invalid");
   }
 
   try {
@@ -225,7 +224,7 @@ export async function healRotatedSubscription(
             ...subscriptionCoreFields(input.keys, input.timezone),
           },
         });
-        return { ok: true, mode: "updated" };
+        return ok({ mode: "updated" });
       }
       // No row, or somebody else's. Fall through and register the new one:
       // reassigning a row we do not own would hand one person's Digest to
@@ -241,7 +240,7 @@ export async function healRotatedSubscription(
       where: { endpoint: input.endpoint },
     });
     if (atNewEndpoint && atNewEndpoint.userId !== user.id) {
-      return { ok: false, error: "That endpoint belongs to another traveller.", reason: "forbidden" };
+      return formFail("That endpoint belongs to another traveller.", "forbidden");
     }
 
     await db.pushSubscription.upsert({
@@ -269,12 +268,12 @@ export async function healRotatedSubscription(
         ...subscriptionCoreFields(input.keys, input.timezone),
       },
     });
-    return { ok: true, mode: "registered" };
+    return ok({ mode: "registered" });
   } catch (err) {
     await reportError(err, {
       route: "server/actions/push.ts#healRotatedSubscription",
       source: "server",
     });
-    return { ok: false, error: "Couldn't update this device's push subscription. Try again.", reason: "internal" };
+    return formFail("Couldn't update this device's push subscription. Try again.", "internal");
   }
 }

@@ -5,7 +5,7 @@
  */
 import type { TransportMode } from "@/lib/enum-values";
 import type { Category } from "@/lib/categories";
-import type { FieldErrors } from "@/lib/action-result";
+import type { ActionResult } from "@/lib/action-result";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -154,7 +154,7 @@ export interface ImportContext {
   stops: ImportStop[];
 }
 
-type BookingImportFailureReason =
+export type BookingImportFailureReason =
   | "invalid_file"
   | "unreadable"
   | "not_booking"
@@ -164,9 +164,11 @@ type BookingImportFailureReason =
   | "error"
   | "disabled";
 
-export type BookingImportResult =
-  | { ok: true; proposals: Proposal[]; partial: boolean; context: ImportContext }
-  | { ok: false; reason: BookingImportFailureReason; message: string; retryInMinutes?: number };
+/** `code`, on failure, is one of `BookingImportFailureReason`'s values. */
+export type BookingImportResult = ActionResult<
+  { proposals: Proposal[]; partial: boolean; context: ImportContext },
+  { retryInMinutes?: number }
+>;
 
 export interface ConfirmRequest {
   proposal: Proposal;
@@ -176,9 +178,10 @@ export interface ConfirmRequest {
   resolvedStops: Record<string, string>;
 }
 
-export type ConfirmProposalResult =
-  | { ok: true; createdId: string; createdStops: Record<string, string> }
-  | { ok: false; message: string; errors?: FieldErrors; createdStops: Record<string, string> };
+export type ConfirmProposalResult = ActionResult<
+  { createdId: string; createdStops: Record<string, string> },
+  { createdStops: Record<string, string> }
+>;
 
 export type BookingImageType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
 

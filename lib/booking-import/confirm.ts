@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import type { FieldErrors } from "@/lib/action-result";
+import { fail, FORM_ERROR_KEY } from "@/lib/action-result";
 import { db } from "@/lib/db";
 import { orderPlanStops, type OrderableStop } from "@/lib/plan-order";
 import { planScope } from "@/lib/plan-scope";
@@ -38,8 +38,9 @@ const ConfirmRequestSchema = z.object({
   resolvedStops: z.record(z.string(), ref),
 });
 
-function firstError(errors: FieldErrors): string {
-  return Object.values(errors).flat()[0] ?? M.generic;
+/** A generic (form-level only) confirm failure, keeping the `createdStops` the caller already has. */
+function failWith(message: string, createdStops: Record<string, string>): ConfirmProposalResult {
+  return fail({ [FORM_ERROR_KEY]: [message] }, { createdStops });
 }
 
 /**
@@ -64,7 +65,7 @@ export async function confirmProposalFor(
   forkId: string | null,
 ): Promise<ConfirmProposalResult> {
   const createdStops: Record<string, string> = {};
-  if (!ConfirmRequestSchema.safeParse(raw).success) return { ok: false, message: M.generic, createdStops };
+  if (!ConfirmRequestSchema.safeParse(raw).success) return failWith(M.generic, createdStops);
   const request = raw as ConfirmRequest;
   const proposal = request.proposal;
   const plan = forkId ?? undefined;
@@ -72,7 +73,7 @@ export async function confirmProposalFor(
   const stopIds: Record<string, string> = { ...request.resolvedStops };
   const given = new Map(request.proposedStops.map((s) => [s.clientId, s]));
   if (proposal.kind !== "stop" && proposalStopRefs(proposal).some((id) => !stopIds[id] && !given.has(id))) {
-    return { ok: false, message: M.generic, createdStops };
+    return failWith(M.generic, createdStops);
   }
 
   // This Trip/plan's Stops, cached across the membership check and the
@@ -97,9 +98,9 @@ export async function confirmProposalFor(
   const claimed = claimedRealStopIds(proposal, stopIds);
   if (claimed.length > 0) {
     const onPlan = new Set((await stopsOnPlan()).map((s) => s.id));
-    if (claimed.some((id) => !onPlan.has(id))) return { ok: false, message: M.generic, createdStops };
+    if (claimed.some((id) => !onPlan.has(id))) return failWith(M.generic, createdStops);
     const v = await loadSurpriseVisibility(tripId, viewerId);
-    if (claimed.some((id) => v.hiddenStopIds.includes(id))) return { ok: false, message: M.blocked, createdStops };
+    if (claimed.some((id) => v.hiddenStopIds.includes(id))) return failWith(M.blocked, createdStops);
   }
 
   // Proposed Stops first: a Stop that saves stays saved even if the booking then fails.
@@ -107,8 +108,8 @@ export async function confirmProposalFor(
   for (const stop of toCreate) {
     if (stopIds[stop.clientId]) continue;
     const res = await createStop(tripId, stop.input as StopInput, plan);
-    if (!res.success) return { ok: false, message: firstError(res.errors), errors: res.errors, createdStops };
-    if (!res.id) return { ok: false, message: M.generic, createdStops };
+    if (!res.success) return fail(res.errors, { createdStops });
+    if (!res.id) return failWith(M.generic, createdStops);
     stopIds[stop.clientId] = res.id;
     createdStops[stop.clientId] = res.id;
     // The plan's Stops just changed — `stopsOnPlan()`'s cache (primed, if at
@@ -117,7 +118,7 @@ export async function confirmProposalFor(
     // this very call just created landed in the wrong slot otherwise).
     planStops = null;
   }
-  if (proposal.kind === "stop") return { ok: true, createdId: stopIds[proposal.clientId], createdStops };
+  if (proposal.kind === "stop") return { success: true, createdId: stopIds[proposal.clientId], createdStops };
 
   const real = (id: string | undefined): string | undefined => {
     const clientId = parseProposedRef(id);
@@ -159,6 +160,6 @@ export async function confirmProposalFor(
   }
 
   return result.success
-    ? { ok: true, createdId: result.id, createdStops }
-    : { ok: false, message: firstError(result.errors), errors: result.errors, createdStops };
+    ? { success: true, createdId: result.id, createdStops }
+    : fail(result.errors, { createdStops });
 }

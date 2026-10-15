@@ -4,6 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { Send, Smartphone, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formError } from "@/components/ui/action-failure";
+import { formFail } from "@/lib/action-result";
 import { deviceTimeZone } from "@/lib/tz";
 import { servedSlotsForZone } from "@/lib/digest-schedule";
 import {
@@ -158,7 +160,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
     try {
       setTestResult(await sendTestDigest(tripId));
     } catch {
-      setTestResult({ ok: false, error: "The test digest could not be sent." });
+      setTestResult(formFail("The test digest could not be sent."));
     } finally {
       setTesting(false);
     }
@@ -306,7 +308,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
             Send me a test
           </Button>
         </div>
-        {testResult?.ok === true && (() => {
+        {testResult?.success === true && (() => {
           const devices = `${testResult.sent} ${testResult.sent === 1 ? "device" : "devices"}`;
           // `testResult.sent` is HTTP 2xx from the push service — exactly the
           // number that read "delivered" on 2026-09-17 while an iPhone that
@@ -334,8 +336,8 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
             </p>
           );
         })()}
-        {testResult?.ok === false && (
-          <p className="text-xs text-destructive">{testResult.error}</p>
+        {testResult?.success === false && (
+          <p className="text-xs text-destructive">{formError(testResult) ?? "The test digest could not be sent."}</p>
         )}
       </div>
 

@@ -263,7 +263,7 @@ describe("removeDeviceById", () => {
   it("deletes only the caller's own row", async () => {
     deleteManyMock.mockResolvedValue({ count: 1 });
     const result = await removeDeviceById("sub-1");
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ success: true });
     expect(deleteManyMock).toHaveBeenCalledWith({
       where: { id: "sub-1", userId: "user-1" },
     });
@@ -272,6 +272,6 @@ describe("removeDeviceById", () => {
   it("reports failure rather than throwing into the error boundary", async () => {
     deleteManyMock.mockRejectedValue(new Error("db down"));
     const result = await removeDeviceById("sub-1");
-    expect(result).toEqual({ ok: false, error: "Couldn't remove that device." });
+    expect(result).toEqual({ success: false, errors: { _: ["Couldn't remove that device."] } });
   });
 });

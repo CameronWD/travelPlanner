@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/digest", () => ({
-  setDigestEnabled: vi.fn().mockResolvedValue({ ok: true }),
+  setDigestEnabled: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 import { setDigestEnabled } from "@/server/actions/digest";
@@ -11,7 +11,7 @@ import { TripDigestsPanel } from "./trip-digests-panel";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(setDigestEnabled).mockResolvedValue({ ok: true });
+  vi.mocked(setDigestEnabled).mockResolvedValue({ success: true });
 });
 
 describe("TripDigestsPanel", () => {

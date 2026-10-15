@@ -70,8 +70,8 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
     };
 
     const result = await confirmProposal(TRIP_ID, { proposal: flight, proposedStops: [lisbon], resolvedStops: {} });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    expect(result.success).toBe(true);
+    if (!result.success) return;
 
     const stop = await db.stop.findUniqueOrThrow({ where: { id: result.createdStops.s1 } });
     expect(stop).toMatchObject({ name: "Lisbon", timezone: "Europe/Lisbon", arriveDate: "2026-12-02", departDate: "2026-12-15", forkId: null });
@@ -95,8 +95,8 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
     };
 
     const result = await confirmProposal(TRIP_ID, { proposal: leg, proposedStops: [], resolvedStops: {} });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    expect(result.success).toBe(true);
+    if (!result.success) return;
 
     const saved = await db.transport.findUniqueOrThrow({ where: { id: result.createdId } });
     expect(saved.depAt?.toISOString()).toBe("2026-12-01T12:30:00.000Z"); // 22:30 Brisbane (UTC+10)
@@ -108,8 +108,8 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
     const leg: TransportProposal = { ...BASE, clientId: "p3", kind: "transport", input };
 
     const result = await confirmProposal(TRIP_ID, { proposal: leg, proposedStops: [], resolvedStops: {} });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    expect(result.success).toBe(true);
+    if (!result.success) return;
 
     const saved = await db.transport.findUniqueOrThrow({ where: { id: result.createdId } });
     expect(saved.depAt?.toISOString()).toBe("2026-07-01T15:30:00.000Z"); // 23:30 Singapore (UTC+8)

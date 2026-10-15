@@ -61,12 +61,12 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("subscribeToPush", () => {
-  it("upserts the subscription and returns { ok: true }", async () => {
+  it("upserts the subscription and returns { success: true }", async () => {
     pushSubUpsertMock.mockResolvedValue({});
 
     const result = await subscribeToPush(STUB_SUB);
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ success: true });
     expect(requireUserMock).toHaveBeenCalled();
     expect(pushSubUpsertMock).toHaveBeenCalledWith({
       where: { endpoint: STUB_SUB.endpoint },
@@ -100,13 +100,12 @@ describe("subscribeToPush", () => {
     expect(arg.update).not.toHaveProperty("label");
   });
 
-  it("returns { ok: false } when db throws", async () => {
+  it("returns { success: false } when db throws", async () => {
     pushSubUpsertMock.mockRejectedValue(new Error("DB error"));
 
     const result = await subscribeToPush(STUB_SUB);
 
-    expect(result).toMatchObject({ ok: false });
-    expect((result as { ok: false; error: string }).error).toBeDefined();
+    expect(result).toMatchObject({ success: false, errors: { _: [expect.any(String)] } });
   });
 
   it("requires authentication", async () => {
@@ -154,7 +153,7 @@ describe("subscribeToPush", () => {
 
     const result = await subscribeToPush(STUB_SUB);
 
-    expect(result).toEqual({ ok: false, error: "Couldn't enable push on this device. Try again." });
+    expect(result).toEqual({ success: false, errors: { _: ["Couldn't enable push on this device. Try again."] } });
     // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
     expect(reportErrorMock).toHaveBeenCalledWith(boom, {
       route: "server/actions/push.ts#subscribeToPush",
@@ -192,10 +191,13 @@ describe("subscribeToPush", () => {
     });
 
     expect(result).toEqual({
-      ok: false,
-      error:
-        "This device is already enabled for another account. Turn it off there, or press Enable again.",
-      reason: "conflict",
+      success: false,
+      errors: {
+        _: [
+          "This device is already enabled for another account. Turn it off there, or press Enable again.",
+        ],
+      },
+      code: "conflict",
     });
     expect(pushSubUpsertMock).not.toHaveBeenCalled();
   });
@@ -210,7 +212,7 @@ describe("subscribeToPush", () => {
       keys: { p256dh: "p", auth: "a" },
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ success: true });
     expect(pushSubUpsertMock).toHaveBeenCalled();
   });
 });
@@ -220,31 +222,31 @@ describe("subscribeToPush", () => {
 // ---------------------------------------------------------------------------
 
 describe("unsubscribeFromPush", () => {
-  it("deletes the subscription by endpoint + userId and returns { ok: true }", async () => {
+  it("deletes the subscription by endpoint + userId and returns { success: true }", async () => {
     pushSubDeleteManyMock.mockResolvedValue({ count: 1 });
 
     const result = await unsubscribeFromPush(STUB_SUB.endpoint);
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ success: true });
     expect(pushSubDeleteManyMock).toHaveBeenCalledWith({
       where: { endpoint: STUB_SUB.endpoint, userId: "user-1" },
     });
   });
 
-  it("returns { ok: true } even if no rows matched (already gone)", async () => {
+  it("returns { success: true } even if no rows matched (already gone)", async () => {
     pushSubDeleteManyMock.mockResolvedValue({ count: 0 });
 
     const result = await unsubscribeFromPush(STUB_SUB.endpoint);
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ success: true });
   });
 
-  it("returns { ok: false } when db throws", async () => {
+  it("returns { success: false } when db throws", async () => {
     pushSubDeleteManyMock.mockRejectedValue(new Error("DB error"));
 
     const result = await unsubscribeFromPush(STUB_SUB.endpoint);
 
-    expect(result).toMatchObject({ ok: false });
+    expect(result).toMatchObject({ success: false });
   });
 
   it("logs the error rather than swallowing it when the db throws", async () => {
@@ -253,7 +255,7 @@ describe("unsubscribeFromPush", () => {
 
     const result = await unsubscribeFromPush(STUB_SUB.endpoint);
 
-    expect(result).toEqual({ ok: false, error: "Couldn't remove this device's push subscription. Try again." });
+    expect(result).toEqual({ success: false, errors: { _: ["Couldn't remove this device's push subscription. Try again."] } });
     // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
     expect(reportErrorMock).toHaveBeenCalledWith(boom, {
       route: "server/actions/push.ts#unsubscribeFromPush",
@@ -305,7 +307,7 @@ describe("healRotatedSubscription", () => {
       keys: { p256dh: "newp", auth: "newa" },
     });
 
-    expect(res).toEqual({ ok: true, mode: "updated" });
+    expect(res).toEqual({ success: true, mode: "updated" });
     expect(pushSubUpdateMock).toHaveBeenCalledWith({
       where: { endpoint: "https://old" },
       data: expect.objectContaining({
@@ -342,7 +344,7 @@ describe("healRotatedSubscription", () => {
       keys: { p256dh: "newp", auth: "newa" },
     });
 
-    expect(res).toEqual({ ok: true, mode: "registered" });
+    expect(res).toEqual({ success: true, mode: "registered" });
     expect(pushSubUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -354,7 +356,7 @@ describe("healRotatedSubscription", () => {
       keys: { p256dh: "newp", auth: "newa" },
     });
 
-    expect(res).toEqual({ ok: true, mode: "registered" });
+    expect(res).toEqual({ success: true, mode: "registered" });
     expect(pushSubDeleteManyMock).not.toHaveBeenCalled();
   });
 
@@ -365,9 +367,9 @@ describe("healRotatedSubscription", () => {
     });
 
     expect(res).toEqual({
-      ok: false,
-      error: "No usable key material.",
-      reason: "invalid",
+      success: false,
+      errors: { _: ["No usable key material."] },
+      code: "invalid",
     });
     expect(pushSubUpsertMock).not.toHaveBeenCalled();
     expect(pushSubUpdateMock).not.toHaveBeenCalled();
@@ -401,9 +403,9 @@ describe("healRotatedSubscription", () => {
     });
 
     expect(res).toEqual({
-      ok: false,
-      error: "That endpoint belongs to another traveller.",
-      reason: "forbidden",
+      success: false,
+      errors: { _: ["That endpoint belongs to another traveller."] },
+      code: "forbidden",
     });
     expect(pushSubUpsertMock).not.toHaveBeenCalled();
   });
@@ -421,9 +423,9 @@ describe("healRotatedSubscription", () => {
     });
 
     expect(res).toEqual({
-      ok: false,
-      error: "Couldn't update this device's push subscription. Try again.",
-      reason: "internal",
+      success: false,
+      errors: { _: ["Couldn't update this device's push subscription. Try again."] },
+      code: "internal",
     });
     // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
     expect(reportErrorMock).toHaveBeenCalledWith(boom, {
@@ -448,7 +450,7 @@ describe("healRotatedSubscription", () => {
       keys: { p256dh: "newp", auth: "newa" },
     });
 
-    expect(res).toEqual({ ok: true, mode: "registered" });
+    expect(res).toEqual({ success: true, mode: "registered" });
     expect(pushSubUpsertMock).toHaveBeenCalled();
   });
 

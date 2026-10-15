@@ -64,7 +64,7 @@ afterEach(() => {
 describe("subscribeThisDevice", () => {
   it("persists the subscription it minted and reports success", async () => {
     subscribeMock.mockResolvedValue(subscription("https://push.example/AAA"));
-    subscribeToPushMock.mockResolvedValue({ ok: true });
+    subscribeToPushMock.mockResolvedValue({ success: true });
 
     const result = await subscribeThisDevice();
 
@@ -99,8 +99,8 @@ describe("subscribeThisDevice", () => {
       .mockResolvedValueOnce(subscription("https://push.example/OLD"))
       .mockResolvedValueOnce(subscription("https://push.example/NEW"));
     subscribeToPushMock
-      .mockResolvedValueOnce({ ok: false, error: "taken", reason: "conflict" })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ success: false, errors: { _: ["taken"] }, code: "conflict" })
+      .mockResolvedValueOnce({ success: true });
 
     const result = await subscribeThisDevice();
 
@@ -120,9 +120,9 @@ describe("subscribeThisDevice", () => {
       .mockResolvedValueOnce(subscription("https://push.example/OLD"))
       .mockResolvedValueOnce(subscription("https://push.example/NEW"));
     subscribeToPushMock.mockResolvedValue({
-      ok: false,
-      error: "taken",
-      reason: "conflict",
+      success: false,
+      errors: { _: ["taken"] },
+      code: "conflict",
     });
 
     const result = await subscribeThisDevice();
@@ -138,7 +138,7 @@ describe("subscribeThisDevice", () => {
     // Minting a fresh endpoint for a plain server error would burn a working
     // subscription to no purpose.
     subscribeMock.mockResolvedValue(subscription("https://push.example/AAA"));
-    subscribeToPushMock.mockResolvedValue({ ok: false, error: "database down" });
+    subscribeToPushMock.mockResolvedValue({ success: false, errors: { _: ["database down"] } });
 
     const result = await subscribeThisDevice();
 
@@ -150,9 +150,9 @@ describe("subscribeThisDevice", () => {
   it("reports an error rather than throwing when unsubscribe fails", async () => {
     subscribeMock.mockResolvedValue(subscription("https://push.example/OLD"));
     subscribeToPushMock.mockResolvedValue({
-      ok: false,
-      error: "taken",
-      reason: "conflict",
+      success: false,
+      errors: { _: ["taken"] },
+      code: "conflict",
     });
     unsubscribeMock.mockRejectedValue(new Error("no"));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

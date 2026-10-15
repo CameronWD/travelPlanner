@@ -24,7 +24,7 @@ import { BookingImportSheet } from "./booking-import-sheet";
 
 const BASE: Omit<ProposalBase, "clientId"> = { confidence: "high", doubleCheck: [], warnings: [], highlight: [], missing: [], duplicateOf: null, blocked: null };
 const RESULT: BookingImportResult = {
-  ok: true,
+  success: true,
   partial: false,
   context: { homeName: "Brisbane", homeTimezone: "Australia/Brisbane", homeCurrency: "AUD", stops: [] },
   proposals: [
@@ -45,7 +45,7 @@ async function pasteAndRead(text = "Flight SK101") {
 beforeEach(() => {
   vi.clearAllMocks();
   m.importBooking.mockResolvedValue(RESULT);
-  m.confirmProposal.mockResolvedValue({ ok: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
+  m.confirmProposal.mockResolvedValue({ success: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
   m.uploadAttachment.mockResolvedValue({ success: true, id: "att-1" });
 });
 
@@ -68,7 +68,7 @@ describe("BookingImportSheet", () => {
   });
 
   it("shows a failure verbatim; not a booking offers another file", async () => {
-    m.importBooking.mockResolvedValue({ ok: false, reason: "not_booking", message: M.notBooking("it is a newsletter") });
+    m.importBooking.mockResolvedValue({ success: false, code: "not_booking", errors: { _: [M.notBooking("it is a newsletter")] } });
     open();
     await pasteAndRead();
     expect(await screen.findByRole("alert")).toHaveTextContent("This doesn't look like a booking: it is a newsletter.");
@@ -77,7 +77,7 @@ describe("BookingImportSheet", () => {
   });
 
   it("busy keeps the file and retries it", async () => {
-    m.importBooking.mockResolvedValueOnce({ ok: false, reason: "busy", message: M.busy }).mockResolvedValueOnce(RESULT);
+    m.importBooking.mockResolvedValueOnce({ success: false, code: "busy", errors: { _: [M.busy] } }).mockResolvedValueOnce(RESULT);
     open();
     const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });
     await userEvent.upload(screen.getByLabelText("Booking file"), pdf);
@@ -102,7 +102,7 @@ describe("BookingImportSheet", () => {
     const upload = m.uploadAttachment.mock.calls[0][0] as FormData;
     expect([upload.get("tripId"), upload.get("targetType"), upload.get("targetId")]).toEqual(["trip-1", "TRANSPORT", "t-new"]);
 
-    m.confirmProposal.mockResolvedValue({ ok: true, createdId: "a-new", createdStops: {} });
+    m.confirmProposal.mockResolvedValue({ success: true, createdId: "a-new", createdStops: {} });
     await userEvent.click(within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(2));
     expect(m.confirmProposal.mock.calls[1][1]).toMatchObject({ proposedStops: [], resolvedStops: { s1: "stop-new" } });
@@ -110,7 +110,7 @@ describe("BookingImportSheet", () => {
   });
 
   it("confirming the New stop first leaves the original file for the booking confirmed next (final review #4)", async () => {
-    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
+    m.confirmProposal.mockResolvedValueOnce({ success: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
     open();
     const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });
     await userEvent.upload(screen.getByLabelText("Booking file"), pdf);
@@ -121,7 +121,7 @@ describe("BookingImportSheet", () => {
     await within(group).findByText("Added");
     expect(m.uploadAttachment).not.toHaveBeenCalled();
 
-    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "t-new", createdStops: {} });
+    m.confirmProposal.mockResolvedValueOnce({ success: true, createdId: "t-new", createdStops: {} });
     await userEvent.click(within(screen.getByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(m.uploadAttachment).toHaveBeenCalledTimes(1));
     const upload = m.uploadAttachment.mock.calls[0][0] as FormData;
@@ -142,7 +142,7 @@ describe("BookingImportSheet", () => {
   });
 
   it("a failed booking keeps its saved Stop and shows the error on the card", async () => {
-    m.confirmProposal.mockResolvedValue({ ok: false, message: "Arrival must be after departure", createdStops: { s1: "stop-new" } });
+    m.confirmProposal.mockResolvedValue({ success: false, errors: { _: ["Arrival must be after departure"] }, createdStops: { s1: "stop-new" } });
     open();
     await pasteAndRead();
     await userEvent.click(within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
@@ -163,11 +163,11 @@ describe("BookingImportSheet", () => {
   it("concurrent sibling confirms resolve a shared proposed Stop only once (fix round 1)", async () => {
     open();
     await pasteAndRead();
-    let resolveFirst!: (value: { ok: true; createdId: string; createdStops: Record<string, string> }) => void;
+    let resolveFirst!: (value: { success: true; createdId: string; createdStops: Record<string, string> }) => void;
     m.confirmProposal.mockImplementationOnce(
       () => new Promise((resolve) => { resolveFirst = resolve; }),
     );
-    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "a-new", createdStops: {} });
+    m.confirmProposal.mockResolvedValueOnce({ success: true, createdId: "a-new", createdStops: {} });
 
     const p1Confirm = within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" });
     const p2Confirm = within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" });
@@ -177,7 +177,7 @@ describe("BookingImportSheet", () => {
     // p2 is still waiting on p1's in-flight creation of the shared Stop: it has not sent anything yet.
     expect(m.confirmProposal).toHaveBeenCalledTimes(1);
 
-    resolveFirst({ ok: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
+    resolveFirst({ success: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
     await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(2));
 
     const stopSends = m.confirmProposal.mock.calls.filter(([, request]) =>
@@ -208,11 +208,11 @@ describe("BookingImportSheet", () => {
   it("tapping Confirm twice before its Stop resolves only sends the booking once (fix round 2)", async () => {
     open();
     await pasteAndRead();
-    let resolveFirst!: (value: { ok: true; createdId: string; createdStops: Record<string, string> }) => void;
+    let resolveFirst!: (value: { success: true; createdId: string; createdStops: Record<string, string> }) => void;
     m.confirmProposal.mockImplementationOnce(
       () => new Promise((resolve) => { resolveFirst = resolve; }),
     );
-    m.confirmProposal.mockResolvedValue({ ok: true, createdId: "a-new", createdStops: {} });
+    m.confirmProposal.mockResolvedValue({ success: true, createdId: "a-new", createdStops: {} });
 
     const p1Confirm = within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" });
     const p2Confirm = within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" });
@@ -231,7 +231,7 @@ describe("BookingImportSheet", () => {
       fireEvent.click(p2Confirm);
     });
 
-    resolveFirst({ ok: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
+    resolveFirst({ success: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
     await waitFor(() => expect(m.confirmProposal.mock.calls.length).toBeGreaterThanOrEqual(2));
 
     const p2Calls = m.confirmProposal.mock.calls.filter(
@@ -243,11 +243,11 @@ describe("BookingImportSheet", () => {
   it("when the owner fails before creating the Stop, the waiting sibling creates it itself", async () => {
     open();
     await pasteAndRead();
-    let resolveFirst!: (value: { ok: false; message: string; createdStops: Record<string, string> }) => void;
+    let resolveFirst!: (value: { success: false; errors: { _: string[] }; createdStops: Record<string, string> }) => void;
     m.confirmProposal.mockImplementationOnce(
       () => new Promise((resolve) => { resolveFirst = resolve; }),
     );
-    m.confirmProposal.mockResolvedValueOnce({ ok: true, createdId: "a-new", createdStops: { s1: "stop-new" } });
+    m.confirmProposal.mockResolvedValueOnce({ success: true, createdId: "a-new", createdStops: { s1: "stop-new" } });
 
     const p1Confirm = within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" });
     const p2Confirm = within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" });
@@ -256,7 +256,7 @@ describe("BookingImportSheet", () => {
 
     expect(m.confirmProposal).toHaveBeenCalledTimes(1);
     // p1 fails without ever saving the Stop.
-    resolveFirst({ ok: false, message: "Arrival must be after departure", createdStops: {} });
+    resolveFirst({ success: false, errors: { _: ["Arrival must be after departure"] }, createdStops: {} });
     await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(2));
 
     const p2Call = m.confirmProposal.mock.calls[1][1] as { proposedStops: Array<{ clientId: string }>; resolvedStops: Record<string, string> };
@@ -295,7 +295,7 @@ describe("BookingImportSheet", () => {
   });
 
   it("editing a proposed Stop renames its group", async () => {
-    m.confirmProposal.mockResolvedValue({ ok: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
+    m.confirmProposal.mockResolvedValue({ success: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
     open();
     await pasteAndRead();
     const group = await screen.findByRole("region", { name: "New stop: Lisbon" });
@@ -310,7 +310,7 @@ describe("BookingImportSheet", () => {
   });
 
   it("cancelling after a failed edited confirm drops the error about the edited version (fix round 1)", async () => {
-    m.confirmProposal.mockResolvedValue({ ok: false, message: "Check-out must be after check-in", createdStops: {} });
+    m.confirmProposal.mockResolvedValue({ success: false, errors: { _: ["Check-out must be after check-in"] }, createdStops: {} });
     open();
     await pasteAndRead();
     await userEvent.click(within(await screen.findByTestId("proposal-p2")).getByRole("button", { name: "Edit" }));

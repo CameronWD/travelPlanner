@@ -58,7 +58,7 @@ const req = (r: Partial<ConfirmRequest> & Pick<ConfirmRequest, "proposal">): Con
 describe("confirmProposalFor", () => {
   it("saves the proposed Stop first, then the booking against it, with its inline Cost", async () => {
     const result = await confirmProposalFor("trip-1", "u1", req({ proposal: OUTBOUND, proposedStops: [LISBON_NEW] }), null);
-    expect(result).toEqual({ ok: true, createdId: "t-new", createdStops: { s1: "s-new" } });
+    expect(result).toEqual({ success: true, createdId: "t-new", createdStops: { s1: "s-new" } });
     expect(m.createStop).toHaveBeenCalledWith("trip-1", LISBON_NEW.input, undefined);
     expect(m.createStop.mock.invocationCallOrder[0]).toBeLessThan(m.createTransport.mock.invocationCallOrder[0]);
     const [tripId, input, forkId] = m.createTransport.mock.calls[0];
@@ -80,18 +80,18 @@ describe("confirmProposalFor", () => {
   it("keeps the Stop and returns the booking's error when the booking then fails", async () => {
     m.createTransport.mockResolvedValue({ success: false, errors: { arrAt: ["Arrival must be after departure"] } });
     const result = await confirmProposalFor("trip-1", "u1", req({ proposal: OUTBOUND, proposedStops: [LISBON_NEW] }), null);
-    expect(result).toEqual({ ok: false, message: "Arrival must be after departure", errors: { arrAt: ["Arrival must be after departure"] }, createdStops: { s1: "s-new" } });
+    expect(result).toEqual({ success: false, errors: { arrAt: ["Arrival must be after departure"] }, createdStops: { s1: "s-new" } });
   });
 
   it("confirms a proposed Stop on its own", async () => {
-    expect(await confirmProposalFor("trip-1", "u1", req({ proposal: LISBON_NEW }), null)).toEqual({ ok: true, createdId: "s-new", createdStops: { s1: "s-new" } });
+    expect(await confirmProposalFor("trip-1", "u1", req({ proposal: LISBON_NEW }), null)).toEqual({ success: true, createdId: "s-new", createdStops: { s1: "s-new" } });
   });
 
   it("refuses, writing nothing, when the Proposal's Stop is a Surprise for the Traveller", async () => {
     m.stops.mockResolvedValue([{ id: "s-lis", sortOrder: 0, arriveDate: null, departDate: null }]);
     m.visibility.mockResolvedValue({ ...NO_SURPRISES, viewerId: "u1", isEmpty: false, hiddenStopIds: ["s-lis"] });
     const result = await confirmProposalFor("trip-1", "u1", req({ proposal: { ...STAY, input: { ...STAY.input, stopId: "s-lis" } } }), null);
-    expect(result).toEqual({ ok: false, message: M.blocked, createdStops: {} });
+    expect(result).toEqual({ success: false, errors: { _: [M.blocked] }, createdStops: {} });
     expect(m.createAccommodation).not.toHaveBeenCalled();
   });
 
@@ -188,7 +188,7 @@ describe("confirmProposalFor", () => {
     m.stops.mockResolvedValue([{ id: "s-hidden", sortOrder: 0, arriveDate: null, departDate: null }]);
     m.visibility.mockResolvedValue({ ...NO_SURPRISES, viewerId: "u1", isEmpty: false, hiddenStopIds: ["s-hidden"] });
     const result = await confirmProposalFor("trip-1", "u1", req({ proposal: OUTBOUND, resolvedStops: { s1: "s-hidden" } }), null);
-    expect(result).toEqual({ ok: false, message: M.blocked, createdStops: {} });
+    expect(result).toEqual({ success: false, errors: { _: [M.blocked] }, createdStops: {} });
     expect(m.createStop).not.toHaveBeenCalled();
     expect(m.createTransport).not.toHaveBeenCalled();
   });
@@ -196,7 +196,7 @@ describe("confirmProposalFor", () => {
   it("refuses a forged resolvedStops entry naming a Stop outside this Trip/plan, writing nothing (fix round 1, #1)", async () => {
     m.stops.mockResolvedValue([]); // "s-other-trip" isn't on this plan
     const result = await confirmProposalFor("trip-1", "u1", req({ proposal: OUTBOUND, resolvedStops: { s1: "s-other-trip" } }), null);
-    expect(result).toEqual({ ok: false, message: M.generic, createdStops: {} });
+    expect(result).toEqual({ success: false, errors: { _: [M.generic] }, createdStops: {} });
     expect(m.createStop).not.toHaveBeenCalled();
     expect(m.createTransport).not.toHaveBeenCalled();
     expect(m.visibility).not.toHaveBeenCalled(); // plan membership is checked before the Surprise lookup
@@ -206,17 +206,17 @@ describe("confirmProposalFor", () => {
     m.stops.mockResolvedValue([]); // "s-other-trip" isn't on this plan
     const proposal: AccommodationProposal = { ...STAY, input: { ...STAY.input, stopId: "s-other-trip" } };
     const result = await confirmProposalFor("trip-1", "u1", req({ proposal }), null);
-    expect(result).toEqual({ ok: false, message: M.generic, createdStops: {} });
+    expect(result).toEqual({ success: false, errors: { _: [M.generic] }, createdStops: {} });
     expect(m.createAccommodation).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed request with the generic message", async () => {
-    expect(await confirmProposalFor("trip-1", "u1", { proposal: { kind: "boat" } }, null)).toEqual({ ok: false, message: M.generic, createdStops: {} });
+    expect(await confirmProposalFor("trip-1", "u1", { proposal: { kind: "boat" } }, null)).toEqual({ success: false, errors: { _: [M.generic] }, createdStops: {} });
     expect(m.createStop).not.toHaveBeenCalled();
   });
 
   it("refuses a booking that refers to a proposed Stop it wasn't given", async () => {
-    expect(await confirmProposalFor("trip-1", "u1", req({ proposal: STAY }), null)).toEqual({ ok: false, message: M.generic, createdStops: {} });
+    expect(await confirmProposalFor("trip-1", "u1", req({ proposal: STAY }), null)).toEqual({ success: false, errors: { _: [M.generic] }, createdStops: {} });
     expect(m.createAccommodation).not.toHaveBeenCalled();
   });
 });
