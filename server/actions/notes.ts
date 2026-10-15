@@ -1,7 +1,6 @@
 "use server";
 
 import { notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireRowAccess, type RowKind } from "@/lib/guards";
 import { addNoteSchema, type AddNoteInput } from "@/lib/validations/note";
@@ -9,6 +8,7 @@ import { recordActivity } from "@/server/actions/activity";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 /**
  * ARCH-TEN-9: targetType → RowKind for the four kinds requireRowAccess
@@ -47,14 +47,6 @@ export type NoteActionResult = ActionResult;
 async function requireNoteAccess(noteId: string) {
   const { row, surpriseOf } = await requireRowAccess("note", noteId);
   return { ...row, surpriseOf };
-}
-
-/**
- * Revalidate relevant trip pages after a note mutation.
- */
-function revalidateNotePaths(tripId: string) {
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/wishlist`);
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +90,7 @@ export async function addNote(
   });
 
   await recordActivity({ tripId, verb: "NOTED", entityType: "NOTE", entityId: created.id, entityLabel: entityLabel("NOTE", created as unknown as Record<string, unknown>), changes: { excerpt: body.slice(0, 80) } });
-  revalidateNotePaths(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 
@@ -114,6 +106,6 @@ export async function deleteNote(noteId: string): Promise<NoteActionResult> {
   await db.note.delete({ where: { id: noteId } });
   await recordActivity({ tripId: note.tripId, verb: "DELETED", entityType: "NOTE", entityId: noteId, entityLabel: "note", surpriseOf: note.surpriseOf });
 
-  revalidateNotePaths(note.tripId);
+  revalidateTrip(note.tripId, "plan");
   return { success: true };
 }

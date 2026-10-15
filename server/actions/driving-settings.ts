@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { revalidateTrip } from "@/lib/revalidate";
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
@@ -22,7 +22,5 @@ export async function updateDrivingSettings(
       drivingAvgSpeedKph: Math.round(clamp(input.avgSpeedKph, 20, 150)),
     },
   });
-  revalidatePath(`/trips/${tripId}/settings`);
-  revalidatePath(`/trips/${tripId}/plan`);
-  revalidatePath(`/trips/${tripId}/summary`);
+  revalidateTrip(tripId, "plan");
 }

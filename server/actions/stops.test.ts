@@ -8,7 +8,7 @@ import { stop } from "@/test/builders";
  * Mocks:
  *   - lib/db          → assert Prisma call shapes without hitting the database
  *   - lib/guards      → requireTripAccess returns a predictable membership
- *   - next/cache      → revalidatePath is a spy
+ *   - lib/revalidate   → revalidateTrip is a spy
  *   - lib/geocode     → never hits the network
  *   - lib/firm-up     → flowDates is tested in isolation; here we just verify wiring
  */
@@ -16,7 +16,7 @@ import { stop } from "@/test/builders";
 const {
   requireTripAccessMock,
   requirePlanAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   geocodePlaceMock,
   geocodePlaceDetailedMock,
   stopFindFirstMock,
@@ -114,7 +114,7 @@ const {
       membership: { role: "owner" },
       plan: forkId ?? null,
     })),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue({ lat: 1, lng: 2, city: "Tokyo", country: "Japan", countryCode: "jp", name: "Tokyo" }),
     stopFindFirstMock,
@@ -184,7 +184,7 @@ vi.mock("@/lib/guards", async () => {
     isTripOwnerOrAdmin,
   };
 });
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 const paceNominatimMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock, paceNominatim: paceNominatimMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
@@ -517,7 +517,7 @@ describe("createStop", () => {
         sortOrder: 0,
       }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("sets sortOrder = max + 1 when stops already exist", async () => {
@@ -585,7 +585,7 @@ describe("createStop", () => {
       expect(result.errors.name).toBeDefined();
     }
     expect(stopCreateMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("returns validation error when departDate is before arriveDate", async () => {
@@ -966,7 +966,7 @@ describe("updateStop", () => {
       where: { id: "stop-1" },
       data: expect.objectContaining({ name: "Updated London" }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("returns validation error and does not write", async () => {
@@ -1110,7 +1110,7 @@ describe("deleteStop", () => {
 
     expect(result.success).toBe(true);
     expect(stopDeleteMock).toHaveBeenCalledWith({ where: { id: "stop-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("records DELETED activity with the snapshotted label", async () => {
@@ -1933,7 +1933,7 @@ describe("setStopNotes", () => {
     const r = await setStopNotes("s1", "  Book ferry  ");
     expect(r).toEqual({ success: true });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { notes: "Book ferry" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan");
   });
 
   it("stores null for an empty note", async () => {
@@ -2161,7 +2161,7 @@ describe("reorderStops", () => {
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { sortOrder: 0, chapterId: null } });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { sortOrder: 1, chapterId: "c1" } });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "c" }, data: { sortOrder: 2, chapterId: null } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan");
   });
 
   it("rejects a stop not in the trip: no updates and returns failure", async () => {
@@ -2498,7 +2498,7 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
       where: { id: "b", tripId: "t1", forkId: null },
       data: { sortOrder: 1, chapterId: "c1", arriveDate: null, departDate: null },
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan");
   });
 
   it("locks the stops FOR UPDATE and recomputes chapter spans inside the tx", async () => {

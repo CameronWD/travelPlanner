@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
@@ -23,6 +22,7 @@ import { type ActionResult, fail, formFail, validationResult } from "@/lib/actio
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx, scheduleLoneStopTx } from "@/server/actions/stop-flow";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -275,7 +275,7 @@ export async function createStop(
     });
 
     await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
-    revalidatePath(`/trips/${tripId}`);
+    revalidateTrip(tripId, "plan");
     return { success: true, id: created.id };
   }
 
@@ -349,7 +349,7 @@ export async function createStop(
       return createdRough;
     });
     await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
-    revalidatePath(`/trips/${tripId}`);
+    revalidateTrip(tripId, "plan");
     return { success: true, id: created.id };
   }
 
@@ -394,7 +394,7 @@ export async function createStop(
   });
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
-  revalidatePath(`/trips/${tripId}`);
+  revalidateTrip(tripId, "plan");
   return { success: true, id: created.id };
 }
 
@@ -485,7 +485,7 @@ export async function updateStop(
       entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
       changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
     });
-    revalidatePath(`/trips/${stop.tripId}`);
+    revalidateTrip(stop.tripId, "plan");
     return { success: true };
   }
 
@@ -541,7 +541,7 @@ export async function updateStop(
     entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
     changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -598,7 +598,7 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
   const surpriseOf = stop.surpriseOf?.id === stopId ? null : stop.surpriseOf;
   await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "", surpriseOf });
 
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -760,7 +760,7 @@ export async function moveStop(
     });
   }
 
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -866,7 +866,7 @@ async function applyStopDates(
     ),
   });
 
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true, conflicts, changed, payload };
 }
 
@@ -943,7 +943,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
 
   const segment = stops.filter((s) => (s.chapterId ?? null) === (chapterId ?? null) && !s.arriveDate);
   if (segment.length === 0) {
-    revalidatePath(`/trips/${tripId}`);
+    revalidateTrip(tripId, "plan");
     return { success: true };
   }
 
@@ -1040,7 +1040,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     });
   }
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidateTrip(tripId, "plan");
   return { success: true, conflicts };
 }
 
@@ -1076,7 +1076,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
 
   const rough = stops.filter((s) => !s.arriveDate);
   if (rough.length === 0) {
-    revalidatePath(`/trips/${tripId}`);
+    revalidateTrip(tripId, "plan");
     return { success: true };
   }
 
@@ -1180,7 +1180,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
     changes: { summary: `Dated ${rough.length} ${rough.length === 1 ? "stop" : "stops"} from ${formatLongDate(anchor)}` },
   });
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidateTrip(tripId, "plan");
   return { success: true, conflicts };
 }
 
@@ -1207,7 +1207,7 @@ export async function toggleStopPin(stopId: string): Promise<StopActionResult> {
     entityLabel: named?.name ?? "",
     changes: describeChanges("STOP", { pinned: stop.pinned }, { pinned: !stop.pinned }),
   });
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -1259,7 +1259,7 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     ),
   });
 
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -1280,7 +1280,7 @@ export async function setStopNotes(stopId: string, notes: string): Promise<StopA
     entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
     changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -1310,7 +1310,7 @@ export async function setStopNights(stopId: string, nights: number): Promise<Sto
     entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
     changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -1436,8 +1436,7 @@ export async function reorderStops(
     throw e;
   }
 
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/plan`);
+  revalidateTrip(tripId, "plan");
   return { success: true, changed, conflicts, payload };
 }
 
@@ -1627,8 +1626,7 @@ export async function restoreStops(
     await recomputeChapterSpans(tx, tripId, restoreForkId);
   });
 
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/plan`);
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 

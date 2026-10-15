@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRowAccess } from "@/lib/guards";
 import { validateUpload } from "@/lib/storage";
@@ -8,6 +7,7 @@ import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
 import { checkQuota } from "@/lib/storage-quota";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // CONTEXT.md "Item photo" (spec §I): the one image an Item may carry as its
@@ -99,7 +99,7 @@ export async function setItemPhoto(formData: FormData): Promise<ItemPhotoResult>
     await discardOldPhoto(item.photoAttachmentId);
   }
 
-  revalidatePath(`/trips/${item.tripId}`, "layout");
+  revalidateTrip(item.tripId, "plan", "journal");
   return ok({ attachmentId: created.id });
 }
 
@@ -116,7 +116,7 @@ export async function removeItemPhoto(itemId: string): Promise<ActionResult> {
     await db.item.update({ where: { id: itemId }, data: { photoAttachmentId: null } });
   }
 
-  revalidatePath(`/trips/${item.tripId}`, "layout");
+  revalidateTrip(item.tripId, "plan", "journal");
   return ok();
 }
 

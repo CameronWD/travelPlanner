@@ -1,13 +1,13 @@
 "use server";
 
 import { notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { voteLevelSchema, type VoteLevel } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, voteSummary } from "@/lib/activity";
 import type { ActionResult } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -32,10 +32,6 @@ async function requireItemInTrip(tripId: string, itemId: string) {
     notFound();
   }
   return item;
-}
-
-function revalidateWishlistPath(tripId: string) {
-  revalidatePath(`/trips/${tripId}/wishlist`);
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +103,7 @@ export async function setVote(
     });
   }
 
-  revalidateWishlistPath(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 
@@ -131,6 +127,6 @@ export async function clearVote(
     where: { tripId, itemId, userId: user.id },
   });
 
-  revalidateWishlistPath(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }

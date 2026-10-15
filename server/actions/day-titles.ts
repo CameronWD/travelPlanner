@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRowAccess } from "@/lib/guards";
 import { recordPlanActivity } from "@/lib/activity-guard";
@@ -8,6 +7,7 @@ import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard"
 import { entityLabel, dayTitleSummary } from "@/lib/activity";
 import { type ActionResult, fail } from "@/lib/action-result";
 import { dayIndexFor } from "@/lib/day-titles";
+import { revalidateTrip } from "@/lib/revalidate";
 
 /** CONTEXT.md "Day title" — kept short so it reads as a label, not a caption. */
 const MAX_TITLE_LENGTH = 80;
@@ -34,13 +34,6 @@ interface StopAccess {
 async function requireStopAccess(stopId: string): Promise<StopAccess> {
   const { row, user, surpriseOf } = await requireRowAccess("stop", stopId);
   return { ...row, viewerId: user.id, surpriseOf };
-}
-
-function revalidateDayTitlePaths(tripId: string, date: string) {
-  revalidatePath(`/trips/${tripId}/plan`);
-  revalidatePath(`/trips/${tripId}/calendar`);
-  revalidatePath(`/trips/${tripId}/day/${date}`);
-  revalidatePath(`/trips/${tripId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +156,6 @@ export async function setDayTitle(input: SetDayTitleInput): Promise<ActionResult
     }
   }
 
-  revalidateDayTitlePaths(stop.tripId, date);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }

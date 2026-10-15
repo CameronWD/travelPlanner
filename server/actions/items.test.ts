@@ -10,7 +10,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 const {
   requireTripAccessMock,
   requirePlanAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   geocodePlaceDetailedMock,
   itemFindUniqueMock,
   itemFindFirstMock,
@@ -81,7 +81,7 @@ const {
       membership: { role: "owner" },
       plan: forkId ?? null,
     })),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
     itemFindFirstMock: vi.fn(),
@@ -135,7 +135,7 @@ vi.mock("@/lib/guards", () => ({
   requirePlanAccess: requirePlanAccessMock,
   requireRowAccess: requireRowAccessMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
@@ -385,13 +385,13 @@ describe("createItem", () => {
     });
   });
 
-  it("revalidates the whole trip layout so the Budget reflects inline cost edits", async () => {
+  it("revalidates the trip's plan and money scopes (inline cost edits reach Budget)", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
 
     await createItem("trip-1", VALID_INPUT);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
   it("createItem returns the new Item's id", async () => {
@@ -450,7 +450,7 @@ describe("createItem", () => {
       expect(result.errors.title).toBeDefined();
     }
     expect(itemCreateMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("returns validation error for unknown category and does not write", async () => {
@@ -572,7 +572,7 @@ describe("updateItem", () => {
       where: { id: "item-1" },
       data: expect.objectContaining({ title: "Updated Museum" }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
   // Task 9: an Item hidden from shares
@@ -735,7 +735,7 @@ describe("deleteItem", () => {
 
     expect(result.success).toBe(true);
     expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "item-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("access-checks via item's tripId", async () => {
@@ -914,7 +914,7 @@ describe("scheduleItem", () => {
     });
   });
 
-  it("revalidates the whole trip layout so the Budget reflects inline cost edits", async () => {
+  it("revalidates the trip's plan scope", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Visit the Museum", category: "SIGHTSEEING" });
@@ -923,7 +923,7 @@ describe("scheduleItem", () => {
 
     await scheduleItem("item-1", { date: "2026-08-10" }, null);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("access-checks via item's tripId", async () => {
@@ -1012,7 +1012,7 @@ describe("unscheduleItem", () => {
     expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "item-1" } });
   });
 
-  it("revalidates the whole trip layout so the Budget reflects inline cost edits", async () => {
+  it("revalidates the trip's plan scope", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: "2026-08-10", sourceItemId: "idea-1" });
@@ -1020,7 +1020,7 @@ describe("unscheduleItem", () => {
 
     await unscheduleItem("item-1");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("access-checks via item's tripId", async () => {

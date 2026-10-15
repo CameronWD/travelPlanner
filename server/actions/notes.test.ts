@@ -8,7 +8,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   noteFindUniqueMock,
   noteCreateMock,
   noteDeleteMock,
@@ -17,13 +17,13 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   noteFindUniqueMock: vi.fn(),
   noteCreateMock: vi.fn(),
   noteDeleteMock: vi.fn(),
 }));
 
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 // This file never mocks next/navigation (ARCH-TEN-9): addNote's own
 // row.tripId !== tripId check calls the real notFound(), which throws
 // "NEXT_HTTP_ERROR_FALLBACK;404" — same pattern as items.test.ts/costs.test.ts.
@@ -135,7 +135,7 @@ describe("addNote", () => {
   it("revalidates relevant paths after creating a note", async () => {
     noteCreateMock.mockResolvedValue({ id: "note-1" });
     await addNote(TRIP_ID, VALID_INPUT);
-    expect(revalidatePathMock).toHaveBeenCalled();
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan");
   });
 
   it("rejects an empty body", async () => {
@@ -241,7 +241,7 @@ describe("deleteNote", () => {
 
     await deleteNote(NOTE_ID);
 
-    expect(revalidatePathMock).toHaveBeenCalled();
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan");
   });
 
   it("throws notFound when the note does not exist", async () => {

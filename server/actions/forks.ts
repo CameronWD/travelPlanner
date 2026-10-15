@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
@@ -16,6 +15,7 @@ import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { readPlan } from "@/lib/plan-reads";
 import { type ActionResult, formFail } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
@@ -302,8 +302,7 @@ export async function createFork(
   });
 
   // 9. Cache invalidation
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/compare`);
+  revalidateTrip(tripId, "plan", "money");
 
   return { success: true, forkId: fork.id };
 }
@@ -353,8 +352,7 @@ export async function renameFork(
   });
 
   // 5. Cache invalidation
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/compare`);
+  revalidateTrip(tripId, "plan", "money");
 
   return { success: true };
 }
@@ -391,8 +389,7 @@ export async function discardFork(forkId: string): Promise<ForkMutationResult> {
   });
 
   // 4. Cache invalidation
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/compare`);
+  revalidateTrip(tripId, "plan", "money");
 
   return { success: true };
 }
@@ -433,8 +430,7 @@ export async function moveFork(
     await tx.fork.update({ where: { id: neighbour.id }, data: { sortOrder: current.sortOrder } });
   });
 
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/compare`);
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 
@@ -858,12 +854,7 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   });
 
   // 5. Revalidate all live surfaces
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/plan`);
-  revalidatePath(`/trips/${tripId}/calendar`);
-  revalidatePath(`/trips/${tripId}/budget`);
-  revalidatePath(`/trips/${tripId}/summary`);
-  revalidatePath(`/trips/${tripId}/compare`);
+  revalidateTrip(tripId, "plan", "money");
 
   return { success: true };
 }

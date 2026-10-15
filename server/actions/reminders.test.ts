@@ -9,7 +9,8 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
+  revalidateTripsListMock,
   notFoundMock,
   reminderFindUniqueMock,
   reminderFindManyMock,
@@ -23,7 +24,8 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
+  revalidateTripsListMock: vi.fn(),
   notFoundMock: vi.fn(() => {
     throw new Error("NOT_FOUND");
   }),
@@ -38,7 +40,7 @@ const {
   recordActivityMock: vi.fn(),
 }));
 
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock, revalidateTripsList: revalidateTripsListMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -137,7 +139,8 @@ describe("addReminder", () => {
       }),
     );
     expect(result).toEqual({ success: true, id: REMINDER_ID });
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/today`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan", "lists");
+    expect(revalidateTripsListMock).toHaveBeenCalled();
   });
 
   it("returns validation errors when title is empty", async () => {
@@ -182,12 +185,11 @@ describe("addReminder", () => {
     });
   });
 
-  it("revalidates Home, Today, and Plan (a Stop card can show a Reminder too)", async () => {
+  it("revalidates the trip's plan and lists scopes, and the trips list", async () => {
     reminderCreateMock.mockResolvedValue({ id: "r1" });
     await addReminder(TRIP_ID, { title: "Print docs", date: "2026-11-28" });
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/today`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan", "lists");
+    expect(revalidateTripsListMock).toHaveBeenCalled();
   });
 
   it("calls requireTripAccess to verify membership", async () => {
@@ -360,7 +362,8 @@ describe("updateReminder", () => {
         data: expect.objectContaining({ title: "Updated title" }),
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/today`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan", "lists");
+    expect(revalidateTripsListMock).toHaveBeenCalled();
   });
 
   it("returns NOT_FOUND when reminder does not exist", async () => {
@@ -467,7 +470,8 @@ describe("deleteReminder", () => {
     expect(reminderDeleteMock).toHaveBeenCalledWith({
       where: { id: REMINDER_ID },
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/today`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan", "lists");
+    expect(revalidateTripsListMock).toHaveBeenCalled();
   });
 
   it("returns NOT_FOUND when reminder does not exist", async () => {

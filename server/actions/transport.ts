@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
@@ -15,6 +14,7 @@ import { type ActionFailure, type ActionResult, validationResult, formFail } fro
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -209,7 +209,7 @@ export async function createTransport(
   }
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
-  revalidatePath(`/trips/${tripId}`, "layout");
+  revalidateTrip(tripId, "plan", "money");
   return { success: true, id: created.id };
 }
 
@@ -382,7 +382,7 @@ export async function updateTransport(
     entityLabel: entityLabel("TRANSPORT", updated as unknown as Record<string, unknown>),
     changes: describeChanges("TRANSPORT", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${transport.tripId}`, "layout");
+  revalidateTrip(transport.tripId, "plan", "money");
   return { success: true };
 }
 
@@ -437,7 +437,7 @@ export async function reorderTransports(
     }
   });
 
-  revalidatePath(`/trips/${tripId}`, "layout");
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 
@@ -464,6 +464,6 @@ export async function deleteTransport(
 
   await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: ownerLabel });
 
-  revalidatePath(`/trips/${transport.tripId}`, "layout");
+  revalidateTrip(transport.tripId, "plan");
   return { success: true };
 }

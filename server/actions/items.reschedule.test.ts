@@ -3,7 +3,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   itemFindUniqueMock,
   itemUpdateMock,
   tripFindUniqueMock,
@@ -14,7 +14,7 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   itemFindUniqueMock: vi.fn(),
   itemUpdateMock: vi.fn().mockResolvedValue({}),
   tripFindUniqueMock: vi.fn(),
@@ -43,7 +43,7 @@ const requireRowAccessMock = vi.hoisted(() =>
   }),
 );
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
@@ -75,10 +75,10 @@ function arrangeTrip(forkId: string | null = null) {
 }
 
 describe("rescheduleItem", () => {
-  it("revalidates the trip's id path as a layout — the route the slug URL rewrites to (ADR 0064)", async () => {
+  it("revalidates the trip's plan scope (card 2.E, NAV-02 — no longer layout-wide)", async () => {
     arrangeTrip();
     await rescheduleItem(ITEM_ID, "2026-07-05");
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`, "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan");
   });
 
   it("is access-checked via requireTripAccess(tripId)", async () => {

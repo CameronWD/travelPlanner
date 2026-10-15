@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
-  requireTripAccessMock, requirePlanAccessMock, revalidatePathMock,
+  requireTripAccessMock, requirePlanAccessMock, revalidateTripMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
   stopFindManyMock, stopFindUniqueMock, stopFindUniqueTxMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
   itemFindManyMock, itemUpdateMock, accommodationFindManyMock, accommodationUpdateMock,
@@ -42,7 +42,7 @@ const {
       membership: { role: "owner" },
       plan: forkId ?? null,
     })),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     chapterFindUniqueMock: vi.fn(),
     chapterFindManyMock,
     chapterCountMock: vi.fn().mockResolvedValue(0),
@@ -104,7 +104,7 @@ vi.mock("@/lib/guards", () => ({
   requirePlanAccess: requirePlanAccessMock,
   requireRowAccess: requireRowAccessMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     chapter: { findUnique: chapterFindUniqueMock, findMany: chapterFindManyMock, count: chapterCountMock, create: chapterCreateMock, createMany: chapterCreateManyMock, update: chapterUpdateMock, delete: chapterDeleteMock },
@@ -248,7 +248,7 @@ describe("createChapter", () => {
     const r = await createChapter("trip-1", VALID);
     expect(r.success).toBe(true);
     expect(chapterCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "trip-1", name: "Italy", colour: "rose" }) });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
   it("rejects a chapter that overlaps an existing one", async () => {
     chapterFindManyMock.mockResolvedValue([{ id: "x", startDate: "2026-07-15", endDate: "2026-07-20" }]);
@@ -485,7 +485,7 @@ describe("reorderChapters", () => {
 
     const r = await reorderChapters("t1", ["c2", "c1"]);
     expect(r.success).toBe(true);
-    expect(revalidatePathMock).toHaveBeenCalled();
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan");
   });
 
   it("rejects a chapter from another trip (count mismatch) — returns error, no updates", async () => {

@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
@@ -15,6 +14,7 @@ import type { ReorderResult } from "@/server/actions/stops";
 import type { PayloadShiftResult } from "@/lib/payload-shift";
 import type { FlowConflict } from "@/lib/firm-up";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -25,12 +25,6 @@ export type ChapterActionResult = ActionResult;
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-function revalidateChapterPaths(tripId: string) {
-  for (const p of ["", "/budget", "/summary", "/today", "/settings", "/calendar", "/plan"]) {
-    revalidatePath(`/trips/${tripId}${p}`);
-  }
-}
 
 async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string; forkId: string | null }> {
   return (await requireRowAccess("chapter", chapterId)).row;
@@ -106,7 +100,7 @@ export async function createChapter(
   }
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
-  revalidateChapterPaths(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 
@@ -133,7 +127,7 @@ export async function updateChapter(
     entityLabel: entityLabel("CHAPTER", updated as unknown as Record<string, unknown>),
     changes: describeChanges("CHAPTER", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidateChapterPaths(chapter.tripId);
+  revalidateTrip(chapter.tripId, "plan");
   return { success: true };
 }
 
@@ -142,7 +136,7 @@ export async function deleteChapter(chapterId: string): Promise<ChapterActionRes
   const doomed = await db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } });
   await db.chapter.delete({ where: { id: chapterId } });
   await recordPlanActivity(chapter.forkId, { tripId: chapter.tripId, verb: "DELETED", entityType: "CHAPTER", entityId: chapterId, entityLabel: doomed?.name ?? "" });
-  revalidateChapterPaths(chapter.tripId);
+  revalidateTrip(chapter.tripId, "plan");
   return { success: true };
 }
 
@@ -239,7 +233,7 @@ export async function reorderChapters(
     payload = reflow.payload;
   });
 
-  revalidateChapterPaths(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true, changed, conflicts, payload };
 }
 
@@ -273,7 +267,7 @@ export async function assignStopToChapter(
   const nextOrder = siblings.reduce((max, s) => Math.max(max, (s.chapterSortOrder ?? 0) + 1), 0);
 
   await db.stop.update({ where: { id: stopId }, data: { chapterId, chapterSortOrder: nextOrder } });
-  revalidateChapterPaths(stop.tripId);
+  revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
 
@@ -361,6 +355,6 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Acti
       changes: { summary: `Created ${totalCreated} ${totalCreated === 1 ? "chapter" : "chapters"} from countries` },
     });
   }
-  revalidateChapterPaths(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true, created: totalCreated };
 }

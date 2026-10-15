@@ -11,7 +11,7 @@ const {
   requireTripAccessMock,
   requireOutsideSurpriseMock,
   surpriseRootForMock,
-  revalidatePathMock,
+  revalidateTripMock,
   recordActivityMock,
   stopFindUniqueMock,
   stopUpdateMock,
@@ -26,7 +26,7 @@ const {
   requireTripAccessMock: vi.fn(),
   requireOutsideSurpriseMock: vi.fn(),
   surpriseRootForMock: vi.fn(),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   recordActivityMock: vi.fn(),
   stopFindUniqueMock: vi.fn(),
   stopUpdateMock: vi.fn(),
@@ -36,7 +36,7 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
@@ -110,7 +110,7 @@ describe("setSurprise", () => {
         changes: { summary: "made Paris a surprise for Sam and Alex" },
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("is access-checked before the write", async () => {
@@ -293,7 +293,7 @@ describe("revealSurprise", () => {
         changes: { summary: "revealed the surprise in Paris" },
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("is access-checked before the write", async () => {

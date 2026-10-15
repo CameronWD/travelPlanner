@@ -1,7 +1,6 @@
 "use server";
 
 import { notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
@@ -22,6 +21,7 @@ import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { validateSurpriseFor } from "@/lib/surprise";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -64,15 +64,6 @@ async function applySurpriseFor(
 async function requireItemAccess(itemId: string) {
   const { row, user, surpriseOf } = await requireRowAccess("item", itemId);
   return { ...row, viewerId: user.id, surpriseOf };
-}
-
-/**
- * Revalidate all relevant trip pages after mutating an item.
- */
-function revalidateItemPaths(tripId: string) {
-  // "layout" revalidates every nested trip route — including /budget, which
-  // inline cost edits reach through this action (things-to-fix P2-4).
-  revalidatePath(`/trips/${tripId}`, "layout");
 }
 
 /**
@@ -242,7 +233,7 @@ export async function createItem(
   }
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
-  revalidateItemPaths(tripId);
+  revalidateTrip(tripId, "plan", "money");
   if (surpriseForIds) {
     // Checked above, so a refusal here is a race (say, a Traveller left meanwhile).
     // The Item is saved, so the form must close: report it to the log, not the Traveller.
@@ -326,7 +317,7 @@ export async function addMarkerToWishlist(
     entityId: created.id,
     entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>),
   });
-  revalidateItemPaths(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 
@@ -468,7 +459,7 @@ export async function updateItem(
     entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
     changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidateItemPaths(item.tripId);
+  revalidateTrip(item.tripId, "plan", "money");
   return applySurpriseFor(itemId, data.surpriseForIds, before);
 }
 
@@ -494,7 +485,7 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
   const surpriseOf = item.surpriseOf?.type === "ITEM" && item.surpriseOf.id === itemId ? null : item.surpriseOf;
   await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "", surpriseOf });
 
-  revalidateItemPaths(item.tripId);
+  revalidateTrip(item.tripId, "plan");
   return { success: true };
 }
 
@@ -587,7 +578,7 @@ async function finishPlacedCopy({
     entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(tripId);
+  revalidateTrip(tripId, "plan");
   return { success: true, placedItemId: placed.id };
 }
 
@@ -737,7 +728,7 @@ export async function scheduleItem(
     changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(accessItem.tripId);
+  revalidateTrip(accessItem.tripId, "plan");
   return { success: true };
 }
 
@@ -855,7 +846,7 @@ export async function unscheduleItem(itemId: string): Promise<UnscheduleResult> 
     entityLabel: entityLabel("ITEM", fullItem as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(accessItem.tripId);
+  revalidateTrip(accessItem.tripId, "plan");
   return { success: true, mode, sourceItemId: fullItem.sourceItemId ?? null };
 }
 
@@ -923,6 +914,6 @@ export async function rescheduleItem(
     changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(item.tripId);
+  revalidateTrip(item.tripId, "plan");
   return { success: true };
 }

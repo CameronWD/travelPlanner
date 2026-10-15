@@ -9,7 +9,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   notFoundMock,
   itemFindUniqueMock,
   itemUpdateMock,
@@ -27,7 +27,7 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   notFoundMock: vi.fn(() => {
     throw new Error("NOT_FOUND");
   }),
@@ -70,7 +70,7 @@ const requireRowAccessMock = vi.hoisted(() =>
   }),
 );
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
@@ -183,7 +183,7 @@ describe("setItemPhoto", () => {
     });
     // No existing photo — nothing to discard.
     expect(attachmentDeleteMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`, "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan", "journal");
   });
 
   it("access-checks via the item's tripId before uploading", async () => {

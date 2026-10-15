@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import {
@@ -16,6 +15,7 @@ import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -143,7 +143,7 @@ export async function createAccommodation(
   }
 
   await recordPlanActivity(plan, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
-  revalidatePath(`/trips/${stop.tripId}`, "layout");
+  revalidateTrip(stop.tripId, "plan", "money");
   return { success: true, id: created.id };
 }
 
@@ -277,7 +277,7 @@ export async function updateAccommodation(
     entityLabel: entityLabel("ACCOMMODATION", updated as unknown as Record<string, unknown>),
     changes: describeChanges("ACCOMMODATION", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${acc.tripId}`, "layout");
+  revalidateTrip(acc.tripId, "plan", "money");
   return { success: true };
 }
 
@@ -303,6 +303,6 @@ export async function deleteAccommodation(
 
   await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "", surpriseOf: acc.surpriseOf });
 
-  revalidatePath(`/trips/${acc.tripId}`, "layout");
+  revalidateTrip(acc.tripId, "plan");
   return { success: true };
 }
