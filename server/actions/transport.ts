@@ -30,7 +30,8 @@ export type TransportActionResult = ActionResult;
  * Thin adapter over `requireRowAccess("transport", id)` (lib/guards.ts):
  * loads the Transport (id, tripId, forkId — `ROW_SELECT.transport`), checks
  * trip access, and throws notFound() otherwise. No Surprise check of its own
- * (a Transport is never a Surprise root; ADR 0073).
+ * (a Transport is never a Surprise root; CONTEXT.md Surprise — Accommodation
+ * and Transport cannot be surprised yet).
  */
 async function requireTransportAccess(transportId: string) {
   const { row } = await requireRowAccess("transport", transportId);
