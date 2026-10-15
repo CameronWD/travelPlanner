@@ -149,6 +149,7 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -248,6 +249,7 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -312,6 +314,7 @@ describe("PhasePlanning chapter gating (Task 13)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -384,6 +387,7 @@ describe("PhasePlanning upcoming payments mount", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -460,6 +464,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: false,
   };
@@ -683,6 +688,7 @@ describe("PhasePlanning reminders slot (LA-029/045)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -791,6 +797,7 @@ describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: false,
   };

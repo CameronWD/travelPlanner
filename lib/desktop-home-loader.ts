@@ -76,8 +76,8 @@ export interface HomeTripInput {
   homeLat: number | null;
   homeLng: number | null;
   homeCountryCode: string | null;
-  /** The Trip's Home base IANA timezone (spec 2026-10-14, TB-01); optional — older callers that haven't selected it still type-check. */
-  homeTimezone?: string | null;
+  /** The Trip's Home base IANA timezone (spec 2026-10-14, TB-01). Required so a caller that forgets to select it fails to type-check rather than silently dropping it from the Flags. */
+  homeTimezone: string | null;
   roundTrip: boolean;
   chaptersEnabled: boolean;
 }

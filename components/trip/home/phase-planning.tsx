@@ -39,6 +39,8 @@ interface PhasePlanningProps {
     homeLat: number | null;
     homeLng: number | null;
     homeCountryCode: string | null;
+    /** The Trip's Home base IANA timezone (TB-01) — required so Home's Flags always get it. */
+    homeTimezone: string | null;
     roundTrip: boolean;
     chaptersEnabled: boolean;
   };
