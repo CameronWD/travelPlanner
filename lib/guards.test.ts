@@ -482,6 +482,47 @@ describe("requireRowAccess (card C)", () => {
 
     await expect(requireRowAccess("stop", "s1")).rejects.toThrow(/404/);
   });
+
+  it("a note is checked against its own target", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    noteFindUniqueMock.mockResolvedValue({ id: "n1", tripId: "trip-1", targetType: "STOP", targetId: "s1" });
+
+    await requireRowAccess("note", "n1");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", {
+      target: expect.objectContaining({ targetType: "STOP", targetId: "s1" }),
+    });
+  });
+
+  it("a reminder is checked against its Stop", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    reminderFindUniqueMock.mockResolvedValue({ id: "r1", tripId: "trip-1", stopId: "s1" });
+
+    await requireRowAccess("reminder", "r1");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { stopId: "s1" });
+  });
+
+  it("a reminder with no Stop is still checked (stopId null)", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    reminderFindUniqueMock.mockResolvedValue({ id: "r2", tripId: "trip-1", stopId: null });
+
+    await requireRowAccess("reminder", "r2");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { stopId: null });
+  });
+
+  it("a surprised viewer is refused a note on the Surprise", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    noteFindUniqueMock.mockResolvedValue({ id: "n1", tripId: "trip-1", targetType: "STOP", targetId: "s1" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+
+    await expect(requireRowAccess("note", "n1")).rejects.toThrow();
+  });
 });
 
 describe("requireAdmin", () => {

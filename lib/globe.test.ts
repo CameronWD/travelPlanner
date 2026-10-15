@@ -77,7 +77,7 @@ describe("getOrCreateUserGlobe", () => {
 });
 
 // ARCH-TEN-4: direct coverage of the owner/admin gate itself, mirroring
-// lib/guards.test.ts's requireTripOwner suite (the analogous per-Trip guard)
+// lib/guards.test.ts's requireRowAccess suite (the analogous per-Trip guard)
 // rather than only exercising it indirectly through a mocked
 // server/actions/globe.test.ts, which proves inviteToGlobe branches on
 // whatever the mock returns but says nothing about whether this function

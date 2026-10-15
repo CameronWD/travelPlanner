@@ -28,10 +28,10 @@ export type AccommodationActionResult = ActionResult;
 // ---------------------------------------------------------------------------
 
 /**
- * Look up an accommodation → look up its stop → requireTripAccess(stop.tripId),
- * then refuse a viewer surprised by the Stop it sits in (CONTEXT.md Surprise).
- * Returns the accommodation with tripId, the viewer and the live Surprise it
- * is inside, or notFound().
+ * Thin adapter over `requireRowAccess("accommodation", id)` (lib/guards.ts):
+ * loads the Accommodation (id, tripId, forkId, stopId — `ROW_SELECT.accommodation`),
+ * checks trip access and the live Surprise it is inside, and throws
+ * notFound() otherwise.
  */
 async function requireAccommodationAccess(accommodationId: string) {
   const { row, user, surpriseOf } = await requireRowAccess("accommodation", accommodationId);

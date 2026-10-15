@@ -56,9 +56,10 @@ async function applySurpriseFor(
 // ---------------------------------------------------------------------------
 
 /**
- * Look up an item and verify the current user has access to its trip, and is
- * not surprised by it (CONTEXT.md Surprise). Returns the item (with tripId,
- * the viewer and the live Surprise it is inside) or throws notFound().
+ * Thin adapter over `requireRowAccess("item", id)` (lib/guards.ts): loads the
+ * Item (id, tripId, forkId, stopId, date, photoAttachmentId — `ROW_SELECT.item`),
+ * checks trip access and the live Surprise it is inside, and throws
+ * notFound() otherwise.
  */
 async function requireItemAccess(itemId: string) {
   const { row, user, surpriseOf } = await requireRowAccess("item", itemId);

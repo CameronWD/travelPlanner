@@ -27,8 +27,10 @@ export type TransportActionResult = ActionResult;
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a transport and verify the current user has access to its trip.
- * Returns the transport (with its tripId) or throws notFound().
+ * Thin adapter over `requireRowAccess("transport", id)` (lib/guards.ts):
+ * loads the Transport (id, tripId, forkId — `ROW_SELECT.transport`), checks
+ * trip access, and throws notFound() otherwise. No Surprise check of its own
+ * (a Transport is never a Surprise root; ADR 0073).
  */
 async function requireTransportAccess(transportId: string) {
   const { row } = await requireRowAccess("transport", transportId);

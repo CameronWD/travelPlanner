@@ -59,9 +59,10 @@ export type ReorderResult =
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a stop and verify the current user has access to its trip, and is
- * not surprised by it (CONTEXT.md Surprise). Returns the stop (with its
- * tripId, extra fields and the live Surprise it is inside) or throws notFound().
+ * Thin adapter over `requireRowAccess("stop", id)` (lib/guards.ts): loads the
+ * Stop (id, tripId, forkId, name, sortOrder, arriveDate, departDate, nights,
+ * pinned, chapterId — `ROW_SELECT.stop`), checks trip access and the live
+ * Surprise it is inside, and throws notFound() otherwise.
  */
 async function requireStopAccess(stopId: string) {
   const { row, surpriseOf } = await requireRowAccess("stop", stopId);
