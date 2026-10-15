@@ -11,9 +11,9 @@ import { guessTimezoneForCountry } from "@/lib/tz";
 import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
-import { recordPlanActivity } from "@/lib/activity-guard";
+import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
-import { entityLabel, describeChanges } from "@/lib/activity";
+import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
@@ -274,7 +274,7 @@ export async function createStop(
       return createdScheduled;
     });
 
-    await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+    await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created) });
     revalidateTrip(tripId, "plan");
     return { success: true, id: created.id };
   }
@@ -348,7 +348,7 @@ export async function createStop(
       await scheduleLoneStopTx(tx, tripId, plan, "fill");
       return createdRough;
     });
-    await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+    await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created) });
     revalidateTrip(tripId, "plan");
     return { success: true, id: created.id };
   }
@@ -393,7 +393,7 @@ export async function createStop(
     return createdScheduled;
   });
 
-  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created) });
   revalidateTrip(tripId, "plan");
   return { success: true, id: created.id };
 }
@@ -477,14 +477,7 @@ export async function updateStop(
       if (e instanceof LoneStopRoughRefused) return fail({ _: [LONE_STOP_ROUGH_REFUSED] });
       throw e;
     }
-    await recordPlanActivity(stop.forkId, {
-      tripId: stop.tripId,
-      verb: "UPDATED",
-      entityType: "STOP",
-      entityId: stopId,
-      entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
-      changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-    });
+    await recordUpdate("STOP", { tripId: stop.tripId, plan: stop.forkId, entityId: stopId, before, after: updated });
     revalidateTrip(stop.tripId, "plan");
     return { success: true };
   }
@@ -533,14 +526,7 @@ export async function updateStop(
     return result;
   });
 
-  await recordPlanActivity(stop.forkId, {
-    tripId: stop.tripId,
-    verb: "UPDATED",
-    entityType: "STOP",
-    entityId: stopId,
-    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
+  await recordUpdate("STOP", { tripId: stop.tripId, plan: stop.forkId, entityId: stopId, before, after: updated });
   revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
@@ -853,17 +839,12 @@ async function applyStopDates(
     }
   });
 
-  await recordPlanActivity(stop.forkId, {
+  await recordUpdate("STOP", {
     tripId: stop.tripId,
-    verb: "UPDATED",
-    entityType: "STOP",
+    plan: stop.forkId,
     entityId: stop.id,
-    entityLabel: entityLabel("STOP", (before ?? {}) as Record<string, unknown>),
-    changes: describeChanges(
-      "STOP",
-      (before ?? {}) as Record<string, unknown>,
-      { ...(before ?? {}), arriveDate: dates.arriveDate, departDate: dates.departDate } as Record<string, unknown>,
-    ),
+    before,
+    after: { ...before, arriveDate: dates.arriveDate, departDate: dates.departDate },
   });
 
   revalidateTrip(stop.tripId, "plan");
@@ -1014,17 +995,12 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     );
     const { startDate: start, endDate: end } = chapterSpan([...alreadyDated, ...results]);
     await db.chapter.update({ where: chapterWhere, data: { startDate: start, endDate: end } });
-    await recordPlanActivity(plan, {
+    await recordUpdate("CHAPTER", {
       tripId,
-      verb: "UPDATED",
-      entityType: "CHAPTER",
+      plan,
       entityId: chapterId,
-      entityLabel: beforeCh?.name ?? "",
-      changes: describeChanges(
-        "CHAPTER",
-        (beforeCh ?? {}) as Record<string, unknown>,
-        { ...(beforeCh ?? {}), startDate: start, endDate: end } as Record<string, unknown>,
-      ),
+      before: beforeCh,
+      after: { ...beforeCh, startDate: start, endDate: end },
     });
   } else {
     const firstArrive = results[0].arriveDate;
@@ -1197,16 +1173,7 @@ export async function toggleStopPin(stopId: string): Promise<StopActionResult> {
   if (!stop.arriveDate) {
     return { success: false, errors: { pinned: ["Only a stop with dates can be pinned."] } };
   }
-  await db.stop.update({ where: { id: stopId }, data: { pinned: !stop.pinned } });
-  const named = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
-  await recordPlanActivity(stop.forkId, {
-    tripId: stop.tripId,
-    verb: "UPDATED",
-    entityType: "STOP",
-    entityId: stopId,
-    entityLabel: named?.name ?? "",
-    changes: describeChanges("STOP", { pinned: stop.pinned }, { pinned: !stop.pinned }),
-  });
+  await auditedUpdate("STOP", db.stop, stopId, { pinned: !stop.pinned }, stop.forkId);
   revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
@@ -1246,17 +1213,12 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     throw e;
   }
 
-  await recordPlanActivity(stop.forkId, {
+  await recordUpdate("STOP", {
     tripId: stop.tripId,
-    verb: "UPDATED",
-    entityType: "STOP",
+    plan: stop.forkId,
     entityId: stopId,
-    entityLabel: entityLabel("STOP", (before ?? {}) as Record<string, unknown>),
-    changes: describeChanges(
-      "STOP",
-      (before ?? {}) as Record<string, unknown>,
-      { ...(before ?? {}), arriveDate: null, departDate: null, pinned: false, nights } as Record<string, unknown>,
-    ),
+    before,
+    after: { ...before, arriveDate: null, departDate: null, pinned: false, nights },
   });
 
   revalidateTrip(stop.tripId, "plan");
@@ -1270,16 +1232,7 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
 export async function setStopNotes(stopId: string, notes: string): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
   const trimmed = notes.trim();
-  const before = await db.stop.findUnique({ where: { id: stopId } });
-  const updated = await db.stop.update({ where: { id: stopId }, data: { notes: trimmed === "" ? null : trimmed } });
-  await recordPlanActivity(stop.forkId, {
-    tripId: stop.tripId,
-    verb: "UPDATED",
-    entityType: "STOP",
-    entityId: stopId,
-    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
+  await auditedUpdate("STOP", db.stop, stopId, { notes: trimmed === "" ? null : trimmed }, stop.forkId);
   revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }
@@ -1300,16 +1253,7 @@ export async function setStopNights(stopId: string, nights: number): Promise<Sto
     const departDate = addDays(stop.arriveDate, nights);
     return applyStopDates(stop, { arriveDate: stop.arriveDate, departDate });
   }
-  const before = await db.stop.findUnique({ where: { id: stopId } });
-  const updated = await db.stop.update({ where: { id: stopId }, data: { nights } });
-  await recordPlanActivity(stop.forkId, {
-    tripId: stop.tripId,
-    verb: "UPDATED",
-    entityType: "STOP",
-    entityId: stopId,
-    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
+  await auditedUpdate("STOP", db.stop, stopId, { nights }, stop.forkId);
   revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }

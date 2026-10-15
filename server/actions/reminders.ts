@@ -10,8 +10,9 @@ import {
   validationResult,
 } from "@/lib/action-result";
 import { recordActivity } from "@/server/actions/activity";
+import { recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
-import { describeChanges, entityLabel } from "@/lib/activity";
+import { entityLabel } from "@/lib/activity";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { revalidateTrip, revalidateTripsList } from "@/lib/revalidate";
 
@@ -210,13 +211,13 @@ export async function updateReminder(
     select: { title: true, date: true, stop: { select: { name: true } } },
   });
 
-  await recordActivity({
+  // Checklists and Reminders sit outside any Plan (plan: null): always recorded.
+  await recordUpdate("REMINDER", {
     tripId: reminder.tripId,
-    verb: "UPDATED",
-    entityType: "REMINDER",
+    plan: null,
     entityId: id,
-    entityLabel: entityLabel("REMINDER", { title: after.title }),
-    changes: describeChanges("REMINDER", activityRow(reminder), activityRow(after)),
+    before: activityRow(reminder),
+    after: activityRow(after),
   });
 
   revalidateTrip(reminder.tripId, "plan", "lists");

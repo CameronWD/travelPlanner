@@ -1027,6 +1027,13 @@ describe("updateStop", () => {
     expect(recordActivity).not.toHaveBeenCalled();
   });
 
+  it("updateStop's scheduled branch records nothing when its transaction fails", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, forkId: null });
+    stopUpdateMock.mockRejectedValueOnce(new Error("write failed"));
+    await expect(updateStop("s1", { mode: "scheduled", name: "Rome", timezone: "UTC", arriveDate: "2026-07-01", departDate: "2026-07-05", lat: 1, lng: 2 })).rejects.toThrow("write failed");
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
   it("preserves notes and chapter when updating a rough stop", async () => {
     stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
     stopUpdateMock.mockResolvedValue({});
@@ -1542,6 +1549,15 @@ describe("moveStop", () => {
 // ---------------------------------------------------------------------------
 
 describe("setStopDates", () => {
+  it("records nothing when the dates transaction fails", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopUpdateMock.mockRejectedValueOnce(new Error("write failed"));
+    await expect(setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-06" })).rejects.toThrow("write failed");
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
   // Converted from the old repack-based expectation ("ripples following dated
   // non-pinned stops" — every following dated stop was force-repacked flush
   // against its predecessor). Under ADR 0038 collision-push, a follower only
@@ -1838,8 +1854,8 @@ describe("toggleStopPin", () => {
   it("pins a scheduled stop", async () => {
     stopFindUniqueMock
       .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
-      .mockResolvedValueOnce({ name: "Paris" });
-    stopUpdateMock.mockResolvedValue({});
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", name: "Paris", pinned: false });
+    stopUpdateMock.mockResolvedValue({ id: "a", tripId: "trip-1", name: "Paris", pinned: true });
     const r = await toggleStopPin("a");
     expect(r.success).toBe(true);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { pinned: true } });
@@ -1852,8 +1868,9 @@ describe("toggleStopPin", () => {
   it("toggleStopPin records a Pinned change", async () => {
     stopFindUniqueMock
       .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
-      .mockResolvedValueOnce({ name: "Rome" });
-    stopUpdateMock.mockResolvedValue({});
+      // auditedUpdate's read-before
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", name: "Rome", pinned: false });
+    stopUpdateMock.mockResolvedValue({ id: "s1", tripId: "trip-1", name: "Rome", pinned: true });
     await toggleStopPin("s1");
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({

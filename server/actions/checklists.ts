@@ -15,12 +15,12 @@ import { mergeTemplateTexts } from "@/lib/checklists";
 import { type ActionResult, formFail, validationResult } from "@/lib/action-result";
 import { buyStateSchema, type BuyState } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
+import { recordUpdate } from "@/lib/activity-guard";
 import {
   checklistItemsAddedSummary,
   checklistItemSummary,
   checklistListName,
   checklistTickSummary,
-  describeChanges,
   entityLabel,
   templateAppliedSummary,
 } from "@/lib/activity";
@@ -256,13 +256,13 @@ export async function updateChecklistItem(
     select: { text: true, dueDate: true, assignedTo: { select: TRAVELLER_SELECT } },
   });
 
-  await recordActivity({
+  // Checklists and Reminders sit outside any Plan (plan: null): always recorded.
+  await recordUpdate("CHECKLIST_ITEM", {
     tripId: item.tripId,
-    verb: "UPDATED",
-    entityType: "CHECKLIST_ITEM",
+    plan: null,
     entityId: itemId,
-    entityLabel: entityLabel("CHECKLIST_ITEM", { text: after.text }),
-    changes: describeChanges("CHECKLIST_ITEM", activityRow(item), activityRow(after)),
+    before: activityRow(item),
+    after: activityRow(after),
   });
 
   revalidateTrip(item.tripId, "lists");
