@@ -323,7 +323,10 @@ describe("reminder and checklist write tools", () => {
   });
 
   it("set_need_to_buy's own-kind refusal surfaces as a tool error, not success", async () => {
-    setBuyState.mockResolvedValue({ success: false, error: "Only a Packing item can be marked to buy." });
+    setBuyState.mockResolvedValue({
+      success: false,
+      errors: { _: ["Only a Packing item can be marked to buy."] },
+    });
     const c = await connectTestClient();
     const r = await c.callTool({ name: "set_need_to_buy", arguments: { itemId: ITEM_ID, buy: "NEEDED" } });
     expect(r.isError).toBe(true);
