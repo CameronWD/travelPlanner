@@ -9,6 +9,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
+  requirePlanAccessMock,
   revalidatePathMock,
   geocodePlaceMock,
   searchPlacesWithStatusMock,
@@ -76,6 +77,11 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
+    requirePlanAccessMock: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+      plan: forkId ?? null,
+    })),
     revalidatePathMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
     searchPlacesWithStatusMock: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
@@ -121,7 +127,11 @@ const requireRowAccessMock = vi.hoisted(() =>
     return { row, user, membership, surpriseOf: null };
   }),
 );
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({
   geocodePlace: geocodePlaceMock,
@@ -316,14 +326,14 @@ describe("createTransport", () => {
     });
   });
 
-  it("calls requireTripAccess for access check", async () => {
+  it("calls requirePlanAccess for access check", async () => {
     transportFindFirstMock.mockResolvedValue(null);
     transportCreateMock.mockResolvedValue({ id: "t-1" });
 
     await createTransport("trip-1", VALID_INPUT);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, transportCreateMock);
   });
 
   it("returns validation error and does not write for invalid mode", async () => {
@@ -1395,7 +1405,7 @@ describe("reorderTransports", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("calls requireTripAccess for auth check", async () => {
+  it("calls requirePlanAccess for auth check", async () => {
     transportFindManyMock.mockResolvedValue([
       { id: "leg-1", tripId: "trip-1", forkId: null },
     ]);
@@ -1403,8 +1413,8 @@ describe("reorderTransports", () => {
 
     await reorderTransports("trip-1", items);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportUpdateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, transportUpdateMock);
   });
 
   it("scopes the findMany query to the given forkId", async () => {

@@ -24,11 +24,9 @@ const {
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("next/navigation", () => ({
-  notFound: vi.fn(() => {
-    throw new Error("NOT_FOUND");
-  }),
-}));
+// This file never mocks next/navigation (ARCH-TEN-9): addNote's own
+// row.tripId !== tripId check calls the real notFound(), which throws
+// "NEXT_HTTP_ERROR_FALLBACK;404" — same pattern as items.test.ts/costs.test.ts.
 vi.mock("@/lib/db", () => ({
   db: {
     note: {
@@ -50,12 +48,22 @@ vi.mock("@/lib/surprise-guard", () => ({
 // forward to the same noteFindUniqueMock/requireTripAccessMock/
 // requireOutsideSurpriseMock every test already seeds, so existing
 // mockResolvedValueOnce chains for the guard's own lookup keep working
-// unchanged.
+// unchanged. ARCH-TEN-9: addNote now also calls requireRowAccess for a
+// STOP/ITEM/TRANSPORT/ACCOMMODATION target — a different `kind` than
+// "note", so this mock branches: "note" keeps deleteNote's existing
+// forwarding behaviour; anything else defaults to a row on the same trip
+// addNote's own requireTripAccess already validated (tests override via
+// mockResolvedValueOnce/mockRejectedValueOnce for the cross-trip and
+// Surprise cases).
 const requireRowAccessMock = vi.hoisted(() =>
-  vi.fn(async () => {
+  vi.fn(async (kind: string, id: string) => {
+    if (kind !== "note") {
+      return { row: { id, tripId: "trip-1" }, user: { id: "user-1" }, membership: { role: "owner" }, surpriseOf: null };
+    }
     const row = await noteFindUniqueMock();
-    // This file mocks next/navigation's notFound to throw Error("NOT_FOUND")
-    // — reach for that same mock via dynamic import.
+    // This file never mocks next/navigation, so reach for the real
+    // notFound(), which throws "NEXT_HTTP_ERROR_FALLBACK;404" — production's
+    // own message/digest.
     if (!row) {
       const { notFound } = await import("next/navigation");
       notFound();
@@ -238,7 +246,7 @@ describe("deleteNote", () => {
 
   it("throws notFound when the note does not exist", async () => {
     noteFindUniqueMock.mockResolvedValue(null);
-    await expect(deleteNote(NOTE_ID)).rejects.toThrow("NOT_FOUND");
+    await expect(deleteNote(NOTE_ID)).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
     expect(noteDeleteMock).not.toHaveBeenCalled();
   });
 
@@ -343,11 +351,20 @@ describe("Surprise write guard", () => {
   });
 
   it("addNote refuses a target the caller is surprised by", async () => {
-    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    // ARCH-TEN-9: an ITEM target now goes through requireRowAccess, which
+    // runs the same Surprise check internally (lib/guards.ts surpriseRefFor)
+    // — addNote no longer calls requireOutsideSurprise itself for this kind.
+    requireRowAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
 
     await expect(addNote(TRIP_ID, { targetType: "ITEM", targetId: "item-9", body: "Ooh" })).rejects.toThrow("NEXT_NOT_FOUND");
 
-    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { target: { targetType: "ITEM", targetId: "item-9" } });
+    expect(requireRowAccessMock).toHaveBeenCalledWith("item", "item-9");
+    expect(noteCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-TEN-9: addNote on a STOP target checks the Stop belongs to the Trip", async () => {
+    requireRowAccessMock.mockResolvedValueOnce({ row: { id: "s1", tripId: "trip-OTHER" }, user: { id: "u1" }, membership: {}, surpriseOf: null });
+    await expect(addNote("trip-1", { targetType: "STOP", targetId: "s1", body: "hi" } as never)).rejects.toThrow(/404/);
     expect(noteCreateMock).not.toHaveBeenCalled();
   });
 

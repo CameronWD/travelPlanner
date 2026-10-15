@@ -9,6 +9,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
+  requirePlanAccessMock,
   revalidatePathMock,
   costFindUniqueMock,
   costCreateMock,
@@ -40,6 +41,11 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
+    requirePlanAccessMock: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+      plan: forkId ?? null,
+    })),
     revalidatePathMock: vi.fn(),
     costFindUniqueMock: vi.fn(),
     costCreateMock,
@@ -112,7 +118,11 @@ const requireRowAccessMock = vi.hoisted(() =>
     return { row, user, membership, surpriseOf };
   }),
 );
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "./costs";
 import { recordActivity } from "@/server/actions/activity";
@@ -175,6 +185,12 @@ describe("plan-scope: createCost with forkId", () => {
         data: expect.objectContaining({ forkId: null }),
       }),
     );
+  });
+
+  it("Review Focus 1: a forkId that is not this Trip's Fork is not found, nothing written", async () => {
+    requirePlanAccessMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+    await expect(createCost("trip-1", VALID_OTHER_INPUT, "fork-x")).rejects.toThrow(/404/);
+    expect(costCreateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -323,7 +339,7 @@ describe("createCost", () => {
     );
   });
 
-  it("access-checks via requireTripAccess", async () => {
+  it("access-checks via requirePlanAccess", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-99" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
     resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
@@ -331,8 +347,8 @@ describe("createCost", () => {
 
     await createCost("trip-99", VALID_TRANSPORT_INPUT);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, costCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-99", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, costCreateMock);
   });
 
   it("returns validation errors and does not write for invalid input", async () => {

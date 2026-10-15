@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess, type RowKind } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
@@ -54,6 +54,25 @@ async function requireAttachmentAccess(id: string): Promise<{
   const { user } = await requireTripAccess(attachment.tripId!);
   const surpriseOf = await requireOutsideSurprise(user.id, { target: attachment });
   return { attachment, userId: user.id, surpriseOf };
+}
+
+/**
+ * ARCH-TEN-9: targetType → RowKind for the four kinds requireRowAccess
+ * covers. JOURNAL (a date) and other target types keep their existing
+ * requireOutsideSurprise handling below — requireRowAccess has no row for
+ * them.
+ */
+function kindFor(targetType: "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION"): RowKind {
+  switch (targetType) {
+    case "STOP":
+      return "stop";
+    case "ITEM":
+      return "item";
+    case "TRANSPORT":
+      return "transport";
+    case "ACCOMMODATION":
+      return "accommodation";
+  }
 }
 
 function findAttachmentForAccess(id: string) {
@@ -219,9 +238,17 @@ export async function uploadAttachment(
   // Access check — must be a trip member. Hoisted above validateUpload/
   // assertQuota/arrayBuffer() (fix round, access-before-buffering).
   const { user } = await requireTripAccess(tripId);
-  await requireOutsideSurprise(user.id, {
-    target: { targetType, targetId: typeof targetId === "string" && targetId ? targetId : null },
-  });
+  const uploadTargetId = typeof targetId === "string" && targetId ? targetId : null;
+  // ARCH-TEN-9: a STOP/ITEM/TRANSPORT/ACCOMMODATION target's own Trip must
+  // match this upload's tripId — requireRowAccess also runs the same
+  // Surprise check internally (surpriseRefFor), so this covers both.
+  // JOURNAL (a date) and other target types keep the plain Surprise check.
+  if (uploadTargetId && (targetType === "STOP" || targetType === "ITEM" || targetType === "TRANSPORT" || targetType === "ACCOMMODATION")) {
+    const { row } = await requireRowAccess(kindFor(targetType), uploadTargetId);
+    if (row.tripId !== tripId) notFound();
+  } else {
+    await requireOutsideSurprise(user.id, { target: { targetType, targetId: uploadTargetId } });
+  }
 
   // Validate the upload (mime + size)
   const validation = validateUpload({ mime: file.type, size: file.size });

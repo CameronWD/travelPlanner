@@ -118,7 +118,13 @@ export async function cancelInvite(
   }
 
   // Access-check: caller must be a member of the invite's trip.
-  await requireTripAccess(invite.tripId);
+  const { user, membership } = await requireTripAccess(invite.tripId);
+
+  // ARCH-TEN-10: same owner-or-admin rule as inviteToTrip above — cancelling
+  // an Invite is as privileged as sending one.
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, error: "Only the trip owner can cancel an invite." };
+  }
 
   // Don't delete an invite that's already been accepted — it records that the
   // partner joined. Cancelling only applies to still-pending invites.

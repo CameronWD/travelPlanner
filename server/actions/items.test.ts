@@ -9,6 +9,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
+  requirePlanAccessMock,
   revalidatePathMock,
   geocodePlaceDetailedMock,
   itemFindUniqueMock,
@@ -75,6 +76,11 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
+    requirePlanAccessMock: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+      plan: forkId ?? null,
+    })),
     revalidatePathMock: vi.fn(),
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
@@ -124,7 +130,11 @@ const requireRowAccessMock = vi.hoisted(() =>
     return { row, user, membership, surpriseOf };
   }),
 );
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
@@ -390,14 +400,14 @@ describe("createItem", () => {
     expect(await createItem("trip-1", VALID_INPUT)).toEqual({ success: true, id: "item-new" });
   });
 
-  it("access-checks via requireTripAccess", async () => {
+  it("access-checks via requirePlanAccess", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
 
     await createItem("trip-99", VALID_INPUT);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-99", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, itemCreateMock);
   });
 
   it("rejects a stopId that belongs to a different trip", async () => {

@@ -12,6 +12,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
+  requireRowAccessMock,
   requireGlobeAccessMock,
   revalidatePathMock,
   notFoundMock,
@@ -45,6 +46,17 @@ const {
       user: { id: "user-1" },
       membership: { role: "member" },
     }),
+    // ARCH-TEN-9: uploadAttachment's STOP/ITEM/TRANSPORT/ACCOMMODATION target
+    // check. Default: the target belongs to the same Trip uploadAttachment's
+    // own requireTripAccess already validated (tests override via
+    // mockResolvedValueOnce/mockRejectedValueOnce for the cross-trip and
+    // Surprise cases).
+    requireRowAccessMock: vi.fn(async (_kind: string, id: string) => ({
+      row: { id, tripId: "trip-1" },
+      user: { id: "user-1" },
+      membership: { role: "member" },
+      surpriseOf: null,
+    })),
     requireGlobeAccessMock: vi.fn().mockResolvedValue({
       user: { id: "u1" },
       globe: { id: "g1" },
@@ -76,7 +88,7 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
@@ -843,11 +855,29 @@ describe("Surprise write guard", () => {
   });
 
   it("uploadAttachment refuses a target the caller is surprised by", async () => {
-    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    // ARCH-TEN-9: an ITEM target now goes through requireRowAccess, which
+    // runs the same Surprise check internally (lib/guards.ts surpriseRefFor)
+    // — uploadAttachment no longer calls requireOutsideSurprise itself for
+    // this kind.
+    requireRowAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
 
     await expect(uploadAttachment(makeFormData({ targetType: "ITEM", targetId: "item-9" }))).rejects.toThrow("NEXT_NOT_FOUND");
 
-    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { target: { targetType: "ITEM", targetId: "item-9" } });
+    expect(requireRowAccessMock).toHaveBeenCalledWith("item", "item-9");
+    expect(attachmentCreateMock).not.toHaveBeenCalled();
+    expect(storageSaveMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-TEN-9: uploadAttachment refuses a STOP target from another Trip", async () => {
+    requireRowAccessMock.mockResolvedValueOnce({
+      row: { id: "stop-99", tripId: "trip-OTHER" },
+      user: { id: "user-1" },
+      membership: { role: "member" },
+      surpriseOf: null,
+    });
+
+    await expect(uploadAttachment(makeFormData({ targetType: "STOP", targetId: "stop-99" }))).rejects.toThrow();
+
     expect(attachmentCreateMock).not.toHaveBeenCalled();
     expect(storageSaveMock).not.toHaveBeenCalled();
   });

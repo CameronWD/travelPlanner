@@ -8,6 +8,7 @@ import type { ImportContext } from "@/lib/booking-import/types";
 
 const m = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
+  requirePlanAccess: vi.fn(),
   isAiConfigured: vi.fn(),
   prepare: vi.fn(),
   extract: vi.fn(),
@@ -16,7 +17,7 @@ const m = vi.hoisted(() => ({
   report: vi.fn(),
   confirm: vi.fn(),
 }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess, requirePlanAccess: m.requirePlanAccess }));
 vi.mock("@/lib/ai", () => ({ isAiConfigured: m.isAiConfigured, aiModel: () => "claude-haiku-5-5" }));
 vi.mock("@/lib/booking-import/input", () => ({ prepareBookingInput: m.prepare }));
 vi.mock("@/lib/booking-import/extract", () => ({ extractBooking: m.extract }));
@@ -43,6 +44,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   user += 1; // a fresh Traveller per test: the limiter is module state
   m.requireTripAccess.mockResolvedValue({ user: { id: `u${user}` }, membership: { role: "owner" } });
+  m.requirePlanAccess.mockImplementation(async (_tripId: string, forkId?: string | null) => ({
+    user: { id: `u${user}` },
+    membership: { role: "owner" },
+    plan: forkId ?? null,
+  }));
   m.isAiConfigured.mockReturnValue(true);
   m.prepare.mockResolvedValue({ ok: true, source: "text", parts: [{ type: "text", text: "booking" }] });
   m.extract.mockResolvedValue({ kind: "ok", model: "claude-haiku-5-5", usage: USAGE, extraction: SAMPLE_EXTRACTION });
@@ -135,6 +141,6 @@ describe("confirmProposal", () => {
     const request = { proposal: { clientId: "p1" }, proposedStops: [], resolvedStops: {} } as never;
     expect(await confirmProposal("trip-1", request, "fork-1")).toEqual({ ok: true, createdId: "t-new", createdStops: {} });
     expect(m.confirm).toHaveBeenCalledWith("trip-1", `u${user}`, request, "fork-1");
-    expectAccessCheckedBeforeWrite(m.requireTripAccess, m.confirm);
+    expectAccessCheckedBeforeWrite(m.requirePlanAccess, m.confirm);
   });
 });

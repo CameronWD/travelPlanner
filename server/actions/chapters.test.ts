@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
-  requireTripAccessMock, revalidatePathMock,
+  requireTripAccessMock, requirePlanAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
   stopFindManyMock, stopFindUniqueMock, stopFindUniqueTxMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
   itemFindManyMock, itemUpdateMock, accommodationFindManyMock, accommodationUpdateMock,
@@ -37,6 +37,11 @@ const {
   });
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
+    requirePlanAccessMock: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+      user: { id: "u1" },
+      membership: { role: "owner" },
+      plan: forkId ?? null,
+    })),
     revalidatePathMock: vi.fn(),
     chapterFindUniqueMock: vi.fn(),
     chapterFindManyMock,
@@ -81,7 +86,11 @@ const requireRowAccessMock = vi.hoisted(() =>
     return { row, user, membership, surpriseOf: null };
   }),
 );
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -269,8 +278,8 @@ describe("createChapter", () => {
 
     await createChapter("trip-1", VALID);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, chapterCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, chapterCreateMock);
   });
 });
 
@@ -532,8 +541,8 @@ describe("reorderChapters", () => {
 
     await reorderChapters("t1", ["c2", "c1"]);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, chapterUpdateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, chapterUpdateMock);
   });
 });
 

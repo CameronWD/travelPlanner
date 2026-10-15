@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess, requireRowAccess } from "@/lib/guards";
+import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
@@ -121,7 +121,7 @@ export async function createCost(
   input: CostRawInput,
   forkId?: PlanId,
 ): Promise<CostActionResult> {
-  const { user } = await requireTripAccess(tripId);
+  const { user, plan } = await requirePlanAccess(tripId, forkId);
 
   const parsed = costSchema.safeParse(input);
   if (!parsed.success) {
@@ -161,7 +161,7 @@ export async function createCost(
     return tx.cost.create({
       data: {
         tripId,
-        forkId: forkId ?? null,
+        forkId: plan,
         costMinor: data.costMinor,
         paidMinor: data.paidMinor ?? null,
         currency: data.currency,
@@ -178,7 +178,7 @@ export async function createCost(
     });
   });
 
-  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
   revalidateTripPaths(tripId);
   return { success: true, cost };
 }

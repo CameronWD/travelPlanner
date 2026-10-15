@@ -123,7 +123,6 @@ const ALLOWLIST: Record<string, string[]> = {
   "search.ts": ["listMyTrips", "searchTrip"],
   "share.ts": ["createShareLink", "listShareLinks", "revokeShareLink", "rotateShareLink", "updateShareLink"],
   "stops.ts": [
-    "assignStopToChapter",
     "createStop",
     "deleteStop",
     "firmUpSegment",

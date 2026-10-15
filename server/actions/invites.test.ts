@@ -285,4 +285,18 @@ describe("cancelInvite", () => {
 
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
   });
+
+  it("ARCH-TEN-10: a non-owner member cannot cancel an Invite", async () => {
+    inviteFindUniqueMock.mockResolvedValue({ tripId: TRIP_ID, acceptedAt: null });
+    isAdminEmailMock.mockReturnValue(false);
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "m@example.com" },
+      membership: { role: "member" },
+    });
+
+    const r = await cancelInvite(INVITE_ID);
+
+    expect(r.success).toBe(false);
+    expect(inviteDeleteMock).not.toHaveBeenCalled();
+  });
 });

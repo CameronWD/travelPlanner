@@ -12,7 +12,7 @@ import { loadImportContext } from "@/lib/booking-import/load-context";
 import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
 import type { BookingImportResult, ConfirmProposalResult, ConfirmRequest } from "@/lib/booking-import/types";
 import { reportError } from "@/lib/error-sink";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requirePlanAccess } from "@/lib/guards";
 import { createRateLimiter } from "@/lib/rate-limit";
 
 const ROUTE = "booking-import";
@@ -34,6 +34,7 @@ export async function importBooking(formData: FormData): Promise<BookingImportRe
 
   const forkIdRaw = formData.get("forkId");
   const forkId = typeof forkIdRaw === "string" && forkIdRaw ? forkIdRaw : null;
+  const { plan } = await requirePlanAccess(tripId, forkId);
   const file = formData.get("file");
   const text = formData.get("text");
 
@@ -71,7 +72,7 @@ export async function importBooking(formData: FormData): Promise<BookingImportRe
     return { ok: false, reason: "not_booking", message: M.notBooking(outcome.extraction.notBookingReason) };
   }
 
-  const { match, context } = await loadImportContext(tripId, forkId, user.id);
+  const { match, context } = await loadImportContext(tripId, plan, user.id);
   const { proposals, dropped } = buildProposals(outcome.extraction, match);
   await recordAiUsage({ ...spent, proposalCount: proposals.length, outcome: "ok" });
   if (proposals.length === 0) return { ok: false, reason: "nothing_usable", message: M.nothingUsable };
@@ -83,6 +84,6 @@ export async function importBooking(formData: FormData): Promise<BookingImportRe
  * "Confirm"). Any Traveller on the Trip; never over MCP.
  */
 export async function confirmProposal(tripId: string, request: ConfirmRequest, forkId?: string | null): Promise<ConfirmProposalResult> {
-  const { user } = await requireTripAccess(tripId);
-  return confirmProposalFor(tripId, user.id, request, forkId ?? null);
+  const { user, plan } = await requirePlanAccess(tripId, forkId);
+  return confirmProposalFor(tripId, user.id, request, plan);
 }

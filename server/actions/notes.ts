@@ -1,13 +1,33 @@
 "use server";
 
+import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess, requireRowAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess, type RowKind } from "@/lib/guards";
 import { addNoteSchema, type AddNoteInput } from "@/lib/validations/note";
 import { recordActivity } from "@/server/actions/activity";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+
+/**
+ * ARCH-TEN-9: targetType → RowKind for the four kinds requireRowAccess
+ * covers. JOURNAL (a date) and other target types keep their existing
+ * requireOutsideSurprise handling below — requireRowAccess has no row for
+ * them.
+ */
+function kindFor(targetType: "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION"): RowKind {
+  switch (targetType) {
+    case "STOP":
+      return "stop";
+    case "ITEM":
+      return "item";
+    case "TRANSPORT":
+      return "transport";
+    case "ACCOMMODATION":
+      return "accommodation";
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -60,7 +80,12 @@ export async function addNote(
   }
 
   const { targetType, targetId, body } = parsed.data;
-  await requireOutsideSurprise(user.id, { target: { targetType, targetId } });
+  if (targetType === "STOP" || targetType === "ITEM" || targetType === "TRANSPORT" || targetType === "ACCOMMODATION") {
+    const { row } = await requireRowAccess(kindFor(targetType), targetId);
+    if (row.tripId !== tripId) notFound();
+  } else {
+    await requireOutsideSurprise(user.id, { target: { targetType, targetId } });
+  }
 
   const created = await db.note.create({
     data: {
