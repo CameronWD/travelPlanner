@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { findShareLink } from "@/lib/share-lookup";
 import { canWriteJournal } from "@/lib/journal-window";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { serveAttachment } from "@/lib/attachment-serve";
@@ -45,15 +46,12 @@ export async function GET(
 ) {
   const { token, attachmentId } = await params;
 
-  // 1. Token → link, dial on. ADR 0067 (Recently deleted): `findUnique`
-  // can't filter on a relation, so this is a `findFirst` scoped by the
-  // token's own unique column — a Trip in Recently deleted must 404 the
-  // same as an unknown token.
-  const shareLink = await db.shareLink.findFirst({
-    where: { token, trip: { deletedAt: null } },
-    select: { tripId: true, includeJournal: true },
-  });
+  // 1. Token → link, dial on. The one Share-link lookup (lib/share-lookup.ts):
+  // an unknown, revoked or rotated token, or a Trip in Recently deleted
+  // (ADR 0067), matches nothing and 404s the same.
+  const shareLink = await findShareLink(token);
   if (!shareLink || !shareLink.includeJournal) return notFoundResponse();
+  const tripId = shareLink.trip.id;
 
   // 2. Attachment is a JOURNAL photo of this link's trip.
   const attachment = await db.attachment.findUnique({
@@ -72,7 +70,7 @@ export async function GET(
   if (
     !attachment ||
     attachment.targetType !== "JOURNAL" ||
-    attachment.tripId !== shareLink.tripId ||
+    attachment.tripId !== tripId ||
     !attachment.targetId ||
     !attachment.mime.startsWith("image/")
   ) {
@@ -80,7 +78,7 @@ export async function GET(
   }
 
   // 3. The day has arrived (canWriteJournal IS the "day has arrived" check).
-  const window = await loadJournalWindow(shareLink.tripId);
+  const window = await loadJournalWindow(tripId);
   if (!canWriteJournal({ ...window, date: attachment.targetId })) {
     return notFoundResponse();
   }
@@ -90,7 +88,7 @@ export async function GET(
   const entry = await db.journalEntry.findUnique({
     where: {
       tripId_date_authorId: {
-        tripId: shareLink.tripId,
+        tripId,
         date: attachment.targetId,
         authorId: attachment.uploadedById,
       },

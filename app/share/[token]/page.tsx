@@ -32,6 +32,7 @@ import { journalWritableDates } from "@/lib/journal-window";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { findShareLink, loadShareStops } from "@/lib/share-lookup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { mergePlanItems } from "@/lib/plan-reads";
 import { shareTraveller } from "@/lib/share-traveller";
 import { shareHrefs, shareRefParam } from "@/lib/share-ref";
 import { stopDotClass } from "@/lib/stop-colours";
@@ -125,98 +126,191 @@ export default async function SharePage({
   // outside only, so it reads as a null viewer, surprised by every live
   // Surprise. A hidden Stop keeps its shell (name, dates); what is inside it
   // stays in the database. Share stops select no notes, so there is nothing
-  // to mask on them.
-  const v = await loadSurpriseVisibility(tripId, null);
-
-  // Fetch itinerary data — NO costs, no notes, no confirmations. An off dial
-  // means the corresponding query never runs: hidden data never leaves the
-  // database, so no rendering bug can leak it.
-  const stops = await loadShareStops(tripId);
+  // to mask on them (and no `surprise` view is attached: it names
+  // Travellers, and nothing on the public page renders it).
+  //
+  // ADR 0051 floor: this page keeps its own dial-gated reads rather than
+  // going through readPlan — an off dial means the corresponding query never
+  // runs, so hidden data never leaves the database and no rendering bug can
+  // leak it. NO costs, no notes, no confirmations are ever selected.
+  const [v, stops] = await Promise.all([loadSurpriseVisibility(tripId, null), loadShareStops(tripId)]);
   // Spec 2026-10-13 D4 (ADR 0073): counts (hero, tally, "Use this route") and
   // the route list take every Stop, rough ones too; everything dated — day by
   // day, Right now, statuses, the clock, the map and the cover — takes only
   // the scheduled ones.
   const scheduled = scheduledShareStops(stops);
 
-  const transports = scope.includeTransport
-    ? await db.transport.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          mode: true,
-          fromStopId: true,
-          toStopId: true,
-          depPlace: true,
-          arrPlace: true,
-          depAt: true,
-          arrAt: true,
-          // reference (booking number) and notes intentionally omitted — private
-          sortOrder: true,
-          depIsHome: true,
-          arrIsHome: true,
-        },
-      })
-    : [];
-
-  const accommodations = scope.includeAccommodation
-    ? await db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-        orderBy: { checkIn: "asc" },
-        select: {
-          id: true,
-          stopId: true,
-          name: true,
-          address: true,
-          checkIn: true,
-          checkOut: true,
-          checkInTime: true,
-          checkOutTime: true,
-          // confirmation intentionally omitted (private booking ref)
-          // notes intentionally omitted
-        },
-      })
-    : [];
-
-  const itemRows = scope.includeDailyPlans
-    ? await db.item.findMany({
-        // hiddenFromShares: false whatever the dials say (ADR 0051 floor) —
-        // an Item marked hidden never reaches the public page, even when
-        // includeDailyPlans is on.
-        where: { tripId, ...REAL_PLAN, hiddenFromShares: false, ...v.where.item },
-        orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          stopId: true,
-          address: true,
-          // link, booking, notes intentionally omitted
-        },
-      })
-    : [];
-  // A hidden real-plan Item keeps its slot as "Surprise", under the same dial
-  // and the same hiddenFromShares floor as the real row.
-  const items = scope.includeDailyPlans
-    ? [
-        ...itemRows,
-        ...v.placeholderItems
-          .filter((p) => p.forkId === null && p.date !== null && p.hiddenFromShares === false)
-          .map((p) => ({
-            id: p.id, title: p.title, category: p.category, date: p.date,
-            startTime: p.startTime, endTime: p.endTime, stopId: p.stopId, address: p.address,
-          })),
-      ]
-    : [];
-
   // Trip's own reference timezone and "today" (ADR 0010) — computed here,
-  // ahead of the itinerary/phase code below, because the Journal section's
-  // "arrived days" gate (spec L) needs it too.
+  // ahead of the reads below, because the Journal section's "arrived days"
+  // gate (spec L) needs it too.
   const timeZone = currentTripTimezone(scheduled);
   const todayISO = todayISOInZone(timeZone);
+  const journalDates = journalWritableDates({
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    today: todayISO,
+  });
+
+  // "Show who's going" (ADR 0051 amendment 2026-09-30): off means the member
+  // query never runs. TRAVELLER_SELECT carries no email; never add it here.
+  // With "Contact details" also on (spec 2026-10-02 §E) the select adds
+  // exactly the two numbers — never bankDetails, the emergency contact or email.
+  const contacts = shareLink.showTravellers && shareLink.includeContacts;
+
+  // Journal ("How it's going", spec L / ADR 0051 amendment) — arrived Trip
+  // days only, gated at the query itself: an off dial means none of the
+  // three Journal calls ever run at all, never mind what they'd return.
+  //
+  // hiddenFromShares is filtered in the `where`, not in JS (same pattern as
+  // the Item query): a body an author marked "Keep off Share links" must
+  // never be selected into this page's props at all, not merely dropped by
+  // the render. A photo has no `hiddenFromShares` of its own — that lives on
+  // the (date, author) JournalEntry — so a minimal query fetches just the
+  // hidden (date, authorId) pairs (no body, ever) and the photo query, in
+  // the second wave, excludes exactly those pairs at the query level too.
+  //
+  // Wave 1: every read that needs only the link, the Stops and `v`, at once.
+  const [transports, accommodations, itemRows, dayTitles, members, journalHiddenPairs, journalEntryRows] = await Promise.all([
+    scope.includeTransport
+      ? db.transport.findMany({
+          where: { tripId, ...REAL_PLAN },
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            mode: true,
+            fromStopId: true,
+            toStopId: true,
+            depPlace: true,
+            arrPlace: true,
+            depAt: true,
+            arrAt: true,
+            // reference (booking number) and notes intentionally omitted — private
+            sortOrder: true,
+            depIsHome: true,
+            arrIsHome: true,
+          },
+        })
+      : [],
+    scope.includeAccommodation
+      ? db.accommodation.findMany({
+          where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
+          orderBy: { checkIn: "asc" },
+          select: {
+            id: true,
+            stopId: true,
+            name: true,
+            address: true,
+            checkIn: true,
+            checkOut: true,
+            checkInTime: true,
+            checkOutTime: true,
+            // confirmation intentionally omitted (private booking ref)
+            // notes intentionally omitted
+          },
+        })
+      : [],
+    scope.includeDailyPlans
+      ? db.item.findMany({
+          // hiddenFromShares: false whatever the dials say (ADR 0051 floor) —
+          // an Item marked hidden never reaches the public page, even when
+          // includeDailyPlans is on.
+          where: { tripId, ...REAL_PLAN, hiddenFromShares: false, ...v.where.item },
+          orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            stopId: true,
+            address: true,
+            // link, booking, notes intentionally omitted
+          },
+        })
+      : [],
+    // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — only when the
+    // link's includeDailyPlans is on; never in the Calendar feed. Gated at the
+    // query itself (never calling loadDayTitles at all), not just the render,
+    // so an off dial never even fetches them.
+    scope.includeDailyPlans
+      ? loadDayTitles(
+          // A hidden Surprise Stop's Day titles are inside it, so they are never read.
+          scheduled
+            .filter((s) => !v.hiddenStopIds.includes(s.id))
+            .map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+        )
+      : new Map<string, { title: string; stopId: string }>(),
+    shareLink.showTravellers
+      ? db.tripMember.findMany({
+          where: { tripId },
+          orderBy: { createdAt: "asc" },
+          select: contacts
+            ? { travelNumber: true, user: { select: { ...TRAVELLER_SELECT, travellerDetails: { select: { mobile: true } } } } }
+            : { user: { select: TRAVELLER_SELECT } },
+        })
+      : [],
+    shareLink.includeJournal
+      ? db.journalEntry.findMany({
+          where: { tripId, date: { in: journalDates }, hiddenFromShares: true },
+          select: { date: true, authorId: true },
+        })
+      : [],
+    shareLink.includeJournal
+      ? db.journalEntry.findMany({
+          where: { tripId, date: { in: journalDates }, hiddenFromShares: false },
+          orderBy: [{ date: "desc" }, { createdAt: "asc" }],
+          select: {
+            date: true,
+            authorId: true,
+            body: true,
+            author: { select: TRAVELLER_SELECT },
+          },
+        })
+      : [],
+  ]);
+
+  // Wave 2: the Journal photos, which exclude the hidden pairs read above.
+  const journalPhotoRows = shareLink.includeJournal
+    ? await db.attachment.findMany({
+        where: {
+          tripId,
+          targetType: "JOURNAL",
+          targetId: { in: journalDates },
+          // Only photos (final review #11) — the link-scoped photo route
+          // refuses non-images too; never list one it would 404.
+          mime: { startsWith: "image/" },
+          ...(journalHiddenPairs.length > 0
+            ? {
+                NOT: {
+                  OR: journalHiddenPairs.map((p) => ({
+                    targetId: p.date,
+                    uploadedById: p.authorId,
+                  })),
+                },
+              }
+            : {}),
+        },
+        orderBy: [{ targetId: "desc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          targetId: true,
+          uploadedById: true,
+          uploadedBy: { select: TRAVELLER_SELECT },
+        },
+      })
+    : [];
+
+  // A hidden real-plan Item keeps its slot as "Surprise" (the shared merge,
+  // lib/plan-reads.ts), under the same dial and the same hiddenFromShares
+  // floor as the real row. Real rows never select hiddenFromShares (the
+  // where already holds the floor), so only a placeholder carries the flag.
+  // Undated rows never reach the itinerary, so dropping them changes nothing.
+  const items = scope.includeDailyPlans
+    ? mergePlanItems(itemRows, v, null).filter(
+        (i) => i.date !== null && !("hiddenFromShares" in i && i.hiddenFromShares),
+      )
+    : [];
 
   // Build itinerary projection (dates + entries only)
   const itinerary = buildItinerary({
@@ -266,97 +360,6 @@ export default async function SharePage({
     homeTimezone: trip.homeTimezone,
   });
 
-  // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — only when the
-  // link's includeDailyPlans is on; never in the Calendar feed. Gated at the
-  // query itself (never calling loadDayTitles at all), not just the render,
-  // so an off dial never even fetches them.
-  const dayTitles = scope.includeDailyPlans
-    ? await loadDayTitles(
-        // A hidden Surprise Stop's Day titles are inside it, so they are never read.
-        scheduled
-          .filter((s) => !v.hiddenStopIds.includes(s.id))
-          .map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-      )
-    : new Map<string, { title: string; stopId: string }>();
-
-  // Journal ("How it's going", spec L / ADR 0051 amendment) — arrived Trip
-  // days only, gated at the query itself: an off dial means none of these
-  // three calls ever run at all, never mind what they'd return.
-  //
-  // hiddenFromShares is filtered in the `where`, not in JS (same pattern as
-  // the Item query above): a body an author marked "Keep off Share links"
-  // must never be selected into this page's props at all, not merely
-  // dropped by the render. A photo has no `hiddenFromShares` of its own —
-  // that lives on the (date, author) JournalEntry — so a second, minimal
-  // query fetches just the hidden (date, authorId) pairs (no body, ever)
-  // and the photo query excludes exactly those pairs at the query level too.
-  const journalDates = journalWritableDates({
-    startDate: trip.startDate,
-    endDate: trip.endDate,
-    today: todayISO,
-  });
-  const journalHiddenPairs = shareLink.includeJournal
-    ? await db.journalEntry.findMany({
-        where: { tripId, date: { in: journalDates }, hiddenFromShares: true },
-        select: { date: true, authorId: true },
-      })
-    : [];
-  const journalEntryRows = shareLink.includeJournal
-    ? await db.journalEntry.findMany({
-        where: { tripId, date: { in: journalDates }, hiddenFromShares: false },
-        orderBy: [{ date: "desc" }, { createdAt: "asc" }],
-        select: {
-          date: true,
-          authorId: true,
-          body: true,
-          author: { select: TRAVELLER_SELECT },
-        },
-      })
-    : [];
-  const journalPhotoRows = shareLink.includeJournal
-    ? await db.attachment.findMany({
-        where: {
-          tripId,
-          targetType: "JOURNAL",
-          targetId: { in: journalDates },
-          // Only photos (final review #11) — the link-scoped photo route
-          // refuses non-images too; never list one it would 404.
-          mime: { startsWith: "image/" },
-          ...(journalHiddenPairs.length > 0
-            ? {
-                NOT: {
-                  OR: journalHiddenPairs.map((p) => ({
-                    targetId: p.date,
-                    uploadedById: p.authorId,
-                  })),
-                },
-              }
-            : {}),
-        },
-        orderBy: [{ targetId: "desc" }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          targetId: true,
-          uploadedById: true,
-          uploadedBy: { select: TRAVELLER_SELECT },
-        },
-      })
-    : [];
-
-  // "Show who's going" (ADR 0051 amendment 2026-09-30): off means this query
-  // never runs. TRAVELLER_SELECT carries no email; never add it here. With
-  // "Contact details" also on (spec 2026-10-02 §E) the select adds exactly
-  // the two numbers — never bankDetails, the emergency contact or email.
-  const contacts = shareLink.showTravellers && shareLink.includeContacts;
-  const members = shareLink.showTravellers
-    ? await db.tripMember.findMany({
-        where: { tripId },
-        orderBy: { createdAt: "asc" },
-        select: contacts
-          ? { travelNumber: true, user: { select: { ...TRAVELLER_SELECT, travellerDetails: { select: { mobile: true } } } } }
-          : { user: { select: TRAVELLER_SELECT } },
-      })
-    : [];
   const travellers = members.map((m) =>
     shareTraveller(m.user, {
       token,

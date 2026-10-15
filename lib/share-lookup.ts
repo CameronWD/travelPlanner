@@ -1,7 +1,8 @@
 /**
  * The Share link's public projection (ADR 0051) — the one lookup the share
- * page, its OG image and Route copy all go through, so all three refuse the
- * same revoked or rotated token and read the same fields. A revoked link's
+ * page, its OG image, Route copy and the link-scoped photo routes all go
+ * through, so all of them refuse the same revoked or rotated token and read
+ * the same fields. A revoked link's
  * row is deleted (server/actions/share.ts revokeShareLink) and a rotated
  * one's token replaced, so either simply matches nothing here.
  */

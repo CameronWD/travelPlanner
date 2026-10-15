@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
 import { buildICS } from "@/lib/ics";
-import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { readPlan } from "@/lib/plan-reads";
 
 export async function GET(
   _req: Request,
@@ -43,43 +42,34 @@ export async function GET(
   // identity, so a null viewer is surprised by every live Surprise and the
   // inside stays out of the feed for everyone until the reveal. A hidden
   // real-plan Item keeps its slot as an event titled "Surprise".
-  const v = await loadSurpriseVisibility(tripId, null);
-  const [stops, itemRows, transports, accommodations] = await Promise.all([
-    db.stop.findMany({ where: { tripId, ...REAL_PLAN, arriveDate: { not: null } }, select: { id: true, name: true, timezone: true } }),
-    db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
-      select: {
-        id: true, title: true, category: true, date: true, startTime: true, endTime: true,
-        stopId: true, address: true, link: true,
-      },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...REAL_PLAN },
-      select: { id: true, mode: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-      select: {
-        id: true,
-        name: true,
-        checkIn: true,
-        checkOut: true,
-        address: true,
-        checkOutTime: true,
-        stopId: true,
-      },
-    }),
-  ]);
+  //
+  // The feed row above already proves the Trip exists and is not deleted, so
+  // readPlan's notFound() (a Next 404 from a Route Handler) cannot fire here;
+  // the unknown-token case keeps its explicit JSON 404 above.
+  const rows = await readPlan(tripId, null, null);
 
-  const items = [
-    ...itemRows,
-    ...v.placeholderItems
-      .filter((p) => p.forkId === null && p.date !== null)
-      .map((p) => ({
-        id: p.id, title: p.title, category: p.category, date: p.date,
-        startTime: p.startTime, endTime: p.endTime, stopId: p.stopId,
-      })),
-  ];
+  // Each row is narrowed to exactly the fields buildICS read before readPlan:
+  // rows also carry notes / booking / reference / confirmation, and the
+  // ARCH-TEN-7 floor says none of them may reach the serializer. Costs are
+  // never passed.
+  const stops = rows.stops
+    .filter((s) => s.arriveDate)
+    .map((s) => ({ id: s.id, name: s.name, timezone: s.timezone }));
+  // Placeholders are already merged and titled "Surprise" (real plan only).
+  const items = rows.items
+    .filter((i) => i.date)
+    .map((i) => ({
+      id: i.id, title: i.title, category: i.category, date: i.date,
+      startTime: i.startTime, endTime: i.endTime, stopId: i.stopId,
+      address: i.address, link: i.link,
+    }));
+  const transports = rows.transports.map((t) => ({
+    id: t.id, mode: t.mode, depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
+  }));
+  const accommodations = rows.accommodations.map((a) => ({
+    id: a.id, name: a.name, checkIn: a.checkIn, checkOut: a.checkOut,
+    address: a.address, checkOutTime: a.checkOutTime, stopId: a.stopId,
+  }));
 
   const ics = buildICS({
     tripName: feed.trip.name,

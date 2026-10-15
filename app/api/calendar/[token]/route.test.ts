@@ -6,56 +6,76 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * unticked event types from the serialized calendar body.
  */
 
-const {
-  feedFindFirstMock,
-  stopFindManyMock,
-  itemFindManyMock,
-  transportFindManyMock,
-  accommodationFindManyMock,
-  loadSurpriseVisibilityMock,
-} = vi.hoisted(() => ({
+// The Plan rows come from one `readPlan(tripId, null, null)` call (Task 17),
+// mocked here with the PlanRows a real call would have produced for each
+// scenario. readPlan's own masking / placeholder / query-shape behaviour
+// (Surprise fragments, selects) is pinned in lib/plan-reads.test.ts; this file
+// proves the ROUTE turns given rows into the right feed. The CalendarFeed
+// token lookup stays the route's own read, mocked at the db level.
+const { feedFindFirstMock, readPlanMock } = vi.hoisted(() => ({
   feedFindFirstMock: vi.fn(),
-  stopFindManyMock: vi.fn(),
-  itemFindManyMock: vi.fn(),
-  transportFindManyMock: vi.fn(),
-  accommodationFindManyMock: vi.fn(),
-  loadSurpriseVisibilityMock: vi.fn(),
+  readPlanMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
-  db: {
-    calendarFeed: { findFirst: feedFindFirstMock },
-    stop: { findMany: stopFindManyMock },
-    item: { findMany: itemFindManyMock },
-    transport: { findMany: transportFindManyMock },
-    accommodation: { findMany: accommodationFindManyMock },
-  },
+  db: { calendarFeed: { findFirst: feedFindFirstMock } },
 }));
-
-// Surprise (ADR 0051): the feed asks the visibility loader with no viewer.
-vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/surprise-visibility")>()),
-  loadSurpriseVisibility: loadSurpriseVisibilityMock,
+// plan-reads → trip-shell-reads → server actions → guards → auth; nothing
+// here touches auth, so stub the guard module rather than build the auth db.
+vi.mock("@/lib/guards", () => ({}));
+vi.mock("@/lib/plan-reads", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/plan-reads")>()),
+  readPlan: readPlanMock,
 }));
 
 import { GET } from "./route";
-import { NO_SURPRISES } from "@/lib/surprise-visibility";
-import { hiddenVisibility, placeholderItem, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+import { mergePlanItems, PLAN_ACCOMMODATION_SELECT } from "@/lib/plan-reads";
+import { NO_SURPRISES, type SurpriseVisibility } from "@/lib/surprise-visibility";
+import { hiddenVisibility, placeholderItem } from "@/test/helpers/surprise-visibility";
+import { planRows } from "@/test/builders/plan-rows";
+
+type Row = Record<string, unknown>;
+
+/**
+ * The Plan a scenario hands the route: readPlan resolves to the PlanRows a
+ * real call would have produced from these rows (partial rows — only the
+ * fields a scenario needs). Items go through the real `mergePlanItems`, so a
+ * scenario's placeholders are merged exactly as readPlan merges them.
+ */
+const plan: { stops: Row[]; items: Row[]; transports: Row[]; accommodations: Row[]; visibility: SurpriseVisibility } = {
+  stops: [], items: [], transports: [], accommodations: [], visibility: NO_SURPRISES,
+};
+const seed = {
+  stops: (r: Row[]) => void (plan.stops = r),
+  items: (r: Row[]) => void (plan.items = r),
+  transports: (r: Row[]) => void (plan.transports = r),
+  accommodations: (r: Row[]) => void (plan.accommodations = r),
+  visibility: (v: SurpriseVisibility) => void (plan.visibility = v),
+};
 
 beforeEach(() => {
-  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+  Object.assign(plan, { stops: [], items: [], transports: [], accommodations: [], visibility: NO_SURPRISES });
+  readPlanMock.mockImplementation(async () =>
+    planRows({
+      visibility: plan.visibility,
+      stops: plan.stops.map((st) => ({ surprise: null, ...st })) as never,
+      items: mergePlanItems(plan.items as { id: string }[], plan.visibility, null) as never,
+      transports: plan.transports as never,
+      accommodations: plan.accommodations as never,
+    }),
+  );
 });
 
 const ITEM_TITLE = "Louvre Visit";
 const TRANSPORT_MARKER = "✈";
 const ACCOMMODATION_MARKER = "🛏 Stay:";
 
-/** Seed all four findMany calls with exactly one row each. */
+/** Seed the Plan with exactly one row of each kind. */
 function seedRows() {
-  stopFindManyMock.mockResolvedValue([
-    { id: "stop-1", name: "Paris", timezone: "Europe/Paris" },
+  seed.stops([
+    { id: "stop-1", name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-07-01", departDate: "2026-07-04" },
   ]);
-  itemFindManyMock.mockResolvedValue([
+  seed.items([
     {
       id: "item-1",
       title: ITEM_TITLE,
@@ -68,7 +88,7 @@ function seedRows() {
       link: null,
     },
   ]);
-  transportFindManyMock.mockResolvedValue([
+  seed.transports([
     {
       id: "trans-1",
       mode: "flight",
@@ -78,7 +98,7 @@ function seedRows() {
       arrAt: new Date("2026-07-01T09:30:00Z"),
     },
   ]);
-  accommodationFindManyMock.mockResolvedValue([
+  seed.accommodations([
     {
       id: "accom-1",
       name: "Hotel Lumiere",
@@ -115,7 +135,7 @@ describe("GET /api/calendar/[token] — type filter", () => {
       params: Promise.resolve({ token: "nope" }),
     });
     expect(res.status).toBe(404);
-    expect(stopFindManyMock).not.toHaveBeenCalled();
+    expect(readPlanMock).not.toHaveBeenCalled();
   });
 
   // ADR 0067 (Recently deleted): the feed lookup itself excludes a Trip in
@@ -202,10 +222,10 @@ describe("GET /api/calendar/[token] — Alarms", () => {
       alarmCheckOut: false,
       trip: { id: "trip-1", name: "Summer Trip" },
     });
-    stopFindManyMock.mockResolvedValue([]);
-    itemFindManyMock.mockResolvedValue([]);
-    accommodationFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([
+    seed.stops([]);
+    seed.items([]);
+    seed.accommodations([]);
+    seed.transports([
       {
         id: "trans-flight",
         mode: "FLIGHT",
@@ -255,12 +275,12 @@ describe("GET /api/calendar/[token] — Alarms", () => {
       alarmCheckOut: true,
       trip: { id: "trip-1", name: "Winter Trip" },
     });
-    stopFindManyMock.mockResolvedValue([
-      { id: "stop-vienna", name: "Vienna", timezone: "Europe/Vienna" },
+    seed.stops([
+      { id: "stop-vienna", name: "Vienna", timezone: "Europe/Vienna", arriveDate: "2026-12-07", departDate: "2026-12-10" },
     ]);
-    itemFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([]);
-    accommodationFindManyMock.mockResolvedValue([
+    seed.items([]);
+    seed.transports([]);
+    seed.accommodations([
       {
         id: "accom-vienna",
         name: "Hotel Vienna",
@@ -285,15 +305,11 @@ describe("GET /api/calendar/[token] — Alarms", () => {
     // If checkOutTime were dropped, the alarm's DESCRIPTION would omit "by 10:00".
     expect(body).toContain("DESCRIPTION:Check out of Hotel Vienna by 10:00");
 
-    // Guards the accommodation select itself: if checkOutTime/stopId are ever
-    // dropped from it, this fails even though the mock's return value doesn't.
-    expect(accommodationFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({
-          checkOutTime: true,
-          stopId: true,
-        }),
-      }),
+    // Guards the accommodation select itself: the rows now come from
+    // readPlan, so if checkOutTime/stopId are ever dropped from ITS select,
+    // this fails even though the mock's return value doesn't.
+    expect(PLAN_ACCOMMODATION_SELECT).toEqual(
+      expect.objectContaining({ checkOutTime: true, stopId: true }),
     );
   });
 
@@ -306,13 +322,16 @@ describe("GET /api/calendar/[token] — Alarms", () => {
       alarmCheckOut: true,
       trip: { id: "trip-1", name: "Loose Trip" },
     });
-    // The route only fetches stops with arriveDate set, so a rough Stop (no
-    // dates, no stored timezone) never appears here — even though the
-    // Accommodation pinned to it is still fetched below.
-    stopFindManyMock.mockResolvedValue([]);
-    itemFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([]);
-    accommodationFindManyMock.mockResolvedValue([
+    // readPlan hands back every Stop, rough ones included; the route keeps
+    // only those with arriveDate set, so a rough Stop (no dates, no stored
+    // timezone) never reaches the serializer — even though the Accommodation
+    // pinned to it is still in the rows.
+    seed.stops([
+      { id: "stop-rough", name: "Somewhere", timezone: null, arriveDate: null, departDate: null, nights: 3 },
+    ]);
+    seed.items([]);
+    seed.transports([]);
+    seed.accommodations([
       {
         id: "accom-rough",
         name: "Somewhere TBD",
@@ -357,12 +376,12 @@ describe("GET /api/calendar/[token] — Alarms", () => {
       alarmCheckOut: true,
       trip: { id: "trip-1", name: "Ungeocoded Trip" },
     });
-    stopFindManyMock.mockResolvedValue([
-      { id: "stop-1", name: "Somewhere", timezone: null },
+    seed.stops([
+      { id: "stop-1", name: "Somewhere", timezone: null, arriveDate: "2026-08-01", departDate: "2026-08-04" },
     ]);
-    itemFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([]);
-    accommodationFindManyMock.mockResolvedValue([
+    seed.items([]);
+    seed.transports([]);
+    seed.accommodations([
       {
         id: "accom-1",
         name: "Hostel",
@@ -392,11 +411,11 @@ describe("GET /api/calendar/[token] — Alarms", () => {
       alarmCheckOut: false,
       trip: { id: "trip-1", name: "Winter Trip" },
     });
-    stopFindManyMock.mockResolvedValue([
-      { id: "stop-vienna", name: "Vienna", timezone: "Europe/Vienna" },
+    seed.stops([
+      { id: "stop-vienna", name: "Vienna", timezone: "Europe/Vienna", arriveDate: "2026-12-07", departDate: "2026-12-10" },
     ]);
-    itemFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([
+    seed.items([]);
+    seed.transports([
       {
         id: "trans-flight",
         mode: "FLIGHT",
@@ -406,7 +425,7 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         arrAt: new Date("2026-12-10T10:30:00Z"),
       },
     ]);
-    accommodationFindManyMock.mockResolvedValue([
+    seed.accommodations([
       {
         id: "accom-vienna",
         name: "Hotel Vienna",
@@ -446,8 +465,8 @@ describe("GET /api/calendar/[token] — ARCH-TEN-7 field floor", () => {
       alarmCheckOut: false,
       trip: { id: "trip-1", name: "Summer Trip" },
     });
-    stopFindManyMock.mockResolvedValue([]);
-    itemFindManyMock.mockResolvedValue([
+    seed.stops([]);
+    seed.items([
       {
         id: "item-1",
         title: ITEM_TITLE,
@@ -458,13 +477,14 @@ describe("GET /api/calendar/[token] — ARCH-TEN-7 field floor", () => {
         stopId: null,
         address: "1 Rue de Rivoli",
         link: null,
-        // Present even though the route no longer selects these — this
-        // guards the serializer itself, not just the select clause.
+        // readPlan's rows really do carry these (and Transport `reference`,
+        // Accommodation `confirmation`/`notes` below) — the route must
+        // narrow each row before it reaches the serializer.
         booking: "ITEM-BOOK-999",
         notes: "leave key under the mat",
       },
     ]);
-    transportFindManyMock.mockResolvedValue([
+    seed.transports([
       {
         id: "trans-1",
         mode: "FLIGHT",
@@ -475,7 +495,7 @@ describe("GET /api/calendar/[token] — ARCH-TEN-7 field floor", () => {
         reference: "BA2490-XYZ",
       },
     ]);
-    accommodationFindManyMock.mockResolvedValue([
+    seed.accommodations([
       {
         id: "accom-1",
         name: "Hotel Lumiere",
@@ -512,11 +532,18 @@ describe("GET /api/calendar/[token] — ARCH-TEN-7 field floor", () => {
 describe("GET /api/calendar/[token] — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
   const ALL_ON = { includeTransport: true, includeAccommodation: true, includeActivities: true };
 
-  /** The db honours the fragment the way Prisma would: a marked query drops the hidden rows. */
+  /**
+   * The PlanRows readPlan(trip-1, null, null) hands back for a surprised
+   * public viewer: the hidden Accommodation is already filtered out (its
+   * `v.where.accommodation` fragment), and the hidden Items come back as
+   * placeholders merged by the real `mergePlanItems` (so the Fork's one is
+   * dropped and the undated one is kept for the route to filter).
+   */
   function surprised() {
     seedRows();
-    loadSurpriseVisibilityMock.mockResolvedValue(
+    seed.visibility(
       hiddenVisibility({
+        viewerId: undefined,
         hiddenStopIds: ["stop-secret"],
         placeholders: [
           placeholderItem({ id: "item-secret", stopId: "stop-1", date: "2026-07-02", startTime: "19:30", endTime: "21:00" }),
@@ -525,22 +552,12 @@ describe("GET /api/calendar/[token] — Surprise (CONTEXT.md \"Surprise\", ADR 0
         ],
       }),
     );
-    accommodationFindManyMock.mockImplementation(async (a: { where: { AND?: unknown } }) =>
-      a.where.AND === MARKER_WHERE.accommodation.AND
-        ? [{ id: "accom-1", name: "Hotel Lumiere", checkIn: "2026-07-01", checkOut: "2026-07-04", address: null }]
-        : [
-            { id: "accom-1", name: "Hotel Lumiere", checkIn: "2026-07-01", checkOut: "2026-07-04", address: null },
-            { id: "accom-secret", name: "Secret Chateau", checkIn: "2026-07-04", checkOut: "2026-07-06", address: "1 Hidden Lane", stopId: "stop-secret" },
-          ],
-    );
   }
 
-  it("asks the loader with no viewer and spreads the fragments into the Item and Accommodation reads", async () => {
+  it("reads the real plan as the public: readPlan with no viewer and no Fork", async () => {
     surprised();
     await getBody(ALL_ON);
-    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", null);
-    expect(itemFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining(MARKER_WHERE.item) }));
-    expect(accommodationFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining(MARKER_WHERE.accommodation) }));
+    expect(readPlanMock).toHaveBeenCalledWith("trip-1", null, null);
   });
 
   it("a hidden accommodation produces no VEVENT", async () => {

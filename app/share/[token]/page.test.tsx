@@ -66,6 +66,10 @@ vi.mock("@/components/ui/traveller-avatar", () => ({
   ),
 }));
 vi.mock("@/lib/scroll-to", () => ({ scrollToId: vi.fn() }));
+// The page takes the pure mergePlanItems from @/lib/plan-reads, whose module
+// graph (trip-shell-reads → server actions → guards) reaches auth; nothing
+// here touches auth, so stub the guard module rather than build the auth db.
+vi.mock("@/lib/guards", () => ({}));
 // Surprise (ADR 0051): a Share link has no viewer, so the page asks the loader with null.
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/surprise-visibility")>()),
@@ -461,6 +465,38 @@ describe("SharePage — Show who's going (ADR 0051 amendment 2026-09-30)", () =>
     expect(Object.keys(select)).not.toContain("email");
     expect(screen.getByText("Cameron's trip")).toBeInTheDocument();
     expect(screen.getAllByTestId("avatar")[0]).toHaveAttribute("data-image", "/share/tok/traveller-photo/u1?v=7");
+  });
+});
+
+describe("SharePage — reads (ADR 0051 floor, one wave)", () => {
+  it("starts every dial-gated read together, and the Journal photo read only after the hidden pairs", async () => {
+    shareFindFirstMock.mockResolvedValue({
+      ...share({ startDate: STAGE_TRIPS.during.startDate, endDate: STAGE_TRIPS.during.endDate }),
+      id: "link-1",
+      includeJournal: true,
+      showTravellers: true,
+      includeContacts: false,
+    });
+    stopFindManyMock.mockResolvedValue(STAGE_TRIPS.during.stops);
+    let release!: (rows: unknown[]) => void;
+    transportFindManyMock.mockReturnValue(new Promise((r) => (release = r)));
+
+    const page = SharePage({ params: Promise.resolve({ token: "tok" }) });
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The transport read has not answered, yet every other first-wave read is already out…
+    expect(transportFindManyMock).toHaveBeenCalledTimes(1);
+    expect(accommodationFindManyMock).toHaveBeenCalledTimes(1);
+    expect(itemFindManyMock).toHaveBeenCalledTimes(1);
+    expect(dayTitleFindManyMock).toHaveBeenCalledTimes(1);
+    expect(tripMemberFindManyMock).toHaveBeenCalledTimes(1);
+    expect(journalEntryFindManyMock).toHaveBeenCalledTimes(2);
+    // …and the photo read, which needs the hidden pairs, waits for the wave.
+    expect(attachmentFindManyMock).not.toHaveBeenCalled();
+
+    release([]);
+    render(await page);
+    expect(attachmentFindManyMock).toHaveBeenCalledTimes(1);
   });
 });
 

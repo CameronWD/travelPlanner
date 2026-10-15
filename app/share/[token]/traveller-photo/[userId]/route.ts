@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { findShareLink } from "@/lib/share-lookup";
 import { serveProfilePhoto } from "@/lib/avatar-serve";
 
 /**
@@ -38,19 +39,15 @@ export async function GET(
 ) {
   const { token, userId } = await params;
 
-  // 1. Token → link, dial on. ADR 0067 (Recently deleted): `findUnique`
-  // can't filter on a relation, so this is a `findFirst` scoped by the
-  // token's own unique column — a Trip in Recently deleted must 404 the
-  // same as an unknown token.
-  const shareLink = await db.shareLink.findFirst({
-    where: { token, trip: { deletedAt: null } },
-    select: { tripId: true, showTravellers: true },
-  });
+  // 1. Token → link, dial on. The one Share-link lookup (lib/share-lookup.ts):
+  // an unknown, revoked or rotated token, or a Trip in Recently deleted
+  // (ADR 0067), matches nothing and 404s the same.
+  const shareLink = await findShareLink(token);
   if (!shareLink || !shareLink.showTravellers) return notFoundResponse();
 
   // 2. The user is a member of this link's trip.
   const member = await db.tripMember.findFirst({
-    where: { tripId: shareLink.tripId, userId },
+    where: { tripId: shareLink.trip.id, userId },
     select: { id: true },
   });
   if (!member) return notFoundResponse();
