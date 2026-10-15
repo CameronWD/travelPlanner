@@ -1,7 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { reportError } from "@/lib/error-sink";
 import { requireUser, requireTripAccess } from "@/lib/guards";
+import { isNextControlFlow } from "@/lib/next-control-flow";
 import { currentActivitySource } from "@/lib/mcp/acting-traveller";
 import type { ActivityVerb, ActivityEntityType, ActivityChange, ActivitySummary } from "@/lib/activity";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
@@ -51,13 +53,14 @@ export async function recordActivity(input: {
         surpriseOfId: surpriseOf?.id ?? null,
       },
     });
-  } catch {
+  } catch (err) {
     // best-effort: never break the caller's mutation. recordActivity is
     // called from inside other mutations (e.g. deleteAttachment), so a
-    // failure here — including requireTripAccess's notFound() throw above —
-    // must never bubble up. This swallow is deliberate and intentionally
-    // silent; making it observable is ARCH-OBS-3, deferred and out of scope
-    // for this branch.
+    // failure here must never bubble up. A guard refusal (requireTripAccess's
+    // notFound() throw above, or a sign-in redirect) stays silent — it's a
+    // forged or unauthenticated call, not a failure (ARCH-TEN-2); everything
+    // else is reported before being swallowed (ARCH-OBS-3, ADR 0059).
+    if (!isNextControlFlow(err)) await reportError(err, { route: "server/actions/activity.ts#recordActivity", source: "server" });
   }
 }
 
@@ -65,7 +68,8 @@ export async function recordActivity(input: {
 async function resolveSurpriseOf(entityType: string, entityId: string | null): Promise<SurpriseRoot | null> {
   try {
     return await surpriseRootForEntity(entityType, entityId);
-  } catch {
+  } catch (err) {
+    if (!isNextControlFlow(err)) await reportError(err, { route: "server/actions/activity.ts#resolveSurpriseOf", source: "server" });
     return null;
   }
 }

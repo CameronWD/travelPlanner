@@ -17,6 +17,7 @@ const {
   tripMemberUpdateManyMock,
   stopFindUniqueMock,
   itemFindUniqueMock,
+  reportErrorMock,
 } = vi.hoisted(() => ({
   stopFindUniqueMock: vi.fn(),
   itemFindUniqueMock: vi.fn(),
@@ -30,12 +31,15 @@ const {
   activityFindManyMock: vi.fn(),
   loadSurpriseVisibilityMock: vi.fn(),
   tripMemberUpdateManyMock: vi.fn(),
+  reportErrorMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
   requireUser: requireUserMock,
   requireTripAccess: requireTripAccessMock,
 }));
+
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -254,6 +258,25 @@ describe("recordActivity", () => {
       recordActivity({ tripId: TRIP_ID, verb: "CREATED", entityType: "STOP", entityLabel: "Lisbon" }),
     );
     expect(activityCreateMock.mock.calls[1][0].data.source).toBe("CLAUDE");
+  });
+
+  it("reports a failed Activity write before swallowing it (ARCH-OBS-3)", async () => {
+    const input = { tripId: TRIP_ID, verb: "CREATED" as const, entityType: "STOP" as const, entityLabel: "Rome" };
+    activityCreateMock.mockRejectedValue(new Error("db down"));
+    await expect(recordActivity(input)).resolves.toBeUndefined();
+    expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+      route: "server/actions/activity.ts#recordActivity",
+      source: "server",
+    });
+  });
+
+  it("stays silent for a forged call refused by the guard (ARCH-TEN-2)", async () => {
+    const input = { tripId: TRIP_ID, verb: "CREATED" as const, entityType: "STOP" as const, entityLabel: "Rome" };
+    requireTripAccessMock.mockRejectedValue(
+      Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" }),
+    );
+    await expect(recordActivity(input)).resolves.toBeUndefined();
+    expect(reportErrorMock).not.toHaveBeenCalled();
   });
 });
 
