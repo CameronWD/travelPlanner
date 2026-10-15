@@ -39,9 +39,14 @@ export interface NavCounts {
 export const loadNavCounts = cache(async (tripId: string): Promise<NavCounts> => {
   const { user } = await requireTripAccess(tripId);
 
-  const [wishlist, rows] = await Promise.all([
+  // One wave (spec 2026-10-06 §C): the Wishlist count, the Flag rows and the
+  // projection don't depend on each other, so they go out together; the
+  // projection is simply discarded below when the trip turns out to have no
+  // dates.
+  const [wishlist, rows, projection] = await Promise.all([
     db.item.count({ where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE } }),
     loadFlagRows(tripId, user.id),
+    getTripProjection(tripId),
   ]);
 
   // A date-less trip's Summary shows no Flags at all (just the "no dates
@@ -49,6 +54,5 @@ export const loadNavCounts = cache(async (tripId: string): Promise<NavCounts> =>
   // start/end it doesn't have.
   if (!rows) return { flags: 0, wishlist };
 
-  const projection = await getTripProjection(tripId);
   return { flags: flagsForRows(rows, projection).length, wishlist };
 });

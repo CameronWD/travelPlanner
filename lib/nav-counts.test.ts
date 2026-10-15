@@ -66,13 +66,20 @@ describe("loadNavCounts", () => {
     expect(loadFlagRowsMock).toHaveBeenCalledWith("t1", "u1");
   });
 
-  it("is flags=0, wishlist=0 for a date-less trip (loadFlagRows returns null)", async () => {
+  it("is flags=0, wishlist=0 for a date-less trip (loadFlagRows returns null; the projection, requested in parallel, is fetched and simply discarded)", async () => {
     loadFlagRowsMock.mockResolvedValue(null);
     db.item.count.mockResolvedValue(0);
     const result = await loadNavCounts("t1");
     expect(result).toEqual({ flags: 0, wishlist: 0 });
-    expect(getTripProjectionMock).not.toHaveBeenCalled();
+    expect(getTripProjectionMock).toHaveBeenCalledWith("t1");
     expect(detectFlagsMock).not.toHaveBeenCalled();
+  });
+
+  it("requests loadFlagRows and getTripProjection without awaiting one another (spec 2026-10-06 §C, one wave)", async () => {
+    loadFlagRowsMock.mockImplementation(() => new Promise(() => {})); // never settles
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null, deadline: null });
+    void loadNavCounts("t1");
+    await vi.waitFor(() => expect(getTripProjectionMock).toHaveBeenCalledWith("t1"));
   });
 
   it("reports the Wishlist count from db.item.count scoped to the real plan and wishlist-idea predicate", async () => {

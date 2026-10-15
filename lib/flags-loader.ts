@@ -45,8 +45,6 @@ import {
 export interface RawAllStopRow {
   id: string;
   name: string;
-  country?: string | null;
-  countryCode?: string | null;
   lat?: number | null;
   lng?: number | null;
   timezone?: string | null;
@@ -154,8 +152,6 @@ export const FLAG_TRIP_SELECT = {
 export const FLAG_STOP_SELECT = {
   id: true,
   name: true,
-  country: true,
-  countryCode: true,
   lat: true,
   lng: true,
   timezone: true,
@@ -286,9 +282,11 @@ export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[]
 export async function loadFlags(tripId: string, viewerId: string): Promise<Flag[]> {
   await requireTripAccess(tripId);
 
-  const rows = await loadFlagRows(tripId, viewerId);
+  // One wave (spec 2026-10-06 §C): the row read and the projection don't
+  // depend on each other, so they go out together; the projection is simply
+  // discarded below when the trip turns out to have no dates.
+  const [rows, projection] = await Promise.all([loadFlagRows(tripId, viewerId), getTripProjection(tripId)]);
   if (!rows) return [];
 
-  const projection = await getTripProjection(tripId);
   return flagsForRows(rows, projection);
 }

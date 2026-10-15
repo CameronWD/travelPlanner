@@ -72,12 +72,19 @@ describe("loadFlags", () => {
     }
   });
 
-  it("a date-less trip returns [] without reading the plan", async () => {
+  it("a date-less trip returns [] without reading the plan (the projection, requested in parallel, is fetched and simply discarded)", async () => {
     db.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null });
     const result = await loadFlags(TRIP_ID, "u1");
     expect(result).toEqual([]);
     expect(db.stop.findMany).not.toHaveBeenCalled();
-    expect(getTripProjection).not.toHaveBeenCalled();
+    expect(getTripProjection).toHaveBeenCalledWith(TRIP_ID);
+  });
+
+  it("requests getTripProjection without waiting for loadFlagRows to finish (spec 2026-10-06 §C, one wave)", async () => {
+    db.trip.findUnique.mockImplementation(() => new Promise(() => {})); // never settles
+    getTripProjection.mockResolvedValue({ projectedEnd: null, hardEndDate: null, deadline: null });
+    void loadFlags(TRIP_ID, "u1");
+    await vi.waitFor(() => expect(getTripProjection).toHaveBeenCalledWith(TRIP_ID));
   });
 
   it("gets its own projection via getTripProjection and feeds it to detectFlags", async () => {
