@@ -113,8 +113,9 @@ describe("firmUpTrip", () => {
     expect(r.success).toBe(true);
     // chA stop a = [07-01, 07-04]; chB stop b = [07-04, 07-06]. The seam at 07-04
     // would make the bands touch (and inclusive-overlap), so chA's end is trimmed to 07-03.
-    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chA" }, data: { startDate: "2026-07-01", endDate: "2026-07-03" } });
-    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chB" }, data: { startDate: "2026-07-04", endDate: "2026-07-06" } });
+    // Scoped to this trip and plan (ARCH-TEN-5) — never written by bare chapter id.
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chA", tripId: "trip-1", forkId: null }, data: { startDate: "2026-07-01", endDate: "2026-07-03" } });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chB", tripId: "trip-1", forkId: null }, data: { startDate: "2026-07-04", endDate: "2026-07-06" } });
   });
 
   it("is access-checked before the write", async () => {

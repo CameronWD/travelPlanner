@@ -19,7 +19,7 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
-import { type ActionResult, fail, validationResult } from "@/lib/action-result";
+import { type ActionResult, fail, formFail, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx, scheduleLoneStopTx } from "@/server/actions/stop-flow";
@@ -1162,7 +1162,13 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
     }
   }
   for (const span of chapterSpans) {
-    await db.chapter.update({ where: { id: span.id }, data: { startDate: span.start, endDate: span.end } });
+    // ARCH-TEN-5: scoped to this Trip and plan, same shape as firmUpSegment —
+    // a Chapter id from elsewhere is simply not found by this where, never
+    // written by bare id.
+    await db.chapter.update({
+      where: { id: span.id, tripId, ...planScope(plan) },
+      data: { startDate: span.start, endDate: span.end },
+    });
   }
 
   await recordPlanActivity(plan, {
@@ -1326,8 +1332,6 @@ export async function reorderStops(
   forkId?: PlanId,
   movedStopIds?: string[],
 ): Promise<ReorderResult> {
-  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks.
-  const { plan } = await requirePlanAccess(tripId, forkId);
   if (items.length === 0) return { success: true, changed: [], conflicts: [] };
 
   // Derive the plan (forkId) from the stops being reordered. They all belong to
@@ -1346,9 +1350,14 @@ export async function reorderStops(
       errors: { id: ["Stops in a reorder must all belong to the same plan."] },
     };
   }
-  // Prefer the caller-supplied plan (the editor threads the active forkId); fall
-  // back to the plan derived from the stops themselves.
-  const reorderForkId: PlanId = plan ?? reorderStopRows[0]?.forkId ?? null;
+  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks. Fall
+  // back to the plan the stops themselves already belong to — so a Fork row
+  // reordered with no explicit forkId (the caller-supplied one is only ever
+  // a hint) still resolves, and gates, against its own Fork instead of
+  // silently passing through as the real plan.
+  const reorderRowsForkId = reorderStopRows[0]?.forkId;
+  const { plan } = await requirePlanAccess(tripId, forkId ?? reorderRowsForkId);
+  const reorderForkId: PlanId = plan;
   const preKnownArriveDate = new Map(reorderStopRows.map((s) => [s.id, s.arriveDate]));
 
   // Pre-validate: rough stops cannot enter a DATED chapter (R1).
@@ -1474,21 +1483,31 @@ export async function restoreStops(
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same trip."] } };
   }
   const tripId = rows[0].tripId;
-  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks.
-  const { user, plan } = await requirePlanAccess(tripId, forkId);
 
   const planForkIds = new Set(rows.map((r) => r.forkId));
   if (planForkIds.size > 1) {
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same plan."] } };
   }
-  const restoreForkId: PlanId = plan ?? rows[0].forkId ?? null;
+
+  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks — AND
+  // must be the plan these Stops actually belong to. A client forkId is only
+  // ever a hint (the rows are the authority): `undefined` (not passed) trusts
+  // the rows' own plan outright, but an explicit forkId that disagrees with
+  // it is refused before any write, rather than silently overriding the
+  // rows' real plan with whatever the caller named.
+  const rowsPlan: PlanId = rows[0].forkId ?? null;
+  if (forkId !== undefined && (forkId ?? null) !== rowsPlan) {
+    return formFail("One or more stops aren't part of this plan.");
+  }
+  const { user, plan } = await requirePlanAccess(tripId, rowsPlan);
+  const restoreForkId: PlanId = plan;
 
   // ARCH-TEN-5: every snapshotted Chapter must belong to the restored Stops'
   // own plan (same Trip, same Fork) before anything is written.
   const entryChapterIds = [...new Set(entries.map((e) => e.chapterId).filter((c): c is string => c != null))];
   if (entryChapterIds.length > 0) {
     const ownChapters = await db.chapter.findMany({
-      where: { id: { in: entryChapterIds }, tripId, ...planScope(rows[0].forkId) },
+      where: { id: { in: entryChapterIds }, tripId, ...planScope(restoreForkId) },
       select: { id: true },
     });
     if (ownChapters.length !== entryChapterIds.length) {
@@ -1572,9 +1591,11 @@ export async function restoreStops(
     await lockPlanStopsTx(tx, tripId, restoreForkId);
 
     // Write every snapshotted field verbatim — no reflow, no derivation.
+    // ARCH-TEN-5: scoped to this Trip and plan — a foreign id is simply not
+    // found by this where, never written by bare id.
     for (const e of entries) {
       await tx.stop.update({
-        where: { id: e.id },
+        where: { id: e.id, tripId, ...planScope(restoreForkId) },
         data: {
           sortOrder: e.sortOrder,
           chapterId: e.chapterId,

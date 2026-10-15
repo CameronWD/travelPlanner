@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
+import { stop } from "@/test/builders";
 
 /**
  * Tests for the stops server actions.
@@ -2443,6 +2444,22 @@ describe("reorderStops", () => {
       expect(result.changed).toEqual([]);
     }
   });
+
+  // Task 3 (batch-2): a Fork row reordered with no explicit forkId must still
+  // pass the forksEnabled/Fork-exists gate — scoped to the stops' own plan,
+  // not silently treated as the real plan (the bug the stored-forkId fallback
+  // used to hide: requirePlanAccess was only ever called with the caller's
+  // raw forkId, so an omitted one short-circuited the gate).
+  it("reorders with no forkId still pass the Fork gate for Fork rows", async () => {
+    stopFindManyMock.mockResolvedValue([stop({ id: "s1", tripId: "trip-1", forkId: "fork-1" })]);
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([{ id: "s1", tripId: "trip-1", arriveDate: null }]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await reorderStops("trip-1", [{ id: "s1", chapterId: null }]);
+
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-1");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -2469,13 +2486,14 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
     ]);
 
     expect(result.success).toBe(true);
-    // Each entry is written verbatim — no reflow, no derivation.
+    // Each entry is written verbatim — no reflow, no derivation. Scoped to
+    // this trip and plan (ARCH-TEN-5), never by bare id.
     expect(stopUpdateMock).toHaveBeenCalledWith({
-      where: { id: "a" },
+      where: { id: "a", tripId: "t1", forkId: null },
       data: { sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
     });
     expect(stopUpdateMock).toHaveBeenCalledWith({
-      where: { id: "b" },
+      where: { id: "b", tripId: "t1", forkId: null },
       data: { sortOrder: 1, chapterId: "c1", arriveDate: null, departDate: null },
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
@@ -2567,8 +2585,38 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
       { id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
     ]);
 
-    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", undefined);
+    // restoreStops now resolves plan access through the rows' own plan
+    // (null — the real plan here), not the omitted caller forkId.
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", null);
     expectAccessCheckedBeforeWrite(requirePlanAccessMock, stopUpdateMock);
+  });
+
+  // Task 3 (batch-2): a passed forkId that disagrees with the rows' own plan
+  // is refused with a form-level failure — never silently routed to
+  // requirePlanAccess with the mismatched value, and never written.
+  it("restoreStops refuses a forkId that is not the rows' own plan", async () => {
+    stopFindManyMock.mockResolvedValue([stop({ id: "s1", tripId: "trip-1", forkId: null })]);
+
+    const r = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+      "fork-1",
+    );
+
+    expect(r.success).toBe(false);
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  // Task 3 (batch-2): the Fork gate must still run for Fork rows restored
+  // with no explicit forkId — mirrors the reorderStops twin above.
+  it("restores with no forkId still pass the Fork gate for Fork rows", async () => {
+    stopFindManyMock.mockResolvedValue([stop({ id: "s1", tripId: "trip-1", forkId: "fork-1" })]);
+    queryRawMock.mockResolvedValue([{ id: "s1" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await restoreStops([{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }]);
+
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-1");
   });
 });
 
@@ -3038,9 +3086,30 @@ describe("firmUpTrip", () => {
     const result = await firmUpTrip("trip-1", undefined, "fork-9");
 
     expect(result.success).toBe(true);
-    // The chapter update must be called (chapter span recalculation runs regardless of plan)
+    // The chapter update must be called (chapter span recalculation runs
+    // regardless of plan), scoped to this trip and plan (ARCH-TEN-5) — never
+    // by bare chapter id.
     expect(chapterUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "ch-a" } }),
+      expect.objectContaining({ where: { id: "ch-a", tripId: "trip-1", forkId: "fork-9" } }),
+    );
+  });
+
+  // Task 3 (batch-2): the Chapter write used to go by bare `{ id: span.id }`
+  // — any Chapter id, from any trip or plan, would be accepted. Scoped the
+  // same way firmUpSegment already is.
+  it("firmUpTrip updates Chapter spans scoped to this trip and plan", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", sortOrder: 0, chapterId: "ch-1", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    chapterUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1");
+
+    expect(chapterUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ch-1", tripId: "trip-1", forkId: null } }),
     );
   });
 
@@ -4052,7 +4121,9 @@ describe("ADR 0074 rule 1: plan writers refuse a forkId that is not this Trip's 
   });
 
   it("restoreStops", async () => {
-    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "trip-1", forkId: null }]);
+    // forkId matches the rows' own plan (fork-x) — no plan-mismatch refusal
+    // — so this exercises requirePlanAccess actually rejecting an invalid Fork.
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "trip-1", forkId: "fork-x" }]);
     notFound404();
     await expect(
       restoreStops([{ id: "a", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }], "fork-x"),
