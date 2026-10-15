@@ -46,6 +46,8 @@ export interface BuildTripNextStepsInput {
   deadline?: TripDeadline | null;
   drivingWindingFactor?: number;
   drivingAvgSpeedKph?: number;
+  /** The Trip's Home base IANA timezone (spec 2026-10-14, TB-01) — a Home-flagged transport end reads its calendar date in this zone; omitted → UTC. */
+  homeTimezone?: string | null;
   undatedChapterCount: number;
   hasPackingList: boolean;
   hasPretripList: boolean;
@@ -59,6 +61,13 @@ export interface BuildTripNextStepsInput {
 
 /** Pure: Flags + nudges → the ranked Next steps list. */
 export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
+  // First/last Stop across ALL Stops (dated + rough), in sortOrder — both the
+  // home-connection Flag below and the outbound/return-leg nudges read this
+  // same pair (spec 2026-10-14, TB-01: matches lib/flags-loader.ts's
+  // flagsFromRows, so the Home nudge and the Flags list never drift apart).
+  const firstStop = input.allStops[0] ?? null;
+  const lastStop = input.allStops[input.allStops.length - 1] ?? null;
+
   const flags = detectFlags({
     stops: input.datedStops,
     transports: input.transports,
@@ -72,11 +81,13 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     deadline: input.deadline,
     drivingWindingFactor: input.drivingWindingFactor,
     drivingAvgSpeedKph: input.drivingAvgSpeedKph,
+    home: input.home,
+    homeTimezone: input.homeTimezone,
+    roundTrip: input.roundTrip,
+    homeFirstStop: firstStop,
+    homeLastStop: lastStop,
     hiddenStopIds: input.hiddenStopIds,
   });
-
-  const firstStop = input.allStops[0] ?? null;
-  const lastStop = input.allStops[input.allStops.length - 1] ?? null;
 
   return buildNextSteps({
     flags,

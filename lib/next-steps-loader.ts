@@ -6,15 +6,22 @@
  * directly with data it already loaded). Used by the trips list's featured
  * card.
  *
- * Does its own Prisma queries, then calls `buildTripNextSteps` — the ONE
- * place the Flags+nudges→steps logic lives, so this loader and the trip Home
- * can never drift apart. Returns `[]` for a date-less trip, or one not in the
- * "planning"/"final-prep" phase, exactly like the trip Home (which only
- * renders a Next steps card in those phases).
+ * Reads its own Trip row for the phase gate and chapter/checklist counts,
+ * and `lib/flags-loader.ts`'s `loadFlagRows` for the Stop/Transport/
+ * Accommodation/Item collections and the Home/driving fields — the one place
+ * every `detectFlags` caller's input is assembled (TB-01, spec 2026-10-14),
+ * so this loader can never drift from the Summary page's own Flags list.
+ * Then calls `buildTripNextSteps` — the ONE place the Flags+nudges→steps
+ * logic lives, so this loader and the trip Home can never drift apart.
+ * Returns `[]` for a date-less trip, or one not in the "planning"/
+ * "final-prep" phase, exactly like the trip Home (which only renders a Next
+ * steps card in those phases) — checked before `loadFlagRows` runs, so an
+ * out-of-phase trip never reads its plan.
  *
- * Surprise (ADR 0051): `viewerId` is the Traveller reading the card; the
- * visibility loader's fragments go into the Item and Accommodation reads, as
- * on the trip Home, so nothing inside a Surprise hidden from them is read.
+ * Surprise (ADR 0051): `viewerId` is the Traveller reading the card;
+ * `loadFlagRows` asks the visibility loader and threads its fragments into
+ * the Item and Accommodation reads, as on the trip Home, so nothing inside a
+ * Surprise hidden from them is read.
  */
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
@@ -23,12 +30,12 @@ import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { computeTripPhase } from "@/lib/trip-phase";
-import type { FlagStop, FlagTransport, FlagAccommodation, FlagItem } from "@/lib/flags";
+import type { FlagStop } from "@/lib/flags";
 import type { NextStep } from "@/lib/next-steps";
 import { tripHomeBase } from "@/lib/home-base";
 import { computeProjection } from "@/lib/trip-projection";
 import { buildTripNextSteps } from "@/lib/next-steps-builder";
-import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { loadFlagRows } from "@/lib/flags-loader";
 
 /**
  * Load a Trip's Next steps from scratch. `[]` when the trip has no dates yet,
@@ -40,19 +47,7 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: {
-      startDate: true,
-      endDate: true,
-      hardEndDate: true,
-      roundTrip: true,
-      homeName: true,
-      homeLat: true,
-      homeLng: true,
-      homeCountryCode: true,
-      drivingWindingFactor: true,
-      drivingAvgSpeedKph: true,
-      chaptersEnabled: true,
-    },
+    select: { startDate: true, endDate: true, hardEndDate: true, roundTrip: true, chaptersEnabled: true },
   });
   if (!trip?.startDate) return [];
 
@@ -61,46 +56,31 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
 
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? startDate;
-  const v = await loadSurpriseVisibility(tripId, viewerId);
-  // One wave (spec 2026-10-06 §C): every real-plan Stop in one read (dated,
-  // rough count and first/last all come from it) and the projection computed
-  // from these same rows rather than getTripProjection's second round.
-  const [allStopsRaw, transports, accommodations, items, undatedChapterCount, packingCount, pretripCount, slug] =
-    await Promise.all([
-      db.stop.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true, name: true, lat: true, lng: true, timezone: true, arriveDate: true, departDate: true,
-          sortOrder: true, nights: true, pinned: true,
-        },
-      }),
-      db.transport.findMany({
-        where: { tripId, ...REAL_PLAN },
-        select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true },
-      }),
-      db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-        select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true },
-      }),
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.item },
-        select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
-      }),
-      trip.chaptersEnabled
-        ? db.chapter.count({ where: { tripId, ...REAL_PLAN, startDate: null } })
-        : Promise.resolve(0),
-      db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
-      db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
-      tripSlugFor(tripId),
-    ]);
+
+  const [rows, undatedChapterCount, packingCount, pretripCount, slug] = await Promise.all([
+    loadFlagRows(tripId, viewerId),
+    trip.chaptersEnabled
+      ? db.chapter.count({ where: { tripId, ...REAL_PLAN, startDate: null } })
+      : Promise.resolve(0),
+    db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
+    db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
+    tripSlugFor(tripId),
+  ]);
+  // Defensive only: the phase gate above already established the trip has
+  // dates, so loadFlagRows (same check) will not actually return null here.
+  if (!rows) return [];
+
   const tripBasePath = tripPath(slug);
-  const roughStopCount = allStopsRaw.filter((s) => s.arriveDate === null).length;
-  const allStops = allStopsRaw.map((s) => ({ id: s.id, name: s.name }));
-  const projection = computeProjection({ trip, stops: allStopsRaw, transports });
+  const roughStopCount = rows.allStops.filter((s) => s.arriveDate === null).length;
+  const allStops = rows.allStops.map((s) => ({ id: s.id, name: s.name }));
+  // computeProjection needs nights/pinned on every stop; loadFlagRows' own
+  // select (FLAG_STOP_SELECT) always reads them — this just satisfies
+  // RawAllStopRow's looser (optional) type for the other callers that don't.
+  const projectionStops = rows.allStops.map((s) => ({ ...s, nights: s.nights ?? null, pinned: s.pinned ?? false }));
+  const projection = computeProjection({ trip, stops: projectionStops, transports: rows.transports });
 
   const datedStops = orderPlanStops(
-    allStopsRaw
+    rows.allStops
       .filter((s) => s.arriveDate !== null)
       .map((s) => ({
         id: s.id, name: s.name, lat: s.lat, lng: s.lng, timezone: s.timezone,
@@ -114,22 +94,25 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
     phase,
     tripStart: startDate,
     tripEnd: endDate,
-    roundTrip: trip.roundTrip,
-    home: tripHomeBase(trip),
+    // Trip.roundTrip is non-null in the schema (default true); the Flag
+    // assembler's type is nullable, so fall back to that same default here.
+    roundTrip: rows.trip.roundTrip ?? true,
+    home: tripHomeBase(rows.trip),
+    homeTimezone: rows.trip.homeTimezone,
     datedStops: flagStops,
     roughStopCount,
     allStops,
-    transports: transports as FlagTransport[],
-    accommodations: accommodations as FlagAccommodation[],
-    items: items as FlagItem[],
+    transports: rows.transports,
+    accommodations: rows.accommodations,
+    items: rows.items,
     projectedEnd: projection.projectedEnd,
     hardEndDate: projection.hardEndDate,
     deadline: projection.deadline,
-    drivingWindingFactor: trip.drivingWindingFactor,
-    drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+    drivingWindingFactor: rows.trip.drivingWindingFactor,
+    drivingAvgSpeedKph: rows.trip.drivingAvgSpeedKph,
     undatedChapterCount,
     hasPackingList: packingCount > 0,
     hasPretripList: pretripCount > 0,
-    hiddenStopIds: v.hiddenStopIds,
+    hiddenStopIds: rows.hiddenStopIds,
   });
 }

@@ -862,6 +862,7 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: "Europe/London",
     roundTrip: false,
     chaptersEnabled: false,
   };
@@ -922,6 +923,12 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
     await run();
     expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ hiddenStopIds: ["s-hidden"] }));
+  });
+
+  it("TB-01: the Trip's homeTimezone reaches detectFlags, so the Home nudge and the Flags list never drift apart", async () => {
+    const { detectFlags } = await import("@/lib/flags");
+    await run();
+    expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Europe/London" }));
   });
 
   it("a hidden real-plan Item keeps its slot as a placeholder for the Flags; a Fork's placeholder does not", async () => {

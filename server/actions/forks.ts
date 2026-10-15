@@ -483,6 +483,11 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
         drivingAvgSpeedKph: true,
         forksEnabled: true,
         roundTrip: true,
+        homeName: true,
+        homeLat: true,
+        homeLng: true,
+        homeCountryCode: true,
+        homeTimezone: true,
       },
     }),
     db.fork.findMany({
@@ -593,6 +598,11 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     roundTrip: trip.roundTrip,
+    homeName: trip.homeName,
+    homeLat: trip.homeLat,
+    homeLng: trip.homeLng,
+    homeCountryCode: trip.homeCountryCode,
+    homeTimezone: trip.homeTimezone,
   };
 
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {

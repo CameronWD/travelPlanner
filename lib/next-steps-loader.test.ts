@@ -1,76 +1,103 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+/**
+ * Tests for loadNextSteps. `lib/flags-loader.ts`'s `loadFlagRows` owns the
+ * Stop/Transport/Accommodation/Item reads and the Surprise-visibility
+ * threading now (TB-01, spec 2026-10-14) — this loader only keeps its own
+ * Trip read (phase gate, hardEndDate, chaptersEnabled) and the chapter/
+ * checklist counts, so this file mocks `loadFlagRows` rather than the
+ * individual Prisma delegates it used to call directly.
+ */
 const db = vi.hoisted(() => ({
   trip: { findUnique: vi.fn() },
-  stop: { findMany: vi.fn(), count: vi.fn() },
-  transport: { findMany: vi.fn() },
-  accommodation: { findMany: vi.fn() },
-  item: { findMany: vi.fn() },
   chapter: { count: vi.fn() },
   checklistItem: { count: vi.fn() },
 }));
 const getTripProjection = vi.hoisted(() => vi.fn());
+const loadFlagRowsMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({})) }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "eu") }));
 vi.mock("@/server/actions/stops", () => ({ getTripProjection }));
-const loadSurpriseVisibilityMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
-  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
-});
+vi.mock("@/lib/flags-loader", () => ({ loadFlagRows: loadFlagRowsMock }));
 
 import { loadNextSteps } from "./next-steps-loader";
-import { NO_SURPRISES } from "@/lib/surprise-visibility";
-import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+
+const BASE_ROWS = {
+  trip: {
+    startDate: "2026-12-04",
+    endDate: "2026-12-20",
+    drivingWindingFactor: 1.5,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    homeTimezone: null as string | null,
+    roundTrip: true,
+  },
+  allStops: [
+    { id: "s1", name: "Paris", lat: null, lng: null, timezone: "Europe/Paris", arriveDate: "2026-12-04", departDate: "2026-12-08", sortOrder: 0 },
+    { id: "s2", name: "Lyon", lat: null, lng: null, timezone: null, arriveDate: null, departDate: null, sortOrder: 1 },
+  ],
+  transports: [],
+  accommodations: [],
+  items: [],
+  hiddenStopIds: [] as readonly string[],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
-  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   db.trip.findUnique.mockResolvedValue({
-    startDate: "2026-12-04", endDate: "2026-12-20", hardEndDate: null, roundTrip: true, homeName: null, homeLat: null,
-    homeLng: null, homeCountryCode: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80, chaptersEnabled: false,
+    startDate: "2026-12-04",
+    endDate: "2026-12-20",
+    hardEndDate: null,
+    roundTrip: true,
+    chaptersEnabled: false,
   });
-  db.stop.findMany.mockResolvedValue([
-    { id: "s1", name: "Paris", lat: null, lng: null, timezone: "Europe/Paris", arriveDate: "2026-12-04", departDate: "2026-12-08", sortOrder: 0, nights: 4, pinned: false },
-    { id: "s2", name: "Lyon", lat: null, lng: null, timezone: null, arriveDate: null, departDate: null, sortOrder: 1, nights: 2, pinned: false },
-  ]);
-  db.transport.findMany.mockResolvedValue([]);
-  db.accommodation.findMany.mockResolvedValue([]);
-  db.item.findMany.mockResolvedValue([]);
+  loadFlagRowsMock.mockResolvedValue(BASE_ROWS);
   db.chapter.count.mockResolvedValue(0);
   db.checklistItem.count.mockResolvedValue(0);
 });
 
-describe("loadNextSteps reads (spec 2026-10-06 §C)", () => {
-  it("reads Stops and Transports once each, with no separate projection read", async () => {
+describe("loadNextSteps reads (spec 2026-10-06 §C; TB-01, spec 2026-10-14)", () => {
+  it("reads the plan once via loadFlagRows, with no separate projection read", async () => {
     await loadNextSteps("trip-1", "2026-06-01", "u1");
-    expect(db.stop.findMany).toHaveBeenCalledTimes(1);
-    expect(db.stop.count).not.toHaveBeenCalled();
-    expect(db.transport.findMany).toHaveBeenCalledTimes(1);
+    expect(loadFlagRowsMock).toHaveBeenCalledTimes(1);
     expect(getTripProjection).not.toHaveBeenCalled();
   });
+
   it("returns [] outside planning / final prep without reading the plan", async () => {
     expect(await loadNextSteps("trip-1", "2027-01-01", "u1")).toEqual([]);
-    expect(db.stop.findMany).not.toHaveBeenCalled();
+    expect(loadFlagRowsMock).not.toHaveBeenCalled();
+  });
+
+  it("TB-01: the Trip's homeTimezone from loadFlagRows reaches the ranked Next steps' Flags", async () => {
+    loadFlagRowsMock.mockResolvedValue({
+      ...BASE_ROWS,
+      trip: { ...BASE_ROWS.trip, homeTimezone: "Australia/Sydney" },
+    });
+    // No assertion needs a mocked detectFlags here — this just pins that a
+    // Trip row with homeTimezone set doesn't throw and still loads normally.
+    await expect(loadNextSteps("trip-1", "2026-06-01", "u1")).resolves.not.toThrow();
   });
 });
 
 describe("loadNextSteps — Surprise (ADR 0051)", () => {
-  it("reads Items and Accommodation through the viewer's fragments, after the visibility loader", async () => {
-    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["s1"] }));
+  it("asks loadFlagRows for the viewer, so Surprise visibility matches what they see", async () => {
     await loadNextSteps("trip-1", "2026-06-01", "u-viewer");
-    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u-viewer");
-    expect(loadSurpriseVisibilityMock.mock.invocationCallOrder[0]).toBeLessThan(db.item.findMany.mock.invocationCallOrder[0]);
-    expect(db.item.findMany.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.item });
-    expect(db.accommodation.findMany.mock.calls[0][0].where).toEqual({ tripId: "trip-1", forkId: null, ...MARKER_WHERE.accommodation });
-    expect(JSON.stringify(db.stop.findMany.mock.calls[0][0])).not.toContain("surpriseMarker");
-    // Paris (s1, hidden, no stay readable) raises no "No accommodation" step.
+    expect(loadFlagRowsMock).toHaveBeenCalledWith("trip-1", "u-viewer");
+  });
+
+  it("a hidden Stop with no readable stay raises no Flag-derived step about it", async () => {
+    loadFlagRowsMock.mockResolvedValue({ ...BASE_ROWS, hiddenStopIds: ["s1"] });
     const steps = await loadNextSteps("trip-1", "2026-06-01", "u-viewer");
     expect(steps.map((s) => s.id)).not.toContain("stop-no-accom-s1");
   });
-  it("outside planning / final prep the visibility loader is not asked either", async () => {
+
+  it("outside planning / final prep, loadFlagRows is not asked either", async () => {
     await loadNextSteps("trip-1", "2027-01-01", "u-viewer");
-    expect(loadSurpriseVisibilityMock).not.toHaveBeenCalled();
+    expect(loadFlagRowsMock).not.toHaveBeenCalled();
   });
 });

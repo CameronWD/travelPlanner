@@ -24,7 +24,7 @@
  */
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { planScope, type PlanId } from "@/lib/plan-scope";
 import { getTripProjection } from "@/server/actions/stops";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import type { TripProjection } from "@/lib/trip-projection";
@@ -42,15 +42,21 @@ import {
 // Pure assembler
 // ---------------------------------------------------------------------------
 
-interface RawAllStopRow {
+export interface RawAllStopRow {
   id: string;
   name: string;
+  country?: string | null;
+  countryCode?: string | null;
   lat?: number | null;
   lng?: number | null;
   timezone?: string | null;
   arriveDate: string | null;
   departDate: string | null;
   sortOrder: number;
+  /** Rough duration while dateless, or the dated Stop's own override (ADR 0038); optional — only `loadFlagRows`' own select guarantees it. */
+  nights?: number | null;
+  /** Dates fixed by a real booking/event; ripple never moves it; optional — see `nights` above. */
+  pinned?: boolean;
 }
 
 export interface FlagsAssemblyInput {
@@ -128,13 +134,149 @@ export function flagsFromRows({
 }
 
 // ---------------------------------------------------------------------------
+// Row loader — one read of the Flag ingredients, shared by every caller
+// ---------------------------------------------------------------------------
+
+/** The Trip fields every `detectFlags` caller needs (TB-01: all ten, every time). */
+export const FLAG_TRIP_SELECT = {
+  startDate: true,
+  endDate: true,
+  drivingWindingFactor: true,
+  drivingAvgSpeedKph: true,
+  homeName: true,
+  homeLat: true,
+  homeLng: true,
+  homeCountryCode: true,
+  homeTimezone: true,
+  roundTrip: true,
+} as const;
+
+export const FLAG_STOP_SELECT = {
+  id: true,
+  name: true,
+  country: true,
+  countryCode: true,
+  lat: true,
+  lng: true,
+  timezone: true,
+  arriveDate: true,
+  departDate: true,
+  sortOrder: true,
+  nights: true,
+  pinned: true,
+} as const;
+
+export const FLAG_TRANSPORT_SELECT = {
+  id: true,
+  fromStopId: true,
+  toStopId: true,
+  depAt: true,
+  arrAt: true,
+  mode: true,
+  depIsHome: true,
+  arrIsHome: true,
+} as const;
+
+export const FLAG_ACCOMMODATION_SELECT = {
+  id: true,
+  stopId: true,
+  checkIn: true,
+  checkOut: true,
+  name: true,
+} as const;
+
+export const FLAG_ITEM_SELECT = {
+  id: true,
+  stopId: true,
+  category: true,
+  date: true,
+  startTime: true,
+  endTime: true,
+  lat: true,
+  lng: true,
+} as const;
+
+export type FlagRows = {
+  trip: FlagsAssemblyInput["trip"] & { startDate: string | null; endDate: string | null };
+  allStops: RawAllStopRow[];
+  transports: FlagTransport[];
+  accommodations: FlagAccommodation[];
+  items: FlagItem[];
+  /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts). */
+  hiddenStopIds: readonly string[];
+};
+
+/**
+ * Read a Plan's Flag ingredients — the Trip's Home/driving fields and all
+ * four plan collections — in one `Promise.all`, through the viewer's
+ * Surprise visibility fragments. `null` when the trip has no dates yet
+ * (same as `loadHomePlanningData`'s Sketching branch): there is no day
+ * window for `detectFlags` to reason about, so there's nothing to read.
+ *
+ * Does NOT call `requireTripAccess` — every caller already has (or is) the
+ * access check for its own page/action.
+ */
+export async function loadFlagRows(tripId: string, viewerId: string, plan?: PlanId): Promise<FlagRows | null> {
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: FLAG_TRIP_SELECT });
+  if (!trip?.startDate || !trip.endDate) return null;
+
+  const v = await loadSurpriseVisibility(tripId, viewerId);
+
+  const [allStops, transports, accommodations, items] = await Promise.all([
+    db.stop.findMany({
+      where: { tripId, ...planScope(plan) },
+      orderBy: { sortOrder: "asc" },
+      select: FLAG_STOP_SELECT,
+    }),
+    db.transport.findMany({
+      where: { tripId, ...planScope(plan) },
+      orderBy: { sortOrder: "asc" },
+      select: FLAG_TRANSPORT_SELECT,
+    }),
+    db.accommodation.findMany({
+      where: { tripId, ...planScope(plan), ...v.where.accommodation },
+      select: FLAG_ACCOMMODATION_SELECT,
+    }),
+    db.item.findMany({
+      where: { tripId, ...planScope(plan), ...v.where.item },
+      select: FLAG_ITEM_SELECT,
+    }),
+  ]);
+
+  return {
+    trip,
+    allStops,
+    transports: transports as FlagTransport[],
+    accommodations: accommodations as FlagAccommodation[],
+    items: items as FlagItem[],
+    hiddenStopIds: v.hiddenStopIds,
+  };
+}
+
+/** `flagsFromRows`, fed straight from `loadFlagRows`'s rows and a `TripProjection`. */
+export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[] {
+  return flagsFromRows({
+    trip: rows.trip,
+    allStops: rows.allStops,
+    transports: rows.transports,
+    accommodations: rows.accommodations,
+    items: rows.items,
+    tripStart: rows.trip.startDate!,
+    tripEnd: rows.trip.endDate!,
+    projection,
+    hiddenStopIds: rows.hiddenStopIds,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Thin, self-contained loader (get_flags)
 // ---------------------------------------------------------------------------
 
 /**
- * Load a Trip's Flags from just a `tripId`: its own queries, its own
- * `getTripProjection` round trip, real plan only. The Summary page does NOT
- * call this — see the file doc comment above.
+ * Load a Trip's Flags from just a `tripId`: its own access check, its own
+ * `loadFlagRows` read, its own `getTripProjection` round trip, real plan
+ * only. The Summary page does NOT call this — see the file doc comment
+ * above.
  *
  * Surprise (ADR 0051): `viewerId` is the Traveller asking (the acting
  * Traveller, for a Claude connection). Accommodations and Items are read
@@ -144,59 +286,9 @@ export function flagsFromRows({
 export async function loadFlags(tripId: string, viewerId: string): Promise<Flag[]> {
   await requireTripAccess(tripId);
 
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      startDate: true,
-      endDate: true,
-      drivingWindingFactor: true,
-      drivingAvgSpeedKph: true,
-      homeName: true,
-      homeLat: true,
-      homeLng: true,
-      homeCountryCode: true,
-      homeTimezone: true,
-      roundTrip: true,
-    },
-  });
-  // detectFlags needs a dated window; a date-less trip has none to reason
-  // about (same as loadHomePlanningData's Sketching branch).
-  if (!trip?.startDate || !trip.endDate) return [];
+  const rows = await loadFlagRows(tripId, viewerId);
+  if (!rows) return [];
 
-  const { startDate, endDate } = trip;
-  const v = await loadSurpriseVisibility(tripId, viewerId);
-
-  const [allStops, transports, accommodations, items, projection] = await Promise.all([
-    db.stop.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, lat: true, lng: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, mode: true, depIsHome: true, arrIsHome: true },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-      select: { id: true, stopId: true, checkIn: true, checkOut: true, name: true },
-    }),
-    db.item.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.item },
-      select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
-    }),
-    getTripProjection(tripId),
-  ]);
-
-  return flagsFromRows({
-    trip,
-    allStops,
-    transports: transports as FlagTransport[],
-    accommodations: accommodations as FlagAccommodation[],
-    items: items as FlagItem[],
-    tripStart: startDate,
-    tripEnd: endDate,
-    projection,
-    hiddenStopIds: v.hiddenStopIds,
-  });
+  const projection = await getTripProjection(tripId);
+  return flagsForRows(rows, projection);
 }

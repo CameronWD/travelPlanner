@@ -24,9 +24,10 @@ vi.mock("@/lib/flags", async (orig) => ({
   detectFlags,
 }));
 
-import { loadFlags, flagsFromRows } from "./flags-loader";
+import { loadFlags, flagsFromRows, loadFlagRows } from "./flags-loader";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+import { trip, datedTripFixture } from "@/test/builders";
 
 const TRIP_ID = "trip-1";
 const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -202,5 +203,34 @@ describe("flagsFromRows", () => {
       hiddenStopIds: [], // loadFlags passes the viewer's (none hidden here)
     });
     expect(detectFlags.mock.calls[0][0]).toEqual(fromLoadFlags);
+  });
+});
+
+describe("loadFlagRows", () => {
+  it("TB-01: loadFlagRows carries homeTimezone so every caller's detectFlags gets it", async () => {
+    db.trip.findUnique.mockResolvedValueOnce(trip({ homeTimezone: "Australia/Sydney" }));
+    db.stop.findMany.mockResolvedValueOnce(datedTripFixture().stops);
+    const rows = await loadFlagRows("trip-1", "u1");
+    expect(rows?.trip.homeTimezone).toBe("Australia/Sydney");
+    expect(db.trip.findUnique).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ homeTimezone: true }) }));
+  });
+
+  it("does not call requireTripAccess — the caller owns the access check", async () => {
+    await loadFlagRows(TRIP_ID, "u1");
+    expect(requireTripAccess).not.toHaveBeenCalled();
+  });
+
+  it("returns null for a date-less trip, without reading the plan", async () => {
+    db.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null });
+    const rows = await loadFlagRows(TRIP_ID, "u1");
+    expect(rows).toBeNull();
+    expect(db.stop.findMany).not.toHaveBeenCalled();
+  });
+
+  it("scopes every plan read to the given Plan (forkId)", async () => {
+    await loadFlagRows(TRIP_ID, "u1", "fork-1");
+    for (const k of ["stop", "transport", "accommodation", "item"] as const) {
+      expect(db[k].findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tripId: TRIP_ID, forkId: "fork-1" }) }));
+    }
   });
 });
