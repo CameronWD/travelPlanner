@@ -1355,7 +1355,7 @@ export async function reorderStops(
   // reordered with no explicit forkId (the caller-supplied one is only ever
   // a hint) still resolves, and gates, against its own Fork instead of
   // silently passing through as the real plan.
-  const reorderRowsForkId = reorderStopRows[0]?.forkId;
+  const reorderRowsForkId: PlanId = reorderStopRows[0]?.forkId ?? null;
   const { plan } = await requirePlanAccess(tripId, forkId ?? reorderRowsForkId);
   const reorderForkId: PlanId = plan;
   const preKnownArriveDate = new Map(reorderStopRows.map((s) => [s.id, s.arriveDate]));
@@ -1489,17 +1489,21 @@ export async function restoreStops(
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same plan."] } };
   }
 
-  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks — AND
-  // must be the plan these Stops actually belong to. A client forkId is only
-  // ever a hint (the rows are the authority): `undefined` (not passed) trusts
-  // the rows' own plan outright, but an explicit forkId that disagrees with
-  // it is refused before any write, rather than silently overriding the
-  // rows' real plan with whatever the caller named.
+  // ADR 0074 rule 1 / spec Q4: a passed forkId must be checked against the
+  // Fork gate FIRST — notFound() for a bogus/foreign/Forks-off Fork, same as
+  // every other plan writer — before it is ever compared with anything else.
+  // Only once that succeeds do we check it's actually the plan these Stops
+  // belong to: a validly-authorised OTHER plan is refused with a form
+  // failure, not silently applied. An omitted forkId trusts the rows' own
+  // plan outright (and so can never mismatch).
   const rowsPlan: PlanId = rows[0].forkId ?? null;
-  if (forkId !== undefined && (forkId ?? null) !== rowsPlan) {
+  const { user, plan } =
+    forkId !== undefined
+      ? await requirePlanAccess(tripId, forkId)
+      : await requirePlanAccess(tripId, rowsPlan);
+  if (plan !== rowsPlan) {
     return formFail("One or more stops aren't part of this plan.");
   }
-  const { user, plan } = await requirePlanAccess(tripId, rowsPlan);
   const restoreForkId: PlanId = plan;
 
   // ARCH-TEN-5: every snapshotted Chapter must belong to the restored Stops'

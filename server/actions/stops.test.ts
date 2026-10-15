@@ -2224,7 +2224,9 @@ describe("reorderStops", () => {
       { id: "b", chapterId: "c1" },
     ]);
 
-    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", undefined);
+    // reorderRowsForkId is normalised to null (no rows found, no forkId
+    // passed) rather than left as undefined.
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", null);
     expectAccessCheckedBeforeWrite(requirePlanAccessMock, stopUpdateMock);
   });
 
@@ -4121,9 +4123,11 @@ describe("ADR 0074 rule 1: plan writers refuse a forkId that is not this Trip's 
   });
 
   it("restoreStops", async () => {
-    // forkId matches the rows' own plan (fork-x) — no plan-mismatch refusal
-    // — so this exercises requirePlanAccess actually rejecting an invalid Fork.
-    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "trip-1", forkId: "fork-x" }]);
+    // Real-plan rows, but the caller passes a bogus/foreign/Forks-off
+    // forkId — the Fork gate runs BEFORE any comparison with the rows' own
+    // plan, so this still notFound()s via requirePlanAccess, never a form
+    // failure.
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "trip-1", forkId: null }]);
     notFound404();
     await expect(
       restoreStops([{ id: "a", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }], "fork-x"),
