@@ -239,12 +239,30 @@ export async function loadFlagRows(tripId: string, viewerId: string, plan?: Plan
     }),
   ]);
 
+  // A hidden root Item still holds its slot (CONTEXT.md Surprise: the
+  // surprised Traveller sees it from outside), so its placeholder counts here
+  // exactly as readPlan's mergePlanItems counts it on Summary — masked to the
+  // Flag fields, no title/category/location. Visibility spans every Fork, so
+  // only this Plan's placeholders belong.
+  const placeholders = v.placeholderItems
+    .filter((p) => p.forkId === (plan ?? null))
+    .map((p) => ({
+      id: p.id,
+      stopId: p.stopId,
+      category: p.category,
+      date: p.date,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      lat: null,
+      lng: null,
+    }));
+
   return {
     trip,
     allStops,
     transports: transports as FlagTransport[],
     accommodations: accommodations as FlagAccommodation[],
-    items: items as FlagItem[],
+    items: [...items, ...placeholders] as FlagItem[],
     hiddenStopIds: v.hiddenStopIds,
   };
 }
