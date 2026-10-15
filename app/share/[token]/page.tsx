@@ -126,8 +126,10 @@ export default async function SharePage({
   // outside only, so it reads as a null viewer, surprised by every live
   // Surprise. A hidden Stop keeps its shell (name, dates); what is inside it
   // stays in the database. Share stops select no notes, so there is nothing
-  // to mask on them (and no `surprise` view is attached: it names
-  // Travellers, and nothing on the public page renders it).
+  // to mask on them, and no `surprise` view is attached to them. Items DO
+  // carry one out of mergePlanItems (it names Travellers), but only until the
+  // buildItinerary projection below, which copies the itinerary fields and
+  // drops `surprise` — nothing on the public page receives or renders it.
   //
   // ADR 0051 floor: this page keeps its own dial-gated reads rather than
   // going through readPlan — an off dial means the corresponding query never
