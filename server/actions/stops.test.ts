@@ -2223,8 +2223,8 @@ describe("reorderStops", () => {
       { id: "b", chapterId: "c1" },
     ]);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, stopUpdateMock);
   });
 
   it("refuses to move a rough stop into a DATED chapter: returns failure, no updates", async () => {
@@ -2567,8 +2567,8 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
       { id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
     ]);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, stopUpdateMock);
   });
 });
 
@@ -4016,5 +4016,48 @@ describe("ARCH-TEN-5: a Chapter from another Trip is refused on every Chapter wr
     expect(stopUpdateMock).not.toHaveBeenCalled();
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(chapterUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ADR 0074 rule 1: plan writers refuse a forkId that is not this Trip's Fork", () => {
+  const notFound404 = () => requirePlanAccessMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+  const noWrites = () => {
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(chapterUpdateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  };
+
+  it("firmUpSegment", async () => {
+    notFound404();
+    await expect(firmUpSegment({ tripId: "trip-1", chapterId: null, forkId: "fork-x" })).rejects.toThrow(/404/);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-x");
+    expect(stopFindManyMock).not.toHaveBeenCalled();
+    noWrites();
+  });
+
+  it("firmUpTrip", async () => {
+    notFound404();
+    await expect(firmUpTrip("trip-1", undefined, "fork-x")).rejects.toThrow(/404/);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-x");
+    expect(stopFindManyMock).not.toHaveBeenCalled();
+    noWrites();
+  });
+
+  it("reorderStops", async () => {
+    notFound404();
+    await expect(reorderStops("trip-1", [{ id: "a", chapterId: null }], "fork-x")).rejects.toThrow(/404/);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-x");
+    noWrites();
+  });
+
+  it("restoreStops", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "trip-1", forkId: null }]);
+    notFound404();
+    await expect(
+      restoreStops([{ id: "a", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }], "fork-x"),
+    ).rejects.toThrow(/404/);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-x");
+    noWrites();
   });
 });

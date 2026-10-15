@@ -112,7 +112,19 @@ const requireRowAccessMock = vi.hoisted(() =>
     return { row, user, membership, surpriseOf };
   }),
 );
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
+// requirePlanAccess (ADR 0074 rule 1) — membership via the same
+// requireTripAccessMock, and the validated plan is the forkId passed.
+const requirePlanAccessMock = vi.hoisted(() =>
+  vi.fn(async (tripId: string, forkId?: string | null) => {
+    const { user, membership } = await requireTripAccessMock(tripId);
+    return { user, membership, plan: forkId ?? null };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
@@ -303,8 +315,18 @@ describe("createAccommodation", () => {
 
     await createAccommodation(VALID_INPUT);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, accCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-2", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, accCreateMock);
+  });
+
+  it("ADR 0074 rule 1: a forkId that is not this Trip's Fork is not found, nothing written", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-x" });
+    requirePlanAccessMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+
+    await expect(createAccommodation(VALID_INPUT, "fork-x")).rejects.toThrow(/404/);
+
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-x");
+    expect(accCreateMock).not.toHaveBeenCalled();
   });
 
   it("returns error when stop not found", async () => {
