@@ -32,7 +32,7 @@ import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { deleteAttachment } from "@/server/actions/attachments";
 
-import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";
+import { ItemFormDialog, AddItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
 
@@ -920,82 +920,6 @@ describe("AddItemButton — homeCurrency forwarding", () => {
 
     // Cost field always renders; without homeCurrency the fallback is "AUD"
     expect(screen.getByRole("combobox", { name: /currency/i })).toHaveTextContent("AUD");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// EditItemButton — homeCurrency + costs forwarding
-// ---------------------------------------------------------------------------
-
-describe("EditItemButton — homeCurrency + costs forwarding", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("renders the Cost field when homeCurrency is passed", async () => {
-    const user = userEvent.setup();
-    render(
-      <EditItemButton
-        tripId="trip-1"
-        stops={[]}
-        item={existingItem}
-        homeCurrency="USD"
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
-
-    expect(screen.getByLabelText(/^cost amount$/i)).toBeInTheDocument();
-  });
-
-  it("defaults the currency picker to homeCurrency when no costs are given", async () => {
-    const user = userEvent.setup();
-    render(
-      <EditItemButton
-        tripId="trip-1"
-        stops={[]}
-        item={existingItem}
-        homeCurrency="GBP"
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
-
-    // The currency select trigger should display the home currency
-    expect(screen.getByRole("combobox", { name: /currency/i })).toHaveTextContent("GBP");
-  });
-
-  it("prefills the cost amount from single cost when costs are forwarded", async () => {
-    const user = userEvent.setup();
-    const costs = [
-      {
-        id: "cost-1",
-        costMinor: 5500,
-        paidMinor: null,
-        currency: "EUR",
-        rateToHome: 0.6,
-        paidAt: null,
-        dueDate: null,
-        settlement: "BEFORE",
-        ownerType: "ITEM" as const,
-        ownerId: "item-99",
-        label: null,
-        category: null,
-      },
-    ];
-
-    render(
-      <EditItemButton
-        tripId="trip-1"
-        stops={[]}
-        item={existingItem}
-        homeCurrency="AUD"
-        costs={costs}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
-
-    // 5500 minor EUR = 55.00
-    expect(screen.getByLabelText(/^cost amount$/i)).toHaveValue("55.00");
   });
 });
 

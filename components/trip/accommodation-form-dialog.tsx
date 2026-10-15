@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -117,43 +116,6 @@ export function AccommodationFormDialog({
         preview={preview}
       />
     </FormDialog>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Trigger buttons
-// ---------------------------------------------------------------------------
-
-export function EditAccommodationButton({
-  stopId,
-  stopDateRange,
-  accommodation,
-}: {
-  stopId: string;
-  stopDateRange: { arriveDate: string; departDate: string };
-  accommodation: AccommodationCardAccommodation;
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        onClick={() => setOpen(true)}
-        aria-label={`Edit ${accommodation.name}`}
-        title="Edit Accommodation"
-      >
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      <AccommodationFormDialog
-        stopId={stopId}
-        stopDateRange={stopDateRange}
-        accommodation={accommodation}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
   );
 }
 

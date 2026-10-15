@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -426,45 +426,6 @@ export function AddItemButton({
         open={open}
         onOpenChange={setOpen}
         homeCurrency={homeCurrency}
-      />
-    </>
-  );
-}
-
-export function EditItemButton({
-  tripId,
-  stops,
-  item,
-  homeCurrency,
-  costs,
-}: {
-  tripId: string;
-  stops: StopOption[];
-  item: ItemCardItem;
-  homeCurrency?: string;
-  costs?: CostRow[];
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        onClick={() => setOpen(true)}
-        aria-label={`Edit ${item.title}`}
-        title="Edit Item"
-      >
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      <ItemFormDialog
-        tripId={tripId}
-        stops={stops}
-        item={item}
-        open={open}
-        onOpenChange={setOpen}
-        homeCurrency={homeCurrency}
-        costs={costs}
       />
     </>
   );

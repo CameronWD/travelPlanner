@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { Route } from "next";
-import { ArrowRight, Plus, Pencil } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { AppLink } from "@/components/navigation/app-link";
@@ -228,75 +228,6 @@ export function TransportFormDialog({
         preview={preview}
       />
     </FormDialog>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Trigger buttons
-// ---------------------------------------------------------------------------
-
-export function AddTransportButton({
-  tripId,
-  stops,
-  defaultFromStopId,
-  defaultToStopId,
-  label = "Add Transport",
-}: {
-  tripId: string;
-  stops: StopOption[];
-  defaultFromStopId?: string;
-  defaultToStopId?: string;
-  label?: string;
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-4" aria-hidden="true" />
-        {label}
-      </Button>
-      <TransportFormDialog
-        tripId={tripId}
-        stops={stops}
-        defaultFromStopId={defaultFromStopId}
-        defaultToStopId={defaultToStopId}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
-  );
-}
-
-export function EditTransportButton({
-  tripId,
-  stops,
-  transport,
-}: {
-  tripId: string;
-  stops: StopOption[];
-  transport: TransportCardTransport;
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        onClick={() => setOpen(true)}
-        aria-label="Edit Transport"
-        title="Edit Transport"
-      >
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      <TransportFormDialog
-        tripId={tripId}
-        stops={stops}
-        transport={transport}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
   );
 }
 
