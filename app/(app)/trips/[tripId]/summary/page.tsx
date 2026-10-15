@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import {
   MapPin,
   Calendar,
@@ -9,11 +8,8 @@ import {
   DollarSign,
   Flag as FlagIcon,
 } from "lucide-react";
-import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
-import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
+import { readPlan } from "@/lib/plan-reads";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
@@ -52,24 +48,6 @@ import type { RouteMapStop } from "@/components/trip/route-map";
 import type { FitStop } from "@/lib/make-it-fit";
 
 export const metadata: Metadata = { title: "Summary" };
-
-// ---------------------------------------------------------------------------
-// Selects
-// ---------------------------------------------------------------------------
-
-const COST_SELECT = {
-  id: true,
-  costMinor: true,
-  paidMinor: true,
-  currency: true,
-  rateToHome: true,
-  paidAt: true,
-  ownerType: true,
-  ownerId: true,
-  label: true,
-  category: true,
-  settlement: true,
-} as const;
 
 // ---------------------------------------------------------------------------
 // Transport mode label helper
@@ -114,44 +92,14 @@ export default async function SummaryPage({
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
-
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      hardEndDate: true,
-      homeCurrency: true,
-      drivingWindingFactor: true,
-      drivingAvgSpeedKph: true,
-      homeName: true,
-      homeLat: true,
-      homeLng: true,
-      homeCountryCode: true,
-      homeTimezone: true,
-      roundTrip: true,
-      chaptersEnabled: true,
-    },
-  });
-  if (!trip) notFound();
+  const rows = await readPlan(tripId, user.id, null);
+  const { trip } = rows;
 
   // For a date-less trip: still show rough Stops (if any), then the date-less notice.
   if (!trip.startDate || !trip.endDate) {
-    const roughStopsForDateless = await db.stop.findMany({
-      where: { tripId, ...REAL_PLAN, arriveDate: null },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, nights: true, country: true, chapterId: true },
-    });
-    // A disabled trip renders as if it had no chapters (Task 13) — skip the
-    // query entirely rather than fetch-then-discard.
-    const datelessChapters = trip.chaptersEnabled && roughStopsForDateless.some((s) => s.chapterId)
-      ? await db.chapter.findMany({
-          where: { tripId, ...REAL_PLAN },
-          select: { id: true, name: true, colour: true },
-        })
-      : [];
+    const roughStopsForDateless = rows.stops.filter((s) => s.arriveDate === null);
+    // [] already when the chapters toggle is off (lib/plan-reads.ts).
+    const datelessChapters = rows.chapters;
 
     return (
       <div className="flex flex-col gap-6">
@@ -205,101 +153,23 @@ export default async function SummaryPage({
 
   const { homeCurrency, startDate, endDate } = trip;
 
-  // Surprise (ADR 0051): known before the wave so the queries below leave
-  // what this viewer may not see inside in the database.
-  const v = await loadSurpriseVisibility(tripId, user.id);
+  // Surprise (ADR 0051): already applied by readPlan — `rows.stops` carries
+  // each Stop's shell + Surprise with hidden notes blanked, `rows.items` is
+  // visible plan placements plus this plan's placeholders, and
+  // `rows.accommodations` is already filtered to what the viewer may see.
+  const v = rows.visibility;
+  const allStops = rows.stops;
+  const transports = rows.transports;
+  const accommodations = rows.accommodations;
+  // Plan placements only (Wishlist ideas excluded, ADR 0022) — the dated
+  // views below render no Item list, and Flags only needs scheduled Items
+  // and stop-attached things to do, never undated/unplaced Wishlist ideas.
+  const items = rows.items;
+  // Unfiltered: Summary shows no Cost lines, only buildBudget's totals.
+  const costs = rows.costs;
+  const exchangeRates = rows.exchangeRates;
+  const slug = trip.slug ?? tripId;
 
-  // One wave (spec 2026-10-06 §C): every real-plan Stop in a single read —
-  // dated and rough are split below — and the projection is computed from
-  // these same rows rather than a second round of trip/stop/transport reads.
-  const [allStopRows, transports, accommodations, itemRows, costs, exchangeRates, chapters, slug, budgetItemRows, budgetAccommodationRows] =
-    await Promise.all([
-      db.stop.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true, name: true, country: true, lat: true, lng: true, timezone: true,
-          arriveDate: true, departDate: true, sortOrder: true, pinned: true, nights: true, chapterId: true,
-        },
-      }),
-      db.transport.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          mode: true,
-          fromStopId: true,
-          toStopId: true,
-          depPlace: true,
-          arrPlace: true,
-          depAt: true,
-          arrAt: true,
-          sortOrder: true,
-          depIsHome: true,
-          arrIsHome: true,
-        },
-      }),
-      db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-        select: {
-          id: true,
-          stopId: true,
-          name: true,
-          checkIn: true,
-          checkOut: true,
-        },
-      }),
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.item },
-        select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
-      }),
-      // Unfiltered: Summary shows no Cost lines, only buildBudget's totals.
-      db.cost.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { createdAt: "asc" },
-        select: COST_SELECT,
-      }),
-      db.exchangeRate.findMany({
-        where: { tripId },
-        select: { base: true, quote: true, rate: true },
-      }),
-      // A disabled trip renders as if it had no chapters (Task 13) — skip the
-      // query entirely rather than fetch-then-discard.
-      trip.chaptersEnabled
-        ? db.chapter.findMany({
-            // Only dated chapters group the dated summary.
-            where: { tripId, ...REAL_PLAN, startDate: { not: null } },
-            orderBy: { startDate: "asc" },
-            select: { id: true, name: true, colour: true, startDate: true, endDate: true },
-          })
-        : Promise.resolve([]),
-      tripSlugFor(tripId),
-      // Unfiltered, minimal: buildBudget's byStop/byDay place a cost by its
-      // owner's real stop/date, so a hidden Item's or Accommodation's row
-      // has to be here even though it's filtered out of `items`/
-      // `accommodations` above. Used ONLY to build `budgetItems`/
-      // `budgetAccommodations` below — never rendered.
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN },
-        select: { id: true, stopId: true, category: true, date: true },
-      }),
-      db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN },
-        select: { id: true, stopId: true, checkIn: true, checkOut: true },
-      }),
-    ]);
-  // Hidden Stops keep their shell and carry their Surprise; a hidden
-  // real-plan Item stands in as its placeholder (date and time only).
-  const allStops = maskSurpriseStops(allStopRows, v, v.views.stops);
-  const items = [
-    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
-    ...v.placeholderItems
-      .filter((p) => p.forkId === null)
-      .map((p) => ({
-        id: p.id, stopId: p.stopId, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-        lat: p.lat, lng: p.lng, surprise: p.surprise,
-      })),
-  ];
   // Rough (date-less) stops are excluded from the dated summary and surface
   // as "not yet scheduled".
   const stops = allStops.filter((s) => s.arriveDate !== null);
@@ -313,11 +183,10 @@ export default async function SummaryPage({
   // ---------------------------------------------------------------------------
   // Build budget roll-up
   // ---------------------------------------------------------------------------
-  // Cast stops to BudgetStopWithDates — the select above includes arriveDate,
-  // departDate, and sortOrder, so chapter membership lookups will work and
-  // budget.byChapter will be populated.
-  // The stop/chapter queries filter rough (date-less) rows out, so the date
-  // fields are non-null at runtime; narrow the Prisma types once here.
+  // Cast stops to BudgetStopWithDates — `stops` above is already filtered to
+  // dated rows, so chapter membership lookups will work and budget.byChapter
+  // will be populated. The `arriveDate !== null` filter above guarantees the
+  // date fields are non-null at runtime; narrow the Prisma types once here.
   // ADR 0038: a scheduled stop's position IS its dates — order canonically
   // before anything downstream (budget rollup, chapter grouping, route map)
   // groups or displays them by position. The fetch's orderBy stays sortOrder;
@@ -329,6 +198,9 @@ export default async function SummaryPage({
       departDate: s.departDate!,
     })),
   );
+  // readPlan returns every Chapter of the plan (dated and rough, [] when the
+  // chapters toggle is off); only dated chapters group the dated summary.
+  const chapters = rows.chapters.filter((c) => c.startDate !== null);
   const datedChapters = chapters.map((c) => ({
     ...c,
     startDate: c.startDate!,
@@ -344,12 +216,12 @@ export default async function SummaryPage({
     sortOrder: s.sortOrder,
   }));
 
-  // Surprise (ADR 0051): unfiltered, minimal — not the `items`/
-  // `accommodations` above (those are filtered for rendering and have no
-  // Accommodation placeholder), so a hidden owner's row is here for
+  // Unfiltered, minimal (lib/plan-reads.ts): not the `items`/`accommodations`
+  // above (those are filtered for rendering and have no Accommodation
+  // placeholder), so a hidden owner's row is here for buildBudget's
   // byStop/byDay to place its cost on the right Stop/day. Never rendered.
-  const budgetItems: BudgetItem[] = budgetItemRows;
-  const budgetAccommodations: BudgetAccommodation[] = budgetAccommodationRows;
+  const budgetItems: BudgetItem[] = rows.budgetItems;
+  const budgetAccommodations: BudgetAccommodation[] = rows.budgetAccommodations;
 
   const budget = buildBudget({
     homeCurrency,

@@ -1,30 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { PlanRows } from "@/lib/plan-reads";
+import type { item, cost } from "@/test/builders";
 
-// summary/page.tsx is a heavy async server component with DB calls.
+// summary/page.tsx is a heavy async server component, but since Task 13 its
+// one read is `readPlan` (lib/plan-reads.ts) — mocked here with a prebuilt
+// `PlanRows`, the shape a real call would have produced for the scenario.
+// `readPlan`'s own masking/placeholder/query-shape behaviour (which Costs,
+// which Items, in what order, which fragment went where) is pinned in
+// lib/plan-reads.test.ts; this file only has to prove the PAGE renders a
+// given PlanRows correctly.
 //
 // Two test styles live in this file:
 //  1. A className-only check via an exported constant (no DB/RSC stack needed).
-//  2. A full-render harness (mirrors budget/budget-page.test.tsx): all DB
-//     access is mocked, heavy client leaves (route map, flag list, make-it-fit)
-//     are mocked to markers, but `@/lib/chapters` / `@/lib/dates` /
+//  2. A full-render harness (mirrors budget/budget-page.test.tsx): `readPlan`
+//     is mocked, heavy client leaves (route map, flag list, make-it-fit) are
+//     mocked to markers, but `@/lib/chapters` / `@/lib/dates` /
 //     `@/lib/plan-order` are left REAL (pure, deterministic) so the actual
 //     chapter-gating behaviour in page.tsx is exercised end to end, proving
 //     a disabled trip renders flat (Task 13).
 
-const mockDb = vi.hoisted(() => ({
-  trip: { findUnique: vi.fn() },
-  stop: { findMany: vi.fn() },
-  transport: { findMany: vi.fn() },
-  accommodation: { findMany: vi.fn() },
-  item: { findMany: vi.fn() },
-  cost: { findMany: vi.fn() },
-  exchangeRate: { findMany: vi.fn() },
-  chapter: { findMany: vi.fn() },
-}));
+const { readPlanMock } = vi.hoisted(() => ({ readPlanMock: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: mockDb }));
+vi.mock("@/lib/plan-reads", () => ({ readPlan: readPlanMock }));
+// The page itself no longer imports `@/lib/db` (Task 13), but
+// `@/lib/flags-loader`'s `loadFlags` (an export the page never calls) still
+// does at module scope — stub it so that import doesn't try to open Postgres.
+vi.mock("@/lib/db", () => ({ db: {} }));
 // requireTripAccess now returns { user, membership } here too (I5): the page
 // keeps them to compute isOwner for Make it fit's owner-only Drop half.
 // isTripOwnerOrAdmin is the REAL predicate — it lives in lib/access.ts, which
@@ -39,13 +42,6 @@ vi.mock("@/lib/guards", async () => {
     }),
     isTripOwnerOrAdmin,
   };
-});
-// Surprise (ADR 0051): the page asks the visibility loader first and spreads
-// its fragments into its own queries; the loader itself is tested on its own.
-const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
-vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
-  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
 vi.mock("@/lib/money", () => ({ formatMoney: vi.fn((minor: number, currency: string) => `${minor}${currency}`) }));
 vi.mock("@/lib/budget", () => ({
@@ -81,8 +77,9 @@ vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-tes
 const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { buildBudget } = await import("@/lib/budget");
-const { hiddenVisibility, placeholderItem, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
-const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-order");
+const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
+const { trip, stop, chapter, transport, stay } = await import("@/test/builders");
+const { planRows } = await import("@/test/builders/plan-rows");
 
 describe("Summary desktop rail width", () => {
   it("desktop grid uses 21.25rem rail (340 px) matching the mockup spec", () => {
@@ -118,7 +115,7 @@ const BASE_TRIP = {
 // A dated stop that falls inside CHAPTER's date band, so a real
 // `groupStopsByChapter` call groups it under that chapter when chapters flow
 // through.
-const DATED_STOP = {
+const DATED_STOP = stop({
   id: "s1",
   name: "Rome",
   country: "Italy",
@@ -130,14 +127,14 @@ const DATED_STOP = {
   sortOrder: 0,
   pinned: false,
   nights: 3,
-};
+});
 
-const CHAPTER = { id: "c1", name: "Italy Leg", colour: "sky", startDate: "2026-01-01", endDate: "2026-01-10" };
+const CHAPTER = chapter({ id: "c1", name: "Italy Leg", colour: "sky", startDate: "2026-01-01", endDate: "2026-01-10" });
 
 // A rough (date-less) stop explicitly assigned to CHAPTER via chapterId —
 // exercises the "Not yet scheduled" chip lookup, which reads the page's own
 // (gated) `chapters` array directly rather than going through lib/chapters.
-const ROUGH_STOP = {
+const ROUGH_STOP = stop({
   id: "r1",
   name: "Someday Place",
   nights: 2,
@@ -145,18 +142,56 @@ const ROUGH_STOP = {
   chapterId: "c1",
   pinned: false,
   sortOrder: 1,
-  // The single Stop read selects the date fields so the page can split dated
-  // from rough rows itself (spec 2026-10-06 §C).
   arriveDate: null,
   departDate: null,
-};
+  timezone: null,
+});
 
-function setupStops(datedStops: unknown[], roughStops: unknown[]) {
-  mockDb.stop.findMany.mockImplementation((args: { where: { arriveDate?: unknown } }) => {
-    // Date-less Trips still read rough Stops only; a dated Trip reads every
-    // Stop once (spec 2026-10-06 §C) and splits them itself.
-    if (args.where.arriveDate === null) return Promise.resolve(roughStops);
-    return Promise.resolve([...datedStops, ...roughStops]);
+/**
+ * Build the `PlanRows` a real `readPlan` call would have handed back for a
+ * scenario — `readPlan`'s own masking/placeholder assembly is pinned in
+ * lib/plan-reads.test.ts, so this just re-applies the same (pure) merge the
+ * reader does: attach each Stop/Item's Surprise view, and append this plan's
+ * placeholders.
+ */
+function rowsFrom({
+  trip: tripRow,
+  stops = [],
+  chapters = [],
+  transports = [],
+  accommodations = [],
+  items = [],
+  costs = [],
+  exchangeRates = [],
+  visibility = NO_SURPRISES,
+}: {
+  trip: ReturnType<typeof trip>;
+  stops?: ReturnType<typeof stop>[];
+  chapters?: ReturnType<typeof chapter>[];
+  transports?: ReturnType<typeof transport>[];
+  accommodations?: ReturnType<typeof stay>[];
+  items?: ReturnType<typeof item>[];
+  costs?: ReturnType<typeof cost>[];
+  exchangeRates?: PlanRows["exchangeRates"];
+  visibility?: PlanRows["visibility"];
+}): PlanRows {
+  return planRows({
+    trip: { ...tripRow, members: [], stops: [] } as unknown as PlanRows["trip"],
+    plan: null,
+    fork: null,
+    visibility,
+    stops: stops.map((s) => ({ ...s, surprise: visibility.views.stops.get(s.id) ?? null })) as unknown as PlanRows["stops"],
+    transports: transports as unknown as PlanRows["transports"],
+    accommodations: accommodations as unknown as PlanRows["accommodations"],
+    items: [
+      ...items.map((i) => ({ ...i, surprise: visibility.views.items.get(i.id) ?? null })),
+      ...visibility.placeholderItems.filter((p) => p.forkId === null),
+    ] as unknown as PlanRows["items"],
+    costs: costs as unknown as PlanRows["costs"],
+    exchangeRates,
+    chapters: chapters as unknown as PlanRows["chapters"],
+    budgetItems: items.map((i) => ({ id: i.id, stopId: i.stopId, category: i.category, date: i.date })),
+    budgetAccommodations: accommodations.map((a) => ({ id: a.id, stopId: a.stopId, checkIn: a.checkIn, checkOut: a.checkOut })),
   });
 }
 
@@ -169,75 +204,62 @@ function renderSummary() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockDb.transport.findMany.mockResolvedValue([]);
-  mockDb.accommodation.findMany.mockResolvedValue([]);
-  mockDb.item.findMany.mockResolvedValue([]);
-  mockDb.cost.findMany.mockResolvedValue([]);
-  mockDb.exchangeRate.findMany.mockResolvedValue([]);
-  mockDb.chapter.findMany.mockResolvedValue([CHAPTER]);
-  setupStops([DATED_STOP], [ROUGH_STOP]);
-  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
 });
 
 describe("SummaryPage chapter gating — dated trip (Task 13)", () => {
-  it("renders flat and skips the chapters query when chaptersEnabled is false", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+  it("renders flat when readPlan hands back no Chapters (chaptersEnabled off)", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP], chapters: [] }),
+    );
 
-    const jsx = await renderSummary();
-    render(jsx);
+    render(await renderSummary());
 
-    expect(mockDb.chapter.findMany).not.toHaveBeenCalled();
     expect(screen.queryByText("Italy Leg")).not.toBeInTheDocument();
     expect(screen.queryByTestId("chapter-chip")).not.toBeInTheDocument();
   });
 
-  it("shows chapter chips for both dated and rough stops when chaptersEnabled is true", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: true });
-
-    const jsx = await renderSummary();
-    render(jsx);
-
-    expect(mockDb.chapter.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: null, startDate: { not: null } }) }),
+  it("shows chapter chips for both dated and rough stops when readPlan hands back a dated Chapter", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP], chapters: [CHAPTER] }),
     );
+
+    render(await renderSummary());
+
     expect(screen.getAllByText("Italy Leg").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("chapter-chip").length).toBeGreaterThan(0);
   });
 });
 
 describe("SummaryPage chapter gating — date-less trip (Task 13)", () => {
-  const DATELESS_ROUGH_STOP = {
+  const DATELESS_ROUGH_STOP = stop({
     id: "r1",
     name: "Someday Place",
     nights: 2,
     country: "Spain",
     chapterId: "c1",
-  };
-
-  beforeEach(() => {
-    setupStops([], [DATELESS_ROUGH_STOP]);
+    arriveDate: null,
+    departDate: null,
+    timezone: null,
   });
 
-  it("renders flat and skips the chapters query when chaptersEnabled is false", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null, chaptersEnabled: false });
+  it("renders flat when readPlan hands back no Chapters (chaptersEnabled off)", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({ trip: trip({ ...BASE_TRIP, startDate: null, endDate: null }), stops: [DATELESS_ROUGH_STOP], chapters: [] }),
+    );
 
-    const jsx = await renderSummary();
-    render(jsx);
+    render(await renderSummary());
 
-    expect(mockDb.chapter.findMany).not.toHaveBeenCalled();
     expect(screen.queryByText("Italy Leg")).not.toBeInTheDocument();
     expect(screen.queryByTestId("chapter-chip")).not.toBeInTheDocument();
   });
 
-  it("shows the chapter chip when chaptersEnabled is true", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null, chaptersEnabled: true });
-
-    const jsx = await renderSummary();
-    render(jsx);
-
-    expect(mockDb.chapter.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { tripId: "trip-1", forkId: null } }),
+  it("shows the chapter chip when readPlan hands back a Chapter", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({ trip: trip({ ...BASE_TRIP, startDate: null, endDate: null }), stops: [DATELESS_ROUGH_STOP], chapters: [CHAPTER] }),
     );
+
+    render(await renderSummary());
+
     expect(screen.getByText("Italy Leg")).toBeInTheDocument();
     expect(screen.getByTestId("chapter-chip")).toBeInTheDocument();
   });
@@ -253,7 +275,7 @@ const longAccom = "A".repeat(60);
 const longPlace = "P".repeat(60);
 
 // Second dated stop with a 60-char unbroken name, inside CHAPTER's band.
-const LONG_STOP = {
+const LONG_STOP = stop({
   id: "s2",
   name: longStop,
   country: "France",
@@ -265,11 +287,11 @@ const LONG_STOP = {
   sortOrder: 1,
   pinned: false,
   nights: 2,
-};
+});
 
 // Trailing stop so LONG_STOP is not the last stop (outbound transport is only
 // rendered for non-last stops).
-const TAIL_STOP = {
+const TAIL_STOP = stop({
   id: "s3",
   name: "Tail",
   country: null,
@@ -281,33 +303,35 @@ const TAIL_STOP = {
   sortOrder: 2,
   pinned: false,
   nights: 1,
-};
+});
 
 describe("SummaryPage — long names don't widen the page", () => {
   it("wraps/truncates a long Stop name, accommodation name and transport place", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: true });
-    setupStops([DATED_STOP, LONG_STOP, TAIL_STOP], [ROUGH_STOP]);
-    mockDb.accommodation.findMany.mockResolvedValue([
-      { id: "a1", stopId: "s2", name: longAccom, checkIn: "2026-01-06", checkOut: "2026-01-08" },
-    ]);
-    mockDb.transport.findMany.mockResolvedValue([
-      {
-        id: "t1",
-        mode: "flight",
-        fromStopId: "s2",
-        toStopId: "s3",
-        depPlace: longPlace,
-        arrPlace: "Tail",
-        depAt: "2026-01-08T10:00:00.000Z",
-        arrAt: null,
-        sortOrder: 0,
-        depIsHome: false,
-        arrIsHome: false,
-      },
-    ]);
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip({ ...BASE_TRIP, chaptersEnabled: true }),
+        stops: [DATED_STOP, LONG_STOP, TAIL_STOP, ROUGH_STOP],
+        chapters: [CHAPTER],
+        accommodations: [stay({ id: "a1", stopId: "s2", name: longAccom, checkIn: "2026-01-06", checkOut: "2026-01-08" })],
+        transports: [
+          transport({
+            id: "t1",
+            mode: "flight",
+            fromStopId: "s2",
+            toStopId: "s3",
+            depPlace: longPlace,
+            arrPlace: "Tail",
+            depAt: new Date("2026-01-08T10:00:00.000Z"),
+            arrAt: null,
+            sortOrder: 0,
+            depIsHome: false,
+            arrIsHome: false,
+          }),
+        ],
+      }),
+    );
 
-    const jsx = await renderSummary();
-    render(jsx);
+    render(await renderSummary());
 
     const stopName = screen.getByRole("heading", { level: 3, name: longStop });
     expect(stopName.className).toMatch(/\bbreak-words\b/);
@@ -321,8 +345,7 @@ describe("SummaryPage — long names don't widen the page", () => {
 
 describe("SummaryPage — phone stop cards (LA-144, LA-148)", () => {
   it("stacks the cost block under the name row below sm and keeps the name column full width", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
-    setupStops([DATED_STOP], []);
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
     vi.mocked(buildBudget).mockReturnValueOnce({
       grandTotal: { costTotalMinor: 1000, paidTotalMinor: 0 },
       byCategory: [],
@@ -352,11 +375,13 @@ describe("SummaryPage — phone stop cards (LA-144, LA-148)", () => {
   });
 
   it("wraps the accommodation name and puts the date range on its own line below sm", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
-    setupStops([DATED_STOP], []);
-    mockDb.accommodation.findMany.mockResolvedValue([
-      { id: "a1", stopId: "s1", name: "Arctic Glass Igloos & Lodge", checkIn: "2026-01-02", checkOut: "2026-01-05" },
-    ]);
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip(BASE_TRIP),
+        stops: [DATED_STOP],
+        accommodations: [stay({ id: "a1", stopId: "s1", name: "Arctic Glass Igloos & Lodge", checkIn: "2026-01-02", checkOut: "2026-01-05" })],
+      }),
+    );
 
     render(await renderSummary());
 
@@ -371,110 +396,86 @@ describe("SummaryPage — phone stop cards (LA-144, LA-148)", () => {
   });
 });
 
-describe("SummaryPage reads (spec 2026-10-06 §C)", () => {
-  it("reads Stops once and computes the projection from them, not with a second round of reads", async () => {
-    const { getTripProjection } = await import("@/server/actions/stops");
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
-    render(await renderSummary());
-    expect(mockDb.stop.findMany).toHaveBeenCalledTimes(1);
-    expect(getTripProjection).not.toHaveBeenCalled();
-  });
-});
-
 describe("SummaryPage — departure dates in the leg's timezone (spec 2026-10-06 §G)", () => {
   it("a 06:30 Sydney departure shows its own calendar day, not the UTC one", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
-    setupStops(
-      [
-        { ...DATED_STOP, id: "syd", name: "Sydney", country: "Australia", timezone: "Australia/Sydney", arriveDate: "2026-01-02", departDate: "2026-01-08" },
-        TAIL_STOP,
-      ],
-      [],
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip(BASE_TRIP),
+        stops: [
+          stop({ ...DATED_STOP, id: "syd", name: "Sydney", country: "Australia", timezone: "Australia/Sydney", arriveDate: "2026-01-02", departDate: "2026-01-08" }),
+          TAIL_STOP,
+        ],
+        transports: [
+          transport({
+            id: "t1", mode: "flight", fromStopId: "syd", toStopId: "s3", depPlace: "SYD", arrPlace: "Tail",
+            // 2026-01-07T19:30Z = 06:30 on 8 Jan in Sydney (AEDT, UTC+11).
+            depAt: new Date("2026-01-07T19:30:00.000Z"), arrAt: null, sortOrder: 0, depIsHome: false, arrIsHome: false,
+          }),
+        ],
+      }),
     );
-    mockDb.transport.findMany.mockResolvedValue([
-      {
-        id: "t1", mode: "flight", fromStopId: "syd", toStopId: "s3", depPlace: "SYD", arrPlace: "Tail",
-        // 2026-01-07T19:30Z = 06:30 on 8 Jan in Sydney (AEDT, UTC+11).
-        depAt: "2026-01-07T19:30:00.000Z", arrAt: null, sortOrder: 0, depIsHome: false, arrIsHome: false,
-      },
-    ]);
+
     render(await renderSummary());
+
     expect(screen.getByText("8 Jan")).toBeInTheDocument();
     expect(screen.queryByText("7 Jan")).toBeNull();
   });
 });
 
 describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
-  function surprised() {
-    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
-    loadSurpriseVisibilityMock.mockResolvedValue(
-      hiddenVisibility({
-        viewerId: "u1",
-        hiddenStopIds: ["s1"],
-        placeholders: [
-          placeholderItem({ id: "i-dinner", stopId: "s1", date: "2026-01-03", startTime: "19:30" }),
-          placeholderItem({ id: "i-fork", stopId: "s1", date: "2026-01-03", forkId: "fork-1" }),
-        ],
+  it("hands the hidden Stops to the Flags, so nothing about their inside is raised", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip(BASE_TRIP),
+        stops: [DATED_STOP],
+        visibility: hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }),
       }),
     );
-  }
 
-  it("asks the visibility loader for this viewer before the wave", async () => {
-    surprised();
     render(await renderSummary());
-    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u1");
-    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.item.findMany);
-    expectAccessCheckedBeforeWrite(loadSurpriseVisibilityMock, mockDb.stop.findMany);
-  });
 
-  it("spreads the fragments into the Accommodation and Item reads; Costs stay whole for the totals", async () => {
-    surprised();
-    render(await renderSummary());
-    expect(mockDb.accommodation.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.accommodation);
-    expect(mockDb.item.findMany.mock.calls[0][0].where).toMatchObject(MARKER_WHERE.item);
-    expect(mockDb.cost.findMany.mock.calls[0][0].where).not.toHaveProperty("AND");
-  });
-
-  it("hands the hidden Stops to the Flags, so nothing about their inside is raised", async () => {
-    surprised();
-    render(await renderSummary());
     const { detectFlags } = await import("@/lib/flags");
     expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ hiddenStopIds: ["s1"] }));
   });
 
-  it("real-plan placeholders join the Items the (rendered) flags/map list, not buildBudget's own read", async () => {
-    surprised();
-    render(await renderSummary());
-    // buildBudget's `items` is the second, UNFILTERED Item read (below) —
-    // never the filtered+placeholder list this test used to check here.
-    expect(mockDb.item.findMany).toHaveBeenCalledTimes(2);
-    expect(mockDb.item.findMany.mock.calls[1][0].where).not.toHaveProperty("AND");
-  });
-
   it("passes hiddenOwnerIds through to buildBudget as surpriseOwnerIds, so the totals keep the money but fold it into one Surprise category row", async () => {
-    surprised();
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip(BASE_TRIP),
+        stops: [DATED_STOP],
+        visibility: hiddenVisibility({
+          viewerId: "u1",
+          hiddenStopIds: ["s1"],
+          placeholders: [
+            placeholderItem({ id: "i-dinner", stopId: "s1", date: "2026-01-03", startTime: "19:30" }),
+            placeholderItem({ id: "i-fork", stopId: "s1", date: "2026-01-03", forkId: "fork-1" }),
+          ],
+        }),
+      }),
+    );
+
     render(await renderSummary());
+
     const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { surpriseOwnerIds: string[] };
     expect(input.surpriseOwnerIds).toEqual(["i-dinner", "i-fork"]);
   });
 
-  it("a hidden Accommodation's row still reaches buildBudget (unfiltered second read) so byStop/byDay can place its cost correctly, and its name never renders", async () => {
-    surprised();
-    // The filtered (rendered) read excludes the Accommodation inside hidden
-    // Stop s1; the second, unfiltered read — used ONLY to feed buildBudget —
-    // still carries it.
-    mockDb.accommodation.findMany.mockImplementation((args: { where: Record<string, unknown> }) =>
-      Promise.resolve(
-        "AND" in args.where
-          ? []
-          : [{ id: "acc-1", stopId: "s1", name: "The Hideaway Inn", checkIn: "2026-01-02", checkOut: "2026-01-04" }],
-      ),
-    );
+  it("a hidden Accommodation's row still reaches buildBudget (via rows.budgetAccommodations) so byStop/byDay can place its cost correctly, and its name never renders", async () => {
+    // The filtered (rendered) `accommodations` excludes the Accommodation
+    // inside hidden Stop s1; `budgetAccommodations` — unfiltered, used ONLY
+    // to feed buildBudget (lib/plan-reads.ts) — still carries it.
+    const rows = rowsFrom({
+      trip: trip(BASE_TRIP),
+      stops: [DATED_STOP],
+      visibility: hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s1"] }),
+    });
+    rows.accommodations = []; // what the viewer may render — hidden one excluded
+    rows.budgetAccommodations = [{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04" }];
+    readPlanMock.mockResolvedValue(rows);
+
     const html = render(await renderSummary()).container.innerHTML;
     const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { accommodations: Array<Record<string, unknown>> };
-    expect(input.accommodations).toEqual([
-      { id: "acc-1", stopId: "s1", name: "The Hideaway Inn", checkIn: "2026-01-02", checkOut: "2026-01-04" },
-    ]);
+    expect(input.accommodations).toEqual([{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04" }]);
     expect(html).not.toContain("The Hideaway Inn");
   });
 });
