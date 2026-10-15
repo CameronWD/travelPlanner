@@ -1430,6 +1430,23 @@ describe("duplicateTrip", () => {
     expect(dayTitleCreateMock).not.toHaveBeenCalled();
   });
 
+  it("TB-05: duplicateTrip reads only the real plan's rows, so the copy has no Fork rows", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      id: "trip-1", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }],
+      chapters: [], stops: [], items: [], transports: [], checklistItems: [],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+
+    await duplicateTrip("trip-1", "Copy");
+
+    const call = tripFindUniqueMock.mock.calls.find((c) => c[0]?.include?.stops)?.[0];
+    expect(call.include.stops).toEqual({ where: { forkId: null } });
+    expect(call.include.items).toEqual({ where: { forkId: null } });
+    expect(call.include.transports).toEqual({ where: { forkId: null } });
+    expect(call.include.chapters).toEqual({ where: { forkId: null } });
+  });
+
   it("IMPORTANT fix (round 1): normalises a mixed-case source member email before writing the Invite", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1", email: "you@example.com" },

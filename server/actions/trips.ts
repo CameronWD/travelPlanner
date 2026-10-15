@@ -28,6 +28,7 @@ import {
   type TripInput,
 } from "@/lib/validations/trip";
 import { type ActionResult, fail, formFail, validationResult } from "@/lib/action-result";
+import { REAL_PLAN } from "@/lib/plan-scope";
 
 export type CreateTripResult = ActionResult<{ tripId: string; href: Route }>;
 
@@ -526,14 +527,16 @@ export async function duplicateTrip(
     return formFail("Only the trip owner can duplicate the trip.");
   }
 
+  // Forks are frozen (open-follow-ups, settled 2026-10-14); the copy is the
+  // real plan and has no Forks.
   const source = await db.trip.findUnique({
     where: { id: sourceTripId },
     include: {
       members: { select: { userId: true, role: true } },
-      chapters: true,
-      stops: true,
-      items: true,
-      transports: true,
+      chapters: { where: REAL_PLAN },
+      stops: { where: REAL_PLAN },
+      items: { where: REAL_PLAN },
+      transports: { where: REAL_PLAN },
       checklistItems: true,
     },
   });
