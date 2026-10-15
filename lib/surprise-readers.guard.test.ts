@@ -11,8 +11,10 @@ import path from "node:path";
  *
  * This guard shrinks as readers move onto `readPlan` (lib/plan-reads.ts): a
  * page that calls `readPlan` is covered by its required viewer argument, so it
- * leaves this list. The pages Tasks 13–17 migrate (Plan, Calendar, Summary,
- * Print, Budget, Wishlist, Share, the Calendar feed, Compare) are already off it.
+ * leaves this list. The eight pages and routes Tasks 13–17 migrate (Plan,
+ * Calendar, Summary, Print, Budget, Wishlist, Share, the Calendar feed) are
+ * already off it. server/actions/forks.ts stays: only getComparison moves onto
+ * readPlan, and its other readers (the promote preview) keep the loader.
  */
 
 const root = process.cwd();
@@ -44,6 +46,7 @@ const VISIBILITY_READERS = [
   "lib/mcp/reads/costs.ts",
   "lib/mcp/reads/attachments.ts",
   "lib/mcp/tools/reads.ts",
+  "server/actions/forks.ts",
 ];
 
 describe("drift guard: every non-readPlan reader imports lib/surprise-visibility", () => {
