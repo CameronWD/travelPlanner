@@ -89,7 +89,7 @@ describe("FilesIndex", () => {
   });
 
   it("shows the action's error inside the dialog and keeps it open", async () => {
-    setAttachmentTitle.mockResolvedValue({ success: false, error: "Title must be 120 characters or fewer." });
+    setAttachmentTitle.mockResolvedValue({ success: false, errors: { _: ["Title must be 120 characters or fewer."] } });
     renderIndex();
     await userEvent.click(screen.getByRole("button", { name: "Rename trip.pdf" }));
     const dialog = await screen.findByRole("dialog", { name: "Rename file" });

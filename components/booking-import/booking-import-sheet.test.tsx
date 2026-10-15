@@ -196,7 +196,7 @@ describe("BookingImportSheet", () => {
   });
 
   it("a failed upload shows the attachFailed notice and the record stays confirmed", async () => {
-    m.uploadAttachment.mockResolvedValue({ success: false, error: "no space" });
+    m.uploadAttachment.mockResolvedValue({ success: false, errors: { _: ["no space"] } });
     open();
     const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });
     await userEvent.upload(screen.getByLabelText("Booking file"), pdf);

@@ -6,6 +6,15 @@ vi.mock("@/lib/guards", async () => ({
   isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
   requireUser: vi.fn(async () => ({ id: "it-user" })),
   requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
+  // ADR 0074 Task 4 (spec 2026-10-14 Q4): confirmProposal now calls
+  // requirePlanAccess instead of requireTripAccess. These tests use the real
+  // plan throughout, so `plan` is just `forkId ?? null` — same user/membership
+  // the requireTripAccess mock above returns.
+  requirePlanAccess: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+    user: { id: "it-user" },
+    membership: { role: "owner" },
+    plan: forkId ?? null,
+  })),
 }));
 // No network in tests: geocoding finds nothing, and the AUD rate is home currency anyway.
 vi.mock("@/lib/geocode", async (orig) => ({
