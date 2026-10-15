@@ -32,6 +32,7 @@ describe("POST /api/push", () => {
   it("rejects a body with no endpoint", async () => {
     const res = await POST(post({ keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Invalid body."] } });
     expect(healMock).not.toHaveBeenCalled();
   });
 
@@ -43,12 +44,14 @@ describe("POST /api/push", () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Malformed body."] } });
   });
 
   it("answers 401 when there is no session", async () => {
     healMock.mockRejectedValue(Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT" }));
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Not signed in."] } });
   });
 
   it("answers 400 when the action refuses the request as invalid", async () => {
@@ -91,6 +94,7 @@ describe("POST /api/push", () => {
     healMock.mockRejectedValue(new TypeError("boom"));
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Internal error."] } });
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
   });
