@@ -115,6 +115,20 @@ describe("rescheduleItem", () => {
     });
   });
 
+  it("keeps the current owning Stop on a Changeover day it still covers (ADR 0049 rule 4)", async () => {
+    arrangeTrip();
+    itemFindUniqueMock.mockResolvedValue({ id: ITEM_ID, tripId: TRIP_ID, forkId: null, stopId: "stop-paris" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-paris", arriveDate: "2026-07-01", departDate: "2026-07-10", sortOrder: 0 },
+      { id: "stop-rome", arriveDate: "2026-07-10", departDate: "2026-07-20", sortOrder: 1 },
+    ]);
+    await rescheduleItem(ITEM_ID, "2026-07-10");
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: ITEM_ID },
+      data: { date: "2026-07-10", stopId: "stop-paris" },
+    });
+  });
+
   it("rejects a date outside the trip window without updating", async () => {
     arrangeTrip();
     const result = await rescheduleItem(ITEM_ID, "2026-08-15");

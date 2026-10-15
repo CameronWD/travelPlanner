@@ -5,9 +5,9 @@ import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/gu
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
-import { recordPlanActivity } from "@/lib/activity-guard";
+import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
-import { entityLabel, describeChanges } from "@/lib/activity";
+import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
@@ -170,7 +170,7 @@ export async function createCost(
     });
   });
 
-  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data) });
   revalidateTrip(tripId, "money");
   return { success: true, cost };
 }
@@ -245,13 +245,13 @@ export async function updateCost(
     });
   });
 
-  await recordPlanActivity(existing.forkId, {
+  // Recorded only once the transaction has committed.
+  await recordUpdate("COST", {
     tripId: existing.tripId,
-    verb: "UPDATED",
-    entityType: "COST",
+    plan: existing.forkId ?? null,
     entityId: costId,
-    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+    before,
+    after: updated,
   });
   revalidateTrip(existing.tripId, "money");
   return { success: true };
@@ -302,21 +302,13 @@ export async function markCostPaid(
     return { success: false, errors: { paidAt: ["Enter when you paid"] } };
   }
 
-  const before = await db.cost.findUnique({ where: { id: costId } });
-
-  const updated = await db.cost.update({
-    where: { id: costId },
-    data: { paidMinor, paidAt: new Date(parsedDate.data) },
-  });
-
-  await recordPlanActivity(cost.forkId, {
-    tripId: cost.tripId,
-    verb: "UPDATED",
-    entityType: "COST",
-    entityId: costId,
-    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
+  await auditedUpdate(
+    "COST",
+    db.cost,
+    costId,
+    { paidMinor, paidAt: new Date(parsedDate.data) },
+    cost.forkId ?? null,
+  );
   revalidateTrip(cost.tripId, "money");
   return { success: true };
 }
@@ -331,18 +323,7 @@ export async function markCostUnpaid(costId: string): Promise<CostActionResult> 
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 
-  const before = await db.cost.findUnique({ where: { id: costId } });
-
-  const updated = await db.cost.update({ where: { id: costId }, data: { paidAt: null } });
-
-  await recordPlanActivity(cost.forkId, {
-    tripId: cost.tripId,
-    verb: "UPDATED",
-    entityType: "COST",
-    entityId: costId,
-    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
+  await auditedUpdate("COST", db.cost, costId, { paidAt: null }, cost.forkId ?? null);
   revalidateTrip(cost.tripId, "money");
   return { success: true };
 }

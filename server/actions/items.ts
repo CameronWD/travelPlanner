@@ -7,9 +7,9 @@ import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/gu
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { recordPlanActivity } from "@/lib/activity-guard";
+import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
-import { entityLabel, describeChanges } from "@/lib/activity";
+import { entityLabel } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { getUserGlobe } from "@/lib/globe";
@@ -232,7 +232,7 @@ export async function createItem(
     }
   }
 
-  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created) });
   revalidateTrip(tripId, "plan", "money");
   if (surpriseForIds) {
     // Checked above, so a refusal here is a race (say, a Traveller left meanwhile).
@@ -315,7 +315,7 @@ export async function addMarkerToWishlist(
     verb: "CREATED",
     entityType: "ITEM",
     entityId: created.id,
-    entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>),
+    entityLabel: entityLabel("ITEM", created),
   });
   revalidateTrip(tripId, "plan");
   return { success: true };
@@ -355,8 +355,6 @@ export async function updateItem(
     await requireOutsideSurprise(item.viewerId, { stopId: data.stopId });
   }
 
-  const before = await db.item.findUnique({ where: { id: itemId } });
-
   // Best-effort geocode from address
   let lat: number | null = null;
   let lng: number | null = null;
@@ -368,25 +366,24 @@ export async function updateItem(
     countryCode = candidate?.countryCode?.toLowerCase() ?? null;
   }
 
-  const updated = await db.item.update({
-    where: { id: itemId },
-    data: {
-      stopId: data.stopId ?? null,
-      title: data.title,
-      category: data.category,
-      date: data.date ?? null,
-      startTime: data.startTime ?? null,
-      endTime: data.endTime ?? null,
-      address: data.address ?? null,
-      link: data.link ?? null,
-      booking: data.booking ?? null,
-      notes: data.notes ?? null,
-      lat,
-      lng,
-      countryCode,
-      hiddenFromShares: data.hiddenFromShares ?? false,
-    },
-  });
+  // The Item row's update is recorded as soon as it lands; the inline Cost
+  // write below is a separate row and records nothing of its own here.
+  const { before } = await auditedUpdate("ITEM", db.item, itemId, {
+    stopId: data.stopId ?? null,
+    title: data.title,
+    category: data.category,
+    date: data.date ?? null,
+    startTime: data.startTime ?? null,
+    endTime: data.endTime ?? null,
+    address: data.address ?? null,
+    link: data.link ?? null,
+    booking: data.booking ?? null,
+    notes: data.notes ?? null,
+    lat,
+    lng,
+    countryCode,
+    hiddenFromShares: data.hiddenFromShares ?? false,
+  }, item.forkId ?? null);
 
   // Inline cost management (mirrors transport cost logic):
   // 0 existing costs + amount provided → create
@@ -451,14 +448,6 @@ export async function updateItem(
     // >1 costs: do nothing — CostEditor is authoritative
   }
 
-  await recordPlanActivity(item.forkId, {
-    tripId: item.tripId,
-    verb: "UPDATED",
-    entityType: "ITEM",
-    entityId: itemId,
-    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
   revalidateTrip(item.tripId, "plan", "money");
   return applySurpriseFor(itemId, data.surpriseForIds, before);
 }
@@ -575,7 +564,7 @@ async function finishPlacedCopy({
     verb: "CREATED",
     entityType: "ITEM",
     entityId: placed.id,
-    entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
+    entityLabel: entityLabel("ITEM", placed),
   });
 
   revalidateTrip(tripId, "plan");
@@ -699,8 +688,6 @@ export async function scheduleItem(
   }
 
   // --- In-place reschedule branch (item already has a date) ---
-  // Reuse fullItem as the before snapshot — it's the same row read above.
-  const before = fullItem;
 
   // Writing `stopId` here (ADR 0049 rule 4) is what lets the plan editor hand
   // a move straight to this action instead of hand-guarding against
@@ -719,13 +706,13 @@ export async function scheduleItem(
     },
   });
 
-  await recordPlanActivity(accessItem.forkId, {
+  // fullItem, read above, is the before snapshot — no second read.
+  await recordUpdate("ITEM", {
     tripId: accessItem.tripId,
-    verb: "UPDATED",
-    entityType: "ITEM",
+    plan: accessItem.forkId ?? null,
     entityId: itemId,
-    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+    before: fullItem,
+    after: updated,
   });
 
   revalidateTrip(accessItem.tripId, "plan");
@@ -843,7 +830,7 @@ export async function unscheduleItem(itemId: string): Promise<UnscheduleResult> 
     verb: mode === "placement-removed" ? "DELETED" : "UPDATED",
     entityType: "ITEM",
     entityId: itemId,
-    entityLabel: entityLabel("ITEM", fullItem as unknown as Record<string, unknown>),
+    entityLabel: entityLabel("ITEM", fullItem),
   });
 
   revalidateTrip(accessItem.tripId, "plan");
@@ -888,31 +875,16 @@ export async function rescheduleItem(
     return { success: false, errors: { date: ["That day is outside the trip."] } };
   }
 
-  // Read before resolving ownership, not after: resolveOwningStop needs
-  // before.stopId, and nothing between here and the update touches this
-  // item, so the snapshot it yields is the same pre-update state either way.
-  const before = await db.item.findUnique({ where: { id: itemId } });
-
   const planStops = await loadPlanStopsForOwnership(item.tripId, item.forkId);
 
   // Ownership follows ADR 0049 rule 4: keep the owning Stop while it still
   // covers the date, re-filing only when the move leaves that Stop's stay.
-  const owningStopId = resolveOwningStop(before?.stopId ?? null, targetDateISO, planStops);
+  // The guard's row already carries the current stopId, so the only read of
+  // the full row is auditedUpdate's before-snapshot.
+  const owningStopId = resolveOwningStop(item.stopId ?? null, targetDateISO, planStops);
   await requireOutsideSurprise(item.viewerId, { stopId: owningStopId });
 
-  const updated = await db.item.update({
-    where: { id: itemId },
-    data: { date: targetDateISO, stopId: owningStopId },
-  });
-
-  await recordPlanActivity(item.forkId, {
-    tripId: item.tripId,
-    verb: "UPDATED",
-    entityType: "ITEM",
-    entityId: itemId,
-    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
+  await auditedUpdate("ITEM", db.item, itemId, { date: targetDateISO, stopId: owningStopId }, item.forkId ?? null);
 
   revalidateTrip(item.tripId, "plan");
   return { success: true };

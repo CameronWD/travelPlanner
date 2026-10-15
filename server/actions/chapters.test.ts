@@ -300,7 +300,7 @@ describe("updateChapter", () => {
   it("excludes itself from the overlap check", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "c1", tripId: "trip-1" }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: "2026-07-01", endDate: "2026-07-05" }]);
     const r = await updateChapter("c1", VALID);
     expect(r.success).toBe(true);
@@ -323,9 +323,9 @@ describe("updateChapter", () => {
   it("records UPDATED activity with describeChanges after a successful update", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "c1", tripId: "trip-1" }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([]);
-    chapterUpdateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose", startDate: "2026-07-10", endDate: "2026-07-18" });
+    chapterUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", name: "Italy", colour: "rose", startDate: "2026-07-10", endDate: "2026-07-18" });
     await updateChapter("c1", VALID);
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", verb: "UPDATED", entityType: "CHAPTER", entityId: "c1" }));
   });
@@ -677,7 +677,7 @@ describe("fork-silent: updateChapter in a fork does NOT record activity", () => 
   it("does not call recordActivity when chapter.forkId is non-null (fork-scoped update)", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x" }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x", name: "Old", colour: "rose" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x", name: "Old", colour: "rose" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([]);
     chapterUpdateMock.mockResolvedValue({ id: "fc-2", name: "Italy", colour: "rose" });
 
@@ -689,7 +689,7 @@ describe("fork-silent: updateChapter in a fork does NOT record activity", () => 
   it("DOES call recordActivity when chapter.forkId is null (real-plan update)", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null, name: "Old", colour: "rose" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null, name: "Old", colour: "rose" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([]);
     chapterUpdateMock.mockResolvedValue({ id: "rc-2", name: "Italy", colour: "rose" });
 

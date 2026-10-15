@@ -89,7 +89,7 @@ export async function addNote(
     },
   });
 
-  await recordActivity({ tripId, verb: "NOTED", entityType: "NOTE", entityId: created.id, entityLabel: entityLabel("NOTE", created as unknown as Record<string, unknown>), changes: { excerpt: body.slice(0, 80) } });
+  await recordActivity({ tripId, verb: "NOTED", entityType: "NOTE", entityId: created.id, entityLabel: entityLabel("NOTE", created), changes: { excerpt: body.slice(0, 80) } });
   revalidateTrip(tripId, "plan");
   return { success: true };
 }

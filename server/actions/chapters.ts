@@ -6,8 +6,8 @@ import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap, canAssignToChapter } from "@/lib/chapters";
 import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
 import { nextChapterColour } from "@/lib/chapter-colours";
-import { recordPlanActivity } from "@/lib/activity-guard";
-import { entityLabel, describeChanges } from "@/lib/activity";
+import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
+import { entityLabel } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 import { reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
 import type { ReorderResult } from "@/server/actions/stops";
@@ -28,10 +28,6 @@ export type ChapterActionResult = ActionResult;
 
 async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string; forkId: string | null }> {
   return (await requireRowAccess("chapter", chapterId)).row;
-}
-
-async function loadFullChapter(chapterId: string) {
-  return db.chapter.findUnique({ where: { id: chapterId } });
 }
 
 // Check-then-write: a concurrent pair of overlapping chapters is a theoretical TOCTOU race,
@@ -99,7 +95,7 @@ export async function createChapter(
     }
   }
 
-  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created) });
   revalidateTrip(tripId, "plan");
   return { success: true };
 }
@@ -117,16 +113,7 @@ export async function updateChapter(
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
   }
 
-  const before = await loadFullChapter(chapterId);
-  const updated = await db.chapter.update({ where: { id: chapterId }, data: parsed.data });
-  await recordPlanActivity(chapter.forkId, {
-    tripId: chapter.tripId,
-    verb: "UPDATED",
-    entityType: "CHAPTER",
-    entityId: chapterId,
-    entityLabel: entityLabel("CHAPTER", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("CHAPTER", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
+  await auditedUpdate("CHAPTER", db.chapter, chapterId, parsed.data, chapter.forkId ?? null);
   revalidateTrip(chapter.tripId, "plan");
   return { success: true };
 }

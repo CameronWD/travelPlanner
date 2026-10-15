@@ -247,9 +247,11 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
  */
 export function describeChanges(
   entityType: ActivityEntityType,
-  before: Record<string, unknown>,
-  after: Record<string, unknown>,
+  beforeRow: object,
+  afterRow: object,
 ): ActivityChange[] {
+  const before = beforeRow as Record<string, unknown>;
+  const after = afterRow as Record<string, unknown>;
   const specs = FIELD_SPECS[entityType];
   const changes: ActivityChange[] = [];
 
@@ -268,7 +270,7 @@ export function describeChanges(
 
     // Determine which row to use as "context" for format (e.g. currency lookup).
     // For COST money fields we want to prefer the after row's currency if available.
-    const formatRow = { ...before, ...after } as Record<string, unknown>;
+    const formatRow = { ...before, ...after };
 
     const fmt = spec.format ?? ((v) => defaultFormat(v));
     changes.push({
@@ -297,8 +299,9 @@ export function describeChanges(
  */
 export function entityLabel(
   entityType: ActivityEntityType,
-  row: Record<string, unknown>,
+  entityRow: object,
 ): string {
+  const row = entityRow as Record<string, unknown>;
   const str = (v: unknown): string =>
     typeof v === "string" && v.length > 0 ? v : "";
 

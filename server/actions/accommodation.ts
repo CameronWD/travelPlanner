@@ -7,9 +7,9 @@ import {
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
 import { geocodePlace } from "@/lib/geocode";
-import { recordPlanActivity } from "@/lib/activity-guard";
+import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
-import { entityLabel, describeChanges } from "@/lib/activity";
+import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
@@ -142,7 +142,7 @@ export async function createAccommodation(
     }
   }
 
-  await recordPlanActivity(plan, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created) });
   revalidateTrip(stop.tripId, "plan", "money");
   return { success: true, id: created.id };
 }
@@ -178,8 +178,6 @@ export async function updateAccommodation(
   }
   await requireOutsideSurprise(acc.viewerId, { stopId: stop.id });
 
-  const before = await db.accommodation.findUnique({ where: { id: accommodationId } });
-
   // Best-effort geocode from address
   let lat: number | null = null;
   let lng: number | null = null;
@@ -189,22 +187,19 @@ export async function updateAccommodation(
     lng = coords?.lng ?? null;
   }
 
-  const updated = await db.accommodation.update({
-    where: { id: accommodationId },
-    data: {
-      stopId: data.stopId,
-      name: data.name,
-      address: data.address ?? null,
-      checkIn: data.checkIn,
-      checkOut: data.checkOut,
-      checkInTime: data.checkInTime ?? null,
-      checkOutTime: data.checkOutTime ?? null,
-      confirmation: data.confirmation ?? null,
-      notes: data.notes ?? null,
-      lat,
-      lng,
-    },
-  });
+  await auditedUpdate("ACCOMMODATION", db.accommodation, accommodationId, {
+    stopId: data.stopId,
+    name: data.name,
+    address: data.address ?? null,
+    checkIn: data.checkIn,
+    checkOut: data.checkOut,
+    checkInTime: data.checkInTime ?? null,
+    checkOutTime: data.checkOutTime ?? null,
+    confirmation: data.confirmation ?? null,
+    notes: data.notes ?? null,
+    lat,
+    lng,
+  }, acc.forkId ?? null);
 
   // Inline cost management:
   // 0 existing costs + amount provided → create
@@ -269,14 +264,6 @@ export async function updateAccommodation(
     // >1 costs: do nothing — CostEditor is authoritative
   }
 
-  await recordPlanActivity(acc.forkId, {
-    tripId: acc.tripId,
-    verb: "UPDATED",
-    entityType: "ACCOMMODATION",
-    entityId: accommodationId,
-    entityLabel: entityLabel("ACCOMMODATION", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("ACCOMMODATION", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
   revalidateTrip(acc.tripId, "plan", "money");
   return { success: true };
 }
