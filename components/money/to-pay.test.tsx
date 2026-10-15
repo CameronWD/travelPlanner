@@ -109,7 +109,7 @@ describe("To pay (MONEY.md §4)", () => {
     const box = screen.getByRole("checkbox", { name: "Travel insurance" });
     await user.click(box);
     expect(box).toHaveAttribute("aria-checked", "true");
-    resolve({ success: false, errors: { _form: ["x"] } });
+    resolve({ success: false, errors: { _: ["x"] } });
     await waitFor(() => expect(box).toHaveAttribute("aria-checked", "false"));
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
   });

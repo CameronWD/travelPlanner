@@ -4,12 +4,12 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
-import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
@@ -60,23 +60,9 @@ async function applySurpriseFor(
  * not surprised by it (CONTEXT.md Surprise). Returns the item (with tripId,
  * the viewer and the live Surprise it is inside) or throws notFound().
  */
-async function requireItemAccess(itemId: string): Promise<{
-  id: string;
-  tripId: string;
-  forkId: string | null;
-  viewerId: string;
-  surpriseOf: SurpriseRoot | null;
-}> {
-  const item = await db.item.findUnique({
-    where: { id: itemId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!item) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(item.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { itemId: item.id });
-  return { ...item, viewerId: user.id, surpriseOf };
+async function requireItemAccess(itemId: string) {
+  const { row, user, surpriseOf } = await requireRowAccess("item", itemId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 /**
@@ -137,7 +123,7 @@ export async function createItem(
   input: ItemInput,
   forkId?: PlanId,
 ): Promise<ActionResult<{ id: string }>> {
-  const { user } = await requireTripAccess(tripId);
+  const { user, plan } = await requirePlanAccess(tripId, forkId);
 
   const parsed = itemSchema.safeParse(input);
   if (!parsed.success) {
@@ -153,7 +139,7 @@ export async function createItem(
       where: { id: data.stopId },
       select: { id: true, tripId: true, forkId: true, timezone: true },
     });
-    if (!stop || stop.tripId !== tripId || stop.forkId !== (forkId ?? null)) {
+    if (!stop || stop.tripId !== tripId || stop.forkId !== plan) {
       return {
         success: false,
         errors: { stopId: ["Stop does not belong to this trip"] },
@@ -181,7 +167,7 @@ export async function createItem(
 
   // Sort order: max + 1 within the target plan
   const maxItem = await db.item.findFirst({
-    where: { tripId, ...planScope(forkId) },
+    where: { tripId, ...planScope(plan) },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -201,7 +187,7 @@ export async function createItem(
   const created = await db.item.create({
     data: {
       tripId,
-      forkId: forkId ?? null,
+      forkId: plan,
       stopId: data.stopId ?? null,
       title: data.title,
       category: data.category,
@@ -237,7 +223,7 @@ export async function createItem(
         await (tx as typeof db).cost.create({
           data: {
             tripId,
-            forkId: forkId ?? null,
+            forkId: plan,
             ownerType: "ITEM",
             ownerId: created.id,
             costMinor: data.costMinor!,
@@ -254,7 +240,7 @@ export async function createItem(
     }
   }
 
-  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
   revalidateItemPaths(tripId);
   if (surpriseForIds) {
     // Checked above, so a refusal here is a race (say, a Traveller left meanwhile).
@@ -659,6 +645,7 @@ export async function scheduleItem(
   forkId?: PlanId,
 ): Promise<ActionResult<{ placedItemId?: string }>> {
   const accessItem = await requireItemAccess(itemId);
+  const { plan } = await requirePlanAccess(accessItem.tripId, forkId);
 
   const parsed = scheduleDateSchema.safeParse(input);
   if (!parsed.success) {
@@ -680,7 +667,7 @@ export async function scheduleItem(
     const maxPlaced = await db.item.findFirst({
       where: {
         tripId: accessItem.tripId,
-        ...planScope(forkId),
+        ...planScope(plan),
         date: { not: null },
       },
       orderBy: { sortOrder: "desc" },
@@ -694,14 +681,14 @@ export async function scheduleItem(
     // Stop it happens in (ADR 0049 rule 5). A Wishlist idea by definition
     // carries no Stop, so there is no prior owner to preserve and a
     // Changeover day simply yields the arriving Stop.
-    const planStops = await loadPlanStopsForOwnership(accessItem.tripId, forkId ?? null);
+    const planStops = await loadPlanStopsForOwnership(accessItem.tripId, plan);
     const placedStopId = resolveOwningStop(null, date, planStops);
     await requireOutsideSurprise(accessItem.viewerId, { stopId: placedStopId });
 
     const placed = await db.item.create({
       data: {
         tripId: accessItem.tripId,
-        forkId: forkId ?? null,
+        forkId: plan,
         ...ideaCopyData(fullItem),
         stopId: placedStopId,
         date,
@@ -713,7 +700,7 @@ export async function scheduleItem(
 
     return finishPlacedCopy({
       tripId: accessItem.tripId,
-      forkId,
+      forkId: plan,
       source: fullItem,
       placed,
     });
@@ -768,6 +755,7 @@ export async function placeIdeaAtStop(
   forkId?: PlanId,
 ): Promise<ActionResult<{ placedItemId?: string }>> {
   const accessItem = await requireItemAccess(itemId);
+  const { plan } = await requirePlanAccess(accessItem.tripId, forkId);
 
   const fullItem = await db.item.findUnique({ where: { id: itemId } });
   if (!fullItem) notFound();
@@ -779,7 +767,7 @@ export async function placeIdeaAtStop(
   }
 
   const stop = await db.stop.findFirst({
-    where: { id: stopId, tripId: accessItem.tripId, ...planScope(forkId) },
+    where: { id: stopId, tripId: accessItem.tripId, ...planScope(plan) },
     select: { id: true },
   });
   if (!stop) {
@@ -791,7 +779,7 @@ export async function placeIdeaAtStop(
   // THINGS_TO_DO_WHERE: stopId set, date null) — distinct from a placed
   // copy's sortOrder, which is scoped to the whole plan's dated items.
   const maxThing = await db.item.findFirst({
-    where: { tripId: accessItem.tripId, ...planScope(forkId), stopId, date: null },
+    where: { tripId: accessItem.tripId, ...planScope(plan), stopId, date: null },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -800,7 +788,7 @@ export async function placeIdeaAtStop(
   const placed = await db.item.create({
     data: {
       tripId: accessItem.tripId,
-      forkId: forkId ?? null,
+      forkId: plan,
       ...ideaCopyData(fullItem),
       stopId,
       date: null,
@@ -812,7 +800,7 @@ export async function placeIdeaAtStop(
 
   return finishPlacedCopy({
     tripId: accessItem.tripId,
-    forkId,
+    forkId: plan,
     source: fullItem,
     placed,
   });

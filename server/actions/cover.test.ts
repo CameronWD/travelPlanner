@@ -148,7 +148,7 @@ describe("setTripCover", () => {
     fd.set("tripId", TRIP_ID);
     const result = await setTripCover(fd);
     expect(result.success).toBe(false);
-    expect((result as { success: false; error: string }).error).toMatch(/file/i);
+    expect((result as { success: false; errors: Record<string, string[]> }).errors._[0]).toMatch(/file/i);
     expect(storageSaveMock).not.toHaveBeenCalled();
   });
 
@@ -232,7 +232,7 @@ describe("setTripCover", () => {
 
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error).toBe("Couldn't upload the cover photo. Nothing was saved. Try again.");
+    expect(result.errors._![0]).toBe("Couldn't upload the cover photo. Nothing was saved. Try again.");
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
     // ARCH-OBS-1
@@ -261,7 +261,7 @@ describe("setTripCover", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "Teepee's file storage is full. Cam has been told.",
+      errors: { _: ["Teepee's file storage is full. Cam has been told."] },
     });
     expect(checkQuotaMock).toHaveBeenCalledWith({ tripId: null, size: expect.any(Number) });
     expect(storageSaveMock).not.toHaveBeenCalled();

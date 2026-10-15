@@ -26,10 +26,8 @@ export async function runTool(name: string, fn: () => Promise<unknown>): Promise
   try {
     const value = await fn();
     if (value && typeof value === "object" && "success" in value) {
-      const v = value as { success: boolean; errors?: Record<string, string[]>; error?: string };
-      if (v.success === false) {
-        return text(`Couldn't do that: ${v.errors ? fieldErrors(v.errors) : (v.error ?? "unknown error")}`, true);
-      }
+      const v = value as { success: boolean; errors?: Record<string, string[]> };
+      if (v.success === false) return text(`Couldn't do that: ${fieldErrors(v.errors ?? {})}`, true);
       const rest: Record<string, unknown> = { ...(value as Record<string, unknown>) };
       delete rest.success;
       return text(JSON.stringify(rest, null, 2));

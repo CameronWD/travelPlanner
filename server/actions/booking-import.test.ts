@@ -8,6 +8,7 @@ import type { ImportContext } from "@/lib/booking-import/types";
 
 const m = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
+  requirePlanAccess: vi.fn(),
   isAiConfigured: vi.fn(),
   prepare: vi.fn(),
   extract: vi.fn(),
@@ -16,7 +17,7 @@ const m = vi.hoisted(() => ({
   report: vi.fn(),
   confirm: vi.fn(),
 }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess, requirePlanAccess: m.requirePlanAccess }));
 vi.mock("@/lib/ai", () => ({ isAiConfigured: m.isAiConfigured, aiModel: () => "claude-haiku-5-5" }));
 vi.mock("@/lib/booking-import/input", () => ({ prepareBookingInput: m.prepare }));
 vi.mock("@/lib/booking-import/extract", () => ({ extractBooking: m.extract }));
@@ -43,6 +44,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   user += 1; // a fresh Traveller per test: the limiter is module state
   m.requireTripAccess.mockResolvedValue({ user: { id: `u${user}` }, membership: { role: "owner" } });
+  m.requirePlanAccess.mockImplementation(async (_tripId: string, forkId?: string | null) => ({
+    user: { id: `u${user}` },
+    membership: { role: "owner" },
+    plan: forkId ?? null,
+  }));
   m.isAiConfigured.mockReturnValue(true);
   m.prepare.mockResolvedValue({ ok: true, source: "text", parts: [{ type: "text", text: "booking" }] });
   m.extract.mockResolvedValue({ kind: "ok", model: "claude-haiku-5-5", usage: USAGE, extraction: SAMPLE_EXTRACTION });
@@ -56,8 +62,8 @@ describe("importBooking", () => {
     expectAccessCheckedBeforeWrite(m.requireTripAccess, m.extract);
     expect(m.prepare).toHaveBeenCalledWith({ file: null, text: "booking" });
     expect(m.load).toHaveBeenCalledWith("trip-1", "fork-1", `u${user}`);
-    expect(result).toMatchObject({ ok: true, partial: false, context: CONTEXT });
-    if (result.ok) expect(result.proposals.map((p) => p.clientId)).toEqual(["p1", "p2", "p3"]);
+    expect(result).toMatchObject({ success: true, partial: false, context: CONTEXT });
+    if (result.success) expect(result.proposals.map((p) => p.clientId)).toEqual(["p1", "p2", "p3"]);
     expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", userId: `u${user}`, model: "claude-haiku-5-5", usage: USAGE, proposalCount: 3, outcome: "ok" }));
   });
 
@@ -70,60 +76,60 @@ describe("importBooking", () => {
 
   it("is refused when AI isn't configured, without reading anything", async () => {
     m.isAiConfigured.mockReturnValue(false);
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ ok: false, reason: "disabled", message: M.disabled });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "disabled", errors: { _: [M.disabled] } });
     expect(m.prepare).not.toHaveBeenCalled();
   });
 
   it("returns an input failure as is, with no API call and no usage row", async () => {
     m.prepare.mockResolvedValue({ ok: false, reason: "invalid_file", message: M.heic });
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ ok: false, reason: "invalid_file", message: M.heic });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "invalid_file", errors: { _: [M.heic] } });
     expect(m.extract).not.toHaveBeenCalled();
     expect(m.record).not.toHaveBeenCalled();
   });
 
   it("says when it isn't a booking", async () => {
     m.extract.mockResolvedValue({ kind: "ok", model: "claude-haiku-5-5", usage: USAGE, extraction: { isBooking: false, notBookingReason: "it is a newsletter", bookedOn: null, proposals: [] } });
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ ok: false, reason: "not_booking", message: "This doesn't look like a booking: it is a newsletter." });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "not_booking", errors: { _: ["This doesn't look like a booking: it is a newsletter."] } });
     expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ outcome: "not_booking", proposalCount: 0 }));
   });
 
   it("says when a booking has nothing it could add", async () => {
     m.extract.mockResolvedValue({ kind: "ok", model: "claude-haiku-5-5", usage: USAGE, extraction: { ...SAMPLE_EXTRACTION, proposals: [] } });
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ ok: false, reason: "nothing_usable", message: M.nothingUsable });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "nothing_usable", errors: { _: [M.nothingUsable] } });
     expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ outcome: "ok", proposalCount: 0 }));
   });
 
   it("flags a partial result when something was dropped", async () => {
     const backwards = { ...STAY, accommodation: { ...STAY.accommodation!, checkIn: "2026-12-08", checkOut: "2026-12-02" } };
     m.extract.mockResolvedValue({ kind: "ok", model: "claude-haiku-5-5", usage: USAGE, extraction: { ...SAMPLE_EXTRACTION, proposals: [...SAMPLE_EXTRACTION.proposals, backwards] } });
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toMatchObject({ ok: true, partial: true });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toMatchObject({ success: true, partial: true });
   });
 
   it("unreadable: reports the fixed-message error and logs the tokens spent", async () => {
     const report = new Error("Booking import: stop_reason max_tokens");
     m.extract.mockResolvedValue({ kind: "unreadable", model: "claude-haiku-5-5", usage: USAGE, report });
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ ok: false, reason: "unreadable", message: M.unreadable });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "unreadable", errors: { _: [M.unreadable] } });
     expect(m.report).toHaveBeenCalledWith(report, expect.objectContaining({ route: "booking-import", source: "server" }));
     expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ outcome: "unreadable", usage: USAGE }));
   });
 
   it("busy: no error report; usage logged as api_error", async () => {
     m.extract.mockResolvedValue({ kind: "busy", model: "claude-haiku-5-5", usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } });
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ ok: false, reason: "busy", message: M.busy });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "busy", errors: { _: [M.busy] } });
     expect(m.report).not.toHaveBeenCalled();
     expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ outcome: "api_error" }));
   });
 
   it("a bad key or our own 400: generic message plus an error report", async () => {
     m.extract.mockResolvedValue({ kind: "api_error", model: "claude-haiku-5-5", usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, status: 401 });
-    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ ok: false, reason: "error", message: M.generic });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "error", errors: { _: [M.generic] } });
     expect(m.report).toHaveBeenCalledWith(expect.objectContaining({ message: "Booking import: Anthropic API error 401" }), expect.anything());
   });
 
   it("allows 20 imports an hour per Traveller, then says how long to wait", async () => {
-    for (let i = 0; i < 20; i++) expect((await importBooking(form({ tripId: "trip-1", text: "x" }))).ok).toBe(true);
+    for (let i = 0; i < 20; i++) expect((await importBooking(form({ tripId: "trip-1", text: "x" }))).success).toBe(true);
     const refused = await importBooking(form({ tripId: "trip-1", text: "x" }));
-    expect(refused).toEqual({ ok: false, reason: "rate_limited", message: M.rateLimited(60), retryInMinutes: 60 });
+    expect(refused).toEqual({ success: false, code: "rate_limited", errors: { _: [M.rateLimited(60)] }, retryInMinutes: 60 });
     expect(m.extract).toHaveBeenCalledTimes(20);
     expect(m.record).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: "rate_limited", proposalCount: 0 }));
   });
@@ -131,10 +137,10 @@ describe("importBooking", () => {
 
 describe("confirmProposal", () => {
   it("checks access, then confirms as the signed-in Traveller", async () => {
-    m.confirm.mockResolvedValue({ ok: true, createdId: "t-new", createdStops: {} });
+    m.confirm.mockResolvedValue({ success: true, createdId: "t-new", createdStops: {} });
     const request = { proposal: { clientId: "p1" }, proposedStops: [], resolvedStops: {} } as never;
-    expect(await confirmProposal("trip-1", request, "fork-1")).toEqual({ ok: true, createdId: "t-new", createdStops: {} });
+    expect(await confirmProposal("trip-1", request, "fork-1")).toEqual({ success: true, createdId: "t-new", createdStops: {} });
     expect(m.confirm).toHaveBeenCalledWith("trip-1", `u${user}`, request, "fork-1");
-    expectAccessCheckedBeforeWrite(m.requireTripAccess, m.confirm);
+    expectAccessCheckedBeforeWrite(m.requirePlanAccess, m.confirm);
   });
 });

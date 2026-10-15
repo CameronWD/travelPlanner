@@ -1,5 +1,6 @@
 "use server";
 
+import { ok, formFail, type ActionResult } from "@/lib/action-result";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { deviceLabelFromUserAgent } from "@/lib/device-label";
@@ -39,7 +40,7 @@ export interface ReconcileDeviceResult {
   healed: boolean;
 }
 
-export type RemoveDeviceResult = { ok: true } | { ok: false; error: string };
+export type RemoveDeviceResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -202,8 +203,8 @@ export async function removeDeviceById(id: string): Promise<RemoveDeviceResult> 
 
   try {
     await db.pushSubscription.deleteMany({ where: { id, userId: user.id } });
-    return { ok: true };
+    return ok();
   } catch {
-    return { ok: false, error: "Couldn't remove that device." };
+    return formFail("Couldn't remove that device.");
   }
 }

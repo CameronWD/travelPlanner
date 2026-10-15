@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import { previewStopDeletion } from "@/server/actions/stops";
 import type { StopDeletionPreview } from "@/server/actions/stops";
 import { formatMoney } from "@/lib/money";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 export type { StopDeletionPreview };
 
@@ -14,11 +15,6 @@ export type { StopDeletionPreview };
  * "drop a stop" — both fetch and render the SAME itemisation from the SAME
  * source, rather than each growing its own copy of this logic.
  */
-
-function firstErrorMessage(errors: Record<string, string[]> | undefined, fallback: string): string {
-  const first = errors ? Object.values(errors).flat()[0] : undefined;
-  return first ?? fallback;
-}
 
 /**
  * Fetch-once-on-mount loss preview for a Stop pending deletion. Never

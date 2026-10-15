@@ -28,8 +28,8 @@ export function findMembership<T extends MembershipLike>(
  * copies in server/actions/trips.ts (deleteTrip, duplicateTrip) and
  * server/actions/invites.ts (inviteToTrip), each of which returns a
  * user-facing typed error rather than throwing — so those call sites use this
- * predicate directly instead of the throwing `requireTripOwner` in
- * `lib/guards.ts` (which re-exports this function).
+ * predicate directly; actions that want a throwing owner gate call
+ * `requireTripAccess` then `isTripOwnerOrAdmin` and `notFound()`.
  *
  * Lives here rather than in `lib/guards.ts` deliberately: this file is
  * framework- and db-free (see the module comment above), and `lib/guards.ts`

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
 import { FormError } from "@/components/ui/form-error";
+import { formError } from "@/components/ui/action-failure";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -22,12 +23,6 @@ import { dayChipLabel, type ScheduleDayOptions } from "@/lib/schedule-day-option
 // Types
 // ---------------------------------------------------------------------------
 
-interface FormErrors {
-  date?: string[];
-  startTime?: string[];
-  endTime?: string[];
-  _form?: string[];
-}
 
 export interface ScheduleItemDialogProps {
   itemId: string;
@@ -218,7 +213,7 @@ function ScheduleForm({
             </div>
           ))}
 
-          <FormError>{(errors as FormErrors).date?.[0]}</FormError>
+          <FormError>{errors.date?.[0]}</FormError>
           <FormError>{addError}</FormError>
 
           <button type="button" className={LINK_CLASS} onClick={() => setMode("date")}>
@@ -232,7 +227,7 @@ function ScheduleForm({
             required
             value={date}
             onChange={(e) => changeDate(e.target.value)}
-            error={(errors as FormErrors).date?.[0]}
+            error={errors.date?.[0]}
             disabled={busy}
             autoFocus={!offersDays}
           />
@@ -247,7 +242,7 @@ function ScheduleForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
           label="Start time"
-          error={(errors as FormErrors).startTime?.[0]}
+          error={errors.startTime?.[0]}
           description={timesDisabled ? "Set a date first" : undefined}
         >
           <Input
@@ -259,7 +254,7 @@ function ScheduleForm({
         </Field>
         <Field
           label="End time"
-          error={(errors as FormErrors).endTime?.[0]}
+          error={errors.endTime?.[0]}
           description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
         >
           <Input
@@ -271,7 +266,7 @@ function ScheduleForm({
         </Field>
       </div>
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <FormError>{formError(errors)}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

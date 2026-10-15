@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { walkSources } from "@/test/helpers/walk-sources";
 
 /**
  * `next/image` is a Client Component, so a `loader` FUNCTION can only be
@@ -13,25 +13,14 @@ import { join } from "node:path";
  * statically: any module that passes `loader={…}` to `next/image` must be a
  * `"use client"` module.
  */
-function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name.startsWith(".")) continue;
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
-  }
-  return out;
-}
-
 describe("next/image loader functions stay inside Client Components", () => {
-  const root = join(__dirname, "..");
-  const offenders = [...walk(join(root, "app")), ...walk(join(root, "components"))].filter((file) => {
+  const offenders = [...walkSources("app", { skipTests: true }), ...walkSources("components", { skipTests: true })].filter((file) => {
     const src = readFileSync(file, "utf8");
     if (!src.includes('from "next/image"') || !/\bloader=\{/.test(src)) return false;
     return !/^\s*["']use client["']/.test(src);
   });
 
   it("finds no Server Component passing loader= to next/image", () => {
-    expect(offenders.map((f) => f.replace(root + "/", ""))).toEqual([]);
+    expect(offenders).toEqual([]);
   });
 });

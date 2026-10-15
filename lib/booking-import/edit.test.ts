@@ -42,8 +42,10 @@ describe("mergeStopEdit", () => {
 });
 
 describe("toActionResult", () => {
-  it("maps a confirm failure onto the form, keeping the message for a form-level line", () => {
-    expect(toActionResult({ ok: true, createdId: "x", createdStops: {} })).toEqual({ success: true });
-    expect(toActionResult({ ok: false, message: "Stop name is required", errors: { name: ["Stop name is required"] }, createdStops: {} })).toEqual({ success: false, errors: { _form: ["Stop name is required"], name: ["Stop name is required"] } });
+  it("passes a confirm result through unchanged — it is already an ActionResult (ADR 0074)", () => {
+    expect(toActionResult({ success: true, createdId: "x", createdStops: {} })).toEqual({ success: true, createdId: "x", createdStops: {} });
+    expect(
+      toActionResult({ success: false, errors: { _: ["Stop name is required"], name: ["Stop name is required"] }, createdStops: {} }),
+    ).toEqual({ success: false, errors: { _: ["Stop name is required"], name: ["Stop name is required"] }, createdStops: {} });
   });
 });

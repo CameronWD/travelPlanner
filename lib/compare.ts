@@ -26,8 +26,9 @@ import {
   type BudgetTransport,
 } from "@/lib/budget";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
-import { daysBetween } from "@/lib/dates";
+import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
+import { tripHomeBase } from "@/lib/home-base";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -84,6 +85,13 @@ interface CompareTrip {
   drivingAvgSpeedKph: number;
   /** Trip.roundTrip (default true) — threaded onto the deadline as `homeward` (ADR 0068, R8). */
   roundTrip?: boolean;
+  /** The Trip's Home base (lib/home-base.ts `tripHomeBase`) — feeds `detectFlags`' home-connection flags (LA-215). */
+  homeName?: string | null;
+  homeLat?: number | null;
+  homeLng?: number | null;
+  homeCountryCode?: string | null;
+  /** The Trip's Home base IANA timezone — a Home-flagged transport end reads its calendar date in this zone. */
+  homeTimezone?: string | null;
 }
 
 export interface PlanMetricsInput {
@@ -150,7 +158,10 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   const stopCount = stops.length;
   let nightTotal = 0;
   for (const s of stops) {
-    nightTotal += s.nights ?? 0;
+    // LA-215 / TB-02: a dated real-plan Stop can have `nights: null` (its
+    // nights are its dates — ADR 0038); count those from the dates rather
+    // than silently treating them as 0.
+    nightTotal += s.nights ?? (s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : 0);
   }
 
   // Route in sortOrder, distinct countries in first-appearance order
@@ -331,6 +342,13 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   let infoCount = 0;
 
   if (stops.length > 0 || projectedEnd !== null) {
+    // First/last stop by sortOrder across ALL stops (dated + rough) — the
+    // home-connection flag needs this (lib/flags-loader.ts's flagsFromRows).
+    const homeFirstStop = sortedStops[0] ? { id: sortedStops[0].id, name: sortedStops[0].name } : null;
+    const homeLastStop = sortedStops[sortedStops.length - 1]
+      ? { id: sortedStops[sortedStops.length - 1].id, name: sortedStops[sortedStops.length - 1].name }
+      : null;
+
     const flags = detectFlags({
       stops: scheduledStops,
       transports: flagTransports,
@@ -344,6 +362,16 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       deadline,
       drivingWindingFactor: trip.drivingWindingFactor,
       drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+      home: tripHomeBase({
+        homeName: trip.homeName ?? null,
+        homeLat: trip.homeLat ?? null,
+        homeLng: trip.homeLng ?? null,
+        homeCountryCode: trip.homeCountryCode ?? null,
+      }),
+      homeTimezone: trip.homeTimezone,
+      roundTrip: trip.roundTrip ?? undefined,
+      homeFirstStop,
+      homeLastStop,
     });
 
     for (const f of flags) {

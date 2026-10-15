@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/guards";
 import { isUniqueConstraintError } from "@/lib/access-requests";
-import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { type ActionResult, ok, formFail } from "@/lib/action-result";
 import { mailConfigured, sendMail } from "@/lib/mail";
 import { renderApprovalEmail } from "@/lib/approval-email";
 import { siteUrl } from "@/lib/site-url";
@@ -117,10 +117,10 @@ export async function approveAccessRequest(id: string): Promise<ActionResult<{ m
 
   const request = await db.accessRequest.findUnique({ where: { id } });
   if (!request) {
-    return fail({ _form: ["That access request no longer exists."] });
+    return formFail("That access request no longer exists.");
   }
   if (request.resolvedAt) {
-    return fail({ _form: ["That request has already been resolved."] });
+    return formFail("That request has already been resolved.");
   }
 
   const email = request.email.trim().toLowerCase();
@@ -174,10 +174,10 @@ export async function dismissAccessRequest(id: string): Promise<ActionResult> {
 
   const request = await db.accessRequest.findUnique({ where: { id } });
   if (!request) {
-    return fail({ _form: ["That access request no longer exists."] });
+    return formFail("That access request no longer exists.");
   }
   if (request.resolvedAt) {
-    return fail({ _form: ["That request has already been resolved."] });
+    return formFail("That request has already been resolved.");
   }
 
   await db.accessRequest.update({
@@ -275,11 +275,9 @@ export async function revokeAllowedEmail(id: string): Promise<ActionResult> {
   const admin = await requireAdmin();
 
   if (id.startsWith("env:")) {
-    return fail({
-      _form: [
-        "That address is set in the ALLOWED_EMAILS environment variable. Remove it from the deployment's environment instead.",
-      ],
-    });
+    return formFail(
+      "That address is set in the ALLOWED_EMAILS environment variable. Remove it from the deployment's environment instead.",
+    );
   }
 
   const row = await db.allowedEmail.findUnique({ where: { id } });
@@ -289,11 +287,7 @@ export async function revokeAllowedEmail(id: string): Promise<ActionResult> {
 
   const adminEmail = (admin.email ?? "").trim().toLowerCase();
   if (row.email.trim().toLowerCase() === adminEmail) {
-    return fail({
-      _form: [
-        "You can't revoke your own address. It would lock you out. Ask another Admin.",
-      ],
-    });
+    return formFail("You can't revoke your own address. It would lock you out. Ask another Admin.");
   }
 
   await db.allowedEmail.delete({ where: { id } });

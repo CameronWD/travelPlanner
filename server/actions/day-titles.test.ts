@@ -32,7 +32,6 @@ const {
   dayTitleDeleteMock: vi.fn().mockResolvedValue({ id: "dt-1" }),
 }));
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
@@ -46,6 +45,26 @@ vi.mock("@/lib/surprise-guard", () => ({
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
+// requireStopAccess is now a thin adapter over requireRowAccess (Task 5) —
+// forward to the same stopFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await stopFindUniqueMock();
+    // This file mocks next/navigation's notFound to throw Error("NOT_FOUND")
+    // — reach for that same mock via dynamic import.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { stopId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     stop: {
@@ -102,7 +121,7 @@ describe("setDayTitle", () => {
     stopFindUniqueMock.mockResolvedValue(LISBON);
     await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "Sintra day trip" });
     expect(requireTripAccessMock).toHaveBeenCalledWith(LISBON.tripId);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, dayTitleUpsertMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, dayTitleUpsertMock);
   });
 
   it("upserts by (stopId, dayIndex) computed from the date", async () => {

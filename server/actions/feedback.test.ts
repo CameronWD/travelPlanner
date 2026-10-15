@@ -387,7 +387,7 @@ describe("deleteFeedbackNote", () => {
 
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.errors._form).toBeDefined();
+    expect(result.errors._).toBeDefined();
     expect(feedbackNoteDeleteMock).not.toHaveBeenCalled();
   });
 

@@ -9,6 +9,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
+  requirePlanAccessMock,
   revalidatePathMock,
   geocodePlaceMock,
   searchPlacesWithStatusMock,
@@ -76,6 +77,11 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
+    requirePlanAccessMock: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+      plan: forkId ?? null,
+    })),
     revalidatePathMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
     searchPlacesWithStatusMock: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
@@ -101,7 +107,31 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+// requireTransportAccess is now a thin adapter over requireRowAccess
+// (Task 4) — forward to the same transportFindUniqueMock/requireTripAccessMock
+// every test already seeds, so existing mockResolvedValueOnce chains for the
+// guard's own lookup keep working unchanged. Transport has no Surprise ref
+// (unchanged behaviour), so there's no requireOutsideSurprise call to forward.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await transportFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    return { row, user, membership, surpriseOf: null };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({
   geocodePlace: geocodePlaceMock,
@@ -296,14 +326,14 @@ describe("createTransport", () => {
     });
   });
 
-  it("calls requireTripAccess for access check", async () => {
+  it("calls requirePlanAccess for access check", async () => {
     transportFindFirstMock.mockResolvedValue(null);
     transportCreateMock.mockResolvedValue({ id: "t-1" });
 
     await createTransport("trip-1", VALID_INPUT);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, transportCreateMock);
   });
 
   it("returns validation error and does not write for invalid mode", async () => {
@@ -331,7 +361,7 @@ describe("createTransport", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errors._form).toBeDefined();
+      expect(result.errors._).toBeDefined();
     }
     expect(transportCreateMock).not.toHaveBeenCalled();
   });
@@ -522,7 +552,15 @@ describe("updateTransport", () => {
     await updateTransport("t-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, transportUpdateMock);
+  });
+
+  it("rejects with notFound and writes nothing when the transport doesn't exist", async () => {
+    transportFindUniqueMock.mockResolvedValue(null);
+
+    await expect(updateTransport("missing-transport", VALID_INPUT)).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+
+    expect(transportUpdateMock).not.toHaveBeenCalled();
   });
 
   it("records UPDATED activity with changes array", async () => {
@@ -724,7 +762,7 @@ describe("deleteTransport", () => {
     await deleteTransport("t-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, transportDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted label", async () => {
@@ -1241,7 +1279,7 @@ describe("anchorStopId: createTransport round-trips and validates", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errors._form).toBeDefined();
+      expect(result.errors._).toBeDefined();
     }
     expect(transportCreateMock).not.toHaveBeenCalled();
   });
@@ -1296,7 +1334,7 @@ describe("anchorStopId: updateTransport persists anchorStopId and validates it",
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errors._form).toBeDefined();
+      expect(result.errors._).toBeDefined();
     }
     expect(transportUpdateMock).not.toHaveBeenCalled();
   });
@@ -1367,7 +1405,7 @@ describe("reorderTransports", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("calls requireTripAccess for auth check", async () => {
+  it("calls requirePlanAccess for auth check", async () => {
     transportFindManyMock.mockResolvedValue([
       { id: "leg-1", tripId: "trip-1", forkId: null },
     ]);
@@ -1375,8 +1413,8 @@ describe("reorderTransports", () => {
 
     await reorderTransports("trip-1", items);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportUpdateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, transportUpdateMock);
   });
 
   it("scopes the findMany query to the given forkId", async () => {

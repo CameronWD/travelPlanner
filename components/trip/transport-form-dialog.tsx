@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { Route } from "next";
-import { ArrowRight, Plus, Pencil } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { AppLink } from "@/components/navigation/app-link";
@@ -21,6 +21,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { TRANSPORT_MODE_TILES, TRANSPORT_MODE_META, formatDuration } from "@/lib/transport";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
+import { formError } from "@/components/ui/action-failure";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import { parseAmountToMinor } from "@/lib/money";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
@@ -61,22 +62,6 @@ export interface StopOption {
   arriveDate?: string | null;
 }
 
-interface FormErrors {
-  mode?: string[];
-  fromStopId?: string[];
-  toStopId?: string[];
-  depPlace?: string[];
-  arrPlace?: string[];
-  depAt?: string[];
-  arrAt?: string[];
-  reference?: string[];
-  notes?: string[];
-  costMinor?: string[];
-  currency?: string[];
-  paidMinor?: string[];
-  paidAt?: string[];
-  _form?: string[];
-}
 
 export interface TransportFormDialogProps {
   tripId: string;
@@ -243,75 +228,6 @@ export function TransportFormDialog({
         preview={preview}
       />
     </FormDialog>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Trigger buttons
-// ---------------------------------------------------------------------------
-
-export function AddTransportButton({
-  tripId,
-  stops,
-  defaultFromStopId,
-  defaultToStopId,
-  label = "Add Transport",
-}: {
-  tripId: string;
-  stops: StopOption[];
-  defaultFromStopId?: string;
-  defaultToStopId?: string;
-  label?: string;
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-4" aria-hidden="true" />
-        {label}
-      </Button>
-      <TransportFormDialog
-        tripId={tripId}
-        stops={stops}
-        defaultFromStopId={defaultFromStopId}
-        defaultToStopId={defaultToStopId}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
-  );
-}
-
-export function EditTransportButton({
-  tripId,
-  stops,
-  transport,
-}: {
-  tripId: string;
-  stops: StopOption[];
-  transport: TransportCardTransport;
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        onClick={() => setOpen(true)}
-        aria-label="Edit Transport"
-        title="Edit Transport"
-      >
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      <TransportFormDialog
-        tripId={tripId}
-        stops={stops}
-        transport={transport}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
   );
 }
 
@@ -661,7 +577,7 @@ function TransportForm({
   const showContextRow =
     fromValue.kind === "stop" || fromValue.kind === "home" || toValue.kind === "stop" || toValue.kind === "home";
   const contextDate = fromStopRecord?.departDate ?? toStopRecord?.arriveDate ?? undefined;
-  const hasStopError = Boolean((errors as FormErrors).fromStopId?.[0] || (errors as FormErrors).toStopId?.[0]);
+  const hasStopError = Boolean(errors.fromStopId?.[0] || errors.toStopId?.[0]);
   // The submit button lives in DialogFooter, outside this <form> (see below —
   // NoteThread needs to sit between them without nesting inside the <form>
   // itself), so it's wired back in via the `form` attribute instead of DOM
@@ -672,7 +588,7 @@ function TransportForm({
 
   const stopsCombo = (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
+      <Field label="From" error={errors.fromStopId?.[0]}>
         <LocationCombobox
           label="From"
           value={fromValue}
@@ -695,7 +611,7 @@ function TransportForm({
         )}
       </Field>
 
-      <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
+      <Field label="To" error={errors.toStopId?.[0]}>
         <LocationCombobox
           label="To"
           value={toValue}
@@ -795,8 +711,8 @@ function TransportForm({
               );
             })}
           </div>
-          {(errors as FormErrors).mode?.[0] && (
-            <p className="mt-1.5 text-sm font-medium text-destructive">{(errors as FormErrors).mode?.[0]}</p>
+          {errors.mode?.[0] && (
+            <p className="mt-1.5 text-sm font-medium text-destructive">{errors.mode?.[0]}</p>
           )}
         </div>
 
@@ -838,11 +754,11 @@ function TransportForm({
                     value={depAt}
                     onChange={(e) => setDepAt(e.target.value)}
                     disabled={isPending}
-                    invalid={Boolean((errors as FormErrors).depAt?.[0])}
+                    invalid={Boolean(errors.depAt?.[0])}
                     className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
                   />
-                  {(errors as FormErrors).depAt?.[0] && (
-                    <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).depAt?.[0]}</p>
+                  {errors.depAt?.[0] && (
+                    <p className="mt-1 text-xs font-medium text-destructive">{errors.depAt?.[0]}</p>
                   )}
                 </div>
                 <div className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
@@ -855,11 +771,11 @@ function TransportForm({
                     value={arrAt}
                     onChange={(e) => setArrAt(e.target.value)}
                     disabled={isPending}
-                    invalid={Boolean((errors as FormErrors).arrAt?.[0])}
+                    invalid={Boolean(errors.arrAt?.[0])}
                     className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
                   />
-                  {(errors as FormErrors).arrAt?.[0] && (
-                    <p className="mt-1 text-xs font-medium text-destructive">{(errors as FormErrors).arrAt?.[0]}</p>
+                  {errors.arrAt?.[0] && (
+                    <p className="mt-1 text-xs font-medium text-destructive">{errors.arrAt?.[0]}</p>
                   )}
                 </div>
               </div>
@@ -900,7 +816,7 @@ function TransportForm({
             timeline renders the leg in; the head is only offered where a null
             anchor really lands there. */}
         <div data-pair="booking" className="grid gap-4 sm:grid-cols-2">
-          <Field label="Booking ref · only people on the trip see this" error={(errors as FormErrors).reference?.[0]}>
+          <Field label="Booking ref · only people on the trip see this" error={errors.reference?.[0]}>
             <Input
               value={reference}
               onChange={(e) => setReference(e.target.value)}
@@ -965,7 +881,7 @@ function TransportForm({
         </div>
 
         {/* Notes */}
-        <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+        <Field label="Notes" error={errors.notes?.[0]}>
           <Textarea
             value={notesText}
             onChange={(e) => setNotesText(e.target.value)}
@@ -991,7 +907,7 @@ function TransportForm({
           )}
         </Field>
 
-        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+        <FormError>{formError(errors)}</FormError>
       </form>
 
       {/* The transport's collaborative notes thread (edit mode only) — kept

@@ -6,6 +6,7 @@ import { Plus, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { AiSuggestButton } from "./ai-suggest-button";
 import { CategoryPill } from "./category-pill";
 import { Button } from "@/components/ui/button";
+import { formError } from "@/components/ui/action-failure";
 import { cn } from "@/lib/cn";
 import { aiSuggestActivities } from "@/server/actions/ai";
 import { createItem } from "@/server/actions/items";
@@ -57,13 +58,13 @@ export function AiActivitySuggestions({
     setError(null);
     startFetch(async () => {
       const result = await aiSuggestActivities(tripId, stopId);
-      if (result.ok) {
+      if (result.success) {
         setSuggestions(result.data.suggestions);
         setExpanded(true);
-      } else if (result.reason === "disabled") {
+      } else if (result.code === "disabled") {
         setError("AI features are not configured.");
       } else {
-        setError(result.message ?? "Couldn't get suggestions. Try again.");
+        setError(formError(result) ?? "Couldn't get suggestions. Try again.");
       }
     });
   }

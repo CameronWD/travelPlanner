@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { ok, formFail, type ActionResult } from "@/lib/action-result";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import { dispatchDigest } from "@/lib/digest-dispatch";
@@ -28,14 +29,12 @@ export interface DigestSettings {
   deviceCount: number;
 }
 
-export type SendTestDigestResult =
-  /**
-   * `placeholder` distinguishes the two successes: false means the real
-   * Digest went out, true means there was nothing to say today and the probe
-   * payload went instead. Both delivered; they need different copy.
-   */
-  | { ok: true; sent: number; placeholder: boolean }
-  | { ok: false; error: string };
+/**
+ * `placeholder` distinguishes the two successes: false means the real
+ * Digest went out, true means there was nothing to say today and the probe
+ * payload went instead. Both delivered; they need different copy.
+ */
+export type SendTestDigestResult = ActionResult<{ sent: number; placeholder: boolean }>;
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -72,7 +71,7 @@ export async function getDigestSettings(tripId: string): Promise<DigestSettings>
 export async function setDigestEnabled(
   tripId: string,
   enabled: boolean,
-): Promise<{ ok: true }> {
+): Promise<ActionResult> {
   const { user } = await requireTripAccess(tripId);
 
   await db.digestPreference.upsert({
@@ -82,7 +81,7 @@ export async function setDigestEnabled(
   });
 
   revalidatePath(`/trips/${tripId}/settings`);
-  return { ok: true };
+  return ok();
 }
 
 /**
@@ -99,7 +98,7 @@ export async function setDigestEnabled(
  *
  * Beyond that, this must never report success when nothing was delivered: a
  * `sent: 0` from `dispatchDigest` is surfaced as a failure rather than
- * `{ ok: true }`. An *empty* day is no longer one of those cases — the forced
+ * `{ success: true }`. An *empty* day is no longer one of those cases — the forced
  * dispatch sends a placeholder instead (lib/digest.ts asTestDigest), because
  * this button probes the push pipe and a quiet day says nothing about it.
  */
@@ -107,10 +106,7 @@ export async function sendTestDigest(tripId: string): Promise<SendTestDigestResu
   const { user } = await requireTripAccess(tripId);
 
   if (!isPushConfigured()) {
-    return {
-      ok: false,
-      error: "Push isn't configured on this deployment. The VAPID keys are missing.",
-    };
+    return formFail("Push isn't configured on this deployment. The VAPID keys are missing.");
   }
 
   const devices = await db.pushSubscription.findMany({
@@ -121,7 +117,7 @@ export async function sendTestDigest(tripId: string): Promise<SendTestDigestResu
 
   const newest = devices[0] ?? null;
   if (!newest) {
-    return { ok: false, error: "No device is subscribed yet. Press Enable first." };
+    return formFail("No device is subscribed yet. Press Enable first.");
   }
 
   const localDate = todayISOInZone(newest.timezone ?? "UTC");
@@ -135,10 +131,10 @@ export async function sendTestDigest(tripId: string): Promise<SendTestDigestResu
   });
 
   if (result.sent === 0) {
-    return { ok: false, error: "The test Digest could not be delivered." };
+    return formFail("The test Digest could not be delivered.");
   }
 
-  return { ok: true, sent: result.sent, placeholder: result.placeholder === true };
+  return ok({ sent: result.sent, placeholder: result.placeholder === true });
 }
 
 export interface TripDigestSetting {

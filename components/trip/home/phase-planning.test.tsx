@@ -149,6 +149,7 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -248,6 +249,7 @@ describe("PhasePlanning route map order (ADR 0038)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -312,6 +314,7 @@ describe("PhasePlanning chapter gating (Task 13)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -384,6 +387,7 @@ describe("PhasePlanning upcoming payments mount", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -460,6 +464,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: false,
   };
@@ -683,6 +688,7 @@ describe("PhasePlanning reminders slot (LA-029/045)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: true,
   };
@@ -791,6 +797,7 @@ describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: null,
     roundTrip: false,
     chaptersEnabled: false,
   };
@@ -862,6 +869,7 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     homeLat: null,
     homeLng: null,
     homeCountryCode: null,
+    homeTimezone: "Europe/London",
     roundTrip: false,
     chaptersEnabled: false,
   };
@@ -922,6 +930,12 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-hidden"] }));
     await run();
     expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ hiddenStopIds: ["s-hidden"] }));
+  });
+
+  it("TB-01: the Trip's homeTimezone reaches detectFlags, so the Home nudge and the Flags list never drift apart", async () => {
+    const { detectFlags } = await import("@/lib/flags");
+    await run();
+    expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Europe/London" }));
   });
 
   it("a hidden real-plan Item keeps its slot as a placeholder for the Flags; a Fork's placeholder does not", async () => {

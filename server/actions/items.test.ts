@@ -9,6 +9,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
+  requirePlanAccessMock,
   revalidatePathMock,
   geocodePlaceDetailedMock,
   itemFindUniqueMock,
@@ -75,6 +76,11 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
+    requirePlanAccessMock: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+      plan: forkId ?? null,
+    })),
     revalidatePathMock: vi.fn(),
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
@@ -102,12 +108,37 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// requireItemAccess is now a thin adapter over requireRowAccess (Task 4) —
+// forward to the same itemFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await itemFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { itemId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
-const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -369,14 +400,14 @@ describe("createItem", () => {
     expect(await createItem("trip-1", VALID_INPUT)).toEqual({ success: true, id: "item-new" });
   });
 
-  it("access-checks via requireTripAccess", async () => {
+  it("access-checks via requirePlanAccess", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
 
     await createItem("trip-99", VALID_INPUT);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-99", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, itemCreateMock);
   });
 
   it("rejects a stopId that belongs to a different trip", async () => {
@@ -577,7 +608,15 @@ describe("updateItem", () => {
     await updateItem("item-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+  });
+
+  it("rejects with notFound and writes nothing when the item doesn't exist", async () => {
+    itemFindUniqueMock.mockResolvedValue(null);
+
+    await expect(updateItem("missing-item", VALID_INPUT)).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+
+    expect(itemUpdateMock).not.toHaveBeenCalled();
   });
 
   it("returns validation error and does not write", async () => {
@@ -706,7 +745,7 @@ describe("deleteItem", () => {
     await deleteItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted title as entityLabel", async () => {
@@ -996,7 +1035,7 @@ describe("unscheduleItem", () => {
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-8");
     // sourceItemId: null takes the "unslotted" branch, which writes via
     // item.update (clearing the date) rather than item.delete.
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
   });
 
   it("unscheduleItem records DELETED activity", async () => {

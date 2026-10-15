@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { TIMEZONES, guessTimezoneForCountry } from "@/lib/tz";
 import { FormError } from "@/components/ui/form-error";
+import { formError } from "@/components/ui/action-failure";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
 import type { StopCardStop } from "@/components/plan/types";
@@ -32,18 +33,6 @@ import type { ActionResult } from "@/lib/action-result";
 import type { ProposedStopInput } from "@/lib/booking-import/types";
 
 const NO_CHAPTER = "__none__";
-
-interface FormErrors {
-  name?: string[];
-  country?: string[];
-  timezone?: string[];
-  nights?: string[];
-  chapterId?: string[];
-  arriveDate?: string[];
-  departDate?: string[];
-  notes?: string[];
-  _form?: string[];
-}
 
 export interface StopFormDialogProps {
   tripId: string;
@@ -318,7 +307,7 @@ function StopForm({
       {/* Place name + Country — paired from sm (spec 2026-10-05 §D). */}
       <div data-pair="place" className="grid gap-4 sm:grid-cols-2">
         {/* Name */}
-        <Field label="Place name" required error={(errors as FormErrors).name?.[0]}>
+        <Field label="Place name" required error={errors.name?.[0]}>
           <PlaceCombobox
             value={name}
             onValueChange={(t) => {
@@ -334,7 +323,7 @@ function StopForm({
         </Field>
 
         {/* Country */}
-        <Field label="Country" error={(errors as FormErrors).country?.[0]}>
+        <Field label="Country" error={errors.country?.[0]}>
           <Input
             value={country}
             onChange={(e) => handleCountryChange(e.target.value)}
@@ -347,7 +336,7 @@ function StopForm({
       {mode === "rough" ? (
         <div data-pair="rough" className="grid gap-4 sm:grid-cols-2">
           {/* Nights */}
-          <Field label="Nights (rough)" error={(errors as FormErrors).nights?.[0]}>
+          <Field label="Nights (rough)" error={errors.nights?.[0]}>
             <Input
               type="number"
               min={0}
@@ -358,7 +347,7 @@ function StopForm({
           </Field>
 
           {/* Chapter */}
-          <Field label="Chapter" error={(errors as FormErrors).chapterId?.[0]}>
+          <Field label="Chapter" error={errors.chapterId?.[0]}>
             <Select
               value={chapterId}
               onValueChange={setChapterId}
@@ -381,7 +370,7 @@ function StopForm({
       ) : (
         <>
           {/* Timezone */}
-          <Field label="Timezone" required error={(errors as FormErrors).timezone?.[0]}>
+          <Field label="Timezone" required error={errors.timezone?.[0]}>
             <Select
               value={timezone}
               onValueChange={setTimezone}
@@ -409,7 +398,7 @@ function StopForm({
               onChange={(e) => setArriveDate(e.target.value)}
               min={tripStartDate}
               max={tripEndDate}
-              error={(errors as FormErrors).arriveDate?.[0]}
+              error={errors.arriveDate?.[0]}
               disabled={isPending}
             />
             <DateField
@@ -419,7 +408,7 @@ function StopForm({
               onChange={(e) => setDepartDate(e.target.value)}
               min={arriveDate || tripStartDate}
               max={tripEndDate}
-              error={(errors as FormErrors).departDate?.[0]}
+              error={errors.departDate?.[0]}
               disabled={isPending}
             />
           </div>
@@ -427,7 +416,7 @@ function StopForm({
       )}
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+      <Field label="Notes" error={errors.notes?.[0]}>
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -454,7 +443,7 @@ function StopForm({
       </Field>
 
       {/* Form-level error */}
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <FormError>{formError(errors)}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

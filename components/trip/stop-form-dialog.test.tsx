@@ -104,11 +104,11 @@ describe("StopFormDialog", () => {
     expect(nameInput).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("a server-returned _form error appears with role=alert", async () => {
+  it("a server-returned form-level error appears with role=alert", async () => {
     const { createStop: mockCreateStop } = await import("@/server/actions/stops");
     (mockCreateStop as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _form: ["Something went wrong on the server"] },
+      errors: { _: ["Something went wrong on the server"] },
     });
 
     const user = userEvent.setup();
@@ -118,6 +118,26 @@ describe("StopFormDialog", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Something went wrong on the server");
+  });
+
+  it("TB-04: shows the ADR 0073 refusal returned under the form-level key", async () => {
+    const { updateStop: updateStopMock } = await import("@/server/actions/stops");
+    (updateStopMock as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _: ["A dated Trip's only Stop keeps the Trip's dates."] },
+    });
+
+    const LONDON = {
+      id: "stop-1", name: "London", country: "United Kingdom", timezone: "Europe/London",
+      arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, chapterId: null, sortOrder: 0, notes: null, lat: 51.5, lng: -0.12,
+    };
+
+    const user = userEvent.setup();
+    render(<StopFormDialog {...baseProps} stop={LONDON} />);
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(await screen.findByText("A dated Trip's only Stop keeps the Trip's dates.")).toBeInTheDocument();
   });
 
   it("is the wide dialog with Place name beside Country, and Nights beside Chapter (spec 2026-10-05 §D)", () => {

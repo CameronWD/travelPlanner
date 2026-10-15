@@ -21,7 +21,15 @@ const {
   paceMock: vi.fn(),
 }));
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+// requirePlanAccess (ADR 0074 rule 1): membership via requireTripAccessMock;
+// the validated plan is the forkId passed.
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: vi.fn(async (tripId: string, forkId?: string | null) => ({
+    ...(await requireTripAccessMock(tripId)),
+    plan: forkId ?? null,
+  })),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn() }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodeMock, geocodePlaceDetailed: geocodeMock, paceNominatim: paceMock }));

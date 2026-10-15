@@ -4,7 +4,16 @@
  * TDD: tests written first (RED), then implementation (GREEN).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Spy-wraps the real detectFlags so every existing flagCounts assertion keeps
+// exercising the real engine; TB-02/LA-215's "Home base fields" test asserts
+// on the call args of this same spy.
+vi.mock("@/lib/flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/flags")>();
+  return { ...actual, detectFlags: vi.fn(actual.detectFlags) };
+});
+
 import {
   computePlanMetrics,
   diffMetrics,
@@ -12,6 +21,8 @@ import {
   type PlanMetricsInput,
   type PlanMetrics,
 } from "./compare";
+import { detectFlags } from "@/lib/flags";
+import { stop as stopRow } from "@/test/builders";
 
 // ---------------------------------------------------------------------------
 // Minimal fixture builders
@@ -152,6 +163,15 @@ describe("stopCount and nightTotal", () => {
       ],
     };
     const m = computePlanMetrics(input);
+    expect(m.nightTotal).toBe(3);
+  });
+
+  it("TB-02: a dated real-plan Stop with nights null counts its nights from its dates", () => {
+    const base = emptyInput();
+    const m = computePlanMetrics({
+      ...base,
+      stops: [stopRow({ nights: null, arriveDate: "2026-11-01", departDate: "2026-11-04" }) as never],
+    });
     expect(m.nightTotal).toBe(3);
   });
 });
@@ -349,6 +369,48 @@ describe("flagCounts", () => {
     // Rule 4: 1-night stay → info
     expect(m.flagCounts.warning).toBeGreaterThanOrEqual(1);
     expect(m.flagCounts.info).toBeGreaterThanOrEqual(1);
+  });
+
+  it("Compare's Flags get the Home base fields", () => {
+    const stopA = makeStop("a", {
+      name: "Paris",
+      timezone: "Europe/Paris",
+      arriveDate: "2026-07-01",
+      departDate: "2026-07-03",
+      sortOrder: 0,
+    });
+    const stopB = makeStop("b", {
+      name: "Lyon",
+      timezone: "Europe/Paris",
+      arriveDate: "2026-07-03",
+      departDate: "2026-07-05",
+      sortOrder: 1,
+    });
+    const input: PlanMetricsInput = {
+      ...emptyInput(),
+      trip: {
+        ...makeTrip({ startDate: "2026-07-01" }),
+        homeName: "Sydney",
+        homeLat: -33.87,
+        homeLng: 151.21,
+        homeCountryCode: "AU",
+        homeTimezone: "Australia/Sydney",
+        roundTrip: true,
+      },
+      stops: [stopA, stopB],
+    };
+
+    computePlanMetrics(input);
+
+    expect(detectFlags).toHaveBeenCalledWith(
+      expect.objectContaining({
+        home: { name: "Sydney", lat: -33.87, lng: 151.21, countryCode: "AU" },
+        homeTimezone: "Australia/Sydney",
+        roundTrip: true,
+        homeFirstStop: { id: "a", name: "Paris" },
+        homeLastStop: { id: "b", name: "Lyon" },
+      }),
+    );
   });
 });
 

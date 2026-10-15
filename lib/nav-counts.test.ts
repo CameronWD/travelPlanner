@@ -1,228 +1,137 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Tests for loadNavCounts. Mocks: lib/db, lib/guards (requireTripAccess),
- * server/actions/stops (getTripProjection) — same style as
- * app/(app)/trips/[tripId]/summary/page.test.tsx, which exercises the same
- * detectFlags call this loader mirrors.
+ * Tests for loadNavCounts. `lib/flags-loader.ts`'s `loadFlagRows` owns every
+ * Flag's row-reading and Surprise-visibility threading now (TB-01, spec
+ * 2026-10-14) — loadNavCounts only reads the Wishlist count and the
+ * projection itself, so this file mocks `loadFlagRows` (the row read) and
+ * `detectFlags` (to assert what reaches it), not the individual Prisma
+ * delegates loadFlagRows used to call directly.
  */
-const {
-  requireTripAccessMock,
-  tripFindUniqueMock,
-  itemCountMock,
-  stopFindManyMock,
-  transportFindManyMock,
-  accommodationFindManyMock,
-  itemFindManyMock,
-  getTripProjectionMock,
-} = vi.hoisted(() => ({
-  requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: {} }),
-  tripFindUniqueMock: vi.fn(),
-  itemCountMock: vi.fn().mockResolvedValue(0),
-  stopFindManyMock: vi.fn(),
-  transportFindManyMock: vi.fn().mockResolvedValue([]),
-  accommodationFindManyMock: vi.fn().mockResolvedValue([]),
-  itemFindManyMock: vi.fn().mockResolvedValue([]),
-  getTripProjectionMock: vi.fn().mockResolvedValue({ projectedEnd: null, hardEndDate: null }),
+const db = vi.hoisted(() => ({
+  item: { count: vi.fn() },
 }));
+vi.mock("@/lib/db", () => ({ db }));
 
+const requireTripAccessMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("@/lib/db", () => ({
-  db: {
-    trip: { findUnique: tripFindUniqueMock },
-    item: { count: itemCountMock, findMany: itemFindManyMock },
-    stop: { findMany: stopFindManyMock },
-    transport: { findMany: transportFindManyMock },
-    accommodation: { findMany: accommodationFindManyMock },
-  },
-}));
+
+const getTripProjectionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/server/actions/stops", () => ({ getTripProjection: getTripProjectionMock }));
-// Surprise (ADR 0051): the loader asks the visibility loader and spreads its
-// fragments into its own queries; the visibility loader is tested on its own.
-const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
-vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
-  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
+
+const loadFlagRowsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/flags-loader", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/flags-loader")>();
+  return { ...actual, loadFlagRows: loadFlagRowsMock };
+});
+
+const detectFlagsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/flags")>();
+  return { ...actual, detectFlags: detectFlagsMock };
 });
 
 import { loadNavCounts } from "./nav-counts";
-import { NO_SURPRISES } from "@/lib/surprise-visibility";
-import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+import { trip, stop } from "@/test/builders";
+
+const BASE_ROWS = {
+  trip: trip(),
+  allStops: [stop()],
+  transports: [],
+  accommodations: [],
+  items: [],
+  hiddenStopIds: [] as readonly string[],
+};
 
 beforeEach(() => {
-  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
+  requireTripAccessMock.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+  db.item.count.mockResolvedValue(0);
+  loadFlagRowsMock.mockResolvedValue(BASE_ROWS);
+  getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null, deadline: null });
+  detectFlagsMock.mockReturnValue([]);
 });
-
-const DATED_STOP = {
-  id: "s1",
-  name: "Lisbon",
-  country: "PT",
-  lat: 38.7,
-  lng: -9.1,
-  timezone: "Europe/Lisbon",
-  arriveDate: "2026-12-04",
-  departDate: "2026-12-10",
-  sortOrder: 0,
-  pinned: false,
-  nights: 6,
-};
 
 afterEach(() => {
   vi.clearAllMocks();
-  requireTripAccessMock.mockResolvedValue({ user: { id: "u1" }, membership: {} });
-  itemCountMock.mockResolvedValue(0);
-  transportFindManyMock.mockResolvedValue([]);
-  accommodationFindManyMock.mockResolvedValue([]);
-  itemFindManyMock.mockResolvedValue([]);
-  getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
 });
 
 describe("loadNavCounts", () => {
   it("checks trip access", async () => {
-    tripFindUniqueMock.mockResolvedValue(null);
     await loadNavCounts("t1");
     expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
   });
 
-  it("is flags=0, wishlist=0 for a date-less trip (no dates yet)", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: null, endDate: null });
-    itemCountMock.mockResolvedValue(0);
+  it("reads Flag rows through loadFlagRows, as the viewer asking", async () => {
+    await loadNavCounts("t1");
+    expect(loadFlagRowsMock).toHaveBeenCalledWith("t1", "u1");
+  });
+
+  it("is flags=0, wishlist=0 for a date-less trip (loadFlagRows returns null; the projection, requested in parallel, is fetched and simply discarded)", async () => {
+    loadFlagRowsMock.mockResolvedValue(null);
+    db.item.count.mockResolvedValue(0);
     const result = await loadNavCounts("t1");
     expect(result).toEqual({ flags: 0, wishlist: 0 });
-    expect(stopFindManyMock).not.toHaveBeenCalled();
+    expect(getTripProjectionMock).toHaveBeenCalledWith("t1");
+    expect(detectFlagsMock).not.toHaveBeenCalled();
+  });
+
+  it("requests loadFlagRows and getTripProjection without awaiting one another (spec 2026-10-06 §C, one wave)", async () => {
+    loadFlagRowsMock.mockImplementation(() => new Promise(() => {})); // never settles
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null, deadline: null });
+    void loadNavCounts("t1");
+    await vi.waitFor(() => expect(getTripProjectionMock).toHaveBeenCalledWith("t1"));
   });
 
   it("reports the Wishlist count from db.item.count scoped to the real plan and wishlist-idea predicate", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: null, endDate: null });
-    itemCountMock.mockResolvedValue(4);
+    db.item.count.mockResolvedValue(4);
     const result = await loadNavCounts("t1");
     expect(result.wishlist).toBe(4);
-    expect(itemCountMock).toHaveBeenCalledWith({
+    expect(db.item.count).toHaveBeenCalledWith({
       where: { tripId: "t1", forkId: null, stopId: null, date: null },
     });
   });
 
-  it("counts Flags detected on a dated trip's real plan (a stop with no accommodation)", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      startDate: "2026-12-04",
-      endDate: "2026-12-10",
-      roundTrip: false,
-      homeName: null,
-      homeLat: null,
-      homeLng: null,
-      homeCountryCode: null,
-      drivingWindingFactor: null,
-      drivingAvgSpeedKph: null,
-    });
-    itemCountMock.mockResolvedValue(2);
-    stopFindManyMock
-      .mockResolvedValueOnce([DATED_STOP]) // dated stops
-      .mockResolvedValueOnce([]); // rough stops
-    accommodationFindManyMock.mockResolvedValue([]); // no accommodation -> flagStopsWithoutAccommodation fires
+  it("counts the Flags detectFlags returns for the loaded rows", async () => {
+    detectFlagsMock.mockReturnValue([
+      { id: "f1", severity: "warning", message: "No stay booked", targetType: "STOP" },
+      { id: "f2", severity: "info", message: "Short stay", targetType: "STOP" },
+    ]);
+    db.item.count.mockResolvedValue(2);
 
     const result = await loadNavCounts("t1");
 
-    expect(result.wishlist).toBe(2);
-    expect(result.flags).toBeGreaterThan(0);
+    expect(result).toEqual({ flags: 2, wishlist: 2 });
   });
 
-  it("Surprise: Flags are counted without the Accommodations and Items the viewer may not see; the Wishlist count and Stops are untouched", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      startDate: "2026-12-04", endDate: "2026-12-10", roundTrip: false,
-      homeName: null, homeLat: null, homeLng: null, homeCountryCode: null,
-      drivingWindingFactor: null, drivingAvgSpeedKph: null,
+  it("TB-01: a Trip row with homeTimezone reaches detectFlags, so the badge matches Summary's Flags list", async () => {
+    loadFlagRowsMock.mockResolvedValue({
+      ...BASE_ROWS,
+      trip: trip({ homeTimezone: "Australia/Sydney" }),
     });
-    stopFindManyMock.mockResolvedValue([]);
-    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
 
     await loadNavCounts("t1");
 
-    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("t1", "u1");
-    expect(accommodationFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "t1", forkId: null, ...MARKER_WHERE.accommodation });
-    expect(itemFindManyMock.mock.calls[0][0].where).toEqual({ tripId: "t1", forkId: null, ...MARKER_WHERE.item });
-    expect(itemCountMock).toHaveBeenCalledWith({ where: { tripId: "t1", forkId: null, stopId: null, date: null } });
-    for (const [arg] of stopFindManyMock.mock.calls) expect(JSON.stringify(arg)).not.toContain("surpriseMarker");
+    expect(detectFlagsMock).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Australia/Sydney" }));
   });
 
-  it("Surprise: a hidden Stop with no readable stay is not counted as a Flag", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      startDate: "2026-12-04", endDate: "2026-12-07", roundTrip: false,
-      homeName: null, homeLat: null, homeLng: null, homeCountryCode: null,
-      drivingWindingFactor: null, drivingAvgSpeedKph: null,
-    });
-    const paris = {
-      id: "s-secret", name: "Paris", country: null, lat: null, lng: null, timezone: "Europe/Paris",
-      arriveDate: "2026-12-04", departDate: "2026-12-07", sortOrder: 0, pinned: false, nights: 3,
-    };
-    stopFindManyMock.mockImplementation(async ({ where }: { where: { arriveDate: unknown } }) => (where.arriveDate === null ? [] : [paris]));
-
-    loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
-    const visible = await loadNavCounts("t1");
-    expect(visible.flags).toBeGreaterThan(0); // "No accommodation found for Paris" and its empty days
-
-    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: "u1", hiddenStopIds: ["s-secret"] }));
-    const hidden = await loadNavCounts("t1");
-    expect(hidden.flags).toBe(0);
+  it("no longer reads Stops itself — the row read is loadFlagRows' job", async () => {
+    await loadNavCounts("t1");
+    // db only exposes item.count to this loader now; nothing else to assert
+    // against directly, but loadFlagRows (mocked) is the sole row source.
+    expect(loadFlagRowsMock).toHaveBeenCalledTimes(1);
   });
 
-  it("is flags=0 on a dated trip with nothing to flag", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      startDate: "2026-12-04",
-      endDate: "2026-12-07",
-      roundTrip: false,
-      homeName: null,
-      homeLat: null,
-      homeLng: null,
-      homeCountryCode: null,
-      drivingWindingFactor: null,
-      drivingAvgSpeedKph: null,
-    });
-    itemCountMock.mockResolvedValue(0);
-    // A single 3-night stop (clears the short-stay threshold), booked
-    // accommodation covering it, and an item on each day it doesn't cover —
-    // no Flags should fire.
-    stopFindManyMock
-      .mockResolvedValueOnce([{ ...DATED_STOP, departDate: "2026-12-07", nights: 3 }])
-      .mockResolvedValueOnce([]);
-    accommodationFindManyMock.mockResolvedValue([
-      { id: "a1", stopId: "s1", name: "Hotel", checkIn: "2026-12-04", checkOut: "2026-12-07" },
-    ]);
-    itemFindManyMock.mockResolvedValue([
-      { id: "i1", stopId: "s1", date: "2026-12-05" },
-      { id: "i2", stopId: "s1", date: "2026-12-06" },
-    ]);
-
-    const result = await loadNavCounts("t1");
-    expect(result).toEqual({ flags: 0, wishlist: 0 });
-  });
-
-  it("forwards the projection's deadline to Flags: a return leg before the projected end is a Flag even with a roomy hard end (ADR 0068)", async () => {
-    const setup = () => {
-      tripFindUniqueMock.mockResolvedValue({
-        startDate: "2026-12-04", endDate: "2026-12-07", roundTrip: false,
-        homeName: null, homeLat: null, homeLng: null, homeCountryCode: null,
-        drivingWindingFactor: null, drivingAvgSpeedKph: null,
-      });
-      stopFindManyMock
-        .mockResolvedValueOnce([{ ...DATED_STOP, departDate: "2026-12-07", nights: 3 }])
-        .mockResolvedValueOnce([]);
-      accommodationFindManyMock.mockResolvedValue([
-        { id: "a1", stopId: "s1", name: "Hotel", checkIn: "2026-12-04", checkOut: "2026-12-07" },
-      ]);
-      itemFindManyMock.mockResolvedValue([
-        { id: "i1", stopId: "s1", date: "2026-12-05" },
-        { id: "i2", stopId: "s1", date: "2026-12-06" },
-      ]);
-    };
-    setup();
-    getTripProjectionMock.mockResolvedValue({ projectedEnd: "2026-12-07", hardEndDate: "2026-12-20", deadline: { kind: "hard-end", date: "2026-12-20" } });
-    expect((await loadNavCounts("t1")).flags).toBe(0);
-
-    setup();
+  it("forwards the projection's deadline to detectFlags: a return leg before the projected end is a Flag input even with a roomy hard end (ADR 0068)", async () => {
     getTripProjectionMock.mockResolvedValue({
-      projectedEnd: "2026-12-07", hardEndDate: "2026-12-20",
+      projectedEnd: "2026-12-07",
+      hardEndDate: "2026-12-20",
       deadline: { kind: "return-leg", date: "2026-12-06", mode: "FLIGHT", homeward: true },
     });
-    expect((await loadNavCounts("t1")).flags).toBe(1);
+
+    await loadNavCounts("t1");
+
+    expect(detectFlagsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ deadline: { kind: "return-leg", date: "2026-12-06", mode: "FLIGHT", homeward: true } }),
+    );
   });
 });

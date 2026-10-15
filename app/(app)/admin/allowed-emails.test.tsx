@@ -118,7 +118,7 @@ describe("AllowedEmailsPanel", () => {
   it("keeps the row and shows an error message when revoke fails", async () => {
     revokeAllowedEmail.mockResolvedValue({
       success: false,
-      errors: { _form: ["You can't revoke your own address."] },
+      errors: { _: ["You can't revoke your own address."] },
     });
     render(<AllowedEmailsPanel initial={entries} now={NOW} viewerEmail={null} />);
     await userEvent.click(screen.getByRole("button", { name: "Revoke friend@example.com" }));

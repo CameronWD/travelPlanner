@@ -16,6 +16,7 @@ import { JOURNAL_NOTE_MAX } from "@/lib/journal-window";
 import { journalBodyExceedsLimit } from "@/lib/journal-window";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { AttachmentLink } from "@/components/trip/attachment-link";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,7 +100,7 @@ function PhotoSlot({
       if (photo) fd.set("replace", "1");
       const result = await uploadAttachment(fd);
       if (!result.success) {
-        setUploadError(result.error);
+        setUploadError(firstErrorMessage(result, "Couldn't upload that photo."));
       }
       resetInput();
     });

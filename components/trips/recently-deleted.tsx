@@ -7,6 +7,7 @@ import { restoreTrip } from "@/server/actions/trips";
 import { tripPath } from "@/lib/trip-path";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 import type { RecentlyDeletedTrip } from "@/lib/trips/recently-deleted-loader";
 
 const MAX_DAYS = 30;
@@ -32,7 +33,11 @@ function RestoreButton({ trip }: { trip: RecentlyDeletedTrip }) {
       if (result.success) {
         router.push(tripPath(result.slug ?? trip.id));
       } else {
-        toast({ title: "Couldn't restore.", description: result.error, variant: "destructive" });
+        toast({
+          title: "Couldn't restore.",
+          description: firstErrorMessage(result, "Couldn't restore."),
+          variant: "destructive",
+        });
       }
     });
   }

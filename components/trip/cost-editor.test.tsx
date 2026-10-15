@@ -218,10 +218,10 @@ describe("CostEditor", () => {
     expect(createCost).not.toHaveBeenCalled();
   });
 
-  it("a _form error appears with role=alert via FormError", async () => {
+  it("a form-level error appears with role=alert via FormError", async () => {
     (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _form: ["Server error"] },
+      errors: { _: ["Server error"] },
     });
 
     const user = userEvent.setup();

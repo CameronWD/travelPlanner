@@ -11,10 +11,13 @@ const {
   subscribeThisDeviceMock,
 } = vi.hoisted(() => ({
   readLocalDeviceStateMock: vi.fn(),
-  removeDeviceByIdMock: vi.fn().mockResolvedValue({ ok: true }),
+  removeDeviceByIdMock: vi.fn().mockResolvedValue({ success: true }),
   listDevicesMock: vi.fn().mockResolvedValue([]),
-  unsubscribeFromPushMock: vi.fn().mockResolvedValue({ ok: true }),
+  unsubscribeFromPushMock: vi.fn().mockResolvedValue({ success: true }),
   isPushConfiguredMock: vi.fn().mockReturnValue(true),
+  // `subscribeThisDevice` is the client-only `SubscribeThisDeviceResult`
+  // (components/account/push-subscribe.ts) — not an ActionResult, unaffected
+  // by ADR 0074.
   subscribeThisDeviceMock: vi.fn().mockResolvedValue({ ok: true }),
 }));
 

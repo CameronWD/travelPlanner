@@ -72,12 +72,30 @@ const {
 });
 
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
+// requireChecklistItemAccess is now a thin adapter over requireRowAccess
+// (Task 5) — forward to the same checklistItemFindUniqueMock/
+// requireTripAccessMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged. ChecklistItem has no Surprise ref (unchanged behaviour), so
+// there's no requireOutsideSurprise call to forward.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await checklistItemFindUniqueMock();
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    return { row, user, membership, surpriseOf: null };
+  }),
+);
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
   requireUser: requireUserMock,
+  requireRowAccess: requireRowAccessMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     checklistItem: {
@@ -461,7 +479,7 @@ describe("toggleChecklistItem", () => {
     await toggleChecklistItem("ci-1", true);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, checklistItemUpdateMock);
   });
 
   it("revalidates checklists path", async () => {
@@ -495,7 +513,7 @@ describe("setBuyState", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "Only a Packing item can be marked to buy.",
+      errors: { _: ["Only a Packing item can be marked to buy."] },
     });
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
   });
@@ -511,7 +529,7 @@ describe("setBuyState", () => {
       where: { id: "ci-1" },
       data: { buy: "NEEDED" },
     });
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, checklistItemUpdateMock);
   });
 
   it("clears buy state with null", async () => {
@@ -541,7 +559,7 @@ describe("setBuyState", () => {
 
     const result = await setBuyState("ci-1", "BOGUS" as unknown as "NEEDED");
 
-    expect(result).toEqual({ success: false, error: "Invalid buy state." });
+    expect(result).toEqual({ success: false, errors: { _: ["Invalid buy state."] } });
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
   });
 });
@@ -579,7 +597,7 @@ describe("deleteChecklistItem", () => {
     await deleteChecklistItem("ci-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, checklistItemDeleteMock);
   });
 });
 

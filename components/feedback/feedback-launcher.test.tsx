@@ -519,7 +519,7 @@ describe("FeedbackLauncher", () => {
   it("clears the box when a rejected send leaves the note safely queued", async () => {
     createMock.mockResolvedValue({
       success: false,
-      errors: { _form: ["nope"] },
+      errors: { _: ["nope"] },
     });
     const user = userEvent.setup();
     render(<FeedbackLauncher />);
@@ -1216,7 +1216,7 @@ describe("FeedbackLauncher", () => {
     );
     createMock.mockImplementation(async (input) =>
       input.clientKey === "fk_doomed"
-        ? { success: false, errors: { _form: ["too long"] } }
+        ? { success: false, errors: { _: ["too long"] } }
         : { success: true, note: { ...existingNote, id: "n9", body: input.body } },
     );
 

@@ -1,9 +1,9 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { type TripDeadline } from "@/lib/trip-deadline";
 import { computeProjection } from "@/lib/trip-projection";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
@@ -13,7 +13,7 @@ import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
-import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, collisionPush } from "@/lib/reorder";
@@ -63,37 +63,9 @@ export type ReorderResult =
  * not surprised by it (CONTEXT.md Surprise). Returns the stop (with its
  * tripId, extra fields and the live Surprise it is inside) or throws notFound().
  */
-async function requireStopAccess(stopId: string): Promise<{
-  id: string;
-  tripId: string;
-  sortOrder: number;
-  arriveDate: string | null;
-  departDate: string | null;
-  nights: number | null;
-  pinned: boolean;
-  forkId: string | null;
-  surpriseOf: SurpriseRoot | null;
-}> {
-  const stop = await db.stop.findUnique({
-    where: { id: stopId },
-    select: {
-      id: true,
-      tripId: true,
-      sortOrder: true,
-      arriveDate: true,
-      departDate: true,
-      nights: true,
-      pinned: true,
-      forkId: true,
-    },
-  });
-  if (!stop) {
-    notFound();
-  }
-  // Also verify the user is a member of the trip
-  const { user } = await requireTripAccess(stop.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: stop.id });
-  return { ...stop, surpriseOf };
+async function requireStopAccess(stopId: string) {
+  const { row, surpriseOf } = await requireRowAccess("stop", stopId);
+  return { ...row, surpriseOf };
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +98,7 @@ export async function createStop(
   forkId?: PlanId,
   afterStopId?: string | null,
 ): Promise<StopActionResult> {
-  await requireTripAccess(tripId);
+  const { plan } = await requirePlanAccess(tripId, forkId);
 
   const parsed = stopSchema.safeParse(input);
   if (!parsed.success) {
@@ -190,9 +162,9 @@ export async function createStop(
       if (explicitChapterId) {
         const chapter = await db.chapter.findUnique({
           where: { id: explicitChapterId },
-          select: { forkId: true, startDate: true },
+          select: { tripId: true, forkId: true, startDate: true },
         });
-        if (!chapter || chapter.forkId !== (forkId ?? null)) {
+        if (!chapter || chapter.tripId !== tripId || chapter.forkId !== plan) {
           return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
         }
         // A rough stop can't sit in a DATED chapter (reorderStops refuses it,
@@ -204,7 +176,7 @@ export async function createStop(
     const created = await db.$transaction(async (tx) => {
       // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007:
       // canonical full-plan lock, acquired in id order via lockPlanStopsTx).
-      const siblings = await lockPlanStopsTx(tx, tripId, forkId ?? null);
+      const siblings = await lockPlanStopsTx(tx, tripId, plan);
 
       const result = insertionOrder(siblings, afterStopId);
       const { sortOrder, renumber } = result;
@@ -246,7 +218,7 @@ export async function createStop(
         const createdRough = await tx.stop.create({
           data: {
             tripId,
-            forkId: forkId ?? null,
+            forkId: plan,
             name,
             country: country ?? null,
             countryCode: derivedCountryCode,
@@ -264,7 +236,7 @@ export async function createStop(
           },
         });
         // ADR 0073: a dated Trip's only Stop takes the Trip's dates.
-        await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
+        await scheduleLoneStopTx(tx, tripId, plan, "fill");
         return createdRough;
       }
 
@@ -278,7 +250,7 @@ export async function createStop(
       const createdScheduled = await tx.stop.create({
         data: {
           tripId,
-          forkId: forkId ?? null,
+          forkId: plan,
           name,
           country: country ?? null,
           timezone,
@@ -295,13 +267,13 @@ export async function createStop(
         },
       });
       // ADR 0021: a chapter's band tracks its dated stops (as on every re-date path).
-      await recomputeChapterSpans(tx, tripId, forkId ?? null);
+      await recomputeChapterSpans(tx, tripId, plan);
       // ADR 0073: a dated Trip's only Stop takes the Trip's dates.
-      await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
+      await scheduleLoneStopTx(tx, tripId, plan, "fill");
       return createdScheduled;
     });
 
-    await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+    await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
     return { success: true, id: created.id };
   }
@@ -314,7 +286,7 @@ export async function createStop(
   // -------------------------------------------------------------------------
 
   const maxStop = await db.stop.findFirst({
-    where: { tripId, ...planScope(forkId) },
+    where: { tripId, ...planScope(plan) },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -328,9 +300,9 @@ export async function createStop(
     if (chapterId) {
       const chapter = await db.chapter.findUnique({
         where: { id: chapterId },
-        select: { forkId: true, startDate: true },
+        select: { tripId: true, forkId: true, startDate: true },
       });
-      if (!chapter || chapter.forkId !== (forkId ?? null)) {
+      if (!chapter || chapter.tripId !== tripId || chapter.forkId !== plan) {
         return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
       }
       // Same rule as the insert path: a rough stop never joins a dated chapter.
@@ -355,7 +327,7 @@ export async function createStop(
       const createdRough = await tx.stop.create({
         data: {
           tripId,
-          forkId: forkId ?? null,
+          forkId: plan,
           name,
           country: country ?? null,
           countryCode: parsed.data.countryCode ?? appendRoughCountryCode,
@@ -372,10 +344,10 @@ export async function createStop(
           sortOrder,
         },
       });
-      await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
+      await scheduleLoneStopTx(tx, tripId, plan, "fill");
       return createdRough;
     });
-    await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+    await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
     return { success: true, id: created.id };
   }
@@ -402,7 +374,7 @@ export async function createStop(
     const createdScheduled = await tx.stop.create({
       data: {
         tripId,
-        forkId: forkId ?? null,
+        forkId: plan,
         name,
         country: country ?? null,
         timezone: appendTimezone,
@@ -416,11 +388,11 @@ export async function createStop(
         sortOrder,
       },
     });
-    await scheduleLoneStopTx(tx, tripId, forkId ?? null, "fill");
+    await scheduleLoneStopTx(tx, tripId, plan, "fill");
     return createdScheduled;
   });
 
-  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`);
   return { success: true, id: created.id };
 }
@@ -447,6 +419,15 @@ export async function updateStop(
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
+
+    // ARCH-TEN-5: the client-supplied Chapter must be one of this Stop's own
+    // plan — same Trip AND same Fork — before it is written (createStop's shape).
+    if (chapterId) {
+      const chapter = await db.chapter.findUnique({ where: { id: chapterId }, select: { tripId: true, forkId: true } });
+      if (!chapter || chapter.tripId !== stop.tripId || chapter.forkId !== (stop.forkId ?? null)) {
+        return fail({ chapterId: ["Chapter does not belong to this plan"] });
+      }
+    }
 
     // A picked place (spec 2026-10-06 §L) brings its own point and country;
     // typed text is geocoded best-effort as before (failure leaves coords as they were).
@@ -922,12 +903,13 @@ export interface FirmUpSegmentArgs {
  */
 export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopActionResult> {
   const { tripId, chapterId, forkId } = args;
-  await requireTripAccess(tripId);
+  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks.
+  const { plan } = await requirePlanAccess(tripId, forkId);
 
   const [trip, rawStops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId, ...planScope(forkId) },
+      where: { tripId, ...planScope(plan) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -949,6 +931,14 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   // stops), not raw sortOrder — matters for both the anchor walk-back below
   // and the order rough segment members flow in.
   const stops = orderPlanStops(rawStops);
+
+  // ARCH-TEN-5: the Chapter is read (and later written) only within this
+  // Trip's plan; a Chapter id from anywhere else is not found, before any write.
+  const chapterWhere = chapterId ? { id: chapterId, tripId, ...planScope(plan) } : null;
+  const beforeCh = chapterWhere
+    ? await db.chapter.findUnique({ where: chapterWhere, select: { name: true, startDate: true, endDate: true } })
+    : null;
+  if (chapterWhere && !beforeCh) notFound();
 
   const segment = stops.filter((s) => (s.chapterId ?? null) === (chapterId ?? null) && !s.arriveDate);
   if (segment.length === 0) {
@@ -1013,7 +1003,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
   }
 
-  if (chapterId) {
+  if (chapterId && chapterWhere) {
     // Build the full set of dated stops in this chapter: stops that were already
     // dated (excluded from `segment`) plus `results` (just dated by flowDates).
     // Using chapterSpan's min/max is strictly more correct than positional
@@ -1022,12 +1012,8 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
       (s) => (s.chapterId ?? null) === (chapterId ?? null) && s.arriveDate != null,
     );
     const { startDate: start, endDate: end } = chapterSpan([...alreadyDated, ...results]);
-    const beforeCh = await db.chapter.findUnique({
-      where: { id: chapterId },
-      select: { name: true, startDate: true, endDate: true },
-    });
-    await db.chapter.update({ where: { id: chapterId }, data: { startDate: start, endDate: end } });
-    await recordPlanActivity(forkId, {
+    await db.chapter.update({ where: chapterWhere, data: { startDate: start, endDate: end } });
+    await recordPlanActivity(plan, {
       tripId,
       verb: "UPDATED",
       entityType: "CHAPTER",
@@ -1043,7 +1029,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     const firstArrive = results[0].arriveDate;
     const lastDepart = results[results.length - 1].departDate;
     const n = results.length;
-    await recordPlanActivity(forkId, {
+    await recordPlanActivity(plan, {
       tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -1069,12 +1055,13 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
  * chapter's band onto its now-dated stops. Best-effort geocode per dated stop.
  */
 export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: PlanId): Promise<StopActionResult> {
-  await requireTripAccess(tripId);
+  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks.
+  const { plan } = await requirePlanAccess(tripId, forkId);
 
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId, ...planScope(forkId) },
+      where: { tripId, ...planScope(plan) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true, sortOrder: true, chapterId: true, nights: true, pinned: true,
@@ -1177,7 +1164,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
     await db.chapter.update({ where: { id: span.id }, data: { startDate: span.start, endDate: span.end } });
   }
 
-  await recordPlanActivity(forkId, {
+  await recordPlanActivity(plan, {
     tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -1191,7 +1178,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
 }
 
 // ---------------------------------------------------------------------------
-// toggleStopPin, makeStopRough, assignStopToChapter
+// toggleStopPin, makeStopRough
 // ---------------------------------------------------------------------------
 
 /**
@@ -1321,40 +1308,6 @@ export async function setStopNights(stopId: string, nights: number): Promise<Sto
 }
 
 /**
- * Assign (or unassign) a stop to a chapter, appending to the end of that chapter's order.
- */
-export async function assignStopToChapter(stopId: string, chapterId: string | null): Promise<StopActionResult> {
-  const stop = await requireStopAccess(stopId);
-  const before = await db.stop.findUnique({ where: { id: stopId }, select: { name: true, chapterId: true } });
-  let chapterSortOrder = 0;
-  if (chapterId) {
-    const last = await db.stop.findFirst({
-      where: { tripId: stop.tripId, chapterId, ...planScope(stop.forkId) },
-      orderBy: { chapterSortOrder: "desc" },
-      select: { chapterSortOrder: true },
-    });
-    chapterSortOrder = (last?.chapterSortOrder ?? -1) + 1;
-  }
-  await db.stop.update({ where: { id: stopId }, data: { chapterId, chapterSortOrder } });
-  if ((before?.chapterId ?? null) !== (chapterId ?? null)) {
-    const [fromCh, toCh] = await Promise.all([
-      before?.chapterId ? db.chapter.findUnique({ where: { id: before.chapterId }, select: { name: true } }) : Promise.resolve(null),
-      chapterId ? db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } }) : Promise.resolve(null),
-    ]);
-    await recordPlanActivity(stop.forkId, {
-      tripId: stop.tripId,
-      verb: "UPDATED",
-      entityType: "STOP",
-      entityId: stopId,
-      entityLabel: before?.name ?? "",
-      changes: [{ field: "chapter", label: "Chapter", from: fromCh?.name ?? "", to: toCh?.name ?? "" }],
-    });
-  }
-  revalidatePath(`/trips/${stop.tripId}`);
-  return { success: true };
-}
-
-/**
  * Reorder stops to an explicit new order (drag-and-drop). Rewrites global
  * sortOrder = index and chapterId for every stop (rough or scheduled).
  * After the positional writes, reflows ONLY the span between the moved
@@ -1372,7 +1325,8 @@ export async function reorderStops(
   forkId?: PlanId,
   movedStopIds?: string[],
 ): Promise<ReorderResult> {
-  await requireTripAccess(tripId);
+  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks.
+  const { plan } = await requirePlanAccess(tripId, forkId);
   if (items.length === 0) return { success: true, changed: [], conflicts: [] };
 
   // Derive the plan (forkId) from the stops being reordered. They all belong to
@@ -1393,7 +1347,7 @@ export async function reorderStops(
   }
   // Prefer the caller-supplied plan (the editor threads the active forkId); fall
   // back to the plan derived from the stops themselves.
-  const reorderForkId: PlanId = forkId ?? reorderStopRows[0]?.forkId ?? null;
+  const reorderForkId: PlanId = plan ?? reorderStopRows[0]?.forkId ?? null;
   const preKnownArriveDate = new Map(reorderStopRows.map((s) => [s.id, s.arriveDate]));
 
   // Pre-validate: rough stops cannot enter a DATED chapter (R1).
@@ -1409,6 +1363,13 @@ export async function reorderStops(
     for (const ch of chapters) {
       chapterStartDates.set(ch.id, ch.startDate);
     }
+  }
+
+  // ARCH-TEN-5: every target Chapter must be one of this plan's — the read
+  // above is scoped to { tripId, plan }, so a Chapter from another Trip or
+  // another plan is simply absent from it.
+  if (targetChapterIds.some((id) => !chapterStartDates.has(id))) {
+    return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
   }
 
   // Enforce rough-into-dated-chapter rule before opening the tx.
@@ -1512,13 +1473,27 @@ export async function restoreStops(
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same trip."] } };
   }
   const tripId = rows[0].tripId;
-  const { user } = await requireTripAccess(tripId);
+  // ADR 0074 rule 1: a client forkId must be one of this Trip's Forks.
+  const { user, plan } = await requirePlanAccess(tripId, forkId);
 
   const planForkIds = new Set(rows.map((r) => r.forkId));
   if (planForkIds.size > 1) {
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same plan."] } };
   }
-  const restoreForkId: PlanId = forkId ?? rows[0].forkId ?? null;
+  const restoreForkId: PlanId = plan ?? rows[0].forkId ?? null;
+
+  // ARCH-TEN-5: every snapshotted Chapter must belong to the restored Stops'
+  // own plan (same Trip, same Fork) before anything is written.
+  const entryChapterIds = [...new Set(entries.map((e) => e.chapterId).filter((c): c is string => c != null))];
+  if (entryChapterIds.length > 0) {
+    const ownChapters = await db.chapter.findMany({
+      where: { id: { in: entryChapterIds }, tripId, ...planScope(rows[0].forkId) },
+      select: { id: true },
+    });
+    if (ownChapters.length !== entryChapterIds.length) {
+      return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+    }
+  }
 
   // ARCH-TEN-1: the guard above authorised the Stops' Trip only — the payload
   // names Items and Accommodations by id alone, so without this every

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { formFail } from "@/lib/action-result";
 import { healRotatedSubscription } from "@/server/actions/push";
 
 /**
@@ -23,12 +24,12 @@ export async function POST(req: Request): Promise<Response> {
   try {
     raw = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "Malformed body." }, { status: 400 });
+    return NextResponse.json(formFail("Malformed body."), { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "Invalid body." }, { status: 400 });
+    return NextResponse.json(formFail("Invalid body."), { status: 400 });
   }
 
   try {
@@ -40,7 +41,7 @@ export async function POST(req: Request): Promise<Response> {
     // else) are the caller's problem — 400. "internal" (an unexpected DB
     // failure inside the action) is ours, and reporting it as 400 would mask
     // a server fault as a client error on a path nobody is watching.
-    const status = result.ok ? 200 : result.reason === "internal" ? 500 : 400;
+    const status = result.success ? 200 : result.code === "internal" ? 500 : 400;
     return NextResponse.json(result, { status });
   } catch (err) {
     // requireUser() redirects when signed out, and Next's redirect() throws
@@ -48,11 +49,11 @@ export async function POST(req: Request): Promise<Response> {
     // cannot follow that redirect to a sign-in page, so answer 401 plainly
     // and let the Device heal on its next visit instead.
     if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) {
-      return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
+      return NextResponse.json(formFail("Not signed in."), { status: 401 });
     }
     // Anything else is our fault, not the caller's. Nothing watches this
     // path, so this log line is the only way anyone finds out it broke.
     console.error("[api/push] heal failed:", err);
-    return NextResponse.json({ ok: false, error: "Internal error." }, { status: 500 });
+    return NextResponse.json(formFail("Internal error."), { status: 500 });
   }
 }

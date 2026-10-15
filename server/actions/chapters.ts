@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap, canAssignToChapter } from "@/lib/chapters";
 import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
@@ -34,13 +33,7 @@ function revalidateChapterPaths(tripId: string) {
 }
 
 async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string; forkId: string | null }> {
-  const chapter = await db.chapter.findUnique({
-    where: { id: chapterId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!chapter) notFound();
-  await requireTripAccess(chapter.tripId);
-  return chapter;
+  return (await requireRowAccess("chapter", chapterId)).row;
 }
 
 async function loadFullChapter(chapterId: string) {
@@ -82,17 +75,17 @@ export async function createChapter(
   originStopId?: string,
   forkId?: PlanId,
 ): Promise<ChapterActionResult> {
-  await requireTripAccess(tripId);
+  const { plan } = await requirePlanAccess(tripId, forkId);
 
   const parsed = chapterSchema.safeParse(input);
   if (!parsed.success) return validationResult(parsed.error);
 
-  if (await firstOverlap(tripId, parsed.data, undefined, forkId)) {
+  if (await firstOverlap(tripId, parsed.data, undefined, plan)) {
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
   }
 
   const created = await db.chapter.create({
-    data: { tripId, forkId: forkId ?? null, ...parsed.data, sortOrder: await nextSortOrder(tripId, forkId) },
+    data: { tripId, forkId: plan, ...parsed.data, sortOrder: await nextSortOrder(tripId, plan) },
   });
 
   // When created from a stop ("Start a chapter here"), link a ROUGH origin
@@ -104,7 +97,7 @@ export async function createChapter(
       where: { id: originStopId },
       select: { tripId: true, arriveDate: true, forkId: true },
     });
-    if (origin && origin.tripId === tripId && origin.arriveDate === null && origin.forkId === (forkId ?? null)) {
+    if (origin && origin.tripId === tripId && origin.arriveDate === null && origin.forkId === plan) {
       await db.stop.update({
         where: { id: originStopId },
         data: { chapterId: created.id, chapterSortOrder: 0 },
@@ -112,7 +105,7 @@ export async function createChapter(
     }
   }
 
-  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
   revalidateChapterPaths(tripId);
   return { success: true };
 }
@@ -159,7 +152,7 @@ export async function reorderChapters(
   forkIdArg?: PlanId,
   movedChapterId?: string,
 ): Promise<ReorderResult> {
-  await requireTripAccess(tripId);
+  const { plan } = await requirePlanAccess(tripId, forkIdArg);
   if (orderedChapterIds.length === 0) return { success: true, changed: [], conflicts: [] };
 
   const chapters = await db.chapter.findMany({
@@ -170,9 +163,10 @@ export async function reorderChapters(
     return { success: false, errors: { chapter: ["One or more chapters aren't part of this trip."] } };
   }
 
-  // Prefer the caller-supplied plan (the editor threads the active forkId); fall
-  // back to the plan derived from the chapters (all must belong to the same plan).
-  const forkId: PlanId = forkIdArg ?? chapters[0]?.forkId ?? null;
+  // Prefer the caller-supplied plan (the editor threads the active forkId,
+  // validated above by requirePlanAccess); fall back to the plan derived
+  // from the chapters (all must belong to the same plan).
+  const forkId: PlanId = plan ?? chapters[0]?.forkId ?? null;
 
   // Load all stops for the trip to compute the new order.
   const allStops = await db.stop.findMany({
@@ -253,12 +247,10 @@ export async function assignStopToChapter(
   stopId: string,
   chapterId: string | null,
 ): Promise<ChapterActionResult> {
-  const stop = await db.stop.findUnique({
-    where: { id: stopId },
-    select: { id: true, tripId: true, forkId: true, arriveDate: true, chapterId: true },
-  });
-  if (!stop) notFound();
-  await requireTripAccess(stop.tripId);
+  // The one entity guard (ADR 0074 rule 1): load → notFound → trip access →
+  // refuse a Traveller surprised by this Stop (CONTEXT.md Surprise: they can
+  // look at it from outside but not touch it).
+  const { row: stop } = await requireRowAccess("stop", stopId);
 
   if (!canAssignToChapter(stop)) {
     return { success: false, errors: { _: ["A dated stop's chapter follows its dates. Drag or re-date it to move."] } };

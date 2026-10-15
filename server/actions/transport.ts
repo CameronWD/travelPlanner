@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
@@ -12,7 +11,7 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
-import { type ActionFailure, type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionFailure, type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
@@ -31,20 +30,9 @@ export type TransportActionResult = ActionResult;
  * Look up a transport and verify the current user has access to its trip.
  * Returns the transport (with its tripId) or throws notFound().
  */
-async function requireTransportAccess(transportId: string): Promise<{
-  id: string;
-  tripId: string;
-  forkId: string | null;
-}> {
-  const transport = await db.transport.findUnique({
-    where: { id: transportId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!transport) {
-    notFound();
-  }
-  await requireTripAccess(transport.tripId);
-  return transport;
+async function requireTransportAccess(transportId: string) {
+  const { row } = await requireRowAccess("transport", transportId);
+  return row;
 }
 
 /**
@@ -68,12 +56,7 @@ async function validateStopBelongsToTrip(
   for (const id of ids) {
     const stop = stops.find((s) => s.id === id);
     if (!stop || stop.tripId !== tripId || stop.forkId !== targetForkId) {
-      return {
-        success: false,
-        errors: {
-          _form: ["Selected stop does not belong to this trip"],
-        },
-      };
+      return formFail("Selected stop does not belong to this trip");
     }
   }
   return null;
@@ -94,7 +77,7 @@ export async function createTransport(
   input: TransportInput,
   forkId?: PlanId,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireTripAccess(tripId);
+  const { plan } = await requirePlanAccess(tripId, forkId);
 
   const parsed = transportSchema.safeParse(input);
   if (!parsed.success) {
@@ -116,7 +99,7 @@ export async function createTransport(
   const anchorStopId = data.anchorStopId || null;
 
   // Validate stop ownership (same plan)
-  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId, anchorStopId], forkId);
+  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId, anchorStopId], plan);
   if (stopError) return stopError;
 
   // Interpret wall-time strings in the endpoint Stop's timezone, or the
@@ -140,7 +123,7 @@ export async function createTransport(
 
   // Determine sort order
   const maxTransport = await db.transport.findFirst({
-    where: { tripId, ...planScope(forkId) },
+    where: { tripId, ...planScope(plan) },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -167,7 +150,7 @@ export async function createTransport(
   const created = await db.transport.create({
     data: {
       tripId,
-      forkId: forkId ?? null,
+      forkId: plan,
       mode: data.mode,
       depIsHome,
       arrIsHome,
@@ -205,7 +188,7 @@ export async function createTransport(
         await (tx as typeof db).cost.create({
           data: {
             tripId,
-            forkId: forkId ?? null,
+            forkId: plan,
             ownerType: "TRANSPORT",
             ownerId: created.id,
             costMinor: data.costMinor!,
@@ -222,7 +205,7 @@ export async function createTransport(
     }
   }
 
-  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`, "layout");
   return { success: true, id: created.id };
 }
@@ -422,13 +405,13 @@ export async function reorderTransports(
   items: { id: string; anchorStopId: string | null; sortOrder: number }[],
   forkId?: PlanId,
 ): Promise<TransportActionResult> {
-  await requireTripAccess(tripId);
+  const { plan } = await requirePlanAccess(tripId, forkId);
   if (items.length === 0) return { success: true };
 
   // Verify all ids belong to this trip + plan before opening a transaction.
   const ids = items.map((i) => i.id);
   const rows = await db.transport.findMany({
-    where: { id: { in: ids }, tripId, ...planScope(forkId) },
+    where: { id: { in: ids }, tripId, ...planScope(plan) },
     select: { id: true },
   });
   const foundIds = new Set(rows.map((r) => r.id));
@@ -441,7 +424,7 @@ export async function reorderTransports(
   await db.$transaction(async (tx) => {
     // Lock the WHOLE plan's transports FOR UPDATE, in canonical id order
     // (ADR 0007) — previously this path took no lock at all.
-    await lockPlanTransportsTx(tx, tripId, forkId ?? null);
+    await lockPlanTransportsTx(tx, tripId, plan);
 
     for (const item of items) {
       await (tx as typeof db).transport.update({

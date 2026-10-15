@@ -95,6 +95,21 @@ describe("ErrorReportsPanel", () => {
     );
   });
 
+  it("shows the server's form-level message when a per-row clear is refused", async () => {
+    clearErrorReport.mockResolvedValue({ success: false, errors: { _: ["That error was already cleared."] } });
+    render(<ErrorReportsPanel initial={reports} now={NOW} />);
+    await userEvent.click(screen.getByRole("button", { name: /clear connect ETIMEDOUT/i }));
+    expect(await screen.findByText("That error was already cleared.")).toBeInTheDocument();
+  });
+
+  it("shows the server's form-level message when Clear all is refused", async () => {
+    clearAllErrorReports.mockResolvedValue({ success: false, errors: { _: ["Only Admins can clear errors."] } });
+    render(<ErrorReportsPanel initial={reports} now={NOW} />);
+    await userEvent.click(screen.getByRole("button", { name: /clear all/i }));
+    await userEvent.click(await screen.findByRole("button", { name: "Clear all" }));
+    expect(await screen.findByText("Only Admins can clear errors.")).toBeInTheDocument();
+  });
+
   // clearAllErrorReports is deleteMany({}) while this list is capped at
   // listErrorReports' LIST_LIMIT, so a confirm citing the rendered count
   // understated the blast radius exactly when the table was biggest.

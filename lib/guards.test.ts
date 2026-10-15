@@ -3,20 +3,51 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Mock the framework + db dependencies so we can test the requireTripAccess
 // wrapper's branching (member allowed vs non-member denied) in isolation.
 // vi.hoisted keeps the mock fns available to the hoisted vi.mock factories.
-const { authMock, findManyMock, forkFindUniqueMock, notFoundMock, redirectMock, headersGetMock, cacheStore } =
-  vi.hoisted(() => ({
-    authMock: vi.fn(),
-    findManyMock: vi.fn(),
-    forkFindUniqueMock: vi.fn(),
-    notFoundMock: vi.fn(() => {
-      throw new Error("NEXT_NOT_FOUND");
-    }),
-    redirectMock: vi.fn(() => {
-      throw new Error("NEXT_REDIRECT");
-    }),
-    headersGetMock: vi.fn<(name: string) => string | null>(() => null),
-    cacheStore: new Map<string, unknown>(),
-  }));
+const {
+  authMock,
+  findManyMock,
+  forkFindUniqueMock,
+  forkFindFirstMock,
+  tripFindUniqueMock,
+  notFoundMock,
+  redirectMock,
+  headersGetMock,
+  cacheStore,
+  stopFindUniqueMock,
+  itemFindUniqueMock,
+  transportFindUniqueMock,
+  accommodationFindUniqueMock,
+  costFindUniqueMock,
+  chapterFindUniqueMock,
+  noteFindUniqueMock,
+  reminderFindUniqueMock,
+  checklistItemFindUniqueMock,
+  requireOutsideSurpriseMock,
+} = vi.hoisted(() => ({
+  authMock: vi.fn(),
+  findManyMock: vi.fn(),
+  forkFindUniqueMock: vi.fn(),
+  forkFindFirstMock: vi.fn(),
+  tripFindUniqueMock: vi.fn(),
+  notFoundMock: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
+  redirectMock: vi.fn(() => {
+    throw new Error("NEXT_REDIRECT");
+  }),
+  headersGetMock: vi.fn<(name: string) => string | null>(() => null),
+  cacheStore: new Map<string, unknown>(),
+  stopFindUniqueMock: vi.fn(),
+  itemFindUniqueMock: vi.fn(),
+  transportFindUniqueMock: vi.fn(),
+  accommodationFindUniqueMock: vi.fn(),
+  costFindUniqueMock: vi.fn(),
+  chapterFindUniqueMock: vi.fn(),
+  noteFindUniqueMock: vi.fn(),
+  reminderFindUniqueMock: vi.fn(),
+  checklistItemFindUniqueMock: vi.fn(),
+  requireOutsideSurpriseMock: vi.fn(),
+}));
 
 const cacheWrapped = vi.hoisted(() => [] as unknown[]);
 
@@ -24,9 +55,20 @@ vi.mock("@/lib/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     tripMember: { findMany: findManyMock },
-    fork: { findUnique: forkFindUniqueMock },
+    fork: { findUnique: forkFindUniqueMock, findFirst: forkFindFirstMock },
+    trip: { findUnique: tripFindUniqueMock },
+    stop: { findUnique: stopFindUniqueMock },
+    item: { findUnique: itemFindUniqueMock },
+    transport: { findUnique: transportFindUniqueMock },
+    accommodation: { findUnique: accommodationFindUniqueMock },
+    cost: { findUnique: costFindUniqueMock },
+    chapter: { findUnique: chapterFindUniqueMock },
+    note: { findUnique: noteFindUniqueMock },
+    reminder: { findUnique: reminderFindUniqueMock },
+    checklistItem: { findUnique: checklistItemFindUniqueMock },
   },
 }));
+vi.mock("@/lib/surprise-guard", () => ({ requireOutsideSurprise: requireOutsideSurpriseMock }));
 vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
   redirect: redirectMock,
@@ -77,10 +119,26 @@ import {
   assertForkingAllowed,
   requireAdmin,
   requireForkAccess,
+  requirePlanAccess,
+  requireRowAccess,
   requireTripAccess,
-  requireTripOwner,
   requireUser,
 } from "@/lib/guards";
+
+// Card C (requireRowAccess) tests address db.<kind>.findUnique directly,
+// matching the brief's test shape, rather than threading each delegate mock
+// through as its own hoisted name.
+const db = {
+  stop: { findUnique: stopFindUniqueMock },
+  item: { findUnique: itemFindUniqueMock },
+  transport: { findUnique: transportFindUniqueMock },
+  accommodation: { findUnique: accommodationFindUniqueMock },
+  cost: { findUnique: costFindUniqueMock },
+  chapter: { findUnique: chapterFindUniqueMock },
+  note: { findUnique: noteFindUniqueMock },
+  reminder: { findUnique: reminderFindUniqueMock },
+  checklistItem: { findUnique: checklistItemFindUniqueMock },
+};
 
 const ORIGINAL_ADMIN_EMAILS = process.env.ADMIN_EMAILS;
 
@@ -303,40 +361,126 @@ describe("requireForkAccess", () => {
   });
 });
 
-// ARCH-BND-3: one named owner/admin guard, replacing three hand-rolled
-// copies in server/actions/trips.ts and server/actions/invites.ts.
-describe("requireTripOwner", () => {
-  it("returns for the trip owner", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1", email: "owner@example.com" } });
+// Spec 2026-10-14 Q4, ADR 0074 rule 1: the plan-level write guard that
+// Task 6 calls from every action accepting a client forkId. A forkId that
+// isn't a Fork of this Trip, or a Trip with Forks switched off, is
+// notFound() on writes — never a silent fall-back to the real plan.
+describe("requirePlanAccess (spec 2026-10-14 Q4)", () => {
+  it("real plan: returns plan null without reading forks", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
     findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
 
-    await expect(requireTripOwner("t1")).resolves.toMatchObject({
-      membership: { role: "owner" },
-    });
+    const r = await requirePlanAccess("trip-1", undefined);
+
+    expect(r.plan).toBeNull();
+    expect(forkFindFirstMock).not.toHaveBeenCalled();
   });
 
-  it("notFound()s for a plain member", async () => {
-    authMock.mockResolvedValue({ user: { id: "u2", email: "member@example.com" } });
-    findManyMock.mockResolvedValue([{ userId: "u2", role: "member" }]);
+  it("a Fork of this Trip with Forks enabled: returns its id", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    tripFindUniqueMock.mockResolvedValueOnce({ forksEnabled: true });
+    forkFindFirstMock.mockResolvedValueOnce({ id: "fork-1" });
 
-    await expect(requireTripOwner("t1")).rejects.toThrow("NEXT_NOT_FOUND");
+    const r = await requirePlanAccess("trip-1", "fork-1");
+
+    expect(r.plan).toBe("fork-1");
+    expect(forkFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "fork-1", tripId: "trip-1" } }),
+    );
+  });
+
+  it("a forkId that is not a Fork of this Trip: notFound, no fall-back", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    tripFindUniqueMock.mockResolvedValueOnce({ forksEnabled: true });
+    forkFindFirstMock.mockResolvedValueOnce(null);
+
+    await expect(requirePlanAccess("trip-1", "fork-x")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(notFoundMock).toHaveBeenCalledOnce();
   });
 
-  it("returns for an ADMIN_EMAILS operator who is a member but not owner", async () => {
-    process.env.ADMIN_EMAILS = "ops@example.com";
-    authMock.mockResolvedValue({ user: { id: "u3", email: "ops@example.com" } });
-    findManyMock.mockResolvedValue([{ userId: "u3", role: "member" }]);
+  it("Forks switched off: a forkId is notFound", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    tripFindUniqueMock.mockResolvedValueOnce({ forksEnabled: false });
 
-    await expect(requireTripOwner("t1")).resolves.toBeTruthy();
+    await expect(requirePlanAccess("trip-1", "fork-1")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(forkFindFirstMock).not.toHaveBeenCalled();
   });
 
-  it("still notFound()s a non-member, admin or not (no bypass of requireTripAccess)", async () => {
-    process.env.ADMIN_EMAILS = "ops@example.com";
-    authMock.mockResolvedValue({ user: { id: "stranger", email: "ops@example.com" } });
+  it("membership is checked first (non-member never learns a Fork exists)", async () => {
+    authMock.mockResolvedValue({ user: { id: "stranger" } });
     findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
 
-    await expect(requireTripOwner("t1")).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(requirePlanAccess("trip-1", "fork-1")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(forkFindFirstMock).not.toHaveBeenCalled();
+  });
+});
+
+it("requireTripOwner is gone", async () => {
+  const mod = await import("./guards");
+  expect("requireTripOwner" in mod).toBe(false);
+});
+
+// Card C (spec 2026-10-14): the one entity guard that replaces fourteen
+// private "load row -> notFound -> requireTripAccess -> requireOutsideSurprise"
+// copies across the action files. Every kind's row carries tripId, so this
+// threads straight into the already-tested requireTripAccess above.
+describe("requireRowAccess (card C)", () => {
+  it("loads by kind, checks the Trip, checks the Surprise, returns the row", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.stop.findUnique.mockResolvedValueOnce({ id: "s1", tripId: "trip-1", forkId: null, name: "Lisbon", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, chapterId: null });
+
+    const r = await requireRowAccess("stop", "s1");
+
+    expect(r.row.name).toBe("Lisbon");
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { stopId: "s1" });
+    expect(db.stop.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "s1" } }));
+  });
+
+  it("a missing row is notFound before any membership read", async () => {
+    db.item.findUnique.mockResolvedValueOnce(null);
+
+    await expect(requireRowAccess("item", "nope")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(findManyMock).not.toHaveBeenCalled();
+  });
+
+  it("realPlanOnly: a Fork's row reads as notFound", async () => {
+    db.cost.findUnique.mockResolvedValueOnce(null); // the where includes forkId: null, so Prisma returns null
+
+    await expect(requireRowAccess("cost", "c1", { realPlanOnly: true })).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(db.cost.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1", forkId: null } }));
+  });
+
+  it("a cost's Surprise check uses its owner", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.cost.findUnique.mockResolvedValueOnce({ id: "c1", tripId: "trip-1", forkId: null, currency: "EUR", ownerType: "ITEM", ownerId: "i1" });
+
+    await requireRowAccess("cost", "c1");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { costOwner: { ownerType: "ITEM", ownerId: "i1" } });
+  });
+
+  it("a transport has no Surprise variant and skips the check", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.transport.findUnique.mockResolvedValueOnce({ id: "t1", tripId: "trip-1", forkId: null });
+
+    await requireRowAccess("transport", "t1");
+
+    expect(requireOutsideSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("the surprised viewer gets the guard's notFound (Review Focus 2)", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    db.stop.findUnique.mockResolvedValueOnce({ id: "s1", tripId: "trip-1", forkId: null, name: "X", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, chapterId: null });
+    requireOutsideSurpriseMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+
+    await expect(requireRowAccess("stop", "s1")).rejects.toThrow(/404/);
   });
 });
 

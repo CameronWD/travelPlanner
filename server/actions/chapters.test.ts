@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
-  requireTripAccessMock, revalidatePathMock,
+  requireTripAccessMock, requirePlanAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
   stopFindManyMock, stopFindUniqueMock, stopFindUniqueTxMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
   itemFindManyMock, itemUpdateMock, accommodationFindManyMock, accommodationUpdateMock,
@@ -37,6 +37,11 @@ const {
   });
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
+    requirePlanAccessMock: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+      user: { id: "u1" },
+      membership: { role: "owner" },
+      plan: forkId ?? null,
+    })),
     revalidatePathMock: vi.fn(),
     chapterFindUniqueMock: vi.fn(),
     chapterFindManyMock,
@@ -60,7 +65,45 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+// requireChapterAccess is now a thin adapter over requireRowAccess (Task 5)
+// — forward to the same chapterFindUniqueMock/requireTripAccessMock every
+// test already seeds, so existing mockResolvedValueOnce chains for the
+// guard's own lookup keep working unchanged. Chapter has no Surprise ref
+// (unchanged behaviour), so there's no requireOutsideSurprise call to
+// forward.
+// A "stop" row (assignStopToChapter) forwards to stopFindUniqueMock and, like
+// the real guard, refuses a viewer surprised by it via requireOutsideSurpriseMock.
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async (kind?: string) => {
+    if (kind === "stop") {
+      const row = await stopFindUniqueMock();
+      if (!row) {
+        const { notFound } = await import("next/navigation");
+        notFound();
+      }
+      const { user, membership } = await requireTripAccessMock(row.tripId);
+      const surpriseOf = await requireOutsideSurpriseMock(user.id, { stopId: row.id });
+      return { row, user, membership, surpriseOf };
+    }
+    const row = await chapterFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    return { row, user, membership, surpriseOf: null };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -72,7 +115,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
-import { createChapter, updateChapter, deleteChapter, suggestChaptersFromCountries, reorderChapters } from "./chapters";
+import { createChapter, updateChapter, deleteChapter, suggestChaptersFromCountries, reorderChapters, assignStopToChapter } from "./chapters";
 import { recordActivity } from "@/server/actions/activity";
 import type { ChapterInput } from "@/lib/validations/chapter";
 
@@ -248,8 +291,8 @@ describe("createChapter", () => {
 
     await createChapter("trip-1", VALID);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, chapterCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, chapterCreateMock);
   });
 });
 
@@ -511,8 +554,8 @@ describe("reorderChapters", () => {
 
     await reorderChapters("t1", ["c2", "c1"]);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, chapterUpdateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("t1", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, chapterUpdateMock);
   });
 });
 
@@ -716,6 +759,32 @@ describe("createChapter — origin stop linking", () => {
 
     expect(r.success).toBe(true);
     expect(stopFindUniqueMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("assignStopToChapter: the one entity guard", () => {
+  const roughStop = { id: "s1", tripId: "trip-1", forkId: null, arriveDate: null, chapterId: null };
+
+  it("goes through requireRowAccess('stop', stopId)", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce(roughStop);
+    chapterFindUniqueMock.mockResolvedValueOnce({ tripId: "trip-1", forkId: null });
+    stopUpdateMock.mockResolvedValueOnce({});
+
+    const r = await assignStopToChapter("s1", "ch-1");
+
+    expect(r.success).toBe(true);
+    expect(requireRowAccessMock).toHaveBeenCalledWith("stop", "s1");
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, stopUpdateMock);
+  });
+
+  it("CONTEXT.md Surprise: a surprised Traveller is refused like a non-member and nothing is written", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce(roughStop);
+    requireOutsideSurpriseMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+
+    await expect(assignStopToChapter("s1", "ch-1")).rejects.toThrow(/404/);
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { stopId: "s1" });
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 });

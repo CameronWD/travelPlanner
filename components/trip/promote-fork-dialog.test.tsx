@@ -226,7 +226,7 @@ describe("PromoteForkDialog", () => {
     );
     (promoteFork as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: false,
-      error: "What-if plans are only available before the trip starts.",
+      errors: { _: ["What-if plans are only available before the trip starts."] },
     });
 
     render(<PromoteForkDialog {...DEFAULT_PROPS} />);

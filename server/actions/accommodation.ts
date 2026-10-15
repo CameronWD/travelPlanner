@@ -1,16 +1,15 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import {
   accommodationSchema,
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
 import { geocodePlace } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
-import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
@@ -34,23 +33,9 @@ export type AccommodationActionResult = ActionResult;
  * Returns the accommodation with tripId, the viewer and the live Surprise it
  * is inside, or notFound().
  */
-async function requireAccommodationAccess(accommodationId: string): Promise<{
-  id: string;
-  tripId: string;
-  forkId: string | null;
-  viewerId: string;
-  surpriseOf: SurpriseRoot | null;
-}> {
-  const acc = await db.accommodation.findUnique({
-    where: { id: accommodationId },
-    select: { id: true, tripId: true, forkId: true },
-  });
-  if (!acc) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(acc.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { accommodationId: acc.id });
-  return { ...acc, viewerId: user.id, surpriseOf };
+async function requireAccommodationAccess(accommodationId: string) {
+  const { row, user, surpriseOf } = await requireRowAccess("accommodation", accommodationId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 // ---------------------------------------------------------------------------
@@ -78,15 +63,22 @@ export async function createAccommodation(
     where: { id: data.stopId },
     select: { id: true, tripId: true, forkId: true },
   });
-  if (!stop || stop.forkId !== (forkId ?? null)) {
+  if (!stop) {
     return {
       success: false,
       errors: { stopId: ["Stop not found"] },
     };
   }
 
-  // Access check via the trip, then the Surprise the Stop may be (CONTEXT.md Surprise)
-  const { user } = await requireTripAccess(stop.tripId);
+  // Access check via the trip — and, ADR 0074 rule 1, a client forkId must be
+  // one of this Trip's Forks — then the Surprise the Stop may be (CONTEXT.md Surprise).
+  const { user, plan } = await requirePlanAccess(stop.tripId, forkId);
+  if (stop.forkId !== plan) {
+    return {
+      success: false,
+      errors: { stopId: ["Stop not found"] },
+    };
+  }
   await requireOutsideSurprise(user.id, { stopId: stop.id });
 
   // Best-effort geocode from address
@@ -101,7 +93,7 @@ export async function createAccommodation(
   const created = await db.accommodation.create({
     data: {
       tripId: stop.tripId,
-      forkId: forkId ?? null,
+      forkId: plan,
       stopId: data.stopId,
       name: data.name,
       address: data.address ?? null,
@@ -133,7 +125,7 @@ export async function createAccommodation(
         await (tx as typeof db).cost.create({
           data: {
             tripId: stop.tripId,
-            forkId: forkId ?? null,
+            forkId: plan,
             ownerType: "ACCOMMODATION",
             ownerId: created.id,
             costMinor: data.costMinor!,
@@ -150,7 +142,7 @@ export async function createAccommodation(
     }
   }
 
-  await recordPlanActivity(forkId, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${stop.tripId}`, "layout");
   return { success: true, id: created.id };
 }

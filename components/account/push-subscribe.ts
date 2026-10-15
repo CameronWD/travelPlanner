@@ -99,7 +99,7 @@ export async function subscribeThisDevice(): Promise<SubscribeThisDeviceResult> 
     // mints a new endpoint and does not re-prompt, because permission is
     // already granted for this origin. Once only: a second conflict is a real
     // error, not a state to keep churning.
-    if (!result.ok && result.reason === "conflict") {
+    if (!result.success && result.code === "conflict") {
       await subscription.unsubscribe();
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -108,7 +108,7 @@ export async function subscribeThisDevice(): Promise<SubscribeThisDeviceResult> 
       result = await persistSubscription(subscription);
     }
 
-    return result.ok ? { ok: true } : { ok: false, reason: "error" };
+    return result.success ? { ok: true } : { ok: false, reason: "error" };
   } catch (err) {
     console.error("[subscribeThisDevice] failed:", err);
     return { ok: false, reason: "error" };

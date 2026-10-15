@@ -19,7 +19,7 @@ const call = () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  shareFindFirst.mockResolvedValue({ tripId: "t1", showTravellers: true });
+  shareFindFirst.mockResolvedValue({ id: "link-1", showTravellers: true, trip: { id: "t1" } });
   memberFindFirst.mockResolvedValue({ id: "m1" });
   userFindUnique.mockResolvedValue({ photoKey: "avatars/u1.jpg" });
 });
@@ -41,7 +41,7 @@ describe("GET /share/:token/traveller-photo/:userId", () => {
   });
   it.each([
     ["unknown or revoked token", () => shareFindFirst.mockResolvedValue(null)],
-    ["dial off", () => shareFindFirst.mockResolvedValue({ tripId: "t1", showTravellers: false })],
+    ["dial off", () => shareFindFirst.mockResolvedValue({ id: "link-1", showTravellers: false, trip: { id: "t1" } })],
     ["not a member of that trip", () => memberFindFirst.mockResolvedValue(null)],
     ["no uploaded photo", () => userFindUnique.mockResolvedValue({ photoKey: null })],
   ])("404s (no-store) when %s", async (_n, arrange) => {

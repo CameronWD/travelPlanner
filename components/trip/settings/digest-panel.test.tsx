@@ -6,8 +6,8 @@ import type { LocalDeviceState } from "@/components/account/device-state";
 import type { DeviceSummary } from "@/server/actions/devices";
 
 vi.mock("@/server/actions/digest", () => ({
-  setDigestEnabled: vi.fn().mockResolvedValue({ ok: true }),
-  sendTestDigest: vi.fn().mockResolvedValue({ ok: true, sent: 1, placeholder: false }),
+  setDigestEnabled: vi.fn().mockResolvedValue({ success: true }),
+  sendTestDigest: vi.fn().mockResolvedValue({ success: true, sent: 1, placeholder: false }),
 }));
 
 const readLocalDeviceStateMock = vi.hoisted(() => vi.fn());
@@ -80,8 +80,8 @@ function deviceRow(overrides: Partial<DeviceSummary> = {}): DeviceSummary {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(setDigestEnabled).mockResolvedValue({ ok: true });
-  vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 1, placeholder: false });
+  vi.mocked(setDigestEnabled).mockResolvedValue({ success: true });
+  vi.mocked(sendTestDigest).mockResolvedValue({ success: true, sent: 1, placeholder: false });
   vi.mocked(deviceTimeZone).mockReturnValue("Europe/Rome");
   // A safe default so every test's `readLocalDeviceState().then(...)` has
   // something to resolve to, even tests that don't care about the device
@@ -364,8 +364,8 @@ describe("DigestPanel", () => {
   it("renders the test send's error verbatim rather than a generic failure", async () => {
     const user = userEvent.setup();
     vi.mocked(sendTestDigest).mockResolvedValue({
-      ok: false,
-      error: "Push isn't configured on this deployment. The VAPID keys are missing.",
+      success: false,
+      errors: { _: ["Push isn't configured on this deployment. The VAPID keys are missing."] },
     });
 
     render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
@@ -383,8 +383,8 @@ describe("DigestPanel", () => {
   it("surfaces the no-device error verbatim too", async () => {
     const user = userEvent.setup();
     vi.mocked(sendTestDigest).mockResolvedValue({
-      ok: false,
-      error: "No device is subscribed yet. Press Enable first.",
+      success: false,
+      errors: { _: ["No device is subscribed yet. Press Enable first."] },
     });
 
     render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
@@ -398,7 +398,7 @@ describe("DigestPanel", () => {
 
   it("names the real digest when a successful test carried content", async () => {
     const user = userEvent.setup();
-    vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 2, placeholder: false });
+    vi.mocked(sendTestDigest).mockResolvedValue({ success: true, sent: 2, placeholder: false });
 
     render(
       <DigestPanel
@@ -422,7 +422,7 @@ describe("DigestPanel", () => {
 
   it("says a quiet day is a quiet day when the test was a placeholder", async () => {
     const user = userEvent.setup();
-    vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 1, placeholder: true });
+    vi.mocked(sendTestDigest).mockResolvedValue({ success: true, sent: 1, placeholder: true });
 
     render(
       <DigestPanel

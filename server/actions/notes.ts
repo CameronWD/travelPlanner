@@ -3,12 +3,31 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess, type RowKind } from "@/lib/guards";
 import { addNoteSchema, type AddNoteInput } from "@/lib/validations/note";
 import { recordActivity } from "@/server/actions/activity";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+
+/**
+ * ARCH-TEN-9: targetType → RowKind for the four kinds requireRowAccess
+ * covers. JOURNAL (a date) and other target types keep their existing
+ * requireOutsideSurprise handling below — requireRowAccess has no row for
+ * them.
+ */
+function kindFor(targetType: "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION"): RowKind {
+  switch (targetType) {
+    case "STOP":
+      return "stop";
+    case "ITEM":
+      return "item";
+    case "TRANSPORT":
+      return "transport";
+    case "ACCOMMODATION":
+      return "accommodation";
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -26,17 +45,8 @@ export type NoteActionResult = ActionResult;
  * the live Surprise it is inside, or throws notFound().
  */
 async function requireNoteAccess(noteId: string) {
-  const note = await db.note.findUnique({
-    where: { id: noteId },
-    select: { id: true, tripId: true, authorId: true, targetType: true, targetId: true },
-  });
-  if (!note) {
-    notFound();
-  }
-  // Any trip member can manage notes (read/delete)
-  const { user } = await requireTripAccess(note.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { target: note });
-  return { ...note, surpriseOf };
+  const { row, surpriseOf } = await requireRowAccess("note", noteId);
+  return { ...row, surpriseOf };
 }
 
 /**
@@ -70,7 +80,12 @@ export async function addNote(
   }
 
   const { targetType, targetId, body } = parsed.data;
-  await requireOutsideSurprise(user.id, { target: { targetType, targetId } });
+  if (targetType === "STOP" || targetType === "ITEM" || targetType === "TRANSPORT" || targetType === "ACCOMMODATION") {
+    const { row } = await requireRowAccess(kindFor(targetType), targetId);
+    if (row.tripId !== tripId) notFound();
+  } else {
+    await requireOutsideSurprise(user.id, { target: { targetType, targetId } });
+  }
 
   const created = await db.note.create({
     data: {

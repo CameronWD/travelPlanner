@@ -17,14 +17,14 @@ function post(body: unknown, ua = "Mozilla/5.0") {
 
 describe("POST /api/push", () => {
   it("heals a rotation and answers 200", async () => {
-    healMock.mockResolvedValue({ ok: true, mode: "updated" });
+    healMock.mockResolvedValue({ success: true, mode: "updated" });
     const res = await POST(post({ oldEndpoint: "https://old", endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, mode: "updated" });
+    expect(await res.json()).toEqual({ success: true, mode: "updated" });
   });
 
   it("passes the request's user agent through so a new row gets a device label", async () => {
-    healMock.mockResolvedValue({ ok: true, mode: "registered" });
+    healMock.mockResolvedValue({ success: true, mode: "registered" });
     await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }, "iPhone-UA"));
     expect(healMock).toHaveBeenCalledWith(expect.objectContaining({ userAgent: "iPhone-UA" }));
   });
@@ -32,6 +32,7 @@ describe("POST /api/push", () => {
   it("rejects a body with no endpoint", async () => {
     const res = await POST(post({ keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Invalid body."] } });
     expect(healMock).not.toHaveBeenCalled();
   });
 
@@ -43,34 +44,36 @@ describe("POST /api/push", () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Malformed body."] } });
   });
 
   it("answers 401 when there is no session", async () => {
     healMock.mockRejectedValue(Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT" }));
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Not signed in."] } });
   });
 
   it("answers 400 when the action refuses the request as invalid", async () => {
     healMock.mockResolvedValue({
-      ok: false,
-      error: "No usable key material.",
-      reason: "invalid",
+      success: false,
+      errors: { _: ["No usable key material."] },
+      code: "invalid",
     });
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
-      ok: false,
-      error: "No usable key material.",
-      reason: "invalid",
+      success: false,
+      errors: { _: ["No usable key material."] },
+      code: "invalid",
     });
   });
 
   it("answers 400 when the action refuses because the endpoint belongs to another traveller", async () => {
     healMock.mockResolvedValue({
-      ok: false,
-      error: "That endpoint belongs to another traveller.",
-      reason: "forbidden",
+      success: false,
+      errors: { _: ["That endpoint belongs to another traveller."] },
+      code: "forbidden",
     });
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(400);
@@ -78,9 +81,9 @@ describe("POST /api/push", () => {
 
   it("answers 500, not 400, when the action reports an internal failure", async () => {
     healMock.mockResolvedValue({
-      ok: false,
-      error: "Couldn't update this device's push subscription. Try again.",
-      reason: "internal",
+      success: false,
+      errors: { _: ["Couldn't update this device's push subscription. Try again."] },
+      code: "internal",
     });
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(500);
@@ -91,6 +94,7 @@ describe("POST /api/push", () => {
     healMock.mockRejectedValue(new TypeError("boom"));
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ success: false, errors: { _: ["Internal error."] } });
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
   });

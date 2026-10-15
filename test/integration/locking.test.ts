@@ -9,11 +9,33 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 // `requireTransportAccess` in server/actions/transport.ts) are private
 // module-level functions in those files, NOT re-exports of `@/lib/guards` —
 // they run for real against the seeded rows below.
+//
+// moveStop calls requireRowAccess("stop", id) and reorderTransports calls
+// requirePlanAccess (ADR 0074 Tasks 2-6); both are mocked here rather than
+// imported for real (the real guard imports `@/lib/auth`). requireRowAccess
+// loads the Stop from the real local Postgres with the same select
+// lib/guards.ts uses, so a missing row still notFound()s.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("@/lib/guards", () => ({
   requireUser: vi.fn(async () => ({ id: "it-user" })),
   requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
+  requirePlanAccess: vi.fn(async (_tripId: string, forkId?: string | null) => ({
+    user: { id: "it-user" },
+    membership: { role: "owner" },
+    plan: forkId ?? null,
+  })),
+  requireRowAccess: vi.fn(async (kind: string, id: string) => {
+    const { db } = await import("@/lib/db");
+    const { notFound } = await import("next/navigation");
+    const STOP_SELECT = {
+      id: true, tripId: true, forkId: true, name: true, sortOrder: true,
+      arriveDate: true, departDate: true, nights: true, pinned: true, chapterId: true,
+    };
+    const row = kind === "stop" ? await db.stop.findUnique({ where: { id }, select: STOP_SELECT }) : null;
+    if (!row) notFound();
+    return { row, user: { id: "it-user" }, membership: { role: "owner" }, surpriseOf: null };
+  }),
 }));
 
 import { db } from "@/lib/db";

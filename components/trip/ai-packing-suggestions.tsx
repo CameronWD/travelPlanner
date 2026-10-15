@@ -6,6 +6,7 @@ import { Plus, AlertCircle } from "lucide-react";
 import { AiSuggestButton } from "./ai-suggest-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { formError } from "@/components/ui/action-failure";
 import { cn } from "@/lib/cn";
 import { aiDraftPackingList } from "@/server/actions/ai";
 import { addChecklistItem, addChecklistItems } from "@/server/actions/checklists";
@@ -47,13 +48,13 @@ export function AiPackingSuggestions({
     setError(null);
     startFetch(async () => {
       const result = await aiDraftPackingList(tripId);
-      if (result.ok) {
+      if (result.success) {
         setItems(result.data.items);
         setAddedItems(new Set());
-      } else if (result.reason === "disabled") {
+      } else if (result.code === "disabled") {
         setError("AI features are not configured.");
       } else {
-        setError(result.message ?? "Couldn't get packing suggestions. Try again.");
+        setError(formError(result) ?? "Couldn't get packing suggestions. Try again.");
       }
     });
   }

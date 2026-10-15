@@ -82,7 +82,7 @@ describe("AddFromGlobeDialog", () => {
 
   // -------------------------------------------------------------------------
   // Test 1b: a rejected addMarkerToWishlist (network drop) still surfaces a
-  // toast via the synthetic errors._form the hook now sets on rejection.
+  // toast via the synthetic errors._ the hook now sets on rejection.
   // -------------------------------------------------------------------------
   it("shows an error toast when addMarkerToWishlist rejects", async () => {
     vi.mocked(addMarkerToWishlist).mockRejectedValueOnce(new Error("offline"));

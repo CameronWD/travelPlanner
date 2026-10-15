@@ -1181,7 +1181,7 @@ describe("deleteTrip", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/owner/i);
+      expect(result.errors._?.[0]).toMatch(/owner/i);
     }
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
@@ -1215,7 +1215,7 @@ describe("deleteTrip — admin override", () => {
     const result = await deleteTrip(TRIP_ID);
     expect(result).toEqual({
       success: false,
-      error: "Only the trip owner can delete the trip.",
+      errors: { _: ["Only the trip owner can delete the trip."] },
     });
     expect(tripUpdateMock).not.toHaveBeenCalled();
   });
@@ -1240,7 +1240,7 @@ describe("restoreTrip", () => {
     requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
     tripMemberFindFirstMock.mockResolvedValue({ role: "member" });
 
-    expect(await restoreTrip("t1")).toEqual({ success: false, error: "Only the trip owner can restore the trip." });
+    expect(await restoreTrip("t1")).toEqual({ success: false, errors: { _: ["Only the trip owner can restore the trip."] } });
     expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -1248,7 +1248,7 @@ describe("restoreTrip", () => {
     requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
     tripMemberFindFirstMock.mockResolvedValue(null);
 
-    expect(await restoreTrip("t1")).toEqual({ success: false, error: "Only the trip owner can restore the trip." });
+    expect(await restoreTrip("t1")).toEqual({ success: false, errors: { _: ["Only the trip owner can restore the trip."] } });
     expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -1332,7 +1332,7 @@ describe("setTripHardEndDate", () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
     const r = await setTripHardEndDate(TRIP_ID, "2026-06-30");
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toMatch(/on or after the start date/i);
+    if (!r.success) expect(r.errors._?.[0]).toMatch(/on or after the start date/i);
     expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 
@@ -1430,6 +1430,23 @@ describe("duplicateTrip", () => {
     expect(dayTitleCreateMock).not.toHaveBeenCalled();
   });
 
+  it("TB-05: duplicateTrip reads only the real plan's rows, so the copy has no Fork rows", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      id: "trip-1", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }],
+      chapters: [], stops: [], items: [], transports: [], checklistItems: [],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+
+    await duplicateTrip("trip-1", "Copy");
+
+    const call = tripFindUniqueMock.mock.calls.find((c) => c[0]?.include?.stops)?.[0];
+    expect(call.include.stops).toEqual({ where: { forkId: null } });
+    expect(call.include.items).toEqual({ where: { forkId: null } });
+    expect(call.include.transports).toEqual({ where: { forkId: null } });
+    expect(call.include.chapters).toEqual({ where: { forkId: null } });
+  });
+
   it("IMPORTANT fix (round 1): normalises a mixed-case source member email before writing the Invite", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1", email: "you@example.com" },
@@ -1488,7 +1505,7 @@ describe("duplicateTrip", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "Only the trip owner can duplicate the trip.",
+      errors: { _: ["Only the trip owner can duplicate the trip."] },
     });
     // Nothing was even read, let alone written.
     expect(tripFindUniqueMock).not.toHaveBeenCalled();
@@ -1731,7 +1748,7 @@ describe("removeTripMember", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/transfer/i);
+      expect(result.errors._?.[0]).toMatch(/transfer/i);
     }
     expect(memberDeleteManyMock).not.toHaveBeenCalled();
   });
@@ -1827,8 +1844,9 @@ describe("removeTripMember", () => {
 
     expect(result).toEqual({
       success: false,
-      error:
-        "You can't remove the trip's owner. A trip with no owner could never be deleted, duplicated or invited to again.",
+      errors: {
+        _: ["You can't remove the trip's owner. A trip with no owner could never be deleted, duplicated or invited to again."],
+      },
     });
     expect(memberDeleteManyMock).not.toHaveBeenCalled();
     expect(inviteDeleteManyMock).not.toHaveBeenCalled();
@@ -1917,7 +1935,7 @@ describe("leaveTrip", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/transfer/i);
+      expect(result.errors._?.[0]).toMatch(/transfer/i);
     }
     expect(memberDeleteManyMock).not.toHaveBeenCalled();
   });

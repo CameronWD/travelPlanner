@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { CalendarDays, MapPin, Plus } from "lucide-react";
 import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { REAL_PLAN, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
-import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { buildItinerary } from "@/lib/itinerary";
 import { loadDayTitles } from "@/lib/day-titles-loader";
-import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
+import { readPlan } from "@/lib/plan-reads";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { CalendarViews, CalendarViewSwitch } from "@/components/trip/calendar-views";
@@ -28,111 +26,32 @@ export default async function CalendarPage({
 }) {
   const { tripId } = await params;
   const { user } = await requireTripAccess(tripId);
-  const slug = await tripSlugFor(tripId);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
   // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
-
-  // Fetch the trip dates + all relevant data
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { name: true, startDate: true, endDate: true, homeTimezone: true },
-  });
-  if (!trip) notFound();
-
-  // Surprise (ADR 0051): known before the wave so every query below leaves
-  // what this viewer may not see inside in the database.
-  const v = await loadSurpriseVisibility(tripId, user.id);
-
-  const [stopRows, itemRows, transports, accommodations, wishlistItems] = await Promise.all([
-    db.stop.findMany({
-      // Rough (date-less) stops have no place on a dated calendar.
-      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        timezone: true,
-        arriveDate: true,
-        departDate: true,
-        sortOrder: true,
-      },
-    }),
-    db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
-      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        stopId: true,
-        address: true,
-        link: true,
-        booking: true,
-        notes: true,
-        hiddenFromShares: true,
-      },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...REAL_PLAN },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        mode: true,
-        fromStopId: true,
-        toStopId: true,
-        depPlace: true,
-        arrPlace: true,
-        depAt: true,
-        arrAt: true,
-        reference: true,
-        notes: true,
-        depIsHome: true,
-        arrIsHome: true,
-      },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-      orderBy: { checkIn: "asc" },
-      select: {
-        id: true,
-        stopId: true,
-        name: true,
-        address: true,
-        checkIn: true,
-        checkOut: true,
-        checkInTime: true,
-        checkOutTime: true,
-        confirmation: true,
-        notes: true,
-      },
-    }),
-    db.item.findMany({
-      where: { tripId, ...REAL_PLAN, date: null, stopId: null, ...v.where.item },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, title: true, category: true, stopId: true },
-    }),
-  ]);
+  const rows = await readPlan(tripId, user.id, null);
+  const { trip } = rows;
+  const slug = trip.slug ?? tripId;
+  const v = rows.visibility;
 
   // Hidden Stops keep their shell; every Stop and dated Item carries its
   // Surprise view for the badge, and a hidden real-plan Item shows as a
-  // placeholder titled "Surprise" on its date and time.
-  const stops = maskSurpriseStops(stopRows, v, v.views.stops);
-  const items = [
-    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
-    ...v.placeholderItems
-      .filter((p) => p.forkId === null && p.date !== null)
-      .map((p) => ({
-        id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-        stopId: p.stopId, address: p.address, link: p.link, booking: p.booking, notes: p.notes,
-        hiddenFromShares: p.hiddenFromShares, surprise: p.surprise,
-      })),
-  ];
+  // placeholder titled "Surprise" on its date and time (all applied by
+  // readPlan already) — a dated calendar has no place for rough Stops or
+  // undated Items.
+  const stops = rows.stops.filter((s) => s.arriveDate);
+  const items = rows.items.filter((i) => i.date);
+  const transports = rows.transports;
+  const accommodations = rows.accommodations;
+
+  // Wishlist ideas are trip-wide, not owned by any Plan (CONTEXT.md "Plan"),
+  // so they stay their own read rather than going through readPlan.
+  const wishlistItems = await db.item.findMany({
+    where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE, ...v.where.item },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, title: true, category: true, stopId: true },
+  });
 
   const eyebrow = tripEyebrow(trip.name, trip.startDate);
   const hasDates = Boolean(trip.startDate && trip.endDate);

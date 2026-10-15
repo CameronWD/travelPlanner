@@ -53,7 +53,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("ProposalEditor", () => {
   it("opens the stay in the Accommodation form with a live preview, then confirms the edited stay", async () => {
-    const onConfirm = vi.fn().mockResolvedValue({ ok: true, createdId: "a-new", createdStops: {} });
+    const onConfirm = vi.fn().mockResolvedValue({ success: true, createdId: "a-new", createdStops: {} });
     const onClose = vi.fn();
     render(<Harness initial={STAY} onConfirm={onConfirm} onClose={onClose} />);
     const preview = screen.getByTestId("proposal-preview");
@@ -71,7 +71,7 @@ describe("ProposalEditor", () => {
   });
 
   it("shows a confirm failure in the form and stays open", async () => {
-    const onConfirm = vi.fn().mockResolvedValue({ ok: false, message: "Check-out must be after check-in", createdStops: {} });
+    const onConfirm = vi.fn().mockResolvedValue({ success: false, errors: { _: ["Check-out must be after check-in"] }, createdStops: {} });
     const onClose = vi.fn();
     render(<Harness initial={STAY} onConfirm={onConfirm} onClose={onClose} />);
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
@@ -80,7 +80,7 @@ describe("ProposalEditor", () => {
   });
 
   it("keeps a Transport end's zone hint through the edit form", async () => {
-    const onConfirm = vi.fn().mockResolvedValue({ ok: true, createdId: "t-new", createdStops: {} });
+    const onConfirm = vi.fn().mockResolvedValue({ success: true, createdId: "t-new", createdStops: {} });
     render(<Harness initial={FLIGHT} onConfirm={onConfirm} />);
     expect(screen.getByTestId("proposal-preview")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
@@ -92,7 +92,7 @@ describe("ProposalEditor", () => {
   });
 
   it("edits a proposed Stop in the Stop form, keeping its country code", async () => {
-    const onConfirm = vi.fn().mockResolvedValue({ ok: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
+    const onConfirm = vi.fn().mockResolvedValue({ success: true, createdId: "stop-new", createdStops: { s1: "stop-new" } });
     render(<Harness initial={STOP} onConfirm={onConfirm} />);
     expect(screen.queryByTestId("proposal-preview")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
@@ -105,7 +105,7 @@ describe("ProposalEditor", () => {
     const { depTimezone: _hint, ...withoutHint } = (FLIGHT as Extract<Proposal, { kind: "transport" }>).input;
     void _hint;
     const draft: Proposal = { ...FLIGHT, kind: "transport", input: withoutHint };
-    const onConfirm = vi.fn().mockResolvedValue({ ok: true, createdId: "t-new", createdStops: {} });
+    const onConfirm = vi.fn().mockResolvedValue({ success: true, createdId: "t-new", createdStops: {} });
     render(<Harness initial={draft} original={FLIGHT} onConfirm={onConfirm} />);
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalled());

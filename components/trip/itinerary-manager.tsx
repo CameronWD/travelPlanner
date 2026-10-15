@@ -246,8 +246,6 @@ interface ItineraryManagerProps {
   homeBaseName?: string | null;
   /** The trip's Home base IANA timezone — a Home end's times read in this zone. */
   homeTimezone?: string | null;
-  /** The trip's home-base country code — shown as a chip on the bookend card. */
-  homeCountryCode?: string | null;
   /** Whether the trip returns to its Home base — drives the bottom bookend. */
   roundTrip?: boolean;
   /**

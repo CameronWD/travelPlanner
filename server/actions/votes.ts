@@ -7,14 +7,13 @@ import { requireTripAccess } from "@/lib/guards";
 import { voteLevelSchema, type VoteLevel } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, voteSummary } from "@/lib/activity";
+import type { ActionResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type VoteActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type VoteActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Internal helpers

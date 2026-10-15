@@ -18,9 +18,9 @@ describe("runTool", () => {
     const r = await runTool("t", async () => ({ success: false, errors: { name: ["Name is required"], _: ["Trip is locked"] } }));
     expect(r).toEqual({ isError: true, content: [{ type: "text", text: "Couldn't do that: name: Name is required; Trip is locked" }] });
   });
-  it("maps a single error string", async () => {
-    const r = await runTool("t", async () => ({ success: false, error: "Bad date" }));
-    expect(firstText(r)).toBe("Couldn't do that: Bad date");
+  it("falls back to an empty detail when a failure carries no errors dict (ADR 0074: the legacy `error` string is no longer read)", async () => {
+    const r = await runTool("t", async () => ({ success: false }));
+    expect(firstText(r)).toBe("Couldn't do that: ");
   });
   it("maps notFound() to the same text for missing and forbidden", async () => {
     const r = await runTool("t", async () => { throw digestErr("NEXT_HTTP_ERROR_FALLBACK;404"); });

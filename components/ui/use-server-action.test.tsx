@@ -43,11 +43,11 @@ describe("useServerAction", () => {
 
     act(() => result.current.run());
     await waitFor(() => expect(result.current.isPending).toBe(false));
-    expect(result.current.errors._form).toEqual([
+    expect(result.current.errors._).toEqual([
       "Couldn't do that. Check your connection and try again.",
     ]);
     expect(onError).toHaveBeenCalledWith({
-      _form: ["Couldn't do that. Check your connection and try again."],
+      _: ["Couldn't do that. Check your connection and try again."],
     });
   });
 
@@ -61,9 +61,9 @@ describe("useServerAction", () => {
 
       act(() => result.current.run());
       await waitFor(() => expect(result.current.isPending).toBe(false));
-      expect(result.current.errors._form).toEqual(["You're offline. Plan changes need a connection."]);
+      expect(result.current.errors._).toEqual(["You're offline. Plan changes need a connection."]);
       expect(onError).toHaveBeenCalledWith({
-        _form: ["You're offline. Plan changes need a connection."],
+        _: ["You're offline. Plan changes need a connection."],
       });
     } finally {
       if (original) Object.defineProperty(navigator, "onLine", original);

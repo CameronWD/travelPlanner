@@ -24,10 +24,27 @@ const {
   }),
 }));
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// requireItemAccess is now a thin adapter over requireRowAccess (Task 4) —
+// forward to the same itemFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock this file already seeds, so existing
+// mockResolvedValue setups for the guard's own lookup keep working unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await itemFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit, using this
+    // file's own notFoundMock (mocked below as next/navigation's notFound).
+    if (!row) {
+      notFoundMock();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { itemId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess: requireRowAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
-const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -68,7 +85,15 @@ describe("rescheduleItem", () => {
     arrangeTrip();
     await rescheduleItem(ITEM_ID, "2026-07-05");
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+  });
+
+  it("rejects with notFound and writes nothing when the item doesn't exist", async () => {
+    itemFindUniqueMock.mockResolvedValue(null);
+
+    await expect(rescheduleItem("missing-item", "2026-07-05")).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(itemUpdateMock).not.toHaveBeenCalled();
   });
 
   it("sets date and reassigns stopId to the covering stop", async () => {

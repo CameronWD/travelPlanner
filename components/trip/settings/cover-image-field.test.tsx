@@ -132,7 +132,7 @@ describe("CoverImageField", () => {
     const user = userEvent.setup();
     vi.mocked(setTripCover).mockResolvedValueOnce({
       success: false,
-      error: "Couldn't upload the cover photo. Nothing was saved. Try again.",
+      errors: { _: ["Couldn't upload the cover photo. Nothing was saved. Try again."] },
     });
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 

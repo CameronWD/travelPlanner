@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { resolvePlan, REAL_PLAN, planScope } from "@/lib/plan-scope";
+import { REAL_PLAN, planScope } from "@/lib/plan-scope";
+import { resolvePlanParam } from "@/lib/plan-reads";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { WishlistHeaderActions } from "@/components/trip/wishlist-header-actions";
@@ -40,9 +41,11 @@ export default async function WishlistPage({
   // Wave 1 (spec 2026-10-06 §C): the Trip with its ideas, the slug and the
   // viewer's Globe markers — none depends on another. The markers chain on
   // the Globe membership. The Surprise visibility (ADR 0051) rides this wave
-  // too: only wave 2 reads through it.
+  // too: only wave 2 reads through it, and so does the `?plan=` gate
+  // (lib/plan-reads.ts resolvePlanParam: Plan variants off, spec B3, or a
+  // Fork that isn't this Trip's → the real plan).
   const globePromise = getUserGlobe(user.id);
-  const [trip, slug, globe, globeMarkerRows, v] = await Promise.all([
+  const [trip, slug, globe, globeMarkerRows, v, { plan: activeForkId, fork: activeFork }] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -51,6 +54,8 @@ export default async function WishlistPage({
         startDate: true,
         endDate: true,
         homeCurrency: true,
+        // Not for the gate (resolvePlanParam reads the shell): the "in this
+        // plan" placements and the board's Fork affordances still need it.
         forksEnabled: true,
         stops: {
           // The Wishlist's Stops are the real plan's (ideas are REAL_PLAN-scoped,
@@ -111,20 +116,13 @@ export default async function WishlistPage({
         : [],
     ),
     loadSurpriseVisibility(tripId, user.id),
+    resolvePlanParam(tripId, plan),
   ]);
 
   if (!trip) {
     notFound();
   }
   const globeMarkers: MarkerView[] = globeMarkerRows;
-
-  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
-  // Otherwise validate the fork exists for this trip; fall back to real plan if not.
-  const selectedForkId = resolvePlan({ plan, forksEnabled: trip.forksEnabled });
-  const activeFork = selectedForkId
-    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
-    : null;
-  const activeForkId = activeFork ? activeFork.id : null;
 
   // Markers already pulled into THIS trip's wishlist (dedupe scope = unscheduled ideas,
   // which is exactly what trip.items already filters to).

@@ -67,6 +67,9 @@ vi.mock("@/lib/db", () => ({
     dayTitle: { findMany: dayTitleFindManyMock },
   },
 }));
+// tripSlugFor reads through readTripShell (whose module pulls in server
+// actions and auth); stub it as phase-past.test.tsx does.
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 // Keep the real `daysBetween` — lib/upcoming-payments.ts (exercised for real,
 // not mocked) depends on it to compute daysUntil for the upcoming-payments card.
 vi.mock("@/lib/dates", async (importOriginal) => {

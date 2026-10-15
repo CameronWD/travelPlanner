@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess, type RowKind } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
@@ -15,14 +15,13 @@ import { canWriteJournal } from "@/lib/journal-window";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
 import { checkQuota } from "@/lib/storage-quota";
+import { type ActionResult, formFail } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type AttachmentActionResult =
-  | { success: true; id?: string }
-  | { success: false; error: string; code?: string };
+export type AttachmentActionResult = ActionResult<{ id?: string }>;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -54,6 +53,25 @@ async function requireAttachmentAccess(id: string): Promise<{
   const { user } = await requireTripAccess(attachment.tripId!);
   const surpriseOf = await requireOutsideSurprise(user.id, { target: attachment });
   return { attachment, userId: user.id, surpriseOf };
+}
+
+/**
+ * ARCH-TEN-9: targetType → RowKind for the four kinds requireRowAccess
+ * covers. JOURNAL (a date) and other target types keep their existing
+ * requireOutsideSurprise handling below — requireRowAccess has no row for
+ * them.
+ */
+function kindFor(targetType: "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION"): RowKind {
+  switch (targetType) {
+    case "STOP":
+      return "stop";
+    case "ITEM":
+      return "item";
+    case "TRANSPORT":
+      return "transport";
+    case "ACCOMMODATION":
+      return "accommodation";
+  }
 }
 
 function findAttachmentForAccess(id: string) {
@@ -113,13 +131,13 @@ export async function uploadAttachment(
   const file = formData.get("file");
 
   if (!(file instanceof File)) {
-    return { success: false, error: "No file provided." };
+    return formFail("No file provided.");
   }
 
   // Parse targetType
   const parsedTargetType = targetTypeSchema.safeParse(targetTypeRaw);
   if (!parsedTargetType.success) {
-    return { success: false, error: "Invalid targetType." };
+    return formFail("Invalid targetType.");
   }
   const targetType = parsedTargetType.data;
 
@@ -133,19 +151,19 @@ export async function uploadAttachment(
     // their file first (fix round, access-before-buffering).
     const { user, globe } = await requireGlobeAccess();
     if (globe.id !== globeId) {
-      return { success: false, error: "Globe access denied." };
+      return formFail("Globe access denied.");
     }
 
     // Validate the upload (mime + size)
     const validation = validateUpload({ mime: file.type, size: file.size });
     if (!validation.ok) {
-      return { success: false, error: validation.error };
+      return formFail(validation.error);
     }
 
     // Quota (spec 2026-10-02 §B): a globe-scoped upload counts only toward
     // the global cap — it has no tripId to charge against.
     const quota = await checkQuota({ tripId: null, size: file.size });
-    if (!quota.ok) return { success: false, error: quota.error };
+    if (!quota.ok) return formFail(quota.error);
 
     // Read file bytes from the FormData File object.
     const bytes = Buffer.from(await file.arrayBuffer());
@@ -196,7 +214,7 @@ export async function uploadAttachment(
         route: "server/actions/attachments.ts#uploadAttachment",
         source: "server",
       });
-      return { success: false, error: "Couldn't upload the file. Nothing was saved. Try again." };
+      return formFail("Couldn't upload the file. Nothing was saved. Try again.");
     }
 
     const publicUrl = `/api/attachments/${attachment.id}`;
@@ -213,25 +231,33 @@ export async function uploadAttachment(
   // Trip-scoped path
   // ---------------------------------------------------------------------------
   if (typeof tripId !== "string" || !tripId) {
-    return { success: false, error: "Missing tripId." };
+    return formFail("Missing tripId.");
   }
 
   // Access check — must be a trip member. Hoisted above validateUpload/
   // assertQuota/arrayBuffer() (fix round, access-before-buffering).
   const { user } = await requireTripAccess(tripId);
-  await requireOutsideSurprise(user.id, {
-    target: { targetType, targetId: typeof targetId === "string" && targetId ? targetId : null },
-  });
+  const uploadTargetId = typeof targetId === "string" && targetId ? targetId : null;
+  // ARCH-TEN-9: a STOP/ITEM/TRANSPORT/ACCOMMODATION target's own Trip must
+  // match this upload's tripId — requireRowAccess also runs the same
+  // Surprise check internally (surpriseRefFor), so this covers both.
+  // JOURNAL (a date) and other target types keep the plain Surprise check.
+  if (uploadTargetId && (targetType === "STOP" || targetType === "ITEM" || targetType === "TRANSPORT" || targetType === "ACCOMMODATION")) {
+    const { row } = await requireRowAccess(kindFor(targetType), uploadTargetId);
+    if (row.tripId !== tripId) notFound();
+  } else {
+    await requireOutsideSurprise(user.id, { target: { targetType, targetId: uploadTargetId } });
+  }
 
   // Validate the upload (mime + size)
   const validation = validateUpload({ mime: file.type, size: file.size });
   if (!validation.ok) {
-    return { success: false, error: validation.error };
+    return formFail(validation.error);
   }
 
   // Quota (spec 2026-10-02 §B): charged against this Trip, and the global cap.
   const quota = await checkQuota({ tripId, size: file.size });
-  if (!quota.ok) return { success: false, error: quota.error };
+  if (!quota.ok) return formFail(quota.error);
 
   // Journal photos (spec K / ADR 0058): window-checked like a Journal note,
   // and capped at one per author per date — a second upload replaces the
@@ -247,16 +273,16 @@ export async function uploadAttachment(
     // A Journal photo is a photo (final review #11): refuse any other
     // otherwise-allowed upload type (PDF etc.) here, server-side.
     if (!file.type.startsWith("image/")) {
-      return { success: false, error: "A Journal photo must be an image." };
+      return formFail("A Journal photo must be an image.");
     }
     const date = typeof targetId === "string" ? targetId : "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return { success: false, error: "Missing or invalid date for a Journal photo." };
+      return formFail("Missing or invalid date for a Journal photo.");
     }
 
     const window = await loadJournalWindow(tripId);
     if (!canWriteJournal({ ...window, date })) {
-      return { success: false, error: "The Journal isn't open for this day yet." };
+      return formFail("The Journal isn't open for this day yet.");
     }
 
     const existingPhoto = await db.attachment.findFirst({
@@ -267,11 +293,7 @@ export async function uploadAttachment(
     if (existingPhoto) {
       const replace = formData.get("replace") === "1";
       if (!replace) {
-        return {
-          success: false,
-          error: "You already have a photo for this day.",
-          code: "JOURNAL_PHOTO_EXISTS",
-        };
+        return formFail("You already have a photo for this day.", "JOURNAL_PHOTO_EXISTS");
       }
       journalPhotoToReplace = existingPhoto;
     }
@@ -288,7 +310,7 @@ export async function uploadAttachment(
     route: "server/actions/attachments.ts#uploadAttachment",
   });
   if (!created.success) {
-    return created;
+    return formFail(created.error);
   }
 
   // The new photo is fully persisted (blob written, row updated) — only now
@@ -328,7 +350,7 @@ export async function deleteAttachment(
   // A Journal photo belongs to its author (spec K: per-author, per-date) —
   // membership alone doesn't let a co-Traveller remove it (final review #7).
   if (attachment.targetType === "JOURNAL" && attachment.uploadedById !== userId) {
-    return { success: false, error: "You can only remove your own Journal photo." };
+    return formFail("You can only remove your own Journal photo.");
   }
 
   await scheduleBlobDeletion([attachment.storageKey]).catch(() => {});
@@ -364,11 +386,11 @@ const TITLE_MAX = 120;
 export async function setAttachmentTitle(
   id: string,
   title: string,
-): Promise<{ success: true } | { success: false; error: string }> {
+): Promise<ActionResult> {
   const { attachment } = await requireAttachmentAccess(id);
   const trimmed = title.trim();
   if (trimmed.length > TITLE_MAX) {
-    return { success: false, error: `Title must be ${TITLE_MAX} characters or fewer.` };
+    return formFail(`Title must be ${TITLE_MAX} characters or fewer.`);
   }
   await db.attachment.update({ where: { id }, data: { title: trimmed.length === 0 ? null : trimmed } });
   if (attachment.tripId) revalidatePath(`/trips/${attachment.tripId}/files`);
@@ -384,17 +406,17 @@ export async function setAttachmentTitle(
 export async function linkAttachmentToItem(
   id: string,
   itemId: string | null,
-): Promise<{ success: true } | { success: false; error: string }> {
+): Promise<ActionResult> {
   const { attachment, userId } = await requireAttachmentAccess(id);
   if (!attachment.tripId) {
-    return { success: false, error: "Only a trip's files can be linked to an item." };
+    return formFail("Only a trip's files can be linked to an item.");
   }
   if (attachment.targetType !== "TRIP" && attachment.targetType !== "ITEM") {
-    return { success: false, error: "Only trip-level files can be linked to an item." };
+    return formFail("Only trip-level files can be linked to an item.");
   }
   if (itemId) {
     const item = await db.item.findFirst({ where: { id: itemId, tripId: attachment.tripId }, select: { id: true } });
-    if (!item) return { success: false, error: "That item isn't on this trip." };
+    if (!item) return formFail("That item isn't on this trip.");
     await requireOutsideSurprise(userId, { itemId });
     await db.attachment.update({ where: { id }, data: { targetType: "ITEM", targetId: itemId } });
   } else {

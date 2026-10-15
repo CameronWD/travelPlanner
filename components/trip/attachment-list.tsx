@@ -23,7 +23,7 @@ import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments
 import type { TargetType } from "@/lib/enum-values";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { toastRefused, toastRejected, firstErrorMessage } from "@/components/ui/action-failure";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { attachmentName } from "@/lib/attachment-name";
 import { formatBytes } from "@/lib/format-bytes";
@@ -183,7 +183,7 @@ export function AttachmentList({
 
       const result = await uploadAttachment(fd);
       if (!result.success) {
-        setUploadError(result.error);
+        setUploadError(firstErrorMessage(result, "Couldn't upload that file."));
       }
       // Reset the file input so the same file can be re-selected after an error.
       if (inputRef.current) inputRef.current.value = "";
@@ -202,7 +202,7 @@ export function AttachmentList({
     startTransition(async () => {
       try {
         const r = await deleteAttachment(id);
-        if (!r.success) toastRefused(r.error, "Couldn't delete that file.");
+        if (!r.success) toastRefused(r, "Couldn't delete that file.");
       } catch {
         toastRejected("Couldn't delete that file.");
       } finally {

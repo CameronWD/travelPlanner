@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireRowAccess } from "@/lib/guards";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, dayTitleSummary } from "@/lib/activity";
@@ -31,20 +30,10 @@ interface StopAccess {
 /**
  * Look up a stop and verify the current user has access to its trip and is
  * not surprised by it (CONTEXT.md Surprise).
- * Same pattern as the private `requireStopAccess` in stops.ts (not exported
- * from there, so replicated here rather than reaching across modules).
  */
 async function requireStopAccess(stopId: string): Promise<StopAccess> {
-  const stop = await db.stop.findUnique({
-    where: { id: stopId },
-    select: { id: true, tripId: true, forkId: true, name: true, arriveDate: true, departDate: true },
-  });
-  if (!stop) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(stop.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { stopId: stop.id });
-  return { ...stop, viewerId: user.id, surpriseOf };
+  const { row, user, surpriseOf } = await requireRowAccess("stop", stopId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 function revalidateDayTitlePaths(tripId: string, date: string) {

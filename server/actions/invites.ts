@@ -5,18 +5,15 @@ import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { z } from "zod";
+import { type ActionResult, formFail } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type InviteResult =
-  | { success: true; inviteId: string }
-  | { success: false; error: string };
+export type InviteResult = ActionResult<{ inviteId: string }>;
 
-export type CancelInviteResult =
-  | { success: true }
-  | { success: false; error: string };
+export type CancelInviteResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // inviteToTrip
@@ -47,15 +44,12 @@ export async function inviteToTrip(
   // (ADR 0045); membership is still required, since requireTripAccess above
   // already notFound()s for a non-member.
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return {
-      success: false,
-      error: "Only the trip owner can invite someone to this trip.",
-    };
+    return formFail("Only the trip owner can invite someone to this trip.");
   }
 
   const parsed = emailSchema.safeParse(email.trim());
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid email" };
+    return formFail(parsed.error.issues[0]?.message ?? "Invalid email");
   }
 
   const normalised = parsed.data.toLowerCase();
@@ -71,7 +65,7 @@ export async function inviteToTrip(
     (m) => m.user.email.toLowerCase() === normalised,
   );
   if (alreadyMember) {
-    return { success: false, error: "That person is already a member of this trip." };
+    return formFail("That person is already a member of this trip.");
   }
 
   // Idempotent + race-safe: the (tripId, email) unique constraint guarantees
@@ -114,16 +108,22 @@ export async function cancelInvite(
   });
 
   if (!invite) {
-    return { success: false, error: "Invite not found." };
+    return formFail("Invite not found.");
   }
 
   // Access-check: caller must be a member of the invite's trip.
-  await requireTripAccess(invite.tripId);
+  const { user, membership } = await requireTripAccess(invite.tripId);
+
+  // ARCH-TEN-10: same owner-or-admin rule as inviteToTrip above — cancelling
+  // an Invite is as privileged as sending one.
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return formFail("Only the trip owner can cancel an invite.");
+  }
 
   // Don't delete an invite that's already been accepted — it records that the
   // partner joined. Cancelling only applies to still-pending invites.
   if (invite.acceptedAt) {
-    return { success: false, error: "This invite has already been accepted." };
+    return formFail("This invite has already been accepted.");
   }
 
   await db.invite.delete({ where: { id: inviteId } });

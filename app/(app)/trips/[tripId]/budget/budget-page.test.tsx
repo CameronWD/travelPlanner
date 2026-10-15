@@ -1,32 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
+// The Money page's Plan data comes from one `readPlan` call (lib/plan-reads.ts)
+// — mocked here with the `PlanRows` a real call would hand back for the
+// scenario (`planRows()`); `readPlan`'s query shapes, plan scoping and
+// Surprise masking are pinned in lib/plan-reads.test.ts. The `?plan=` gate
+// (`resolvePlanParam`) runs for real over a mocked Trip shell and `db.fork`.
 const mockDb = vi.hoisted(() => ({
-  trip: { findUnique: vi.fn() },
   fork: { findFirst: vi.fn() },
-  cost: { findMany: vi.fn() },
-  stop: { findMany: vi.fn() },
-  item: { findMany: vi.fn() },
-  accommodation: { findMany: vi.fn() },
-  transport: { findMany: vi.fn() },
-  exchangeRate: { findMany: vi.fn() },
-  chapter: { findMany: vi.fn() },
 }));
-const shell = vi.hoisted(() => ({ current: { name: "Christmas in Europe", members: [{ user: { id: "u1", name: "Cam", image: null } }, { user: { id: "u2", name: "Sam", image: null } }] } }));
+const MEMBERS = [{ user: { id: "u1", name: "Cam", image: null } }, { user: { id: "u2", name: "Sam", image: null } }];
+const TRIP_BASE = { name: "Christmas in Europe", slug: null, homeCurrency: "GBP", startDate: "2026-01-01", endDate: "2026-01-10", chaptersEnabled: true, forksEnabled: true, homeTimezone: null, members: MEMBERS, deletedAt: null };
+/** The scenario a test sets; `readPlan` hands back the PlanRows a real call would have produced for it. */
+const scenario = vi.hoisted(() => ({
+  trip: {} as Record<string, unknown>,
+  costs: [] as Record<string, unknown>[],
+  stops: [] as Record<string, unknown>[],
+  chapters: [] as Record<string, unknown>[],
+  budgetItems: [] as Record<string, unknown>[],
+  budgetAccommodations: [] as Record<string, unknown>[],
+  visibility: undefined as unknown,
+}));
+const { readPlanMock } = vi.hoisted(() => ({ readPlanMock: vi.fn() }));
+vi.mock("@/lib/plan-reads", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/plan-reads")>();
+  return { ...actual, readPlan: readPlanMock };
+});
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...p }: { href: string; children?: React.ReactNode }) => <a href={href} {...p}>{children}</a> }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: {} }) }));
-vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
-// Surprise (ADR 0051): the page asks the visibility loader first and spreads
-// its hiddenOwnerIds into buildBudget; the loader itself is tested on its own.
-const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
-vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
-  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
-});
-vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => shell.current) }));
+vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => scenario.trip), readTripHeader: vi.fn(async () => scenario.trip) }));
 vi.mock("@/lib/fx", () => ({ isRateStale: vi.fn(() => false) }));
 vi.mock("@/lib/tz", () => ({ todayISOInZone: vi.fn(() => "2026-01-05"), currentTripTimezone: vi.fn(() => "UTC") }));
 vi.mock("@/lib/dates", async (orig) => ({ ...(await orig<typeof import("@/lib/dates")>()), nightsBetween: vi.fn(() => 9) }));
@@ -44,7 +49,9 @@ vi.mock("@/components/money/add-cost-from-url", () => ({
 vi.mock("@/components/money/add-cost-button", () => ({ AddCostButton: ({ variant }: { variant: string }) => <button type="button" data-testid={`add-cost-${variant}`}>Add a cost</button> }));
 vi.mock("@/components/money/paid-bar", () => ({ PaidBar: () => <div data-testid="paid-bar" /> }));
 vi.mock("@/components/money/to-pay-panel", () => ({
-  ToPayPanel: ({ rows }: { rows: { id: string }[] }) => <div data-testid="to-pay-panel" data-ids={rows.map((r) => r.id).join(",")} />,
+  ToPayPanel: ({ rows }: { rows: { id: string; label: string }[] }) => (
+    <div data-testid="to-pay-panel" data-ids={rows.map((r) => r.id).join(",")} data-labels={rows.map((r) => r.label).join("|")} />
+  ),
 }));
 vi.mock("@/components/money/breakdown-switch", () => ({
   BreakdownSwitch: ({ value, options }: { value: string; options: { value: string }[] }) => (
@@ -64,6 +71,8 @@ vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { nam
 const { default: BudgetPage } = await import("./page");
 const { buildBudget } = await import("@/lib/budget");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
+const { maskPlanStops } = await import("@/lib/plan-reads");
+const { planRows } = await import("@/test/builders/plan-rows");
 const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
 
 const zero = { costTotalMinor: 0, paidTotalMinor: 0 };
@@ -82,7 +91,26 @@ const BUDGET = {
 const ONE_COST = [
   { id: "cost-1", costMinor: 1000, paidMinor: null, currency: "GBP", rateToHome: 1, paidAt: null, dueDate: null, ownerType: "OTHER", ownerId: null, label: "Flight", category: "Transport", settlement: "BEFORE" },
 ];
-const TRIP = { homeCurrency: "GBP", startDate: "2026-01-01", endDate: "2026-01-10", chaptersEnabled: true, forksEnabled: true };
+const TRIP = TRIP_BASE;
+
+function rowsFor(plan: string | null) {
+  const v = (scenario.visibility ?? NO_SURPRISES) as typeof NO_SURPRISES;
+  return planRows({
+    trip: scenario.trip as never,
+    plan,
+    fork: plan ? { id: plan, name: "Plus Switzerland" } : null,
+    visibility: v,
+    stops: maskPlanStops(scenario.stops as { id: string }[], v) as never,
+    transports: [],
+    accommodations: [],
+    items: [],
+    costs: scenario.costs as never,
+    exchangeRates: [],
+    chapters: scenario.chapters as never,
+    budgetItems: scenario.budgetItems as never,
+    budgetAccommodations: scenario.budgetAccommodations as never,
+  });
+}
 
 async function renderPage(search: Record<string, string | string[]> = {}) {
   render(await BudgetPage({ params: Promise.resolve({ tripId: "trip-1" }), searchParams: Promise.resolve(search) }));
@@ -90,21 +118,23 @@ async function renderPage(search: Record<string, string | string[]> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  shell.current = { name: "Christmas in Europe", members: [{ user: { id: "u1", name: "Cam", image: null } }, { user: { id: "u2", name: "Sam", image: null } }] };
   vi.mocked(buildBudget).mockReturnValue(BUDGET as never);
-  loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
-  mockDb.trip.findUnique.mockResolvedValue(TRIP);
-  mockDb.cost.findMany.mockResolvedValue(ONE_COST);
-  for (const k of ["stop", "item", "accommodation", "transport", "exchangeRate", "chapter"] as const) mockDb[k].findMany.mockResolvedValue([]);
+  scenario.trip = TRIP;
+  scenario.costs = ONE_COST;
+  scenario.stops = [];
+  scenario.chapters = [];
+  scenario.budgetItems = [];
+  scenario.budgetAccommodations = [];
+  scenario.visibility = NO_SURPRISES;
+  readPlanMock.mockImplementation(async (_tripId: string, _viewer: string | null, plan: string | null) => rowsFor(plan));
   mockDb.fork.findFirst.mockResolvedValue(null);
 });
 
-describe("Money page — queries each table once (buildBudgetFromRows takes rows the page already fetched)", () => {
-  it("runs each plan query exactly once per render", async () => {
+describe("Money page — reads the Plan once (buildBudgetFromRows takes the rows readPlan handed back)", () => {
+  it("calls readPlan exactly once per render, for this viewer", async () => {
     await renderPage();
-    for (const k of ["cost", "stop", "item", "accommodation", "transport", "chapter"] as const) {
-      expect(mockDb[k].findMany).toHaveBeenCalledTimes(1);
-    }
+    expect(readPlanMock).toHaveBeenCalledTimes(1);
+    expect(readPlanMock).toHaveBeenCalledWith("trip-1", "u1", null);
   });
 });
 
@@ -118,7 +148,7 @@ describe("Money page — header", () => {
     expect(screen.getByRole("link", { name: "Split with 2" })).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
   });
   it("one traveller: no Split pill and no 'each'", async () => {
-    shell.current = { ...shell.current, members: [shell.current.members[0]] };
+    scenario.trip = { ...TRIP, members: [MEMBERS[0]] };
     await renderPage();
     expect(screen.queryByRole("link", { name: /Split with/ })).toBeNull();
     expect(screen.queryByText(/each/)).toBeNull();
@@ -126,14 +156,11 @@ describe("Money page — header", () => {
 });
 
 describe("Money page — plan scoping", () => {
-  it("scopes every plan query to the active fork; rates stay trip-wide", async () => {
+  it("reads the active fork's Plan", async () => {
     mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
     await renderPage({ plan: "fork-9" });
     expect(mockDb.fork.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "fork-9", tripId: "trip-1" } }));
-    for (const k of ["cost", "stop", "item", "accommodation", "transport", "chapter"] as const) {
-      expect(mockDb[k].findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }));
-    }
-    expect(mockDb.exchangeRate.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1" } }));
+    expect(readPlanMock).toHaveBeenCalledWith("trip-1", "u1", "fork-9");
   });
 
   it("a fork hides To pay, Add a cost and the paid bar, and says why", async () => {
@@ -158,11 +185,11 @@ describe("Money page — plan scoping", () => {
   it("falls back to the real plan for a fork of another trip, and takes the first of a repeated ?plan= (AB-02)", async () => {
     await renderPage({ plan: ["a", "b"] });
     expect(mockDb.fork.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "a", tripId: "trip-1" } }));
-    expect(mockDb.cost.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }));
+    expect(readPlanMock).toHaveBeenCalledWith("trip-1", "u1", null);
   });
 
   it("ignores ?plan= when plan variants are off", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, forksEnabled: false });
+    scenario.trip = { ...TRIP, forksEnabled: false };
     await renderPage({ plan: "fork-9" });
     expect(mockDb.fork.findFirst).not.toHaveBeenCalled();
     expect(screen.queryByTestId("variant-banner")).toBeNull();
@@ -176,15 +203,16 @@ describe("Money page — Where it goes", () => {
     expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-options", "category,place");
   });
   it("falls back to Category when the grouping isn't available", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, chaptersEnabled: false });
+    scenario.trip = { ...TRIP, chaptersEnabled: false };
     await renderPage({ by: "chapter" });
     expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-value", "category");
     await renderPage({ by: ["day", "place"] });
     expect(screen.getAllByTestId("breakdown-switch")[1]).toHaveAttribute("data-value", "category");
   });
   it("passes no chapters into the budget when chapters are off", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, chaptersEnabled: false });
-    mockDb.chapter.findMany.mockResolvedValue([{ id: "c1", name: "One", colour: "sky", startDate: "2026-01-02", endDate: "2026-01-05" }]);
+    scenario.trip = { ...TRIP, chaptersEnabled: false };
+    // Handed through even with the toggle off, so the page's own guard is what's under test.
+    scenario.chapters = [{ id: "c1", name: "One", colour: "sky", startDate: "2026-01-02", endDate: "2026-01-05" }];
     await renderPage();
     expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(expect.objectContaining({ chapters: [] }));
   });
@@ -192,11 +220,11 @@ describe("Money page — Where it goes", () => {
 
 describe("Money page — rates", () => {
   it("a strip per foreign currency and the missing line instead of a banner", async () => {
-    mockDb.cost.findMany.mockResolvedValue([
+    scenario.costs = [
       ...ONE_COST,
       { ...ONE_COST[0], id: "c2", currency: "IDR", rateToHome: null },
       { ...ONE_COST[0], id: "c3", currency: "IDR", rateToHome: null },
-    ]);
+    ];
     vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, missingRates: ["IDR"], hasMissingRates: true } as never);
     await renderPage();
     expect(screen.getAllByTestId("rate-IDR").length).toBeGreaterThan(0);
@@ -207,7 +235,7 @@ describe("Money page — rates", () => {
 
 describe("Money page — states (MONEY.md §9)", () => {
   it("no dates: the header and a Set dates call to action", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, startDate: null, endDate: null });
+    scenario.trip = { ...TRIP, startDate: null, endDate: null };
     await renderPage();
     expect(screen.getByRole("heading", { level: 1, name: "Money" })).toBeInTheDocument();
     expect(screen.getByText("No dates yet")).toBeInTheDocument();
@@ -215,7 +243,7 @@ describe("Money page — states (MONEY.md §9)", () => {
   });
 
   it("no costs: a coral Nothing costed yet tile with Add a cost, and the dashed To pay placeholder", async () => {
-    mockDb.cost.findMany.mockResolvedValue([]);
+    scenario.costs = [];
     await renderPage();
     const tile = screen.getByRole("heading", { name: "Nothing costed yet" }).closest("section")!;
     expect(tile.className).toContain("bg-coral");
@@ -227,7 +255,7 @@ describe("Money page — states (MONEY.md §9)", () => {
 
   it("no costs on a fork: no Add a cost", async () => {
     mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
-    mockDb.cost.findMany.mockResolvedValue([]);
+    scenario.costs = [];
     await renderPage({ plan: "fork-9" });
     expect(screen.getByTestId("variant-banner")).toBeInTheDocument();
     expect(screen.queryByText("Add a cost")).toBeNull();
@@ -237,9 +265,9 @@ describe("Money page — states (MONEY.md §9)", () => {
 describe("Money page — ?add=cost defaults (spec 2026-10-06 §K)", () => {
   it("while Travelling, a new cost defaults to today's Stop currency and On the trip", async () => {
     // todayISOInZone is mocked to 2026-01-05; TRIP runs 2026-01-01 → 2026-01-10.
-    mockDb.stop.findMany.mockResolvedValue([
-      { id: "s1", name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-01-04", departDate: "2026-01-07", sortOrder: 0, countryCode: "fr" },
-    ]);
+    scenario.stops = [
+      { id: "s1", name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-01-04", departDate: "2026-01-07", sortOrder: 0, countryCode: "fr", notes: null },
+    ];
     await renderPage();
     const mount = screen.getByTestId("add-cost-from-url");
     expect(mount).toHaveAttribute("data-currency", "EUR");
@@ -247,7 +275,7 @@ describe("Money page — ?add=cost defaults (spec 2026-10-06 §K)", () => {
   });
 
   it("before the trip, the plain defaults", async () => {
-    mockDb.trip.findUnique.mockResolvedValue({ ...TRIP, startDate: "2026-03-01", endDate: "2026-03-10" });
+    scenario.trip = { ...TRIP, startDate: "2026-03-01", endDate: "2026-03-10" };
     await renderPage();
     expect(screen.getByTestId("add-cost-from-url")).toHaveAttribute("data-currency", "GBP");
   });
@@ -255,29 +283,43 @@ describe("Money page — ?add=cost defaults (spec 2026-10-06 §K)", () => {
 
 describe("Money page — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
   function surprised() {
-    loadSurpriseVisibilityMock.mockResolvedValue(
-      hiddenVisibility({ viewerId: "u1", placeholders: [placeholderItem({ id: "cost-hidden-owner" })] }),
-    );
+    scenario.visibility = hiddenVisibility({ viewerId: "u1", placeholders: [placeholderItem({ id: "cost-hidden-owner" })] });
   }
 
-  it("asks the visibility loader for this viewer and passes hiddenOwnerIds through as surpriseOwnerIds", async () => {
+  it("reads the Plan for this viewer and passes its hiddenOwnerIds through as surpriseOwnerIds", async () => {
     surprised();
     await renderPage();
-    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith("trip-1", "u1");
+    expect(readPlanMock).toHaveBeenCalledWith("trip-1", "u1", null);
     expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(expect.objectContaining({ surpriseOwnerIds: ["cost-hidden-owner"] }));
   });
 
   it("drops a line folded into the Surprise category from the To pay panel and the All costs sheet, while the totals keep the money", async () => {
     surprised();
-    mockDb.cost.findMany.mockResolvedValue([
+    scenario.costs = [
       ...ONE_COST,
       { ...ONE_COST[0], id: "cost-hidden", ownerId: "cost-hidden-owner" },
-    ]);
+    ];
     vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, surpriseCostIds: ["cost-hidden"] } as never);
     await renderPage();
     // The lines list drops the hidden cost's line...
     expect(screen.getByTestId("to-pay-panel")).toHaveAttribute("data-ids", "cost-1");
     // ...but the grand total (CostTile reads budget.grandTotal, unfiltered by this page) is untouched.
     expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(expect.objectContaining({ costs: expect.arrayContaining([expect.objectContaining({ id: "cost-hidden" })]) }));
+  });
+});
+
+describe("Money page — Cost owner labels", () => {
+  it("labels an unlabelled Cost by its owner, including a Wishlist idea and a stay outside the visible Plan rows", async () => {
+    scenario.costs = [
+      { ...ONE_COST[0], id: "c-idea", label: null, ownerType: "ITEM", ownerId: "idea-1" },
+      { ...ONE_COST[0], id: "c-stay", label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" },
+    ];
+    // An idea (no Stop, no date) is never a Plan placement, so only the
+    // unfiltered budget rows carry it.
+    scenario.budgetItems = [{ id: "idea-1", stopId: null, category: "FOOD", date: null, title: "Pastéis de Belém" }];
+    scenario.budgetAccommodations = [{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04", name: "Hotel Avenida" }];
+    await renderPage();
+    const labels = screen.getByTestId("to-pay-panel").getAttribute("data-labels")!.split("|");
+    expect(labels).toEqual(expect.arrayContaining(["Pastéis de Belém", "Hotel Avenida"]));
   });
 });

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { relativeTime } from "@/lib/relative-time";
+import { formError } from "@/components/ui/action-failure";
 import {
   approveAccessRequest,
   dismissAccessRequest,
@@ -54,7 +55,7 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
           : "Approved. Couldn't email them, so tell them yourself.",
       );
     } else {
-      setMessage(result.errors._form?.[0] ?? "Couldn't approve that request.");
+      setMessage(formError(result) ?? "Couldn't approve that request.");
     }
   }
 
@@ -67,7 +68,7 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
     if (result.success) {
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
     } else {
-      setMessage(result.errors._form?.[0] ?? "Couldn't dismiss that request.");
+      setMessage(formError(result) ?? "Couldn't dismiss that request.");
     }
   }
 

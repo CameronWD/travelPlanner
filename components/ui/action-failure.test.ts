@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
-import { firstErrorMessage, toastRefused, toastRejected, SOMETHING_WENT_WRONG } from "./action-failure";
+import { firstErrorMessage, formError, toastRefused, toastRejected, SOMETHING_WENT_WRONG } from "./action-failure";
 import { OFFLINE_MESSAGE } from "./failure-message";
 
 function setOnline(value: boolean) {
@@ -24,6 +24,18 @@ describe("firstErrorMessage", () => {
     expect(firstErrorMessage({}, "fallback")).toBe("fallback");
     expect(firstErrorMessage(undefined, "fallback")).toBe("fallback");
   });
+  it("reads a failure result or a bare dict", () => {
+    expect(firstErrorMessage({ success: false, errors: { name: ["Too long"] } }, "fallback")).toBe("Too long");
+    expect(firstErrorMessage({ name: ["Too long"] }, "fallback")).toBe("Too long");
+    expect(firstErrorMessage(undefined, "fallback")).toBe("fallback");
+  });
+});
+
+describe("formError", () => {
+  it("reads the form-level key off a failure result or a bare dict", () => {
+    expect(formError({ success: false, errors: { _: ["Form-level"] } })).toBe("Form-level");
+    expect(formError({ name: ["field"] })).toBeUndefined();
+  });
 });
 
 describe("toastRefused", () => {
@@ -31,8 +43,8 @@ describe("toastRefused", () => {
     toastRefused({ _: ["Nope."] }, "Couldn't do that.");
     expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Nope." });
   });
-  it("toasts a plain string reason as-is", () => {
-    toastRefused("File is someone else's.", "Couldn't do that.");
+  it("toasts the server's own words from a full ActionFailure", () => {
+    toastRefused({ success: false, errors: { _: ["File is someone else's."] } }, "Couldn't do that.");
     expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "File is someone else's." });
   });
   it("uses the fallback when there's no reason", () => {

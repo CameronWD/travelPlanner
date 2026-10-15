@@ -14,6 +14,8 @@ import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } 
 import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { readPlan } from "@/lib/plan-reads";
+import { type ActionResult, formFail } from "@/lib/action-result";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
@@ -41,9 +43,7 @@ export async function listForks(tripId: string): Promise<ForkListItem[]> {
   });
 }
 
-export type CreateForkResult =
-  | { success: true; forkId: string }
-  | { success: false; error: string };
+export type CreateForkResult = ActionResult<{ forkId: string }>;
 
 /**
  * Deep-copy a plan into a new Fork within a transaction, remapping foreign
@@ -81,12 +81,12 @@ export async function createFork(
       },
     },
   });
-  if (!trip) return { success: false, error: "Trip not found" };
+  if (!trip) return formFail("Trip not found");
 
   // Plan variants are opt-in per trip (spec B3) — the switcher is hidden when
   // off; this is the server-side half of that gate.
   if (!trip.forksEnabled) {
-    return { success: false, error: PLAN_VARIANTS_OFF_ERROR };
+    return formFail(PLAN_VARIANTS_OFF_ERROR);
   }
 
   // 3. Phase gate — forking is only allowed before departure
@@ -99,19 +99,13 @@ export async function createFork(
       }),
     );
   } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "What-if plans are only available before the trip starts.",
-    };
+    return formFail(err instanceof Error ? err.message : "What-if plans are only available before the trip starts.");
   }
 
   // 4. Soft cap — check before opening the transaction
   const count = await db.fork.count({ where: { tripId } });
   if (count >= MAX_FORKS) {
-    return {
-      success: false,
-      error: `You have reached the maximum of ${MAX_FORKS} what-if plans. Discard one first.`,
-    };
+    return formFail(`You have reached the maximum of ${MAX_FORKS} what-if plans. Discard one first.`);
   }
 
   // 5. Load six source entity collections, scoped to the source plan
@@ -318,7 +312,7 @@ export async function createFork(
 // Result type shared by renameFork / discardFork
 // ---------------------------------------------------------------------------
 
-export type ForkMutationResult = { success: true } | { success: false; error: string };
+export type ForkMutationResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // renameFork
@@ -338,7 +332,7 @@ export async function renameFork(
   // 1. Parse & validate
   const parsed = renameSchema.safeParse({ name });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
+    return formFail(parsed.error.issues[0]?.message ?? "Invalid name");
   }
   const trimmedName = parsed.data.name;
 
@@ -474,32 +468,14 @@ export interface ComparisonResult {
  */
 export async function getComparison(tripId: string): Promise<ComparisonResult> {
   // 1. Auth check
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
-  // 2. Load trip fields needed by computePlanMetrics + forks in sortOrder
-  const [trip, forks] = await Promise.all([
-    db.trip.findUnique({
-      where: { id: tripId },
-      select: {
-        id: true,
-        name: true,
-        startDate: true,
-        hardEndDate: true,
-        homeCurrency: true,
-        drivingWindingFactor: true,
-        drivingAvgSpeedKph: true,
-        forksEnabled: true,
-        roundTrip: true,
-      },
-    }),
-    db.fork.findMany({
-      where: { tripId },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true },
-    }),
-  ]);
-
-  if (!trip) throw new Error(`Trip ${tripId} not found`);
+  // 2. Forks in sortOrder
+  const forks = await db.fork.findMany({
+    where: { tripId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true },
+  });
 
   // 3. Build plan id list: real plan (null) + each fork in sortOrder
   const planEntries: { forkId: string | null; name: string }[] = [
@@ -507,103 +483,44 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
     ...forks.map((f) => ({ forkId: f.id, name: f.name })),
   ];
 
-  // 4. Load shared exchange rates once (trip-scoped, not per-plan)
-  const exchangeRates = await db.exchangeRate.findMany({
-    where: { tripId },
-    select: { base: true, quote: true, rate: true },
-  });
+  // 4. Every plan's rows through the Plan reader (lib/plan-reads.ts): one
+  // cached Trip shell and one trip-wide exchange-rate read per plan; Items
+  // are Plan placements only — trip-wide wishlist ideas (no stop, no date)
+  // are not part of the arrangement being compared (C1c, ADR 0022). The
+  // viewer's Surprises apply as on the Plan page (Costs stay unfiltered, so
+  // the budget total keeps hidden money).
+  const planData = await Promise.all(planEntries.map(({ forkId }) => readPlan(tripId, user.id, forkId)));
 
-  // 5. Load all six collections for every plan in parallel
-  const planData = await Promise.all(
-    planEntries.map(async ({ forkId }) => {
-      const where = { tripId, forkId };
-      const [stops, transports, accommodations, items, costs] = await Promise.all([
-        db.stop.findMany({
-          where,
-          select: {
-            id: true,
-            name: true,
-            country: true,
-            nights: true,
-            sortOrder: true,
-            arriveDate: true,
-            departDate: true,
-            pinned: true,
-            lat: true,
-            lng: true,
-            timezone: true,
-          },
-        }),
-        db.transport.findMany({
-          where,
-          select: {
-            id: true,
-            mode: true,
-            fromStopId: true,
-            toStopId: true,
-            depAt: true,
-            arrAt: true,
-            arrIsHome: true,
-          },
-        }),
-        db.accommodation.findMany({
-          where,
-          select: {
-            id: true,
-            stopId: true,
-            name: true,
-            checkIn: true,
-            checkOut: true,
-          },
-        }),
-        db.item.findMany({
-          // Plan placements only — trip-wide wishlist ideas (no stop, no date)
-          // are not part of the arrangement being compared (C1c). ADR 0022:
-          // placement = Stop OR date. Keeps real-vs-fork symmetric.
-          where: { ...where, ...PLAN_PLACEMENT_WHERE },
-          select: {
-            id: true,
-            stopId: true,
-            date: true,
-            startTime: true,
-            endTime: true,
-            lat: true,
-            lng: true,
-            category: true,
-          },
-        }),
-        db.cost.findMany({
-          where,
-          select: {
-            id: true,
-            costMinor: true,
-            paidMinor: true,
-            currency: true,
-            rateToHome: true,
-            paidAt: true,
-            ownerType: true,
-            ownerId: true,
-            label: true,
-            category: true,
-          },
-        }),
-      ]);
-      return { stops, transports, accommodations, items, costs };
-    }),
-  );
+  // 5. Trip fields (from the cached shell readPlan carries)
+  const shell = planData[0].trip;
+  const trip: ComparisonResult["trip"] = {
+    id: shell.id,
+    name: shell.name,
+    startDate: shell.startDate,
+    hardEndDate: shell.hardEndDate,
+    homeCurrency: shell.homeCurrency,
+    drivingWindingFactor: shell.drivingWindingFactor,
+    drivingAvgSpeedKph: shell.drivingAvgSpeedKph,
+    forksEnabled: shell.forksEnabled,
+  };
 
   // 6. Map rows to PlanMetricsInput and compute metrics
   const tripFields = {
-    startDate: trip.startDate,
-    hardEndDate: trip.hardEndDate,
-    homeCurrency: trip.homeCurrency,
-    drivingWindingFactor: trip.drivingWindingFactor,
-    drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
-    roundTrip: trip.roundTrip,
+    startDate: shell.startDate,
+    hardEndDate: shell.hardEndDate,
+    homeCurrency: shell.homeCurrency,
+    drivingWindingFactor: shell.drivingWindingFactor,
+    drivingAvgSpeedKph: shell.drivingAvgSpeedKph,
+    roundTrip: shell.roundTrip,
+    homeName: shell.homeName,
+    homeLat: shell.homeLat,
+    homeLng: shell.homeLng,
+    homeCountryCode: shell.homeCountryCode,
+    homeTimezone: shell.homeTimezone,
   };
 
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {
-    const { stops, transports, accommodations, items, costs } = planData[i];
+    const { stops, transports, accommodations, items, costs, exchangeRates } = planData[i];
 
     // Map DB rows to CompareStop/CompareTransport shapes.
     // - timezone: DB is nullable; CompareStop requires string — fall back to "UTC".
@@ -816,7 +733,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
 // promoteFork
 // ---------------------------------------------------------------------------
 
-export type PromoteForkResult = { success: true } | { success: false; error: string };
+export type PromoteForkResult = ActionResult;
 
 /**
  * Promote a fork to become the new real plan.
@@ -843,13 +760,13 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   // query, since requireForkAccess's return shape doesn't carry the role.
   const { membership } = await requireTripAccess(tripId);
   if (!isTripOwnerOrAdmin(membership, user.email)) {
-    return { success: false, error: "Only the trip owner can make this the real plan." };
+    return formFail("Only the trip owner can make this the real plan.");
   }
 
   // A dormant Fork (plan variants off, spec B3) can't be promoted — promoting
   // discards the real plan, so it must never happen from a hidden variant.
   if (!trip.forksEnabled) {
-    return { success: false, error: PLAN_VARIANTS_OFF_ERROR };
+    return formFail(PLAN_VARIANTS_OFF_ERROR);
   }
 
   // 2. Phase gate
@@ -869,10 +786,7 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
       }),
     );
   } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "What-if plans are only available before the trip starts.",
-    };
+    return formFail(err instanceof Error ? err.message : "What-if plans are only available before the trip starts.");
   }
 
   // 3. Transaction — strictly ordered

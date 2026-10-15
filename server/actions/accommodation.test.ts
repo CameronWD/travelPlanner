@@ -90,11 +90,44 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// requireAccommodationAccess is now a thin adapter over requireRowAccess
+// (Task 4) — forward to the same accFindUniqueMock/requireTripAccessMock/
+// requireOutsideSurpriseMock every test already seeds, so existing
+// mockResolvedValueOnce chains for the guard's own lookup keep working
+// unchanged.
+const requireRowAccessMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const row = await accFindUniqueMock();
+    // Mirror the real guard's load → notFound() short-circuit: this file
+    // never mocks next/navigation, so reach for the real notFound(), which
+    // throws the same Error (message/digest "NEXT_HTTP_ERROR_FALLBACK;404")
+    // production does.
+    if (!row) {
+      const { notFound } = await import("next/navigation");
+      notFound();
+    }
+    const { user, membership } = await requireTripAccessMock(row.tripId);
+    const surpriseOf = await requireOutsideSurpriseMock(user.id, { accommodationId: row.id });
+    return { row, user, membership, surpriseOf };
+  }),
+);
+// requirePlanAccess (ADR 0074 rule 1) — membership via the same
+// requireTripAccessMock, and the validated plan is the forkId passed.
+const requirePlanAccessMock = vi.hoisted(() =>
+  vi.fn(async (tripId: string, forkId?: string | null) => {
+    const { user, membership } = await requireTripAccessMock(tripId);
+    return { user, membership, plan: forkId ?? null };
+  }),
+);
+vi.mock("@/lib/guards", () => ({
+  requireTripAccess: requireTripAccessMock,
+  requirePlanAccess: requirePlanAccessMock,
+  requireRowAccess: requireRowAccessMock,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
-const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -282,8 +315,18 @@ describe("createAccommodation", () => {
 
     await createAccommodation(VALID_INPUT);
 
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, accCreateMock);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-2", undefined);
+    expectAccessCheckedBeforeWrite(requirePlanAccessMock, accCreateMock);
+  });
+
+  it("ADR 0074 rule 1: a forkId that is not this Trip's Fork is not found, nothing written", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-x" });
+    requirePlanAccessMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+
+    await expect(createAccommodation(VALID_INPUT, "fork-x")).rejects.toThrow(/404/);
+
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-x");
+    expect(accCreateMock).not.toHaveBeenCalled();
   });
 
   it("returns error when stop not found", async () => {
@@ -442,7 +485,15 @@ describe("updateAccommodation", () => {
     await updateAccommodation("acc-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, accUpdateMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, accUpdateMock);
+  });
+
+  it("rejects with notFound and writes nothing when the accommodation doesn't exist", async () => {
+    accFindUniqueMock.mockResolvedValue(null);
+
+    await expect(updateAccommodation("missing-acc", VALID_INPUT)).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+
+    expect(accUpdateMock).not.toHaveBeenCalled();
   });
 
   it("geocodes address on update and stores coords", async () => {
@@ -523,7 +574,7 @@ describe("deleteAccommodation", () => {
     await deleteAccommodation("acc-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-4");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, accDeleteMock);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, accDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted name as entityLabel", async () => {

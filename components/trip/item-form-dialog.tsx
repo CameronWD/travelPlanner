@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { toastRefused, toastRejected, formError } from "@/components/ui/action-failure";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
@@ -55,24 +55,6 @@ export interface StopOption {
   arriveDate?: string | null;
 }
 
-interface FormErrors {
-  title?: string[];
-  category?: string[];
-  stopId?: string[];
-  date?: string[];
-  startTime?: string[];
-  endTime?: string[];
-  address?: string[];
-  link?: string[];
-  booking?: string[];
-  notes?: string[];
-  costMinor?: string[];
-  currency?: string[];
-  paidMinor?: string[];
-  paidAt?: string[];
-  surpriseForIds?: string[];
-  _form?: string[];
-}
 
 export interface ItemFormDialogProps {
   tripId: string;
@@ -449,45 +431,6 @@ export function AddItemButton({
   );
 }
 
-export function EditItemButton({
-  tripId,
-  stops,
-  item,
-  homeCurrency,
-  costs,
-}: {
-  tripId: string;
-  stops: StopOption[];
-  item: ItemCardItem;
-  homeCurrency?: string;
-  costs?: CostRow[];
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        onClick={() => setOpen(true)}
-        aria-label={`Edit ${item.title}`}
-        title="Edit Item"
-      >
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      <ItemFormDialog
-        tripId={tripId}
-        stops={stops}
-        item={item}
-        open={open}
-        onOpenChange={setOpen}
-        homeCurrency={homeCurrency}
-        costs={costs}
-      />
-    </>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Inner form
 // ---------------------------------------------------------------------------
@@ -714,7 +657,7 @@ function ItemForm({
       </Field>
 
       {/* Title */}
-      <Field label="Title" required error={(errors as FormErrors).title?.[0]} className="sm:col-span-2">
+      <Field label="Title" required error={errors.title?.[0]} className="sm:col-span-2">
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -725,7 +668,7 @@ function ItemForm({
       </Field>
 
       {/* Category */}
-      <Field label="Category" error={(errors as FormErrors).category?.[0]} className="sm:col-span-2">
+      <Field label="Category" error={errors.category?.[0]} className="sm:col-span-2">
         <CategoryGroup
           category={category}
           onSelect={setCategory}
@@ -738,7 +681,7 @@ function ItemForm({
           else via auto-flow; with no Stop, Date alone still spans full width. */}
       {stops.length > 0 ? (
         <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-          <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
+          <Field label="Stop" error={errors.stopId?.[0]}>
             <Select
               value={stopId}
               onValueChange={(v) => {
@@ -777,7 +720,7 @@ function ItemForm({
               }
             }}
             description="Leave blank to keep this as an unscheduled item"
-            error={(errors as FormErrors).date?.[0]}
+            error={errors.date?.[0]}
             disabled={isPending}
           />
         </div>
@@ -796,7 +739,7 @@ function ItemForm({
               }
             }}
             description="Leave blank to keep this as an unscheduled item"
-            error={(errors as FormErrors).date?.[0]}
+            error={errors.date?.[0]}
             disabled={isPending}
           />
         </div>
@@ -806,7 +749,7 @@ function ItemForm({
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
         <Field
           label="Start time"
-          error={(errors as FormErrors).startTime?.[0]}
+          error={errors.startTime?.[0]}
           description={timesDisabled ? "Set a date first" : undefined}
         >
           <Input
@@ -818,7 +761,7 @@ function ItemForm({
         </Field>
         <Field
           label="End time"
-          error={(errors as FormErrors).endTime?.[0]}
+          error={errors.endTime?.[0]}
           description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
         >
           <Input
@@ -831,7 +774,7 @@ function ItemForm({
       </div>
 
       {/* Address — full width; a street address reads best on one line. */}
-      <Field label="Address" error={(errors as FormErrors).address?.[0]} className="sm:col-span-2">
+      <Field label="Address" error={errors.address?.[0]} className="sm:col-span-2">
         <Input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
@@ -842,7 +785,7 @@ function ItemForm({
 
       {/* Booking reference + Link — own sub-grid so they always pair (spec 2026-10-05 §D). */}
       <div data-pair="booking" className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-        <Field label="Booking reference" error={(errors as FormErrors).booking?.[0]}>
+        <Field label="Booking reference" error={errors.booking?.[0]}>
           <Input
             value={booking}
             onChange={(e) => setBooking(e.target.value)}
@@ -851,7 +794,7 @@ function ItemForm({
           />
         </Field>
 
-        <Field label="Link" error={(errors as FormErrors).link?.[0]}>
+        <Field label="Link" error={errors.link?.[0]}>
           <Input
             type="url"
             value={link}
@@ -863,7 +806,7 @@ function ItemForm({
       </div>
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
+      <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -908,8 +851,8 @@ function ItemForm({
               />
             ))}
           </div>
-          {(errors as FormErrors).surpriseForIds?.[0] && (
-            <FormError>{(errors as FormErrors).surpriseForIds?.[0]}</FormError>
+          {errors.surpriseForIds?.[0] && (
+            <FormError>{errors.surpriseForIds?.[0]}</FormError>
           )}
         </fieldset>
       )}
@@ -954,7 +897,7 @@ function ItemForm({
       </div>
 
       <div className="sm:col-span-2">
-        <FormError>{(errors as FormErrors)._form?.[0] ?? deleteError ?? undefined}</FormError>
+        <FormError>{formError(errors) ?? deleteError ?? undefined}</FormError>
       </div>
 
       <DialogFooter className="sm:col-span-2">

@@ -1,9 +1,8 @@
 "use server";
 
-import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
@@ -11,7 +10,7 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -39,16 +38,8 @@ async function requireCostAccess(costId: string): Promise<{
   viewerId: string;
   surpriseOf: SurpriseRoot | null;
 }> {
-  const cost = await db.cost.findUnique({
-    where: { id: costId },
-    select: { id: true, tripId: true, forkId: true, currency: true, ownerType: true, ownerId: true },
-  });
-  if (!cost) {
-    notFound();
-  }
-  const { user } = await requireTripAccess(cost.tripId);
-  const surpriseOf = await requireOutsideSurprise(user.id, { costOwner: cost });
-  return { ...cost, viewerId: user.id, surpriseOf };
+  const { row, user, surpriseOf } = await requireRowAccess("cost", costId);
+  return { ...row, viewerId: user.id, surpriseOf };
 }
 
 /**
@@ -130,7 +121,7 @@ export async function createCost(
   input: CostRawInput,
   forkId?: PlanId,
 ): Promise<CostActionResult> {
-  const { user } = await requireTripAccess(tripId);
+  const { user, plan } = await requirePlanAccess(tripId, forkId);
 
   const parsed = costSchema.safeParse(input);
   if (!parsed.success) {
@@ -151,10 +142,7 @@ export async function createCost(
     select: { homeCurrency: true },
   });
   if (!trip) {
-    return {
-      success: false,
-      errors: { _form: ["Trip not found"] },
-    };
+    return formFail("Trip not found");
   }
 
   // Resolve the rate (incl. any network fetch) BEFORE opening a transaction —
@@ -170,7 +158,7 @@ export async function createCost(
     return tx.cost.create({
       data: {
         tripId,
-        forkId: forkId ?? null,
+        forkId: plan,
         costMinor: data.costMinor,
         paidMinor: data.paidMinor ?? null,
         currency: data.currency,
@@ -187,7 +175,7 @@ export async function createCost(
     });
   });
 
-  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
   revalidateTripPaths(tripId);
   return { success: true, cost };
 }
@@ -223,10 +211,7 @@ export async function updateCost(
     select: { homeCurrency: true },
   });
   if (!trip) {
-    return {
-      success: false,
-      errors: { _form: ["Trip not found"] },
-    };
+    return formFail("Trip not found");
   }
 
   const resolved = await resolveRateForTrip(existing.tripId, data.currency, trip.homeCurrency, { db });
@@ -305,7 +290,7 @@ export async function markCostPaid(
     where: { id: costId },
     select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
-  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  if (!cost) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 
@@ -347,7 +332,7 @@ export async function markCostUnpaid(costId: string): Promise<CostActionResult> 
     where: { id: costId },
     select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
-  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  if (!cost) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 

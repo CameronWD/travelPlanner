@@ -193,7 +193,7 @@ describe("setDigestEnabled", () => {
       create: { userId: USER_ID, tripId: TRIP_ID, enabled: false },
       update: { enabled: false },
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ success: true });
   });
 
   it("revalidates the trip's settings path", async () => {
@@ -227,7 +227,7 @@ describe("sendTestDigest", () => {
       slot: "EVENING",
       force: true,
     });
-    expect(result).toEqual({ ok: true, sent: 2, placeholder: false });
+    expect(result).toEqual({ success: true, sent: 2, placeholder: false });
   });
 
   it("falls back to UTC when the device's timezone is null", async () => {
@@ -247,8 +247,8 @@ describe("sendTestDigest", () => {
     const result = await sendTestDigest(TRIP_ID);
 
     expect(result).toEqual({
-      ok: false,
-      error: "Push isn't configured on this deployment. The VAPID keys are missing.",
+      success: false,
+      errors: { _: ["Push isn't configured on this deployment. The VAPID keys are missing."] },
     });
     expect(dispatchDigestMock).not.toHaveBeenCalled();
   });
@@ -259,8 +259,8 @@ describe("sendTestDigest", () => {
     const result = await sendTestDigest(TRIP_ID);
 
     expect(result).toEqual({
-      ok: false,
-      error: "No device is subscribed yet. Press Enable first.",
+      success: false,
+      errors: { _: ["No device is subscribed yet. Press Enable first."] },
     });
     expect(dispatchDigestMock).not.toHaveBeenCalled();
   });
@@ -273,7 +273,7 @@ describe("sendTestDigest", () => {
 
     const result = await sendTestDigest(TRIP_ID);
 
-    expect(result).toEqual({ ok: true, sent: 1, placeholder: true });
+    expect(result).toEqual({ success: true, sent: 1, placeholder: true });
   });
 
   it("still fails when a test reached no device at all", async () => {
@@ -287,12 +287,12 @@ describe("sendTestDigest", () => {
     // Removing the empty-content refusal must not weaken the rule that this
     // never claims success when nothing was delivered.
     expect(result).toEqual({
-      ok: false,
-      error: "The test Digest could not be delivered.",
+      success: false,
+      errors: { _: ["The test Digest could not be delivered."] },
     });
   });
 
-  it("never returns ok: true when dispatch reports zero sent for any reason", async () => {
+  it("never returns success: true when dispatch reports zero sent for any reason", async () => {
     pushSubscriptionFindManyMock.mockResolvedValue([
       { timezone: "Europe/London", createdAt: new Date("2026-01-01") },
     ]);
@@ -300,10 +300,10 @@ describe("sendTestDigest", () => {
 
     const result = await sendTestDigest(TRIP_ID);
 
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
   });
 
-  it("returns ok: true with the sent count when dispatch actually delivers", async () => {
+  it("returns success: true with the sent count when dispatch actually delivers", async () => {
     pushSubscriptionFindManyMock.mockResolvedValue([
       { timezone: "Europe/London", createdAt: new Date("2026-01-01") },
     ]);
@@ -311,7 +311,7 @@ describe("sendTestDigest", () => {
 
     const result = await sendTestDigest(TRIP_ID);
 
-    expect(result).toEqual({ ok: true, sent: 3, placeholder: false });
+    expect(result).toEqual({ success: true, sent: 3, placeholder: false });
   });
 });
 

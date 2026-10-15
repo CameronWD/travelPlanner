@@ -1,11 +1,13 @@
 /**
  * The Share link's public projection (ADR 0051) — the one lookup the share
- * page, its OG image and Route copy all go through, so all three refuse the
- * same revoked or rotated token and read the same fields. A revoked link's
+ * page, its OG image, Route copy and the link-scoped photo routes all go
+ * through, so all of them refuse the same revoked or rotated token and read
+ * the same fields. A revoked link's
  * row is deleted (server/actions/share.ts revokeShareLink) and a rotated
  * one's token replaced, so either simply matches nothing here.
  */
 
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -27,10 +29,11 @@ const SHARE_TRIP_SELECT = {
  * Resolve the token → link + trip, or null for an unknown/revoked/rotated
  * token, or a Trip in Recently deleted (ADR 0067). `findUnique` can't filter
  * on a relation, so this is a `findFirst` scoped by the token's own unique
- * column.
+ * column. Memoised per request (React cache), so every reader in one
+ * render of the share page pays for one lookup (spec 2026-10-14 card A).
  */
-export function findShareLink(token: string) {
-  return db.shareLink.findFirst({
+export const findShareLink = cache((token: string) =>
+  db.shareLink.findFirst({
     where: { token, trip: { deletedAt: null } },
     select: {
       id: true,
@@ -42,8 +45,8 @@ export function findShareLink(token: string) {
       includeContacts: true,
       trip: { select: SHARE_TRIP_SELECT },
     },
-  });
-}
+  }),
+);
 
 export type ShareStop = {
   id: string;

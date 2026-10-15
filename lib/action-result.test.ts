@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { ok, fail, flattenZodErrors, validationResult } from "./action-result";
+import { ok, fail, formFail, flattenZodErrors, validationResult } from "./action-result";
 
 describe("ok", () => {
   it("returns a plain success", () => {
@@ -17,6 +17,17 @@ describe("fail", () => {
       success: false,
       errors: { name: ["Required"] },
     });
+  });
+  it("fail() with extra failure fields keeps them on the failure branch", () => {
+    const r = fail({ _: ["x"] }, { code: "busy", createdStops: { a: "b" } });
+    expect(r.code).toBe("busy");
+    expect(r.createdStops).toEqual({ a: "b" });
+  });
+});
+
+describe("formFail", () => {
+  it("formFail puts the message under the one form-level key and carries a code", () => {
+    expect(formFail("Nope", "disabled")).toEqual({ success: false, errors: { _: ["Nope"] }, code: "disabled" });
   });
 });
 

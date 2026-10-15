@@ -136,9 +136,9 @@ describe("aiSuggestActivities", () => {
     const result = await aiSuggestActivities("trip-1", "stop-99");
 
     expect(result).toEqual({
-      ok: false,
-      reason: "error",
-      message: "Stop not found in this trip",
+      success: false,
+      code: "error",
+      errors: { _: ["Stop not found in this trip"] },
     });
     expect(suggestActivitiesMock).not.toHaveBeenCalled();
   });
@@ -154,9 +154,9 @@ describe("aiSuggestActivities", () => {
     const result = await aiSuggestActivities("trip-1", "stop-1");
 
     expect(result).toEqual({
-      ok: false,
-      reason: "error",
-      message: "Stop not found in this trip",
+      success: false,
+      code: "error",
+      errors: { _: ["Stop not found in this trip"] },
     });
   });
 
@@ -201,7 +201,7 @@ describe("aiSuggestActivities", () => {
     );
   });
 
-  it("forwards the lib result", async () => {
+  it("converts the lib's successful result into an ActionResult", async () => {
     stopFindUniqueMock.mockResolvedValue({
       id: "stop-1",
       name: "Rome",
@@ -209,12 +209,12 @@ describe("aiSuggestActivities", () => {
       tripId: "trip-1",
     });
     itemFindManyMock.mockResolvedValue([]);
-    const expected = { ok: true as const, data: { suggestions: [{ title: "Forum", category: "SIGHTSEEING" as const, note: "Ruins" }] } };
-    suggestActivitiesMock.mockResolvedValue(expected);
+    const libResult = { ok: true as const, data: { suggestions: [{ title: "Forum", category: "SIGHTSEEING" as const, note: "Ruins" }] } };
+    suggestActivitiesMock.mockResolvedValue(libResult);
 
     const result = await aiSuggestActivities("trip-1", "stop-1");
 
-    expect(result).toEqual(expected);
+    expect(result).toEqual({ success: true, data: libResult.data });
   });
 
   it("returns disabled when the lib returns disabled", async () => {
@@ -229,7 +229,11 @@ describe("aiSuggestActivities", () => {
 
     const result = await aiSuggestActivities("trip-1", "stop-1");
 
-    expect(result).toEqual({ ok: false, reason: "disabled" });
+    expect(result).toEqual({
+      success: false,
+      code: "disabled",
+      errors: { _: ["AI features are not configured."] },
+    });
   });
 });
 
@@ -279,9 +283,9 @@ describe("aiDraftPackingList", () => {
     const result = await aiDraftPackingList("trip-99");
 
     expect(result).toEqual({
-      ok: false,
-      reason: "error",
-      message: "Trip not found",
+      success: false,
+      code: "error",
+      errors: { _: ["Trip not found"] },
     });
     expect(draftPackingListMock).not.toHaveBeenCalled();
   });
@@ -311,19 +315,19 @@ describe("aiDraftPackingList", () => {
     });
   });
 
-  it("forwards the lib result", async () => {
+  it("converts the lib's successful result into an ActionResult", async () => {
     tripFindUniqueMock.mockResolvedValue({
       name: "Test",
       startDate: "2025-01-01",
       endDate: "2025-01-07",
       stops: [],
     });
-    const expected = { ok: true as const, data: { items: ["Passport", "Sunscreen"] } };
-    draftPackingListMock.mockResolvedValue(expected);
+    const libResult = { ok: true as const, data: { items: ["Passport", "Sunscreen"] } };
+    draftPackingListMock.mockResolvedValue(libResult);
 
     const result = await aiDraftPackingList("trip-1");
 
-    expect(result).toEqual(expected);
+    expect(result).toEqual({ success: true, data: libResult.data });
   });
 
   it("returns disabled when the lib returns disabled", async () => {
@@ -337,6 +341,10 @@ describe("aiDraftPackingList", () => {
 
     const result = await aiDraftPackingList("trip-1");
 
-    expect(result).toEqual({ ok: false, reason: "disabled" });
+    expect(result).toEqual({
+      success: false,
+      code: "disabled",
+      errors: { _: ["AI features are not configured."] },
+    });
   });
 });

@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { toast } from "@/components/ui/use-toast";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -153,7 +154,11 @@ function PromoteForkDialogInner({
       if (result.success) {
         onClose();
       } else {
-        toast({ title: "Couldn't make this the real plan.", description: result.error, variant: "destructive" });
+        toast({
+          title: "Couldn't make this the real plan.",
+          description: firstErrorMessage(result, "Couldn't make this the real plan."),
+          variant: "destructive",
+        });
         onClose();
       }
     });

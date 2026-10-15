@@ -1,5 +1,6 @@
 "use server";
 
+import { ok, formFail, type ActionResult } from "@/lib/action-result";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
@@ -12,6 +13,18 @@ import {
   type SuggestActivitiesOutput,
   type DraftPackingListOutput,
 } from "@/lib/ai";
+
+/**
+ * Converts the lib's plain `{ ok, data }` / `{ ok, reason, message }`
+ * (lib/ai.ts stays as it is — it is not an action) into the one
+ * `ActionResult` shape every action returns (ADR 0074): `reason` becomes
+ * `code`, and the message — when the lib didn't supply one, as for
+ * "disabled" — falls back to a generic line.
+ */
+function toAiActionResult<T extends object>(result: AiResult<T>): ActionResult<{ data: T }> {
+  if (result.ok) return ok({ data: result.data });
+  return formFail(result.message ?? "AI features are not configured.", result.reason);
+}
 
 // ---------------------------------------------------------------------------
 // aiSuggestActivities
@@ -29,7 +42,7 @@ import {
 export async function aiSuggestActivities(
   tripId: string,
   stopId: string,
-): Promise<AiResult<SuggestActivitiesOutput>> {
+): Promise<ActionResult<{ data: SuggestActivitiesOutput }>> {
   const { user } = await requireTripAccess(tripId);
   await requireOutsideSurprise(user.id, { stopId });
 
@@ -43,11 +56,7 @@ export async function aiSuggestActivities(
   ]);
 
   if (!stop || stop.tripId !== tripId) {
-    return {
-      ok: false,
-      reason: "error",
-      message: "Stop not found in this trip",
-    };
+    return formFail("Stop not found in this trip", "error");
   }
 
   // Load existing item titles for this stop so AI can avoid duplicates.
@@ -59,11 +68,13 @@ export async function aiSuggestActivities(
   });
   const existingTitles = existingItems.map((i) => i.title);
 
-  return suggestActivities({
-    stopName: stop.name,
-    country: stop.country ?? undefined,
-    existingTitles,
-  });
+  return toAiActionResult(
+    await suggestActivities({
+      stopName: stop.name,
+      country: stop.country ?? undefined,
+      existingTitles,
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +89,7 @@ export async function aiSuggestActivities(
  */
 export async function aiDraftPackingList(
   tripId: string,
-): Promise<AiResult<DraftPackingListOutput>> {
+): Promise<ActionResult<{ data: DraftPackingListOutput }>> {
   await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
@@ -97,16 +108,18 @@ export async function aiDraftPackingList(
   });
 
   if (!trip) {
-    return { ok: false, reason: "error", message: "Trip not found" };
+    return formFail("Trip not found", "error");
   }
 
-  return draftPackingList({
-    tripName: trip.name,
-    stops: trip.stops.map((s) => ({
-      name: s.name,
-      country: s.country ?? undefined,
-    })),
-    startDate: trip.startDate,
-    endDate: trip.endDate,
-  });
+  return toAiActionResult(
+    await draftPackingList({
+      tripName: trip.name,
+      stops: trip.stops.map((s) => ({
+        name: s.name,
+        country: s.country ?? undefined,
+      })),
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+    }),
+  );
 }

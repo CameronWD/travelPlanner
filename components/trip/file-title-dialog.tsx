@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { setAttachmentTitle } from "@/server/actions/attachments";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 export interface FileTitleDialogProps {
   file: { id: string; title: string | null | undefined } | null;
@@ -28,7 +29,7 @@ function Body({ file, onOpenChange, onSaved }: Omit<FileTitleDialogProps, "file"
         onOpenChange(false);
         onSaved?.();
       } else {
-        setError(result.error);
+        setError(firstErrorMessage(result, "Couldn't rename that file."));
       }
     });
   }

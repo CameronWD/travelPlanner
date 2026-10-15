@@ -4,6 +4,7 @@ import * as React from "react";
 import { Bell, BellOff, Smartphone, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
+import { formError } from "@/components/ui/action-failure";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListRow } from "@/components/ui/list-row";
 import { SM_HIT } from "@/components/ui/touch-target";
@@ -161,23 +162,23 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
           return;
         }
         const result = await removeThisDevice(local.endpoint);
-        if (result.ok) {
+        if (result.success) {
           setDevices((prev) => prev.filter((d) => d.id !== device.id));
           setMessage("Removed from this device.");
         } else {
-          setMessage(result.error);
+          setMessage(formError(result) ?? "Couldn't remove this device's push subscription. Try again.");
         }
         return;
       }
 
       const result = await removeDeviceById(device.id);
-      if (result.ok) {
+      if (result.success) {
         setDevices((prev) => prev.filter((d) => d.id !== device.id));
         setMessage(
           "Removed. If that device still has permission, it comes back next time it opens. Turn its digest off there to stop it.",
         );
       } else {
-        setMessage(result.error);
+        setMessage(formError(result) ?? "Couldn't remove that device.");
       }
     } catch {
       // A rejection here (no serviceWorker.ready, a server action throwing
