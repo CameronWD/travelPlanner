@@ -7,7 +7,7 @@ const {
   accessTokenGroupByMock,
   disconnectMock,
   notFoundMock,
-  revalidatePathMock,
+  revalidateAccountPageMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
   consentFindManyMock: vi.fn(),
@@ -17,7 +17,7 @@ const {
   notFoundMock: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateAccountPageMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
@@ -29,7 +29,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ authServer: { api: { disconnectMcpClient: disconnectMock } } }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateAccountPage: revalidateAccountPageMock }));
 
 import { disconnectApp, listConnectedApps } from "@/server/actions/connected-apps";
 
@@ -129,7 +129,7 @@ describe("disconnectApp", () => {
   it("revalidates the Account page after a successful disconnect", async () => {
     consentFindFirstMock.mockResolvedValue(consentRow());
     await disconnectApp("consent-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/account");
+    expect(revalidateAccountPageMock).toHaveBeenCalledOnce();
   });
 
   it("answers not found for a consent that is not this Traveller's, and revokes nothing", async () => {
@@ -137,7 +137,7 @@ describe("disconnectApp", () => {
     await expect(disconnectApp("someone-elses")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(notFoundMock).toHaveBeenCalled();
     expect(disconnectMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateAccountPageMock).not.toHaveBeenCalled();
   });
 
   it("refuses a signed-out caller before looking anything up", async () => {
@@ -154,6 +154,6 @@ describe("disconnectApp", () => {
       success: false,
       errors: { _: ["Couldn't disconnect that app. Try again."] },
     });
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateAccountPageMock).not.toHaveBeenCalled();
   });
 });

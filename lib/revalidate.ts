@@ -57,6 +57,15 @@ export function revalidateTripsList(): void {
   revalidatePath("/trips");
 }
 
+/**
+ * Every Trip's Home (dynamic-segment form — not a scoped TripScope: nothing
+ * else needs every Trip's Home revalidated in one call, only dismissWhatsNew
+ * (server/actions/release-notes.ts), which carries no tripId to scope to).
+ */
+export function revalidateAllTripHomes(): void {
+  revalidatePath("/trips/[tripId]", "page");
+}
+
 /** Profile name/photo appear in every layout. */
 export function revalidateAccount(): void {
   revalidatePath("/", "layout");

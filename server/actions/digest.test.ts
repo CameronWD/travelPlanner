@@ -4,13 +4,13 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for the Digest settings server actions (Task 7).
  *
- * Mocks: lib/db, lib/guards, lib/digest-dispatch, lib/push, lib/tz, next/cache
+ * Mocks: lib/db, lib/guards, lib/digest-dispatch, lib/push, lib/tz, lib/revalidate
  */
 
 const {
   requireTripAccessMock,
   requireUserMock,
-  revalidatePathMock,
+  revalidateTripMock,
   digestPreferenceFindUniqueMock,
   digestPreferenceUpsertMock,
   pushSubscriptionFindManyMock,
@@ -25,7 +25,7 @@ const {
     membership: { role: "owner" },
   }),
   requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   digestPreferenceFindUniqueMock: vi.fn(),
   digestPreferenceUpsertMock: vi.fn(),
   pushSubscriptionFindManyMock: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
   requireUser: requireUserMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     digestPreference: {
@@ -196,12 +196,12 @@ describe("setDigestEnabled", () => {
     expect(result).toEqual({ success: true });
   });
 
-  it("revalidates the trip's settings path", async () => {
+  it("revalidates the trip's trip scope", async () => {
     digestPreferenceUpsertMock.mockResolvedValue({});
 
     await setDigestEnabled(TRIP_ID, true);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 });
 

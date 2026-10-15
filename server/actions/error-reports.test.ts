@@ -12,12 +12,12 @@ const {
   requireAdminMock,
   errorReportFindManyMock,
   errorReportDeleteManyMock,
-  revalidatePathMock,
+  revalidateAdminMock,
 } = vi.hoisted(() => ({
   requireAdminMock: vi.fn(),
   errorReportFindManyMock: vi.fn(),
   errorReportDeleteManyMock: vi.fn(),
-  revalidatePathMock: vi.fn(),
+  revalidateAdminMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -33,8 +33,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("next/cache", () => ({
-  revalidatePath: revalidatePathMock,
+vi.mock("@/lib/revalidate", () => ({
+  revalidateAdmin: revalidateAdminMock,
 }));
 
 import { listErrorReports, clearErrorReport, clearAllErrorReports } from "./error-reports";
@@ -123,7 +123,7 @@ describe("clearErrorReport", () => {
     const result = await clearErrorReport("e1");
 
     expect(errorReportDeleteManyMock).toHaveBeenCalledWith({ where: { id: "e1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
+    expect(revalidateAdminMock).toHaveBeenCalledOnce();
     expect(result.success).toBe(true);
   });
 
@@ -151,7 +151,7 @@ describe("clearAllErrorReports", () => {
     const result = await clearAllErrorReports();
 
     expect(errorReportDeleteManyMock).toHaveBeenCalledWith({});
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
+    expect(revalidateAdminMock).toHaveBeenCalledOnce();
     expect(result.success).toBe(true);
   });
 });

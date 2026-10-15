@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
@@ -11,6 +10,7 @@ import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard"
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -100,11 +100,6 @@ async function verifyOwnerEntity(
   return null;
 }
 
-function revalidateTripPaths(tripId: string) {
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/budget`);
-}
-
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
@@ -176,7 +171,7 @@ export async function createCost(
   });
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
-  revalidateTripPaths(tripId);
+  revalidateTrip(tripId, "money");
   return { success: true, cost };
 }
 
@@ -258,7 +253,7 @@ export async function updateCost(
     entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
     changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidateTripPaths(existing.tripId);
+  revalidateTrip(existing.tripId, "money");
   return { success: true };
 }
 
@@ -272,7 +267,7 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
   await db.cost.delete({ where: { id: costId } });
   await recordPlanActivity(existing.forkId, { tripId: existing.tripId, verb: "DELETED", entityType: "COST", entityId: costId, entityLabel: doomed?.label ?? "cost", surpriseOf: existing.surpriseOf });
 
-  revalidateTripPaths(existing.tripId);
+  revalidateTrip(existing.tripId, "money");
   return { success: true };
 }
 
@@ -322,7 +317,7 @@ export async function markCostPaid(
     entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
     changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidateTripPaths(cost.tripId);
+  revalidateTrip(cost.tripId, "money");
   return { success: true };
 }
 
@@ -348,7 +343,7 @@ export async function markCostUnpaid(costId: string): Promise<CostActionResult> 
     entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
     changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidateTripPaths(cost.tripId);
+  revalidateTrip(cost.tripId, "money");
   return { success: true };
 }
 

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
-import { SCOPE_PAGES, SCOPE_TABLES, revalidateAccount, revalidateTrip, revalidateTripsList, type TripPage } from "./revalidate";
+import { SCOPE_PAGES, SCOPE_TABLES, revalidateAccount, revalidateAllTripHomes, revalidateTrip, revalidateTripsList, type TripPage } from "./revalidate";
 
 beforeEach(() => revalidatePathMock.mockClear());
 
@@ -31,6 +31,10 @@ describe("revalidateTrip", () => {
     revalidateAccount();
     revalidateTripsList();
     expect(revalidatePathMock.mock.calls).toEqual([["/", "layout"], ["/trips"]]);
+  });
+  it("revalidateAllTripHomes revalidates every Trip Home through the route pattern", () => {
+    revalidateAllTripHomes();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/[tripId]", "page");
   });
 });
 

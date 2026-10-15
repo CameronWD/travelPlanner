@@ -431,6 +431,12 @@ dynamic parts stream in behind `"use cache"` boundaries.
   page still holds, ADR 0063) but it makes some saves feel heavier than they
   are. Audit each call and narrow it to the segment the mutation actually
   changed.
+  **Closed 2026-10-15, card 2.E:** every action now calls `revalidateTrip`
+  (or `revalidateAccount`, `revalidateTripsList`, …) from `lib/revalidate.ts`,
+  naming the scope it wrote (`plan`, `money`, `lists`, `journal`,
+  `travellers`, `trip`); only `trip` and `travellers` stay layout-wide — the
+  rest name the pages they actually touch. See ADR 0064's 2026-10-15
+  amendment.
 - **NAV-03 · Let a day change run only `getDay`.** On a client navigation Next
   re-renders only the segment that changed, so the trip layout does not run on
   day → day — but the Day page still reads its header's bell count, recent

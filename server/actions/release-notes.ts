@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { ok, type ActionResult } from "@/lib/action-result";
 import { RELEASE_NOTES } from "@/lib/release-notes";
+import { revalidateTripsList, revalidateAllTripHomes } from "@/lib/revalidate";
 
 /**
  * "I have read this release."
@@ -49,7 +49,7 @@ export async function dismissWhatsNew(): Promise<ActionResult> {
   // (no user id on the wire), so there is no tripId to interpolate — the
   // dynamic-segment form invalidates the cached Home of every trip instead,
   // which is what we want: the card is account-level, not trip-level.
-  revalidatePath("/trips");
-  revalidatePath("/trips/[tripId]", "page");
+  revalidateTripsList();
+  revalidateAllTripHomes();
   return ok();
 }

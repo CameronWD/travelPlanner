@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { canWriteJournal, JOURNAL_NOTE_MAX } from "@/lib/journal-window";
@@ -10,6 +9,7 @@ import {
   journalBodyExceedsLimit,
 } from "@/lib/validations/journal";
 import { type ActionResult, validationResult, fail } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -30,11 +30,6 @@ export interface SaveJournalEntryOpts {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function revalidateJournalPaths(tripId: string, date: string) {
-  revalidatePath(`/trips/${tripId}/day/${date}`);
-  revalidatePath(`/trips/${tripId}/journal`);
-}
 
 // `loadJournalWindow` deliberately does NOT live here (fix round 2,
 // security): every export of a "use server" module like this one becomes a
@@ -124,7 +119,7 @@ export async function saveJournalEntry(
         where: { tripId, date: validDate, authorId: user.id },
       });
     }
-    revalidateJournalPaths(tripId, validDate);
+    revalidateTrip(tripId, "journal");
     return { success: true };
   }
 
@@ -145,7 +140,7 @@ export async function saveJournalEntry(
     },
   });
 
-  revalidateJournalPaths(tripId, validDate);
+  revalidateTrip(tripId, "journal");
   return { success: true };
 }
 
@@ -168,7 +163,7 @@ export async function deleteJournalEntry(
     where: { tripId, date, authorId: user.id },
   });
 
-  revalidateJournalPaths(tripId, date);
+  revalidateTrip(tripId, "journal");
   return { success: true };
 }
 
@@ -213,6 +208,6 @@ export async function setJournalShareHidden(
     },
   });
 
-  revalidateJournalPaths(tripId, date);
+  revalidateTrip(tripId, "journal");
   return { success: true };
 }

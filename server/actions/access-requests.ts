@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/guards";
 import { isUniqueConstraintError } from "@/lib/access-requests";
@@ -8,6 +7,7 @@ import { type ActionResult, ok, formFail } from "@/lib/action-result";
 import { mailConfigured, sendMail } from "@/lib/mail";
 import { renderApprovalEmail } from "@/lib/approval-email";
 import { siteUrl } from "@/lib/site-url";
+import { revalidateAdmin } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // The /admin route's actions (ARCH-TEN-3c).
@@ -156,7 +156,7 @@ export async function approveAccessRequest(id: string): Promise<ActionResult<{ m
     if (!result.sent) console.error("[access-requests] approval email failed:", result.error);
   }
 
-  revalidatePath("/admin");
+  revalidateAdmin();
   return ok({ mailed });
 }
 
@@ -185,7 +185,7 @@ export async function dismissAccessRequest(id: string): Promise<ActionResult> {
     data: { status: "dismissed", resolvedAt: new Date() },
   });
 
-  revalidatePath("/admin");
+  revalidateAdmin();
   return ok();
 }
 
@@ -292,6 +292,6 @@ export async function revokeAllowedEmail(id: string): Promise<ActionResult> {
 
   await db.allowedEmail.delete({ where: { id } });
 
-  revalidatePath("/admin");
+  revalidateAdmin();
   return ok();
 }

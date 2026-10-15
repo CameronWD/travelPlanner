@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/guards";
 import { type ActionResult, ok } from "@/lib/action-result";
+import { revalidateAdmin } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // The /admin Errors section's actions (ARCH-OBS-2).
@@ -76,7 +76,7 @@ export async function clearErrorReport(id: string): Promise<ActionResult> {
 
   await db.errorReport.deleteMany({ where: { id } });
 
-  revalidatePath("/admin");
+  revalidateAdmin();
   return ok();
 }
 
@@ -97,6 +97,6 @@ export async function clearAllErrorReports(): Promise<ActionResult> {
 
   await db.errorReport.deleteMany({});
 
-  revalidatePath("/admin");
+  revalidateAdmin();
   return ok();
 }

@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getRateForTrip } from "@/lib/fx";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // setManualRate
@@ -31,7 +31,7 @@ export async function setManualRate(
     update: { rate, fetchedAt: now, manual: true },
   });
 
-  revalidatePath(`/trips/${tripId}/budget`);
+  revalidateTrip(tripId, "money");
 
   return { success: true };
 }
@@ -62,7 +62,7 @@ export async function clearManualRate(
     data: { manual: false },
   });
 
-  revalidatePath(`/trips/${tripId}/budget`);
+  revalidateTrip(tripId, "money");
 
   return { success: true };
 }
@@ -103,6 +103,6 @@ export async function refreshRates(
     results.push({ base: B, rate });
   }
 
-  revalidatePath(`/trips/${tripId}/budget`);
+  revalidateTrip(tripId, "money");
   return { results };
 }

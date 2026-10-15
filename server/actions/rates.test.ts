@@ -4,12 +4,12 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for rates server actions.
  *
- * Mocks: lib/db, lib/guards, lib/fx, next/cache
+ * Mocks: lib/db, lib/guards, lib/fx, lib/revalidate
  */
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   exchangeRateUpsertMock,
   exchangeRateFindUniqueMock,
   exchangeRateUpdateMock,
@@ -20,7 +20,7 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     exchangeRateUpsertMock: vi.fn().mockResolvedValue({}),
     exchangeRateFindUniqueMock: vi.fn().mockResolvedValue(null),
     exchangeRateUpdateMock: vi.fn().mockResolvedValue({}),
@@ -29,7 +29,7 @@ const {
 });
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     exchangeRate: {
@@ -89,9 +89,9 @@ describe("setManualRate", () => {
     expect(fetchedAt.getTime()).toBeLessThanOrEqual(after);
   });
 
-  it("revalidates the budget path", async () => {
+  it("revalidates the trip's money scope", async () => {
     await setManualRate("trip-1", "EUR", "AUD", 1.65);
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "money");
   });
 
   it("returns success", async () => {
@@ -124,9 +124,9 @@ describe("clearManualRate", () => {
     expect(call.data.manual).toBe(false);
   });
 
-  it("revalidates the budget path", async () => {
+  it("revalidates the trip's money scope", async () => {
     await clearManualRate("trip-1", "EUR", "AUD");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "money");
   });
 
   it("returns success", async () => {
@@ -176,8 +176,8 @@ describe("refreshRates", () => {
     expect(getRateForTripMock).toHaveBeenCalledWith("trip-1", "EUR", "AUD", expect.anything());
   });
 
-  it("revalidates the budget path", async () => {
+  it("revalidates the trip's money scope", async () => {
     await refreshRates("trip-1", ["EUR"], "AUD");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "money");
   });
 });

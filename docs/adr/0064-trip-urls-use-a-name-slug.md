@@ -40,3 +40,15 @@ not-found as before — a slug confirms nothing a cuid did not.
   members-only.
 - Reversing this is costly once slug URLs have spread; the redirects would have
   to be kept either way.
+
+## Amendment 2026-10-15 — revalidation goes through one builder
+
+Actions never call `revalidatePath` themselves. They call
+`revalidateTrip(tripId, ...scopes)` (or `revalidateTripsList`,
+`revalidateAccount`, …) from `lib/revalidate.ts`, naming what they wrote:
+`plan`, `money`, `lists`, `journal`, `travellers`, `trip`. The module owns
+which id paths each scope touches (still the rewrite's destination, never
+the slug path), and only `trip` and `travellers` are layout-wide (NAV-02).
+A test derives "every page that reads a table is in the scope that writes
+it" from a declared page→table map, and a guard test keeps `revalidatePath`
+inside the module. Spec 2026-10-14 card 2.E.

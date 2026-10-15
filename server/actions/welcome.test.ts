@@ -4,16 +4,16 @@ vi.mock("@/lib/db", () => ({
   db: { user: { update: vi.fn() } },
 }));
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn() }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTripsList: vi.fn() }));
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { revalidatePath } from "next/cache";
+import { revalidateTripsList } from "@/lib/revalidate";
 import { markWelcomeSeen } from "./welcome";
 
 const mockUpdate = db.user.update as unknown as ReturnType<typeof vi.fn>;
 const mockRequireUser = requireUser as unknown as ReturnType<typeof vi.fn>;
-const mockRevalidatePath = revalidatePath as unknown as ReturnType<typeof vi.fn>;
+const mockRevalidateTripsList = revalidateTripsList as unknown as ReturnType<typeof vi.fn>;
 
 describe("markWelcomeSeen (spec 2026-10-01 §G)", () => {
   beforeEach(() => {
@@ -31,7 +31,7 @@ describe("markWelcomeSeen (spec 2026-10-01 §G)", () => {
     expect(arg.where).toEqual({ id: "u1" });
     expect(arg.data.welcomeSeenAt).toBeInstanceOf(Date);
     expect((arg.data.welcomeSeenAt as Date).getTime()).toBeGreaterThanOrEqual(before);
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips");
+    expect(mockRevalidateTripsList).toHaveBeenCalledOnce();
   });
 
   it("takes no arguments: the row written is always the session's own", async () => {

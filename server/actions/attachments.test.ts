@@ -3,7 +3,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for attachments server actions.
- * Mocks: lib/db, lib/guards, lib/storage, next/cache, next/navigation
+ * Mocks: lib/db, lib/guards, lib/storage, lib/revalidate, next/navigation
  */
 
 // ---------------------------------------------------------------------------
@@ -14,7 +14,8 @@ const {
   requireTripAccessMock,
   requireRowAccessMock,
   requireGlobeAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
+  revalidateGlobeMock,
   notFoundMock,
   attachmentFindUniqueMock,
   attachmentFindFirstMock,
@@ -61,7 +62,8 @@ const {
       user: { id: "u1" },
       globe: { id: "g1" },
     }),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
+    revalidateGlobeMock: vi.fn(),
     notFoundMock: vi.fn(() => {
       throw new Error("NOT_FOUND");
     }),
@@ -112,7 +114,7 @@ vi.mock("@/lib/storage-quota", async (orig) => ({
   ...(await orig<typeof import("@/lib/storage-quota")>()),
   checkQuota: checkQuotaMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock, revalidateGlobe: revalidateGlobeMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -268,9 +270,9 @@ describe("uploadAttachment", () => {
     expect(result).toEqual({ success: true, id: ATTACHMENT_ID });
   });
 
-  it("revalidates the files path", async () => {
+  it("revalidates the trip's journal scope", async () => {
     await uploadAttachment(makeFormData());
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/files`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
   });
 
   it("rejects an oversize file without saving", async () => {
@@ -430,7 +432,7 @@ describe("uploadAttachment", () => {
       );
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(recordActivityMock).not.toHaveBeenCalled();
-      expect(revalidatePathMock).not.toHaveBeenCalled();
+      expect(revalidateTripMock).not.toHaveBeenCalled();
       // ARCH-OBS-1
       expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
         route: "server/actions/attachments.ts#uploadAttachment",
@@ -466,7 +468,7 @@ describe("uploadAttachment", () => {
         expect.anything(),
       );
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
-      expect(revalidatePathMock).not.toHaveBeenCalled();
+      expect(revalidateTripMock).not.toHaveBeenCalled();
       // ARCH-OBS-1
       expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
         route: "server/actions/attachments.ts#uploadAttachment",
@@ -667,10 +669,10 @@ describe("deleteAttachment", () => {
     expect(result).toEqual({ success: true });
   });
 
-  it("revalidates the files path after deletion", async () => {
+  it("revalidates the trip's journal scope after deletion", async () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
     await deleteAttachment(ATTACHMENT_ID);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/files`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
   });
 
   it("throws notFound when the attachment does not exist", async () => {
@@ -779,7 +781,7 @@ describe("setAttachmentTitle", () => {
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
     expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentUpdateMock);
     expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { title: "Hotel voucher" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/files`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
     expect(result).toEqual({ success: true });
   });
 
@@ -805,7 +807,7 @@ describe("linkAttachmentToItem", () => {
     expect(itemFindFirstMock).toHaveBeenCalledWith({ where: { id: "item-1", tripId: TRIP_ID }, select: { id: true } });
     expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "ITEM", targetId: "item-1" } });
     expect(result).toEqual({ success: true });
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/files`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
   });
 
   it("refuses an Item that is not on this trip, writing nothing", async () => {

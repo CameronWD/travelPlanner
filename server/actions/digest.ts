@@ -1,12 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { ok, formFail, type ActionResult } from "@/lib/action-result";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import { dispatchDigest } from "@/lib/digest-dispatch";
 import { isPushConfigured } from "@/lib/push";
 import { todayISOInZone } from "@/lib/tz";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -80,7 +80,7 @@ export async function setDigestEnabled(
     update: { enabled },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return ok();
 }
 

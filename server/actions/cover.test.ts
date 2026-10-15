@@ -19,7 +19,7 @@ function pngBytes(width: number, height: number) {
 
 /**
  * Tests for cover storage server actions: setTripCover / removeTripCover.
- * Mocks: lib/db, lib/guards, lib/storage, next/cache
+ * Mocks: lib/db, lib/guards, lib/storage, lib/revalidate
  */
 
 // ---------------------------------------------------------------------------
@@ -28,7 +28,7 @@ function pngBytes(width: number, height: number) {
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   tripFindUniqueMock,
   tripUpdateMock,
   storageSaveMock,
@@ -42,7 +42,7 @@ const {
     user: { id: "u1" },
     membership: { role: "member" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   tripFindUniqueMock: vi.fn(),
   tripUpdateMock: vi.fn(),
   storageSaveMock: vi.fn(),
@@ -55,7 +55,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 // ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
 // entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
@@ -169,8 +169,7 @@ describe("setTripCover", () => {
         }),
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("stores the cover's aspect ratio (width/height) on the trip (spec F)", async () => {
@@ -234,7 +233,7 @@ describe("setTripCover", () => {
     if (result.success) return;
     expect(result.errors._![0]).toBe("Couldn't upload the cover photo. Nothing was saved. Try again.");
     expect(tripUpdateMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
     // ARCH-OBS-1
     expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
       route: "server/actions/cover.ts#setTripCover",
@@ -335,8 +334,7 @@ describe("removeTripCover", () => {
         data: expect.objectContaining({ coverImageKey: null }),
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("resets the focal point when the cover is removed", async () => {
@@ -379,7 +377,7 @@ describe("setCoverFocal", () => {
       data: { coverFocalX: 0.25, coverFocalY: 0.75 },
     });
     expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("clamps a point outside the photo to its edge", async () => {

@@ -7,7 +7,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   notFoundMock,
   journalFindUniqueMock,
   journalUpsertMock,
@@ -21,7 +21,7 @@ const {
     user: { id: "user-1" },
     membership: { role: "member" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   notFoundMock: vi.fn(() => {
     throw new Error("NOT_FOUND");
   }),
@@ -35,7 +35,7 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/tz", () => ({
   todayISOInZone: todayISOInZoneMock,
@@ -162,10 +162,9 @@ describe("saveJournalEntry", () => {
     expect(result).toEqual({ success: true });
   });
 
-  it("revalidates the day and journal paths", async () => {
+  it("revalidates the trip's journal scope", async () => {
     await saveJournalEntry(TRIP_ID, DATE, "Some entry");
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/day/${DATE}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/journal`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
   });
 
   it("returns validation errors for invalid date format", async () => {
@@ -423,10 +422,9 @@ describe("deleteJournalEntry", () => {
     expect(result).toEqual({ success: true });
   });
 
-  it("revalidates the day and journal paths", async () => {
+  it("revalidates the trip's journal scope", async () => {
     await deleteJournalEntry(TRIP_ID, DATE);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/day/${DATE}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/journal`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
   });
 
   it("is access-checked — throws when user is not a trip member", async () => {
@@ -475,10 +473,9 @@ describe("setJournalShareHidden", () => {
     );
   });
 
-  it("revalidates the day and journal paths", async () => {
+  it("revalidates the trip's journal scope", async () => {
     await setJournalShareHidden(TRIP_ID, DATE, true);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/day/${DATE}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/journal`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
   });
 
   it("is access-checked — throws when user is not a trip member", async () => {

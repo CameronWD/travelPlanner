@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Share link actions (ADR 0051)
@@ -134,7 +134,7 @@ export async function createShareLink(
     select: LINK_SELECT,
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return ok({ link: toView(row) });
 }
 
@@ -174,7 +174,7 @@ export async function updateShareLink(
   });
   if (!row) return fail({ form: ["Share link not found."] });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return ok({ link: toView(row) });
 }
 
@@ -197,7 +197,7 @@ export async function rotateShareLink(
   });
   if (!row) return fail({ form: ["Share link not found."] });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return ok({ link: toView(row) });
 }
 
@@ -210,6 +210,6 @@ export async function revokeShareLink(
 
   await db.shareLink.deleteMany({ where: { id: linkId, tripId } });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return ok();
 }

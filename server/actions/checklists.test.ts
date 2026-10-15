@@ -5,13 +5,13 @@ import { TRAVELLER_SELECT } from "@/lib/traveller";
 /**
  * Tests for checklist server actions.
  *
- * Mocks: lib/db, lib/guards, next/cache, next/navigation
+ * Mocks: lib/db, lib/guards, lib/revalidate, next/navigation
  */
 
 const {
   requireTripAccessMock,
   requireUserMock,
-  revalidatePathMock,
+  revalidateTripMock,
   notFoundMock,
   // ChecklistItem mocks
   checklistItemFindUniqueMock,
@@ -50,7 +50,7 @@ const {
       membership: { role: "owner" },
     }),
     requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     notFoundMock: vi.fn(() => {
       throw new Error("NOT_FOUND");
     }),
@@ -72,7 +72,7 @@ const {
 });
 
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 // requireChecklistItemAccess is now a thin adapter over requireRowAccess
 // (Task 5) — forward to the same checklistItemFindUniqueMock/
@@ -218,7 +218,7 @@ describe("addChecklistItem", () => {
 
     await addChecklistItem("trip-1", VALID_PRETRIP_INPUT);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "lists");
   });
 
   it("access-checks via requireTripAccess", async () => {
@@ -274,7 +274,7 @@ describe("addChecklistItem", () => {
       expect(result.errors.text).toBeDefined();
     }
     expect(checklistItemCreateMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("returns validation error for invalid kind", async () => {
@@ -338,7 +338,7 @@ describe("addChecklistItems", () => {
       entityLabel: "the packing list",
       changes: { summary: "added 3 items to the packing list" },
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "lists");
   });
 
   it("starts sortOrder at 0 when the (trip, kind) list is empty", async () => {
@@ -384,7 +384,7 @@ describe("addChecklistItems", () => {
     expect(checklistItemFindFirstMock).not.toHaveBeenCalled();
     expect(checklistItemCreateManyMock).not.toHaveBeenCalled();
     expect(recordActivityMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("all-blank texts record nothing", async () => {
@@ -488,7 +488,7 @@ describe("toggleChecklistItem", () => {
 
     await toggleChecklistItem("ci-1", true);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "lists");
   });
 
   it("throws notFound when item does not exist", async () => {
@@ -551,7 +551,7 @@ describe("setBuyState", () => {
 
     await setBuyState("ci-1", "BOUGHT");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "lists");
   });
 
   it("refuses an invalid buy value on a PACKING item and writes nothing", async () => {
@@ -583,7 +583,7 @@ describe("deleteChecklistItem", () => {
     expect(checklistItemDeleteMock).toHaveBeenCalledWith({
       where: { id: "ci-1" },
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "lists");
   });
 
   it("access-checks via item's tripId", async () => {
@@ -746,7 +746,7 @@ describe("applyTemplate", () => {
     expect(result.success).toBe(true);
     expect(checklistItemCreateManyMock).not.toHaveBeenCalled();
     // No revalidate when nothing changed
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("assigns sortOrders starting after the current max", async () => {
@@ -851,7 +851,7 @@ describe("updateChecklistItem", () => {
       }),
       select: { text: true, dueDate: true, assignedTo: { select: TRAVELLER_SELECT } },
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/checklists");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "lists");
   });
 
   it("rejects assignedToId that is not a trip member", async () => {

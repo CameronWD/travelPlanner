@@ -4,13 +4,13 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for costs server actions.
  *
- * Mocks: lib/db, lib/guards, lib/fx, next/cache, next/navigation
+ * Mocks: lib/db, lib/guards, lib/fx, lib/revalidate, next/navigation
  */
 
 const {
   requireTripAccessMock,
   requirePlanAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   costFindUniqueMock,
   costCreateMock,
   costUpdateMock,
@@ -46,7 +46,7 @@ const {
       membership: { role: "owner" },
       plan: forkId ?? null,
     })),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     costFindUniqueMock: vi.fn(),
     costCreateMock,
     costUpdateMock,
@@ -61,7 +61,7 @@ const {
   };
 });
 
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("NOT_FOUND"); }) }));
 vi.mock("@/lib/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
@@ -364,7 +364,7 @@ describe("createCost", () => {
       expect(result.errors.costMinor).toBeDefined();
     }
     expect(costCreateMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("returns validation errors for missing ownerId on entity cost", async () => {
@@ -382,7 +382,7 @@ describe("createCost", () => {
     expect(costCreateMock).not.toHaveBeenCalled();
   });
 
-  it("revalidates trip overview and budget paths", async () => {
+  it("revalidates the trip's money scope", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
     resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
@@ -390,8 +390,7 @@ describe("createCost", () => {
 
     await createCost("trip-1", VALID_TRANSPORT_INPUT);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "money");
   });
 
   it("resolves the rate before opening the transaction (network never holds a tx)", async () => {
@@ -664,8 +663,7 @@ describe("deleteCost", () => {
 
     expect(result.success).toBe(true);
     expect(costDeleteMock).toHaveBeenCalledWith({ where: { id: "cost-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "money");
   });
 
   it("access-checks via requireCostAccess → requireTripAccess", async () => {
@@ -890,14 +888,13 @@ describe("markCostPaid", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, costUpdateMock);
   });
 
-  it("revalidates both the trip overview and the budget path", async () => {
+  it("revalidates the trip's money scope", async () => {
     costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: null });
     costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: null });
 
     await markCostPaid("c1", 34000, "2026-06-04");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "money");
   });
 
   it("records UPDATED activity after a successful mark-paid", async () => {
@@ -954,14 +951,13 @@ describe("markCostUnpaid", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, costUpdateMock);
   });
 
-  it("revalidates both the trip overview and the budget path", async () => {
+  it("revalidates the trip's money scope", async () => {
     costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: null });
     costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: null });
 
     await markCostUnpaid("c1");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "money");
   });
 
   it("records UPDATED activity after a successful un-mark", async () => {
