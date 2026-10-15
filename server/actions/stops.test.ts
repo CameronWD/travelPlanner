@@ -1738,7 +1738,7 @@ describe("firmUpSegment", () => {
     if (result.success) expect(result.conflicts).toEqual([]);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "rome" }, data: expect.objectContaining({ arriveDate: "2026-07-10", departDate: "2026-07-13", timezone: "Europe/Paris" }) });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "venice" }, data: expect.objectContaining({ arriveDate: "2026-07-13", departDate: "2026-07-15" }) });
-    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it" }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it", tripId: "trip-1", forkId: null }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
     // The trip's window grows to cover the last flowed depart (venice → 2026-07-15);
     // the existing startDate (2026-07-03) is preserved.
     expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { startDate: "2026-07-03", endDate: "2026-07-15", roughMonth: null } });
@@ -2313,7 +2313,8 @@ describe("reorderStops", () => {
 
   it("writes chapterId AND sortOrder for a DATED (scheduled) stop (ADR 0021: drag into chapter joins it)", async () => {
     // ADR 0021: dated stops can now be dragged into a chapter; chapterId IS written.
-    chapterFindManyMock.mockResolvedValue([]);
+    // The target chapter is one of this plan's (ARCH-TEN-5).
+    chapterFindManyMock.mockResolvedValue([{ id: "some-chapter", startDate: null }]);
     // FOR UPDATE: stop "d" has arriveDate set → scheduled
     queryRawMock.mockResolvedValue([
       { id: "d", tripId: "t1", arriveDate: "2026-07-01" },
@@ -2458,7 +2459,9 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
     ]);
     queryRawMock.mockResolvedValue([{ id: "a" }, { id: "b" }]);
     stopUpdateMock.mockResolvedValue({});
-    chapterFindManyMock.mockResolvedValue([]);
+    // c1 is one of this plan's chapters (ARCH-TEN-5); recomputeChapterSpans
+    // then sees it too, harmlessly.
+    chapterFindManyMock.mockResolvedValue([{ id: "c1" }]);
 
     const result = await restoreStops([
       { id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
@@ -2510,7 +2513,7 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
       { id: "a", sortOrder: 0, chapterId: "ch-1", chapterSortOrder: null, arriveDate: "2026-07-01" },
     ]);
     stopUpdateMock.mockResolvedValue({});
-    chapterFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-1" }]);
 
     await restoreStops([
       { id: "a", sortOrder: 0, chapterId: "ch-1", arriveDate: "2026-07-01", departDate: "2026-07-04" },
@@ -3947,5 +3950,71 @@ describe("lone Stop rule (ADR 0073)", () => {
     await deleteStop("s1");
 
     expect(scheduleLoneStopTx).toHaveBeenCalledWith(expect.anything(), "trip-1", "fork9", "fill");
+  });
+});
+
+describe("ARCH-TEN-5: a Chapter from another Trip is refused on every Chapter write", () => {
+  it("updateStop (rough) refuses a Chapter from another Trip and writes nothing", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "trip-1", forkId: null, sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, chapterId: null });
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-other", tripId: "trip-OTHER", forkId: null });
+
+    const r = await updateStop("s1", { mode: "rough", name: "Rome", nights: 2, chapterId: "ch-other" });
+
+    expect(r).toMatchObject({ success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("updateStop (rough) refuses a Chapter from another plan of the same Trip", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "trip-1", forkId: null, sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, chapterId: null });
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-f", tripId: "trip-1", forkId: "fork-9" });
+
+    const r = await updateStop("s1", { mode: "rough", name: "Rome", nights: 2, chapterId: "ch-f" });
+
+    expect(r).toMatchObject({ success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("reorderStops refuses a Chapter from another Trip and writes nothing", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "a", forkId: null, arriveDate: "2026-07-01" }]);
+    // The plan-scoped chapter read does not return the foreign Chapter.
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([{ id: "a", tripId: "t1", arriveDate: "2026-07-01" }]);
+
+    const r = await reorderStops("t1", [{ id: "a", chapterId: "ch-other" }]);
+
+    expect(r).toMatchObject({ success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("restoreStops refuses a Chapter from another Trip and writes nothing", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const r = await restoreStops([{ id: "a", sortOrder: 0, chapterId: "ch-other", arriveDate: null, departDate: null }]);
+
+    expect(r).toMatchObject({ success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { in: ["ch-other"] }, tripId: "t1", forkId: null }) }),
+    );
+  });
+
+  it("firmUpSegment with a foreign chapterId is not found and writes nothing", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: "ch-other", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy", lat: 1, lng: 2 },
+    ]);
+    chapterFindUniqueMock.mockResolvedValue(null);
+
+    await expect(firmUpSegment({ tripId: "trip-1", chapterId: "ch-other" })).rejects.toThrow(/404/);
+
+    expect(chapterFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ch-other", tripId: "trip-1", forkId: null } }),
+    );
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(chapterUpdateMock).not.toHaveBeenCalled();
   });
 });

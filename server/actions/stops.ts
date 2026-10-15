@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { type TripDeadline } from "@/lib/trip-deadline";
@@ -418,6 +419,15 @@ export async function updateStop(
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
+
+    // ARCH-TEN-5: the client-supplied Chapter must be one of this Stop's own
+    // plan — same Trip AND same Fork — before it is written (createStop's shape).
+    if (chapterId) {
+      const chapter = await db.chapter.findUnique({ where: { id: chapterId }, select: { tripId: true, forkId: true } });
+      if (!chapter || chapter.tripId !== stop.tripId || chapter.forkId !== (stop.forkId ?? null)) {
+        return fail({ chapterId: ["Chapter does not belong to this plan"] });
+      }
+    }
 
     // A picked place (spec 2026-10-06 §L) brings its own point and country;
     // typed text is geocoded best-effort as before (failure leaves coords as they were).
@@ -921,6 +931,14 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   // and the order rough segment members flow in.
   const stops = orderPlanStops(rawStops);
 
+  // ARCH-TEN-5: the Chapter is read (and later written) only within this
+  // Trip's plan; a Chapter id from anywhere else is not found, before any write.
+  const chapterWhere = chapterId ? { id: chapterId, tripId, ...planScope(forkId) } : null;
+  const beforeCh = chapterWhere
+    ? await db.chapter.findUnique({ where: chapterWhere, select: { name: true, startDate: true, endDate: true } })
+    : null;
+  if (chapterWhere && !beforeCh) notFound();
+
   const segment = stops.filter((s) => (s.chapterId ?? null) === (chapterId ?? null) && !s.arriveDate);
   if (segment.length === 0) {
     revalidatePath(`/trips/${tripId}`);
@@ -984,7 +1002,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
   }
 
-  if (chapterId) {
+  if (chapterId && chapterWhere) {
     // Build the full set of dated stops in this chapter: stops that were already
     // dated (excluded from `segment`) plus `results` (just dated by flowDates).
     // Using chapterSpan's min/max is strictly more correct than positional
@@ -993,11 +1011,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
       (s) => (s.chapterId ?? null) === (chapterId ?? null) && s.arriveDate != null,
     );
     const { startDate: start, endDate: end } = chapterSpan([...alreadyDated, ...results]);
-    const beforeCh = await db.chapter.findUnique({
-      where: { id: chapterId },
-      select: { name: true, startDate: true, endDate: true },
-    });
-    await db.chapter.update({ where: { id: chapterId }, data: { startDate: start, endDate: end } });
+    await db.chapter.update({ where: chapterWhere, data: { startDate: start, endDate: end } });
     await recordPlanActivity(forkId, {
       tripId,
       verb: "UPDATED",
@@ -1348,6 +1362,13 @@ export async function reorderStops(
     }
   }
 
+  // ARCH-TEN-5: every target Chapter must be one of this plan's — the read
+  // above is scoped to { tripId, plan }, so a Chapter from another Trip or
+  // another plan is simply absent from it.
+  if (targetChapterIds.some((id) => !chapterStartDates.has(id))) {
+    return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+  }
+
   // Enforce rough-into-dated-chapter rule before opening the tx.
   for (const it of items) {
     if (it.chapterId == null) continue;
@@ -1456,6 +1477,19 @@ export async function restoreStops(
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same plan."] } };
   }
   const restoreForkId: PlanId = forkId ?? rows[0].forkId ?? null;
+
+  // ARCH-TEN-5: every snapshotted Chapter must belong to the restored Stops'
+  // own plan (same Trip, same Fork) before anything is written.
+  const entryChapterIds = [...new Set(entries.map((e) => e.chapterId).filter((c): c is string => c != null))];
+  if (entryChapterIds.length > 0) {
+    const ownChapters = await db.chapter.findMany({
+      where: { id: { in: entryChapterIds }, tripId, ...planScope(rows[0].forkId) },
+      select: { id: true },
+    });
+    if (ownChapters.length !== entryChapterIds.length) {
+      return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+    }
+  }
 
   // ARCH-TEN-1: the guard above authorised the Stops' Trip only — the payload
   // names Items and Accommodations by id alone, so without this every
