@@ -3,10 +3,10 @@
 **Status:** agreed in the 2026-10-14 session (grill). One spec, three
 sequential branches. Target `main`, each branch merged and deployed by Cam
 before the next starts. **Batch 1 is built** on `chore/tidy-up-1-foundations`
-(2026-10-15), awaiting Cam's review, merge and deploy. **Batches 2 and 3 are
-deferred, not queued** — Cam is doing the Claude Design refinement (`DS-01`)
-first; a future session plans batch 2 from this spec's Batch 2 section with
-no new grilling.
+(2026-10-15), merged and deployed. **Batch 2 is in build** on
+`chore/tidy-up-2-writes-editor` (2026-10-15), with card 2.Q (wording) added
+by that session's grill; batch 3 follows it, and the Claude Design
+refinement (`DS-01`) waits until both are done.
 **Source:** `docs/audits/2026-10-14-architecture-review.html` (sixteen
 candidates A–P, six verified bugs, and the routing of every open follow-up;
 also published at https://claude.ai/artifact/FZickqRiUEfmSLXxz4BttR). The
@@ -235,6 +235,32 @@ Per `CLAUDE.md`. In addition:
   `recordActivity` reports through `reportError` (ADR 0059) before it
   swallows.
 
+### 2.Q · Wording: "Your whole trip, in one place." and no "shared pot"
+Added 2026-10-15 (grill). Closes Feedback note `cmva2k0km000008jpa7pjv26q`
+(Main): the commit carries `Resolves-Feedback: cmva2k0km000008jpa7pjv26q`;
+resolved only once batch 2 is live on main. The old line assumed a group;
+Teepee is for one Traveller or many.
+- **Landing** (desktop and phone trees): h1 "Your whole trip, in one place"
+  with the coral full stop; sub-line "Stops, trains, beds and budget. On
+  your own or together." (verbatim, both trees).
+- **Link-preview card** (`lib/og-card.tsx`): the same headline and sub-line.
+- **Site description** (`app/layout.tsx`, `app/manifest.ts`): "Your whole
+  trip, in one place."
+- **Share-link CTA** unchanged (no "pot"; "for everyone who's going" is true
+  of a shared Trip).
+- **Desktop Home tile:** heading and aria-label "Shared pot" → "Trip cost"
+  (the term Compare already uses; CONTEXT.md **Trip cost**). Component and
+  file renamed `shared-pot-tile` → `trip-cost-tile` (`SharedPotTile` →
+  `TripCostTile`), grid slot `pot` → `cost`.
+- **"shared pot" suffixes and labels deleted, nothing in their place:**
+  budget glance, Planning Home sub, Past Home sub, Spend so far card and
+  tile, Compare table. The "never per person" tests stay, asserting no
+  per-person wording, minus the "shared pot" expectation.
+- Code comments saying "shared pot" reworded; `SPEC.md` line becomes
+  "Money is one group total, never split per person."
+- Left alone: past release notes, old specs, plans, design handoffs. No new
+  release note.
+
 ---
 
 ## Batch 3 — Shape and hygiene (`chore/tidy-up-3-shape-hygiene`)
@@ -293,7 +319,7 @@ Per `CLAUDE.md`. In addition:
 
 ARCH-TEN-5, -9, -10, -11 → 1.C · ARCH-CMP-1..4 → 2.G · ARCH-OBS-3 → 2.K ·
 ARCH-ADR-4, -5 → 3.P · NAV-02 → 2.E · NAV-03 → 1.A · NAV-05 → 3.M ·
-LA-215 → 1.B · PX-02b → 1.J/1.A · BI-04 → 2.I · BI-10, -12, -13, -14, -16 →
+LA-215 → 1.B · PX-02b → 1.J/1.A · BI-04 → 2.I · Feedback `cmva2k0km000008jpa7pjv26q` → 2.Q · BI-10, -12, -13, -14, -16 →
 1.C/3.P · deferred minors (2026-09-21) → 3.P · playground hygiene → 3.P.
 
 ## Out of scope (recorded, not built)
