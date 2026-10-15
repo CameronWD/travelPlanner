@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { planScope, THINGS_TO_DO_WHERE, resolvePlan } from "@/lib/plan-scope";
+import { planScope } from "@/lib/plan-scope";
+import { readPlan, resolvePlanParam } from "@/lib/plan-reads";
 import { orderPlanStops } from "@/lib/plan-order";
 import { chapterForStop } from "@/lib/chapters";
 import { stopHue } from "@/lib/stop-colours";
@@ -19,8 +20,6 @@ import { itemPhotoUrl } from "@/lib/item-photo";
 import { titlesByDate } from "@/lib/day-titles";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
-import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
-import { tripSlugFor } from "@/lib/trip-slug-read";
 import { isAiConfigured } from "@/lib/ai";
 import { tripTodayISO } from "@/lib/trip-today";
 import { homeMapPoint } from "@/lib/route-map";
@@ -63,21 +62,6 @@ export const PLAN_GRID_CLASS =
 export const PLAN_ASIDE_CLASS =
   "hidden lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto";
 
-const COST_SELECT = {
-  id: true,
-  costMinor: true,
-  paidMinor: true,
-  currency: true,
-  rateToHome: true,
-  paidAt: true,
-  dueDate: true,
-  ownerType: true,
-  ownerId: true,
-  label: true,
-  category: true,
-  settlement: true,
-} as const;
-
 export default async function TripPlanPage({
   params,
   searchParams,
@@ -93,166 +77,15 @@ export default async function TripPlanPage({
   // delete control renders at all (deleteStop's own gate is the real check).
   const isOwner = isTripOwnerOrAdmin(membership, user.email);
 
-  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
-  const forkGate = await db.trip.findUnique({ where: { id: tripId }, select: { forksEnabled: true } });
-  const selectedForkId = resolvePlan({ plan, forksEnabled: forkGate?.forksEnabled ?? false });
+  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real
+  // plan; a Fork id that is not this Trip's falls back to it too.
+  const { plan: activeForkId, fork: activeFork } = await resolvePlanParam(tripId, plan);
+  // The Plan's rows, read once with this viewer's Surprises applied (ADR 0072).
+  const rows = await readPlan(tripId, user.id, activeForkId);
+  const v = rows.visibility;
 
-  // Validate the fork exists for this trip; fall back to real plan if not.
-  const activeFork = selectedForkId
-    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
-    : null;
-  const activeForkId = activeFork ? activeFork.id : null;
-
-  // Surprise (ADR 0051): what this viewer may not see inside, known before the
-  // wave so every query below leaves the hidden rows in the database.
-  const v = await loadSurpriseVisibility(tripId, user.id);
-
-  // Everything else in ONE wave once the Plan is known (spec 2026-10-06 §C).
-  const [trip, stopRows, transports, allCosts, chapters, thingsToDoItems, scheduledItemRows, allAttachments, allNotes, dayTitleRows, stopReminders, slug, members] = await Promise.all([
-    db.trip.findUnique({
-      where: { id: tripId },
-      select: {
-        name: true,
-        homeLat: true,
-        homeLng: true,
-        homeCurrency: true,
-        homeName: true,
-        homeTimezone: true,
-        homeCountryCode: true,
-        roundTrip: true,
-        startDate: true,
-        endDate: true,
-        hardEndDate: true,
-        drivingWindingFactor: true,
-        drivingAvgSpeedKph: true,
-        chaptersEnabled: true,
-      },
-    }),
-    db.stop.findMany({
-      where: { tripId, ...planScope(activeForkId) },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        timezone: true,
-        arriveDate: true,
-        departDate: true,
-        sortOrder: true,
-        notes: true,
-        lat: true,
-        lng: true,
-        nights: true,
-        pinned: true,
-        chapterId: true,
-        chapterSortOrder: true,
-        accommodations: {
-          where: v.where.accommodation,
-          orderBy: { checkIn: "asc" },
-          select: {
-            id: true,
-            stopId: true,
-            name: true,
-            address: true,
-            checkIn: true,
-            checkOut: true,
-            checkInTime: true,
-            checkOutTime: true,
-            confirmation: true,
-            notes: true,
-            lat: true,
-            lng: true,
-          },
-        },
-      },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...planScope(activeForkId) },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        mode: true,
-        fromStopId: true,
-        toStopId: true,
-        depIsHome: true,
-        arrIsHome: true,
-        anchorStopId: true,
-        depPlace: true,
-        depAt: true,
-        depLat: true,
-        depLng: true,
-        arrPlace: true,
-        arrAt: true,
-        arrLat: true,
-        arrLng: true,
-        reference: true,
-        notes: true,
-        sortOrder: true,
-      },
-    }),
-    // Entity-attached costs in one query — Transport, Accommodation and
-    // Item (split by ownerType below).
-    db.cost.findMany({
-      where: {
-        tripId,
-        ...planScope(activeForkId),
-        ownerType: { in: ["TRANSPORT", "ACCOMMODATION", "ITEM"] },
-        ownerId: { not: null },
-        ...v.where.cost,
-      },
-      orderBy: { createdAt: "asc" },
-      select: COST_SELECT,
-    }),
-    db.chapter.findMany({
-      where: { tripId, ...planScope(activeForkId) },
-      orderBy: [{ startDate: "asc" }, { sortOrder: "asc" }],
-      select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
-    }),
-    // Per-stop things to do: plan-owned items with stopId set and date null (ADR 0022)
-    db.item.findMany({
-      where: { tripId, ...planScope(activeForkId), ...THINGS_TO_DO_WHERE, ...v.where.item },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        address: true,
-        link: true,
-        booking: true,
-        notes: true,
-        stopId: true,
-        lat: true,
-        lng: true,
-        hiddenFromShares: true,
-        photoAttachmentId: true,
-      },
-    }),
-    // Per-stop scheduled items: plan-owned items with stopId set and a date —
-    // the stop's slice of the Timeline, rendered as day rows (grilling 2026-09-13)
-    db.item.findMany({
-      where: { tripId, ...planScope(activeForkId), stopId: { not: null }, date: { not: null }, ...v.where.item },
-      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        address: true,
-        link: true,
-        booking: true,
-        notes: true,
-        stopId: true,
-        lat: true,
-        lng: true,
-        hiddenFromShares: true,
-        photoAttachmentId: true,
-      },
-    }),
+  // The page's own (non-Plan) reads in ONE wave once the Plan is known (spec 2026-10-06 §C).
+  const [allAttachments, allNotes, dayTitleRows, stopReminders] = await Promise.all([
     // All attachments for this trip's entities in one query
     db.attachment.findMany({
       where: {
@@ -304,27 +137,35 @@ export default async function TripPlanPage({
       orderBy: { date: "asc" },
       select: { id: true, title: true, date: true, stopId: true },
     }),
-    tripSlugFor(tripId),
-    db.tripMember.findMany({ where: { tripId }, select: { user: { select: TRAVELLER_SELECT } } }),
   ]);
 
+  const trip = rows.trip;
+  const slug = trip.slug ?? tripId;
+  const members = trip.members.map((m) => m.user);
+  const chapters = rows.chapters;
+  const transports = rows.transports;
+
   // Hidden Stops keep their shell (name, dates, nights, legs) with notes
-  // blanked; every Stop and Item carries its Surprise view for the badge.
-  const stops = maskSurpriseStops(stopRows, v, v.views.stops);
-  const thingsToDoWithSurprise = thingsToDoItems.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null }));
-  // A hidden Item of this Plan shows as a placeholder titled "Surprise" on its
-  // date and time — only the fields the dated query selects.
-  const scheduledItems = [
-    ...scheduledItemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
-    ...v.placeholderItems
-      .filter((p) => p.forkId === activeForkId && p.stopId !== null && p.date !== null)
-      .map((p) => ({
-        id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-        address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId,
-        lat: p.lat, lng: p.lng, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
-        surprise: p.surprise,
-      })),
-  ];
+  // blanked; every Stop and Item carries its Surprise view for the badge
+  // (both done by readPlan). The Stop cards want their Accommodations nested,
+  // in check-in order (readPlan's own order).
+  const stops = rows.stops.map((s) => ({
+    ...s,
+    accommodations: rows.accommodations.filter((a) => a.stopId === s.id),
+  }));
+  // Things to do: a Stop, no date (ADR 0022). A hidden Item's placeholder only
+  // ever shows on its date and time, so undated placeholders stay out.
+  const hiddenRootItems = new Set(v.hiddenRootItemIds);
+  const thingsToDoWithSurprise = rows.items.filter((i) => i.stopId && !i.date && !hiddenRootItems.has(i.id));
+  // Day rows: a Stop and a date — visible Items plus this Plan's placeholders
+  // titled "Surprise" on their date and time.
+  const scheduledItems = rows.items.filter((i) => i.stopId && i.date);
+  // readPlan's Costs are unfiltered (hidden Costs stay in totals); the cards
+  // render Cost lines, so a hidden owner's Costs are dropped here (ADR 0072).
+  const hiddenOwners = new Set(v.hiddenOwnerIds);
+  const allCosts = rows.costs.filter(
+    (c) => ["TRANSPORT", "ACCOMMODATION", "ITEM"].includes(c.ownerType) && c.ownerId && !hiddenOwners.has(c.ownerId),
+  );
 
   // CONTEXT.md "Item photo" (spec §I): resolved leniently via
   // `lib/item-photo.ts`'s `itemPhotoUrl`, keyed by the Attachment's OWN id
@@ -572,7 +413,6 @@ export default async function TripPlanPage({
               homeCurrency={trip?.homeCurrency}
               homeBaseName={trip?.homeName}
               homeTimezone={trip?.homeTimezone}
-              homeCountryCode={trip?.homeCountryCode}
               roundTrip={trip?.roundTrip}
               forkId={activeForkId}
               tripStartDate={tripStartDate}
@@ -586,7 +426,7 @@ export default async function TripPlanPage({
               attachmentsByAccommodationId={attachmentsByAccommodationId}
               attachmentsByItemId={attachmentsByItemId}
               currentUserId={user.id}
-              members={members.map((m) => m.user)}
+              members={members}
               chapters={trip?.chaptersEnabled ? chapters : []}
               chaptersEnabled={chaptersEnabled}
               thingsToDoByStopId={thingsToDoByStopId}
