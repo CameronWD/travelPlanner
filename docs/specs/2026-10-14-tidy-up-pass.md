@@ -2,7 +2,11 @@
 
 **Status:** agreed in the 2026-10-14 session (grill). One spec, three
 sequential branches. Target `main`, each branch merged and deployed by Cam
-before the next starts.
+before the next starts. **Batch 1 is built** on `chore/tidy-up-1-foundations`
+(2026-10-15), awaiting Cam's review, merge and deploy. **Batches 2 and 3 are
+deferred, not queued** — Cam is doing the Claude Design refinement (`DS-01`)
+first; a future session plans batch 2 from this spec's Batch 2 section with
+no new grilling.
 **Source:** `docs/audits/2026-10-14-architecture-review.html` (sixteen
 candidates A–P, six verified bugs, and the routing of every open follow-up;
 also published at https://claude.ai/artifact/FZickqRiUEfmSLXxz4BttR). The
@@ -73,12 +77,14 @@ Per `CLAUDE.md`. In addition:
 | TB-05 | `server/actions/trips.ts:534-541` | `duplicateTrip` copies Fork rows into the new real plan. | F |
 | TB-06 | `server/actions/stops.ts:1326` | A second, published `assignStopToChapter` with no chapter-ownership check; `chapters.ts:252` is the real one. Delete and drop from the allowlist. | P |
 | TB-07 | `components/trip/itinerary-manager.tsx:1600, 1660, 1673, 1698, 1761` | Awaited reorders with no catch; Undo `.then` with no `.catch`. | G |
+| TB-08 | `server/actions/forks.ts` `getComparison` | Compare read every plan unfiltered by Surprise; now reads through `readPlan` and hides the inside like every other page (CONTEXT.md **Surprise**). | A/B |
 
 ---
 
 ## Batch 1 — Foundations and bugs (`chore/tidy-up-1-foundations`)
 
 ### 1.J · A test seam for the database
+- [x] Done — `7a195f2f`/`44be6703`.
 - `test/builders/` with `trip()`, `stop()`, `transport()`, `stay()`, `item()`,
   `cost()`, `chapter()`, `traveller()` returning Prisma-shaped rows with
   realistic defaults (a dated Trip, three Stops, a Home base with timezone).
@@ -90,6 +96,7 @@ Per `CLAUDE.md`. In addition:
   `walk()` copies in the guard tests that survive.
 
 ### 1.B · Flags take rows from one place
+- [x] Done — `bd19ec0d`/`8e3a09a9`.
 - `loadFlagRows(tripId, viewer)` in `lib/flags-loader.ts` is the only read;
   `flagsFromRows(rows)` the only road to `detectFlags`. The four private
   selects in `nav-counts`, `next-steps-loader`, `desktop-home-loader` and
@@ -97,6 +104,8 @@ Per `CLAUDE.md`. In addition:
   1.A lands, `loadFlagRows` is a projection of the Plan reader.
 
 ### 1.A · One Plan reader behind the pages
+- [x] Done — `9e6a542a`/`67660302`/`867a033b`, plus pages `d37da0a8`,
+  `7ab20f22`, `cbfcc956`, `2b88959f`, `cd533d9c`.
 - `lib/plan-reads.ts`: `readPlan(tripId, viewer, plan)` in `cache()`,
   returning typed rows (Stops, Transports, Accommodation, scheduled Items,
   Costs, Chapters, Exchange rates, Day titles) with Surprise visibility
@@ -114,6 +123,8 @@ Per `CLAUDE.md`. In addition:
 - Closes NAV-03's data half (header data from the layout's read).
 
 ### 1.C · One entity guard and one plan guard
+- [x] Done — `dc3da59c`, `5c995eb3`, `1841fc57`/`46bb8356`, `d0e2f18d`,
+  `fa60fd17`.
 - `requireRowAccess(kind, id)` and `requirePlanAccess(tripId, forkId)` in
   `lib/guards.ts`; the 14 private copies deleted; `requireTripOwner`
   deleted. Transport's lack of a Surprise variant is a documented branch.
@@ -122,10 +133,14 @@ Per `CLAUDE.md`. In addition:
   on failure (Q4). Closes ARCH-TEN-5 (TB-03), ARCH-TEN-9 (`targetId` on
   `uploadAttachment` / `addNote` goes through `requireRowAccess`), BI-12.
 - ARCH-TEN-10: cancelling an Invite requires owner-or-admin, the same
-  predicate as creating one. ARCH-TEN-11: `getRecentActivity` stops sending
-  other Travellers' user ids; the client gets display names only.
+  predicate as creating one. **ARCH-TEN-11 was struck, not built** — see the
+  dated note on it in `docs/architecture-sitrep-2026-09-22.md`: its premise
+  (that `getRecentActivity` sending a member's user id tells the browser
+  something it didn't already know) doesn't hold, so `activity.ts` is
+  unchanged.
 
 ### 1.D · One failure contract
+- [x] Done — `4819189b`, `734a141f`/`8511d15d`, `7fe54719`/`d138d9ac`.
 - Per ADR 0074. `fail()` gains `code`; `"_form"` retired at its five
   writers and ten readers; `formError()` and `firstErrorMessage()` in
   `action-failure.ts`; the two private copies deleted; `run-tool.ts` loses
@@ -133,10 +148,12 @@ Per `CLAUDE.md`. In addition:
   type. TB-04 fixed with a test that the Stop form shows the refusal.
 
 ### 1.F · Duplicate reads the real plan only
+- [x] Done — `b9472599`.
 - `duplicateTrip` reads with `REAL_PLAN` scope (TB-05). Test: a Trip with a
   Fork duplicates its real plan only and the copy has no Forks.
 
 ### 1.P-bugs · Deletions that are bugs or dead
+- [x] Done — `fa60fd17` (TB-06), `b0857665`.
 - TB-06 (`stops.ts` `assignStopToChapter`), `lib/reorder-transports.ts`,
   the four dead trigger buttons, the unused `homeCountryCode` prop.
 

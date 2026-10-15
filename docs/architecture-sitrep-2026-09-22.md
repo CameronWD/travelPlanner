@@ -51,6 +51,14 @@ with runnable steps) and the backup-artifact exposure recorded in
 `docs/DEPLOY.md` §5b, which surfaced only because writing a privacy policy
 forced an inventory of where the data actually goes.
 
+**Update, 2026-10-15.** The 2026-10-14 tidy-up pass
+(`docs/specs/2026-10-14-tidy-up-pass.md`), batch 1, on branch
+`chore/tidy-up-1-foundations`, closed four more findings while deepening the
+write-side guards: `ARCH-TEN-5`, `ARCH-TEN-9` and `ARCH-TEN-10` (each dated
+**CLOSED** above). `ARCH-TEN-11` is **settled, not built** — its premise
+turned out not to hold; see its own note above. `ARCH-CMP-1..4` and
+`ARCH-OBS-3` are scheduled for the pass's batch 2.
+
 ## Baseline at time of audit
 
 | Check | Result |
@@ -374,6 +382,11 @@ action, not a missing guard.
   stated rationale matches the code.
 
 ### ARCH-TEN-5 · A Stop's `chapterId` is written from client input without confirming the Chapter belongs to the same Trip
+**CLOSED (2026-10-15, chore/tidy-up-1-foundations):** `createStop` now checks the
+Chapter's `tripId`, not just its `forkId` (commit `fa60fd17`, test "TB-03" in
+`server/actions/stops.test.ts`). More generally: every write that accepts a
+client `forkId` now goes through `requirePlanAccess` (`lib/guards.ts`), the
+same guard behind the Chapter check.
 - **Severity: P2** · **Blocks rollout: no** — write damage is contained.
   `recomputeChapterSpans` only iterates chapters it read `where { tripId, ...planScope }`
   (`stop-flow.ts:88-91, 104-107`), so a foreign `chapterId` cannot write into another
@@ -438,6 +451,9 @@ action, not a missing guard.
   and no workflow edit at all.
 
 ### ARCH-TEN-9 · `targetId` is accepted unvalidated on `uploadAttachment` and `addNote`
+**CLOSED (2026-10-15, chore/tidy-up-1-foundations):** `addNote` and
+`uploadAttachment` now validate a STOP/ITEM/TRANSPORT/ACCOMMODATION
+`targetId` through `requireRowAccess` before writing (commit `fa60fd17`).
 - **Severity: P3** · **Blocks rollout: no** — the created row always carries the guarded
   `tripId`/`globeId`, so nothing crosses a tenancy boundary.
 - **Evidence:** `attachments.ts:122` (globe path), `:177` (trip path), `notes.ts:69-79`.
@@ -449,6 +465,8 @@ action, not a missing guard.
   `cleanupTargetSideData` when the intended entity is deleted, so the blob outlives its owner.
 
 ### ARCH-TEN-10 · Any Trip member can cancel a pending Invite, though only the owner can create one
+**CLOSED (2026-10-15, chore/tidy-up-1-foundations):** `cancelInvite` is now
+owner-or-admin, the same predicate as creating one (commit `fa60fd17`).
 - **Severity: P3** · **Blocks rollout: no** — a cancelled Invite is re-creatable in one
   action, and an *accepted* Invite is explicitly protected (`invites.ts:124-126`).
 - **Evidence:** `server/actions/invites.ts:106-132` — `cancelInvite` calls
@@ -460,6 +478,13 @@ action, not a missing guard.
   just granting.
 
 ### ARCH-TEN-11 · `getRecentActivity` sends other Travellers' user ids to the browser
+**SETTLED, not built (2026-10-15, chore/tidy-up-1-foundations):** the tidy-up
+pass looked at this and did not change `activity.ts`. The finding's premise
+does not hold: `lib/traveller.ts` already builds the avatar URL from the
+user's id, and `TRAVELLER_SELECT` already ships every member's id to every
+other member through the Trip shell (`lib/trip-shell-reads.ts`). `activity.ts`
+sending the same id a second time adds nothing a Trip member doesn't already
+have. Do not re-file this.
 - **Severity: P3** · **Blocks rollout: no** — the ids belong to fellow members of a Trip the
   caller can already see, and a `cuid` is not a credential.
 - **Evidence:** `server/actions/activity.ts:49` —

@@ -618,6 +618,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   for the Real plan, and every what-if delta should then be relative to that
   figure. Needs a unit test on `computePlanMetrics` with a dated Real plan
   before the fix.
+- **Fixed** on `chore/tidy-up-1-foundations` (commit `bd19ec0d`, TB-02:
+  `computePlanMetrics` counts a dated Stop's nights from its dates); closes
+  when deployed.
 
 ---
 
@@ -960,6 +963,14 @@ listed so nobody re-opens them, and so the trail back to the source doc survives
   `lib/mcp`). Not a tidy-up. Re-measure if a future pass wants it.
 - **A shared plan-graph copier for Fork and Duplicate** (review card F,
   "full") declined — see *Forks are kept but frozen*.
+- **Compare applies Surprise visibility (2026-10-15).** `getComparison` read
+  every plan unfiltered; it now reads through `readPlan`, so a surprised
+  Traveller's Compare counts hide the inside of a Surprise like every other
+  page (CONTEXT.md **Surprise**, ADR 0072). Recorded as `TB-08` of the
+  tidy-up pass; a behaviour change, deliberate.
+- **Batches 2 and 3 of the tidy-up pass are specced, not queued (2026-10-15).**
+  Cam is doing the Claude Design refinement (`DS-01`) first; a future session
+  plans batch 2 from the spec's Batch 2 section with no new grilling.
 
 
 **These 26 were judged and declined deliberately.** They are not oversights, not

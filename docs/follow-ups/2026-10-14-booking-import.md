@@ -30,30 +30,35 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
 - **BI-10 · `lib/fx.ts` calls a URL that now redirects.** It requests
   `https://api.frankfurter.app`, which 301-redirects to
   `https://api.frankfurter.dev/v1`. It works today via the redirect; switch the
-  base URL to avoid depending on that.
+  base URL to avoid depending on that. **Scheduled for batch 3** of the
+  2026-10-14 tidy-up pass.
 - **BI-11 · A Booking import takes ~6-20 s on Haiku 5.5** (measured
   2026-10-14). The sheet's in-progress state matters for this; consider
   streaming the extraction or giving a progress hint if Travellers find it
   slow.
-- **BI-12 · `forkId` isn't validated as a Fork of the Trip** in
-  `importBooking`/`confirmProposal`. A foreign or stale fork leaks nothing
-  (same as other actions) but falls back to an empty plan, so every Stop is
-  proposed as new; matches the trust model of other actions, which don't
-  validate this either.
+- **BI-12 · Fixed.** `forkId` wasn't validated as a Fork of the Trip in
+  `importBooking`/`confirmProposal`. A foreign or stale fork leaked nothing
+  (same as other actions) but fell back to an empty plan, so every Stop was
+  proposed as new. Both actions now validate `forkId` through
+  `requirePlanAccess` (commit `fa60fd17`), the same guard every other write
+  that accepts a client `forkId` goes through.
 - **BI-13 · An `AiUsage` row isn't written if `loadImportContext` throws**
   after a paid call. The call is already billed; the usage record is lost.
+  **Scheduled for batch 3** of the 2026-10-14 tidy-up pass.
 - **BI-14 · City matching edge cases.** `sameCity` in `match.ts` checks
   whole-word containment both ways (`within(a, b) || within(b, a)`), so it can
   be too loose rather than too strict: "York" and "New York City" match each
   other in either direction. A shorter name (under 4 characters, e.g. "Rio")
   never matches by containment, only exactly. And the Home city match ignores
   country (so a same-named city in another country can match the Home base).
+  **Scheduled for batch 3** of the 2026-10-14 tidy-up pass.
 - **BI-15 · `CURRENCIES[].symbol` isn't rendered anywhere** — the UI formats
   money with `Intl` instead. Pre-existing and inert today, but ISK's "Kr"
   reads inconsistently next to the Nordic codes (DKK/NOK/SEK) if the field is
   ever surfaced.
 - **BI-16 · `DESIGN-BRIEF.md:311` still lists "Booking parser"** under
   Checklists — stale, predates this branch's Booking import feature.
+  **Scheduled for batch 3** of the 2026-10-14 tidy-up pass.
 - **BI-17 · Commit `1d08d76b` carries a mis-attributed trailer.** It reads
   `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` instead of the
   project's standard trailer for that session. Noted rather than rewritten,
