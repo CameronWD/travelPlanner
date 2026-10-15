@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { FormError } from "@/components/ui/form-error";
+import { formError } from "@/components/ui/action-failure";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -326,7 +327,7 @@ function OtherCostDialog({
             </>
           )}
 
-          <FormError>{errors._form?.[0]}</FormError>
+          <FormError>{formError(errors)}</FormError>
 
           <DialogFooter>
             <Button

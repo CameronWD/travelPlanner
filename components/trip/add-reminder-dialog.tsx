@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
+import { formError } from "@/components/ui/action-failure";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { addReminder } from "@/server/actions/reminders";
@@ -16,12 +17,6 @@ import { checkReminderInput } from "@/lib/reminder-input";
 // Types
 // ---------------------------------------------------------------------------
 
-interface FormErrors {
-  title?: string[];
-  date?: string[];
-  stopId?: string[];
-  _form?: string[];
-}
 
 export interface AddReminderDialogProps {
   /** The trip this reminder belongs to. */
@@ -105,7 +100,7 @@ function AddReminderForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <Field label="Reminder title" required error={(errors as FormErrors).title?.[0]}>
+      <Field label="Reminder title" required error={errors.title?.[0]}>
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -120,11 +115,11 @@ function AddReminderForm({
         required
         value={date}
         onChange={(e) => setDate(e.target.value)}
-        error={(errors as FormErrors).date?.[0]}
+        error={errors.date?.[0]}
         disabled={isPending}
       />
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <FormError>{formError(errors)}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

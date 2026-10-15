@@ -11,7 +11,7 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
-import { type ActionFailure, type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionFailure, type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
@@ -56,12 +56,7 @@ async function validateStopBelongsToTrip(
   for (const id of ids) {
     const stop = stops.find((s) => s.id === id);
     if (!stop || stop.tripId !== tripId || stop.forkId !== targetForkId) {
-      return {
-        success: false,
-        errors: {
-          _form: ["Selected stop does not belong to this trip"],
-        },
-      };
+      return formFail("Selected stop does not belong to this trip");
     }
   }
   return null;

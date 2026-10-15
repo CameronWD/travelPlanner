@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
-import { firstErrorMessage, toastRefused, toastRejected, SOMETHING_WENT_WRONG } from "./action-failure";
+import { firstErrorMessage, formError, toastRefused, toastRejected, SOMETHING_WENT_WRONG } from "./action-failure";
 import { OFFLINE_MESSAGE } from "./failure-message";
 
 function setOnline(value: boolean) {
@@ -23,6 +23,18 @@ describe("firstErrorMessage", () => {
   it("falls back when there is no message", () => {
     expect(firstErrorMessage({}, "fallback")).toBe("fallback");
     expect(firstErrorMessage(undefined, "fallback")).toBe("fallback");
+  });
+  it("reads a failure result or a bare dict", () => {
+    expect(firstErrorMessage({ success: false, errors: { name: ["Too long"] } }, "fallback")).toBe("Too long");
+    expect(firstErrorMessage({ name: ["Too long"] }, "fallback")).toBe("Too long");
+    expect(firstErrorMessage(undefined, "fallback")).toBe("fallback");
+  });
+});
+
+describe("formError", () => {
+  it("reads the form-level key off a failure result or a bare dict", () => {
+    expect(formError({ success: false, errors: { _: ["Form-level"] } })).toBe("Form-level");
+    expect(formError({ name: ["field"] })).toBeUndefined();
   });
 });
 

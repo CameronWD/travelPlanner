@@ -241,12 +241,12 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 4: server-returned _form error is displayed
+  // Case 4: server-returned form-level error is displayed
   // -------------------------------------------------------------------------
-  it("renders a server-returned _form error after submit", async () => {
+  it("renders a server-returned form-level error after submit", async () => {
     (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _form: ["Something went wrong, please try again"] },
+      errors: { _: ["Something went wrong, please try again"] },
     });
 
     const user = userEvent.setup();
@@ -282,12 +282,12 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 6: _form error appears with role=alert via FormError
+  // Case 6: a form-level error appears with role=alert via FormError
   // -------------------------------------------------------------------------
-  it("_form error renders with role=alert", async () => {
+  it("a form-level error renders with role=alert", async () => {
     (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _form: ["Server error"] },
+      errors: { _: ["Server error"] },
     });
 
     const user = userEvent.setup();

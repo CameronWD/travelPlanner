@@ -361,7 +361,7 @@ describe("createTransport", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errors._form).toBeDefined();
+      expect(result.errors._).toBeDefined();
     }
     expect(transportCreateMock).not.toHaveBeenCalled();
   });
@@ -1279,7 +1279,7 @@ describe("anchorStopId: createTransport round-trips and validates", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errors._form).toBeDefined();
+      expect(result.errors._).toBeDefined();
     }
     expect(transportCreateMock).not.toHaveBeenCalled();
   });
@@ -1334,7 +1334,7 @@ describe("anchorStopId: updateTransport persists anchorStopId and validates it",
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errors._form).toBeDefined();
+      expect(result.errors._).toBeDefined();
     }
     expect(transportUpdateMock).not.toHaveBeenCalled();
   });

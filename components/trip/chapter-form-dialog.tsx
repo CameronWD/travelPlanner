@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { CHAPTER_COLOURS, type ChapterColour } from "@/lib/chapter-colours";
 import { FormError } from "@/components/ui/form-error";
+import { formError } from "@/components/ui/action-failure";
 import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { cn } from "@/lib/cn";
 import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
@@ -20,13 +21,6 @@ import { useEntityForm } from "@/components/ui/use-entity-form";
 // Types
 // ---------------------------------------------------------------------------
 
-interface FormErrors {
-  name?: string[];
-  colour?: string[];
-  startDate?: string[];
-  endDate?: string[];
-  _form?: string[];
-}
 
 export interface ChapterFormDialogChapter {
   id: string;
@@ -156,7 +150,7 @@ function ChapterForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Name */}
-      <Field label="Chapter name" required error={(errors as FormErrors).name?.[0]}>
+      <Field label="Chapter name" required error={errors.name?.[0]}>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -167,7 +161,7 @@ function ChapterForm({
       </Field>
 
       {/* Colour */}
-      <Field label="Colour" required error={(errors as FormErrors).colour?.[0]}>
+      <Field label="Colour" required error={errors.colour?.[0]}>
         <div className="flex flex-wrap gap-2">
           {CHAPTER_COLOURS.map((c) => (
             <button
@@ -211,7 +205,7 @@ function ChapterForm({
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             max={endDate || undefined}
-            error={(errors as FormErrors).startDate?.[0]}
+            error={errors.startDate?.[0]}
             disabled={isPending}
           />
           <DateField
@@ -220,14 +214,14 @@ function ChapterForm({
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             min={startDate || undefined}
-            error={(errors as FormErrors).endDate?.[0]}
+            error={errors.endDate?.[0]}
             disabled={isPending}
           />
         </div>
       )}
 
       {/* Form-level error */}
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <FormError>{formError(errors)}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

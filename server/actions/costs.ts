@@ -10,7 +10,7 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -142,10 +142,7 @@ export async function createCost(
     select: { homeCurrency: true },
   });
   if (!trip) {
-    return {
-      success: false,
-      errors: { _form: ["Trip not found"] },
-    };
+    return formFail("Trip not found");
   }
 
   // Resolve the rate (incl. any network fetch) BEFORE opening a transaction —
@@ -214,10 +211,7 @@ export async function updateCost(
     select: { homeCurrency: true },
   });
   if (!trip) {
-    return {
-      success: false,
-      errors: { _form: ["Trip not found"] },
-    };
+    return formFail("Trip not found");
   }
 
   const resolved = await resolveRateForTrip(existing.tripId, data.currency, trip.homeCurrency, { db });
@@ -296,7 +290,7 @@ export async function markCostPaid(
     where: { id: costId },
     select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
-  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  if (!cost) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 
@@ -338,7 +332,7 @@ export async function markCostUnpaid(costId: string): Promise<CostActionResult> 
     where: { id: costId },
     select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
-  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  if (!cost) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 

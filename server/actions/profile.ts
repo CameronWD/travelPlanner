@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { type ActionResult, ok, fail, formFail } from "@/lib/action-result";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { checkQuota } from "@/lib/storage-quota";
@@ -124,7 +124,7 @@ function clampUnit(n: number): number {
 export async function setProfilePhotoFocal(x: number, y: number): Promise<ActionResult> {
   const user = await requireUser();
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return fail({ _form: ["That point isn't on the photo."] });
+    return formFail("That point isn't on the photo.");
   }
   await db.user.update({
     where: { id: user.id },

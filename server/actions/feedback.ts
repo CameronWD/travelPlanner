@@ -9,7 +9,7 @@ import {
   createFeedbackNoteSchema,
   type CreateFeedbackNoteInput,
 } from "@/lib/validations/feedback";
-import { type ActionResult, fail, ok, validationResult } from "@/lib/action-result";
+import { type ActionResult, ok, validationResult, formFail } from "@/lib/action-result";
 // The view shape, its Prisma selection and the mapper live in lib/ and not
 // here: this module is `"use server"`, so every *value* it exports has to be
 // an async function (Next publishes them as endpoints). `toView` is a pure
@@ -125,10 +125,10 @@ export async function deleteFeedbackNote(id: string): Promise<ActionResult> {
     select: { id: true, authorId: true },
   });
   if (!note) {
-    return fail({ _form: ["That feedback has already been removed."] });
+    return formFail("That feedback has already been removed.");
   }
   if (note.authorId !== user.id) {
-    return fail({ _form: ["You can only delete feedback you wrote."] });
+    return formFail("You can only delete feedback you wrote.");
   }
 
   await db.feedbackNote.delete({ where: { id } });

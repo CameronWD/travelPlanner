@@ -133,15 +133,15 @@ describe("ChapterFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 7: server-returned _form error appears with role=alert
+  // Case 7: server-returned form-level error appears with role=alert
   // -------------------------------------------------------------------------
-  it("a server-returned _form error appears with role=alert", async () => {
+  it("a server-returned form-level error appears with role=alert", async () => {
     const { createChapter: mockCreateChapter } = await import(
       "@/server/actions/chapters"
     );
     (mockCreateChapter as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _form: ["Something went wrong on the server"] },
+      errors: { _: ["Something went wrong on the server"] },
     });
 
     const user = userEvent.setup();

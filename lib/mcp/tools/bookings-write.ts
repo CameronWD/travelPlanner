@@ -602,7 +602,7 @@ async function loadCostForPatch(costId: string): Promise<CostRow> {
 /**
  * Loads a Cost's `tripId` only, for the `mark_cost_paid`/`mark_cost_unpaid`
  * access check. `markCostPaid`/`markCostUnpaid` do their own lookup too,
- * but on a missing row they return `{ success: false, errors: { _form:
+ * but on a missing row they return `{ success: false, errors: { _:
  * ["Cost not found"] } }` rather than `notFound()` — a different tool error
  * than a non-member's id gets (which still throws `notFound()` via
  * `requireTripAccess`), breaking the "same not found text either way" rule.

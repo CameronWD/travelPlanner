@@ -22,7 +22,7 @@ import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { toastRefused, toastRejected, formError } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -188,7 +188,7 @@ function CostDialogForm({
           )}
 
           {/* Form-level error */}
-          <FormError>{errors._form?.[0]}</FormError>
+          <FormError>{formError(errors)}</FormError>
 
           <DialogFooter>
             <Button

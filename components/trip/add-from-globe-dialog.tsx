@@ -16,6 +16,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { addMarkerToWishlist } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { useServerAction } from "@/components/ui/use-server-action";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -100,7 +101,7 @@ export function AddFromGlobeDialog({
     onError: (errors) =>
       toast({
         title: "Couldn't add marker.",
-        description: errors._form?.[0] ?? Object.values(errors)[0]?.[0],
+        description: firstErrorMessage(errors, "Couldn't add marker."),
         variant: "destructive",
       }),
   });

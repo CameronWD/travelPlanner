@@ -124,12 +124,12 @@ describe("AccommodationFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 5: server-returned _form error is displayed
+  // Case 5: server-returned form-level error is displayed
   // -------------------------------------------------------------------------
-  it("renders a server-returned _form error after submit", async () => {
+  it("renders a server-returned form-level error after submit", async () => {
     (createAccommodation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _form: ["Something went wrong"] },
+      errors: { _: ["Something went wrong"] },
     });
 
     const user = userEvent.setup();
@@ -253,12 +253,12 @@ describe("AccommodationFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 10: _form error appears with role=alert via FormError
+  // Case 10: a form-level error appears with role=alert via FormError
   // -------------------------------------------------------------------------
-  it("_form error renders with role=alert", async () => {
+  it("a form-level error renders with role=alert", async () => {
     (createAccommodation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _form: ["Server error"] },
+      errors: { _: ["Server error"] },
     });
 
     const user = userEvent.setup();

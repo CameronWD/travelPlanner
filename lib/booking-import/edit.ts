@@ -38,5 +38,5 @@ export function mergeStopEdit(prev: ProposedStopInput, edited: ProposedStopInput
 
 /** A confirm's outcome as the form dialog's submit expects it; the message shows as the form-level line. */
 export function toActionResult(res: ConfirmProposalResult): ActionResult {
-  return res.ok ? { success: true } : { success: false, errors: { _form: [res.message], ...(res.errors ?? {}) } };
+  return res.ok ? { success: true } : { success: false, errors: { _: [res.message], ...(res.errors ?? {}) } };
 }

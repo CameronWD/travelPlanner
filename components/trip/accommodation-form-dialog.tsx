@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
+import { formError } from "@/components/ui/action-failure";
 import { accommodationDateWarnings } from "@/lib/accommodation-dates";
 import {
   createAccommodation,
@@ -35,22 +36,6 @@ import { AttachmentList, type AttachmentView } from "@/components/trip/attachmen
 // Types
 // ---------------------------------------------------------------------------
 
-interface FormErrors {
-  stopId?: string[];
-  name?: string[];
-  address?: string[];
-  checkIn?: string[];
-  checkOut?: string[];
-  checkInTime?: string[];
-  checkOutTime?: string[];
-  confirmation?: string[];
-  notes?: string[];
-  costMinor?: string[];
-  currency?: string[];
-  paidMinor?: string[];
-  paidAt?: string[];
-  _form?: string[];
-}
 
 export interface AccommodationFormDialogProps {
   /** The trip this accommodation belongs to (needed for AttachmentList). */
@@ -323,7 +308,7 @@ function AccommodationForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
       {preview && <div data-testid="proposal-preview" className="sm:col-span-2">{preview}</div>}
       {/* Name */}
-      <Field label="Accommodation name" required error={(errors as FormErrors).name?.[0]}>
+      <Field label="Accommodation name" required error={errors.name?.[0]}>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -335,7 +320,7 @@ function AccommodationForm({
 
       {/* Address + Booking confirmation — own sub-grid so they always pair. */}
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-        <Field label="Address" error={(errors as FormErrors).address?.[0]}>
+        <Field label="Address" error={errors.address?.[0]}>
           <Input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
@@ -344,7 +329,7 @@ function AccommodationForm({
           />
         </Field>
 
-        <Field label="Booking confirmation" error={(errors as FormErrors).confirmation?.[0]}>
+        <Field label="Booking confirmation" error={errors.confirmation?.[0]}>
           <Input
             value={confirmation}
             onChange={(e) => setConfirmation(e.target.value)}
@@ -361,7 +346,7 @@ function AccommodationForm({
           required
           value={checkIn}
           onChange={(e) => setCheckIn(e.target.value)}
-          error={(errors as FormErrors).checkIn?.[0]}
+          error={errors.checkIn?.[0]}
           disabled={isPending}
         />
         <DateField
@@ -370,14 +355,14 @@ function AccommodationForm({
           value={checkOut}
           onChange={(e) => setCheckOut(e.target.value)}
           min={checkIn}
-          error={(errors as FormErrors).checkOut?.[0]}
+          error={errors.checkOut?.[0]}
           disabled={isPending}
         />
       </div>
 
       {/* Times — own sub-grid so they always pair. */}
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-        <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
+        <Field label="Check-in time" error={errors.checkInTime?.[0]}>
           <Input
             type="time"
             value={checkInTime}
@@ -385,7 +370,7 @@ function AccommodationForm({
             disabled={isPending}
           />
         </Field>
-        <Field label="Check-out time" error={(errors as FormErrors).checkOutTime?.[0]}>
+        <Field label="Check-out time" error={errors.checkOutTime?.[0]}>
           <Input
             type="time"
             value={checkOutTime}
@@ -412,7 +397,7 @@ function AccommodationForm({
       )}
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
+      <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -461,7 +446,7 @@ function AccommodationForm({
       </div>
 
       <div className="sm:col-span-2">
-        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+        <FormError>{formError(errors)}</FormError>
       </div>
 
       <DialogFooter className="sm:col-span-2">

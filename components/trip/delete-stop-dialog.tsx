@@ -14,6 +14,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import { firstErrorMessage } from "@/components/ui/action-failure";
 import {
   useStopDeletionPreview,
   hasStopDeletionLosses,
@@ -30,11 +31,6 @@ interface InnerProps {
   stopId: string;
   stopName: string;
   onClose: () => void;
-}
-
-function firstErrorMessage(errors: Record<string, string[]> | undefined, fallback: string): string {
-  const first = errors ? Object.values(errors).flat()[0] : undefined;
-  return first ?? fallback;
 }
 
 function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
