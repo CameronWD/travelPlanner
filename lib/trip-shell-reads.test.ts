@@ -16,7 +16,7 @@ vi.mock("@/server/actions/activity", () => ({
 const listForks = vi.fn<(...a: unknown[]) => Promise<{ id: string; name: string; sortOrder: number }[]>>(async () => [{ id: "f1", name: "B", sortOrder: 0 }]);
 vi.mock("@/server/actions/forks", () => ({ listForks: (...a: unknown[]) => listForks(...a) }));
 
-import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks, TRIP_SHELL_SELECT } from "./trip-shell-reads";
+import { readTripShell, readTripHeader, readUnreadActivityCount, readRecentActivity, readForks, TRIP_SHELL_SELECT } from "./trip-shell-reads";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -27,6 +27,13 @@ describe("trip-shell reads", () => {
     for (const key of ["id", "name", "slug", "startDate", "endDate", "homeCurrency", "forksEnabled", "coverImageKey", "coverAspect", "members", "stops"]) {
       expect(TRIP_SHELL_SELECT).toHaveProperty(key);
     }
+  });
+
+  it("is the Trip header too: the Home base, the dials and deletedAt (spec 2026-10-14 card A)", () => {
+    for (const key of ["hardEndDate", "homeName", "homeLat", "homeLng", "homeCountryCode", "homeTimezone", "roundTrip", "chaptersEnabled", "drivingWindingFactor", "drivingAvgSpeedKph", "deletedAt"]) {
+      expect(TRIP_SHELL_SELECT).toHaveProperty(key, true);
+    }
+    expect(readTripHeader).toBe(readTripShell);
   });
 
   it("the activity reads delegate with their arguments", async () => {

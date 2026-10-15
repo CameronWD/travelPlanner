@@ -3,6 +3,8 @@
 ## Status
 Accepted (2026-10-12)
 
+Amended 2026-10-15: the per-file readers guard is retired; `readPlan` (lib/plan-reads.ts) takes the viewer as a required argument, so a Plan reader cannot forget it.
+
 ## Context
 
 A Surprise (CONTEXT.md **Surprise**, spec `2026-10-12-tc-12-surprise`) is a

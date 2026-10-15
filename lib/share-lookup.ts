@@ -6,6 +6,7 @@
  * one's token replaced, so either simply matches nothing here.
  */
 
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -27,10 +28,11 @@ const SHARE_TRIP_SELECT = {
  * Resolve the token → link + trip, or null for an unknown/revoked/rotated
  * token, or a Trip in Recently deleted (ADR 0067). `findUnique` can't filter
  * on a relation, so this is a `findFirst` scoped by the token's own unique
- * column.
+ * column. Memoised per request (React cache), so every reader in one
+ * render of the share page pays for one lookup (spec 2026-10-14 card A).
  */
-export function findShareLink(token: string) {
-  return db.shareLink.findFirst({
+export const findShareLink = cache((token: string) =>
+  db.shareLink.findFirst({
     where: { token, trip: { deletedAt: null } },
     select: {
       id: true,
@@ -42,8 +44,8 @@ export function findShareLink(token: string) {
       includeContacts: true,
       trip: { select: SHARE_TRIP_SELECT },
     },
-  });
-}
+  }),
+);
 
 export type ShareStop = {
   id: string;

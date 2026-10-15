@@ -23,17 +23,34 @@ export const readUnreadActivityCount = cache((tripId: string) => getUnreadActivi
 export const readRecentActivity = cache((tripId: string, limit: number) => getRecentActivity(tripId, limit));
 export const readForks = cache((tripId: string) => listForks(tripId));
 
-/** The trip layout's selection (now carrying the slug, spec 2026-10-06 §C), shared so the Day index and Day page can read the same row for free. */
+/**
+ * The trip layout's selection (now carrying the slug, spec 2026-10-06 §C),
+ * shared so the Day index and Day page can read the same row for free. Since
+ * spec 2026-10-14 card A it is also the Trip header every Plan page reads
+ * (`readTripHeader`, `readPlan`'s `trip`): the Home base, the dials and
+ * `deletedAt`, so no page needs its own `db.trip.findUnique`.
+ */
 export const TRIP_SHELL_SELECT = {
   id: true,
   name: true,
   slug: true,
   startDate: true,
   endDate: true,
+  hardEndDate: true,
   homeCurrency: true,
+  homeName: true,
+  homeLat: true,
+  homeLng: true,
+  homeCountryCode: true,
+  homeTimezone: true,
+  roundTrip: true,
+  chaptersEnabled: true,
   forksEnabled: true,
+  drivingWindingFactor: true,
+  drivingAvgSpeedKph: true,
   coverImageKey: true,
   coverAspect: true,
+  deletedAt: true,
   members: { select: { user: { select: TRAVELLER_SELECT } } },
   stops: {
     where: { ...REAL_PLAN, arriveDate: { not: null } },
@@ -43,3 +60,8 @@ export const TRIP_SHELL_SELECT = {
 } as const;
 
 export const readTripShell = cache((tripId: string) => db.trip.findUnique({ where: { id: tripId }, select: TRIP_SHELL_SELECT }));
+
+/** The same cached read, named for page call sites that want the Trip's header fields. */
+export const readTripHeader = readTripShell;
+
+export type TripHeader = NonNullable<Awaited<ReturnType<typeof readTripShell>>>;
