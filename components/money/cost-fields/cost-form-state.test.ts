@@ -141,6 +141,12 @@ describe("costToFormState", () => {
       paid: false,
       paidAmount: "12.50",
     }));
+
+  it("a legacy paid row with no paid amount opens paid with the cost as its paid amount, so it can be resaved", () => {
+    const s = costToFormState(cost({ costMinor: 1250, paidMinor: null, paidAt: new Date("2026-10-01T00:00:00Z") }));
+    expect(s).toMatchObject({ paid: true, paidAmount: "12.50", paidAt: "2026-10-01" });
+    expect(toCostPayload(s)).toMatchObject({ kind: "ok", fields: { paidMinor: 1250, paidAt: "2026-10-01" } });
+  });
 });
 
 describe("paidFieldsFromRow", () => {

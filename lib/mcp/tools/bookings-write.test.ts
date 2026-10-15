@@ -287,6 +287,14 @@ describe("bookings write tools", () => {
       expect(parsed.success).toBe(true);
     });
 
+    it("completeInlineCost keeps a paid Cost paid even if its paid amount is missing (paidAt decides)", async () => {
+      costFindMany.mockResolvedValue([
+        { costMinor: 500, currency: "AUD", paidMinor: null, paidAt: new Date("2026-10-01T00:00:00Z") },
+      ]);
+      const r = await completeInlineCost("ACCOMMODATION", ACCOMMODATION_ID, { costMinor: 600 });
+      expect(r).toMatchObject({ costMinor: 600, currency: "AUD", paidMinor: 500, paidAt: "2026-10-01" });
+    });
+
     it("costMinor-only update on an UNPAID owned Cost does not forward a paid pair", async () => {
       accommodationFindUnique.mockResolvedValue(accommodationRow());
       costFindMany.mockResolvedValue([{ costMinor: 9000, currency: "EUR", paidMinor: null, paidAt: null }]);
@@ -780,13 +788,13 @@ describe("bookings write tools", () => {
       expect(call[1]).toEqual(expect.objectContaining({ paidMinor: undefined, paidAt: undefined }));
     });
 
-    it("a legacy row with paidAt set but paidMinor null is treated as unpaid (forwards neither)", async () => {
+    it("a legacy row with paidAt set but paidMinor null stays paid, its paid amount falling back to the cost (paidAt decides)", async () => {
       costFindUnique.mockResolvedValue(costRow({ paidMinor: null }));
       updateCost.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
       const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ paidMinor: undefined, paidAt: undefined }));
+      expect(call[1]).toEqual(expect.objectContaining({ paidMinor: 10000, paidAt: "2026-04-01" }));
     });
 
     it("drops dueDate when the patch sets settlement to ON_TRIP", async () => {

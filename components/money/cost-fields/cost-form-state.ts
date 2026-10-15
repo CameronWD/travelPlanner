@@ -72,7 +72,15 @@ export function costToFormState(row: CostRow): CostFormState {
     // legacy row with a paid amount but no date is NOT paid, and must open
     // with the box unticked so re-saving it doesn't fabricate a payment.
     paid: Boolean(row.paidAt),
-    paidAmount: row.paidMinor !== null && row.paidMinor !== undefined ? formatMinor(row.paidMinor, row.currency) : "",
+    // A legacy paid row with no recorded amount opens with the cost as its
+    // paid amount (`paidFieldsFromRow`'s fallback) — otherwise it would
+    // open Paid-with-a-blank-amount and refuse to save.
+    paidAmount:
+      row.paidMinor !== null && row.paidMinor !== undefined
+        ? formatMinor(row.paidMinor, row.currency)
+        : row.paidAt
+          ? formatMinor(row.costMinor, row.currency)
+          : "",
     paidAt: row.paidAt ? new Date(row.paidAt).toISOString().slice(0, 10) : "",
     settlement: isOnTrip(row.settlement) ? "ON_TRIP" : "BEFORE",
   };
@@ -111,7 +119,7 @@ export function seedCostFormState(
  * would persist invisibly, and a blank cost could save alongside a stale
  * paid amount.
  */
-export function setCostAmount(s: CostFormState, value: string): CostFormState {
+export function setCostAmount<S extends CostFormState>(s: S, value: string): S {
   return {
     ...s,
     costAmount: value,
@@ -125,7 +133,7 @@ export function setCostAmount(s: CostFormState, value: string): CostFormState {
  * that cost what you expected is one gesture (ADR 0037). Unticking leaves
  * the amount/date as-is so re-ticking doesn't lose them.
  */
-export function setPaid(s: CostFormState, next: boolean, today: string): CostFormState {
+export function setPaid<S extends CostFormState>(s: S, next: boolean, today: string): S {
   if (!next) return { ...s, paid: false };
   return {
     ...s,

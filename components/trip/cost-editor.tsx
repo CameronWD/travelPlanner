@@ -14,14 +14,21 @@ import { FormError } from "@/components/ui/form-error";
 import { DateField } from "@/components/ui/date-field";
 import { CostSummary } from "./cost-summary";
 import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fields";
-import { setPaid } from "@/components/money/cost-fields/cost-form-state";
+import {
+  costToFormState as costToCostFormState,
+  emptyCostFormState,
+  setCostAmount,
+  setPaid,
+  toCostPayload,
+  type CostFormState,
+} from "@/components/money/cost-fields/cost-form-state";
 import { todayLocalISO } from "@/lib/dates";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
-import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { isOnTrip, type CostOwnerType, type CostSettlement } from "@/lib/enum-values";
+import { isOnTrip, type CostOwnerType } from "@/lib/enum-values";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
+import type { FieldErrors } from "@/lib/action-result";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toastRefused, toastRejected, formError } from "@/components/ui/action-failure";
@@ -55,49 +62,15 @@ export interface CostEditorProps {
 // Form state
 // ---------------------------------------------------------------------------
 
-interface FormState {
-  costAmount: string;
-  // A cost has a single currency (the DB model has one `currency` field).
-  // Both the cost and paid inputs share this value.
-  currency: string;
-  paid: boolean;
-  paidAmount: string;
-  paidAt: string;
-  dueDate: string;
-  /** CONTEXT.md "Settlement". */
-  settlement: CostSettlement;
-}
+/** The shared Cost form state (card 2.I) plus this editor's Due date. */
+type FormState = CostFormState & { dueDate: string };
 
 function defaultFormState(defaultCurrency: string): FormState {
-  return {
-    costAmount: "",
-    currency: defaultCurrency,
-    paid: false,
-    paidAmount: "",
-    paidAt: "",
-    dueDate: "",
-    settlement: "BEFORE",
-  };
+  return { ...emptyCostFormState(defaultCurrency), dueDate: "" };
 }
 
 function costToFormState(cost: CostRow): FormState {
-  return {
-    costAmount: formatMinor(cost.costMinor, cost.currency),
-    currency: cost.currency,
-    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid") — a
-    // legacy row with a paid amount but no date is NOT paid, and must open
-    // with the box unticked so re-saving it doesn't fabricate a payment.
-    paid: Boolean(cost.paidAt),
-    paidAmount:
-      cost.paidMinor !== null && cost.paidMinor !== undefined
-        ? formatMinor(cost.paidMinor, cost.currency)
-        : "",
-    paidAt: cost.paidAt
-      ? new Date(cost.paidAt).toISOString().slice(0, 10)
-      : "",
-    dueDate: cost.dueDate ?? "",
-    settlement: isOnTrip(cost.settlement) ? "ON_TRIP" : "BEFORE",
-  };
+  return { ...costToCostFormState(cost), dueDate: cost.dueDate ?? "" };
 }
 
 // ---------------------------------------------------------------------------
@@ -152,20 +125,11 @@ function CostDialogForm({
           <InlineCostFields
             hasMultipleCosts={false}
             costAmount={form.costAmount}
-            onCostChange={(v) =>
-              setForm((f) => ({
-                ...f,
-                costAmount: v,
-                // Clearing the Cost box hides the Paid block, but state would
-                // otherwise persist invisibly — clear it too so a blank cost
-                // can never save alongside a stale paid amount.
-                ...(v.trim() === "" ? { paid: false, paidAmount: "", paidAt: "" } : {}),
-              }))
-            }
+            onCostChange={(v) => setForm((f) => setCostAmount(f, v))}
             currency={form.currency}
             onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
             paid={form.paid}
-            onPaidChange={(v) => setForm((f) => ({ ...f, ...setPaid(f, v, todayLocalISO()) }))}
+            onPaidChange={(v) => setForm((f) => setPaid(f, v, todayLocalISO()))}
             paidAmount={form.paidAmount}
             onPaidAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
             paidAt={form.paidAt}
@@ -219,41 +183,26 @@ function CostDialogForm({
 }
 
 /**
- * Validate + map form state to the server action's input shape.
- *
- * Returns `null` (with no side effect) when the cost amount is blank or
- * unparseable — the Cost field is required, and a blank/invalid entry must
- * surface a field error rather than silently coercing to 0 (that coercion
- * is exactly the bug ADR 0037 exists to kill, run in reverse: a paid
- * amount would then survive alongside a fabricated £0 cost).
+ * Validate + map form state to the server action's input shape, or the
+ * field errors to show instead. A blank or unparseable cost is "Enter the
+ * cost" (never coerced to 0 — ADR 0037 run in reverse), and Paid ticked with
+ * no parseable paid amount is "Enter what you paid" (`toCostPayload`).
  */
 function parseOwnedFormToInput(
   form: FormState,
   ownerType: Exclude<CostOwnerType, "OTHER">,
   ownerId: string,
-): CostRawInput | null {
-  const costMinor = parseAmountToMinor(form.costAmount, form.currency);
-  if (costMinor === null) return null;
-
-  // Gated on the amount actually *parsing*, not just being non-blank — a
-  // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
-  // The invariant is one-directional (ADR 0037): a paid *date* requires an
-  // amount, but an amount with no date is a legal, honest, incomplete
-  // record — so we never invent a date here.
-  const parsedPaidMinor = form.paid
-    ? parseAmountToMinor(form.paidAmount, form.currency)
-    : null;
-  const hasPaidAmount = parsedPaidMinor !== null;
-
+): { input: CostRawInput } | { errors: FieldErrors } {
+  const payload = toCostPayload(form);
+  if (payload.kind === "none") return { errors: { costMinor: ["Enter the cost"] } };
+  if (payload.kind === "invalid") return { errors: payload.errors };
   return {
-    costMinor,
-    paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-    currency: form.currency,
-    paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
-    ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
-    settlement: form.settlement,
-    ownerType,
-    ownerId,
+    input: {
+      ...payload.fields,
+      ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
+      ownerType,
+      ownerId,
+    },
   };
 }
 
@@ -278,15 +227,15 @@ export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormD
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
   async function handleSubmit(form: FormState) {
-    const input = parseOwnedFormToInput(form, cost.ownerType as Exclude<CostOwnerType, "OTHER">, cost.ownerId!);
-    if (!input) {
-      setErrors({ costMinor: ["Enter the cost"] });
+    const parsed = parseOwnedFormToInput(form, cost.ownerType as Exclude<CostOwnerType, "OTHER">, cost.ownerId!);
+    if ("errors" in parsed) {
+      setErrors(parsed.errors);
       return;
     }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await updateCost(cost.id, input);
+      const result = await updateCost(cost.id, parsed.input);
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
     } finally {
@@ -347,15 +296,15 @@ export function CostEditor({
   // ---------------------------------------------------------------------------
 
   async function handleAddSubmit(form: FormState) {
-    const input = parseOwnedFormToInput(form, ownerType, ownerId);
-    if (!input) {
-      setErrors({ costMinor: ["Enter the cost"] });
+    const parsed = parseOwnedFormToInput(form, ownerType, ownerId);
+    if ("errors" in parsed) {
+      setErrors(parsed.errors);
       return;
     }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await createCost(tripId, input, forkId);
+      const result = await createCost(tripId, parsed.input, forkId);
       if (result.success) {
         setAddOpen(false);
       } else {
@@ -368,15 +317,15 @@ export function CostEditor({
 
   async function handleEditSubmit(form: FormState) {
     if (!editingCost) return;
-    const input = parseOwnedFormToInput(form, ownerType, ownerId);
-    if (!input) {
-      setErrors({ costMinor: ["Enter the cost"] });
+    const parsed = parseOwnedFormToInput(form, ownerType, ownerId);
+    if ("errors" in parsed) {
+      setErrors(parsed.errors);
       return;
     }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await updateCost(editingCost.id, input);
+      const result = await updateCost(editingCost.id, parsed.input);
       if (result.success) {
         setEditingCost(null);
       } else {
