@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { readWelcomeState } from "@/lib/traveller-reads";
 import { requireUser } from "@/lib/guards";
 import { needsDisplayName } from "@/lib/traveller";
 import { WelcomeDialog } from "./welcome-dialog";
@@ -15,10 +15,7 @@ import { WelcomeDialog } from "./welcome-dialog";
  */
 export async function WelcomeGate() {
   const user = await requireUser();
-  const row = await db.user.findUnique({
-    where: { id: user.id },
-    select: { welcomeSeenAt: true, name: true, displayName: true },
-  });
+  const row = await readWelcomeState(user.id);
   if (!row || row.welcomeSeenAt || needsDisplayName(row)) return null;
   return <WelcomeDialog />;
 }

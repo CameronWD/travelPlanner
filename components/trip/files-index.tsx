@@ -5,7 +5,7 @@ import type { TargetType } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { FileTitleDialog } from "@/components/trip/file-title-dialog";
 import { FileLinkDialog, type LinkTargetGroup } from "@/components/trip/file-link-dialog";
-import { FILES_SECTION_HEADER_CLASS } from "@/app/(app)/trips/[tripId]/files/section-class";
+import { FILES_SECTION_HEADER_CLASS } from "@/components/trip/files-section-class";
 
 export type { LinkTargetGroup };
 
