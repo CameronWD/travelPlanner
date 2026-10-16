@@ -199,7 +199,8 @@ import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
-import { ItineraryManager, summariseReorder, transportDefaultsFromParams, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { ItineraryManager, transportDefaultsFromParams, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { summariseReorder, undoPayloadFor } from "@/components/plan/plan-editor-copy";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
 import { setMatchMedia } from "@/test/setup";
 import { resetDayCollapse, setDayCollapsed } from "@/lib/plan/day-collapse";
@@ -1390,98 +1391,17 @@ describe("Task 10: dates-rule rendering order (ADR 0038)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Task 10: pinned scheduled stop blocks the drag (ADR 0038)
-//
-// jsdom has no layout engine, so a real dnd-kit pointer gesture can't be
-// simulated with real coordinates (see the note above the dnd-kit mock near
-// the top of this file, and the "Task 10: scheduled entities are draggable"
-// block above). Instead of asserting the guard exists via a source-text
-// match, the DndContext mock above captures the real onDragEnd callback the
-// component wires up, so this test invokes the ACTUAL production
-// handleDragEnd with a synthetic DragEndEvent shape — real guard logic, no
-// pointer/coordinate simulation required.
-// ---------------------------------------------------------------------------
-
-describe("Task 10: pinned scheduled stop blocks the drag (ADR 0038)", () => {
-  it("shows the pinned-stop toast and calls no reorder action when a pinned scheduled stop is dropped", async () => {
-    const pinned = makeStop({
-      id: "s-pinned",
-      name: "Rome",
-      arriveDate: "2026-08-01",
-      departDate: "2026-08-05",
-      pinned: true,
-      sortOrder: 0,
-    });
-    const other = makeStop({
-      id: "s-other",
-      name: "Naples",
-      arriveDate: "2026-08-05",
-      departDate: "2026-08-08",
-      sortOrder: 1,
-    });
-
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[pinned, other]} />);
-
-    expect(dndCapture.onDragEnd).toBeDefined();
-
-    await act(async () => {
-      await dndCapture.onDragEnd!({
-        active: { id: "s-pinned", data: { current: { type: "stop" } } },
-        over: { id: "s-other", data: { current: {} } },
-      });
-    });
-
-    expect(toast).toHaveBeenCalledWith({
-      title: "This stop is pinned. Unpin it to move it.",
-    });
-    expect(reorderStops).not.toHaveBeenCalled();
-  });
-
-  it("does NOT block dragging a scheduled stop that is not pinned (regression guard)", async () => {
-    const unpinned = makeStop({
-      id: "s-unpinned",
-      name: "Rome",
-      arriveDate: "2026-08-01",
-      departDate: "2026-08-05",
-      pinned: false,
-      sortOrder: 0,
-    });
-    const other = makeStop({
-      id: "s-other",
-      name: "Naples",
-      arriveDate: "2026-08-05",
-      departDate: "2026-08-08",
-      sortOrder: 1,
-    });
-
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[unpinned, other]} />);
-
-    expect(dndCapture.onDragEnd).toBeDefined();
-
-    await act(async () => {
-      await dndCapture.onDragEnd!({
-        active: { id: "s-unpinned", data: { current: { type: "stop" } } },
-        over: { id: "s-other", data: { current: {} } },
-      });
-    });
-
-    expect(reorderStops).toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Task 10: a blocked pinned-stop drag must not corrupt local state (ADR 0038)
 //
-// handleDragOver optimistically previews a cross-container move by stamping
-// chapterId onto the dragged stop WHILE the gesture is in progress (dnd-kit
-// fires onDragOver repeatedly as the pointer crosses containers, before
-// onDragEnd on drop). handleDragEnd's pinned guard stops the drop from being
-// applied/persisted, but if handleDragOver had already re-stamped the pinned
-// stop's chapterId during the hover, that stale value would sit unnoticed in
-// localStops and ship to the server on some LATER, unrelated drag (whichever
-// reorder happens to run next sends the full stop list, chapterId included).
-// handleDragOver needs the identical pinned guard so the preview mutation
-// never happens in the first place.
+// handleDragOver previews a cross-container move by showing the dragged stop
+// in the hovered chapter WHILE the gesture is in progress (dnd-kit fires
+// onDragOver repeatedly as the pointer crosses containers, before onDragEnd
+// on drop). The pinned guard blocks the drop; the hover must not leave a
+// stale chapterId behind to ship to the server on some LATER, unrelated drag
+// (whichever reorder runs next sends the full stop list, chapterId included).
+// Since card 2.G the preview is display-only state, outside the plan
+// editor's rows; this keeps the scenario covered end to end. The DndContext
+// capture mock above stays for this and the item-drag tests.
 // ---------------------------------------------------------------------------
 
 describe("Task 10: blocked pinned-stop drag doesn't corrupt chapterId (regression, ADR 0038)", () => {

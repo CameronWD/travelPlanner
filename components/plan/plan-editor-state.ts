@@ -39,12 +39,14 @@ export interface PlanRestore { placements: StopPlacement[]; chapters?: Itinerary
 
 export type PlanEditorEvent =
   | { type: "props"; rows: PlanRows }                                   // rules 1–3
-  | { type: "begin"; rows: PlanRows }                                   // optimistic rows; pending + 1
-  | { type: "settle"; rows?: PlanRows }                                 // pending − 1; rows = server-confirmed local rows (e.g. `changed` applied)
+  | { type: "begin"; rows?: PlanRows }                                  // optimistic rows (none: just pending); pending + 1
+  | { type: "settle"; rows?: PlanRows; changed?: ChangedDates }         // pending − 1; rows = server-confirmed local rows, or `changed` applied to the current ones
   | { type: "revert"; restore: PlanRestore }                            // rule 5: the one revert path
   | { type: "flashed" };                                                // clear newStopIds
 
 type StopItem = { id: string; chapterId: string | null };
+/** A write's confirmed dates (the server's `changed`), by Stop. */
+export type ChangedDates = { id: string; arriveDate: string; departDate: string }[];
 
 function ordered(rows: PlanRows): PlanRows {
   return { ...rows, stops: orderPlanStops(rows.stops) };
@@ -79,10 +81,11 @@ export function planEditorReducer(state: PlanEditorState, event: PlanEditorEvent
       return adopt(state, event.rows); // rule 1
     }
     case "begin":
-      return { ...state, rows: ordered(event.rows), pending: state.pending + 1 };
+      return { ...state, rows: event.rows ? ordered(event.rows) : state.rows, pending: state.pending + 1 };
     case "settle": {
       const pending = Math.max(0, state.pending - 1);
-      const next: PlanEditorState = { ...state, pending, rows: event.rows ? ordered(event.rows) : state.rows };
+      const rows = event.rows ? ordered(event.rows) : event.changed ? applyChanged(state.rows, event.changed) : state.rows;
+      const next: PlanEditorState = { ...state, pending, rows };
       if (pending === 0 && next.held) return adopt(next, next.held); // rule 1, applied late
       return next;
     }
@@ -214,7 +217,10 @@ export function reorderCommand(state: PlanEditorState, a: { activeId: string; ov
     working.splice(insertAt, 0, { id: activeId, chapterId: targetChapterId });
     items = working;
   } else {
-    const containerStops = stops.filter((s) => s.arriveDate === null && s.chapterId === targetChapterId);
+    // The dragged Stop counts as already in the target container, at its own
+    // plan position: handleDragOver's preview put it there before the drop,
+    // and the drop index was always read off that previewed list.
+    const containerStops = stops.filter((s) => s.arriveDate === null && (s.chapterId === targetChapterId || s.id === activeId));
     let targetIndex = containerStops.length;
     if (overStop && overStop.arriveDate === null && overStop.chapterId === targetChapterId) {
       const overIdx = containerStops.findIndex((s) => s.id === overId);
@@ -322,7 +328,7 @@ export function setNightsCommand(state: PlanEditorState, a: { stopId: string; ni
 }
 
 /** The server's reflowed dates (a write's `changed`), applied in plan order. */
-export function applyChanged(rows: PlanRows, changed: { id: string; arriveDate: string; departDate: string }[]): PlanRows {
+export function applyChanged(rows: PlanRows, changed: ChangedDates): PlanRows {
   if (changed.length === 0) return rows;
   const byId = new Map(changed.map((c) => [c.id, c]));
   return {

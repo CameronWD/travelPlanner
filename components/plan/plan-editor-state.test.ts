@@ -92,6 +92,16 @@ describe("planEditorReducer — the Q7 reconciliation rules", () => {
     expect(ids(s.rows.stops)).toEqual(["b", "a"]);
   });
 
+  it("begin with no rows only counts the write; settle can apply a write's changed dates to the current rows", () => {
+    let s = planEditorReducer(initPlanEditor(rowsAB), { type: "begin" });
+    expect(s.pending).toBe(1);
+    expect(s.rows).toEqual(initPlanEditor(rowsAB).rows);
+    s = planEditorReducer(s, { type: "settle", changed: [{ id: "a", arriveDate: "2026-11-05", departDate: "2026-11-07" }] });
+    expect(s.pending).toBe(0);
+    expect(ids(s.rows.stops)).toEqual(["b", "a"]);
+    expect(s.rows.stops[1].departDate).toBe("2026-11-07");
+  });
+
   it("touchedPlacements keeps only moved rows (CMP-2, Review Focus 2)", () => {
     expect(touchedPlacements(stopsABC, stopsACB).map((p) => p.id).sort()).toEqual(["b", "c"]);
   });
@@ -188,6 +198,18 @@ describe("reorderCommand (ported from handleDragEnd's stop drag)", () => {
     const cmd = reorderCommand(s, { activeId: "b", overId: "chR", chapterId: "chR" })!;
     expect(cmd.request.items).toEqual([{ id: "a", chapterId: "chR" }, { id: "b", chapterId: "chR" }]);
     expect(cmd.rows.stops.find((x) => x.id === "b")!.chapterId).toBe("chR");
+  });
+
+  it("a rough stop dropped on a stop in another container lands where the drag-over preview showed it", () => {
+    // handleDragOver previews the dragged stop inside the hovered container at
+    // its own plan position, so the drop index counts it there: dragging a
+    // down onto c (below it) lands after c, as it did before the reducer.
+    const chR = itineraryChapter({ id: "chR", startDate: null, endDate: null });
+    const s = initPlanEditor(rows([rough("a", 0), rough("b", 1, "chR"), rough("c", 2, "chR")], [chR]));
+    const down = reorderCommand(s, { activeId: "a", overId: "c", chapterId: "chR" })!;
+    expect(down.request.items).toEqual([{ id: "b", chapterId: "chR" }, { id: "c", chapterId: "chR" }, { id: "a", chapterId: "chR" }]);
+    const over = reorderCommand(s, { activeId: "a", overId: "b", chapterId: "chR" })!;
+    expect(over.request.items).toEqual([{ id: "b", chapterId: "chR" }, { id: "a", chapterId: "chR" }, { id: "c", chapterId: "chR" }]);
   });
 
   it("blocks a rough stop from entering a dated chapter", () => {
