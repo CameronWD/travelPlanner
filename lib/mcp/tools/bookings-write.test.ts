@@ -105,14 +105,11 @@ vi.mock("@/lib/guards", () => ({
 
 import { connectTestClient } from "../test-client";
 import { NOT_FOUND_TEXT } from "../run-tool";
-import { accommodationSchema } from "@/lib/validations/accommodation";
 import { transportSchema } from "@/lib/validations/transport";
 import {
-  mergeAccommodationPatch,
   mergeTransportPatch,
   completeInlineCost,
   isFailure,
-  type AccommodationRow,
   type TransportRow,
 } from "./bookings-write";
 
@@ -237,93 +234,13 @@ describe("bookings write tools", () => {
   });
 
   describe("update_accommodation (PATCH)", () => {
-    it("with only name keeps every other field, including stopId and dates", async () => {
+    it("checks the Accommodation and any new Stop are real-plan, then forwards only the fields passed", async () => {
       accommodationFindUnique.mockResolvedValue(accommodationRow());
       updateAccommodation.mockResolvedValue({ success: true });
       const c = await connectTestClient();
-      await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, name: "New name" } });
-      expect(updateAccommodation).toHaveBeenCalledWith(ACCOMMODATION_ID, {
-        stopId: STOP_ID,
-        name: "New name",
-        address: "Via Roma 1",
-        checkIn: "2026-05-01",
-        checkOut: "2026-05-04",
-        checkInTime: "14:00",
-        checkOutTime: "10:00",
-        confirmation: "ABC123",
-        notes: "old notes",
-      });
-      // costFindMany is only consulted when the patch touches costMinor/currency.
-      expect(costFindMany).not.toHaveBeenCalled();
-    });
-
-    it("costMinor-only update on a paid owned Cost forwards currency, paidMinor and paidAt together, so it doesn't un-pay it", async () => {
-      accommodationFindUnique.mockResolvedValue(accommodationRow());
-      costFindMany.mockResolvedValue([
-        { costMinor: 9000, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00.000Z") },
-      ]);
-      updateAccommodation.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
-      const call = updateAccommodation.mock.calls[0];
-      expect(call[1]).toEqual(
-        expect.objectContaining({ costMinor: 9500, currency: "EUR", paidMinor: 9000, paidAt: "2026-04-15" }),
-      );
-    });
-
-    it("the merged input for a costMinor-only update on a paid owned Cost passes the REAL accommodationSchema", async () => {
-      // Mocked actions hide a schema refine failure (accommodationSchema
-      // rejects a paidAt with no paidMinor — "Enter what you paid"), so this
-      // parses the merge's output with the actual schema, not a mock.
-      const current: AccommodationRow = accommodationRow();
-      costFindMany.mockResolvedValue([
-        { costMinor: 9000, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00.000Z") },
-      ]);
-      const inlineCost = await completeInlineCost("ACCOMMODATION", ACCOMMODATION_ID, { costMinor: 9500 });
-      expect(isFailure(inlineCost)).toBe(false);
-      if (isFailure(inlineCost)) throw new Error("unreachable");
-      const merged = mergeAccommodationPatch(current, { costMinor: 9500 }, inlineCost);
-      const parsed = accommodationSchema.safeParse(merged);
-      expect(parsed.success).toBe(true);
-    });
-
-    it("completeInlineCost keeps a paid Cost paid even if its paid amount is missing (paidAt decides)", async () => {
-      costFindMany.mockResolvedValue([
-        { costMinor: 500, currency: "AUD", paidMinor: null, paidAt: new Date("2026-10-01T00:00:00Z") },
-      ]);
-      const r = await completeInlineCost("ACCOMMODATION", ACCOMMODATION_ID, { costMinor: 600 });
-      expect(r).toMatchObject({ costMinor: 600, currency: "AUD", paidMinor: 500, paidAt: "2026-10-01" });
-    });
-
-    it("costMinor-only update on an UNPAID owned Cost does not forward a paid pair", async () => {
-      accommodationFindUnique.mockResolvedValue(accommodationRow());
-      costFindMany.mockResolvedValue([{ costMinor: 9000, currency: "EUR", paidMinor: null, paidAt: null }]);
-      updateAccommodation.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
-      const call = updateAccommodation.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ costMinor: 9500, currency: "EUR", paidMinor: undefined, paidAt: undefined }));
-    });
-
-    it("currency-only with no owned Cost is a tool error, not a silent no-op", async () => {
-      accommodationFindUnique.mockResolvedValue(accommodationRow());
-      costFindMany.mockResolvedValue([]);
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, currency: "EUR" } });
-      expect(r.isError).toBe(true);
-      expect(updateAccommodation).not.toHaveBeenCalled();
-    });
-
-    it("costMinor against more than one owned Cost is a tool error, not a silent no-op", async () => {
-      accommodationFindUnique.mockResolvedValue(accommodationRow());
-      costFindMany.mockResolvedValue([
-        { costMinor: 100, currency: "USD", paidMinor: null, paidAt: null },
-        { costMinor: 200, currency: "USD", paidMinor: null, paidAt: null },
-      ]);
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
-      expect(r.isError).toBe(true);
-      expect(updateAccommodation).not.toHaveBeenCalled();
+      await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, name: "Hilton Garden Inn", costMinor: 9500 } });
+      expect(updateAccommodation).toHaveBeenCalledWith(ACCOMMODATION_ID, { name: "Hilton Garden Inn", costMinor: 9500 });
+      expect(costFindMany).not.toHaveBeenCalled(); // completion is the action's now
     });
 
     it("checks trip access before using the loaded row, so a non-member's accommodation id returns NOT_FOUND_TEXT and does not call updateAccommodation", async () => {

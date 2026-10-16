@@ -39,6 +39,7 @@ import { updateReminder } from "@/server/actions/reminders";
 import { updateChapter } from "@/server/actions/chapters";
 import { updateTrip } from "@/server/actions/trips";
 import { updateCost } from "@/server/actions/costs";
+import { updateAccommodation } from "@/server/actions/accommodation";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -96,6 +97,20 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       const cost = await db.cost.create({ data: { tripId: TRIP_ID, ownerType: "OTHER", label: "Ferry", costMinor: 8000, paidMinor: 7500, currency: "AUD", rateToHome: 1, paidAt: new Date("2026-04-02T00:00:00Z"), settlement: "BEFORE" } });
       expect(await updateCost(cost.id, { costMinor: 9000 })).toMatchObject({ success: true });
       expect(await db.cost.findUnique({ where: { id: cost.id } })).toMatchObject({ costMinor: 9000, paidMinor: 7500, paidAt: new Date("2026-04-02T00:00:00Z"), label: "Ferry" });
+    });
+  });
+
+  describe("Accommodation", () => {
+    it("a name-only patch keeps the rest; null clears notes; a cost-only patch keeps a paid Cost paid", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Lisbon", arriveDate: "2026-05-01", departDate: "2026-05-04", timezone: "Europe/Lisbon", sortOrder: 1 } });
+      const acc = await db.accommodation.create({ data: { tripId: TRIP_ID, stopId: stop.id, name: "Hilton", address: "1 Rua", checkIn: "2026-05-01", checkOut: "2026-05-04", checkInTime: "15:00", confirmation: "ABC", notes: "old" } });
+      const cost = await db.cost.create({ data: { tripId: TRIP_ID, ownerType: "ACCOMMODATION", ownerId: acc.id, costMinor: 9000, paidMinor: 9000, currency: "AUD", rateToHome: 1, paidAt: new Date("2026-04-15T00:00:00Z"), settlement: "BEFORE" } });
+      expect(await updateAccommodation(acc.id, { name: "Hilton Garden Inn" })).toEqual({ success: true });
+      expect(await db.accommodation.findUnique({ where: { id: acc.id } })).toMatchObject({ name: "Hilton Garden Inn", address: "1 Rua", checkInTime: "15:00", confirmation: "ABC", notes: "old", stopId: stop.id });
+      expect(await updateAccommodation(acc.id, { notes: null })).toEqual({ success: true });
+      expect(await db.accommodation.findUnique({ where: { id: acc.id } })).toMatchObject({ notes: null, confirmation: "ABC" });
+      expect(await updateAccommodation(acc.id, { costMinor: 9500 })).toEqual({ success: true });
+      expect(await db.cost.findUnique({ where: { id: cost.id } })).toMatchObject({ costMinor: 9500, paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00Z") });
     });
   });
 });

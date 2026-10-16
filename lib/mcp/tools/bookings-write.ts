@@ -31,12 +31,16 @@
  * `depLat`/`arrLat`/etc. are geocoded the same way and were never part of
  * this tool's surface either.
  *
- * `update_accommodation` and `update_transport` are PATCH (same ruling as
- * Tasks 11/12's `update_stop`/`update_thing_to_do`): both actions write
- * every field of their input, including absent ones, as the new value (an
- * omitted `address` writes `address: null`, an omitted `depIsHome` writes
- * `depIsHome: false`, etc.), so these load the current row, merge only the
- * fields the caller actually supplied, and send the action a complete input.
+ * `update_accommodation` passes only the fields the caller supplied (ADR
+ * 0075); the action completes its inline Cost from the single owned Cost
+ * (`completeInlineCost`, lib/money/cost-patch.ts).
+ *
+ * `update_transport` is PATCH (same ruling as Tasks 11/12's
+ * `update_stop`/`update_thing_to_do`): its action writes every field of its
+ * input, including absent ones, as the new value (an omitted `depIsHome`
+ * writes `depIsHome: false`, etc.), so it loads the current row, merges
+ * only the fields the caller actually supplied, and sends the action a
+ * complete input.
  *
  * The inline Cost on Accommodation/Transport is a convenience, not the
  * primary Cost surface — `paidMinor`/`paidAt`/`settlement` are deliberately
@@ -189,81 +193,6 @@ const accommodationPatchShape = {
   ...inlineCostCreateShape,
 };
 
-type AccommodationPatch = {
-  stopId?: string;
-  name?: string;
-  address?: string;
-  checkIn?: string;
-  checkOut?: string;
-  checkInTime?: string;
-  checkOutTime?: string;
-  confirmation?: string;
-  notes?: string;
-  costMinor?: number;
-  currency?: string;
-};
-
-export type AccommodationRow = {
-  tripId: string;
-  stopId: string;
-  name: string;
-  address: string | null;
-  checkIn: string;
-  checkOut: string;
-  checkInTime: string | null;
-  checkOutTime: string | null;
-  confirmation: string | null;
-  notes: string | null;
-};
-
-/**
- * Loads the current Accommodation for a patch, trip-access-checked. A
- * missing row (or a fork-owned one — `forkId: null` scopes to the real
- * plan) reads as `notFound()` (mapped by `runTool` to the same "not found"
- * text a non-member's id gets), checked *before* the access check can even
- * run — membership is then verified before any of the row's values are
- * used.
- */
-async function loadAccommodationForPatch(accommodationId: string): Promise<AccommodationRow> {
-  const acc = await db.accommodation.findUnique({
-    where: { id: accommodationId, forkId: null },
-    select: {
-      tripId: true,
-      stopId: true,
-      name: true,
-      address: true,
-      checkIn: true,
-      checkOut: true,
-      checkInTime: true,
-      checkOutTime: true,
-      confirmation: true,
-      notes: true,
-    },
-  });
-  if (!acc) notFound();
-  await requireTripAccess(acc.tripId);
-  return acc;
-}
-
-export function mergeAccommodationPatch(
-  current: AccommodationRow,
-  patch: AccommodationPatch,
-  inlineCost: InlineCostPatch,
-): AccommodationInput {
-  return {
-    stopId: patch.stopId ?? current.stopId,
-    name: patch.name ?? current.name,
-    address: patch.address ?? current.address ?? undefined,
-    checkIn: patch.checkIn ?? current.checkIn,
-    checkOut: patch.checkOut ?? current.checkOut,
-    checkInTime: patch.checkInTime ?? current.checkInTime ?? undefined,
-    checkOutTime: patch.checkOutTime ?? current.checkOutTime ?? undefined,
-    confirmation: patch.confirmation ?? current.confirmation ?? undefined,
-    notes: patch.notes ?? current.notes ?? undefined,
-    ...inlineCost,
-  } as AccommodationInput;
-}
-
 // ---------------------------------------------------------------------------
 // add_transport / update_transport shared field shapes
 // ---------------------------------------------------------------------------
@@ -346,8 +275,10 @@ export type TransportRow = {
 };
 
 /**
- * Loads the current Transport for a patch, trip-access-checked. Same
- * notFound()-before-access-check shape as `loadAccommodationForPatch`.
+ * Loads the current Transport for a patch, trip-access-checked. A missing
+ * row (or a fork-owned one — `forkId: null` scopes to the real plan) reads
+ * as `notFound()` (mapped by `runTool` to the same "not found" text a
+ * non-member's id gets), checked *before* the access check can even run.
  */
 async function loadTransportForPatch(transportId: string): Promise<TransportRow> {
   const transport = await db.transport.findUnique({
@@ -606,11 +537,11 @@ export function registerBookingsWriteTools(server: McpServer): void {
     },
     ({ accommodationId, ...patch }) =>
       runTool("update_accommodation", async () => {
-        const current = await loadAccommodationForPatch(accommodationId);
-        await requireRealPlanRows([["stop", patch.stopId]]);
-        const inlineCost = await completeInlineCost("ACCOMMODATION", accommodationId, patch);
-        if (isFailure(inlineCost)) return inlineCost;
-        return updateAccommodation(accommodationId, mergeAccommodationPatch(current, patch, inlineCost));
+        await requireRealPlanRows([
+          ["accommodation", accommodationId],
+          ["stop", patch.stopId],
+        ]);
+        return updateAccommodation(accommodationId, patch);
       }),
   );
 

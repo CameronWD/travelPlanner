@@ -3,12 +3,14 @@
  * update keeps, for the standalone Cost (`updateCost`) and for the inline
  * Cost an Accommodation, Transport or thing to do owns (`completeInlineCost`).
  *
- * The paid pair (CONTEXT.md "Paid", ADR 0037): a patch that says anything
- * about paid (`paidMinor` or `paidAt` given, `null` included) is taken as
- * said — the editors always say it; a patch that says nothing keeps the
- * row's pair, `paidAt` deciding (`paidFieldsFromRow`). A paid amount left
- * undefined is left alone by the action, so an un-paid Cost keeps it as
- * history.
+ * The paid pair (CONTEXT.md "Paid", ADR 0037): `paidAt` alone decides
+ * whether a patch speaks about Paid. A patch that gives `paidAt` (`null`
+ * included) is taken as said — the editors always say it; a patch that
+ * doesn't keeps the row's pair (`paidFieldsFromRow`), with a lone
+ * `paidMinor` overlaid as the new paid amount, so it never un-pays a paid
+ * Cost. `paidMinor: null` leaves the stored paid amount (it is history),
+ * unlike the general null-clears contract. A paid amount left undefined is
+ * left alone by the action, so an un-paid Cost keeps it as history.
  *
  * Pure: no Prisma, no zod (types only).
  */
@@ -38,18 +40,19 @@ export const DUE_DATE_NOT_APPLICABLE: ActionFailure = {
   },
 };
 
-/** The paid pair after a patch: the patch's own when it says anything about paid, else the row's. */
+/**
+ * The paid pair after a patch: the patch's own when it gives `paidAt`, else
+ * the row's with a lone `paidMinor` overlaid (`null` keeps the row's amount).
+ */
 export function paidPairAfter(
   patch: { paidMinor?: number | null; paidAt?: string | null },
   row: { costMinor: number; paidMinor: number | null; paidAt: Date | string | null } | null,
 ): { paidMinor?: number; paidAt?: string } {
-  if (patch.paidMinor !== undefined || patch.paidAt !== undefined) {
-    return {
-      ...(patch.paidMinor != null ? { paidMinor: patch.paidMinor } : {}),
-      ...(patch.paidAt != null ? { paidAt: patch.paidAt } : {}),
-    };
+  const paidMinor = patch.paidMinor != null ? { paidMinor: patch.paidMinor } : {};
+  if (patch.paidAt !== undefined) {
+    return { ...paidMinor, ...(patch.paidAt !== null ? { paidAt: patch.paidAt } : {}) };
   }
-  return row ? paidFieldsFromRow(row) : {};
+  return { ...(row ? paidFieldsFromRow(row) : {}), ...paidMinor };
 }
 
 /**
@@ -72,5 +75,51 @@ export function mergeCostPatch(current: CostPatchRow, patch: Patch<CostRawInput>
     dueDate: noDueDate ? undefined : patched(patch.dueDate, current.dueDate),
     settlement,
     ...paid,
+  };
+}
+
+/** The owned-Cost columns an update loads to complete its inline Cost. */
+export const OWNED_COST_SELECT = { id: true, costMinor: true, currency: true, paidMinor: true, paidAt: true } as const;
+
+export type OwnedCostRow = { id: string; costMinor: number; currency: string; paidMinor: number | null; paidAt: Date | null };
+export type InlineCostPatch = {
+  costMinor?: number | null;
+  currency?: string | null;
+  paidMinor?: number | null;
+  paidAt?: string | null;
+  settlement?: "BEFORE" | "ON_TRIP" | null;
+};
+export type InlineCost = { costMinor: number; currency: string; paidMinor?: number; paidAt?: string; settlement?: "BEFORE" | "ON_TRIP" };
+
+const MORE_THAN_ONE_COST: ActionFailure = {
+  success: false,
+  errors: { costMinor: ["This has more than one Cost already. Use update_cost to edit a specific one."] },
+};
+const BOTH_HALVES: ActionFailure = {
+  success: false,
+  errors: { costMinor: ["Pass both costMinor and currency to add or change the Cost, or use add_cost/update_cost."] },
+};
+
+/**
+ * Completes an update's inline Cost from its owner's Cost rows. `null` when
+ * the patch touches neither `costMinor` nor `currency` (the action's "no
+ * amount → skip"). With more than one owned Cost the Cost editor is
+ * authoritative, so the update is refused rather than half-applied; a lone
+ * half with no single Cost to complete it from is refused too. The paid
+ * pair follows `paidPairAfter` — the entity forms always say it (an unpaid
+ * save sends `paidAt: null`), the Claude tools never do.
+ */
+export function completeInlineCost(patch: InlineCostPatch, owned: readonly OwnedCostRow[]): InlineCost | ActionFailure | null {
+  if (patch.costMinor == null && patch.currency == null) return null;
+  if (owned.length > 1) return MORE_THAN_ONE_COST;
+  const single = owned[0] ?? null;
+  const costMinor = patch.costMinor ?? single?.costMinor;
+  const currency = patch.currency ?? single?.currency;
+  if (costMinor === undefined || currency === undefined) return BOTH_HALVES;
+  return {
+    costMinor,
+    currency,
+    ...paidPairAfter(patch, single),
+    ...(patch.settlement != null ? { settlement: patch.settlement } : {}),
   };
 }

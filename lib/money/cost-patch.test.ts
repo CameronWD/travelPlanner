@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeCostPatch, DUE_DATE_NOT_APPLICABLE } from "./cost-patch";
+import { completeInlineCost, mergeCostPatch, paidPairAfter, DUE_DATE_NOT_APPLICABLE } from "./cost-patch";
 
 const paidRow = {
   costMinor: 12000, currency: "EUR", paidMinor: 12000, paidAt: new Date("2026-04-01T00:00:00Z"), dueDate: null,
@@ -16,6 +16,9 @@ describe("mergeCostPatch", () => {
   });
   it("a cost-amount-only patch (as through Claude) keeps a paid Cost paid with its paid pair", () => {
     expect(mergeCostPatch({ ...paidRow, paidMinor: 11000 }, { costMinor: 15000 })).toMatchObject({ costMinor: 15000, paidMinor: 11000, paidAt: "2026-04-01" });
+  });
+  it("a paid-amount-only patch keeps a paid Cost paid: the new amount, the row's paid date", () => {
+    expect(mergeCostPatch(paidRow, { paidMinor: 9000 })).toMatchObject({ paidMinor: 9000, paidAt: "2026-04-01" });
   });
   it("a currency change on a paid Cost still carries the paid pair", () => {
     expect(mergeCostPatch(paidRow, { currency: "GBP" })).toMatchObject({ currency: "GBP", paidMinor: 12000, paidAt: "2026-04-01" });
@@ -52,5 +55,42 @@ describe("mergeCostPatch", () => {
   });
   it("the editor's cleared Due date (null) clears it", () => {
     expect(mergeCostPatch(unpaidRow, { dueDate: null, paidAt: null })).toMatchObject({ dueDate: undefined });
+  });
+});
+
+describe("paidPairAfter", () => {
+  it("a lone paidMinor on a paid row overlays the amount and keeps the row's paidAt (only paidAt speaks about Paid)", () => {
+    expect(paidPairAfter({ paidMinor: 7000 }, paidRow)).toEqual({ paidMinor: 7000, paidAt: "2026-04-01" });
+  });
+  it("a lone paidMinor: null leaves the row's paid pair (the stored paid amount is history)", () => {
+    expect(paidPairAfter({ paidMinor: null }, paidRow)).toEqual({ paidMinor: 12000, paidAt: "2026-04-01" });
+  });
+});
+
+describe("completeInlineCost", () => {
+  const paid = { id: "c1", costMinor: 9000, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00Z") };
+  it("a patch that doesn't touch the Cost completes nothing", () => {
+    expect(completeInlineCost({ paidAt: null }, [paid])).toBeNull();
+  });
+  it("costMinor-only on a paid owned Cost carries currency and the paid pair together", () => {
+    expect(completeInlineCost({ costMinor: 9500 }, [paid])).toEqual({ costMinor: 9500, currency: "EUR", paidMinor: 9000, paidAt: "2026-04-15" });
+  });
+  it("keeps a paid Cost paid even if its paid amount is missing (paidAt decides)", () => {
+    expect(completeInlineCost({ costMinor: 600 }, [{ ...paid, costMinor: 500, currency: "AUD", paidMinor: null, paidAt: new Date("2026-10-01T00:00:00Z") }]))
+      .toMatchObject({ costMinor: 600, currency: "AUD", paidMinor: 500, paidAt: "2026-10-01" });
+  });
+  it("on an UNPAID owned Cost carries no paid pair", () => {
+    const r = completeInlineCost({ costMinor: 9500 }, [{ ...paid, paidMinor: null, paidAt: null }]);
+    expect(r).toEqual({ costMinor: 9500, currency: "EUR" });
+  });
+  it("currency-only with no owned Cost is refused", () => {
+    expect(completeInlineCost({ currency: "EUR" }, [])).toMatchObject({ success: false, errors: { costMinor: [expect.stringMatching(/Pass both costMinor and currency/)] } });
+  });
+  it("against more than one owned Cost is refused", () => {
+    expect(completeInlineCost({ costMinor: 1 }, [paid, { ...paid, id: "c2" }])).toMatchObject({ success: false, errors: { costMinor: [expect.stringMatching(/more than one Cost/)] } });
+  });
+  it("the form's unpaid save (paidAt: null) un-pays, keeping the amount as history", () => {
+    expect(completeInlineCost({ costMinor: 9000, currency: "EUR", paidAt: null, settlement: "BEFORE" }, [paid]))
+      .toEqual({ costMinor: 9000, currency: "EUR", settlement: "BEFORE" });
   });
 });
