@@ -22,8 +22,10 @@ const chipVariants = cva(
       },
       size: { s: "px-2 py-0.5 text-[10px]", m: "px-2.5 py-1 text-[11px]", l: "px-3.5 py-2 text-xs" },
       dashed: { true: "border-dashed border-border-soft bg-transparent text-muted-foreground", false: "" },
+      /** Kit chips are 28px; on a coarse pointer the hit area grows to 44px (ADR 0029). */
+      touch: { true: "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']", false: "" },
     },
-    defaultVariants: { tone: "white", size: "m", dashed: false },
+    defaultVariants: { tone: "white", size: "m", dashed: false, touch: false },
   },
 );
 
@@ -31,12 +33,12 @@ interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, Varia
   selected?: boolean;
 }
 
-const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(({ className, tone, size, dashed, selected, type = "button", ...props }, ref) => (
+const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(({ className, tone, size, dashed, touch, selected, type = "button", ...props }, ref) => (
   <button
     ref={ref}
     type={type}
     aria-pressed={selected}
-    className={cn(chipVariants({ tone, size, dashed }), selected && "-translate-x-px -translate-y-px shadow-hard-1", className)}
+    className={cn(chipVariants({ tone, size, dashed, touch }), selected && "-translate-x-px -translate-y-px shadow-hard-1", className)}
     {...props}
   />
 ));

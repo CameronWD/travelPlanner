@@ -14,9 +14,6 @@ export interface MarkerFiltersProps {
   onChange: (f: MarkerFilter) => void;
 }
 
-/** 28px kit Chip, 44px hit area on touch (same as the Wishlist filter chips). */
-const CHIP_TOUCH = "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']";
-
 /** Kit Globe list header: the "Filter your markers" field (it filters the markers below; adding a place is "Add marker"), then country + category filters as kit Chips. */
 export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProps) {
   return (
@@ -55,7 +52,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
           tone={!filter.category ? "ink" : "white"}
           selected={!filter.category}
           onClick={() => onChange({ ...filter, category: null })}
-          className={CHIP_TOUCH}
+          touch
         >
           All
         </Chip>
@@ -67,7 +64,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
               tone={on ? "ink" : "white"}
               selected={on}
               onClick={() => onChange({ ...filter, category: cat.value })}
-              className={CHIP_TOUCH}
+              touch
             >
               <span aria-hidden="true" className={cn("size-2.5 rounded-full", categoryAccent(cat.value).dot)} />
               {cat.label}
