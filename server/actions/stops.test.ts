@@ -666,6 +666,73 @@ describe("createStop", () => {
   });
 });
 
+describe("F4: dating Stop writes grow the soft end", () => {
+  it("createStop (scheduled, append) runs the rule for its plan inside the create's transaction", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    growTripEndTxMock.mockResolvedValueOnce("2026-07-05");
+
+    await createStop("trip-1", VALID_INPUT);
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
+    expect(stopCreateMock.mock.invocationCallOrder[0]).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "trip");
+  });
+
+  it("createStop (scheduled, insert after an anchor) runs it too", async () => {
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null, arriveDate: "2026-06-25" }]);
+    stopCreateMock.mockResolvedValue({ id: "stop-2" });
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await createStop("trip-1", VALID_INPUT, undefined, "a");
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
+  });
+
+  it("a rough createStop dates nothing, so it doesn't run the rule", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-r" });
+
+    await createStop("trip-1", { mode: "rough", name: "Paris", nights: 2 });
+
+    expect(growTripEndTxMock).not.toHaveBeenCalled();
+  });
+
+  it("updateStop (scheduled) runs the rule for the Stop's plan", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null, name: "London", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    // `name` is needed: the PATCH merges onto this row and the schema requires it.
+    expect(await updateStop("stop-1", { departDate: "2026-07-09" })).toEqual({ success: true });
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
+  });
+
+  it("reorderStops runs it through the reflow", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([{ id: "a", tripId: "t1", arriveDate: null }]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await reorderStops("t1", [{ id: "a", chapterId: null }]);
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null);
+  });
+
+  it("restoreStops (Undo) runs it after the verbatim writes", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "a" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+    growTripEndTxMock.mockResolvedValueOnce("2026-07-09");
+
+    await restoreStops([{ id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-09" }]);
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null);
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan", "trip");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // createStop — a picked place's countryCode, and the UTC timezone fallback
 // (Task 19 review: picked stops arrive with coords, so the geocode that used

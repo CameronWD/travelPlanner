@@ -164,6 +164,7 @@ export async function createStop(
       }
     }
 
+    let grownTo: string | null = null;
     const created = await db.$transaction(async (tx) => {
       // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007:
       // canonical full-plan lock, acquired in id order via lockPlanStopsTx).
@@ -261,11 +262,13 @@ export async function createStop(
       await recomputeChapterSpans(tx, tripId, plan);
       // ADR 0073: a dated Trip's only Stop takes the Trip's dates.
       await scheduleLoneStopTx(tx, tripId, plan, "fill");
+      // F4: the soft end covers the new Stop (real plan only; never shrinks).
+      grownTo = await growTripEndTx(tx, tripId, plan);
       return createdScheduled;
     });
 
     await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created) });
-    revalidateTrip(tripId, "plan");
+    revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
     return { success: true, id: created.id };
   }
 
@@ -361,6 +364,7 @@ export async function createStop(
   const appendTimezone = resolveStopTimezone({ timezone: parsed.data.timezone, lat, lng, countryCode: appendCountryCode, country });
 
   // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
+  let grownTo: string | null = null;
   const created = await db.$transaction(async (tx) => {
     const createdScheduled = await tx.stop.create({
       data: {
@@ -380,11 +384,13 @@ export async function createStop(
       },
     });
     await scheduleLoneStopTx(tx, tripId, plan, "fill");
+    // F4: the soft end covers the new Stop (real plan only; never shrinks).
+    grownTo = await growTripEndTx(tx, tripId, plan);
     return createdScheduled;
   });
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created) });
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, id: created.id };
 }
 
@@ -492,6 +498,7 @@ export async function updateStop(
 
   // Wrap the stop mutation + chapter span recompute in a single transaction so
   // the chapter band always stays in sync with its dated members (bug #3).
+  let grownTo: string | null = null;
   const updated = await db.$transaction(async (tx) => {
     const result = await tx.stop.update({
       where: { id: stopId },
@@ -515,11 +522,13 @@ export async function updateStop(
       await shiftStopPayloadTx(tx, { id: stopId, arriveDate: before.arriveDate }, arriveDate, departDate);
     }
     await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
+    // F4: the soft end covers the re-dated Stop (real plan only; never shrinks).
+    grownTo = await growTripEndTx(tx, stop.tripId, stop.forkId);
     return result;
   });
 
   await recordUpdate("STOP", { tripId: stop.tripId, plan: stop.forkId, entityId: stopId, before, after: updated });
-  revalidateTrip(stop.tripId, "plan");
+  revalidateTrip(stop.tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true };
 }
 
@@ -1333,6 +1342,7 @@ export async function reorderStops(
   let changed: { id: string; arriveDate: string; departDate: string }[] = [];
   let conflicts: FlowConflict[] = [];
   let payload: PayloadShiftResult = { items: [], accommodations: [] };
+  let grownTo: string | null = null;
 
   try {
     await db.$transaction(async (tx) => {
@@ -1365,6 +1375,7 @@ export async function reorderStops(
       changed = reflow.changed;
       conflicts = reflow.conflicts;
       payload = reflow.payload;
+      grownTo = reflow.grownTo;
     });
   } catch (e) {
     if (e instanceof Error && e.message === "STOP_NOT_IN_TRIP") {
@@ -1373,7 +1384,7 @@ export async function reorderStops(
     throw e;
   }
 
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, changed, conflicts, payload };
 }
 
@@ -1523,6 +1534,7 @@ export async function restoreStops(
     await requireOutsideSurprise(user.id, { itemId });
   }
 
+  let grownTo: string | null = null;
   await db.$transaction(async (tx) => {
     // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to
     // serialise with concurrent reorders (ADR 0007 — never a subset: the
@@ -1561,8 +1573,10 @@ export async function restoreStops(
 
     // Bring chapter date-bands back in sync with the restored dates.
     await recomputeChapterSpans(tx, tripId, restoreForkId);
+    // F4: restored dates can reach past the end (real plan only; never shrinks).
+    grownTo = await growTripEndTx(tx, tripId, restoreForkId);
   });
 
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true };
 }

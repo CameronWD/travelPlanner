@@ -12,6 +12,7 @@ import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 import { reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
+import { tripWindowScopes } from "@/server/actions/trip-window";
 import type { ReorderResult } from "@/server/actions/stops";
 import type { PayloadShiftResult } from "@/lib/payload-shift";
 import type { FlowConflict } from "@/lib/firm-up";
@@ -202,6 +203,7 @@ export async function reorderChapters(
   let changed: { id: string; arriveDate: string; departDate: string }[] = [];
   let conflicts: FlowConflict[] = [];
   let payload: PayloadShiftResult | undefined;
+  let grownTo: string | null = null;
 
   await db.$transaction(async (tx) => {
     // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order (ADR 0007
@@ -228,9 +230,10 @@ export async function reorderChapters(
     changed = reflow.changed;
     conflicts = reflow.conflicts;
     payload = reflow.payload;
+    grownTo = reflow.grownTo;
   });
 
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, changed, conflicts, payload };
 }
 

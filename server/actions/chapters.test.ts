@@ -114,6 +114,15 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+// F4: the soft-end rule is tested on its own (lib/soft-end.test.ts) and
+// against Postgres (test/integration/soft-end-date.test.ts); here we only
+// check that each dating write runs it for its plan, and revalidates the
+// layout when it grew.
+const growTripEndTxMock = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null));
+vi.mock("@/server/actions/trip-window", () => ({
+  growTripEndTx: growTripEndTxMock,
+  tripWindowScopes: (g: string | null) => (g ? ["trip"] : []),
+}));
 
 import { createChapter, updateChapter, deleteChapter, suggestChaptersFromCountries, reorderChapters, assignStopToChapter } from "./chapters";
 import { recordActivity } from "@/lib/activity-record";
@@ -507,6 +516,22 @@ describe("suggestChaptersFromCountries", () => {
 });
 
 describe("reorderChapters", () => {
+  it("runs the soft-end rule through the reflow and revalidates the layout when it grew (F4)", async () => {
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", startDate: null, forkId: null },
+      { id: "c2", startDate: null, forkId: null },
+    ]);
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    queryRawMock.mockResolvedValue([]);
+    growTripEndTxMock.mockResolvedValueOnce("2026-07-20");
+
+    await reorderChapters("t1", ["c2", "c1"]);
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null);
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan", "trip");
+  });
+
   it("happy path (rough chapters): moves stop blocks and returns success", async () => {
     // Two rough chapters, no stops, no anchor → reflow is no-op.
     chapterFindManyMock.mockResolvedValue([

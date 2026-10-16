@@ -35,6 +35,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 
 import { db } from "@/lib/db";
 import { growTripEndTx } from "@/server/actions/trip-window";
+import { createStop, updateStop } from "@/server/actions/stops";
 
 const TRIP_ID = "it-trip-soft-end";
 const DATELESS_ID = "it-trip-soft-end-dateless";
@@ -99,6 +100,25 @@ describe.skipIf(process.env.INTEGRATION !== "1")("soft end date covers the retur
       await db.stop.create({ data: { tripId: DATELESS_ID, name: "Rome", timezone: "Europe/Rome", arriveDate: "2026-07-01", departDate: "2026-07-04", sortOrder: 0 } });
       expect(await growTripEndTx(db, DATELESS_ID, null)).toBeNull();
       expect(await endDate(DATELESS_ID)).toBeNull();
+    });
+  });
+
+  describe("Stop actions", () => {
+    it("createStop (scheduled) past the end grows it; a rough one doesn't", async () => {
+      expect(await createStop(TRIP_ID, { mode: "rough", name: "Kyoto", nights: 3 })).toMatchObject({ success: true });
+      expect(await endDate()).toBe("2026-12-11");
+      expect(await createStop(TRIP_ID, {
+        mode: "scheduled", name: "Sapporo", country: "Japan", timezone: "Asia/Tokyo",
+        arriveDate: "2026-12-11", departDate: "2026-12-14", lat: 43.06, lng: 141.35,
+      })).toMatchObject({ success: true });
+      expect(await endDate()).toBe("2026-12-14");
+    });
+
+    it("updateStop moving the last depart later grows the end; moving it back doesn't shrink it", async () => {
+      expect(await updateStop(tokyoId, { departDate: "2026-12-13" })).toEqual({ success: true });
+      expect(await endDate()).toBe("2026-12-13");
+      expect(await updateStop(tokyoId, { departDate: "2026-12-10" })).toEqual({ success: true });
+      expect(await endDate()).toBe("2026-12-13");
     });
   });
 });
