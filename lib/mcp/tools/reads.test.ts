@@ -67,6 +67,7 @@ vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 
 import { connectTestClient } from "../test-client";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 const TRIP_ID = "trip-1";
 const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -373,12 +374,12 @@ describe("read tools", () => {
   });
 
   it("get_reminders passes fromDate through, defaulting to today", async () => {
-    listRemindersForTrip.mockResolvedValue([{ id: "r1", title: "Buy visa", date: "2026-03-01", stopId: null, stopName: null }]);
+    listRemindersForTrip.mockResolvedValue([reminderItem({ id: "r1", title: "Buy visa", date: "2026-03-01" })]);
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_reminders", arguments: { tripId: TRIP_ID, fromDate: "2026-03-01" } });
     expect(listRemindersForTrip).toHaveBeenCalledWith(TRIP_ID, "2026-03-01");
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
-      { id: "r1", title: "Buy visa", date: "2026-03-01", stopId: null, stopName: null },
+      reminderItem({ id: "r1", title: "Buy visa", date: "2026-03-01" }),
     ]);
   });
 

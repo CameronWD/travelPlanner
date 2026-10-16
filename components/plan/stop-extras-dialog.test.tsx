@@ -6,10 +6,11 @@ vi.mock("@/components/trip/note-thread", () => ({ NoteThread: () => <div>note th
 vi.mock("@/components/trip/attachment-list", () => ({ AttachmentList: () => <div>attachment list</div> }));
 
 import { StopExtrasDialog } from "./stop-extras-dialog";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 describe("StopExtrasDialog (spec D2)", () => {
   const base = { onOpenChange: vi.fn(), tripId: "t1", stopId: "par", stopName: "Paris", notes: [], attachments: [], currentUserId: "u1",
-    reminders: [{ id: "r1", title: "Book the Louvre", date: "2026-11-20", stopId: "par", stopName: "Paris" }] };
+    reminders: [reminderItem({ id: "r1", title: "Book the Louvre", date: "2026-11-20", stopId: "par", stopName: "Paris" })] };
   it("notes hosts the NoteThread", () => {
     render(<StopExtrasDialog kind="notes" {...base} />);
     expect(screen.getByRole("dialog", { name: "Notes · Paris" })).toHaveTextContent("note thread");

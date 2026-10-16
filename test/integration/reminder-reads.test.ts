@@ -6,7 +6,8 @@ vi.mock("@/lib/guards", () => ({
 }));
 
 import { db } from "@/lib/db";
-import { listRemindersForTrip } from "@/lib/reminder-reads";
+import { listRemindersForTrip, readRemindersAbout } from "@/lib/reminder-reads";
+import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 // Real Postgres (npm run test:integration): the Reminders read moved out of
 // server/actions/reminders.ts (card 3.N), with the real Surprise visibility
@@ -39,12 +40,18 @@ describe.skipIf(process.env.INTEGRATION !== "1")("listRemindersForTrip (real Pos
           surprisePlannerId: OWNER, surpriseForIds: JSON.stringify([MEMBER]) },
       ],
     });
+    await db.item.create({ data: { id: "it-rem-secret-item", tripId: TRIP_ID, stopId: SECRET, title: "IT Secret show", category: "OTHER" } });
+    await db.item.create({ data: { id: "it-rem-tram", tripId: TRIP_ID, stopId: "it-rem-porto", title: "IT Tram 28", category: "OTHER" } });
+    await db.transport.create({ data: { id: "it-rem-leg", tripId: TRIP_ID, mode: "TRAIN", fromStopId: "it-rem-porto", toStopId: SECRET } });
     await db.reminder.createMany({
       data: [
         { tripId: TRIP_ID, title: "IT Old", date: "2026-12-31" },
         { tripId: TRIP_ID, title: "IT Visa", date: "2027-05-01" },
         { tripId: TRIP_ID, stopId: "it-rem-porto", title: "IT Port tour", date: "2027-06-02" },
         { tripId: TRIP_ID, stopId: SECRET, title: "IT Secret dinner", date: "2027-06-05" },
+        { tripId: TRIP_ID, itemId: "it-rem-tram", title: "IT Tram tickets", date: "2027-06-03", notes: "Buy a Viva card" },
+        { tripId: TRIP_ID, itemId: "it-rem-secret-item", title: "IT Secret tickets", date: "2027-06-05" },
+        { tripId: TRIP_ID, transportId: "it-rem-leg", title: "IT Seats", date: "2027-06-04" },
       ],
     });
   });
@@ -55,13 +62,31 @@ describe.skipIf(process.env.INTEGRATION !== "1")("listRemindersForTrip (real Pos
 
   it("the planner sees every Reminder on or after the date, soonest first, with the Stop's name", async () => {
     const rows = await listRemindersForTrip(TRIP_ID, "2027-01-01");
-    expect(rows.map((r) => r.title)).toEqual(["IT Visa", "IT Port tour", "IT Secret dinner"]);
+    expect(rows.map((r) => r.title)).toEqual(["IT Visa", "IT Port tour", "IT Tram tickets", "IT Seats", "IT Secret dinner", "IT Secret tickets"]);
     expect(rows[1]).toMatchObject({ stopId: "it-rem-porto", stopName: "IT Porto" });
     expect(rows[0]).toMatchObject({ stopId: null, stopName: null });
   });
 
   it("the Traveller the Stop surprises does not see the Reminder about it", async () => {
     viewer.id = MEMBER;
-    expect((await listRemindersForTrip(TRIP_ID, "2027-01-01")).map((r) => r.title)).toEqual(["IT Visa", "IT Port tour"]);
+    expect((await listRemindersForTrip(TRIP_ID, "2027-01-01")).map((r) => r.title)).toEqual(["IT Visa", "IT Port tour", "IT Tram tickets", "IT Seats"]);
+  });
+
+  it("returns notes and the Item / leg by name (F8)", async () => {
+    const rows = await listRemindersForTrip(TRIP_ID, "2027-01-01");
+    expect(rows.find((r) => r.title === "IT Tram tickets")).toMatchObject({ notes: "Buy a Viva card", itemId: "it-rem-tram", itemTitle: "IT Tram 28" });
+    expect(rows.find((r) => r.title === "IT Seats")).toMatchObject({ transportId: "it-rem-leg", transportLabel: "Train IT Porto → IT Secret" });
+  });
+
+  it("readRemindersAbout groups by thing, any date, and hides a Reminder about an Item inside a Surprise Stop from the surprised Traveller", async () => {
+    const forOwner = await readRemindersAbout(TRIP_ID, await loadSurpriseVisibility(TRIP_ID, OWNER));
+    expect(forOwner.byItemId.get("it-rem-secret-item")?.map((r) => r.title)).toEqual(["IT Secret tickets"]);
+    expect(forOwner.byStopId.get("it-rem-porto")?.map((r) => r.title)).toEqual(["IT Port tour"]);
+    expect(forOwner.byTransportId.get("it-rem-leg")?.map((r) => r.title)).toEqual(["IT Seats"]);
+    viewer.id = MEMBER;
+    const forMember = await readRemindersAbout(TRIP_ID, await loadSurpriseVisibility(TRIP_ID, MEMBER));
+    expect(forMember.byItemId.has("it-rem-secret-item")).toBe(false);
+    expect(forMember.byStopId.has(SECRET)).toBe(false);
+    expect(forMember.byItemId.get("it-rem-tram")?.length).toBe(1);
   });
 });

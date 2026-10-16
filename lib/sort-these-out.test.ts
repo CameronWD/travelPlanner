@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "./sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
 import type { ReminderItem } from "@/lib/reminder-reads";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 const BASE = "/trips/t1";
 const step = (id: string, title: string, extra: Partial<NextStep> = {}): NextStep => ({
@@ -13,14 +14,8 @@ const step = (id: string, title: string, extra: Partial<NextStep> = {}): NextSte
   source: "nudge",
   ...extra,
 });
-const reminder = (id: string, date: string, extra: Partial<ReminderItem> = {}): ReminderItem => ({
-  id,
-  title: `Reminder ${id}`,
-  date,
-  stopId: null,
-  stopName: null,
-  ...extra,
-});
+const reminder = (id: string, date: string, extra: Partial<ReminderItem> = {}): ReminderItem =>
+  reminderItem({ id, title: `Reminder ${id}`, date, ...extra });
 
 describe("sortTheseOut", () => {
   const today = "2026-12-01";

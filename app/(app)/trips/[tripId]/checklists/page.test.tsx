@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 // checklists/page.tsx is an async server component with DB calls. It now
 // delegates the tabs-vs-grid layout entirely to ChecklistsLayout (LA-017,
@@ -23,7 +24,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 const listRemindersForTrip = vi.hoisted(() =>
-  vi.fn(async () => [{ id: "r1", title: "Print insurance", date: "2099-01-01", stopId: null, stopName: null }]),
+  vi.fn(async () => [reminderItem({ id: "r1", title: "Print insurance", date: "2099-01-01" })]),
 );
 vi.mock("@/server/actions/reminders", () => ({}));
 vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip }));

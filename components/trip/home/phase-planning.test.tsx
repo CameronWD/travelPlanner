@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // React import needed for JSX in the reminders-slot test below.
 import React from "react";
 import { render } from "@testing-library/react";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 // phase-planning.tsx is a heavy async server component with DB calls.
 // We test the desktop grid className via an exported constant so we can assert
@@ -549,8 +550,8 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
       today: "2025-12-01",
       phase: "planning",
       reminderItems: [
-        { id: "r1", title: "Book the ferry", date: "2025-12-03", stopId: null, stopName: null },
-        { id: "r2", title: "Renew passport", date: "2025-12-09", stopId: null, stopName: null },
+        reminderItem({ id: "r1", title: "Book the ferry", date: "2025-12-03", stopId: null, stopName: null }),
+        reminderItem({ id: "r2", title: "Renew passport", date: "2025-12-09", stopId: null, stopName: null }),
       ],
     });
     const { renderToStaticMarkup } = await import("react-dom/server");
