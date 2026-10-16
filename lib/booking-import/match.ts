@@ -55,7 +55,7 @@ function normalise(s: string | null | undefined): string {
     .trim();
 }
 
-/** True when `text` (a booking's city, airport or station) names the Stop. A Stop name compares on its first comma part. */
+/** True when `text` (a booking's city, airport or station) names the Stop. A Stop name compares on its first comma part. Country agreement is the caller's: `compatible` for Stops and `matchesHome` for Home (BI-14). */
 export function sameCity(text: string | null | undefined, stopName: string | null | undefined): boolean {
   const a = normalise(text);
   const b = normalise((stopName ?? "").split(",")[0]);
@@ -141,9 +141,14 @@ function nearest(stops: MatchStop[], r: DateRange): MatchStop {
 
 function matchesHome(q: PlaceQuery, home: MatchHome): boolean {
   if (!home.name) return false;
-  if (sameCity(q.city, home.name) || sameCity(q.place, home.name)) return true;
   const cc = countryCodeOf(q.country);
-  return !q.city && !q.place && cc !== null && cc === home.countryCode?.toLowerCase();
+  const homeCc = home.countryCode?.toLowerCase() || null;
+  // BI-14: a city match counts only when the countries agree. An unknown
+  // country on either side is no disagreement, the same rule as a Stop's
+  // `compatible` in resolvePlace.
+  const agrees = !cc || !homeCc || cc === homeCc;
+  if (agrees && (sameCity(q.city, home.name) || sameCity(q.place, home.name))) return true;
+  return !q.city && !q.place && cc !== null && cc === homeCc;
 }
 
 export function resolvePlace(

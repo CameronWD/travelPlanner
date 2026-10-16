@@ -38,6 +38,26 @@ describe("resolvePlace", () => {
     expect(resolvePlace(q("Sydney", "Australia"), { from: "2026-12-01", to: null }, CTX, END)).toMatchObject({ kind: "new", name: "Sydney", countryCode: "au" });
   });
 
+  it("matches Home by city only when the countries agree (BI-14)", () => {
+    // Brisbane, California is not the Home base in Brisbane, Australia.
+    expect(resolvePlace(q("Brisbane", "United States"), { from: "2026-12-01", to: null }, CTX, END)).toEqual({
+      kind: "new",
+      key: "brisbane|us",
+      name: "Brisbane",
+      country: "United States",
+      countryCode: "us",
+    });
+    // An unknown country on either side is no disagreement (Review Focus 2).
+    expect(resolvePlace(q("Brisbane", null, "Brisbane (BNE)"), { from: "2026-12-01", to: null }, CTX, END)).toEqual({ kind: "home" });
+    expect(resolvePlace(q("Brisbane", "United States"), { from: null, to: null }, { ...CTX, home: { ...HOME, countryCode: null } }, END)).toEqual({ kind: "home" });
+  });
+
+  it("matches a Stop by contained city name only when the countries agree (BI-14, already true)", () => {
+    const YORK: MatchStop = { id: "s-york", name: "York", country: "United Kingdom", countryCode: "gb", timezone: "Europe/London", arriveDate: "2026-12-15", departDate: "2026-12-18", sortOrder: 2 };
+    expect(resolvePlace(q("New York City", "United States"), { from: "2026-12-16", to: null }, { home: HOME, stops: [YORK] }, STAY)).toMatchObject({ kind: "new", countryCode: "us" });
+    expect(resolvePlace(q("Porto Alegre", "Brazil"), { from: "2026-12-09", to: null }, CTX, STAY)).toMatchObject({ kind: "new", countryCode: "br" });
+  });
+
   it("a city match beats a Stop whose dates overlap (Review Focus 4)", () => {
     expect(resolvePlace(q("Porto", "Portugal"), { from: "2026-12-03", to: "2026-12-07" }, CTX, STAY)).toEqual({ kind: "stop", stop: PORTO });
   });

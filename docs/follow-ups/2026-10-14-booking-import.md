@@ -60,13 +60,13 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
   writes the row in a `finally` around reading the Trip and building
   Proposals — outcome `error`, Proposal count 0, the tokens spent — and the
   error still propagates.
-- **BI-14 · City matching edge cases.** `sameCity` in `match.ts` checks
-  whole-word containment both ways (`within(a, b) || within(b, a)`), so it can
-  be too loose rather than too strict: "York" and "New York City" match each
-  other in either direction. A shorter name (under 4 characters, e.g. "Rio")
-  never matches by containment, only exactly. And the Home city match ignores
-  country (so a same-named city in another country can match the Home base).
-  **Scheduled for batch 3** of the 2026-10-14 tidy-up pass.
+- **BI-14 · Fixed, 2026-10-16, tidy-up batch 3.** City matching now needs the
+  countries to agree for Home as it already did for Stops (`matchesHome` in
+  `match.ts`): Brisbane, United States no longer matches a Brisbane, Australia
+  Home base. A country unknown on either side still counts as agreement, and
+  whole-word containment still needs the shorter name to be at least 4
+  characters, so "York" and "New York City" still match each other when
+  neither country is known.
 - **BI-15 · `CURRENCIES[].symbol` isn't rendered anywhere** — the UI formats
   money with `Intl` instead. Pre-existing and inert today, but ISK's "Kr"
   reads inconsistently next to the Nordic codes (DKK/NOK/SEK) if the field is
