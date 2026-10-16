@@ -127,7 +127,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("Exact dates: submits a scheduled stop with a guessed timezone", async () => {
+  it("Exact dates: submits a scheduled stop with the zone left to the server (F3: createStop takes it at the picked point)", async () => {
     render(<AddStopSheet {...base} forkId="fork-1" />);
     await userEvent.click(screen.getByRole("radio", { name: "Exact dates" }));
     await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
@@ -136,7 +136,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(createStop).toHaveBeenCalledTimes(1);
     expect(createStop).toHaveBeenCalledWith(
       "t1",
-      { mode: "scheduled", name: "Florence", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25, countryCode: "it" },
+      { mode: "scheduled", name: "Florence", country: "Italy", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25, countryCode: "it" },
       "fork-1",
       "rom",
     );
