@@ -526,7 +526,7 @@ The card notes and the SDD ledger
    records); living docs were updated.
 8. BI items are tracked only in `docs/follow-ups/2026-10-14-booking-import.md`.
 9. The repo is on Vitest 4, not 3; `postcss` became a direct devDependency
-   at the 8.5.28 already in the tree.
+   at the 8.5.30 already in the tree.
 
 **3.O — `lib` folders:**
 
