@@ -397,9 +397,11 @@ not as a verified finding. Fold them into whatever next touches the file.
   Travellers' row counts; adding one needs a migration.
 - **`CONTEXT.md` now hardcodes "two"** in the Digest prose, coupling the
   glossary to `DIGEST_MAX_CHECKLIST_LINES`.
-- **ADR 0055's re-file also fires for Items dated *before* the Stop's arrive
+- ~~**ADR 0055's re-file also fires for Items dated *before* the Stop's arrive
   date** (`offset < 0`) — inside the letter of the ADR, outside its narrated
-  case, and untested.
+  case, and untested.~~ **Tested 2026-10-16** (tidy-up batch 3):
+  `lib/payload-shift.test.ts` pins the re-file onto the covering Stop, and the
+  un-slot when none covers the day.
 - **The "pass the re-dated Stop with its NEW dates" safety is not pinned** —
   the test passes with the `.map()` override deleted, because the tiebreak
   picks the other Stop either way.
