@@ -41,7 +41,7 @@ describe("DayHeader", () => {
     expect(screen.getByLabelText("Previous day")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("link", { name: "Next day: Sun 13 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-13");
     expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Trip members (1)" })).toHaveAttribute("href", "/trips/t1/settings#travellers");
+    expect(screen.getByRole("link", { name: "Travellers (1)" })).toHaveAttribute("href", "/trips/t1/settings#travellers");
     expect(screen.getByRole("button", { name: "+ Add to this day" })).toBeInTheDocument();
   });
   it("tags the arrows' navigations as day-back / day-forward for the body's View Transition (ADR 0063)", () => {

@@ -65,7 +65,7 @@ export function HomeHeader({
 }: HomeHeaderProps) {
   const shown = members.slice(0, MAX_AVATARS);
   const extra = members.length - shown.length;
-  const peopleLabel = `Trip members (${members.length})${isOwner ? ", invite people" : ""}`;
+  const peopleLabel = `Travellers (${members.length})${isOwner ? ", invite people" : ""}`;
 
   return (
     <header className="flex items-end gap-4">

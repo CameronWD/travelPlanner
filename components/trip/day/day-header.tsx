@@ -119,7 +119,7 @@ export function DayHeader({
           {members.length > 0 ? (
             <Link
               href={tripPath(tripSlug, "/settings#travellers")}
-              aria-label={`Trip members (${members.length})`}
+              aria-label={`Travellers (${members.length})`}
               className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <span className="flex -space-x-2.5">

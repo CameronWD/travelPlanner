@@ -167,7 +167,7 @@ export const OVERLAYS: OverlayRecipe[] = [
     // button) replaces all of them and ⌘K focuses it, so there is no
     // trigger for the dialog there and this reports a gap by design.
     steps: [{ click: { role: "button", name: "/^Search( or jump…)?$/" } }],
-    expect: { role: "dialog", name: "Command palette" },
+    expect: { role: "dialog", name: "Search" },
   },
   {
     id: "feedback",

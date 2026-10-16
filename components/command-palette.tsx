@@ -105,7 +105,7 @@ export function CommandPalette({ open, onOpenChange, tripId }: CommandPalettePro
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent bare hideClose>
-        <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <DialogTitle className="sr-only">Search</DialogTitle>
         {open && (
           <CommandPaletteInner onOpenChange={onOpenChange} tripId={tripId} />
         )}

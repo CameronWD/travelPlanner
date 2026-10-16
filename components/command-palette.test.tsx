@@ -51,6 +51,12 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("CommandPalette", () => {
+  it("is announced as Search, never by its code name", async () => {
+    renderPalette();
+    expect(await screen.findByRole("dialog", { name: "Search" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+  });
+
   describe("Go to section", () => {
     it("renders 'Go to' entries when open with a tripId", async () => {
       renderPalette();

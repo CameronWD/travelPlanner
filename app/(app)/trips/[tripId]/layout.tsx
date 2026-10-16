@@ -177,12 +177,12 @@ export default async function TripLayout({
                   ) : null}
                 </div>
 
-                {/* Member avatars + fork switcher + notification bell */}
+                {/* Traveller avatars + fork switcher + notification bell */}
                 <div className="flex items-center gap-2">
                   {trip.members.length > 0 && (
                     <Link
                       href={tripPath(slug, "/settings#travellers")}
-                      aria-label={`Trip members (${trip.members.length})`}
+                      aria-label={`Travellers (${trip.members.length})`}
                       className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
                       <div className="flex -space-x-2">
