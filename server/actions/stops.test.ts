@@ -722,6 +722,31 @@ describe("createStop countryCode and timezone fallback", () => {
     await createStop("trip-1", { mode: "scheduled", name: "Nowhere", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" });
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "UTC" }) });
   });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a picked point decides the zone over the country's (F3)", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Brisbane" });
+    await createStop("trip-1", { mode: "scheduled", name: "Brisbane", country: "Australia", countryCode: "au", lat: -27.47, lng: 153.03, timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" }, undefined, after);
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "Australia/Brisbane" }) });
+  });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a geocoded point decides the zone when none was chosen", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Perth" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Perth, Australia", lat: -31.95, lng: 115.86, city: "Perth", country: "Australia", countryCode: "au" });
+    await createStop("trip-1", { mode: "scheduled", name: "Perth", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24" }, undefined, after);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "Australia/Perth", countryCode: "au" }) });
+  });
+
+  it("a chosen zone still wins over the point", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    await createStop("trip-1", { mode: "scheduled", name: "Brisbane", countryCode: "au", lat: -27.47, lng: 153.03, timezone: "Australia/Sydney", arriveDate: "2026-12-22", departDate: "2026-12-24" });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ timezone: "Australia/Sydney" }) });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1117,6 +1142,13 @@ describe("updateStop (PATCH, ADR 0075)", () => {
     stopUpdateMock.mockResolvedValue({});
     await updateStop("s1", { mode: "scheduled", name: "Kyoto", country: "Japan", timezone: "UTC", arriveDate: "2026-07-01", departDate: "2026-07-05" });
     expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Asia/Tokyo", countryCode: "jp" }) }));
+  });
+  it("an edit that sends UTC takes the zone at its point (F3)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ ...held, nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "UTC", chapterId: null });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { mode: "scheduled", name: "Brisbane", country: "Australia", countryCode: "au", lat: -27.47, lng: 153.03, timezone: "UTC", arriveDate: "2026-07-01", departDate: "2026-07-05" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Australia/Brisbane" }) }));
   });
   it("a sent countryCode on a rough Stop wins over the geocoder's, and survives a geocode miss", async () => {
     stopFindUniqueMock.mockResolvedValue(held);

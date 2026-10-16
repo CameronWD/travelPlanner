@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { stopTimezone } from "@/lib/tz";
+import { resolveStopTimezone } from "@/lib/tz-point";
 import { mergeStopPatch, type StopPatch } from "@/lib/stop-patch";
 import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
@@ -232,7 +232,7 @@ export async function createStop(
 
       // scheduled
       const { name, country, arriveDate, departDate, notes } = parsed.data;
-      const timezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: derivedCountryCode, country });
+      const timezone = resolveStopTimezone({ timezone: parsed.data.timezone, lat, lng, countryCode: derivedCountryCode, country });
       // A dated Stop belongs to whichever Chapter's dates cover its arrive date
       // (CONTEXT.md "Chapter", ADR 0008), so it stores no chapter — never the
       // anchor's (the stored anchor can differ from the displayed neighbour).
@@ -357,7 +357,7 @@ export async function createStop(
     }
   }
 
-  const appendTimezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: appendCountryCode, country });
+  const appendTimezone = resolveStopTimezone({ timezone: parsed.data.timezone, lat, lng, countryCode: appendCountryCode, country });
 
   // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
   const created = await db.$transaction(async (tx) => {
@@ -391,7 +391,7 @@ export async function createStop(
  * Update a Stop (PATCH, ADR 0075): merges onto the held row
  * (`lib/stop-patch.ts` — mode, dates, place and Chapter rules), then the
  * rough or scheduled write as before. A scheduled save resolves its
- * timezone by `stopTimezone` with the final country, as `createStop` does.
+ * timezone by `resolveStopTimezone` with the final point and country (F3), as `createStop` does.
  * Verifies the stop belongs to a trip the user can access.
  */
 export async function updateStop(
@@ -497,7 +497,7 @@ export async function updateStop(
       data: {
         name,
         country: country ?? null,
-        timezone: stopTimezone({ timezone, countryCode: parsed.data.countryCode ?? updateCountryCode, country }),
+        timezone: resolveStopTimezone({ timezone, lat, lng, countryCode: parsed.data.countryCode ?? updateCountryCode, country }),
         arriveDate,
         departDate,
         lat: lat ?? null,
