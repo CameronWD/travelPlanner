@@ -193,6 +193,15 @@ vi.mock("@/lib/surprise-guard", () => ({
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
+// F4: the soft-end rule is tested on its own (lib/soft-end.test.ts) and
+// against Postgres (test/integration/soft-end-date.test.ts); here we only
+// check that each dating write runs it for its plan, and revalidates the
+// layout when it grew.
+const growTripEndTxMock = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null));
+vi.mock("@/server/actions/trip-window", () => ({
+  growTripEndTx: growTripEndTxMock,
+  tripWindowScopes: (g: string | null) => (g ? ["trip"] : []),
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     stop: {
@@ -1677,8 +1686,11 @@ describe("setStopDates", () => {
       expect(result.changed).toEqual([{ id: "s2", arriveDate: "2026-06-06", departDate: "2026-06-09" }]);
       expect(result.conflicts).toEqual([]);
     }
-    // The trip window grows to cover s2's pushed depart (06-09), not just s1's own.
-    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { endDate: "2026-06-09" } });
+    // The trip window grows through the one soft-end rule (F4), inside the
+    // same transaction, after the pushes landed — no inline Trip write.
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
+    expect(stopUpdateMock.mock.invocationCallOrder.at(-1)!).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
+    expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 
   it("returns the payload pre-images for undo", async () => {
@@ -1810,6 +1822,32 @@ describe("setStopDates", () => {
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     expectAccessCheckedBeforeWrite(requireRowAccessMock, stopUpdateMock);
   });
+
+  it("a grown window also revalidates the trip layout (F4)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([]);
+    stopUpdateMock.mockResolvedValue({});
+    growTripEndTxMock.mockResolvedValueOnce("2026-06-08");
+
+    await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-08" });
+
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "trip");
+  });
+
+  it("a Fork Stop's re-date passes its Fork (the rule leaves the Trip window alone)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "f1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: "fork-9" })
+      .mockResolvedValueOnce({ name: "F1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await setStopDates("f1", { arriveDate: "2026-06-01", departDate: "2026-06-30" });
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", "fork-9");
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1836,9 +1874,10 @@ describe("firmUpSegment", () => {
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "rome" }, data: expect.objectContaining({ arriveDate: "2026-07-10", departDate: "2026-07-13", timezone: "Europe/Paris" }) });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "venice" }, data: expect.objectContaining({ arriveDate: "2026-07-13", departDate: "2026-07-15" }) });
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it", tripId: "trip-1", forkId: null }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
-    // The trip's window grows to cover the last flowed depart (venice → 2026-07-15);
-    // the existing startDate (2026-07-03) is preserved.
-    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { startDate: "2026-07-03", endDate: "2026-07-15", roughMonth: null } });
+    // The existing startDate (2026-07-03) is preserved — no Trip write of its
+    // own; the end grows through the one soft-end rule (F4).
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
   });
 
   it("returns an error when the trip is date-less and nothing precedes the segment", async () => {
@@ -1923,6 +1962,19 @@ describe("firmUpSegment", () => {
     expect(accommodationFindManyMock).not.toHaveBeenCalled();
     expect(itemUpdateMock).not.toHaveBeenCalled();
     expect(accommodationUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("a Fork's segment firm-up writes nothing to the Trip window (F4)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "fr", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1", chapterId: null, anchorDate: "2026-07-01", forkId: "fork-9" });
+
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(growTripEndTxMock).not.toHaveBeenCalled();
   });
 });
 
@@ -3206,6 +3258,19 @@ describe("firmUpTrip", () => {
     // Rome was rough (no prior arrive) — its date-write must NOT trigger a payload lookup.
     expect(itemFindManyMock).toHaveBeenCalledTimes(1);
     expect(accommodationFindManyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a Fork's firm-up writes nothing to the Trip window — not even a first start date (F4)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1", "2026-07-01", "fork-9");
+
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(growTripEndTxMock).not.toHaveBeenCalled();
   });
 });
 
