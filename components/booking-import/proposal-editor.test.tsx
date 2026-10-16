@@ -1,7 +1,8 @@
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
 import type { ImportContext, ProposalBase, Proposal, StopProposal } from "@/lib/booking-import/types";
 import { previewStopMap } from "@/lib/booking-import/preview";
 
@@ -45,6 +46,28 @@ function Harness({ initial, original = initial, onConfirm, onClose = vi.fn() }: 
       onDraft={setProposal}
       onConfirm={onConfirm}
       onClose={onClose}
+    />
+  );
+}
+
+/** Records every draft `onDraft` hands back, feeding each one in as the live Proposal. */
+function DraftSpyHarness({ initial, onDraft }: { initial: Proposal; onDraft: (next: Proposal) => void }) {
+  const [proposal, setProposal] = React.useState(initial);
+  return (
+    <ProposalEditor
+      tripId="trip-1"
+      forkId={null}
+      context={CONTEXT}
+      proposal={proposal}
+      original={initial}
+      stopProposals={[STOP]}
+      stops={previewStopMap(CONTEXT, [STOP])}
+      onDraft={(next) => {
+        setProposal(next);
+        onDraft(next);
+      }}
+      onConfirm={vi.fn()}
+      onClose={vi.fn()}
     />
   );
 }
@@ -98,6 +121,19 @@ describe("ProposalEditor", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalled());
     expect((onConfirm.mock.calls[0][0] as StopProposal).input).toEqual(STOP.input);
+  });
+
+  it("recomputes a Transport's stay warnings after an edit (BI-04)", async () => {
+    const drafts: Proposal[] = [];
+    render(<DraftSpyHarness initial={FLIGHT} onDraft={(next) => drafts.push(next)} />);
+    await waitFor(() => expect(drafts.length).toBeGreaterThan(0));
+    expect((drafts.at(-1) as Extract<Proposal, { kind: "transport" }>).warnings).toEqual([]);
+
+    fireEvent.change(screen.getByLabelText(/^Arrives/), { target: { value: "2026-12-20T07:15" } });
+    await waitFor(() => expect((drafts.at(-1) as Extract<Proposal, { kind: "transport" }>).warnings).toContain(M.arrivesOutsideStay("Lisbon")));
+
+    fireEvent.change(screen.getByLabelText(/^Arrives/), { target: { value: "2026-12-02T07:15" } });
+    await waitFor(() => expect((drafts.at(-1) as Extract<Proposal, { kind: "transport" }>).warnings).toEqual([]));
   });
 
   it("merges zone hints against the Proposal as it was, not the live draft (fix round 1)", async () => {

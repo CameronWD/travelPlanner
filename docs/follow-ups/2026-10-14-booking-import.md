@@ -12,8 +12,13 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
   `AiUsage` rows in the last hour would make it exact (and give the true wait).
 - **BI-03 · `.eml` originals are not attached.** `validateUpload` takes images,
   PDFs and plain text only. Option: attach the email's first PDF instead.
-- **BI-04 · Transport and Item warnings don't refresh after an edit.** They are
-  computed at import; the Accommodation card recomputes its own.
+- **BI-04 · Fixed, 2026-10-15, tidy-up batch 2.** Transport and Item warnings
+  didn't refresh after an edit: they were computed at import; the
+  Accommodation card recomputes its own. `lib/booking-import/stay-warnings.ts`
+  now computes the "outside your stay" warnings from a Proposal's current
+  input (`stayWarnings`) and the Proposal editor recomputes them on every
+  draft and submit (`refreshStayWarnings`); `build.ts`'s import-time pushes
+  use the same function.
 - **BI-05 · One zone per country.** A proposed Stop in a multi-zone country
   (US, Australia, Canada, Brazil) takes `guessTimezoneForCountry`'s single zone;
   the Traveller is told only when no zone is known.

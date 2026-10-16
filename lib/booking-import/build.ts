@@ -10,9 +10,10 @@ import { formatDayLabel } from "@/lib/dates";
 import { decimalsFor, parseAmountToMinor } from "@/lib/money";
 import { guessTimezoneForCountry, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
-import { countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
+import { countryCodeOf, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
 import { BOOKING_IMPORT_MESSAGES as M } from "./messages";
 import type { BookingExtraction, ExtractedCost, ExtractedEnd, ExtractedProposal } from "./schema";
+import { stayWarnings } from "./stay-warnings";
 import {
   proposedRef,
   type BookingProposal,
@@ -357,6 +358,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
   };
 
   const finish = (p: BookingProposal): BookingProposal => ({ ...p, warnings: [...new Set(p.warnings)], highlight: [...new Set(p.highlight)] });
+  const stopsById = new Map<string, MatchStop>(ctx.stops.map((s) => [s.id, s]));
 
   // 3. The Proposals themselves.
   const transportProposal = (d: TransportDraft, clientId: string): BookingProposal => {
@@ -390,9 +392,6 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
         // silently falls back to the other end's zone (fix round 1 finding 2).
         if (placed.stop && !placed.stop.timezone) {
           zone = timezoneForCountryOrNull(placed.stop.countryCode) ?? undefined;
-        }
-        if (placed.stop?.arriveDate && outsideStay(placed.stop, end.date)) {
-          b.warnings.push(which === "dep" ? M.departsOutsideStay(placed.stop.name) : M.arrivesOutsideStay(placed.stop.name));
         }
       } else {
         place = end.query.place ?? end.query.city ?? undefined;
@@ -431,6 +430,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     const reference = trimmed(t.reference);
     if (reference) input.reference = reference;
     Object.assign(input, costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck));
+    b.warnings.push(...stayWarnings({ ...b, clientId, kind: "transport", input }, stopsById));
 
     b.duplicateOf = findDuplicate({ kind: "transport", reference, mode, date: d.dep.date ?? d.arr.date }, ctx.existing);
     if (b.duplicateOf) b.warnings.push(M.duplicate(b.duplicateOf.label));
@@ -465,9 +465,6 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     const b = baseOf(d.src);
     const placed = placedOf(d.match);
     checkStop(placed.stop, b);
-    if (placed.stop?.arriveDate && d.date && outsideStay(placed.stop, d.date)) {
-      b.warnings.push(M.itemOutsideStay(placed.stop.name, formatDayLabel(d.date)));
-    }
     const category: Category = i.category ?? "OTHER";
     if (!i.category) b.highlight.push("category");
     const startTime = d.date ? normTime(i.startTime) : null;
@@ -489,6 +486,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
       booking,
       ...costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck),
     });
+    b.warnings.push(...stayWarnings({ ...b, clientId, kind: "item", input }, stopsById));
     b.duplicateOf = findDuplicate({ kind: "item", booking }, ctx.existing);
     if (b.duplicateOf) b.warnings.push(M.duplicate(b.duplicateOf.label));
     return finish({ ...b, clientId, kind: "item", input });
