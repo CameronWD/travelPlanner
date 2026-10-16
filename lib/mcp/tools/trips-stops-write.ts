@@ -23,14 +23,10 @@
  * current row, merge only the fields the caller actually supplied over it,
  * and send the action a complete, merged input instead.
  *
- * Timezone for a scheduled Stop: the Add-a-stop UI
- * (components/trip/stop-form-dialog.tsx) derives it from the picked
- * country via `guessTimezoneForCountry` (lib/tz.ts) rather than asking the
- * person. `add_stop`/`update_stop` reuse that same helper when Claude
- * omits `timezone`, falling back to the countryCode/country already
- * required for the Stop. `createStop` has its own "UTC" fallback for the
- * insert path, but `updateStop` has none, so resolving here (rather than
- * relying on the action) keeps both tools consistent.
+ * Timezone for a scheduled Stop: `stopTimezone` (lib/tz.ts), the one rule
+ * the Add-a-stop UI, `createStop`/`updateStop`, the lone-Stop rule and the
+ * Booking import share — an explicit zone wins unless it is the "UTC"
+ * fallback, then the country code, then the country name.
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -58,7 +54,7 @@ import {
 import { assignStopToChapter } from "@/server/actions/chapters";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { CURRENCY_CODES } from "@/lib/currencies";
-import { guessTimezoneForCountry } from "@/lib/tz";
+import { stopTimezone } from "@/lib/tz";
 import { nightsBetween } from "@/lib/dates";
 import type { StopInput } from "@/lib/validations/stop";
 import type { TripInput } from "@/lib/validations/trip";
@@ -162,7 +158,7 @@ function buildStopInput(args: StopPatch & { name: string; countryCode: string })
       name,
       country,
       countryCode,
-      timezone: timezone ?? guessTimezoneForCountry(countryCode ?? country),
+      timezone: stopTimezone({ timezone, countryCode, country }),
       arriveDate,
       departDate,
       lat,
@@ -271,7 +267,7 @@ function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure
       name,
       country,
       countryCode,
-      timezone: patch.timezone ?? current.timezone ?? guessTimezoneForCountry(countryCode ?? country),
+      timezone: stopTimezone({ timezone: patch.timezone ?? current.timezone, countryCode, country }),
       arriveDate,
       departDate,
       lat,

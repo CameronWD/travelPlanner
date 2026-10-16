@@ -296,6 +296,23 @@ export function timezoneForCountryOrNull(country?: string | null): string | null
   return COUNTRY_TO_TZ[country.trim().toLowerCase()] ?? null;
 }
 
+/**
+ * The one rule for a Stop's timezone (spec 2026-10-14, card 3.L): a zone the
+ * caller chose wins, unless it is "UTC" — the fallback every client sends
+ * when it knew no country — and then the Stop's country decides: its
+ * two-letter code first, then its name. Neither known: "UTC" (the Booking
+ * import warns on that, `lib/booking-import/build.ts`). Pure and client-safe;
+ * read-side `?? "UTC"` fallbacks for a stored null are not this rule.
+ */
+export function stopTimezone(stop: {
+  timezone?: string | null;
+  countryCode?: string | null;
+  country?: string | null;
+}): string {
+  if (stop.timezone && stop.timezone !== "UTC") return stop.timezone;
+  return timezoneForCountryOrNull(stop.countryCode) ?? timezoneForCountryOrNull(stop.country) ?? "UTC";
+}
+
 /** Every two-letter country code in the table with its zone, for the SQL backfill test. */
 export const COUNTRY_CODE_TIMEZONES: ReadonlyArray<readonly [code: string, zone: string]> = Object.entries(
   COUNTRY_TO_TZ,

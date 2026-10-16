@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { guessTimezoneForCountry } from "@/lib/tz";
+import { stopTimezone } from "@/lib/tz";
 import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
@@ -70,16 +70,6 @@ async function requireStopAccess(stopId: string) {
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
-
-/**
- * A scheduled stop sent with the "UTC" fallback (no country known on the
- * client) takes its country's zone once the server knows one — picked or
- * geocoded countryCode first, then the country name.
- */
-function resolveTimezone(timezone: string, countryCode: string | null, country: string | undefined): string {
-  if (timezone !== "UTC") return timezone;
-  return [countryCode, country].map((c) => guessTimezoneForCountry(c)).find((tz) => tz !== "UTC") ?? timezone;
-}
 
 /**
  * Create a new stop in the given trip.
@@ -241,7 +231,7 @@ export async function createStop(
 
       // scheduled
       const { name, country, arriveDate, departDate, notes } = parsed.data;
-      const timezone = resolveTimezone(parsed.data.timezone, derivedCountryCode, country);
+      const timezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: derivedCountryCode, country });
       // A dated Stop belongs to whichever Chapter's dates cover its arrive date
       // (CONTEXT.md "Chapter", ADR 0008), so it stores no chapter — never the
       // anchor's (the stored anchor can differ from the displayed neighbour).
@@ -366,7 +356,7 @@ export async function createStop(
     }
   }
 
-  const appendTimezone = resolveTimezone(parsed.data.timezone, appendCountryCode, country);
+  const appendTimezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: appendCountryCode, country });
 
   // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
   const created = await db.$transaction(async (tx) => {

@@ -19,7 +19,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { TIMEZONES, guessTimezoneForCountry } from "@/lib/tz";
+import { TIMEZONES, stopTimezone } from "@/lib/tz";
 import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { createStop, updateStop } from "@/server/actions/stops";
@@ -191,7 +191,7 @@ function StopForm({
   const [name, setName] = React.useState(stop?.name ?? proposed?.name ?? "");
   const [country, setCountry] = React.useState(stop?.country ?? proposed?.country ?? "");
   const [timezone, setTimezone] = React.useState(
-    stop?.timezone ?? proposed?.timezone ?? guessTimezoneForCountry(stop?.country) ?? "UTC",
+    stopTimezone({ timezone: stop?.timezone ?? proposed?.timezone, country: stop?.country }),
   );
   const [nights, setNights] = React.useState<string>(
     stop?.nights != null ? String(stop.nights) : "2",
@@ -265,20 +265,18 @@ function StopForm({
     // A hand-edited country no longer matches the picked point; drop it so
     // the save re-geocodes name + country server-side.
     setPicked(null);
-    const guessed = guessTimezoneForCountry(value);
-    if (guessed !== "UTC") {
-      setTimezone(guessed);
-    }
+    const guessed = stopTimezone({ country: value });
+    if (guessed !== "UTC") setTimezone(guessed);
   }
 
   // A pick sets the name, country and point, and the timezone from the
-  // country — the add sheet's path (guessTimezoneForCountry).
+  // country (stopTimezone).
   function handlePick(p: PickedPlace) {
     setPicked(p);
     setName(p.name);
     const pickedCountry = p.region?.split(",").pop()?.trim();
     if (pickedCountry) setCountry(pickedCountry);
-    const tz = guessTimezoneForCountry(p.countryCode ?? pickedCountry);
+    const tz = stopTimezone({ countryCode: p.countryCode, country: pickedCountry });
     if (tz !== "UTC") setTimezone(tz);
   }
 
