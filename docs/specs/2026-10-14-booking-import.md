@@ -138,8 +138,8 @@ be resumed.
 **Spend.** New `AiUsage` table, one row per Booking import: trip id, Traveller
 id, model, input / output / cache-read / cache-write tokens, estimated USD,
 Proposal count, outcome (`ok` / `not_booking` / `unreadable` / `api_error` /
-`rate_limited`), duration, created at. Never document content, extracted
-values or filenames.
+`rate_limited` / `error` — billed, then failed on our side, BI-13), duration,
+created at. Never document content, extracted values or filenames.
 
 **Access.** Any Traveller on the Trip (`requireTripAccess`), real plan or the
 Fork being viewed. Not exposed over MCP.

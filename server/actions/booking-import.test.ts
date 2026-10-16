@@ -133,6 +133,24 @@ describe("importBooking", () => {
     expect(m.extract).toHaveBeenCalledTimes(20);
     expect(m.record).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: "rate_limited", proposalCount: 0 }));
   });
+
+  it("still writes the usage row when the Trip can't be read after a paid call (BI-13)", async () => {
+    m.load.mockRejectedValue(new Error("connection reset"));
+    await expect(importBooking(form({ tripId: "trip-1", text: "x" }))).rejects.toThrow("connection reset");
+    expect(m.record).toHaveBeenCalledOnce();
+    expect(m.record).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "trip-1", userId: `u${user}`, model: "claude-haiku-5-5", usage: USAGE, proposalCount: 0, outcome: "error" }),
+    );
+  });
+
+  it("writes exactly one usage row on success and on nothing-usable (Review Focus 1)", async () => {
+    await importBooking(form({ tripId: "trip-1", text: "x" }));
+    expect(m.record).toHaveBeenCalledOnce();
+    m.record.mockClear();
+    m.extract.mockResolvedValue({ kind: "ok", model: "claude-haiku-5-5", usage: USAGE, extraction: { ...SAMPLE_EXTRACTION, proposals: [] } });
+    await importBooking(form({ tripId: "trip-1", text: "x" }));
+    expect(m.record).toHaveBeenCalledOnce();
+  });
 });
 
 describe("confirmProposal", () => {

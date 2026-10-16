@@ -55,9 +55,11 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
   proposed as new. Both actions now validate `forkId` through
   `requirePlanAccess` (commit `fa60fd17`), the same guard every other write
   that accepts a client `forkId` goes through.
-- **BI-13 · An `AiUsage` row isn't written if `loadImportContext` throws**
-  after a paid call. The call is already billed; the usage record is lost.
-  **Scheduled for batch 3** of the 2026-10-14 tidy-up pass.
+- **BI-13 · Fixed, 2026-10-16, tidy-up batch 3.** An `AiUsage` row wasn't
+  written if `loadImportContext` threw after a paid call. `importBooking` now
+  writes the row in a `finally` around reading the Trip and building
+  Proposals — outcome `error`, Proposal count 0, the tokens spent — and the
+  error still propagates.
 - **BI-14 · City matching edge cases.** `sameCity` in `match.ts` checks
   whole-word containment both ways (`within(a, b) || within(b, a)`), so it can
   be too loose rather than too strict: "York" and "New York City" match each

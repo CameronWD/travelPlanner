@@ -46,7 +46,8 @@ function importFail(
 /**
  * Booking import (spec 2026-10-14): read one booking and return its Proposals
  * for the plan being viewed. Writes nothing to the Trip; logs one AiUsage row
- * for every call that reached (or was refused before) the API.
+ * for every call that reached (or was refused before) the API, including one
+ * whose import then failed.
  */
 export async function importBooking(formData: FormData): Promise<BookingImportResult> {
   const tripId = formData.get("tripId");
@@ -94,11 +95,20 @@ export async function importBooking(formData: FormData): Promise<BookingImportRe
     return importFail(M.notBooking(outcome.extraction.notBookingReason), "not_booking");
   }
 
-  const { match, context } = await loadImportContext(tripId, plan, user.id);
-  const { proposals, dropped } = buildProposals(outcome.extraction, match);
-  await recordAiUsage({ ...spent, proposalCount: proposals.length, outcome: "ok" });
-  if (proposals.length === 0) return importFail(M.nothingUsable, "nothing_usable");
-  return { success: true, proposals, partial: dropped > 0, context };
+  // The call is already billed: its row is written whatever happens next
+  // (BI-13). A throw still propagates, unchanged.
+  let proposalCount = 0;
+  let usageOutcome: "ok" | "error" = "error";
+  try {
+    const { match, context } = await loadImportContext(tripId, plan, user.id);
+    const { proposals, dropped } = buildProposals(outcome.extraction, match);
+    proposalCount = proposals.length;
+    usageOutcome = "ok";
+    if (proposals.length === 0) return importFail(M.nothingUsable, "nothing_usable");
+    return { success: true, proposals, partial: dropped > 0, context };
+  } finally {
+    await recordAiUsage({ ...spent, proposalCount, outcome: usageOutcome });
+  }
 }
 
 /**
