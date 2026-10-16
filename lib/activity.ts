@@ -9,7 +9,7 @@
  */
 
 import { formatMoney } from "@/lib/money";
-import { formatLongDate, formatDayLabel } from "@/lib/dates";
+import { formatLongDate, formatDayLabel, formatISODate } from "@/lib/dates";
 import { categoryLabel, type Category } from "@/lib/categories";
 import type { VoteLevel } from "@/lib/enum-values";
 
@@ -209,7 +209,7 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "paidMinor", label: "You paid", format: moneyFormat },
     { key: "currency", label: "Currency" },
     { key: "category", label: "Category", format: (v) => categoryFormat(v) },
-    { key: "paidAt", label: "Paid", format: (v) => (v == null ? "not paid" : dateFormat((v instanceof Date ? v.toISOString().slice(0, 10) : v))) },
+    { key: "paidAt", label: "Paid", format: (v) => (v == null ? "not paid" : dateFormat((v instanceof Date ? formatISODate(v) : v))) },
   ],
   // NOTE carries an excerpt, not field diffs
   NOTE: [],

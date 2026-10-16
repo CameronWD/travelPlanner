@@ -66,6 +66,14 @@ const S = {
   noUseServer: [
     { selector: "ExpressionStatement[directive='use server']", message: "lib/mcp/acting-traveller.ts must never be \"use server\": runAsTraveller would become a callable action." },
   ],
+  // A UTC calendar date is formatISODate (lib/dates.ts) — one spelling (spec 3.P).
+  isoDay: [
+    {
+      selector:
+        "CallExpression[callee.property.name=/^(slice|substring|substr|split)$/][callee.object.type='CallExpression'][callee.object.callee.property.name='toISOString']",
+      message: "Use formatISODate from @/lib/dates for a YYYY-MM-DD UTC calendar date.",
+    },
+  ],
 };
 
 /** Readers of Item/Accommodation rows that do not go through readPlan (ADR 0072, amended 2026-10-15). */
@@ -137,7 +145,7 @@ const zoneOf = (file) => ZONES.findLast((z) => z.match(file));
 const glob = (file) => file.replace(/[[\]]/g, "\\$&");
 const rules = (imports, syntax) => ({
   "no-restricted-imports": imports.length ? ["error", { patterns: imports }] : "off",
-  "no-restricted-syntax": syntax.length ? ["error", ...syntax] : "off",
+  "no-restricted-syntax": ["error", ...syntax, ...S.isoDay],
 });
 /** One file that must import something: its folder's zone, plus the extra check. */
 const mustImport = (name, file, extra) => {

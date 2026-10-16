@@ -20,6 +20,7 @@
  *    paid date with today (if blank) — confirming something that cost what
  *    you expected is one gesture.
  */
+import { formatISODate } from "@/lib/dates";
 import { isOnTrip } from "@/lib/enum-values";
 import type { CostSettlement } from "@/lib/enum-values";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
@@ -81,7 +82,7 @@ export function costToFormState(row: CostRow): CostFormState {
         : row.paidAt
           ? formatMinor(row.costMinor, row.currency)
           : "",
-    paidAt: row.paidAt ? new Date(row.paidAt).toISOString().slice(0, 10) : "",
+    paidAt: row.paidAt ? formatISODate(new Date(row.paidAt)) : "",
     settlement: isOnTrip(row.settlement) ? "ON_TRIP" : "BEFORE",
   };
 }
@@ -195,5 +196,5 @@ export function paidFieldsFromRow(row: {
   paidAt: Date | string | null;
 }): { paidMinor?: number; paidAt?: string } {
   if (!row.paidAt) return {};
-  return { paidMinor: row.paidMinor ?? row.costMinor, paidAt: new Date(row.paidAt).toISOString().slice(0, 10) };
+  return { paidMinor: row.paidMinor ?? row.costMinor, paidAt: formatISODate(new Date(row.paidAt)) };
 }

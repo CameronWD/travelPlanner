@@ -1,5 +1,5 @@
 import { convertMinor } from "@/lib/money";
-import { daysBetween, formatDayLabel, formatDayMonth } from "@/lib/dates";
+import { daysBetween, formatDayLabel, formatDayMonth, formatISODate } from "@/lib/dates";
 import { isOnTrip } from "@/lib/enum-values";
 
 const TO_PAY_SOON_DAYS = 14;
@@ -70,7 +70,7 @@ export function mergeToPay(
         ? convertMinor(originalMinor, c.currency, home, c.rateToHome)
         : null;
     const u = unpaidDue(c, today);
-    const paidISO = paid ? c.paidAt!.toISOString().slice(0, 10) : null;
+    const paidISO = paid ? formatISODate(c.paidAt!) : null;
     const due = paid
       ? { line: `Paid ${formatDayMonth(paidISO!)}`, tone: "paid" as const }
       : legacy

@@ -84,6 +84,9 @@ const CASES: [string, string, string, boolean][] = [
   ["an app visibility reader without the import", "app/(app)/trips/[tripId]/layout.tsx", "export const x = 1;", true],
   ["an attachment-bytes reader without the guard", "app/api/attachments/[id]/route.ts", "export const x = 1;", true],
   ["real-plan without requireRowAccess", "lib/mcp/real-plan.ts", 'import { requireUser } from "@/lib/guards";\nexport const x = requireUser;', true],
+  // spec 3.P: one spelling of a UTC calendar date
+  ["toISOString().slice in lib", "lib/probe.ts", "export const d = (x: Date) => x.toISOString().slice(0, 10);", true],
+  ["toISOString().slice in a narrow zone", "lib/guards.ts", `export const d = (x: Date) => x.toISOString().slice(0, 10);\n${GUARD}`, true],
   // Tests sit outside every boundary
   ["a test reaches across layers", "lib/probe.test.ts", 'import { db } from "@/lib/db";\nimport { runAsTraveller } from "@/lib/mcp/acting-traveller";\nimport { createStop } from "@/server/actions/stops";', false],
 ];

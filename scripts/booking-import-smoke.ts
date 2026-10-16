@@ -19,6 +19,7 @@ import { buildProposals } from "../lib/booking-import/build";
 import { NO_EXISTING } from "../lib/booking-import/duplicates";
 import { extractBooking } from "../lib/booking-import/extract";
 import { prepareBookingInput } from "../lib/booking-import/input";
+import { formatISODate } from "../lib/dates";
 
 const TYPES: Record<string, string> = { ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".eml": "message/rfc822", ".txt": "text/plain" };
 
@@ -57,7 +58,7 @@ async function main(): Promise<void> {
     stops: [],
     blockedStopIds: new Set(),
     existing: NO_EXISTING,
-    today: new Date().toISOString().slice(0, 10),
+    today: formatISODate(new Date()),
   });
   console.log(`${proposals.length} Proposals${dropped ? `, ${dropped} dropped (partial)` : ""}:`);
   for (const p of proposals) {

@@ -1,3 +1,4 @@
+import { formatISODate } from "@/lib/dates";
 import { FEEDBACK_STATUSES, type FeedbackStatus } from "@/lib/enum-values";
 import { areaForRoute } from "@/lib/feedback-context";
 import { describeDevice } from "@/lib/feedback-device";
@@ -80,7 +81,7 @@ const STATUS_LABELS: Record<FeedbackStatus, string> = {
 
 /** "2026-09-07" — the day is enough context; the exact minute never is. */
 function day(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return formatISODate(date);
 }
 
 /** Indent continuation lines so a multi-line body stays one list item. */

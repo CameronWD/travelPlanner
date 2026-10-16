@@ -58,6 +58,19 @@ describe("formatISODate", () => {
     const d = new Date("2026-01-05T00:00:00Z");
     expect(formatISODate(d)).toBe("2026-01-05");
   });
+
+  it("names the same UTC calendar day toISOString does, at the edges of a day and across offsets", () => {
+    for (const iso of [
+      "2026-10-01T00:00:00.000Z",
+      "2026-10-01T23:59:59.999Z",
+      "2026-10-02T09:30:00+10:00", // 23:30 UTC on the 1st
+      "2026-09-30T20:00:00-05:00", // 01:00 UTC on the 1st
+      "2024-02-29T12:00:00Z",
+    ]) {
+      const d = new Date(iso);
+      expect(formatISODate(d)).toBe(d.toISOString().slice(0, 10));
+    }
+  });
 });
 
 describe("formatDateRange", () => {

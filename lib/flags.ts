@@ -7,7 +7,7 @@
  * and returns a list of Flag objects describing potential issues.
  */
 
-import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate } from "@/lib/dates";
+import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, formatISODate } from "@/lib/dates";
 import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
@@ -872,7 +872,7 @@ export function flagReturnLegAfterHardEnd(
   const ret = findReturnLeg(transports, lastStopId);
   if (!ret || !ret.arrAt) return [];
   const landDate = new Date(ret.arrAt);
-  const landISO = ret.arrIsHome && homeTimezone ? instantToZonedDateISO(landDate, homeTimezone) : landDate.toISOString().slice(0, 10);
+  const landISO = ret.arrIsHome && homeTimezone ? instantToZonedDateISO(landDate, homeTimezone) : formatISODate(landDate);
   if (landISO <= hardEndDate) return [];
   return [
     {
