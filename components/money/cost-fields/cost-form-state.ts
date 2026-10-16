@@ -41,7 +41,7 @@ export interface CostFormState {
   settlement: CostSettlement;
 }
 
-export type CostPayloadFields = {
+type CostPayloadFields = {
   costMinor: number;
   currency: string;
   paidMinor?: number;
@@ -87,7 +87,7 @@ export function costToFormState(row: CostRow): CostFormState {
 }
 
 /** Seed from a Booking import Proposal's inline Cost fields. */
-export function proposalToFormState(p: ProposalCostFields, defaultCurrency: string): CostFormState {
+function proposalToFormState(p: ProposalCostFields, defaultCurrency: string): CostFormState {
   const currency = p.currency ?? defaultCurrency;
   return {
     costAmount: p.costMinor !== undefined ? formatMinor(p.costMinor, currency) : "",
