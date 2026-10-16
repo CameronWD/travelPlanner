@@ -7,21 +7,18 @@
  * Every write delegates to the same server actions the app itself uses
  * (`server/actions/accommodation`, `transport`, `costs`), which already
  * resolve to the acting Traveller inside a Claude connection (via
- * `requireUser`/`requireTripAccess`) and record Activity marked "via Claude"
+ * `requireUser`/`requireTripAccess`) and record Activity marked "via Claude".
  * Real plan only: none of `createAccommodation`/`createTransport`/
- * `createCost`'s optional `forkId` is ever supplied (constraints.md); every
- * PATCH/mark_* loader also scopes its lookup to `forkId: null`, and every
- * other Accommodation/Transport/Cost/Stop id a tool takes goes through
+ * `createCost`'s optional `forkId` is ever supplied (constraints.md); the
+ * mark_* loader scopes its lookup to `forkId: null`, and every
+ * Accommodation/Transport/Cost/Stop id a tool takes goes through
  * `../real-plan.ts` first, so a fork-owned row reads as not found rather
  * than being loaded and acted on.
  *
  * Guiding principle (fix round 1, review): the MCP tool must behave exactly
  * as editing the same thing in the app's own dialogs does
- * (accommodation-form-dialog.tsx, transport-form-dialog.tsx, cost-editor.tsx
- * `parseOwnedFormToInput`, other-cost-editor.tsx `parseFormToInput`) — those
- * dialogs always open pre-filled from the current row and resubmit the
- * complete form, which is the real PATCH-equivalence this file reproduces
- * without the dialog.
+ * (accommodation-form-dialog.tsx, transport-form-dialog.tsx, cost-editor.tsx,
+ * other-cost-editor.tsx).
  *
  * No `lat`/`lng` on either Accommodation tool (same as Task 12's Item
  * tools): `createAccommodation`/`updateAccommodation` parse a `lat`/`lng`
@@ -31,41 +28,12 @@
  * `depLat`/`arrLat`/etc. are geocoded the same way and were never part of
  * this tool's surface either.
  *
- * `update_accommodation` passes only the fields the caller supplied (ADR
- * 0075); the action completes its inline Cost from the single owned Cost
- * (`completeInlineCost`, lib/money/cost-patch.ts).
- *
- * `update_transport` is PATCH (same ruling as Tasks 11/12's
- * `update_stop`/`update_thing_to_do`): its action writes every field of its
- * input, including absent ones, as the new value (an omitted `depIsHome`
- * writes `depIsHome: false`, etc.), so it loads the current row, merges
- * only the fields the caller actually supplied, and sends the action a
- * complete input.
- *
- * The inline Cost on Accommodation/Transport is a convenience, not the
- * primary Cost surface — `paidMinor`/`paidAt`/`settlement` are deliberately
- * not on these tools' schemas (use `update_cost`/`mark_cost_paid` once the
- * owned Cost exists). But both dialogs always resend the current paid
- * amount/date whenever the Cost is paid (`costToFormState`-equivalent
- * pre-fill, submitted unchanged unless the person edits it), and the action
- * writes `paidAt: data.paidAt ? new Date(...) : null` UNCONDITIONALLY
- * whenever `costMinor`/`currency` are both present — and
- * `accommodationSchema`/`transportSchema` both refuse a `paidAt` with no
- * `paidMinor` ("Enter what you paid"). So `completeInlineCost` forwards the
- * current single owned Cost's `paidMinor` AND `paidAt` together (never one
- * without the other — `paidAt` decides, same as every dialog, and a legacy
- * paid row with no amount falls back to the cost: `paidFieldsFromRow`) whenever
- * the patch touches the inline Cost at all, and errors out (ruling 2 — "no
- * accepted input silently dropped", here as "no silent no-op") rather than
- * calling the action when there's more than one owned Cost (CostEditor is
- * authoritative) or when the caller gives only one half of
- * `costMinor`/`currency` with no existing Cost to complete the other half
- * from.
- *
- * `update_cost` passes only the fields the caller supplied: `updateCost`
- * takes a PATCH (ADR 0075); the paid pair and Due date rules are
- * `lib/money/cost-patch.ts`'s. `paidMinor`/`paidAt` are not on its schema —
- * use `mark_cost_paid`/`mark_cost_unpaid`.
+ * The update tools pass only the fields the caller supplied (ADR 0075):
+ * `updateAccommodation`/`updateTransport`/`updateCost` merge onto the row
+ * they hold — the endpoint rules are lib/transport-patch.ts's, the paid
+ * pair, Due date and inline-Cost completion lib/money/cost-patch.ts's.
+ * `paidMinor`/`paidAt`/`settlement` are deliberately not on these tools'
+ * schemas (use `update_cost`/`mark_cost_paid` once the owned Cost exists).
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -78,12 +46,12 @@ import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from
 import { transportModeSchema, costOwnerTypeSchema, costSettlementSchema } from "@/lib/enums";
 import { TRANSPORT_MODES, COST_SETTLEMENTS } from "@/lib/enum-values";
 import { CURRENCY_CODES } from "@/lib/currencies";
-import { paidFieldsFromRow } from "@/lib/money/cost-form-state";
 import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows, type RealPlanKind } from "../real-plan";
+import { homeContradictionError } from "@/lib/transport-patch";
 import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
@@ -101,63 +69,6 @@ const describedSettlement = costSettlementSchema.describe(
 );
 
 const MONEY_NOTE = "Money is in minor units (cents) of currency, e.g. 1050 for $10.50.";
-
-/** The shape every field-error-shaped tool failure shares (ActionFailure). */
-export type Failure = { success: false; errors: Record<string, string[]> };
-export function isFailure(v: unknown): v is Failure {
-  return typeof v === "object" && v !== null && "success" in v && (v as { success: unknown }).success === false;
-}
-
-// ---------------------------------------------------------------------------
-// Inline cost completion (shared by Accommodation and Transport)
-// ---------------------------------------------------------------------------
-
-/** What a tool call asks of the inline Cost. */
-type InlineCostEdit = { costMinor?: number; currency?: string };
-/** The completed inline-Cost fields sent to the action (not the `InlineCostFields` component). */
-export type InlineCostPatch = { costMinor?: number; currency?: string; paidMinor?: number; paidAt?: string };
-
-/**
- * Completes a patch's inline-cost fields from the entity's current single
- * owned Cost. Returns `{}` (no cost keys at all) when the patch doesn't
- * touch the inline Cost — the action's own "no amount provided → skip"
- * path holds. Returns a `Failure` (ruling 2 — don't report success for a
- * no-op) instead of silently doing nothing when the patch touches the
- * inline Cost but there's more than one owned Cost (the action leaves the
- * Cost editor authoritative and makes no write at all), or when there's no
- * single Cost to complete a lone `costMinor`/`currency` from.
- */
-export async function completeInlineCost(
-  ownerType: "ACCOMMODATION" | "TRANSPORT",
-  ownerId: string,
-  patch: InlineCostEdit,
-): Promise<InlineCostPatch | Failure> {
-  if (patch.costMinor === undefined && patch.currency === undefined) return {};
-  const existing = await db.cost.findMany({
-    where: { ownerType, ownerId, forkId: null },
-    select: { costMinor: true, currency: true, paidMinor: true, paidAt: true },
-  });
-  if (existing.length > 1) {
-    return {
-      success: false,
-      errors: { costMinor: ["This has more than one Cost already. Use update_cost to edit a specific one."] },
-    };
-  }
-  const single = existing[0] ?? null;
-  const costMinor = patch.costMinor ?? single?.costMinor;
-  const currency = patch.currency ?? single?.currency;
-  if (costMinor === undefined || currency === undefined) {
-    return {
-      success: false,
-      errors: { costMinor: ["Pass both costMinor and currency to add or change the Cost, or use add_cost/update_cost."] },
-    };
-  }
-  // `paidAt` decides (CONTEXT.md "Paid"), same as every cost dialog: a paid
-  // row forwards its paid pair (a legacy row with no paid amount falls back
-  // to the cost), an unpaid one forwards neither.
-  const paid = single ? paidFieldsFromRow(single) : {};
-  return { costMinor, currency, paidMinor: paid.paidMinor, paidAt: paid.paidAt };
-}
 
 const inlineCostCreateShape = {
   costMinor: z.number().int().min(0).optional(),
@@ -240,205 +151,6 @@ const transportPatchShape = {
   notes: z.string().trim().optional(),
   ...inlineCostCreateShape,
 };
-
-type TransportPatch = {
-  mode?: string;
-  fromStopId?: string;
-  toStopId?: string;
-  anchorStopId?: string;
-  depIsHome?: boolean;
-  arrIsHome?: boolean;
-  depPlace?: string;
-  arrPlace?: string;
-  depAt?: string;
-  arrAt?: string;
-  reference?: string;
-  notes?: string;
-  costMinor?: number;
-  currency?: string;
-};
-
-export type TransportRow = {
-  tripId: string;
-  mode: string;
-  fromStopId: string | null;
-  toStopId: string | null;
-  anchorStopId: string | null;
-  depIsHome: boolean;
-  arrIsHome: boolean;
-  depPlace: string | null;
-  arrPlace: string | null;
-  depAt: Date | null;
-  arrAt: Date | null;
-  reference: string | null;
-  notes: string | null;
-};
-
-/**
- * Loads the current Transport for a patch, trip-access-checked. A missing
- * row (or a fork-owned one — `forkId: null` scopes to the real plan) reads
- * as `notFound()` (mapped by `runTool` to the same "not found" text a
- * non-member's id gets), checked *before* the access check can even run.
- */
-async function loadTransportForPatch(transportId: string): Promise<TransportRow> {
-  const transport = await db.transport.findUnique({
-    where: { id: transportId, forkId: null },
-    select: {
-      tripId: true,
-      mode: true,
-      fromStopId: true,
-      toStopId: true,
-      anchorStopId: true,
-      depIsHome: true,
-      arrIsHome: true,
-      depPlace: true,
-      arrPlace: true,
-      depAt: true,
-      arrAt: true,
-      reference: true,
-      notes: true,
-    },
-  });
-  if (!transport) notFound();
-  await requireTripAccess(transport.tripId);
-  return transport;
-}
-
-type Endpoint = { stopId: string | null; place: string | null; isHome: boolean };
-type EndpointPatch = { stopId?: string; place?: string; isHome?: boolean };
-
-/** The one "Home plus a Stop/point" error (spec B2), shared by `mergeEndpoint`
- * (update_transport) and add_transport's own check — same wording either way. */
-function homeContradictionError(fields: { stopField: string; placeField: string; homeField: string }): Failure {
-  return {
-    success: false,
-    errors: { [fields.homeField]: [`${fields.homeField} can't be true together with ${fields.stopField} or ${fields.placeField}.`] },
-  };
-}
-
-/**
- * Merges a patch onto one Transport endpoint (departure or arrival).
- *
- * An endpoint is a Stop, a Stop plus its exact departure/arrival point
- * (`depPlace`/`arrPlace` — the station, airport or pier within that Stop),
- * a point alone, Home, or unset. Unlike the sibling Home flag, a Stop and a
- * point are not either/or: `fromStopId`/`toStopId` and `depPlace`/`arrPlace`
- * can be patched together in one call, or separately, and each follows its
- * own rule:
- *
- * - `isHome: true` is still a tool error alongside a stop or a place, and
- *   alone it still clears both to Home.
- * - `stopId: ""` means "unlink the Stop". Given together with a place, the
- *   result is that place with no Stop. Given alone, the endpoint falls back
- *   to its current place, if it has one.
- * - A non-empty `stopId` given together with a place sets both — an empty
- *   place clears the point while still linking the new Stop.
- * - A non-empty `stopId` given alone keeps the current place when it names
- *   the same Stop as before, and clears it (a stale point for a different
- *   place) when it names a different one.
- * - A `place` given alone keeps the current Stop when the endpoint has one
- *   and isn't Home; otherwise (Home, or no Stop) it sets the point with no
- *   Stop — except an empty `place` (`""`), which leaves a Home end Home,
- *   unchanged, and on a point-alone end (no Stop, not Home) is the same
- *   "needs a stop or a place" error as clearing it down to nothing.
- * - `isHome: false` alone keeps whatever stop/place the endpoint already
- *   has.
- * - A patch that touches none of these fields keeps the endpoint exactly
- *   as it was.
- *
- * Any path that would otherwise leave the endpoint with neither a Stop nor
- * a place (and not Home) is a tool error instead of a silently invalid
- * state.
- */
-function mergeEndpoint(current: Endpoint, patch: EndpointPatch, fields: { stopField: string; placeField: string; homeField: string; label: string }): Endpoint | Failure {
-  const stopGiven = patch.stopId !== undefined;
-  const placeGiven = patch.place !== undefined;
-  const homeGiven = patch.isHome !== undefined;
-
-  const neitherError = (): Failure => ({
-    success: false,
-    errors: { [fields.stopField]: [`${fields.label} needs a stop or a place.`] },
-  });
-
-  if (homeGiven && patch.isHome && (stopGiven || placeGiven)) {
-    return homeContradictionError(fields);
-  }
-  if (homeGiven && patch.isHome) {
-    return { stopId: null, place: null, isHome: true };
-  }
-
-  if (stopGiven && placeGiven) {
-    const stopId = patch.stopId === "" ? null : (patch.stopId as string);
-    const place = (patch.place as string) || null;
-    if (stopId == null && place == null) return neitherError();
-    return { stopId, place, isHome: false };
-  }
-
-  if (stopGiven) {
-    if (patch.stopId === "") {
-      const place = current.place;
-      if (place == null) return neitherError();
-      return { stopId: null, place, isHome: false };
-    }
-    const stopId = patch.stopId as string;
-    const place = stopId === current.stopId ? current.place : null;
-    return { stopId, place, isHome: false };
-  }
-
-  if (placeGiven) {
-    const place = (patch.place as string) || null;
-    if (current.isHome && place == null) {
-      return { stopId: null, place: null, isHome: true };
-    }
-    const stopId = current.stopId != null && !current.isHome ? current.stopId : null;
-    if (stopId == null && place == null) return neitherError();
-    return { stopId, place, isHome: false };
-  }
-
-  if (homeGiven) {
-    if (current.stopId == null && current.place == null) {
-      return { success: false, errors: { [fields.stopField]: [`${fields.label} needs a stop or a place when it isn't Home.`] } };
-    }
-    return { stopId: current.stopId, place: current.place, isHome: false };
-  }
-
-  return { stopId: current.stopId, place: current.place, isHome: current.isHome };
-}
-
-export function mergeTransportPatch(
-  current: TransportRow,
-  patch: TransportPatch,
-  inlineCost: InlineCostPatch,
-): TransportInput | Failure {
-  const dep = mergeEndpoint(
-    { stopId: current.fromStopId, place: current.depPlace, isHome: current.depIsHome },
-    { stopId: patch.fromStopId, place: patch.depPlace, isHome: patch.depIsHome },
-    { stopField: "fromStopId", placeField: "depPlace", homeField: "depIsHome", label: "Departure" },
-  );
-  if (isFailure(dep)) return dep;
-  const arr = mergeEndpoint(
-    { stopId: current.toStopId, place: current.arrPlace, isHome: current.arrIsHome },
-    { stopId: patch.toStopId, place: patch.arrPlace, isHome: patch.arrIsHome },
-    { stopField: "toStopId", placeField: "arrPlace", homeField: "arrIsHome", label: "Arrival" },
-  );
-  if (isFailure(arr)) return arr;
-
-  return {
-    mode: (patch.mode ?? current.mode) as TransportInput["mode"],
-    fromStopId: dep.stopId ?? undefined,
-    toStopId: arr.stopId ?? undefined,
-    anchorStopId: patch.anchorStopId ?? current.anchorStopId ?? undefined,
-    depIsHome: dep.isHome,
-    arrIsHome: arr.isHome,
-    depPlace: dep.place ?? undefined,
-    arrPlace: arr.place ?? undefined,
-    depAt: patch.depAt ?? current.depAt ?? undefined,
-    arrAt: patch.arrAt ?? current.arrAt ?? undefined,
-    reference: patch.reference ?? current.reference ?? undefined,
-    notes: patch.notes ?? current.notes ?? undefined,
-    ...inlineCost,
-  } as TransportInput;
-}
 
 // ---------------------------------------------------------------------------
 // add_cost / update_cost shared field shapes
@@ -602,17 +314,20 @@ export function registerBookingsWriteTools(server: McpServer): void {
     },
     ({ transportId, ...patch }) =>
       runTool("update_transport", async () => {
-        const current = await loadTransportForPatch(transportId);
+        // The app's form may save an end with neither; through Claude, emptying both in one call is a mistake (deviation 5).
+        if (patch.fromStopId === "" && patch.depPlace === "" && !patch.depIsHome) {
+          return { success: false, errors: { fromStopId: ["Departure needs a stop or a place."] } };
+        }
+        if (patch.toStopId === "" && patch.arrPlace === "" && !patch.arrIsHome) {
+          return { success: false, errors: { toStopId: ["Arrival needs a stop or a place."] } };
+        }
         await requireRealPlanRows([
+          ["transport", transportId],
           ["stop", patch.fromStopId || undefined],
           ["stop", patch.toStopId || undefined],
           ["stop", patch.anchorStopId],
         ]);
-        const inlineCost = await completeInlineCost("TRANSPORT", transportId, patch);
-        if (isFailure(inlineCost)) return inlineCost;
-        const merged = mergeTransportPatch(current, patch, inlineCost);
-        if (isFailure(merged)) return merged;
-        return updateTransport(transportId, merged);
+        return updateTransport(transportId, patch);
       }),
   );
 

@@ -105,13 +105,6 @@ vi.mock("@/lib/guards", () => ({
 
 import { connectTestClient } from "../test-client";
 import { NOT_FOUND_TEXT } from "../run-tool";
-import { transportSchema } from "@/lib/validations/transport";
-import {
-  mergeTransportPatch,
-  completeInlineCost,
-  isFailure,
-  type TransportRow,
-} from "./bookings-write";
 
 const TRIP_ID = "trip-1";
 const STOP_ID = "stop-1";
@@ -372,111 +365,14 @@ describe("bookings write tools", () => {
   });
 
   describe("update_transport (PATCH)", () => {
-    it("with only reference keeps every other field, including stop ids, home flags and times", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
+    // The endpoint merge is lib/transport-patch.ts's (its tests); the inline Cost and the held row are the action's.
+    it("checks the Transport and any named Stops are real-plan, then forwards only the fields passed", async () => {
       updateTransport.mockResolvedValue({ success: true });
       const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, reference: "NEW-REF" } });
-      expect(updateTransport).toHaveBeenCalledWith(TRANSPORT_ID, {
-        mode: "FLIGHT",
-        fromStopId: "stop-a",
-        toStopId: "stop-b",
-        anchorStopId: undefined,
-        depIsHome: false,
-        arrIsHome: false,
-        depPlace: undefined,
-        arrPlace: undefined,
-        depAt: transportRow().depAt,
-        arrAt: transportRow().arrAt,
-        reference: "NEW-REF",
-        notes: "old transport notes",
-      });
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, reference: "FR 9514", depPlace: "" } });
+      expect(updateTransport).toHaveBeenCalledWith(TRANSPORT_ID, { reference: "FR 9514", depPlace: "" });
+      expect(transportFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: TRANSPORT_ID, forkId: null } }));
       expect(costFindMany).not.toHaveBeenCalled();
-    });
-
-    it("forwards depIsHome (true) when the patch doesn't mention it, instead of resetting it false", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, reference: "NEW-REF" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ depIsHome: true }));
-    });
-
-    it("costMinor-only update on a paid owned Cost forwards currency, paidMinor and paidAt together", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
-      costFindMany.mockResolvedValue([
-        { costMinor: 20000, currency: "GBP", paidMinor: 20000, paidAt: new Date("2026-03-01T00:00:00.000Z") },
-      ]);
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, costMinor: 21000 } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(
-        expect.objectContaining({ costMinor: 21000, currency: "GBP", paidMinor: 20000, paidAt: "2026-03-01" }),
-      );
-    });
-
-    it("the merged input for a costMinor-only update on a paid owned Cost passes the REAL transportSchema", async () => {
-      const current: TransportRow = transportRow();
-      costFindMany.mockResolvedValue([
-        { costMinor: 20000, currency: "GBP", paidMinor: 20000, paidAt: new Date("2026-03-01T00:00:00.000Z") },
-      ]);
-      const inlineCost = await completeInlineCost("TRANSPORT", TRANSPORT_ID, { costMinor: 21000 });
-      expect(isFailure(inlineCost)).toBe(false);
-      if (isFailure(inlineCost)) throw new Error("unreachable");
-      const merged = mergeTransportPatch(current, { costMinor: 21000 }, inlineCost);
-      expect(isFailure(merged)).toBe(false);
-      if (isFailure(merged)) throw new Error("unreachable");
-      const parsed = transportSchema.safeParse(merged);
-      expect(parsed.success).toBe(true);
-    });
-
-    it("setting fromStopId on a currently-Home departure clears depIsHome and depPlace", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, fromStopId: "stop-new" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "stop-new", depIsHome: false, depPlace: undefined }));
-    });
-
-    it("depPlace alone on a Stop departure keeps the Stop", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depPlace: "The station" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ depPlace: "The station", fromStopId: "stop-a", depIsHome: false }));
-    });
-
-    it("depPlace alone on a Home departure sets a point with no Stop", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depPlace: "Gare du Nord" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: undefined, depPlace: "Gare du Nord", depIsHome: false }));
-    });
-
-    it("fromStopId \"\" together with depPlace sets a point alone, no Stop", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: "stop-a", depPlace: null }));
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({
-        name: "update_transport",
-        arguments: { transportId: TRANSPORT_ID, fromStopId: "", depPlace: "Gare du Nord" },
-      });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: undefined, depPlace: "Gare du Nord", depIsHome: false }));
-    });
-
-    it("fromStopId \"\" alone with no current place is a tool error", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: "stop-a", depPlace: null }));
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, fromStopId: "" } });
-      expect(r.isError).toBe(true);
-      expect(updateTransport).not.toHaveBeenCalled();
     });
 
     it("fromStopId \"\" together with depPlace \"\" leaves neither a stop nor a place and is a tool error", async () => {
@@ -491,113 +387,12 @@ describe("bookings write tools", () => {
       expect(updateTransport).not.toHaveBeenCalled();
     });
 
-    it("depPlace \"\" alone on a Home departure leaves it Home, unchanged", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
+    it("depIsHome true with an empty depPlace is Home, not a tool error (deviation 5)", async () => {
       updateTransport.mockResolvedValue({ success: true });
       const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depPlace: "" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: undefined, depPlace: undefined, depIsHome: true }));
-    });
-
-    it("depPlace \"\" alone on a point-alone departure is a tool error, not a silent neither", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: null, depPlace: "Gare du Nord", depIsHome: false }));
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depPlace: "" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toContain("Departure needs a stop or a place.");
-      expect(updateTransport).not.toHaveBeenCalled();
-    });
-
-    it("fromStopId \"\" alone unlinks the Stop and keeps the current place", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: "stop-a", depPlace: "Gare du Nord" }));
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, fromStopId: "" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: undefined, depPlace: "Gare du Nord", depIsHome: false }));
-    });
-
-    it("fromStopId and depPlace together set both the Stop and its point", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({
-        name: "update_transport",
-        arguments: { transportId: TRANSPORT_ID, fromStopId: "stop-new", depPlace: "Gare du Nord" },
-      });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "stop-new", depPlace: "Gare du Nord", depIsHome: false }));
-    });
-
-    it("fromStopId with depPlace \"\" links the new Stop with no point", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({
-        name: "update_transport",
-        arguments: { transportId: TRANSPORT_ID, fromStopId: "stop-new", depPlace: "" },
-      });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "stop-new", depPlace: undefined, depIsHome: false }));
-    });
-
-    it("fromStopId equal to the current Stop keeps the current point", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: "stop-a", depPlace: "Gare du Nord" }));
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, fromStopId: "stop-a" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "stop-a", depPlace: "Gare du Nord", depIsHome: false }));
-    });
-
-    it("fromStopId to a different Stop clears a stale point", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ fromStopId: "stop-a", depPlace: "Gare du Nord" }));
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, fromStopId: "stop-new" } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "stop-new", depPlace: undefined, depIsHome: false }));
-    });
-
-    it("setting depIsHome true alone clears fromStopId/depPlace", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
-      updateTransport.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depIsHome: true } });
-      const call = updateTransport.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ depIsHome: true, fromStopId: undefined, depPlace: undefined }));
-    });
-
-    it("depIsHome true together with fromStopId in the same patch is a tool error", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
-      const c = await connectTestClient();
-      const r = await c.callTool({
-        name: "update_transport",
-        arguments: { transportId: TRANSPORT_ID, depIsHome: true, fromStopId: "stop-new" },
-      });
-      expect(r.isError).toBe(true);
-      expect(updateTransport).not.toHaveBeenCalled();
-    });
-
-    it("un-homing an endpoint with no stop/place to fall back on is a tool error", async () => {
-      transportFindUnique.mockResolvedValue(transportRow({ depIsHome: true, fromStopId: null, depPlace: null }));
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depIsHome: false } });
-      expect(r.isError).toBe(true);
-      expect(updateTransport).not.toHaveBeenCalled();
-    });
-
-    it("costMinor against more than one owned Cost is a tool error, not a silent no-op", async () => {
-      transportFindUnique.mockResolvedValue(transportRow());
-      costFindMany.mockResolvedValue([
-        { costMinor: 100, currency: "USD", paidMinor: null, paidAt: null },
-        { costMinor: 200, currency: "USD", paidMinor: null, paidAt: null },
-      ]);
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, costMinor: 9500 } });
-      expect(r.isError).toBe(true);
-      expect(updateTransport).not.toHaveBeenCalled();
+      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, depIsHome: true, depPlace: "" } });
+      expect(r.isError).toBeFalsy();
+      expect(updateTransport).toHaveBeenCalledWith(TRANSPORT_ID, { depIsHome: true, depPlace: "" });
     });
 
     it("checks trip access before using the loaded row, so a non-member's transport id returns NOT_FOUND_TEXT and does not call updateTransport", async () => {

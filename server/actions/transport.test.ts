@@ -597,7 +597,7 @@ describe("updateTransport", () => {
   });
 
   it("rejects a fork transport pointing at a real-plan stop", async () => {
-    // Validation fails after requireTransportAccess, so only ONE findUnique runs.
+    // The guard and the held row both read this one row; the stop check then fails.
     transportFindUniqueMock.mockResolvedValue({ id: "ft-2", tripId: "trip-1", forkId: "fork-9" });
     // Fork scope returns no matching stop (the stop is real-plan, forkId null).
     stopFindManyMock.mockResolvedValue([]);
@@ -1091,7 +1091,7 @@ describe("updateTransport: inline cost update/create", () => {
     expect(call.data.paidAt).toBeNull();
   });
 
-  it("does NOT touch any costs when transport has >1 existing costs (CostEditor authoritative)", async () => {
+  it("refuses cost fields when transport has >1 existing costs (CostEditor authoritative)", async () => {
     transportFindUniqueMock
       .mockResolvedValueOnce({ id: "tu-3", tripId: "trip-1", forkId: null }) // requireTransportAccess
       .mockResolvedValueOnce({ id: "tu-3", mode: "FLIGHT" }); // before snapshot
@@ -1107,7 +1107,9 @@ describe("updateTransport: inline cost update/create", () => {
       currency: "AUD",
     });
 
-    expect(result.success).toBe(true);
+    // Deviation 9 (card 3.L): refused for every caller, not silently skipped.
+    expect(result).toMatchObject({ success: false, errors: { costMinor: [expect.stringMatching(/more than one Cost/)] } });
+    expect(transportUpdateMock).not.toHaveBeenCalled();
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
     // Transaction should not be called for cost when >1 costs
@@ -1126,6 +1128,56 @@ describe("updateTransport: inline cost update/create", () => {
     expect(transactionMock).not.toHaveBeenCalled();
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateTransport (PATCH, ADR 0075)", () => {
+  const row = {
+    id: "t1", tripId: "trip-1", forkId: null,
+    mode: "TRAIN", fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-a", depIsHome: false, arrIsHome: false,
+    depPlace: "Roma Termini", arrPlace: null, depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"),
+    reference: "FR 9512", notes: null,
+  };
+  beforeEach(() => {
+    transportFindUniqueMock.mockResolvedValue(row); // guard row, then the held row
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-a", tripId: "trip-1", forkId: null, timezone: "Europe/Rome" },
+      { id: "stop-b", tripId: "trip-1", forkId: null, timezone: "Europe/Rome" },
+    ]);
+    transportUpdateMock.mockResolvedValue({ ...row });
+  });
+
+  it("a reference-only patch keeps both ends, the anchor and the instants, reading the row once", async () => {
+    await updateTransport("t1", { reference: "FR 9514" });
+    expect(transportUpdateMock).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.objectContaining({
+      fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-a", depPlace: "Roma Termini",
+      depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"), reference: "FR 9514",
+    }) });
+    expect(transportFindUniqueMock).toHaveBeenCalledTimes(2); // guard + held row; auditedUpdate does not re-read
+  });
+
+  it("explicit null clears the notes and the departure point", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, notes: "coach 4" });
+    await updateTransport("t1", { notes: null, depPlace: null });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      notes: null, depPlace: null, depLat: null, depLng: null, fromStopId: "stop-a",
+    }) }));
+  });
+
+  it("costMinor-only on a paid owned Cost keeps it paid (passes the real transportSchema)", async () => {
+    costFindManyMock.mockResolvedValue([{ id: "c1", costMinor: 20000, currency: "GBP", paidMinor: 20000, paidAt: new Date("2026-03-01T00:00:00Z") }]);
+    const r = await updateTransport("t1", { costMinor: 21000 });
+    expect(r).toEqual({ success: true });
+    expect(costFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerType: "TRANSPORT", ownerId: "t1" } }));
+    expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({
+      costMinor: 21000, currency: "GBP", paidMinor: 20000, paidAt: new Date("2026-03-01"),
+    }) }));
+  });
+
+  it("an endpoint refusal writes nothing", async () => {
+    const r = await updateTransport("t1", { depIsHome: true, fromStopId: "stop-c" });
+    expect(r.success).toBe(false);
+    expect(transportUpdateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -1218,12 +1270,12 @@ describe("updateTransport: home base departure", () => {
   it("persists arrIsHome=true and skips geocoding arrPlace, nulls toStopId/arrPlace/arrLat/arrLng", async () => {
     transportFindUniqueMock
       .mockResolvedValueOnce({ id: "tr2", tripId: "trip-1", forkId: null }) // requireTransportAccess
-      .mockResolvedValueOnce({ id: "tr2", mode: "FLIGHT" }); // before snapshot
+      .mockResolvedValueOnce({ id: "tr2", mode: "FLIGHT", toStopId: "s2", arrPlace: "Gare du Nord" }); // before snapshot
     transportUpdateMock.mockResolvedValue({ id: "tr2", mode: "FLIGHT" });
-    // arrIsHome clears toStopId; fromStopId "s1" must pass FK validation.
+    // arrIsHome clears the held toStopId/arrPlace; fromStopId "s1" must pass FK validation.
     stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-1", forkId: null }]);
 
-    const result = await updateTransport("tr2", { mode: "FLIGHT", fromStopId: "s1", arrIsHome: true, arrPlace: "should be ignored" });
+    const result = await updateTransport("tr2", { mode: "FLIGHT", fromStopId: "s1", arrIsHome: true });
 
     expect(result.success).toBe(true);
     expect(geocodePlaceMock).not.toHaveBeenCalled();

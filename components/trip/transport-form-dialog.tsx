@@ -46,6 +46,7 @@ import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { formatDayLabel } from "@/lib/dates";
 import { resolveTransportSlot, canSitBeforeFirstStop, creationAnchor, HEAD_SLOT } from "@/lib/transport-anchor";
+import { toPatch } from "@/lib/patch";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -263,6 +264,9 @@ interface TransportFormProps {
 }
 
 export { HOME_ENDPOINT } from "./transport-endpoints";
+
+/** An edit's empty fields are clears (ADR 0075). Each end is sent whole; the home flags are always booleans. */
+const TRANSPORT_CLEARABLE = ["fromStopId", "toStopId", "depPlace", "arrPlace", "depAt", "arrAt", "reference", "notes", "anchorStopId", "paidAt"] as const;
 
 function TransportForm({
   tripId,
@@ -519,7 +523,7 @@ function TransportForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && transport
-        ? updateTransport(transport.id, input)
+        ? updateTransport(transport.id, toPatch(input, TRANSPORT_CLEARABLE))
         : createTransport(tripId, input, forkId ?? undefined);
     },
     onClose,

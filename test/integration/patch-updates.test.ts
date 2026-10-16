@@ -41,6 +41,7 @@ import { updateTrip } from "@/server/actions/trips";
 import { updateCost } from "@/server/actions/costs";
 import { updateAccommodation } from "@/server/actions/accommodation";
 import { updateItem } from "@/server/actions/items";
+import { updateTransport } from "@/server/actions/transport";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -122,6 +123,18 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.item.findUnique({ where: { id: item.id } })).toMatchObject({ notes: "book ahead", hiddenFromShares: true, date: "2026-05-02", startTime: "09:00", link: "https://example.test" });
       await updateItem(item.id, { link: null });
       expect(await db.item.findUnique({ where: { id: item.id } })).toMatchObject({ link: null, notes: "book ahead" });
+    });
+  });
+
+  describe("Transport", () => {
+    it("a reference-only patch keeps both ends and the instants; null clears the notes", async () => {
+      const a = await db.stop.create({ data: { tripId: TRIP_ID, name: "Rome", arriveDate: "2026-05-01", departDate: "2026-05-04", timezone: "Europe/Rome", sortOrder: 2 } });
+      const b = await db.stop.create({ data: { tripId: TRIP_ID, name: "Florence", arriveDate: "2026-05-04", departDate: "2026-05-07", timezone: "Europe/Rome", sortOrder: 3 } });
+      const t = await db.transport.create({ data: { tripId: TRIP_ID, mode: "TRAIN", fromStopId: a.id, toStopId: b.id, depPlace: "Roma Termini", depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"), reference: "FR 9512", notes: "coach 4" } });
+      expect(await updateTransport(t.id, { reference: "FR 9514" })).toEqual({ success: true });
+      expect(await db.transport.findUnique({ where: { id: t.id } })).toMatchObject({ fromStopId: a.id, toStopId: b.id, depPlace: "Roma Termini", depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"), reference: "FR 9514", notes: "coach 4" });
+      expect(await updateTransport(t.id, { notes: null })).toEqual({ success: true });
+      expect(await db.transport.findUnique({ where: { id: t.id } })).toMatchObject({ notes: null, reference: "FR 9514" });
     });
   });
 });
