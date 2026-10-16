@@ -1,6 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { formatMoneyCompact } from "@/lib/money";
+import { paidPct } from "@/lib/money/summary-lines";
 import { StatCard } from "@/components/ui/stat-card";
 
 interface BudgetGlanceProps {
@@ -15,7 +16,7 @@ interface BudgetGlanceProps {
  * with a bar.
  */
 export function BudgetGlance({ costTotalMinor, paidTotalMinor, homeCurrency, href }: BudgetGlanceProps) {
-  const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100)) : 0;
+  const pct = paidPct(paidTotalMinor, costTotalMinor);
   return (
     <Link href={href} className="block rounded-lg">
       <StatCard

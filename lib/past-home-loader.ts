@@ -28,6 +28,7 @@ import {
   type BudgetTransport,
 } from "@/lib/budget";
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
+import { paidPct } from "@/lib/money/summary-lines";
 import { chapterForStop } from "@/lib/chapters";
 import type { RouteMapStop } from "@/lib/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -234,7 +235,7 @@ async function loadPastHomeUncached(
   const costTotalMinor = spend.costTotalMinor;
   const varianceMinor = spend.varianceMinor;
   const underBudget = varianceMinor <= 0;
-  const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidSoFarMinor / costTotalMinor) * 100)) : 0;
+  const pct = paidPct(paidSoFarMinor, costTotalMinor);
 
   return {
     totalNights,

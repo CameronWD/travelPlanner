@@ -452,6 +452,17 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
     expect(empty).not.toBeNull();
     expect(empty!.props.title).toBe("No stops yet");
   });
+
+  it("reads 99%, not 100%, while money is still owed (TB-09)", async () => {
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 100000, paidSoFarMinor: 99600, paidCostMinor: 99600,
+      varianceMinor: -400, costRemainingMinor: 400, tripElapsedPct: 100,
+    });
+    const div = await dom();
+    expect(div.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("99");
+    expect(div.textContent).toContain("99% of");
+    expect(div.textContent).not.toContain("100% of");
+  });
 });
 
 // ---------------------------------------------------------------------------

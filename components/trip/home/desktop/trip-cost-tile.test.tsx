@@ -74,4 +74,10 @@ describe("TripCostTile", () => {
     renderTile();
     expect(screen.getByRole("link", { name: /open money/i })).toHaveAttribute("href", "/trips/t1/budget");
   });
+
+  it("reads 99%, not 100%, while money is still owed (TB-09)", () => {
+    renderTile({ costTotalMinor: 100_000, paidTotalMinor: 99_600 });
+    expect(screen.getByRole("progressbar", { name: "Paid" })).toHaveAttribute("aria-valuenow", "99");
+    expect(screen.getByText(/paid · 99%/)).toBeInTheDocument();
+  });
 });

@@ -29,4 +29,14 @@ describe("BudgetGlance", () => {
     expect(link.textContent).not.toMatch(/shared pot/i);
     expect(link.textContent).not.toMatch(/per person|each owes|split/i);
   });
+
+  it("reads 99, not 100, while money is still owed (TB-09)", () => {
+    render(<BudgetGlance costTotalMinor={100000} paidTotalMinor={99600} homeCurrency="AUD" href={"/b" as Route} />);
+    expect(screen.getByRole("progressbar", { name: /paid so far/i })).toHaveAttribute("aria-valuenow", "99");
+  });
+
+  it("reads 100 only when fully paid (TB-09)", () => {
+    render(<BudgetGlance costTotalMinor={100000} paidTotalMinor={100000} homeCurrency="AUD" href={"/b" as Route} />);
+    expect(screen.getByRole("progressbar", { name: /paid so far/i })).toHaveAttribute("aria-valuenow", "100");
+  });
 });
