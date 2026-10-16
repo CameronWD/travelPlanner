@@ -722,6 +722,30 @@ describe("updateItem", () => {
   });
 });
 
+describe("updateItem (PATCH, ADR 0075)", () => {
+  const row = { id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-05-02", startTime: "09:00", endTime: "11:00", address: "Rome, Italy", link: null, booking: null, notes: "old notes", hiddenFromShares: true };
+  beforeEach(() => {
+    itemFindUniqueMock.mockResolvedValue(row); // guard row, then the held row
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    itemUpdateMock.mockResolvedValue(row);
+  });
+  it("with only notes keeps the other fields, including hiddenFromShares and the times", async () => {
+    await updateItem("item-1", { notes: "new notes" });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "item-1" }, data: expect.objectContaining({
+      title: "Colosseum", category: "SIGHTSEEING", stopId: "stop-1", date: "2026-05-02", startTime: "09:00", endTime: "11:00",
+      address: "Rome, Italy", notes: "new notes", hiddenFromShares: true,
+    }) });
+  });
+  it("clearing the date (null) drops the times with it", async () => {
+    await updateItem("item-1", { date: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ date: null, startTime: null, endTime: null }) }));
+  });
+  it("an omitted surpriseForIds leaves the Surprise alone", async () => {
+    await updateItem("item-1", { notes: "x" });
+    expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // deleteItem
 // ---------------------------------------------------------------------------
@@ -1849,7 +1873,7 @@ describe("updateItem: inline cost update/create", () => {
     expect(call.data.paidAt).toBeNull();
   });
 
-  it("does NOT touch any costs when item has >1 existing costs (CostEditor authoritative)", async () => {
+  it("refuses cost fields when item has >1 existing costs (CostEditor authoritative)", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "iu-3", tripId: "trip-1", forkId: null }) // requireItemAccess
       .mockResolvedValueOnce({ id: "iu-3", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot
@@ -1865,7 +1889,9 @@ describe("updateItem: inline cost update/create", () => {
       currency: "AUD",
     });
 
-    expect(result.success).toBe(true);
+    // Deviation 9 (card 3.L): refused for every caller, not silently skipped.
+    expect(result).toMatchObject({ success: false, errors: { costMinor: [expect.stringMatching(/more than one Cost/)] } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();

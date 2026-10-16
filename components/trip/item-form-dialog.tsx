@@ -35,7 +35,9 @@ import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fie
 import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
 import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
+import { toPatch } from "@/lib/patch";
 import type { ProposedItemInput } from "@/lib/booking-import/types";
+import type { ItemInput } from "@/lib/validations/item";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
@@ -307,6 +309,9 @@ function ItemPhotoField({
   );
 }
 
+/** An edit's empty fields are clears (ADR 0075). Not surpriseForIds (omitted = leave the Surprise alone). */
+const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "address", "link", "booking", "notes", "paidAt"] as const;
+
 // ---------------------------------------------------------------------------
 // Dialog wrapper
 // ---------------------------------------------------------------------------
@@ -524,7 +529,7 @@ function ItemForm({
   const timesDisabled = !date;
 
   // The would-be create/update input, exactly as typed.
-  function buildInput() {
+  function buildInput(): ItemInput {
     const c = cost.payload();
 
     const input = {
@@ -557,7 +562,7 @@ function ItemForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && item
-        ? updateItem(item.id, input)
+        ? updateItem(item.id, toPatch(input, ITEM_CLEARABLE))
         : createItem(tripId, input, forkId ?? undefined);
     },
     onClose,

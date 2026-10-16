@@ -117,17 +117,6 @@ const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ER
 
 const itemRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
   tripId: TRIP_ID,
-  title: "Colosseum",
-  category: "SIGHTSEEING",
-  stopId: "stop-1",
-  date: null,
-  startTime: null,
-  endTime: null,
-  address: "Rome, Italy",
-  link: null,
-  booking: null,
-  notes: "old notes",
-  hiddenFromShares: true,
   ...overrides,
 });
 
@@ -203,22 +192,12 @@ describe("plan write tools", () => {
   });
 
   describe("update_thing_to_do (PATCH)", () => {
-    it("with only notes keeps the other fields, including hiddenFromShares (not part of this tool's input)", async () => {
-      itemFindUnique.mockResolvedValue(itemRow());
+    it("checks the item and any new Stop are real-plan, then forwards only the fields passed", async () => {
       updateItem.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, notes: "new notes" } });
-      expect(updateItem).toHaveBeenCalledWith(
-        ITEM_ID,
-        expect.objectContaining({
-          title: "Colosseum",
-          category: "SIGHTSEEING",
-          stopId: "stop-1",
-          address: "Rome, Italy",
-          notes: "new notes",
-          hiddenFromShares: true,
-        }),
-      );
+      expect(itemFindUnique).toHaveBeenCalledWith({ where: { id: ITEM_ID, forkId: null }, select: { tripId: true } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { notes: "new notes" });
     });
 
     it("checks trip access before using the loaded row, so a non-member's item id returns NOT_FOUND_TEXT and does not call updateItem", async () => {

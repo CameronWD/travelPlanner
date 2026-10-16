@@ -40,6 +40,7 @@ import { updateChapter } from "@/server/actions/chapters";
 import { updateTrip } from "@/server/actions/trips";
 import { updateCost } from "@/server/actions/costs";
 import { updateAccommodation } from "@/server/actions/accommodation";
+import { updateItem } from "@/server/actions/items";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -111,6 +112,16 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.accommodation.findUnique({ where: { id: acc.id } })).toMatchObject({ notes: null, confirmation: "ABC" });
       expect(await updateAccommodation(acc.id, { costMinor: 9500 })).toEqual({ success: true });
       expect(await db.cost.findUnique({ where: { id: cost.id } })).toMatchObject({ costMinor: 9500, paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00Z") });
+    });
+  });
+
+  describe("Item", () => {
+    it("a notes-only patch keeps hiddenFromShares and the schedule; null clears the link", async () => {
+      const item = await db.item.create({ data: { tripId: TRIP_ID, title: "Colosseum", category: "SIGHTSEEING", date: "2026-05-02", startTime: "09:00", link: "https://example.test", hiddenFromShares: true, sortOrder: 0 } });
+      await updateItem(item.id, { notes: "book ahead" });
+      expect(await db.item.findUnique({ where: { id: item.id } })).toMatchObject({ notes: "book ahead", hiddenFromShares: true, date: "2026-05-02", startTime: "09:00", link: "https://example.test" });
+      await updateItem(item.id, { link: null });
+      expect(await db.item.findUnique({ where: { id: item.id } })).toMatchObject({ link: null, notes: "book ahead" });
     });
   });
 });

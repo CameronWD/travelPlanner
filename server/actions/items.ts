@@ -16,6 +16,8 @@ import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
 import type { MarkerView } from "@/components/globe/types";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { applyPatch, type Patch } from "@/lib/patch";
+import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
@@ -322,18 +324,41 @@ export async function addMarkerToWishlist(
 }
 
 /**
- * Update an existing item.
+ * Update an Item (PATCH, ADR 0075): merges onto the held row —
+ * `hiddenFromShares` included, so a patch that only touches `notes` no
+ * longer un-hides it. `surpriseForIds` keeps "omitted = leave the Surprise
+ * alone". An inline Cost completes from its single owned Cost.
  *
  * - Access-checked via requireItemAccess → requireTripAccess.
  * - If stopId changed, validates it still belongs to the same trip.
  */
 export async function updateItem(
   itemId: string,
-  input: ItemInput,
+  patch: Patch<ItemInput>,
 ): Promise<ItemActionResult> {
   const item = await requireItemAccess(itemId);
+  const before = await db.item.findUnique({ where: { id: itemId } });
+  if (!before) notFound();
 
-  const parsed = itemSchema.safeParse(input);
+  const owned = patch.costMinor != null || patch.currency != null
+    ? await db.cost.findMany({ where: { ownerType: "ITEM", ownerId: itemId }, select: OWNED_COST_SELECT })
+    : [];
+  const inlineCost = completeInlineCost(patch, owned);
+  if (inlineCost && "success" in inlineCost) return inlineCost;
+
+  // The current values omit lat/lng/countryCode: the point is geocoded from
+  // `address`, never read from the input.
+  const parsed = itemSchema.safeParse({
+    ...applyPatch<ItemInput>(
+      {
+        title: before.title, category: before.category as ItemInput["category"], stopId: before.stopId, date: before.date,
+        startTime: before.startTime, endTime: before.endTime, address: before.address, link: before.link,
+        booking: before.booking, notes: before.notes, hiddenFromShares: before.hiddenFromShares,
+      },
+      patch,
+    ),
+    ...inlineCost,
+  });
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
@@ -368,7 +393,7 @@ export async function updateItem(
 
   // The Item row's update is recorded as soon as it lands; the inline Cost
   // write below is a separate row and records nothing of its own here.
-  const { before } = await auditedUpdate("ITEM", db.item, itemId, {
+  await auditedUpdate("ITEM", db.item, itemId, {
     stopId: data.stopId ?? null,
     title: data.title,
     category: data.category,
@@ -383,18 +408,17 @@ export async function updateItem(
     lng,
     countryCode,
     hiddenFromShares: data.hiddenFromShares ?? false,
-  }, item.forkId ?? null);
+  }, item.forkId ?? null, { before });
 
   // Inline cost management (mirrors transport cost logic):
   // 0 existing costs + amount provided → create
   // 1 existing cost + amount provided → update it
-  // >1 existing costs → leave CostEditor authoritative (never clobber)
+  // >1 existing costs → refused above (completeInlineCost); CostEditor is authoritative
   // No amount provided → skip
   if (data.costMinor !== undefined && data.currency) {
-    const existingCosts = await db.cost.findMany({
-      where: { ownerType: "ITEM", ownerId: itemId },
-      select: { id: true },
-    });
+    // Loaded above whenever the patch touches the Cost — the only way
+    // costMinor/currency reach `data`.
+    const existingCosts = owned;
 
     if (existingCosts.length <= 1) {
       const trip = await db.trip.findUnique({
