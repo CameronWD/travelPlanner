@@ -19,10 +19,10 @@
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map-tiles";
-import { applyLeafletIconDefaults } from "@/lib/map-icons";
-import { pinHtml } from "@/lib/map-pins";
-import { hueHex, mapInk } from "@/lib/map-palette";
+import { cartoTiles } from "@/lib/map/tiles";
+import { applyLeafletIconDefaults } from "@/lib/map/icons";
+import { pinHtml } from "@/lib/map/pins";
+import { hueHex, mapInk } from "@/lib/map/palette";
 import type { Hue } from "@/lib/hues";
 import type { TravelMapTrip } from "@/lib/trips/trip-views";
 

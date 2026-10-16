@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { travelPhaseHex, hueInkHex, MAP_FILL } from "./map-palette";
+import { travelPhaseHex, hueInkHex, MAP_FILL } from "./palette";
 
 describe("travelPhaseHex", () => {
   it("returns a distinct hex per phase, light theme", () => {

@@ -3,7 +3,7 @@
  *  - item categories (lib/categories.ts) — fixed mapping, 6 hues + stone
  *  - chapter colours (lib/chapter-colours.ts) — user picks any of the 8 hues
  * Class strings are written out in full so Tailwind's scanner sees them (no `bg-hue-${x}`).
- * Hex values for Leaflet live in lib/map-palette.ts.
+ * Hex values for Leaflet live in lib/map/palette.ts.
  */
 export const HUES = ["sky", "sun", "leaf", "lilac", "pink", "teal", "coral", "indigo", "stone"] as const;
 export type Hue = (typeof HUES)[number];

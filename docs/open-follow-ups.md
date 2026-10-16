@@ -1465,7 +1465,7 @@ applied, so production has the columns too.
 - **Evidence, as it stood:** `phase-travelling.tsx:508` was confusable, not
   merely inconsistent. It sat in the same flex row as a real `MapLink` at
   `:519` — the same side-by-side pattern `HG-02` was written to fix. Worse,
-  that `MapLink` was given an always-present `label`, and `lib/maps.ts:31`
+  that `MapLink` was given an always-present `label`, and `lib/map/maps.ts:31`
   falls back to `label` when there is no address, so it rendered a pin for
   every stop regardless of whether coordinates existed — exactly the failure
   mode `stop-card.tsx:337-345` was changed to gate against
@@ -2404,7 +2404,7 @@ on an operator decision. That decision was taken on 2026-09-21: it was
   `<MapPin aria-hidden="true">` and `:519` renders a real `MapLink` **in the
   same flex row** — the identical side-by-side confusability this entry claims
   to have closed. It is worse than the three fixed cards: that `MapLink` is
-  given an always-present `label`, and `lib/maps.ts:31` falls back to `label`
+  given an always-present `label`, and `lib/map/maps.ts:31` falls back to `label`
   when there is no address, so it renders a pin for *every* stop regardless of
   whether `lat`/`lng` exist — the second half of the `stop-card.tsx` fix
   (`stop-card.tsx:337-345` gates `MapLink` on `stop.lat != null && stop.lng !=

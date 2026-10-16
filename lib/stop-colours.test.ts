@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { stopBandBorderClass, stopDotClass, stopPillClass, stopHue, stopHex } from "@/lib/stop-colours";
-import { hueHex } from "@/lib/map-palette";
+import { hueHex } from "@/lib/map/palette";
 
 describe("stop colours", () => {
   it("cycles the palette by index and wraps past the end", () => {

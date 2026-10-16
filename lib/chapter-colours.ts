@@ -1,5 +1,5 @@
 import { HUE_CLASSES, LEGACY_TO_HUE } from "@/lib/hues";
-import { hueHex } from "@/lib/map-palette";
+import { hueHex } from "@/lib/map/palette";
 
 /**
  * Chapter colours. The stored `value`s are unchanged (no migration); each maps onto the

@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import * as React from "react";
 import { render, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
-import { hueHex } from "@/lib/map-palette";
+import { hueHex } from "@/lib/map/palette";
 
 const hoisted = vi.hoisted(() => ({
   leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,

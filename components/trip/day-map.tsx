@@ -22,13 +22,13 @@ import {
   appleMapsUrl,
   googleDirectionsUrl,
   appleDirectionsUrl,
-} from "@/lib/maps";
+} from "@/lib/map/maps";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map-tiles";
+import { cartoTiles } from "@/lib/map/tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { applyLeafletIconDefaults } from "@/lib/map-icons";
-import { pinHtml, pinSize } from "@/lib/map-pins";
-import { hueHex } from "@/lib/map-palette";
+import { applyLeafletIconDefaults } from "@/lib/map/icons";
+import { pinHtml, pinSize } from "@/lib/map/pins";
+import { hueHex } from "@/lib/map/palette";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyLeafletIconDefaults, LEAFLET_ICON_PATHS } from "./map-icons";
+import { applyLeafletIconDefaults, LEAFLET_ICON_PATHS } from "./icons";
 
 function stubLeaflet() {
   const mergeOptions = vi.fn();

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cartoTiles, CARTO_TILES } from "./map-tiles";
+import { cartoTiles, CARTO_TILES } from "./tiles";
 
 const BARE_LIGHT_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const BARE_DARK_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
@@ -18,7 +18,7 @@ const BARE_DARK_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}
 async function loadWith(key: string | undefined) {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_CARTO_API_KEY", key);
-  return import("./map-tiles");
+  return import("./tiles");
 }
 
 afterEach(() => {

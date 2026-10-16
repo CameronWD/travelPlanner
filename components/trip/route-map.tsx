@@ -22,11 +22,11 @@ import { cn } from "@/lib/cn";
 import { formatDateRange } from "@/lib/dates";
 import type { HomeMapPoint, RouteMapStop } from "@/lib/route-map";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map-tiles";
+import { cartoTiles } from "@/lib/map/tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { applyLeafletIconDefaults } from "@/lib/map-icons";
-import { pinHtml, pinSize } from "@/lib/map-pins";
-import { routeStyles } from "@/lib/map-palette";
+import { applyLeafletIconDefaults } from "@/lib/map/icons";
+import { pinHtml, pinSize } from "@/lib/map/pins";
+import { routeStyles } from "@/lib/map/palette";
 import { stopHex } from "@/lib/stop-colours";
 
 // Leaflet CSS is imported here; the bundle includes it once.

@@ -9,7 +9,7 @@
  * No React, no Prisma, no network — fully unit-testable.
  */
 
-import { googleDirectionsUrl, appleDirectionsUrl } from "@/lib/maps";
+import { googleDirectionsUrl, appleDirectionsUrl } from "@/lib/map/maps";
 
 type DayMapPointKind = "item" | "accommodation" | "transport-dep" | "transport-arr";
 

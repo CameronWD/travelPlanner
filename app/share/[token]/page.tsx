@@ -24,7 +24,7 @@ import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enum-values";
 import { homeMapPoint } from "@/lib/route-map";
-import { MAP_INK } from "@/lib/map-palette";
+import { MAP_INK } from "@/lib/map/palette";
 import { describePhase } from "@/lib/trip-phase";
 import { countdownFor } from "@/lib/countdown";
 import { todayISOInZone, currentTripTimezone, instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
 // §A): the root below forces the light tokens, the map is pinned light, and
 // this pins the address bar light. Redundant while dark mode is parked app-wide
 // (spec 2026-10-04 §F, DM-01), and kept so un-parking leaves this page as is.
-// Sourced from lib/map-palette's MAP_INK (the only lib file allowed hex
+// Sourced from lib/map/palette's MAP_INK (the only lib file allowed hex
 // literals) rather than a literal here, per this directory's style ban on
 // raw hex (share-style-bans.test.ts) — same value as the --background token.
 export const viewport: Viewport = { themeColor: MAP_INK.light.paper };

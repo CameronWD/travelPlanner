@@ -1,5 +1,5 @@
 import { CATEGORIES } from "@/lib/categories";
-import { hueHex, mapInk } from "@/lib/map-palette";
+import { hueHex, mapInk } from "@/lib/map/palette";
 
 /**
  * Map pins. Same export names as before (CATEGORY_PIN_HEX, pinHex) so the Globe and Wishlist

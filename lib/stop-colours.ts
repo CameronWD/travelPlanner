@@ -1,5 +1,5 @@
 import { HUE_CLASSES, LEGACY_TO_HUE, type Hue } from "@/lib/hues";
-import { hueHex } from "@/lib/map-palette";
+import { hueHex } from "@/lib/map/palette";
 
 /**
  * Per-stop colour bands, keyed by stop.sortOrder. Shared by MonthGrid and the

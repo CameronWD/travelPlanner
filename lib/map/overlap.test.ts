@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeOverlapping } from "./map-overlap";
+import { mergeOverlapping } from "./overlap";
 
 describe("mergeOverlapping", () => {
   it("merges two points 10px apart into one group at their centre", () => {

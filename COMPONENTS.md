@@ -29,8 +29,8 @@ See also: **`docs/adr/0026-shared-ui-conventions.md`** (extraction decisions) an
 | `<SectionHeader>` | `components/ui/section-header.tsx` | Icon + `h3` heading + optional count + optional right-aligned action slot. |
 | `createMapLoader<P>` | `components/ui/map-loader.tsx` | Factory: wraps a Leaflet component in `next/dynamic({ ssr:false })`. Returns a typed loader component. |
 | `escapeHtml(s)` | `lib/escape-html.ts` | Escapes `&<>"'`. MANDATORY for any user value interpolated into Leaflet popup HTML. |
-| `pinHex(category)` | `lib/map-pins.ts` | Category → map-pin hex (Tailwind-500 shade), falling back to OTHER. |
-| `applyLeafletIconDefaults(L)` | `lib/map-icons.ts` | Repoints Leaflet's bundler-broken default marker URLs at `public/leaflet/`. Call once per map init. |
+| `pinHex(category)` | `lib/map/pins.ts` | Category → map-pin hex (Tailwind-500 shade), falling back to OTHER. |
+| `applyLeafletIconDefaults(L)` | `lib/map/icons.ts` | Repoints Leaflet's bundler-broken default marker URLs at `public/leaflet/`. Call once per map init. |
 | `useDeleteWithConfirm` | `components/ui/use-delete-with-confirm.ts` | Confirm-then-delete. Composes `useConfirm` + `useServerAction`. Returns `{ requestDelete, isPending, dialog }`. |
 | `<InlineCostFields>` | `components/money/cost-fields/inline-cost-fields.tsx` | The inline Cost fields (cost amount, Settlement, Paid, paid amount, date paid) for the transport, accommodation and item form dialogs and the CostEditor; state from `useCostFields`. |
 | `<AppLink>` | `components/navigation/app-link.tsx` | `next/link` that reports its navigation to the pending context (ADR 0063). Every in-app nav control uses it. Extra prop `pendingClassName`. |

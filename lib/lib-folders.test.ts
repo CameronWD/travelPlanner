@@ -15,6 +15,7 @@ const FOLDERS: Record<string, RegExp> = {
   auth: /^(auth|sign-in)[.-]/,
   share: /^share-/,
   feedback: /^feedback-/,
+  map: /^(map-|maps\.)/,
 };
 
 describe.each(Object.entries(FOLDERS))("lib/%s/", (folder, flatName) => {

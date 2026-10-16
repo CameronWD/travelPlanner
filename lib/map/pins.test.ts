@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORIES } from "./categories";
-import { CATEGORY_PIN_HEX, pinHex, pinHtml } from "./map-pins";
+import { CATEGORIES } from "../categories";
+import { CATEGORY_PIN_HEX, pinHex, pinHtml } from "./pins";
 
 describe("pinHex", () => {
   it("returns the sky hex for SIGHTSEEING", () => {
