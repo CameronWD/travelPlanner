@@ -6,7 +6,7 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { reflowArrangement } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
-import { stopTimezone } from "@/lib/tz";
+import { resolveStopTimezone } from "@/lib/tz-point";
 
 // ---------------------------------------------------------------------------
 // lockPlanStopsTx / lockPlanTransportsTx — canonical lock acquisition (ADR 0007)
@@ -132,7 +132,7 @@ export async function scheduleLoneStopTx(
   if (!trip?.startDate || !trip.endDate) return false;
   const stops = await tx.stop.findMany({
     where: { tripId, ...planScope(forkId) },
-    select: { id: true, arriveDate: true, departDate: true, timezone: true, country: true, countryCode: true },
+    select: { id: true, arriveDate: true, departDate: true, timezone: true, country: true, countryCode: true, lat: true, lng: true },
   });
   if (stops.length !== 1) return false;
   const [stop] = stops;
@@ -144,7 +144,7 @@ export async function scheduleLoneStopTx(
       arriveDate: trip.startDate,
       departDate: trip.endDate,
       nights: null,
-      timezone: stopTimezone(stop),
+      timezone: resolveStopTimezone(stop),
     },
   });
   // ADR 0038: a re-dated Stop carries its slotted Items and Accommodation.

@@ -32,9 +32,11 @@ vi.mock("@/lib/surprise-guard", async () => ({
 import { db } from "@/lib/db";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { createStop } from "@/server/actions/stops";
+import { updateTrip } from "@/server/actions/trips";
 
 // Undated, so the lone-Stop rule (ADR 0073) never re-dates these Stops.
 const TRIP_ID = "it-trip-point-tz";
+const LONE_TRIP_ID = "it-trip-point-tz-lone";
 
 describe.skipIf(process.env.INTEGRATION !== "1")("a Stop's default zone comes from its point (F3, real Postgres)", () => {
   beforeAll(async () => {
@@ -43,7 +45,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Stop's default zone comes fr
     await db.trip.create({ data: { id: TRIP_ID, name: "Point tz trip", homeCurrency: "AUD", createdById: "it-user", members: { create: { userId: "it-user", role: "owner" } } } });
   });
   afterAll(async () => {
-    await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.trip.deleteMany({ where: { id: { in: [TRIP_ID, LONE_TRIP_ID] } } });
   });
 
   const stopZone = async (r: unknown) => (await db.stop.findUnique({ where: { id: (r as { id: string }).id } }))?.timezone;
@@ -63,5 +65,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Stop's default zone comes fr
   it("a chosen zone wins over the point", async () => {
     const r = await createStop(TRIP_ID, { mode: "scheduled", name: "Brisbane again", countryCode: "au", lat: -27.47, lng: 153.03, timezone: "Australia/Sydney", arriveDate: "2026-06-05", departDate: "2026-06-06" });
     expect(await stopZone(r)).toBe("Australia/Sydney");
+  });
+
+  it("dating a Trip schedules its lone rough Perth Stop in Australia/Perth (ADR 0073 rule, F3 zone)", async () => {
+    await db.trip.deleteMany({ where: { id: LONE_TRIP_ID } });
+    await db.trip.create({ data: { id: LONE_TRIP_ID, name: "Lone Perth", homeCurrency: "AUD", createdById: "it-user", members: { create: { userId: "it-user", role: "owner" } } } });
+    const s = await db.stop.create({ data: { tripId: LONE_TRIP_ID, name: "Perth", country: "Australia", countryCode: "au", lat: -31.95, lng: 115.86, nights: 3, sortOrder: 0 } });
+    expect(await updateTrip(LONE_TRIP_ID, { startDate: "2026-07-01", endDate: "2026-07-04" })).toMatchObject({ success: true });
+    expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ arriveDate: "2026-07-01", departDate: "2026-07-04", timezone: "Australia/Perth" });
   });
 });
