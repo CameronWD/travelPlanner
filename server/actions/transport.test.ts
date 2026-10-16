@@ -10,7 +10,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 const {
   requireTripAccessMock,
   requirePlanAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   geocodePlaceMock,
   searchPlacesWithStatusMock,
   transportFindUniqueMock,
@@ -82,7 +82,7 @@ const {
       membership: { role: "owner" },
       plan: forkId ?? null,
     })),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
     searchPlacesWithStatusMock: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
     transportFindUniqueMock: vi.fn(),
@@ -132,7 +132,7 @@ vi.mock("@/lib/guards", () => ({
   requirePlanAccess: requirePlanAccessMock,
   requireRowAccess: requireRowAccessMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/geocode", () => ({
   geocodePlace: geocodePlaceMock,
   searchPlacesWithStatus: searchPlacesWithStatusMock,
@@ -312,7 +312,7 @@ describe("createTransport", () => {
         sortOrder: 0,
       }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
   it("sets sortOrder = max + 1 when transports exist", async () => {
@@ -344,7 +344,7 @@ describe("createTransport", () => {
       expect(result.errors.mode).toBeDefined();
     }
     expect(transportCreateMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("validates that fromStopId belongs to the trip", async () => {
@@ -533,7 +533,7 @@ describe("updateTransport", () => {
       where: { id: "t-1" },
       data: expect.objectContaining({ mode: "TRAIN" }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
   it("returns validation error and does not write", async () => {
@@ -752,7 +752,7 @@ describe("deleteTransport", () => {
 
     expect(result.success).toBe(true);
     expect(transportDeleteMock).toHaveBeenCalledWith({ where: { id: "t-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("access-checks via transport's tripId", async () => {
@@ -811,14 +811,14 @@ describe("deleteTransport", () => {
 // revalidation scope
 // ---------------------------------------------------------------------------
 
-describe("revalidation: layout scope", () => {
-  it("deleteTransport revalidates with layout scope so sub-routes (e.g. /plan) also refresh", async () => {
+describe("revalidation: plan scope", () => {
+  it("deleteTransport revalidates the trip's plan scope (NAV-02: no longer layout-wide)", async () => {
     transportFindUniqueMock.mockResolvedValue({ id: "t-rv", tripId: "trip-rv", forkId: null });
     transportDeleteMock.mockResolvedValue({});
 
     await deleteTransport("t-rv");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-rv", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-rv", "plan");
   });
 });
 
@@ -1375,7 +1375,7 @@ describe("reorderTransports", () => {
         data: expect.objectContaining({ anchorStopId: "stop-b", sortOrder: 0 }),
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("returns success: true with empty items (no-op)", async () => {

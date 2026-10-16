@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireGlobeAccess, requireGlobeOwner } from "@/lib/globe";
@@ -12,6 +11,7 @@ import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
 import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
 import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 import { cleanupGlobeAttachments } from "./target-cleanup";
+import { revalidateGlobe } from "@/lib/revalidate";
 
 export type GlobeActionResult = ActionResult;
 
@@ -77,7 +77,7 @@ export async function createMarker(input: MarkerInput): Promise<GlobeActionResul
   await db.marker.create({
     data: { ...markerData(parsed.data), globeId: globe.id, createdById: user.id },
   });
-  revalidatePath("/globe");
+  revalidateGlobe();
   return { success: true };
 }
 
@@ -91,7 +91,7 @@ export async function updateMarker(
   if (!parsed.success) return validationResult(parsed.error);
 
   await db.marker.update({ where: { id: markerId }, data: markerData(parsed.data) });
-  revalidatePath("/globe");
+  revalidateGlobe();
   return { success: true };
 }
 
@@ -100,7 +100,7 @@ export async function deleteMarker(markerId: string): Promise<GlobeActionResult>
   await requireMarkerOnGlobe(markerId, globe.id);
   await db.marker.delete({ where: { id: markerId } });
   await cleanupGlobeAttachments(globe.id, "MARKER", markerId);
-  revalidatePath("/globe");
+  revalidateGlobe();
   return { success: true };
 }
 
@@ -149,7 +149,7 @@ export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
     if (isUniqueConstraintError(err)) return { success: true };
     throw err;
   }
-  revalidatePath("/globe");
+  revalidateGlobe();
   return { success: true };
 }
 

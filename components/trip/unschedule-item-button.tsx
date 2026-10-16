@@ -1,11 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { CalendarX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { unscheduleItem, scheduleItem, rescheduleItem } from "@/server/actions/items";
-import { toastWithUndo } from "@/components/ui/undo-toast";
-import { toast } from "@/components/ui/use-toast";
+import { useUndoableAction } from "@/components/ui/use-undoable-action";
 
 export interface UnscheduleItemButtonProps {
   itemId: string;
@@ -41,67 +39,34 @@ export function UnscheduleItemButton({
   endTime,
   hadStop = false,
 }: UnscheduleItemButtonProps) {
-  const [isPending, setIsPending] = React.useState(false);
-
-  async function handleClick() {
-    setIsPending(true);
-    try {
-      const result = await unscheduleItem(itemId);
-      if (!result.success) {
-        toast({ title: "Couldn't unschedule.", variant: "destructive" });
-        return;
-      }
-
+  // The result's `mode` decides both the toast and which inverse the Undo runs.
+  const unschedule = useUndoableAction({
+    persist: (id: string) => unscheduleItem(id),
+    undo: (id, result) => {
       if (result.mode === "placement-removed") {
-        const sourceItemId = result.sourceItemId;
-        toastWithUndo({
-          title: "Removed from this plan",
-          description: `${itemTitle} is still on the Wishlist`,
-          onUndo: async () => {
-            try {
-              if (!sourceItemId) throw new Error("Missing sourceItemId for placement-removed undo");
-              const result = await scheduleItem(sourceItemId, {
-                date,
-                ...(startTime ? { startTime } : {}),
-                ...(endTime ? { endTime } : {}),
-              });
-              if (!result.success) {
-                toast({ title: "Couldn't undo.", variant: "destructive" });
-                return;
-              }
-            } catch {
-              toast({ title: "Couldn't undo.", variant: "destructive" });
-            }
-          },
-        });
-      } else {
-        toastWithUndo({
-          title: hadStop ? "Moved to things to do" : "Moved to Wishlist",
-          onUndo: async () => {
-            try {
-              const result = await rescheduleItem(itemId, date);
-              if (!result.success) {
-                toast({ title: "Couldn't undo.", variant: "destructive" });
-                return;
-              }
-            } catch {
-              toast({ title: "Couldn't undo.", variant: "destructive" });
-            }
-          },
+        if (!result.sourceItemId) throw new Error("Missing sourceItemId for placement-removed undo");
+        return scheduleItem(result.sourceItemId, {
+          date,
+          ...(startTime ? { startTime } : {}),
+          ...(endTime ? { endTime } : {}),
         });
       }
-    } finally {
-      setIsPending(false);
-    }
-  }
+      return rescheduleItem(id, date);
+    },
+    done: (_id, result) =>
+      result.mode === "placement-removed"
+        ? { title: "Removed from this plan", description: `${itemTitle} is still on the Wishlist` }
+        : { title: hadStop ? "Moved to things to do" : "Moved to Wishlist" },
+    failure: "Couldn't unschedule.",
+  });
 
   return (
     <Button
       variant="ghost"
       size="sm"
       className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-      disabled={isPending}
-      onClick={handleClick}
+      disabled={unschedule.pending}
+      onClick={() => void unschedule.run(itemId)}
       title="Unschedule"
     >
       <CalendarX className="size-3.5" aria-hidden="true" />

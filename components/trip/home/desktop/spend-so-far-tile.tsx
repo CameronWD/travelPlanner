@@ -20,9 +20,9 @@ const EYEBROW = "text-[11px] font-extrabold uppercase tracking-[0.08em]";
 
 /**
  * Desktop Travelling Home "Spend so far" tile (spec D). Sun card, same
- * language as the Planning Shared pot tile: the whole tile links to Money
+ * language as the Planning Trip cost tile: the whole tile links to Money
  * through a stretched link underneath the content. The numbers are the ones
- * the Travelling Phase already computes (buildSpendSoFar) — a shared pot,
+ * the Travelling Phase already computes (buildSpendSoFar) — one group total,
  * never split per person. Totals abbreviate from 1,000 ($4.2k); anything
  * unabbreviated shows 2 decimals ($125.50).
  */
@@ -47,7 +47,6 @@ export function SpendSoFarTile({
       <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col px-6 py-[22px]">
         <div className="flex items-center justify-between gap-2">
           <h2 className={EYEBROW}>Spend so far</h2>
-          <span className="text-xs font-semibold">shared pot</span>
         </div>
         <p className="mt-1.5 font-display text-[40px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">
           {paid}

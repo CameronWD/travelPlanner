@@ -510,17 +510,35 @@ describe("AccommodationFormDialog", () => {
       "acc-1",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: null,
+        paidAt: undefined,
       }),
     );
   });
 
   // -------------------------------------------------------------------------
+  // Card 2.I bug fix: a typed cost that doesn't parse used to be dropped
+  // silently and the accommodation saved without it.
+  // -------------------------------------------------------------------------
+  it("refuses an unparseable cost instead of saving without it", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    await user.type(screen.getByPlaceholderText(/hilton garden inn/i), "My Hotel");
+    await user.type(screen.getByRole("textbox", { name: /^cost amount$/i }), "abc");
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+
+    expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
+    expect(createAccommodation).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
   // Case 15c: ticking Paid then clearing the amount must not submit a date
   // with no amount (review finding — was previously gated on the checkbox
-  // alone, not on the amount actually being present)
+  // alone, not on the amount actually being present).
+  // Card 2.I: it is now refused ("Enter what you paid"), not saved unpaid.
   // -------------------------------------------------------------------------
-  it("clearing the paid amount after ticking Paid does not submit a paidAt with a null paidMinor", async () => {
+  it("refuses Paid with no paid amount (Review Focus 5)", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -538,23 +556,18 @@ describe("AccommodationFormDialog", () => {
       screen.getByRole("button", { name: /add accommodation/i }),
     );
 
-    expect(createAccommodation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        paidMinor: undefined,
-        paidAt: null,
-      }),
-      undefined,
-    );
+    expect(await screen.findByText("Enter what you paid")).toBeInTheDocument();
+    expect(createAccommodation).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------
   // Case 15d: clearing the paid date while an amount remains sends
-  // `paidAt: null` rather than fabricating a date — the invariant is
+  // no `paidAt` rather than fabricating a date — the invariant is
   // one-directional (a date requires an amount; an amount with no date is a
   // legal, honest, incomplete record) (review round 2 — reverses round 1's
   // "keep pairing strict" fix, which invented dates the user never saw)
   // -------------------------------------------------------------------------
-  it("clearing the paid date while a paid amount remains sends paidAt: null instead of fabricating a date", async () => {
+  it("clearing the paid date while a paid amount remains sends no paidAt instead of fabricating a date", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -575,7 +588,7 @@ describe("AccommodationFormDialog", () => {
     expect(createAccommodation).toHaveBeenCalledWith(
       expect.objectContaining({
         paidMinor: 10000,
-        paidAt: null,
+        paidAt: undefined,
       }),
       undefined,
     );
@@ -585,9 +598,10 @@ describe("AccommodationFormDialog", () => {
   // Case 15e: an unparseable-but-non-empty paid amount (e.g. pasted with a
   // currency symbol) must not leak a paidAt through with a null paidMinor
   // (review round 2 — the guard must check the amount actually *parses*,
-  // not just that the text field is non-blank)
+  // not just that the text field is non-blank).
+  // Card 2.I: it is now refused ("Enter what you paid"), not saved unpaid.
   // -------------------------------------------------------------------------
-  it("an unparseable paid amount does not submit a paidAt with a null paidMinor", async () => {
+  it("refuses Paid with an unparseable paid amount instead of saving it unpaid", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -606,13 +620,8 @@ describe("AccommodationFormDialog", () => {
       screen.getByRole("button", { name: /add accommodation/i }),
     );
 
-    expect(createAccommodation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        paidMinor: undefined,
-        paidAt: null,
-      }),
-      undefined,
-    );
+    expect(await screen.findByText("Enter what you paid")).toBeInTheDocument();
+    expect(createAccommodation).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------
@@ -693,7 +702,7 @@ describe("AccommodationFormDialog", () => {
       "acc-1",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: null,
+        paidAt: undefined,
       }),
     );
   });

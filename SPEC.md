@@ -62,7 +62,7 @@ Nightlife · Shopping · Other. (Each colour-coded; used for budget grouping.)
   so historical totals stay stable. Home-currency total recomputed from originals + rates.
 - Budget view = read-only roll-up: grand total (Home currency), breakdown by Category, by
   Stop, and per day, each showing estimated vs actual and the gap. **No target/cap.**
-- **Shared pot** — no per-person splitting.
+- **Money is one group total** — never split per person.
 - Accommodation cost spans nights; per-day view spreads it across the nights stayed.
 
 ## 6. Summary

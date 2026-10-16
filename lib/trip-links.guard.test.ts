@@ -9,7 +9,12 @@ import { walkSources } from "@/test/helpers/walk-sources";
  * docs "Using revalidatePath with rewrites") and `/api/trips/…` routes (ids).
  */
 const ROOTS = ["app", "components", "lib", "server"];
-const ALLOWED_FILES = new Set(["lib/trip-path.ts", "lib/trip-links.guard.test.ts"]);
+const ALLOWED_FILES = new Set([
+  "lib/trip-path.ts",
+  "lib/trip-links.guard.test.ts",
+  // revalidation takes the id path (ADR 0064)
+  "lib/revalidate.ts",
+]);
 const HAND_BUILT = [/\/trips\/\$\{/, /["'`]\/trips\/["'`]\s*\+/];
 const EXEMPT = [/revalidatePath\(/, /\/api\/trips\//];
 

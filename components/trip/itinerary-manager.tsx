@@ -52,31 +52,17 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
-import {
-  moveStop,
-  toggleStopPin,
-  makeStopRough,
-  firmUpSegment,
-  firmUpTrip,
-  setStopDates,
-  reorderStops,
-  restoreStops,
-  setStopNights,
-} from "@/server/actions/stops";
-import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
+import { moveStop, toggleStopPin, makeStopRough } from "@/server/actions/stops";
+import { deleteChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { scheduleItem } from "@/server/actions/items";
-import { toast } from "@/components/ui/use-toast";
-import { failureMessage } from "@/components/ui/failure-message";
-import { toastRefused, SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
-import { toastWithUndo } from "@/components/ui/undo-toast";
+import { useUndoableAction } from "@/components/ui/use-undoable-action";
+import { usePlanEditor } from "@/components/plan/use-plan-editor";
 import { suggestResultToast } from "@/lib/suggest-toast";
-import { addDays, suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
+import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
-import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
-import { orderPlanStops } from "@/lib/plan-order";
 import type { TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { StopDayItem } from "@/lib/stop-days";
@@ -104,7 +90,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
   sortableKeyboardCoordinates,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -265,9 +250,9 @@ interface ItineraryManagerProps {
   isOwner?: boolean;
 }
 
-/** Stable empty-array reference so `effectiveChapters` doesn't churn identity
- * on every render while chapters are disabled (a fresh `[]` literal each
- * render would otherwise re-trigger the localChapters sync effect forever). */
+/** Stable empty-array reference so the editor's rows don't churn identity on
+ * every render while chapters are disabled or not passed (a fresh `[]` each
+ * render would re-send the props to the plan editor every render). */
 const EMPTY_CHAPTERS: ItineraryChapter[] = [];
 
 // ---------------------------------------------------------------------------
@@ -422,67 +407,6 @@ function EmptyRoughDroppable({ chapterId }: { chapterId: string }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the Undo-toast copy for a scheduled reorder (ADR 0021). Pure so it can
- * be unit-tested without simulating a drag gesture.
- *
- * @returns `title` ("Moved {name}; {n} stop(s) had dates shifted") and an
- *          optional `description` note when a pin no longer fits.
- */
-export function summariseReorder(
-  movedName: string,
-  changed: { id: string; arriveDate: string; departDate: string }[] | undefined,
-  conflicts: { stopId: string; message: string }[] | undefined,
-): { title: string; description?: string } {
-  const n = changed?.length ?? 0;
-  const shifted = n > 0 ? `; ${n} stop${n === 1 ? "" : "s"} had dates shifted` : "";
-  const hasConflict = (conflicts?.length ?? 0) > 0;
-  return {
-    title: `Moved ${movedName}${shifted}`,
-    description: hasConflict
-      ? "Heads up: a pinned stop no longer fits (see flags)."
-      : undefined,
-  };
-}
-
-/**
- * The shape `shiftStopPayloadTx` hands back on a re-date (ADR 0038/0055) — the
- * pre-images the Undo of that re-date has to write back.
- */
-export type ReorderPayload = {
-  items: { id: string; date: string | null; prevDate: string; prevStopId?: string }[];
-  accommodations: { id: string; checkIn: string; checkOut: string; prevCheckIn: string; prevCheckOut: string }[];
-};
-
-/**
- * Turn a re-date's payload pre-images into the payload `restoreStops` writes
- * back, i.e. invert the shift. Dates come from `prevDate`/`prevCheckIn`/
- * `prevCheckOut`; an Item that was **re-filed** onto another Stop (ADR 0055)
- * also carries `prevStopId`, and must be handed its old owning Stop back or
- * Undo silently leaves its Cost on the new Stop's Budget line — the dates
- * alone are identical on a re-file, so nothing else would give it away.
- *
- * Pure so it can be unit-tested without simulating a drag gesture or an Undo
- * click (same reasoning as `summariseReorder`).
- */
-export function undoPayloadFor(payload: ReorderPayload): {
-  items: { id: string; date: string | null; stopId?: string }[];
-  accommodations: { id: string; checkIn: string; checkOut: string }[];
-} {
-  return {
-    items: payload.items.map((i) => ({
-      id: i.id,
-      date: i.prevDate,
-      ...(i.prevStopId ? { stopId: i.prevStopId } : {}),
-    })),
-    accommodations: payload.accommodations.map((a) => ({
-      id: a.id,
-      checkIn: a.prevCheckIn,
-      checkOut: a.prevCheckOut,
-    })),
-  };
-}
-
-/**
  * Enrich a transport with stop names and timezones for display.
  */
 function enrichTransport(
@@ -536,18 +460,11 @@ export function transportDefaultsFromParams(
   };
 }
 
-// A rejected action (network drop, thrown server error) must behave like a
-// failed one — report, and the caller reverts whatever it drew optimistically.
-// One message for the whole editor; it names the connection when offline.
-function toastRejected() {
-  toast({ variant: "destructive", title: failureMessage(SOMETHING_WENT_WRONG) });
-}
-
 export function ItineraryManager({
   tripId,
   initialStops,
   initialTransports,
-  chapters = [],
+  chapters = EMPTY_CHAPTERS,
   homeCurrency,
   tripStartDate,
   tripEndDate,
@@ -580,36 +497,32 @@ export function ItineraryManager({
   // prop combination), the disabled flag wins — no chapter bands render.
   const effectiveChapters = chaptersEnabled ? chapters : EMPTY_CHAPTERS;
 
-  // ── Local mutable copies (for optimistic drag reordering + optimistic delete) ──
-  // Seeded from props; the drag handlers mutate them optimistically.
-  // Re-sync during render (getDerivedStateFromProps pattern) when props identity
-  // changes — this is idiomatic React and avoids setState-in-effect.
-  const [localStops, setLocalStops] = React.useState<ItineraryStop[]>(() => orderPlanStops(initialStops));
-  const [localChapters, setLocalChapters] = React.useState<ItineraryChapter[]>(effectiveChapters);
-  const [localTransports, setLocalTransports] = React.useState<ItineraryTransport[]>(initialTransports);
-  const [trackedInitialStops, setTrackedInitialStops] = React.useState(initialStops);
-  const [trackedChapters, setTrackedChapters] = React.useState(effectiveChapters);
-  const [trackedInitialTransports, setTrackedInitialTransports] = React.useState(initialTransports);
-  // MOTION.md P11: a stop the refresh brought in (a create) rises in and rings.
-  const [newStopIds, setNewStopIds] = React.useState<string[]>([]);
-  if (trackedInitialStops !== initialStops) {
-    const before = new Set(trackedInitialStops.map((s) => s.id));
-    const added = initialStops.filter((s) => !before.has(s.id)).map((s) => s.id);
-    if (added.length > 0) setNewStopIds(added);
-    setTrackedInitialStops(initialStops);
-    // ADR 0038: a scheduled stop's position IS its dates — enforce the
-    // dates-rule order here too (not just at the SSR source) so the editor
-    // renders correctly regardless of the order the caller passed stops in.
-    setLocalStops(orderPlanStops(initialStops));
-  }
-  if (trackedChapters !== effectiveChapters) {
-    setTrackedChapters(effectiveChapters);
-    setLocalChapters(effectiveChapters);
-  }
-  if (trackedInitialTransports !== initialTransports) {
-    setTrackedInitialTransports(initialTransports);
-    setLocalTransports(initialTransports);
-  }
+  // ── The Plan's rows (card 2.G, spec Q7) ──
+  // usePlanEditor owns them: server props are adopted when idle, held while a
+  // write is pending, and compared by content; every drag, assign, nights and
+  // date write settles or reverts through it.
+  const serverRows = React.useMemo(
+    () => ({ stops: initialStops, chapters: effectiveChapters, transports: initialTransports }),
+    [initialStops, effectiveChapters, initialTransports],
+  );
+  const editor = usePlanEditor({ tripId, forkId: forkId ?? null, rows: serverRows });
+  const { rows, newStopIds } = editor.state;
+  const editorDispatch = editor.dispatch;
+  // The drag-over preview (handleDragOver): the dragged Stop shown in the
+  // container it hovers. A display concern only — never the editor's rows,
+  // so it holds no props and is gone the moment the drag ends.
+  const [dragOver, setDragOver] = React.useState<{ stopId: string; chapterId: string | null } | null>(null);
+  const stops = React.useMemo(
+    () => (dragOver ? rows.stops.map((s) => (s.id === dragOver.stopId ? { ...s, chapterId: dragOver.chapterId } : s)) : rows.stops),
+    [rows.stops, dragOver],
+  );
+  const planChapters = rows.chapters;
+  // Transports deleted optimistically, hidden until the refresh drops them (or the delete fails).
+  const [hiddenTransportIds, setHiddenTransportIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  const transports = React.useMemo(
+    () => (hiddenTransportIds.size > 0 ? rows.transports.filter((t) => !hiddenTransportIds.has(t.id)) : rows.transports),
+    [rows.transports, hiddenTransportIds],
+  );
 
   // ── dnd-kit sensors ──
   const sensors = useSensors(
@@ -647,7 +560,7 @@ export function ItineraryManager({
         transportDefaultsFromParams(
           searchParams?.get("from") ?? null,
           searchParams?.get("to") ?? null,
-          localStops.map((s) => s.id),
+          stops.map((s) => s.id),
           Boolean(homeBaseName),
         ),
       );
@@ -778,9 +691,9 @@ export function ItineraryManager({
       });
     }
     // Off again before a hidden list could be shown and replay the entrance.
-    const t = window.setTimeout(() => setNewStopIds([]), RISE_IN_WINDOW_MS);
+    const t = window.setTimeout(() => editorDispatch({ type: "flashed" }), RISE_IN_WINDOW_MS);
     return () => window.clearTimeout(t);
-  }, [newStopIds]);
+  }, [newStopIds, editorDispatch]);
   // Set once the mobile list pushes `?stop=<id>` for the stop sheet (Task 18)
   // — lets that sheet tell "opened from this list" apart from "arrived via a
   // real navigation/reload" without re-reading history state itself.
@@ -816,7 +729,7 @@ export function ItineraryManager({
   React.useEffect(() => {
     if (desktopStopParam === null) return;
     // Scrolls the row into view, then opens it and records `#open=` (PlanBody.jumpTo).
-    if (localStops.some((s) => s.id === desktopStopParam)) planBody.jumpTo(desktopStopParam);
+    if (stops.some((s) => s.id === desktopStopParam)) planBody.jumpTo(desktopStopParam);
     const next = new URLSearchParams(searchParams?.toString() ?? "");
     next.delete("stop");
     const qs = next.toString();
@@ -831,36 +744,33 @@ export function ItineraryManager({
   // be destroyed, and performs the deleteStop call itself once the Traveller
   // confirms.
   function handleDeleteStop(stopId: string) {
-    const stop = localStops.find((s) => s.id === stopId);
+    const stop = stops.find((s) => s.id === stopId);
     setDeletingStop({ id: stopId, name: stop?.name ?? "this stop" });
   }
 
-  async function handleMoveStop(stopId: string, direction: "up" | "down") {
-    setPendingId(stopId);
+  // Card 2.H: every write below goes through useUndoableAction, so a refusal
+  // (`success: false`) and a rejection (network, thrown server error) both
+  // toast — moveStop, toggleStopPin and makeStopRough used to ignore a refusal.
+  // `pendingId` stays the "which row is busy" key, set around `run`.
+  async function busy<T>(id: string, work: () => Promise<T>): Promise<T> {
+    setPendingId(id);
     try {
-      await moveStop(stopId, direction);
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
+      return await work();
     } finally {
       setPendingId(null);
     }
   }
 
-  async function handleTogglePin(stopId: string) {
-    setPendingId(stopId);
-    try {
-      await toggleStopPin(stopId);
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+  const moveStopAction = useUndoableAction({
+    persist: ({ stopId, direction }: { stopId: string; direction: "up" | "down" }) => moveStop(stopId, direction),
+  });
+  function handleMoveStop(stopId: string, direction: "up" | "down") {
+    return busy(stopId, () => moveStopAction.run({ stopId, direction }));
+  }
+
+  const togglePinAction = useUndoableAction({ persist: (stopId: string) => toggleStopPin(stopId) });
+  function handleTogglePin(stopId: string) {
+    return busy(stopId, () => togglePinAction.run(stopId));
   }
 
   /** "Make it a surprise": opens "Surprise for…", everyone but the planner ticked. */
@@ -870,40 +780,35 @@ export function ItineraryManager({
     else setSurpriseStopId(stopId);
   }
 
+  const setSurpriseAction = useUndoableAction({
+    persist: ({ stopId, forIds }: { stopId: string; forIds: string[] | undefined }) =>
+      setSurprise({ kind: "STOP", id: stopId, forIds }),
+    failure: "Couldn't make that a surprise.",
+  });
   async function handleConfirmSurprise(stopId: string, forIds: string[] | undefined) {
     setSurpriseStopId(null);
-    setPendingId(stopId);
-    try {
-      const r = await setSurprise({ kind: "STOP", id: stopId, forIds });
-      if (!r.success) toastRefused(r.errors, "Couldn't make that a surprise.");
-    } catch {
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(stopId, () => setSurpriseAction.run({ stopId, forIds }));
   }
 
+  const revealSurpriseAction = useUndoableAction({
+    persist: (stopId: string) => revealSurprise({ kind: "STOP", id: stopId }),
+    failure: "Couldn't reveal that surprise.",
+  });
+
   async function handleRevealSurprise(stopId: string) {
-    const stop = localStops.find((s) => s.id === stopId);
+    const stop = stops.find((s) => s.id === stopId);
     const confirmed = await confirm({
       title: `Reveal the surprise in ${stop?.name ?? "this stop"}?`,
       description: "Everyone on the trip will see what's inside, and the history of how it was planned.",
       confirmLabel: "Reveal the surprise",
     });
     if (!confirmed) return;
-    setPendingId(stopId);
-    try {
-      const r = await revealSurprise({ kind: "STOP", id: stopId });
-      if (!r.success) toastRefused(r.errors, "Couldn't reveal that surprise.");
-    } catch {
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(stopId, () => revealSurpriseAction.run(stopId));
   }
 
+  const makeRoughAction = useUndoableAction({ persist: (stopId: string) => makeStopRough(stopId) });
   async function handleMakeRough(stopId: string) {
-    const stop = localStops.find((s) => s.id === stopId);
+    const stop = stops.find((s) => s.id === stopId);
     const confirmed = await confirm({
       title: `Make "${stop?.name ?? "this stop"}" rough again?`,
       description: "Its dates will be cleared and later stops will re-flow.",
@@ -911,17 +816,7 @@ export function ItineraryManager({
       destructive: false,
     });
     if (!confirmed) return;
-    setPendingId(stopId);
-    try {
-      await makeStopRough(stopId);
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(stopId, () => makeRoughAction.run(stopId));
   }
 
   function handleAdjustDates(stop: StopCardStop) {
@@ -972,7 +867,7 @@ export function ItineraryManager({
     const dated = await handleFirmUp(stop.chapterId ?? null, { skipConfirm: true });
     if (!dated) {
       // Cancelled, or firmUpSegment didn't actually date this stop (e.g. no
-      // anchor date) — don't leave a stale pending id watching localStops
+      // anchor date) — don't leave a stale pending id watching stops
       // forever; that would pop the form open for a stop the user isn't
       // interacting with the next time it gets dated by anything else.
       setPendingAccommodationStopId(null);
@@ -987,7 +882,7 @@ export function ItineraryManager({
   // elsewhere in this codebase (e.g. promote-fork-dialog.tsx).
   React.useEffect(() => {
     if (!pendingAccommodationStopId) return;
-    const dated = localStops.find(
+    const dated = stops.find(
       (s) => s.id === pendingAccommodationStopId && s.arriveDate && s.departDate,
     );
     if (!dated) return;
@@ -995,7 +890,7 @@ export function ItineraryManager({
       setAddAccommodationStop(dated);
       setPendingAccommodationStopId(null);
     });
-  }, [localStops, pendingAccommodationStopId]);
+  }, [stops, pendingAccommodationStopId]);
 
   // Firm up a whole leg — dates every rough stop in a chapter (id) or the
   // ungrouped run (null). The core rough → scheduled transition. Returns
@@ -1009,21 +904,19 @@ export function ItineraryManager({
     options?: { skipConfirm?: boolean },
   ): Promise<boolean> {
     // Compute rough stop count and anchor for the confirm summary.
-    // Read localStops directly (not the `stops` alias) so the React Compiler
-    // can keep cross-await reads out of the memo dependency analysis.
     const chapterStops = chapterId
-      ? localStops.filter((s) => s.chapterId === chapterId)
-      : localStops.filter((s) => s.chapterId === null);
+      ? stops.filter((s) => s.chapterId === chapterId)
+      : stops.filter((s) => s.chapterId === null);
     const roughCount = chapterStops.filter((s) => s.arriveDate === null).length;
 
     // Anchor: the depart date of the last scheduled stop before this chapter's
     // first stop in the global order, or tripStartDate, or a generic fallback.
-    const firstChapterStopIdx = localStops.findIndex(
+    const firstChapterStopIdx = stops.findIndex(
       (s) => chapterId ? s.chapterId === chapterId : s.chapterId === null,
     );
     let anchorLabel = "the trip start";
     if (firstChapterStopIdx > 0) {
-      const precedingDated = localStops
+      const precedingDated = stops
         .slice(0, firstChapterStopIdx)
         .reverse()
         .find((s) => s.departDate !== null);
@@ -1047,35 +940,12 @@ export function ItineraryManager({
       if (!confirmed) return false;
     }
 
-    setPendingId(`firm-up-${chapterId ?? "ungrouped"}`);
-    try {
-      const r = await firmUpSegment({ tripId, chapterId, forkId: forkId ?? undefined });
-      if (!r.success) {
-        toast({
-          variant: "destructive",
-          title: r.errors.anchorDate?.[0] ?? "Pick a start date for this leg first.",
-        });
-        return false;
-      } else if (r.conflicts?.length) {
-        toast({
-          title: "Heads up: earlier stops run past a pinned date; the pin was kept.",
-        });
-      }
-      return true;
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
-      return false;
-    } finally {
-      setPendingId(null);
-    }
+    return busy(`firm-up-${chapterId ?? "ungrouped"}`, () => editor.firmUp({ chapterId }));
   }
 
   // Date every rough stop across the whole trip from the start date, in one action.
   async function handleFirmUpTrip() {
-    const roughCount = localStops.filter((s) => s.arriveDate === null).length;
+    const roughCount = stops.filter((s) => s.arriveDate === null).length;
     const anchorLabel = tripStartDate ? formatLongDate(tripStartDate) : "the trip start";
     const stopWord = roughCount === 1 ? "stop" : "stops";
 
@@ -1087,30 +957,16 @@ export function ItineraryManager({
     });
     if (!confirmed) return;
 
-    setPendingId("firm-up-trip");
-    try {
-      const r = await firmUpTrip(tripId, undefined, forkId ?? undefined);
-      if (!r.success) {
-        toast({
-          variant: "destructive",
-          title: r.errors.anchorDate?.[0] ?? "Set a start date for the trip first.",
-        });
-      } else if (r.conflicts?.length) {
-        toast({ title: "Heads up: some stops run past a pinned date; the pins were kept." });
-      }
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy("firm-up-trip", () => editor.firmUp({}));
   }
 
   // ── Chapter handlers ──
+  const deleteChapterAction = useUndoableAction({
+    persist: (chapterId: string) => deleteChapter(chapterId),
+    failure: "Couldn't remove that chapter.",
+  });
   async function handleDeleteChapter(chapterId: string) {
-    const chapter = localChapters.find((c) => c.id === chapterId);
+    const chapter = planChapters.find((c) => c.id === chapterId);
     const confirmed = await confirm({
       title: `Remove "${chapter?.name ?? "this chapter"}"?`,
       description: "The chapter will be removed. Any stops it contains will become ungrouped.",
@@ -1118,22 +974,24 @@ export function ItineraryManager({
       destructive: true,
     });
     if (!confirmed) return;
-    setPendingId(`delete-chapter-${chapterId}`);
-    try {
-      const r = await deleteChapter(chapterId);
-      if (!r.success) toastRefused(r.errors, "Couldn't remove that chapter.");
-    } catch {
-      // A rejected action (network, thrown server error) must not surface as
-      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(`delete-chapter-${chapterId}`, () => deleteChapterAction.run(chapterId));
   }
 
   // ── Transport handlers ──
+  // Optimistic: the leg disappears at once; a failure shows it again.
+  const deleteTransportAction = useUndoableAction({
+    apply: (transportId: string) => setHiddenTransportIds((prev) => new Set(prev).add(transportId)),
+    persist: (transportId) => deleteTransport(transportId),
+    revert: (transportId) =>
+      setHiddenTransportIds((prev) => {
+        const next = new Set(prev);
+        next.delete(transportId);
+        return next;
+      }),
+    failure: "Couldn't delete that transport.",
+  });
   async function handleDeleteTransport(transportId: string) {
-    const t = localTransports.find((tr) => tr.id === transportId);
+    const t = transports.find((tr) => tr.id === transportId);
     const modeLabel = t ? (TRANSPORT_MODE_META[t.mode]?.label ?? t.mode) : "transport leg";
     // Build a route identifier from place names if available.
     const routeLabel = t
@@ -1152,26 +1010,16 @@ export function ItineraryManager({
       destructive: true,
     });
     if (!confirmed) return;
-    const snapshot = localTransports;
-    setLocalTransports((prev) => prev.filter((tr) => tr.id !== transportId));
-    setPendingId(transportId);
-    try {
-      const res = await deleteTransport(transportId);
-      if (!res.success) {
-        setLocalTransports(snapshot);
-        toast({ variant: "destructive", title: "Couldn't delete that transport." });
-      }
-    } catch {
-      setLocalTransports(snapshot);
-      toast({ variant: "destructive", title: "Couldn't delete that transport." });
-    } finally {
-      setPendingId(null);
-    }
+    await busy(transportId, () => deleteTransportAction.run(transportId));
   }
 
   // ── Accommodation handlers ──
+  const deleteAccommodationAction = useUndoableAction({
+    persist: (accId: string) => deleteAccommodation(accId),
+    failure: "Couldn't delete that stay.",
+  });
   async function handleDeleteAccommodation(accId: string) {
-    const acc = localStops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
+    const acc = stops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
     const confirmed = await confirm({
       title: `Delete "${acc?.name ?? "this accommodation"}"?`,
       description: "This can't be undone.",
@@ -1179,17 +1027,7 @@ export function ItineraryManager({
       destructive: true,
     });
     if (!confirmed) return;
-    setPendingId(accId);
-    try {
-      const r = await deleteAccommodation(accId);
-      if (!r.success) toastRefused(r.errors, "Couldn't delete that stay.");
-    } catch {
-      // A rejected action (network, thrown server error) must not surface as
-      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(accId, () => deleteAccommodationAction.run(accId));
   }
 
   // ── Chapter handler ──
@@ -1202,26 +1040,11 @@ export function ItineraryManager({
     setChapterDialogOpen(true);
   }
 
-  // Assign a rough stop to a chapter (or null = Ungrouped) from the picker dialog.
-  // Optimistically updates localStops, then persists via assignStopToChapter.
-  // On a failed OR rejected action, reverts and shows an error toast.
+  // Assign a rough stop to a chapter (or null = Ungrouped) from the picker
+  // dialog: optimistic, reverted and toasted on a refusal or a rejection.
   async function handleAssign(stopId: string, chapterId: string | null) {
     setAssigningStop(null);
-    const snapshot = localStops;
-    setLocalStops((prev) =>
-      prev.map((s) => (s.id === stopId ? { ...s, chapterId } : s)),
-    );
-    try {
-      const res = await assignStopToChapter(stopId, chapterId);
-      if (!res.success) {
-        setLocalStops(snapshot);
-        const firstError = res.errors ? Object.values(res.errors).flat()[0] : undefined;
-        toast({ variant: "destructive", title: firstError ?? "Couldn't assign stop to chapter." });
-      }
-    } catch {
-      setLocalStops(snapshot);
-      toastRejected();
-    }
+    await editor.assign({ stopId, chapterId });
   }
 
   // Open the "+ New chapter" dialog with NO default dates (creates a rough chapter).
@@ -1236,17 +1059,19 @@ export function ItineraryManager({
   // would duplicate dated chapters. A ref, not state: it must block a click
   // landing before the next render.
   const suggestingRef = React.useRef(false);
+  // `run` never rejects, so nothing thrown inside the transition can unmount
+  // the Plan page into plan/error.tsx for an action that changed nothing.
+  const suggestAction = useUndoableAction({
+    persist: (id: string) => suggestChaptersFromCountries(id),
+    done: (_id, result) => suggestResultToast(result),
+    failure: "Couldn't suggest chapters.",
+  });
   function handleSuggestChapters() {
     if (suggestingRef.current) return;
     suggestingRef.current = true;
     startSuggestTransition(async () => {
       try {
-        const result = await suggestChaptersFromCountries(tripId);
-        toast(suggestResultToast(result));
-      } catch {
-        // Caught inside the transition: a throw here would otherwise unmount
-        // the Plan page into plan/error.tsx for an action that changed nothing.
-        toastRejected();
+        await suggestAction.run(tripId);
       } finally {
         suggestingRef.current = false;
       }
@@ -1254,53 +1079,36 @@ export function ItineraryManager({
   }
 
   // Schedule an idea onto a day, keeping any times it already carries.
-  async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
-    // Things-to-do can carry times (kept on unschedule "to make undo
-    // lossless" — see unscheduleItem's doc comment in server/actions/items.ts).
-    // scheduleItem's in-place branch overwrites startTime/endTime wholesale
-    // when absent from the input, so pass the thing's existing times through
-    // explicitly or picking a day silently wipes them.
-    try {
-      const res = await scheduleItem(thing.id, {
+  // Things-to-do can carry times (kept on unschedule "to make undo
+  // lossless" — see unscheduleItem's doc comment in server/actions/items.ts).
+  // scheduleItem's in-place branch overwrites startTime/endTime wholesale
+  // when absent from the input, so pass the thing's existing times through
+  // explicitly or picking a day silently wipes them.
+  const scheduleThingAction = useUndoableAction({
+    persist: ({ thing, dateISO }: { thing: ThingToDo; dateISO: string }) =>
+      scheduleItem(thing.id, {
         date: dateISO,
         ...(thing.startTime ? { startTime: thing.startTime } : {}),
         ...(thing.endTime ? { endTime: thing.endTime } : {}),
-      });
-      if (!res.success) {
-        toast({ title: "Couldn't schedule it.", variant: "destructive" });
-        return;
-      }
-    } catch {
-      toastRejected();
-      return;
-    }
+      }),
+    failure: "Couldn't schedule it.",
+  });
+  async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
+    if (!(await scheduleThingAction.run({ thing, dateISO }))) return;
     // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
     if (thing.stopId) revealDay(thing.stopId, dateISO);
   }
 
   // A plan dragged onto another day of its stop's strip (spec D5): it keeps
   // its times, the target slot pulses, and Undo puts it back where it was.
+  const moveItemAction = useUndoableAction({
+    persist: (drop: ItemDrop) => scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from)),
+    undo: (drop) => scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from)),
+    done: (drop) => ({ title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}` }),
+    failure: "Couldn't move it.",
+  });
   async function handleMoveItem(drop: ItemDrop) {
-    try {
-      const res = await scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from));
-      if (!res.success) {
-        toast({ variant: "destructive", title: "Couldn't move it." });
-        return;
-      }
-    } catch {
-      toastRejected();
-      return;
-    }
-    flashSlot(drop.stopId, drop.to);
-    toastWithUndo({
-      title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}`,
-      onUndo: () =>
-        void scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from))
-          .then((r) => {
-            if (!r.success) toast({ variant: "destructive", title: "Couldn't undo the move." });
-          })
-          .catch(() => toast({ variant: "destructive", title: "Couldn't undo the move." })),
-    });
+    if (await moveItemAction.run(drop)) flashSlot(drop.stopId, drop.to);
   }
 
   useRegisterPlanActions({
@@ -1312,68 +1120,26 @@ export function ItineraryManager({
   // Save handler for the adjust-dates dialog (ripple path for dated stops).
   // A date edit is a first-class ripple (ADR 0038): it collision-pushes later
   // stops server-side and returns the same changed/conflicts/payload shape as
-  // a drag reorder, so it gets the same toast + Undo treatment.
+  // a drag reorder, so it gets the same toast + Undo treatment. The dialog
+  // stays open on a refusal so the dates can be fixed (spec 2026-10-06 §E).
   async function handleSaveAdjustDates(
     stopId: string,
     dates: { arriveDate: string; departDate: string },
   ) {
-    const stop = localStops.find((s) => s.id === stopId);
-    const preSnapshot = localStops.map((s) => ({
-      id: s.id, sortOrder: s.sortOrder, chapterId: s.chapterId, arriveDate: s.arriveDate, departDate: s.departDate,
-    }));
-    setPendingId(stopId);
-    try {
-      const r = await setStopDates(stopId, dates);
-      if (!r.success) {
-        // The dialog stays open so the dates can be fixed (spec 2026-10-06 §E).
-        toastRefused(r.errors, "Couldn't change those dates.");
-        return;
-      }
-      setLocalStops((prev) =>
-        orderPlanStops(prev.map((s) => (s.id === stopId ? { ...s, ...dates } : s))),
-      );
-      setAdjustingStop(null);
-      applyReorderResult(stop?.name ?? "stop", r.changed, r.conflicts, preSnapshot, r.payload);
-    } catch {
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    const name = stops.find((s) => s.id === stopId)?.name ?? "stop";
+    if (await busy(stopId, () => editor.setDates({ stopId, dates, name }))) setAdjustingStop(null);
   }
 
   // Spec 2026-10-06 §N: −/+ nights from the Stop header and phone sheet. Rough:
   // writes nights; scheduled: moves depart and ripples (never moving a Pinned
   // Stop — that's the server's ripple rule), with the same Undo toast as a drag.
   async function handleSetNights(stopId: string, nights: number) {
-    const stop = localStops.find((s) => s.id === stopId);
+    const stop = stops.find((s) => s.id === stopId);
     if (!stop) return;
-    const snapshot = localStops;
-    const preSnapshot = localStops.map((s) => ({
-      id: s.id, sortOrder: s.sortOrder, chapterId: s.chapterId, arriveDate: s.arriveDate, departDate: s.departDate,
-    }));
-    setLocalStops((prev) =>
-      orderPlanStops(
-        prev.map((s) =>
-          s.id !== stopId ? s : s.arriveDate ? { ...s, departDate: addDays(s.arriveDate, nights) } : { ...s, nights },
-        ),
-      ),
-    );
-    try {
-      const r = await setStopNights(stopId, nights);
-      if (!r.success) {
-        setLocalStops(snapshot);
-        toastRefused(r.errors, "Couldn't change the nights.");
-        return;
-      }
-      if (stop.arriveDate) applyReorderResult(stop.name, r.changed, r.conflicts, preSnapshot, r.payload);
-    } catch {
-      setLocalStops(snapshot);
-      toastRejected();
-    }
+    await editor.setNights({ stopId, nights, name: stop.name });
   }
 
-  // ── Derived data ── (reads from local copies so drags update instantly)
-  const stops = localStops;
+  // ── Derived data ── (reads the editor's rows, so drags update instantly)
   // Each Stop's plan position, looked up once per render rather than an
   // indexOf per row (spec 2026-10-06 §D).
   const stopIndex = new Map(stops.map((s, i) => [s.id, i] as const));
@@ -1387,7 +1153,7 @@ export function ItineraryManager({
     arriveDate: s.arriveDate ?? null,
     departDate: s.departDate ?? null,
   }));
-  const hasChapters = localChapters.length > 0;
+  const hasChapters = planChapters.length > 0;
 
   // ── Home base bookends (see ADR 0032) ──
   // The Home base frames the plan: its card is pinned above the first stop
@@ -1396,8 +1162,8 @@ export function ItineraryManager({
   const hasHomeBase = Boolean(homeBaseName);
   const firstStop = stops.length > 0 ? stops[0] : null;
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
-  const outboundLeg = findOutboundLeg(localTransports, firstStop?.id ?? null);
-  const returnLeg = findReturnLeg(localTransports, lastStop?.id ?? null);
+  const outboundLeg = findOutboundLeg(transports, firstStop?.id ?? null);
+  const returnLeg = findReturnLeg(transports, lastStop?.id ?? null);
   // A return bookend renders on a round trip with a Home base and a last Stop.
   // It owns the end of the plan's add-transport affordance: no generic slot
   // after the last Stop and no standalone "Add transport" below it (ADR 0032
@@ -1415,8 +1181,8 @@ export function ItineraryManager({
    * Home bookend legs are excluded via bookendLegIds.
    */
   const legsBySlot = React.useMemo(
-    () => groupTransportsBySlot(localTransports, stops, bookendLegIds),
-    [localTransports, stops, bookendLegIds],
+    () => groupTransportsBySlot(transports, stops, bookendLegIds),
+    [transports, stops, bookendLegIds],
   );
 
   const hasStops = stops.length > 0;
@@ -1438,8 +1204,8 @@ export function ItineraryManager({
 
   // ── Grouped rendering data ──
   const groups = React.useMemo(
-    () => groupStopsByChapter(stops, localChapters),
-    [stops, localChapters],
+    () => groupStopsByChapter(stops, planChapters),
+    [stops, planChapters],
   );
 
   // ---------------------------------------------------------------------------
@@ -1447,8 +1213,9 @@ export function ItineraryManager({
   // ---------------------------------------------------------------------------
 
   /**
-   * onDragOver: move an item between containers in local state optimistically.
-   * Only fires for stop-type drags across different containers.
+   * onDragOver: preview a stop drag across containers — the dragged stop shows
+   * in the hovered container. Display only (`dragOver`): the editor's rows
+   * are untouched until the drop.
    */
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
@@ -1458,49 +1225,43 @@ export function ItineraryManager({
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    const activeStop = localStops.find((s) => s.id === activeId);
+    // Over its own preview (closestCenter doesn't skip the active stop): the
+    // container shown is still right — no change, or the preview ping-pongs.
+    if (overId === activeId) return;
+
+    const activeStop = rows.stops.find((s) => s.id === activeId);
     if (!activeStop) return;
-    // ADR 0021: scheduled stops now move too; only rough stops are barred from
-    // dated chapters (guarded below). Rough AND scheduled stops move freely here.
-    // ADR 0038: a pinned scheduled stop's drag is blocked outright in
-    // handleDragEnd — skip the optimistic cross-container chapterId preview
-    // here too, so a blocked drop never leaves the stop visually parked in a
-    // chapter it was only hovered over (never actually moved into).
+    // ADR 0038: a pinned scheduled stop's drag is blocked outright on drop —
+    // so no preview either, and a blocked drop never leaves the stop shown
+    // in a chapter it was only hovered over.
     if (activeStop.arriveDate !== null && activeStop.pinned) return;
 
-    // Determine the target container (chapterId or null for ungrouped).
-    // The over element is either a stop (use its chapterId) or a droppable container id.
-    const overStop = localStops.find((s) => s.id === overId);
-    let targetChapterId: string | null;
-
-    if (overStop) {
-      // Dropped over another stop — use that stop's chapterId.
-      targetChapterId = overStop.chapterId;
-    } else {
-      // Dropped over a container droppable — the droppable id is the chapterId or "ungrouped".
-      targetChapterId = overId === "ungrouped" ? null : overId;
-    }
+    // The over element is either a stop (use its chapterId) or a droppable
+    // container id (the chapterId, or "ungrouped").
+    const overStop = rows.stops.find((s) => s.id === overId);
+    const targetChapterId: string | null = overStop ? overStop.chapterId : overId === "ungrouped" ? null : overId;
 
     // A ROUGH stop can't move into a DATED chapter (the server rejects it too);
     // a DATED stop CAN join a dated chapter (ADR 0021).
-    const targetChapter = targetChapterId ? localChapters.find((c) => c.id === targetChapterId) : null;
+    const targetChapter = targetChapterId ? planChapters.find((c) => c.id === targetChapterId) : null;
     if (activeStop.arriveDate === null && targetChapter && targetChapter.startDate !== null) return;
 
-    // If the container hasn't changed, nothing to do here (onDragEnd handles reorder within container).
-    if (activeStop.chapterId === targetChapterId) return;
+    const shown = stops.find((s) => s.id === activeId)?.chapterId ?? null;
+    if (shown === targetChapterId) return;
+    setDragOver(targetChapterId === activeStop.chapterId ? null : { stopId: activeId, chapterId: targetChapterId });
+  }
 
-    setLocalStops((prev) => {
-      return prev.map((s) =>
-        s.id === activeId ? { ...s, chapterId: targetChapterId } : s,
-      );
-    });
+  function handleDragCancel() {
+    setActiveDrag(null);
+    setDragOver(null);
   }
 
   /**
-   * onDragEnd: persist the final order after a drag.
+   * onDragEnd: persist the drop through the plan editor (which never rejects).
    */
   async function handleDragEnd(event: DragEndEvent) {
     setActiveDrag(null);
+    setDragOver(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -1511,258 +1272,28 @@ export function ItineraryManager({
     }
 
     const activeType = active.data.current?.type as "stop" | "chapter" | undefined;
+    const activeId = active.id as string;
+    const overId = over.id as string;
 
     if (activeType === "stop") {
-      const activeId = active.id as string;
-      const overId = over.id as string;
-
-      const activeStop = localStops.find((s) => s.id === activeId);
+      const activeStop = rows.stops.find((s) => s.id === activeId);
       if (!activeStop) return;
-      const activeIsScheduled = activeStop.arriveDate !== null;
-      if (activeIsScheduled && activeStop.pinned) {
-        toast({ title: "This stop is pinned. Unpin it to move it." });
-        return;
-      }
-      // A scheduled stop dropped on itself is a no-op (the full-list reinsert
-      // below would otherwise spuriously append it). The rough path is left
-      // exactly as before (moveStopInOrder yields the same order for a self-drop).
-      if (activeIsScheduled && activeId === overId) return;
-
-      // Determine target container (chapterId or null for ungrouped).
-      const overStop = localStops.find((s) => s.id === overId);
-      const targetChapterId: string | null = overStop
-        ? overStop.chapterId
-        : overId === "ungrouped" ? null : overId;
-
-      // A ROUGH stop can't drop into a DATED chapter (server rejects it too);
-      // a SCHEDULED stop can join any chapter (ADR 0021).
-      const targetChapter = targetChapterId ? localChapters.find((c) => c.id === targetChapterId) : null;
-      if (!activeIsScheduled && targetChapter && targetChapter.startDate !== null) return;
-
-      // Snapshot the pre-drag state of EVERY stop (order + chapter + dates) so a
-      // scheduled reorder can be fully reverted by Undo (ADR 0021). Cheap enough
-      // to always capture; only used on the scheduled path below.
-      const preDragSnapshot = localStops.map((s) => ({
-        id: s.id,
-        sortOrder: s.sortOrder,
-        chapterId: s.chapterId,
-        arriveDate: s.arriveDate,
-        departDate: s.departDate,
-      }));
-
-      // Compute the authoritative new order.
-      let ordered: { id: string; chapterId: string | null }[];
-      if (activeIsScheduled) {
-        // moveStopInOrder pins dated stops in place, so it can't move a scheduled
-        // active stop. Reorder the FULL list directly: pull the active stop out,
-        // reinsert it at the drop target, and stamp its new chapter membership.
-        const working = localStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
-        const fromIdx = working.findIndex((s) => s.id === activeId);
-        working.splice(fromIdx, 1);
-        let insertAt = overStop ? working.findIndex((s) => s.id === overId) : -1;
-        if (insertAt === -1) {
-          // Dropped on a container (or the over stop vanished) — append to the
-          // end of the target chapter's block, else the end of the list.
-          const lastInTarget = [...working]
-            .map((s, i) => ({ s, i }))
-            .filter(({ s }) => s.chapterId === targetChapterId)
-            .pop();
-          insertAt = lastInTarget ? lastInTarget.i + 1 : working.length;
-        }
-        working.splice(insertAt, 0, { id: activeId, chapterId: targetChapterId });
-        ordered = working;
-      } else {
-        // Rough active stop — unchanged behaviour (dates never move; reorder only).
-        const containerStops = localStops.filter(
-          (s) => s.arriveDate === null && s.chapterId === targetChapterId,
-        );
-        let targetIndex = containerStops.length; // default: append at end
-        if (overStop && overStop.arriveDate === null && overStop.chapterId === targetChapterId) {
-          const overIdx = containerStops.findIndex((s) => s.id === overId);
-          if (overIdx !== -1) targetIndex = overIdx;
-        }
-        ordered = moveStopInOrder(localStops, activeId, targetChapterId, targetIndex);
-      }
-
-      // Apply the new chapterId assignments back to localStops (preserve all
-      // ItineraryStop fields, only update id/chapterId from the ordered result).
-      const chapterIdById = new Map(ordered.map((s) => [s.id, s.chapterId]));
-      const newLocalStops = ordered.map((slim) => {
-        const full = localStops.find((s) => s.id === slim.id)!;
-        return { ...full, chapterId: chapterIdById.get(full.id) ?? full.chapterId };
+      await editor.reorder({
+        activeId,
+        overId,
+        // The drop container when `over` isn't another Stop (that Stop's own
+        // chapter wins). Dropped on its own preview: the container it was shown in
+        // (this closure's `dragOver` is the hover's, despite setDragOver(null) above).
+        chapterId: overId === activeId
+          ? (dragOver ? dragOver.chapterId : activeStop.chapterId)
+          : overId === "ungrouped" ? null : overId,
+        movedName: activeStop.name,
       });
-      setLocalStops(newLocalStops);
-
-      // Persist: use the authoritative ordered list.
-      const items = ordered;
-      const result = await reorderStops(tripId, items, forkId ?? null, [activeId]);
-      if (!result.success) {
-        const firstError = result.errors
-          ? Object.values(result.errors).flat()[0]
-          : "Couldn't reorder stops. Try again.";
-        toast({ variant: "destructive", title: firstError ?? "Couldn't reorder stops. Try again." });
-        setLocalStops(initialStops); // revert
-        return;
-      }
-
-      // ADR 0021: a scheduled reorder reflows calendar dates server-side. Apply
-      // the returned `changed` dates into local state so the UI updates at once,
-      // then offer a one-tap Undo that reverts order + chapter + dates verbatim.
-      if (activeIsScheduled) {
-        applyReorderResult(activeStop.name, result.changed, result.conflicts, preDragSnapshot, result.payload);
-      }
     } else if (activeType === "chapter") {
-      const activeId = active.id as string;
-      const overId = over.id as string;
-      if (activeId === overId) return;
-
-      const activeChapter = localChapters.find((c) => c.id === activeId);
+      const activeChapter = planChapters.find((c) => c.id === activeId);
       if (!activeChapter) return;
-      const activeChapterDated = activeChapter.startDate !== null;
-
-      // Snapshot pre-drag state for a scheduled-chapter Undo (order + chapter + dates).
-      const preDragSnapshot = localStops.map((s) => ({
-        id: s.id,
-        sortOrder: s.sortOrder,
-        chapterId: s.chapterId,
-        arriveDate: s.arriveDate,
-        departDate: s.departDate,
-      }));
-
-      if (!activeChapterDated) {
-        // ── Rough chapter drag — unchanged behaviour (no dates move) ──
-        const roughChapters = localChapters.filter((c) => c.startDate === null);
-        const oldIndex = roughChapters.findIndex((c) => c.id === activeId);
-        const newIndex = roughChapters.findIndex((c) => c.id === overId);
-        if (oldIndex === -1 || newIndex === -1) return;
-
-        const reorderedRough = arrayMove(roughChapters, oldIndex, newIndex);
-        const datedChapters = localChapters.filter((c) => c.startDate !== null);
-        const newLocalChapters = [...datedChapters, ...reorderedRough];
-        setLocalChapters(newLocalChapters);
-
-        // Use the pure helper to permute rough-chapter blocks while keeping
-        // dated stops and ungrouped stops at their original positions.
-        const roughChapterIds = reorderedRough.map((c) => c.id);
-        const ordered = moveChapterBlocks(localStops, localChapters, roughChapterIds);
-
-        // Rebuild full ItineraryStop list from the ordered slim result.
-        const chapterIdById = new Map(ordered.map((s) => [s.id, s.chapterId]));
-        const reorderedStops = ordered.map((slim) => {
-          const full = localStops.find((s) => s.id === slim.id)!;
-          return { ...full, chapterId: chapterIdById.get(full.id) ?? full.chapterId };
-        });
-        setLocalStops(reorderedStops);
-
-        // Persist chapters.
-        const chapterResult = await reorderChapters(tripId, roughChapterIds, forkId ?? null);
-        if (!chapterResult.success) {
-          const firstError = chapterResult.errors
-            ? Object.values(chapterResult.errors).flat()[0]
-            : "Couldn't reorder chapters. Try again.";
-          toast({ variant: "destructive", title: firstError ?? "Couldn't reorder chapters. Try again." });
-          setLocalChapters(chapters);
-          setLocalStops(initialStops);
-          return;
-        }
-
-        // Persist stop order.
-        const stopItems = reorderedStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
-        const stopResult = await reorderStops(tripId, stopItems, forkId ?? null, []);
-        if (!stopResult.success) {
-          const firstError = stopResult.errors
-            ? Object.values(stopResult.errors).flat()[0]
-            : "Couldn't reorder stops. Try again.";
-          toast({ variant: "destructive", title: firstError ?? "Couldn't reorder stops. Try again." });
-          setLocalChapters(chapters);
-          setLocalStops(initialStops);
-        }
-        return;
-      }
-
-      // ── Dated chapter drag (ADR 0021) — reorder ALL chapters and let the
-      // server rebuild the stop order + reflow the dates. ──
-      const oldIndex = localChapters.findIndex((c) => c.id === activeId);
-      const newIndex = localChapters.findIndex((c) => c.id === overId);
-      if (oldIndex === -1 || newIndex === -1) return;
-
-      const newLocalChapters = arrayMove(localChapters, oldIndex, newIndex);
-      setLocalChapters(newLocalChapters);
-
-      // reorderChapters emits each chapter's stops in the requested chapter order,
-      // writes stop + chapter sortOrder, reflows scheduled dates and returns the
-      // reflow payload — so a single call fully persists a dated-chapter move.
-      const orderedChapterIds = newLocalChapters.map((c) => c.id);
-      const chapterResult = await reorderChapters(tripId, orderedChapterIds, forkId ?? null, activeId);
-      if (!chapterResult.success) {
-        const firstError = chapterResult.errors
-          ? Object.values(chapterResult.errors).flat()[0]
-          : "Couldn't reorder chapters. Try again.";
-        toast({ variant: "destructive", title: firstError ?? "Couldn't reorder chapters. Try again." });
-        setLocalChapters(chapters);
-        setLocalStops(initialStops);
-        return;
-      }
-
-      applyReorderResult(activeChapter.name, chapterResult.changed, chapterResult.conflicts, preDragSnapshot, chapterResult.payload);
+      await editor.reorderChapters({ activeId, overId, movedName: activeChapter.name });
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // applyReorderResult — shared post-reorder handling for a SCHEDULED drag:
-  // apply the server's reflowed `changed` dates into local state so the UI
-  // updates immediately, then raise an Undo toast that reverts the whole drag
-  // (order + chapter + dates) via restoreStops (ADR 0021).
-  // ---------------------------------------------------------------------------
-  function applyReorderResult(
-    movedName: string,
-    changed: { id: string; arriveDate: string; departDate: string }[] | undefined,
-    conflicts: { stopId: string; message: string }[] | undefined,
-    preDragSnapshot: { id: string; sortOrder: number; chapterId: string | null; arriveDate: string | null; departDate: string | null }[],
-    payload?: ReorderPayload,
-  ) {
-    const changes = changed ?? [];
-    if (changes.length > 0) {
-      const byId = new Map(changes.map((c) => [c.id, c]));
-      setLocalStops((prev) =>
-        orderPlanStops(
-          prev.map((s) => {
-            const c = byId.get(s.id);
-            return c ? { ...s, arriveDate: c.arriveDate, departDate: c.departDate } : s;
-          }),
-        ),
-      );
-    }
-
-    const { title, description } = summariseReorder(movedName, changes, conflicts);
-
-    toastWithUndo({
-      title,
-      description,
-      onUndo: () => {
-        // Optimistically revert local state, then persist the verbatim snapshot.
-        const byId = new Map(preDragSnapshot.map((e) => [e.id, e]));
-        setLocalStops((prev) =>
-          orderPlanStops(
-            prev
-              .map((s) => {
-                const e = byId.get(s.id);
-                return e ? { ...s, chapterId: e.chapterId, arriveDate: e.arriveDate, departDate: e.departDate, sortOrder: e.sortOrder } : s;
-              })
-              .sort((a, b) => a.sortOrder - b.sortOrder),
-          ),
-        );
-        void restoreStops(
-          preDragSnapshot,
-          forkId ?? null,
-          payload ? undoPayloadFor(payload) : undefined,
-        ).then((res) => {
-          if (!res.success) {
-            toast({ variant: "destructive", title: "Couldn't undo the move." });
-          }
-        });
-      },
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -2066,7 +1597,7 @@ export function ItineraryManager({
   const openIdeaStop = openIdea ? (stops.find((s) => s.id === openIdea.stopId) ?? null) : null;
   const headLegs = legsBySlot.get(HEAD_SLOT) ?? [];
   const emptyChapters = hasChapters
-    ? localChapters.filter((c) => !groups.some((g) => g.chapter?.id === c.id))
+    ? planChapters.filter((c) => !groups.some((g) => g.chapter?.id === c.id))
     : [];
 
   // ---------------------------------------------------------------------------
@@ -2125,6 +1656,7 @@ export function ItineraryManager({
           id="plan-mobile-dnd"
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragCancel={handleDragCancel}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
@@ -2255,7 +1787,7 @@ export function ItineraryManager({
                 sensors={sensors}
                 collisionDetection={planCollisionDetection}
                 onDragStart={(e: DragStartEvent) => setActiveDrag((e.active.data.current as { type?: string; title?: string } | undefined) ?? null)}
-                onDragCancel={() => setActiveDrag(null)}
+                onDragCancel={handleDragCancel}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
@@ -2368,7 +1900,7 @@ export function ItineraryManager({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="tap-target h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            className="tap-target size-8 p-0 text-muted-foreground hover:text-destructive"
                             aria-label={`Remove ${chapter.name} chapter`}
                             disabled={pendingId === `delete-chapter-${chapter.id}`}
                             onClick={() => handleDeleteChapter(chapter.id)}
@@ -2441,7 +1973,7 @@ export function ItineraryManager({
         forkId={forkId ?? null}
         stops={stops}
         hardEndDate={hardEndDate ?? null}
-        chapters={localChapters}
+        chapters={planChapters}
         tripStartDate={tripStartDate}
         tripEndDate={tripEndDate}
         defaultRange={suggestedStopDates}
@@ -2753,7 +2285,7 @@ export function ItineraryManager({
           <DialogContent>
             <DialogHeader><DialogTitle>Assign &quot;{assigningStop.name}&quot; to a chapter</DialogTitle></DialogHeader>
             <div className="flex flex-col gap-2">
-              {localChapters.map((c) => (
+              {planChapters.map((c) => (
                 <Button key={c.id} variant="ghost" className="justify-start"
                   onClick={() => handleAssign(assigningStop.id, c.id)}>{c.name}</Button>
               ))}

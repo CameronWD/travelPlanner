@@ -12,7 +12,7 @@ interface BudgetGlanceProps {
 
 /**
  * Kit DHome.jsx / Home.jsx "Spent" StatCard: paid so far over the trip's cost,
- * with a bar. The money is one shared pot, so the sub-line says so.
+ * with a bar.
  */
 export function BudgetGlance({ costTotalMinor, paidTotalMinor, homeCurrency, href }: BudgetGlanceProps) {
   const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100)) : 0;
@@ -25,7 +25,7 @@ export function BudgetGlance({ costTotalMinor, paidTotalMinor, homeCurrency, hre
         progress={pct}
         sub={
           <>
-            of {formatMoneyCompact(costTotalMinor, homeCurrency)} cost · shared pot
+            of {formatMoneyCompact(costTotalMinor, homeCurrency)} cost
           </>
         }
         className="pressable hover:shadow-hard-3"

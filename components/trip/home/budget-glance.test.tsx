@@ -18,7 +18,7 @@ describe("BudgetGlance", () => {
     expect(container.querySelector('[style*="width: 0%"]')).toBeTruthy();
   });
 
-  it("is the kit's sun 'Spent' StatCard: label, figure, progress bar, cost sub-line — shared pot, never per person", () => {
+  it("never frames money per person", () => {
     render(<BudgetGlance costTotalMinor={312000} paidTotalMinor={184000} homeCurrency="JPY" href={"/b" as Route} />);
     const link = screen.getByRole("link");
     const card = link.firstElementChild as HTMLElement;
@@ -26,7 +26,7 @@ describe("BudgetGlance", () => {
     expect(card.className).toMatch(/\bborder-2\b/);
     expect(card.className).toMatch(/\bshadow-hard-\d\b/);
     expect(screen.getByRole("progressbar", { name: /paid so far/i })).toHaveAttribute("aria-valuenow", "59");
-    expect(link.textContent).toMatch(/shared pot/);
+    expect(link.textContent).not.toMatch(/shared pot/i);
     expect(link.textContent).not.toMatch(/per person|each owes|split/i);
   });
 });

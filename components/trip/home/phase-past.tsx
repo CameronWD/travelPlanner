@@ -113,7 +113,6 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
       tone="sun"
       label="Trip cost"
       value={formatMoney(grandTotal.costTotalMinor, trip.homeCurrency)}
-      sub="shared pot"
     />
   );
   const paidStat = (className?: string) => (

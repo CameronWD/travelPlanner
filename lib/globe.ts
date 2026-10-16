@@ -76,7 +76,7 @@ export async function requireGlobeAccess(): Promise<{
  * an `ADMIN_EMAILS` operator (same bypass Trip ownership checks use).
  *
  * Deliberately does NOT throw/notFound() on refusal — unlike
- * `requireTripOwner` in `lib/guards.ts` — because the one caller
+ * `isTripOwnerOrAdmin` in `lib/access.ts` — because the one caller
  * (`inviteToGlobe`) reports the refusal as a typed `GlobeActionResult`
  * failure with a friendly message, the same way `inviteToTrip` reports its
  * owner-only refusal. Returns `null` so that caller can build its own typed

@@ -23,13 +23,21 @@ import {
 } from "@/components/ui/select";
 import { MoneyInput } from "@/components/ui/money-input";
 import { createCost, updateCost } from "@/server/actions/costs";
-import { isOnTrip, type CostSettlement } from "@/lib/enum-values";
+import { isOnTrip } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
-import { CURRENCIES } from "@/lib/currencies";
-import { formatMinor, parseAmountToMinor } from "@/lib/money";
+import { CURRENCY_CODES } from "@/lib/currencies";
 import { todayLocalISO } from "@/lib/dates";
+import {
+  costToFormState as costToCostFormState,
+  emptyCostFormState,
+  setCostAmount,
+  setPaid,
+  toCostPayload,
+  type CostFormState,
+} from "@/lib/money/cost-form-state";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
+import type { FieldErrors } from "@/lib/action-result";
 import type { OtherCostDefaults } from "@/lib/money/other-cost-defaults";
 
 // ---------------------------------------------------------------------------
@@ -53,36 +61,26 @@ const OTHER_COST_CATEGORIES = [
   "Other",
 ] as const;
 
-const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface FormState {
+/** The shared Cost form state (card 2.I) plus this form's own fields. */
+type FormState = CostFormState & {
   label: string;
   category: string;
-  costAmount: string;
-  paidAmount: string;
-  currency: string;
-  paid: boolean;
-  paidAt: string;
   dueDate: string;
-  /** CONTEXT.md "Settlement". */
-  settlement: CostSettlement;
   /** While true, the paid amount mirrors the cost as it's typed (Travelling default, spec §K). */
   paidFollowsCost: boolean;
-}
+};
 
 const PLAIN_DEFAULTS = (homeCurrency: string): OtherCostDefaults => ({ currency: homeCurrency, settlement: "BEFORE", paidToday: false });
 
 function defaultFormState(defaults: OtherCostDefaults): FormState {
   return {
+    ...emptyCostFormState(defaults.currency),
     label: "",
     category: "",
-    costAmount: "",
-    paidAmount: "",
-    currency: defaults.currency,
     paid: defaults.paidToday,
     // Interactive pre-fill the Traveller can see and edit, like ticking Paid (ADR 0037).
     paidAt: defaults.paidToday ? todayLocalISO() : "",
@@ -94,60 +92,33 @@ function defaultFormState(defaults: OtherCostDefaults): FormState {
 
 function costToFormState(cost: CostRow): FormState {
   return {
+    ...costToCostFormState(cost),
     label: cost.label ?? "",
     category: cost.category ?? "",
-    costAmount: formatMinor(cost.costMinor, cost.currency),
-    paidAmount:
-      cost.paidMinor !== null && cost.paidMinor !== undefined
-        ? formatMinor(cost.paidMinor, cost.currency)
-        : "",
-    currency: cost.currency,
-    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid") — a
-    // legacy row with a paid amount but no date is NOT paid, and must open
-    // with the box unticked so re-saving it doesn't fabricate a payment.
-    paid: Boolean(cost.paidAt),
-    paidAt: cost.paidAt ? new Date(cost.paidAt).toISOString().slice(0, 10) : "",
     dueDate: cost.dueDate ?? "",
-    settlement: isOnTrip(cost.settlement) ? "ON_TRIP" : "BEFORE",
     paidFollowsCost: false,
   };
 }
 
 /**
- * Validate + map form state to the server action's input shape.
- *
- * Returns `null` (with no side effect) when the cost amount is blank or
- * unparseable — the Cost field is required, and a blank/invalid entry must
- * surface a field error rather than silently coercing to 0 (that coercion is
- * exactly the bug ADR 0037 exists to kill, run in reverse: a paid amount
- * would then survive alongside a fabricated £0 cost).
+ * Validate + map form state to the server action's input shape, or the
+ * field errors to show instead. A blank or unparseable cost is "Enter the
+ * cost" (never coerced to 0 — ADR 0037 run in reverse), and Paid ticked with
+ * no parseable paid amount is "Enter what you paid" (`toCostPayload`). The
+ * paid date is only ever the interactive pre-fill, never fabricated here.
  */
-function parseFormToInput(form: FormState): CostRawInput | null {
-  const costMinor = parseAmountToMinor(form.costAmount, form.currency);
-  if (costMinor === null) return null;
-  // Gated on the amount actually *parsing*, not just being non-blank — a
-  // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
-  // The invariant is one-directional (ADR 0037): a paid *date* requires an
-  // amount, but an amount with no date is a legal, honest, incomplete
-  // record — so we never invent a date here. `todayLocalISO()` is only used for
-  // the interactive pre-fill when the Paid box is ticked, where the user can
-  // see and edit it before saving; it is never fabricated at submit time.
-  // `costSchema.paidMinor`/`paidAt` are `.optional()` (not `.nullable()`),
-  // so clearing sends `undefined`, never `null`.
-  const parsedPaidMinor = form.paid
-    ? parseAmountToMinor(form.paidAmount, form.currency)
-    : null;
-  const hasPaidAmount = parsedPaidMinor !== null;
+function parseFormToInput(form: FormState): { input: CostRawInput } | { errors: FieldErrors } {
+  const payload = toCostPayload(form);
+  if (payload.kind === "none") return { errors: { costMinor: ["Enter the cost"] } };
+  if (payload.kind === "invalid") return { errors: payload.errors };
   return {
-    costMinor,
-    paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
-    currency: form.currency,
-    paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
-    ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
-    ownerType: "OTHER",
-    label: form.label,
-    category: form.category || undefined,
-    settlement: form.settlement,
+    input: {
+      ...payload.fields,
+      ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
+      ownerType: "OTHER",
+      label: form.label,
+      category: form.category || undefined,
+    },
   };
 }
 
@@ -234,16 +205,12 @@ function OtherCostDialog({
               currency={form.currency}
               currencies={CURRENCY_CODES}
               onAmountChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  costAmount: v,
-                  ...(f.paidFollowsCost ? { paidAmount: v } : {}),
-                  // Clearing the Cost box hides the Paid block (below), but
-                  // state would otherwise persist invisibly — clear it too so
-                  // a blank cost can never save alongside a stale paid amount.
-                  // A paid-today default stays ticked; its amount follows.
-                  ...(v.trim() === "" && !f.paidFollowsCost ? { paid: false, paidAmount: "", paidAt: "" } : {}),
-                }))
+                setForm((f) =>
+                  // A paid-today default stays ticked and its amount follows
+                  // the cost, even through a blank; otherwise blanking the
+                  // cost clears the paid state (`setCostAmount`).
+                  f.paidFollowsCost ? { ...f, costAmount: v, paidAmount: v } : setCostAmount(f, v),
+                )
               }
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
@@ -266,19 +233,11 @@ function OtherCostDialog({
                   checked={form.paid}
                   onChange={(e) => {
                     const checked = e.target.checked;
+                    // Ticking pre-fills the paid amount and today (ADR 0037,
+                    // `setPaid`) — only on the interactive tick, never at submit.
                     setForm((f) => ({
-                      ...f,
-                      paid: checked,
+                      ...setPaid(f, checked, todayLocalISO()),
                       paidFollowsCost: checked && f.paidFollowsCost,
-                      // Prefill both so confirming a cost that came to what
-                      // you expected is a single tick (ADR 0037). Only on
-                      // the interactive tick — never fabricated at submit
-                      // time (see parseFormToInput).
-                      paidAmount:
-                        checked && !f.paidAmount.trim() && f.costAmount.trim()
-                          ? f.costAmount
-                          : f.paidAmount,
-                      paidAt: checked && !f.paidAt.trim() ? todayLocalISO() : f.paidAt,
                     }));
                   }}
                   disabled={submitting}
@@ -370,15 +329,15 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
   async function handleSubmit(form: FormState) {
-    const input = parseFormToInput(form);
-    if (!input) {
-      setErrors({ costMinor: ["Enter the cost"] });
+    const parsed = parseFormToInput(form);
+    if ("errors" in parsed) {
+      setErrors(parsed.errors);
       return;
     }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = cost ? await updateCost(cost.id, input) : await createCost(tripId, input);
+      const result = cost ? await updateCost(cost.id, parsed.input) : await createCost(tripId, parsed.input);
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
     } finally {

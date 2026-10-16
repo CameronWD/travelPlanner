@@ -19,7 +19,7 @@ const {
   allowedEmailFindManyMock,
   allowedEmailFindUniqueMock,
   allowedEmailDeleteMock,
-  revalidatePathMock,
+  revalidateAdminMock,
   mailConfiguredMock,
   sendMailMock,
 } = vi.hoisted(() => ({
@@ -31,7 +31,7 @@ const {
   allowedEmailFindManyMock: vi.fn(),
   allowedEmailFindUniqueMock: vi.fn(),
   allowedEmailDeleteMock: vi.fn(),
-  revalidatePathMock: vi.fn(),
+  revalidateAdminMock: vi.fn(),
   mailConfiguredMock: vi.fn(() => false),
   sendMailMock: vi.fn(),
 }));
@@ -59,8 +59,8 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/mail", () => ({ mailConfigured: mailConfiguredMock, sendMail: sendMailMock }));
 vi.mock("@/lib/site-url", () => ({ siteUrl: () => "https://teepee.test" }));
 
-vi.mock("next/cache", () => ({
-  revalidatePath: revalidatePathMock,
+vi.mock("@/lib/revalidate", () => ({
+  revalidateAdmin: revalidateAdminMock,
 }));
 
 import {
@@ -111,7 +111,7 @@ describe("approveAccessRequest", () => {
     );
     // A second admin tab (or the same tab after a stale render) must not go
     // on serving the request as still-pending after this resolves it.
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
+    expect(revalidateAdminMock).toHaveBeenCalledOnce();
   });
 
   it("emails the approved address after the allowlist row and resolvedAt are written, when mail is configured", async () => {
@@ -295,7 +295,7 @@ describe("dismissAccessRequest", () => {
         data: expect.objectContaining({ status: "dismissed", resolvedAt: expect.any(Date) }),
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
+    expect(revalidateAdminMock).toHaveBeenCalledOnce();
   });
 
   it("never emails", async () => {
@@ -502,7 +502,7 @@ describe("revokeAllowedEmail", () => {
 
     expect(result.success).toBe(true);
     expect(allowedEmailDeleteMock).toHaveBeenCalledWith({ where: { id: "ae1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
+    expect(revalidateAdminMock).toHaveBeenCalledOnce();
   });
 
   it("requires admin FIRST — a non-admin cannot revoke", async () => {

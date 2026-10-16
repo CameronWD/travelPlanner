@@ -1,12 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { type ActionResult, ok, fail, formFail } from "@/lib/action-result";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { checkQuota } from "@/lib/storage-quota";
+import { revalidateAccount } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Traveller profile actions (CONTEXT.md "Profile photo and display name")
@@ -44,7 +44,7 @@ export async function setDisplayName(name: string): Promise<ActionResult> {
     data: { displayName: trimmed.length === 0 ? null : trimmed },
   });
 
-  revalidatePath("/", "layout");
+  revalidateAccount();
   return ok();
 }
 
@@ -108,7 +108,7 @@ export async function setProfilePhoto(formData: FormData): Promise<ActionResult>
     data: { photoKey: key, photoUpdatedAt: new Date(), photoFocalX: null, photoFocalY: null },
   });
 
-  revalidatePath("/", "layout");
+  revalidateAccount();
   return ok();
 }
 
@@ -130,7 +130,7 @@ export async function setProfilePhotoFocal(x: number, y: number): Promise<Action
     where: { id: user.id },
     data: { photoFocalX: clampUnit(x), photoFocalY: clampUnit(y) },
   });
-  revalidatePath("/", "layout");
+  revalidateAccount();
   return ok();
 }
 
@@ -151,6 +151,6 @@ export async function removeProfilePhoto(): Promise<ActionResult> {
     });
   }
 
-  revalidatePath("/", "layout");
+  revalidateAccount();
   return ok();
 }

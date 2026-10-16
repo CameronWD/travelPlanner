@@ -49,8 +49,8 @@
  * `accommodationSchema`/`transportSchema` both refuse a `paidAt` with no
  * `paidMinor` ("Enter what you paid"). So `completeInlineCost` forwards the
  * current single owned Cost's `paidMinor` AND `paidAt` together (never one
- * without the other — a cost is only "paid" when both are set, same
- * `Boolean(cost.paidAt)`-and-an-amount signal every dialog uses) whenever
+ * without the other — `paidAt` decides, same as every dialog, and a legacy
+ * paid row with no amount falls back to the cost: `paidFieldsFromRow`) whenever
  * the patch touches the inline Cost at all, and errors out (ruling 2 — "no
  * accepted input silently dropped", here as "no silent no-op") rather than
  * calling the action when there's more than one owned Cost (CostEditor is
@@ -84,6 +84,7 @@ import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from
 import { transportModeSchema, costOwnerTypeSchema, costSettlementSchema } from "@/lib/enums";
 import { TRANSPORT_MODES, COST_SETTLEMENTS } from "@/lib/enum-values";
 import { CURRENCY_CODES } from "@/lib/currencies";
+import { paidFieldsFromRow } from "@/lib/money/cost-form-state";
 import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
@@ -117,8 +118,10 @@ export function isFailure(v: unknown): v is Failure {
 // Inline cost completion (shared by Accommodation and Transport)
 // ---------------------------------------------------------------------------
 
-type InlineCostPatch = { costMinor?: number; currency?: string };
-export type InlineCostFields = { costMinor?: number; currency?: string; paidMinor?: number; paidAt?: string };
+/** What a tool call asks of the inline Cost. */
+type InlineCostEdit = { costMinor?: number; currency?: string };
+/** The completed inline-Cost fields sent to the action (not the `InlineCostFields` component). */
+export type InlineCostPatch = { costMinor?: number; currency?: string; paidMinor?: number; paidAt?: string };
 
 /**
  * Completes a patch's inline-cost fields from the entity's current single
@@ -133,8 +136,8 @@ export type InlineCostFields = { costMinor?: number; currency?: string; paidMino
 export async function completeInlineCost(
   ownerType: "ACCOMMODATION" | "TRANSPORT",
   ownerId: string,
-  patch: InlineCostPatch,
-): Promise<InlineCostFields | Failure> {
+  patch: InlineCostEdit,
+): Promise<InlineCostPatch | Failure> {
   if (patch.costMinor === undefined && patch.currency === undefined) return {};
   const existing = await db.cost.findMany({
     where: { ownerType, ownerId, forkId: null },
@@ -155,17 +158,11 @@ export async function completeInlineCost(
       errors: { costMinor: ["Pass both costMinor and currency to add or change the Cost, or use add_cost/update_cost."] },
     };
   }
-  // A Cost is only "paid" when both its amount and its date are set (same
-  // signal every cost dialog uses, `Boolean(cost.paidAt)` alongside a
-  // parsed paid amount) — a legacy row with only one of the two forwards
-  // neither, same as the dialogs opening with the Paid box unticked.
-  const isPaid = single?.paidAt != null && single?.paidMinor != null;
-  return {
-    costMinor,
-    currency,
-    paidMinor: isPaid ? (single!.paidMinor as number) : undefined,
-    paidAt: isPaid ? (single!.paidAt as Date).toISOString().slice(0, 10) : undefined,
-  };
+  // `paidAt` decides (CONTEXT.md "Paid"), same as every cost dialog: a paid
+  // row forwards its paid pair (a legacy row with no paid amount falls back
+  // to the cost), an unpaid one forwards neither.
+  const paid = single ? paidFieldsFromRow(single) : {};
+  return { costMinor, currency, paidMinor: paid.paidMinor, paidAt: paid.paidAt };
 }
 
 const inlineCostCreateShape = {
@@ -261,7 +258,7 @@ async function loadAccommodationForPatch(accommodationId: string): Promise<Accom
 export function mergeAccommodationPatch(
   current: AccommodationRow,
   patch: AccommodationPatch,
-  inlineCost: InlineCostFields,
+  inlineCost: InlineCostPatch,
 ): AccommodationInput {
   return {
     stopId: patch.stopId ?? current.stopId,
@@ -490,7 +487,7 @@ function mergeEndpoint(current: Endpoint, patch: EndpointPatch, fields: { stopFi
 export function mergeTransportPatch(
   current: TransportRow,
   patch: TransportPatch,
-  inlineCost: InlineCostFields,
+  inlineCost: InlineCostPatch,
 ): TransportInput | Failure {
   const dep = mergeEndpoint(
     { stopId: current.fromStopId, place: current.depPlace, isHome: current.depIsHome },
@@ -629,9 +626,10 @@ async function loadCostForMark(costId: string): Promise<{ tripId: string }> {
  * `paidMinor`/`paidAt` aren't part of this tool's input at all (use
  * `mark_cost_paid`/`mark_cost_unpaid`) — every owned-cost dialog resends
  * the current paid pair on every save, currency change included, so this
- * forwards both together whenever the Cost is currently paid (`paidAt` and
- * `paidMinor` both set), regardless of what else the patch changes. A Cost
- * that isn't currently paid (either missing) forwards neither — matching a
+ * forwards both together whenever the Cost is currently paid (`paidAt` set —
+ * `paidFieldsFromRow`; a legacy row with no paid amount falls back to the
+ * cost), regardless of what else the patch changes. A Cost that isn't
+ * currently paid (no `paidAt`) forwards neither — matching a
  * dialog that opens with the Paid box unticked — which also leaves
  * `updateCost`'s own currency-change clearing rule (P3-3) free to fire,
  * harmlessly, since there was nothing paid to clear.
@@ -644,7 +642,8 @@ async function loadCostForMark(costId: string): Promise<{ tripId: string }> {
  * dropping it would read as success (final review finding 2).
  */
 function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput | Failure {
-  const isPaid = current.paidAt != null && current.paidMinor != null;
+  const paid = paidFieldsFromRow(current);
+  const isPaid = paid.paidAt !== undefined;
   const settlement = (patch.settlement ?? current.settlement) as CostRawInput["settlement"];
   const noDueDate = isPaid || settlement === "ON_TRIP";
   if (noDueDate && patch.dueDate !== undefined) {
@@ -665,8 +664,8 @@ function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput | Fail
     category: patch.category ?? current.category ?? undefined,
     dueDate,
     settlement,
-    paidMinor: isPaid ? (current.paidMinor as number) : undefined,
-    paidAt: isPaid ? (current.paidAt as Date).toISOString().slice(0, 10) : undefined,
+    paidMinor: paid.paidMinor,
+    paidAt: paid.paidAt,
   };
 }
 

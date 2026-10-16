@@ -8,14 +8,15 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
  *   - lib/db → so we can assert Prisma call shapes without hitting the database
  *   - lib/guards → so requireUser/requireTripAccess return predictable values
  *   - next/navigation → so redirect() is interceptable (it throws in Next.js)
- *   - next/cache → so revalidatePath is a spy
+ *   - lib/revalidate → so revalidateTrip/revalidateTripsList are spies
  */
 
 const {
   requireUserMock,
   requireTripAccessMock,
   redirectMock,
-  revalidatePathMock,
+  revalidateTripMock,
+  revalidateTripsListMock,
   tripCreateMock,
   tripUpdateMock,
   tripDeleteMock,
@@ -105,7 +106,8 @@ const {
     redirectMock: vi.fn(() => {
       throw new Error("NEXT_REDIRECT");
     }),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
+    revalidateTripsListMock: vi.fn(),
     tripCreateMock,
     tripUpdateMock,
     tripDeleteMock,
@@ -200,7 +202,10 @@ vi.mock("@/lib/storage", () => ({
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/lib/storage-quota", () => ({ checkQuota: checkQuotaMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({
+  revalidateTrip: revalidateTripMock,
+  revalidateTripsList: revalidateTripsListMock,
+}));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 // The lone-Stop rule (ADR 0073) is tested in stop-flow.test.ts; here it is a
 // spy so createTrip/updateTrip's calls are observable.
@@ -308,6 +313,7 @@ describe("createTrip", () => {
     // No stops were created, so href is trip home regardless of the trip being past.
     expect(r).toEqual({ success: true, tripId: "trip-123", href: "/trips/japan-2026" });
     expect(redirectMock).not.toHaveBeenCalled();
+    expect(revalidateTripsListMock).toHaveBeenCalledOnce();
   });
 
   it("creates a date-less trip", async () => {
@@ -801,13 +807,12 @@ describe("updateTrip", () => {
     });
   });
 
-  it("revalidates trip pages after updating", async () => {
+  it("revalidates the trip's trip scope after updating", async () => {
     tripUpdateMock.mockResolvedValue({});
 
     await updateTrip(TRIP_ID, VALID_INPUT);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("setting a start date clears the rough month (CONTEXT.md Rough month)", async () => {
@@ -1171,6 +1176,18 @@ describe("deleteTrip", () => {
     expect(redirectMock).toHaveBeenCalledWith("/trips");
   });
 
+  it("revalidates the trips list before redirecting", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    });
+    tripUpdateMock.mockResolvedValue({});
+
+    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(revalidateTripsListMock).toHaveBeenCalledOnce();
+  });
+
   it("returns a forbidden error and does NOT soft-delete when caller is a member (not owner)", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-2" },
@@ -1284,14 +1301,14 @@ describe("restoreTrip", () => {
     });
   });
 
-  it("revalidates /trips on success", async () => {
+  it("revalidates the trips list on success", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
     tripMemberFindFirstMock.mockResolvedValue({ role: "owner" });
     tripUpdateMock.mockResolvedValue({ slug: "eu-trip" });
 
     await restoreTrip("t1");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips");
+    expect(revalidateTripsListMock).toHaveBeenCalledOnce();
   });
 
   it("an admin (ADMIN_EMAILS) may restore without being the owner", async () => {
@@ -1311,13 +1328,13 @@ describe("restoreTrip", () => {
 // ---------------------------------------------------------------------------
 
 describe("setTripHardEndDate", () => {
-  it("sets the hard end date and revalidates the plan + settings", async () => {
+  it("sets the hard end date and revalidates the trip's trip scope", async () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
     tripUpdateMock.mockResolvedValue({});
     const r = await setTripHardEndDate(TRIP_ID, "2026-07-20");
     expect(r.success).toBe(true);
     expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { hardEndDate: "2026-07-20" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("clears the hard end date when given an empty value", async () => {
@@ -1428,6 +1445,7 @@ describe("duplicateTrip", () => {
     // Duplicate resets every date (CONTEXT.md "Day title" — "Dropped by
     // Duplicate") — DayTitle rows are never copied onto the new trip's stops.
     expect(dayTitleCreateMock).not.toHaveBeenCalled();
+    expect(revalidateTripsListMock).toHaveBeenCalledOnce();
   });
 
   it("TB-05: duplicateTrip reads only the real plan's rows, so the copy has no Fork rows", async () => {
@@ -1592,8 +1610,7 @@ describe("setChaptersEnabled", () => {
       }),
     );
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("enabling with no forks: recomputes only the real plan", async () => {
@@ -1626,8 +1643,7 @@ describe("setChaptersEnabled", () => {
       }),
     );
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 });
 
@@ -1663,7 +1679,7 @@ describe("setForksEnabled", () => {
         changes: { summary: "Turned what-if plans on" },
       }),
     );
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`, "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("disabling: only flips the flag — existing Forks are left untouched", async () => {
@@ -1782,7 +1798,7 @@ describe("removeTripMember", () => {
     expect(inviteDeleteManyMock).not.toHaveBeenCalled();
   });
 
-  it("revalidates the trip's settings and home pages after removal", async () => {
+  it("revalidates the trip's travellers scope after removal", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "u1", email: "owner@example.com" },
       membership: { role: "owner" },
@@ -1791,8 +1807,7 @@ describe("removeTripMember", () => {
 
     await removeTripMember(TRIP_ID, "u2");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "travellers");
   });
 
   it("is access-checked BEFORE the mutation — the trap this action is the first to risk", async () => {
@@ -1953,7 +1968,7 @@ describe("leaveTrip", () => {
     });
   });
 
-  it("revalidates the trip's settings, home, and the trips list after leaving", async () => {
+  it("revalidates the trip's travellers scope and the trips list after leaving", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "u2", email: "traveller@example.com" },
       membership: { role: "member" },
@@ -1961,9 +1976,8 @@ describe("leaveTrip", () => {
 
     await leaveTrip(TRIP_ID);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips");
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "travellers");
+    expect(revalidateTripsListMock).toHaveBeenCalledOnce();
   });
 
   it("is access-checked BEFORE the mutation, called exactly once (no stale re-check)", async () => {

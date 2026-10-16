@@ -137,7 +137,7 @@ describe("OtherCostFormDialog form behaviour", () => {
 
   // Trap: gate on parse validity, never string presence (lib/money.ts —
   // parseAmountToMinor returns null for non-empty-but-unparseable input).
-  it("an unparseable paid amount (pasted currency symbol) does not submit a paidAt with a null/undefined paidMinor", async () => {
+  it("an unparseable paid amount (pasted currency symbol) is refused with Enter what you paid, never saved unpaid", async () => {
     const user = userEvent.setup();
     renderForm();
 
@@ -151,10 +151,8 @@ describe("OtherCostFormDialog form behaviour", () => {
 
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(createCost).toHaveBeenCalledWith(
-      "trip-1",
-      expect.objectContaining({ paidMinor: undefined, paidAt: undefined }),
-    );
+    expect(await screen.findByText("Enter what you paid")).toBeInTheDocument();
+    expect(createCost).not.toHaveBeenCalled();
   });
 
   // Trap: zero is a legal paid amount — must not be dropped as falsy.

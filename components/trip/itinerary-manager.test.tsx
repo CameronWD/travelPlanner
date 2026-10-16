@@ -190,7 +190,8 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 });
 
 import type * as React from "react";
-import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates, setStopNights } from "@/server/actions/stops";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates, setStopNights, toggleStopPin, makeStopRough } from "@/server/actions/stops";
+import { UNDO_FAILED } from "@/components/ui/use-undoable-action";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
@@ -198,7 +199,8 @@ import { addReminder } from "@/server/actions/reminders";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
-import { ItineraryManager, summariseReorder, transportDefaultsFromParams, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { ItineraryManager, transportDefaultsFromParams, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { summariseReorder, undoPayloadFor } from "@/components/plan/plan-editor-copy";
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
 import { setMatchMedia } from "@/test/setup";
 import { resetDayCollapse, setDayCollapsed } from "@/lib/plan/day-collapse";
@@ -1207,9 +1209,12 @@ describe("empty chapter remove control", () => {
       />,
     );
 
-    expect(
-      desktop().getByRole("button", { name: "Remove Asia chapter" }),
-    ).toBeInTheDocument();
+    const button = desktop().getByRole("button", { name: "Remove Asia chapter" });
+    expect(button).toBeInTheDocument();
+    // ADR 0029 / ARCH-CMP-4: the icon is visible at size-8 (32px), not the old h-7 w-7.
+    expect(button.className).toMatch(/\bsize-8\b/);
+    expect(button.className).not.toMatch(/\bh-7\b|\bw-7\b/);
+    expect(button.className).toMatch(/\btap-target\b/);
   });
 
   it("does NOT call deleteChapter when the confirm dialog is cancelled", async () => {
@@ -1272,11 +1277,14 @@ describe("empty chapter remove control", () => {
     await waitFor(() => {
       expect(deleteChapter).toHaveBeenCalledWith("ch-empty");
     });
-    expect(vi.mocked(toast)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: "destructive",
-        title: expect.stringMatching(/nothing changed/i),
-      }),
+    // Card 2.H: a rejection now carries the handler's own failure copy.
+    await waitFor(() =>
+      expect(vi.mocked(toast)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          title: "Couldn't remove that chapter.",
+        }),
+      ),
     );
   });
 });
@@ -1386,98 +1394,17 @@ describe("Task 10: dates-rule rendering order (ADR 0038)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Task 10: pinned scheduled stop blocks the drag (ADR 0038)
-//
-// jsdom has no layout engine, so a real dnd-kit pointer gesture can't be
-// simulated with real coordinates (see the note above the dnd-kit mock near
-// the top of this file, and the "Task 10: scheduled entities are draggable"
-// block above). Instead of asserting the guard exists via a source-text
-// match, the DndContext mock above captures the real onDragEnd callback the
-// component wires up, so this test invokes the ACTUAL production
-// handleDragEnd with a synthetic DragEndEvent shape — real guard logic, no
-// pointer/coordinate simulation required.
-// ---------------------------------------------------------------------------
-
-describe("Task 10: pinned scheduled stop blocks the drag (ADR 0038)", () => {
-  it("shows the pinned-stop toast and calls no reorder action when a pinned scheduled stop is dropped", async () => {
-    const pinned = makeStop({
-      id: "s-pinned",
-      name: "Rome",
-      arriveDate: "2026-08-01",
-      departDate: "2026-08-05",
-      pinned: true,
-      sortOrder: 0,
-    });
-    const other = makeStop({
-      id: "s-other",
-      name: "Naples",
-      arriveDate: "2026-08-05",
-      departDate: "2026-08-08",
-      sortOrder: 1,
-    });
-
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[pinned, other]} />);
-
-    expect(dndCapture.onDragEnd).toBeDefined();
-
-    await act(async () => {
-      await dndCapture.onDragEnd!({
-        active: { id: "s-pinned", data: { current: { type: "stop" } } },
-        over: { id: "s-other", data: { current: {} } },
-      });
-    });
-
-    expect(toast).toHaveBeenCalledWith({
-      title: "This stop is pinned. Unpin it to move it.",
-    });
-    expect(reorderStops).not.toHaveBeenCalled();
-  });
-
-  it("does NOT block dragging a scheduled stop that is not pinned (regression guard)", async () => {
-    const unpinned = makeStop({
-      id: "s-unpinned",
-      name: "Rome",
-      arriveDate: "2026-08-01",
-      departDate: "2026-08-05",
-      pinned: false,
-      sortOrder: 0,
-    });
-    const other = makeStop({
-      id: "s-other",
-      name: "Naples",
-      arriveDate: "2026-08-05",
-      departDate: "2026-08-08",
-      sortOrder: 1,
-    });
-
-    renderPlan(<ItineraryManager {...baseProps} initialStops={[unpinned, other]} />);
-
-    expect(dndCapture.onDragEnd).toBeDefined();
-
-    await act(async () => {
-      await dndCapture.onDragEnd!({
-        active: { id: "s-unpinned", data: { current: { type: "stop" } } },
-        over: { id: "s-other", data: { current: {} } },
-      });
-    });
-
-    expect(reorderStops).toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Task 10: a blocked pinned-stop drag must not corrupt local state (ADR 0038)
 //
-// handleDragOver optimistically previews a cross-container move by stamping
-// chapterId onto the dragged stop WHILE the gesture is in progress (dnd-kit
-// fires onDragOver repeatedly as the pointer crosses containers, before
-// onDragEnd on drop). handleDragEnd's pinned guard stops the drop from being
-// applied/persisted, but if handleDragOver had already re-stamped the pinned
-// stop's chapterId during the hover, that stale value would sit unnoticed in
-// localStops and ship to the server on some LATER, unrelated drag (whichever
-// reorder happens to run next sends the full stop list, chapterId included).
-// handleDragOver needs the identical pinned guard so the preview mutation
-// never happens in the first place.
+// handleDragOver previews a cross-container move by showing the dragged stop
+// in the hovered chapter WHILE the gesture is in progress (dnd-kit fires
+// onDragOver repeatedly as the pointer crosses containers, before onDragEnd
+// on drop). The pinned guard blocks the drop; the hover must not leave a
+// stale chapterId behind to ship to the server on some LATER, unrelated drag
+// (whichever reorder runs next sends the full stop list, chapterId included).
+// Since card 2.G the preview is display-only state, outside the plan
+// editor's rows; this keeps the scenario covered end to end. The DndContext
+// capture mock above stays for this and the item-drag tests.
 // ---------------------------------------------------------------------------
 
 describe("Task 10: blocked pinned-stop drag doesn't corrupt chapterId (regression, ADR 0038)", () => {
@@ -1547,6 +1474,32 @@ describe("Task 10: blocked pinned-stop drag doesn't corrupt chapterId (regressio
     const items = vi.mocked(reorderStops).mock.calls[0][1] as { id: string; chapterId: string | null }[];
     const pinnedItem = items.find((i) => i.id === "s-pinned");
     expect(pinnedItem?.chapterId).toBeNull();
+  });
+});
+
+describe("a stop dragged over its own preview (card 2.G fix round 1)", () => {
+  it("keeps the preview in the hovered chapter and drops the stop there", async () => {
+    const chR = { id: "chR", name: "Asia", colour: "rose" as const, startDate: null, endDate: null, sortOrder: 0 };
+    const a = makeStop({ id: "s-a", name: "Athens", chapterId: null, sortOrder: 0 });
+    const b = makeStop({ id: "s-b", name: "Bangkok", chapterId: "chR", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[a, b]} chapters={[chR]} />);
+    expect(desktop().getByText("1 stop · rough")).toBeInTheDocument();
+
+    const stopDrag = { id: "s-a", data: { current: { type: "stop" } } };
+    // Hover Asia's container: the preview shows Athens inside it.
+    act(() => { dndCapture.onDragOver!({ active: stopDrag, over: { id: "chR", data: { current: {} } } }); });
+    expect(desktop().getByText("2 stops · rough")).toBeInTheDocument();
+    // closestCenter now finds Athens's own (previewed) droppable under the pointer: no flicker.
+    act(() => { dndCapture.onDragOver!({ active: stopDrag, over: { id: "s-a", data: { current: { type: "stop" } } } }); });
+    expect(desktop().getByText("2 stops · rough")).toBeInTheDocument();
+
+    await act(async () => {
+      await dndCapture.onDragEnd!({ active: stopDrag, over: { id: "s-a", data: { current: { type: "stop" } } } });
+    });
+    expect(reorderStops).toHaveBeenCalledTimes(1);
+    const items = vi.mocked(reorderStops).mock.calls[0][1] as { id: string; chapterId: string | null }[];
+    expect(items.find((i) => i.id === "s-a")?.chapterId).toBe("chR");
+    expect(desktop().getByText("2 stops · rough")).toBeInTheDocument();
   });
 });
 
@@ -2498,7 +2451,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
   };
 
-  it("a rejected move (network/thrown) shows the standard destructive toast, no Undo and no flash", async () => {
+  it("a rejected move (network/thrown) shows the move's destructive toast, no Undo and no flash", async () => {
     const { scheduleItem } = await import("@/server/actions/items");
     const { toastWithUndo } = await import("@/components/ui/undo-toast");
     vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("network"));
@@ -2506,7 +2459,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       await dndCapture.onDragEnd!(MOVE);
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't do that. Nothing changed. Try again." });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it." });
     expect(toastWithUndo).not.toHaveBeenCalled();
     expect(screen.getByTestId("plan-desktop-list").querySelector("[data-flash]")).toBeNull();
   });
@@ -2526,14 +2479,14 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       onUndo();
     });
-    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't undo the move." }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: UNDO_FAILED }));
 
     vi.mocked(toast).mockClear();
     vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("network"));
     await act(async () => {
       onUndo();
     });
-    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't undo the move." }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: UNDO_FAILED }));
   });
 
   it("a rejected firm-up from a rough chapter's Firm up pill toasts and re-enables the pill (P2-1)", async () => {
@@ -2832,7 +2785,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't do that. Nothing changed. Try again." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't schedule it." })),
     );
     expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
   });
@@ -2938,7 +2891,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
         expect.objectContaining({
           variant: "destructive",
-          title: expect.stringMatching(/nothing changed/i),
+          title: "Couldn't suggest chapters.",
         }),
       ),
     );
@@ -3099,6 +3052,46 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     await user.click(await screen.findByRole("button", { name: "Delete" }));
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stay was already removed." })),
+    );
+  });
+
+  // Card 2.H: these three ignored a `success: false` answer and said nothing.
+  it("a refused pin toggle says so (it was silent)", async () => {
+    vi.mocked(toggleStopPin).mockResolvedValueOnce({ success: false, errors: { _: ["Can't pin a rough stop."] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Pin dates/ }));
+    await waitFor(() => expect(toggleStopPin).toHaveBeenCalledWith("par"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Can't pin a rough stop." })),
+    );
+  });
+
+  it("a refused move says so (it was silent)", async () => {
+    vi.mocked(moveStop).mockResolvedValueOnce({ success: false, errors: { _: ["That stop is already first."] } });
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stopA, stopB]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Berlin" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move up" }));
+    await waitFor(() => expect(moveStop).toHaveBeenCalledWith("s-2", "up"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stop is already first." })),
+    );
+  });
+
+  it("a refused make-rough says so (it was silent)", async () => {
+    vi.mocked(makeStopRough).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that stop."] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
+    await user.click(await screen.findByRole("button", { name: "Make rough" }));
+    await waitFor(() => expect(makeStopRough).toHaveBeenCalledWith("par"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't find that stop." })),
     );
   });
 

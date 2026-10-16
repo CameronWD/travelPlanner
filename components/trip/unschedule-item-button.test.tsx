@@ -41,6 +41,7 @@ vi.mock("@/components/ui/use-toast", () => ({
 }));
 
 import { UnscheduleItemButton } from "./unschedule-item-button";
+import { UNDO_FAILED } from "@/components/ui/use-undoable-action";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -230,7 +231,7 @@ describe("UnscheduleItemButton", () => {
   });
 
   it("shows a destructive toast and does not show the undo toast when unscheduleItem fails", async () => {
-    unscheduleItemMock.mockResolvedValue({ success: false, errors: { _: ["Server error"] } });
+    unscheduleItemMock.mockResolvedValue({ success: false, errors: {} });
     render(
       <UnscheduleItemButton
         itemId="direct-6"
@@ -249,7 +250,56 @@ describe("UnscheduleItemButton", () => {
     expect(toastWithUndoMock).not.toHaveBeenCalled();
   });
 
-  it("shows a destructive 'Couldn't undo' toast when the undo mutation throws", async () => {
+  it("a rejected unscheduleItem toasts and re-enables the button (card 2.H)", async () => {
+    unscheduleItemMock.mockRejectedValue(new Error("network"));
+    render(
+      <UnscheduleItemButton
+        itemId="direct-9"
+        itemTitle="Dinner"
+        date="2026-07-11"
+        startTime={null}
+        endTime={null}
+        hadStop={false}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /unschedule/i });
+    await userEvent.click(button);
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Couldn't unschedule.", variant: "destructive" }),
+      );
+    });
+    expect(toastWithUndoMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(button).not.toBeDisabled());
+  });
+
+  it("shows UNDO_FAILED when the placement-removed undo throws", async () => {
+    unscheduleItemMock.mockResolvedValue({ success: true, mode: "placement-removed", sourceItemId: "idea-4" });
+    scheduleItemMock.mockRejectedValue(new Error("boom"));
+    render(
+      <UnscheduleItemButton
+        itemId="placed-4"
+        itemTitle="Colosseum"
+        date="2026-07-12"
+        startTime={null}
+        endTime={null}
+        hadStop={false}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /unschedule/i }));
+    await waitFor(() => expect(unscheduleItemMock).toHaveBeenCalled());
+
+    await fireOnUndo();
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: UNDO_FAILED, variant: "destructive" }),
+      );
+    });
+  });
+
+  it("shows a destructive 'Couldn't undo' toast (UNDO_FAILED) when the undo mutation throws", async () => {
     unscheduleItemMock.mockResolvedValue({ success: true, mode: "unslotted", sourceItemId: null });
     rescheduleItemMock.mockRejectedValue(new Error("boom"));
     render(
@@ -269,7 +319,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't undo.", variant: "destructive" }),
+        expect.objectContaining({ title: UNDO_FAILED, variant: "destructive" }),
       );
     });
   });
@@ -279,7 +329,7 @@ describe("UnscheduleItemButton", () => {
   // so a failed undo used to silently no-op instead of telling the user.
   it("shows a destructive 'Couldn't undo' toast when rescheduleItem's undo RESOLVES with success:false", async () => {
     unscheduleItemMock.mockResolvedValue({ success: true, mode: "unslotted", sourceItemId: null });
-    rescheduleItemMock.mockResolvedValue({ success: false, errors: { _: ["Server error"] } });
+    rescheduleItemMock.mockResolvedValue({ success: false, errors: {} });
     render(
       <UnscheduleItemButton
         itemId="direct-8"
@@ -298,7 +348,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't undo.", variant: "destructive" }),
+        expect.objectContaining({ title: UNDO_FAILED, variant: "destructive" }),
       );
     });
     expect(refreshMock).not.toHaveBeenCalled();
@@ -306,7 +356,7 @@ describe("UnscheduleItemButton", () => {
 
   it("shows a destructive 'Couldn't undo' toast when scheduleItem's undo RESOLVES with success:false", async () => {
     unscheduleItemMock.mockResolvedValue({ success: true, mode: "placement-removed", sourceItemId: "idea-3" });
-    scheduleItemMock.mockResolvedValue({ success: false, errors: { _: ["Server error"] } });
+    scheduleItemMock.mockResolvedValue({ success: false, errors: {} });
     render(
       <UnscheduleItemButton
         itemId="placed-3"
@@ -325,7 +375,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't undo.", variant: "destructive" }),
+        expect.objectContaining({ title: UNDO_FAILED, variant: "destructive" }),
       );
     });
     expect(refreshMock).not.toHaveBeenCalled();

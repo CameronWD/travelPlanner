@@ -4,12 +4,12 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for Traveller profile server actions: setDisplayName /
  * setProfilePhoto / removeProfilePhoto (Task 1, CONTEXT.md "Profile photo
- * and display name"). Mocks: lib/db, lib/guards, lib/storage, lib/blob-retention, next/cache.
+ * and display name"). Mocks: lib/db, lib/guards, lib/storage, lib/blob-retention, lib/revalidate.
  */
 
 const {
   requireUserMock,
-  revalidatePathMock,
+  revalidateAccountMock,
   userFindUniqueMock,
   userUpdateMock,
   storageSaveMock,
@@ -18,7 +18,7 @@ const {
   checkQuotaMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn().mockResolvedValue({ id: "u1" }),
-  revalidatePathMock: vi.fn(),
+  revalidateAccountMock: vi.fn(),
   userFindUniqueMock: vi.fn(),
   userUpdateMock: vi.fn(),
   storageSaveMock: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock("@/lib/storage-quota", async (orig) => ({
   ...(await orig<typeof import("@/lib/storage-quota")>()),
   checkQuota: checkQuotaMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateAccount: revalidateAccountMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     user: {
@@ -132,7 +132,7 @@ describe("setDisplayName", () => {
 
   it("revalidates the whole layout (avatar shows everywhere)", async () => {
     await setDisplayName("Cam");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
+    expect(revalidateAccountMock).toHaveBeenCalledOnce();
   });
 });
 
@@ -226,7 +226,7 @@ describe("setProfilePhoto", () => {
 
   it("revalidates the whole layout", async () => {
     await setProfilePhoto(makeFormData());
-    expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
+    expect(revalidateAccountMock).toHaveBeenCalledOnce();
   });
 });
 
@@ -267,7 +267,7 @@ describe("setProfilePhotoFocal", () => {
   it("is access-checked before the write and revalidates the whole layout", async () => {
     await setProfilePhotoFocal(0.5, 0.5);
     expectAccessCheckedBeforeWrite(requireUserMock, userUpdateMock);
-    expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
+    expect(revalidateAccountMock).toHaveBeenCalledOnce();
   });
 });
 
@@ -298,6 +298,6 @@ describe("removeProfilePhoto", () => {
   it("revalidates the whole layout", async () => {
     userFindUniqueMock.mockResolvedValue({ photoKey: "users/u1/old.png" });
     await removeProfilePhoto();
-    expect(revalidatePathMock).toHaveBeenCalledWith("/", "layout");
+    expect(revalidateAccountMock).toHaveBeenCalledOnce();
   });
 });

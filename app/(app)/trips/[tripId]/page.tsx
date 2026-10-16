@@ -33,7 +33,7 @@ import { HOME_STACK } from "@/components/trip/home/spacing";
 import { DesktopHomeGrid } from "@/components/trip/home/desktop/desktop-home-grid";
 import { CountdownTile } from "@/components/trip/home/desktop/countdown-tile";
 import { ArrivalDropIn } from "@/components/trip/home/desktop/arrival-drop-in";
-import { SharedPotTile } from "@/components/trip/home/desktop/shared-pot-tile";
+import { TripCostTile } from "@/components/trip/home/desktop/trip-cost-tile";
 import { RouteMapTile } from "@/components/trip/home/desktop/route-map-tile";
 import { SortTheseOutTile } from "@/components/trip/home/desktop/sort-these-out-tile";
 import { loadHomePlanningData } from "@/lib/desktop-home-loader";
@@ -261,7 +261,7 @@ export default async function TripHomePage({
  * The desktop (lg+) Home (spec C, docs/specs/2026-09-27-desktop-home.md
  * §2–§4; spec D for Travelling/Past): HomeHeader owns the page's h1, bell,
  * people and "+ Add a stop" here (the trip layout's header is lg:hidden on
- * Home — ruling R2). Sketching/Planning/Final prep fill the Shared pot, Route
+ * Home — ruling R2). Sketching/Planning/Final prep fill the Trip cost, Route
  * map and "Sort these out" slots with their own tiles; Travelling and Past
  * render their Phase's desktop grid, which reads the same cache()d model as
  * the phone Phase on this request.
@@ -443,8 +443,8 @@ async function renderDesktopHome({
             />
           </ArrivalDropIn>
         }
-        pot={
-          <SharedPotTile
+        cost={
+          <TripCostTile
             href={tripPath(slug, "/budget")}
             hasCover={hasCover}
             costTotalMinor={planning.budget.grandTotal.costTotalMinor}

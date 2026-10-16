@@ -1,7 +1,6 @@
 "use server";
 
 import { notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireRowAccess, type RowKind } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
@@ -16,6 +15,7 @@ import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { createAttachmentFromFile } from "@/lib/attachment-create";
 import { checkQuota } from "@/lib/storage-quota";
 import { type ActionResult, formFail } from "@/lib/action-result";
+import { revalidateTrip, revalidateGlobe } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -223,7 +223,7 @@ export async function uploadAttachment(
       data: { url: publicUrl, storageKey },
     });
 
-    revalidatePath("/globe");
+    revalidateGlobe();
     return { success: true, id: attachment.id };
   }
 
@@ -329,7 +329,7 @@ export async function uploadAttachment(
     changes: { excerpt: file.name },
   });
 
-  revalidatePath(`/trips/${tripId}/files`);
+  revalidateTrip(tripId, "journal");
   return { success: true, id: created.id };
 }
 
@@ -359,7 +359,7 @@ export async function deleteAttachment(
 
   if (attachment.globeId) {
     // Globe-scoped: no trip activity log; revalidate the globe page.
-    revalidatePath("/globe");
+    revalidateGlobe();
   } else {
     const tripId = attachment.tripId!;
     await recordActivity({
@@ -371,7 +371,7 @@ export async function deleteAttachment(
       changes: { excerpt: attachment.filename },
       surpriseOf,
     });
-    revalidatePath(`/trips/${tripId}/files`);
+    revalidateTrip(tripId, "journal");
   }
 
   return { success: true };
@@ -393,8 +393,8 @@ export async function setAttachmentTitle(
     return formFail(`Title must be ${TITLE_MAX} characters or fewer.`);
   }
   await db.attachment.update({ where: { id }, data: { title: trimmed.length === 0 ? null : trimmed } });
-  if (attachment.tripId) revalidatePath(`/trips/${attachment.tripId}/files`);
-  else revalidatePath("/globe");
+  if (attachment.tripId) revalidateTrip(attachment.tripId, "journal");
+  else revalidateGlobe();
   return { success: true };
 }
 
@@ -422,6 +422,6 @@ export async function linkAttachmentToItem(
   } else {
     await db.attachment.update({ where: { id }, data: { targetType: "TRIP", targetId: null } });
   }
-  revalidatePath(`/trips/${attachment.tripId}/files`);
+  revalidateTrip(attachment.tripId, "journal");
   return { success: true };
 }

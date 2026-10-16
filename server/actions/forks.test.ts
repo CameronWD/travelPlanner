@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  *   - lib/trip-phase   → computeTripPhase
  *   - lib/dates        → todayISO
  *   - server/actions/activity → recordActivity
- *   - next/cache       → revalidatePath
+ *   - lib/revalidate   → revalidateTrip
  */
 
 // ---------------------------------------------------------------------------
@@ -25,7 +25,7 @@ const {
   todayISOInZoneMock,
   currentTripTimezoneMock,
   recordActivityMock,
-  revalidatePathMock,
+  revalidateTripMock,
   forkCountMock,
   forkFindManyMock,
   forkCreateMock,
@@ -173,7 +173,7 @@ const {
     todayISOInZoneMock: vi.fn().mockReturnValue("2026-07-01"),
     currentTripTimezoneMock: vi.fn().mockReturnValue("Australia/Sydney"),
     recordActivityMock: vi.fn().mockResolvedValue(undefined),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     forkCountMock,
     forkFindManyMock,
     forkCreateMock,
@@ -259,8 +259,8 @@ vi.mock("@/server/actions/activity", () => ({
   recordActivity: recordActivityMock,
 }));
 
-vi.mock("next/cache", () => ({
-  revalidatePath: revalidatePathMock,
+vi.mock("@/lib/revalidate", () => ({
+  revalidateTrip: revalidateTripMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -767,8 +767,7 @@ describe("createFork", () => {
     it("revalidates both trip paths", async () => {
       await createFork("trip-1", "Plan B");
 
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+      expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
     });
 
     it("gates on the trip's own clock, not UTC — the switcher and the action agree", async () => {
@@ -1027,8 +1026,7 @@ describe("renameFork", () => {
 
     await renameFork("fork-1", "Plan B");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 });
 
@@ -1083,8 +1081,7 @@ describe("discardFork", () => {
 
     await discardFork("fork-1");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
   // Final review #2: a fork's Item-photo copies are their own Attachments
@@ -1907,12 +1904,7 @@ describe("promoteFork", () => {
     it("revalidates the core trip paths after promotion", async () => {
       await promoteFork("fork-9");
 
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/plan");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/calendar");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/summary");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+      expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
     });
   });
 
@@ -1949,8 +1941,7 @@ describe("moveFork", () => {
     expect(forkUpdateMock).toHaveBeenCalledWith({ where: { id: "fork-b" }, data: { sortOrder: 0 } });
     expect(forkUpdateMock).toHaveBeenCalledWith({ where: { id: "fork-a" }, data: { sortOrder: 1 } });
     expect(recordActivityMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("is a no-op at the left edge", async () => {

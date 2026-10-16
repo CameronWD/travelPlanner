@@ -3,7 +3,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   shareFindManyMock,
   shareFindFirstMock,
   shareCreateMock,
@@ -14,7 +14,7 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   shareFindManyMock: vi.fn(),
   shareFindFirstMock: vi.fn(),
   shareCreateMock: vi.fn(),
@@ -23,7 +23,7 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     shareLink: {
@@ -122,6 +122,7 @@ describe("createShareLink", () => {
         }),
       }),
     );
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("honours explicit false dials", async () => {
@@ -218,6 +219,7 @@ describe("updateShareLink", () => {
       expect.objectContaining({ data: { includeTransport: false } }),
     );
     expect(result.success).toBe(true);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("turns the Journal dial on for an existing link", async () => {
@@ -265,6 +267,7 @@ describe("rotateShareLink", () => {
     );
     expect(result.success).toBe(true);
     if (result.success) expect(result.link.token).toBe("tok-2");
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 
   it("fails with a form error when the link is gone", async () => {
@@ -283,5 +286,6 @@ describe("revokeShareLink", () => {
       where: { id: LINK_ID, tripId: TRIP_ID },
     });
     expect(result.success).toBe(true);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 });

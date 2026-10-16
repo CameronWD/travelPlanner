@@ -1,7 +1,6 @@
 "use server";
 
 import { notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser, requireRowAccess } from "@/lib/guards";
 import {
@@ -16,16 +15,17 @@ import { mergeTemplateTexts } from "@/lib/checklists";
 import { type ActionResult, formFail, validationResult } from "@/lib/action-result";
 import { buyStateSchema, type BuyState } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
+import { recordUpdate } from "@/lib/activity-guard";
 import {
   checklistItemsAddedSummary,
   checklistItemSummary,
   checklistListName,
   checklistTickSummary,
-  describeChanges,
   entityLabel,
   templateAppliedSummary,
 } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -69,10 +69,6 @@ function activityRow(item: { text: string; dueDate: string | null; assignedTo: T
  */
 async function requireChecklistItemAccess(itemId: string): Promise<ChecklistItemAccess> {
   return (await requireRowAccess("checklistItem", itemId)).row;
-}
-
-function revalidateChecklistPaths(tripId: string) {
-  revalidatePath(`/trips/${tripId}/checklists`);
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +142,7 @@ export async function addChecklistItem(
     changes: checklistItemSummary("CREATED", data.text, data.kind),
   });
 
-  revalidateChecklistPaths(tripId);
+  revalidateTrip(tripId, "lists");
   return { success: true };
 }
 
@@ -209,7 +205,7 @@ export async function addChecklistItems(
     changes: checklistItemsAddedSummary(toAdd.length, parsed.data.kind),
   });
 
-  revalidateChecklistPaths(tripId);
+  revalidateTrip(tripId, "lists");
   return { success: true };
 }
 
@@ -260,16 +256,16 @@ export async function updateChecklistItem(
     select: { text: true, dueDate: true, assignedTo: { select: TRAVELLER_SELECT } },
   });
 
-  await recordActivity({
+  // Checklists and Reminders sit outside any Plan (plan: null): always recorded.
+  await recordUpdate("CHECKLIST_ITEM", {
     tripId: item.tripId,
-    verb: "UPDATED",
-    entityType: "CHECKLIST_ITEM",
+    plan: null,
     entityId: itemId,
-    entityLabel: entityLabel("CHECKLIST_ITEM", { text: after.text }),
-    changes: describeChanges("CHECKLIST_ITEM", activityRow(item), activityRow(after)),
+    before: activityRow(item),
+    after: activityRow(after),
   });
 
-  revalidateChecklistPaths(item.tripId);
+  revalidateTrip(item.tripId, "lists");
   return { success: true };
 }
 
@@ -301,7 +297,7 @@ export async function toggleChecklistItem(
     });
   }
 
-  revalidateChecklistPaths(item.tripId);
+  revalidateTrip(item.tripId, "lists");
   return { success: true };
 }
 
@@ -331,7 +327,7 @@ export async function setBuyState(
     data: { buy: parsedBuy.data },
   });
 
-  revalidateChecklistPaths(item.tripId);
+  revalidateTrip(item.tripId, "lists");
   return { success: true };
 }
 
@@ -354,7 +350,7 @@ export async function deleteChecklistItem(
     changes: checklistItemSummary("DELETED", item.text, item.kind),
   });
 
-  revalidateChecklistPaths(item.tripId);
+  revalidateTrip(item.tripId, "lists");
   return { success: true };
 }
 
@@ -404,7 +400,7 @@ export async function reorderChecklistItem(
     });
   });
 
-  revalidateChecklistPaths(item.tripId);
+  revalidateTrip(item.tripId, "lists");
   return { success: true };
 }
 
@@ -522,7 +518,7 @@ export async function applyTemplate(
     changes: templateAppliedSummary(newTexts.length, template.name),
   });
 
-  revalidateChecklistPaths(tripId);
+  revalidateTrip(tripId, "lists");
   return { success: true };
 }
 

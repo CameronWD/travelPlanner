@@ -7,13 +7,13 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
  * Mocks:
  *   - lib/db     — assert Prisma call shapes without hitting the database
  *   - lib/guards — requireTripAccess returns a predictable membership
- *   - next/cache — revalidatePath is a spy
+ *   - lib/revalidate — revalidateTrip is a spy
  */
 
 const {
   requireTripAccessMock,
   isAdminEmailMock,
-  revalidatePathMock,
+  revalidateTripMock,
   tripMemberFindManyMock,
   inviteUpsertMock,
   inviteFindUniqueMock,
@@ -24,7 +24,7 @@ const {
     membership: { role: "owner" },
   }),
   isAdminEmailMock: vi.fn().mockReturnValue(false),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
   inviteUpsertMock: vi.fn(),
   inviteFindUniqueMock: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("@/lib/guards", async () => {
   return { requireTripAccess: requireTripAccessMock, isTripOwnerOrAdmin };
 });
 vi.mock("@/lib/admin", () => ({ isAdminEmail: isAdminEmailMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     tripMember: {
@@ -180,13 +180,13 @@ describe("inviteToTrip", () => {
     );
   });
 
-  it("revalidates the settings path after inviting", async () => {
+  it("revalidates the trip's travellers scope after inviting", async () => {
     tripMemberFindManyMock.mockResolvedValue([]);
     inviteUpsertMock.mockResolvedValue({ id: "inv" });
 
     await inviteToTrip(TRIP_ID, "new@example.com");
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "travellers");
   });
 
   it("upserts on (tripId, email) so a duplicate cannot be created", async () => {
@@ -277,13 +277,13 @@ describe("cancelInvite", () => {
     expect(inviteDeleteMock).toHaveBeenCalledWith({ where: { id: INVITE_ID } });
   });
 
-  it("revalidates the settings path after cancelling", async () => {
+  it("revalidates the trip's travellers scope after cancelling", async () => {
     inviteFindUniqueMock.mockResolvedValue({ tripId: TRIP_ID, acceptedAt: null });
     inviteDeleteMock.mockResolvedValue({});
 
     await cancelInvite(INVITE_ID);
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "travellers");
   });
 
   it("ARCH-TEN-10: a non-owner member cannot cancel an Invite", async () => {

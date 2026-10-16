@@ -35,18 +35,19 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("leads with the kit's hero heading in both trees, with the same body copy (spec 2026-09-29 body copy)", () => {
     render(<Landing />);
-    expect(within(desktop()).getByRole("heading", { level: 1, name: /Plan it with your people/ })).toBeInTheDocument();
-    expect(within(phone()).getByRole("heading", { level: 1, name: /Plan it with your people/ })).toBeInTheDocument();
-    const body = "Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.";
+    expect(within(desktop()).getByRole("heading", { level: 1, name: /Your whole trip, in one place/ })).toBeInTheDocument();
+    expect(within(phone()).getByRole("heading", { level: 1, name: /Your whole trip, in one place/ })).toBeInTheDocument();
+    const body = "Stops, trains, beds and budget. On your own or together.";
     expect(within(desktop()).getByText(body)).toBeInTheDocument();
     expect(within(phone()).getByText(body)).toBeInTheDocument();
     expect(within(desktop()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
     expect(within(phone()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Plan it with your people|shared pot/i);
   });
   it("the coral full stop is decorative punctuation: aria-hidden in both trees, so the contrast audit can exempt it by name (W17)", () => {
     render(<Landing />);
     for (const tree of [desktop(), phone()]) {
-      const h1 = within(tree).getByRole("heading", { level: 1, name: /Plan it with your people/ });
+      const h1 = within(tree).getByRole("heading", { level: 1, name: /Your whole trip, in one place/ });
       const dot = h1.querySelector("span.text-coral")!;
       expect(dot.textContent).toBe(".");
       expect(dot).toHaveAttribute("aria-hidden", "true");
@@ -98,7 +99,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("the buttons follow the hero body in document order, and the phone cards follow the buttons (C5)", () => {
     render(<Landing />);
-    const body = within(phone()).getByText("Stops, trains, beds and budget all in one place. For the trip you're dreaming up, the one you're on, and everywhere you've been.");
+    const body = within(phone()).getByText("Stops, trains, beds and budget. On your own or together.");
     const req = within(phone()).getByRole("button", { name: "Become a tester" });
     const cards = within(phone()).getByTestId("sample-cards-phone");
     expect(body.compareDocumentPosition(req) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

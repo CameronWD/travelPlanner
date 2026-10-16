@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import { type ActionResult, ok, validationResult } from "@/lib/action-result";
 import { travellerDetailsSchema, travelNumberSchema, type TravellerDetailsInput } from "@/lib/validations/traveller-details";
+import { revalidateAccountPage, revalidateTrip } from "@/lib/revalidate";
 
 /**
  * Save the viewer's own Traveller details (CONTEXT.md; spec 2026-10-02 §E).
@@ -21,7 +21,7 @@ export async function saveTravellerDetails(input: TravellerDetailsInput): Promis
     update: parsed.data,
   });
 
-  revalidatePath("/account");
+  revalidateAccountPage();
   return ok();
 }
 
@@ -40,6 +40,6 @@ export async function saveTravelNumber(tripId: string, value: string): Promise<A
     data: { travelNumber: parsed.data.length === 0 ? null : parsed.data },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "travellers");
   return ok();
 }

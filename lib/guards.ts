@@ -9,7 +9,7 @@ import { getActingTraveller } from "@/lib/mcp/acting-traveller";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { PlanId } from "@/lib/plan-scope";
 import { requireOutsideSurprise, type SurpriseRef, type SurpriseRoot } from "@/lib/surprise-guard";
-import { CHECKLIST_ITEM_ACTIVITY_SELECT } from "@/lib/checklist-select";
+import { CHECKLIST_ITEM_ACTIVITY_SELECT } from "@/lib/checklists";
 import type { TravellerLike } from "@/lib/traveller";
 
 export { isTripOwnerOrAdmin } from "@/lib/access";
@@ -139,14 +139,17 @@ export async function requireForkAccess(forkId: string) {
  * plan on a write (reads keep falling back: lib/plan-scope.ts resolvePlan).
  * Membership is checked first so a non-member never learns a Fork exists.
  */
-export async function requirePlanAccess(tripId: string, forkId: PlanId | undefined) {
+export async function requirePlanAccess(
+  tripId: string,
+  forkId: PlanId | undefined,
+): Promise<Awaited<ReturnType<typeof requireTripAccess>> & { plan: PlanId }> {
   const { user, membership } = await requireTripAccess(tripId);
-  if (!forkId) return { user, membership, plan: null as PlanId };
+  if (!forkId) return { user, membership, plan: null };
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { forksEnabled: true } });
   if (!trip?.forksEnabled) notFound();
   const fork = await db.fork.findFirst({ where: { id: forkId, tripId }, select: { id: true } });
   if (!fork) notFound();
-  return { user, membership, plan: fork.id as PlanId };
+  return { user, membership, plan: fork.id };
 }
 
 /** Require an ADMIN_EMAILS operator. notFound() for everyone else. */
@@ -281,11 +284,11 @@ function findRow<K extends RowKind>(kind: K, id: string, realPlanOnly: boolean):
     case "chapter":
       return db.chapter.findUnique({ where, select: select as never }) as Promise<RowOf<K> | null>;
     case "note":
-      return db.note.findUnique({ where: { id }, select: select as never }) as Promise<RowOf<K> | null>;
+      return db.note.findUnique({ where, select: select as never }) as Promise<RowOf<K> | null>;
     case "reminder":
-      return db.reminder.findUnique({ where: { id }, select: select as never }) as Promise<RowOf<K> | null>;
+      return db.reminder.findUnique({ where, select: select as never }) as Promise<RowOf<K> | null>;
     default:
-      return db.checklistItem.findUnique({ where: { id }, select: select as never }) as unknown as Promise<RowOf<K> | null>;
+      return db.checklistItem.findUnique({ where, select: select as never }) as unknown as Promise<RowOf<K> | null>;
   }
 }
 

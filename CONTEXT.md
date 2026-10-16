@@ -126,6 +126,10 @@ _Avoid_: Misc, extra
 The read-only roll-up view: grand total (in Home currency), and breakdowns by Category, by Stop, and by day, each showing cost vs paid. It is also where a Cost is marked **paid** in bulk — ticking down the list is the reconciling gesture the view is built for. No target/cap — totals only.
 _Avoid_: Budget cap, limit (there is no limit feature)
 
+**Trip cost**:
+The one headline money number for a Trip: every Cost's cost amount, summed in the Home currency. It is the **Budget**'s grand total seen at a glance — on the **Home** and in Compare. The money belongs to the whole group and is never split per person, but that is how the product works, not a label to repeat beside every figure.
+_Avoid_: Shared pot, pot, kitty, total budget
+
 **Spend so far**:
 A read-only money lens, distinct from the **Budget** roll-up, tracking how real spending compares with what things were reckoned to cost: the total cost amount, what's been **paid** to date, how those paid Costs' paid amounts run over/under their own cost amounts, and the cost amount still to come. Cash-flow basis — a Cost counts once it's marked paid. Because a Cost cannot be paid without a paid amount, every figure here is real money; nothing paid ever counts as zero. Surfaced on the Budget view and the Travelling/Past **Home**. Like the Budget it has no target or cap; over-estimate spending is shown here only, never raised as a **Flag**.
 _Avoid_: Burn-down (implies a cap we don't have), budget pace, remaining budget, overspend alert

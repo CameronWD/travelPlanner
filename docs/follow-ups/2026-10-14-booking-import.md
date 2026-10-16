@@ -12,8 +12,22 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
   `AiUsage` rows in the last hour would make it exact (and give the true wait).
 - **BI-03 · `.eml` originals are not attached.** `validateUpload` takes images,
   PDFs and plain text only. Option: attach the email's first PDF instead.
-- **BI-04 · Transport and Item warnings don't refresh after an edit.** They are
+- **BI-04 · Fixed, 2026-10-15, tidy-up batch 2 (fix round 1 same day).**
+  Transport and Item warnings didn't refresh after an edit: they were
   computed at import; the Accommodation card recomputes its own.
+  `lib/booking-import/stay-warnings.ts` computes the "outside your stay"
+  warnings from a Proposal's current input (`stayWarnings`), and the
+  Proposal editor recomputes them on every draft and submit
+  (`refreshStayWarnings`). `build.ts`'s two import-time pushes are
+  unchanged from before this fix (still `end.date`/`outsideStay` inline),
+  because a Transport end known only by a date (no wall time printed in the
+  booking) has no `depAt`/`arrAt` for `stayWarnings` to read — round 1 of
+  review caught a first pass that switched `build.ts` over too and silently
+  dropped that warning at import. `refreshStayWarnings` drops a Proposal's
+  previous stay warning by recognising its fixed wording (`messages.ts`),
+  not by recomputing it from the edited-away Proposal's input, so a
+  date-only import's warning is still replaced correctly once an edit gives
+  it a real time.
 - **BI-05 · One zone per country.** A proposed Stop in a multi-zone country
   (US, Australia, Canada, Brazil) takes `guessTimezoneForCountry`'s single zone;
   the Traveller is told only when no zone is known.

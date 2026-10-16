@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { reminderSchema, type ReminderInput } from "@/lib/validations/reminder";
@@ -11,9 +10,11 @@ import {
   validationResult,
 } from "@/lib/action-result";
 import { recordActivity } from "@/server/actions/activity";
+import { recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
-import { describeChanges, entityLabel } from "@/lib/activity";
+import { entityLabel } from "@/lib/activity";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { revalidateTrip, revalidateTripsList } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -63,18 +64,6 @@ async function requireReminderAccess(reminderId: string): Promise<{
 /** Diff row — the "about" Stop by name, never by id. */
 function activityRow(r: { title: string; date: string; stop: { name: string } | null }) {
   return { title: r.title, date: r.date, stopName: r.stop?.name ?? null };
-}
-
-/**
- * Reminders now render on the trip Home in every Phase, not only on Today —
- * and (Task 7) on the Plan page's Stop cards — so all three paths have to be
- * revalidated or a freshly-written note is invisible on the very screen it
- * was written from.
- */
-function revalidateReminderPaths(tripId: string) {
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/today`);
-  revalidatePath(`/trips/${tripId}/plan`);
 }
 
 /**
@@ -184,7 +173,8 @@ export async function addReminder(
     entityLabel: entityLabel("REMINDER", { title }),
   });
 
-  revalidateReminderPaths(tripId);
+  revalidateTrip(tripId, "plan", "lists");
+  revalidateTripsList();
   return { success: true, id: reminder.id };
 }
 
@@ -221,16 +211,17 @@ export async function updateReminder(
     select: { title: true, date: true, stop: { select: { name: true } } },
   });
 
-  await recordActivity({
+  // Checklists and Reminders sit outside any Plan (plan: null): always recorded.
+  await recordUpdate("REMINDER", {
     tripId: reminder.tripId,
-    verb: "UPDATED",
-    entityType: "REMINDER",
+    plan: null,
     entityId: id,
-    entityLabel: entityLabel("REMINDER", { title: after.title }),
-    changes: describeChanges("REMINDER", activityRow(reminder), activityRow(after)),
+    before: activityRow(reminder),
+    after: activityRow(after),
   });
 
-  revalidateReminderPaths(reminder.tripId);
+  revalidateTrip(reminder.tripId, "plan", "lists");
+  revalidateTripsList();
   return { success: true };
 }
 
@@ -253,6 +244,7 @@ export async function deleteReminder(id: string): Promise<ReminderActionResult> 
     surpriseOf: reminder.surpriseOf,
   });
 
-  revalidateReminderPaths(reminder.tripId);
+  revalidateTrip(reminder.tripId, "plan", "lists");
+  revalidateTripsList();
   return { success: true };
 }

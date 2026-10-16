@@ -1,11 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { z } from "zod";
 import { type ActionResult, formFail } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,7 +84,7 @@ export async function inviteToTrip(
     select: { id: true },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "travellers");
   return { success: true, inviteId: invite.id };
 }
 
@@ -128,6 +128,6 @@ export async function cancelInvite(
 
   await db.invite.delete({ where: { id: inviteId } });
 
-  revalidatePath(`/trips/${invite.tripId}/settings`);
+  revalidateTrip(invite.tripId, "travellers");
   return { success: true };
 }

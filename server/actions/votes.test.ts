@@ -8,7 +8,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   itemFindUniqueMock,
   voteUpsertMock,
   voteDeleteManyMock,
@@ -19,7 +19,7 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   itemFindUniqueMock: vi.fn(),
   voteUpsertMock: vi.fn(),
   voteDeleteManyMock: vi.fn(),
@@ -28,7 +28,7 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NOT_FOUND");
@@ -119,7 +119,7 @@ describe("setVote", () => {
   it("revalidates the wishlist path", async () => {
     voteUpsertMock.mockResolvedValue({});
     await setVote(TRIP_ID, ITEM_ID, "MEH");
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/wishlist`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan");
   });
 
   it("rejects an invalid level", async () => {
@@ -199,7 +199,7 @@ describe("clearVote", () => {
   it("revalidates the wishlist path", async () => {
     voteDeleteManyMock.mockResolvedValue({ count: 0 });
     await clearVote(TRIP_ID, ITEM_ID);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/wishlist`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan");
   });
 
   it("throws notFound when item does not belong to the trip", async () => {

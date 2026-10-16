@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { ok, type ActionResult } from "@/lib/action-result";
+import { revalidateTripsList } from "@/lib/revalidate";
 
 /**
  * "I have seen the Welcome."
@@ -26,6 +26,6 @@ export async function markWelcomeSeen(): Promise<ActionResult> {
   });
 
   // Only the Trips page mounts the Welcome (spec §G), so one path suffices.
-  revalidatePath("/trips");
+  revalidateTripsList();
   return ok();
 }

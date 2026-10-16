@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { validateUpload } from "@/lib/storage";
@@ -9,6 +8,7 @@ import { reportError } from "@/lib/error-sink";
 import { checkQuota } from "@/lib/storage-quota";
 import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 import { type ActionResult, formFail } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 export type CoverActionResult = ActionResult;
 
@@ -91,9 +91,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
     data: { coverImageKey: key, coverSmallKey: smallKey, coverFocalX: null, coverFocalY: null, coverAspect },
   });
 
-  revalidatePath("/trips");
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return { success: true };
 }
 
@@ -116,9 +114,7 @@ export async function removeTripCover(tripId: string): Promise<CoverActionResult
     });
   }
 
-  revalidatePath("/trips");
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return { success: true };
 }
 
@@ -143,8 +139,6 @@ export async function setCoverFocal(tripId: string, x: number, y: number): Promi
     data: { coverFocalX: clampUnit(x), coverFocalY: clampUnit(y) },
   });
 
-  revalidatePath("/trips");
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return { success: true };
 }

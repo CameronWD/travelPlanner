@@ -3,7 +3,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   feedFindFirstMock,
   feedCreateMock,
   feedUpsertMock,
@@ -11,7 +11,7 @@ const {
   feedUpdateManyMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   feedFindFirstMock: vi.fn(),
   feedCreateMock: vi.fn(),
   feedUpsertMock: vi.fn(),
@@ -25,7 +25,7 @@ const {
 const calendarFeedUpdateManyMock = feedUpdateManyMock;
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     calendarFeed: {
@@ -112,7 +112,7 @@ describe("calendar feed actions", () => {
       where: { tripId: TRIP_ID },
       data: filter,
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 });
 
@@ -131,8 +131,8 @@ describe("updateCalendarFeedAlarms", () => {
     });
   });
 
-  it("revalidates the settings page", async () => {
+  it("revalidates the trip's trip scope", async () => {
     await updateCalendarFeedAlarms("trip-1", { alarmTransport: true, alarmCheckOut: true });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/settings");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "trip");
   });
 });

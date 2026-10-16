@@ -5,7 +5,6 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { CURRENCY_CODES } from "@/lib/currencies";
-import { todayLocalISO } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/action-result";
 import type { CostSettlement } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
@@ -18,6 +17,10 @@ export interface InlineCostFieldsProps {
   currency: string;
   onCurrencyChange: (v: string) => void;
   paid: boolean;
+  /**
+   * Ticking Paid should pre-fill the paid amount and date — pass
+   * `setPaid` from `lib/money/cost-form-state.ts` (`useCostFields` does).
+   */
   onPaidChange: (v: boolean) => void;
   paidAmount: string;
   onPaidAmountChange: (v: string) => void;
@@ -43,9 +46,9 @@ const PAIR = "grid gap-x-4 gap-y-[inherit] sm:grid-cols-2";
 
 /**
  * The inline single-cost editor (cost + paid toggle) shared by the
- * transport / accommodation / item form dialogs. Ticking Paid reveals a
- * paid amount pre-filled with the cost, plus a date defaulting to today
- * (ADR 0037). Hidden entirely when >1 costs exist.
+ * transport / accommodation / item form dialogs and the CostEditor. Ticking
+ * Paid reveals the paid amount and date (the pre-fill is the state's job:
+ * `setPaid`, ADR 0037). Hidden entirely when >1 costs exist.
  */
 export function InlineCostFields({
   hasMultipleCosts,
@@ -66,17 +69,6 @@ export function InlineCostFields({
   paired = false,
 }: InlineCostFieldsProps): React.ReactElement | null {
   if (hasMultipleCosts) return null;
-
-  // Ticking Paid pre-fills the amount with the cost, so confirming a thing that
-  // cost what you expected is one gesture — that pre-fill is what keeps the
-  // "paid needs an amount" rule (ADR 0037) from being friction.
-  function handlePaidToggle(next: boolean) {
-    onPaidChange(next);
-    if (next) {
-      if (!paidAmount.trim() && costAmount.trim()) onPaidAmountChange(costAmount);
-      if (!paidAt.trim()) onPaidAtChange(todayLocalISO());
-    }
-  }
 
   const costField = (
     <Field
@@ -108,7 +100,7 @@ export function InlineCostFields({
         <input
           type="checkbox"
           checked={paid}
-          onChange={(e) => handlePaidToggle(e.target.checked)}
+          onChange={(e) => onPaidChange(e.target.checked)}
           disabled={disabled}
           className="size-4 rounded border-input accent-primary"
         />

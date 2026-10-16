@@ -290,7 +290,7 @@ type MetricRowId =
 
 /**
  * Stat grid order: the kit's Nights · Cost · Legs lead, then the rest of ours.
- * Money is one shared pot, so the cost stat is "Trip cost" (as on the trip
+ * Money is one group total, so the cost stat is "Trip cost" (as on the trip
  * home), never a per-person figure.
  */
 const METRIC_ROWS: { id: MetricRowId; label: string; wide?: boolean }[] = [
@@ -337,7 +337,6 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
             <span className={VALUE_CLASS}>
               {m.budgetHomeMinor !== null ? formatMoney(m.budgetHomeMinor, trip.homeCurrency) : "—"}
             </span>
-            <span className="text-xs font-semibold text-muted-foreground">shared pot</span>
           </>
         );
       case "flags":

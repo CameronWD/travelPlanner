@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
-  requireTripAccessMock, requirePlanAccessMock, revalidatePathMock,
+  requireTripAccessMock, requirePlanAccessMock, revalidateTripMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
   stopFindManyMock, stopFindUniqueMock, stopFindUniqueTxMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
   itemFindManyMock, itemUpdateMock, accommodationFindManyMock, accommodationUpdateMock,
@@ -42,7 +42,7 @@ const {
       membership: { role: "owner" },
       plan: forkId ?? null,
     })),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     chapterFindUniqueMock: vi.fn(),
     chapterFindManyMock,
     chapterCountMock: vi.fn().mockResolvedValue(0),
@@ -104,7 +104,7 @@ vi.mock("@/lib/guards", () => ({
   requirePlanAccess: requirePlanAccessMock,
   requireRowAccess: requireRowAccessMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     chapter: { findUnique: chapterFindUniqueMock, findMany: chapterFindManyMock, count: chapterCountMock, create: chapterCreateMock, createMany: chapterCreateManyMock, update: chapterUpdateMock, delete: chapterDeleteMock },
@@ -248,7 +248,7 @@ describe("createChapter", () => {
     const r = await createChapter("trip-1", VALID);
     expect(r.success).toBe(true);
     expect(chapterCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "trip-1", name: "Italy", colour: "rose" }) });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
   it("rejects a chapter that overlaps an existing one", async () => {
     chapterFindManyMock.mockResolvedValue([{ id: "x", startDate: "2026-07-15", endDate: "2026-07-20" }]);
@@ -300,7 +300,7 @@ describe("updateChapter", () => {
   it("excludes itself from the overlap check", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "c1", tripId: "trip-1" }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: "2026-07-01", endDate: "2026-07-05" }]);
     const r = await updateChapter("c1", VALID);
     expect(r.success).toBe(true);
@@ -323,9 +323,9 @@ describe("updateChapter", () => {
   it("records UPDATED activity with describeChanges after a successful update", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "c1", tripId: "trip-1" }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "c1", tripId: "trip-1", name: "Old Name", colour: "rose", startDate: "2026-07-01", endDate: "2026-07-05" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([]);
-    chapterUpdateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose", startDate: "2026-07-10", endDate: "2026-07-18" });
+    chapterUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", name: "Italy", colour: "rose", startDate: "2026-07-10", endDate: "2026-07-18" });
     await updateChapter("c1", VALID);
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", verb: "UPDATED", entityType: "CHAPTER", entityId: "c1" }));
   });
@@ -485,7 +485,7 @@ describe("reorderChapters", () => {
 
     const r = await reorderChapters("t1", ["c2", "c1"]);
     expect(r.success).toBe(true);
-    expect(revalidatePathMock).toHaveBeenCalled();
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan");
   });
 
   it("rejects a chapter from another trip (count mismatch) — returns error, no updates", async () => {
@@ -677,7 +677,7 @@ describe("fork-silent: updateChapter in a fork does NOT record activity", () => 
   it("does not call recordActivity when chapter.forkId is non-null (fork-scoped update)", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x" }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x", name: "Old", colour: "rose" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x", name: "Old", colour: "rose" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([]);
     chapterUpdateMock.mockResolvedValue({ id: "fc-2", name: "Italy", colour: "rose" });
 
@@ -689,7 +689,7 @@ describe("fork-silent: updateChapter in a fork does NOT record activity", () => 
   it("DOES call recordActivity when chapter.forkId is null (real-plan update)", async () => {
     chapterFindUniqueMock
       .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null }) // requireChapterAccess
-      .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null, name: "Old", colour: "rose" }); // loadFullChapter
+      .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null, name: "Old", colour: "rose" }); // auditedUpdate before-read
     chapterFindManyMock.mockResolvedValue([]);
     chapterUpdateMock.mockResolvedValue({ id: "rc-2", name: "Italy", colour: "rose" });
 

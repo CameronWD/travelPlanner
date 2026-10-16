@@ -1,20 +1,20 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { geocodePlace, searchPlacesWithStatus, type PlaceSearchOutcome } from "@/lib/geocode";
-import { recordPlanActivity } from "@/lib/activity-guard";
-import { entityLabel, describeChanges } from "@/lib/activity";
+import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
+import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionFailure, type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -27,8 +27,11 @@ export type TransportActionResult = ActionResult;
 // ---------------------------------------------------------------------------
 
 /**
- * Look up a transport and verify the current user has access to its trip.
- * Returns the transport (with its tripId) or throws notFound().
+ * Thin adapter over `requireRowAccess("transport", id)` (lib/guards.ts):
+ * loads the Transport (id, tripId, forkId — `ROW_SELECT.transport`), checks
+ * trip access, and throws notFound() otherwise. No Surprise check of its own
+ * (a Transport is never a Surprise root; CONTEXT.md Surprise — Accommodation
+ * and Transport cannot be surprised yet).
  */
 async function requireTransportAccess(transportId: string) {
   const { row } = await requireRowAccess("transport", transportId);
@@ -205,8 +208,8 @@ export async function createTransport(
     }
   }
 
-  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
-  revalidatePath(`/trips/${tripId}`, "layout");
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created) });
+  revalidateTrip(tripId, "plan", "money");
   return { success: true, id: created.id };
 }
 
@@ -266,8 +269,6 @@ export async function updateTransport(
   const depAtInstant = wallTimeToInstant(data.depAt, depTz);
   const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
 
-  const before = await db.transport.findUnique({ where: { id: transportId } });
-
   // Best-effort geocode for departure and arrival places.
   // Home endpoints are not geocoded — coords resolve from the trip at read time.
   let depLat: number | null = null;
@@ -286,27 +287,24 @@ export async function updateTransport(
     arrLng = coords?.lng ?? null;
   }
 
-  const updated = await db.transport.update({
-    where: { id: transportId },
-    data: {
-      mode: data.mode,
-      depIsHome,
-      arrIsHome,
-      fromStopId,
-      toStopId,
-      anchorStopId,
-      depPlace,
-      depAt: depAtInstant,
-      arrPlace,
-      arrAt: arrAtInstant,
-      reference: data.reference ?? null,
-      notes: data.notes ?? null,
-      depLat,
-      depLng,
-      arrLat,
-      arrLng,
-    },
-  });
+  await auditedUpdate("TRANSPORT", db.transport, transportId, {
+    mode: data.mode,
+    depIsHome,
+    arrIsHome,
+    fromStopId,
+    toStopId,
+    anchorStopId,
+    depPlace,
+    depAt: depAtInstant,
+    arrPlace,
+    arrAt: arrAtInstant,
+    reference: data.reference ?? null,
+    notes: data.notes ?? null,
+    depLat,
+    depLng,
+    arrLat,
+    arrLng,
+  }, transport.forkId ?? null);
 
   // Inline cost management:
   // 0 existing costs + amount provided → create
@@ -371,15 +369,7 @@ export async function updateTransport(
     // >1 costs: do nothing — CostEditor is authoritative
   }
 
-  await recordPlanActivity(transport.forkId, {
-    tripId: transport.tripId,
-    verb: "UPDATED",
-    entityType: "TRANSPORT",
-    entityId: transportId,
-    entityLabel: entityLabel("TRANSPORT", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("TRANSPORT", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
-  });
-  revalidatePath(`/trips/${transport.tripId}`, "layout");
+  revalidateTrip(transport.tripId, "plan", "money");
   return { success: true };
 }
 
@@ -434,7 +424,7 @@ export async function reorderTransports(
     }
   });
 
-  revalidatePath(`/trips/${tripId}`, "layout");
+  revalidateTrip(tripId, "plan");
   return { success: true };
 }
 
@@ -447,7 +437,7 @@ export async function deleteTransport(
   const transport = await requireTransportAccess(transportId);
 
   const doomed = await db.transport.findUnique({ where: { id: transportId } });
-  const ownerLabel = entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>);
+  const ownerLabel = entityLabel("TRANSPORT", doomed ?? {});
 
   // cleanupTargetSideDataTx schedules attachment blobs for retention inside
   // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
@@ -461,6 +451,6 @@ export async function deleteTransport(
 
   await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: ownerLabel });
 
-  revalidatePath(`/trips/${transport.tripId}`, "layout");
+  revalidateTrip(transport.tripId, "plan");
   return { success: true };
 }

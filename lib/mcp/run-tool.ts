@@ -6,6 +6,7 @@
  */
 import { ZodError } from "zod";
 import { reportError } from "@/lib/error-sink";
+import { isNextControlFlow } from "@/lib/next-control-flow";
 import { getActingTraveller } from "./acting-traveller";
 
 export type ToolContent = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
@@ -55,6 +56,9 @@ async function errorResult(name: string, err: unknown): Promise<ToolResult> {
   if (err instanceof ZodError) {
     return text(`Couldn't do that: ${err.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}`, true);
   }
-  await reportError(err, { route: `/api/mcp#${name}`, source: "server", userId: getActingTraveller()?.id });
+  // 404 and redirect are mapped above and never reach here; this also covers
+  // forbidden()/unauthorized() digests (unused today, but same family) so a
+  // future caller of them doesn't get reported as an application error.
+  if (!isNextControlFlow(err)) await reportError(err, { route: `/api/mcp#${name}`, source: "server", userId: getActingTraveller()?.id });
   return text("Couldn't do that. Try again.", true);
 }

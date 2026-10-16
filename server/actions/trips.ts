@@ -2,7 +2,6 @@
 
 import type { Route } from "next";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
@@ -29,6 +28,7 @@ import {
 } from "@/lib/validations/trip";
 import { type ActionResult, fail, formFail, validationResult } from "@/lib/action-result";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { revalidateTrip, revalidateTripsList } from "@/lib/revalidate";
 
 export type CreateTripResult = ActionResult<{ tripId: string; href: Route }>;
 
@@ -195,6 +195,7 @@ export async function createTrip(
     : stopRows.length > 0 && isPast
       ? `/globe?added=${trip.id}`
       : tripPath(slug);
+  revalidateTripsList();
   return { success: true, tripId: trip.id, href };
 }
 
@@ -372,8 +373,7 @@ export async function updateTrip(
   // during a deploy window gets one on its next save.
   const slug = await db.$transaction((tx) => assignTripSlug(tx, tripId, name));
 
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
 
   return { success: true, slug };
 }
@@ -410,9 +410,7 @@ export async function setTripHardEndDate(
 
   await db.trip.update({ where: { id: tripId }, data: { hardEndDate: value } });
 
-  revalidatePath(`/trips/${tripId}/plan`);
-  revalidatePath(`/trips/${tripId}/settings`);
-  revalidatePath(`/trips/${tripId}`);
+  revalidateTrip(tripId, "trip");
 
   return { success: true };
 }
@@ -449,6 +447,7 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
 
   await db.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
 
+  revalidateTripsList();
   redirect("/trips");
 
   // Unreachable — redirect() throws, return satisfies the type.
@@ -488,7 +487,7 @@ export async function restoreTrip(tripId: string): Promise<RestoreTripResult> {
     select: { slug: true },
   });
 
-  revalidatePath("/trips");
+  revalidateTripsList();
 
   return { success: true, slug: trip.slug ?? tripId };
 }
@@ -654,7 +653,7 @@ export async function duplicateTrip(
   // Note: "TRIP" is not a valid ActivityEntityType (valid: STOP, ITEM, TRANSPORT,
   // ACCOMMODATION, CHAPTER, COST, NOTE), so recordActivity is omitted here.
   // This is a best-effort concern that must never break the mutation.
-  revalidatePath("/trips");
+  revalidateTripsList();
   return { success: true, tripId: newTrip.id, slug };
 }
 
@@ -702,8 +701,7 @@ export async function setChaptersEnabled(tripId: string, enabled: boolean): Prom
     changes: { summary: enabled ? "Turned chapters on" : "Turned chapters off" },
   });
 
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/plan`);
+  revalidateTrip(tripId, "trip");
 
   return { success: true };
 }
@@ -741,7 +739,7 @@ export async function setForksEnabled(tripId: string, enabled: boolean): Promise
 
   // The Fork switcher lives in the trip layout and every fork-aware page reads
   // the flag, so revalidate the whole trip subtree.
-  revalidatePath(`/trips/${tripId}`, "layout");
+  revalidateTrip(tripId, "trip");
 
   return { success: true };
 }
@@ -830,8 +828,7 @@ export async function removeTripMember(
     });
   }
 
-  revalidatePath(`/trips/${tripId}/settings`);
-  revalidatePath(`/trips/${tripId}`);
+  revalidateTrip(tripId, "travellers");
 
   return { success: true };
 }
@@ -870,9 +867,8 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
     });
   }
 
-  revalidatePath(`/trips/${tripId}/settings`);
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
+  revalidateTrip(tripId, "travellers");
+  revalidateTripsList();
 
   return { success: true };
 }

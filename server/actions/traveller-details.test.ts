@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { requireUserMock, requireTripAccessMock, upsertMock, updateManyMock, revalidatePathMock } = vi.hoisted(() => ({
+const { requireUserMock, requireTripAccessMock, upsertMock, updateManyMock, revalidateAccountPageMock, revalidateTripMock } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   requireTripAccessMock: vi.fn(),
   upsertMock: vi.fn(),
   updateManyMock: vi.fn(),
-  revalidatePathMock: vi.fn(),
+  revalidateAccountPageMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock, requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/db", () => ({ db: { travellerDetails: { upsert: upsertMock }, tripMember: { updateMany: updateManyMock } } }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateAccountPage: revalidateAccountPageMock, revalidateTrip: revalidateTripMock }));
 
 import { saveTravellerDetails, saveTravelNumber } from "@/server/actions/traveller-details";
 
@@ -23,7 +24,7 @@ describe("saveTravellerDetails", () => {
     expect(result).toEqual({ success: true });
     const data = { mobile: "0400", emergencyName: "Mum", emergencyPhone: null, bankDetails: "BSB 000-000 Acc 1" };
     expect(upsertMock).toHaveBeenCalledWith({ where: { userId: "u1" }, create: { userId: "u1", ...data }, update: data });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/account");
+    expect(revalidateAccountPageMock).toHaveBeenCalledOnce();
   });
 
   it("returns field errors and writes nothing when a value is too long", async () => {
@@ -47,7 +48,7 @@ describe("saveTravelNumber", () => {
     const result = await saveTravelNumber("t1", " +39 333 1234567 ");
     expect(result).toEqual({ success: true });
     expect(updateManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u1" }, data: { travelNumber: "+39 333 1234567" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1/settings");
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "travellers");
   });
 
   it("empty clears it", async () => {

@@ -19,7 +19,7 @@ function renderGrid(hasCover: boolean) {
     <DesktopHomeGrid
       hasCover={hasCover}
       countdown={<div data-testid="countdown" />}
-      pot={<div data-testid="pot" />}
+      cost={<div data-testid="cost" />}
       map={<div data-testid="map" />}
       sort={<div data-testid="sort" />}
     />,
@@ -46,7 +46,7 @@ describe("DesktopHomeGrid", () => {
     const { grid, slot } = renderGrid(true);
     expect(grid.className).toBe(desktopHomeGridClass(true));
     expect(slot("countdown")).toHaveClass("col-span-8");
-    expect(slot("pot")).toHaveClass("col-span-4");
+    expect(slot("cost")).toHaveClass("col-span-4");
     expect(slot("map")).toHaveClass("col-span-7");
     expect(slot("sort")).toHaveClass("col-span-5");
   });
@@ -55,14 +55,14 @@ describe("DesktopHomeGrid", () => {
     const { grid, slot } = renderGrid(false);
     expect(grid.className).toBe(desktopHomeGridClass(false));
     expect(slot("countdown")).toHaveClass("col-span-6");
-    expect(slot("pot")).toHaveClass("col-span-6");
+    expect(slot("cost")).toHaveClass("col-span-6");
     expect(slot("map")).toHaveClass("col-span-7");
     expect(slot("sort")).toHaveClass("col-span-5");
   });
 
   it("exports the span classes", () => {
     expect(DESKTOP_GRID_SPANS.cover.countdown).toContain("col-span-8");
-    expect(DESKTOP_GRID_SPANS.noCover.pot).toContain("col-span-6");
+    expect(DESKTOP_GRID_SPANS.noCover.cost).toContain("col-span-6");
   });
 });
 

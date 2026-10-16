@@ -9,7 +9,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   geocodePlaceMock,
   accFindUniqueMock,
   accCreateMock,
@@ -69,7 +69,7 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
-    revalidatePathMock: vi.fn(),
+    revalidateTripMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
     accFindUniqueMock: vi.fn(),
     accCreateMock: vi.fn(),
@@ -125,7 +125,7 @@ vi.mock("@/lib/guards", () => ({
   requirePlanAccess: requirePlanAccessMock,
   requireRowAccess: requireRowAccessMock,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
@@ -306,7 +306,7 @@ describe("createAccommodation", () => {
         checkOut: "2026-07-04",
       }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
   it("access-checks via the stop's tripId", async () => {
@@ -349,7 +349,7 @@ describe("createAccommodation", () => {
       expect(result.errors.name).toBeDefined();
     }
     expect(accCreateMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 
   it("returns validation error when checkOut < checkIn", async () => {
@@ -452,7 +452,7 @@ describe("updateAccommodation", () => {
       where: { id: "acc-1" },
       data: expect.objectContaining({ name: "Updated Hotel" }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
   it("returns validation error and does not write", async () => {
@@ -564,7 +564,7 @@ describe("deleteAccommodation", () => {
 
     expect(result.success).toBe(true);
     expect(accDeleteMock).toHaveBeenCalledWith({ where: { id: "acc-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("access-checks via accommodation's tripId", async () => {

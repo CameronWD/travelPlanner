@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
 // Calendar feed actions
@@ -64,7 +64,7 @@ export async function createCalendarFeed(
   });
 
   if (existing) {
-    revalidatePath(`/trips/${tripId}/settings`);
+    revalidateTrip(tripId, "trip");
     return { token: existing.token };
   }
 
@@ -75,7 +75,7 @@ export async function createCalendarFeed(
     select: { token: true },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return { token: created.token };
 }
 
@@ -99,7 +99,7 @@ export async function rotateCalendarFeed(
     select: { token: true },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
   return { token: updated.token };
 }
 
@@ -116,7 +116,7 @@ export async function revokeCalendarFeed(tripId: string): Promise<void> {
     where: { tripId },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
 }
 
 /**
@@ -145,7 +145,7 @@ export async function updateCalendarFeedFilter(
     },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
 }
 
 /**
@@ -169,5 +169,5 @@ export async function updateCalendarFeedAlarms(
     },
   });
 
-  revalidatePath(`/trips/${tripId}/settings`);
+  revalidateTrip(tripId, "trip");
 }

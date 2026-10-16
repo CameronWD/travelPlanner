@@ -3,8 +3,7 @@ import { type FlowConflict } from "@/lib/firm-up";
 import { daysBetween } from "@/lib/dates";
 import { shiftItemDates, shiftAccommodationDates, type PayloadShiftResult } from "@/lib/payload-shift";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { spanReflow } from "@/lib/reorder";
-import { compareScheduled } from "@/lib/plan-order";
+import { reflowArrangement } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
 import { guessTimezoneForCountry } from "@/lib/tz";
@@ -241,13 +240,7 @@ export async function reflowSpanTx(
     orderBy: { sortOrder: "asc" },
     select: { id: true, arriveDate: true, departDate: true, pinned: true, sortOrder: true },
   });
-  const newScheduled = orderedStops.filter(
-    (s): s is (typeof orderedStops)[number] & { arriveDate: string; departDate: string } =>
-      s.arriveDate != null && s.departDate != null,
-  );
-  const oldScheduled = [...newScheduled].sort(compareScheduled);
-
-  const { results, conflicts } = spanReflow(oldScheduled, newScheduled, movedIds);
+  const { scheduled: newScheduled, results, conflicts } = reflowArrangement(orderedStops, movedIds);
   const payload: PayloadShiftResult = { items: [], accommodations: [] };
   const preById = new Map(newScheduled.map((s) => [s.id, s]));
   const changedResults = results.filter((r) => r.changed);

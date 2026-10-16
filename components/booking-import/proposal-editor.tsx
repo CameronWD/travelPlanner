@@ -7,6 +7,7 @@ import { StopFormDialog } from "@/components/trip/stop-form-dialog";
 import { TransportFormDialog } from "@/components/trip/transport-form-dialog";
 import { mergeStopEdit, mergeTransportEdit, toActionResult } from "@/lib/booking-import/edit";
 import { stayRange, type PreviewStop } from "@/lib/booking-import/preview";
+import { refreshStayWarnings } from "@/lib/booking-import/stay-warnings";
 import { proposedRef, type ConfirmProposalResult, type ImportContext, type Proposal, type StopProposal } from "@/lib/booking-import/types";
 import { ProposalPreview } from "./proposal-card";
 
@@ -47,7 +48,8 @@ export function ProposalEditor({ tripId, forkId, context, proposal, original, st
   switch (proposal.kind) {
     case "transport": {
       const before = original.kind === "transport" ? original.input : proposal.input;
-      const edit = (input: typeof proposal.input): Proposal => ({ ...proposal, input: mergeTransportEdit(before, input) });
+      const edit = (input: typeof proposal.input): Proposal =>
+        refreshStayWarnings(proposal, { ...proposal, input: mergeTransportEdit(before, input) }, stops);
       return (
         <TransportFormDialog
           open
@@ -84,7 +86,8 @@ export function ProposalEditor({ tripId, forkId, context, proposal, original, st
         />
       );
     }
-    case "item":
+    case "item": {
+      const edit = (input: typeof proposal.input): Proposal => refreshStayWarnings(proposal, { ...proposal, input }, stops);
       return (
         <ItemFormDialog
           open
@@ -96,10 +99,11 @@ export function ProposalEditor({ tripId, forkId, context, proposal, original, st
           defaultUnscheduled={!proposal.input.date}
           initialValues={proposal.input}
           preview={preview}
-          onDraftChange={(input) => onDraft({ ...proposal, input })}
-          onSubmitOverride={async (input) => toActionResult(await onConfirm({ ...proposal, input }))}
+          onDraftChange={(input) => onDraft(edit(input))}
+          onSubmitOverride={async (input) => toActionResult(await onConfirm(edit(input)))}
         />
       );
+    }
     case "stop": {
       const before = original.kind === "stop" ? original.input : proposal.input;
       const edit = (input: typeof proposal.input): Proposal => ({ ...proposal, input: mergeStopEdit(before, input) });

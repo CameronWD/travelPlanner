@@ -11,7 +11,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
-  revalidatePathMock,
+  revalidateTripMock,
   recordActivityMock,
   stopFindUniqueMock,
   stopFindFirstMock,
@@ -23,7 +23,7 @@ const {
     user: { id: "user-1" },
     membership: { role: "member" },
   }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   recordActivityMock: vi.fn().mockResolvedValue(undefined),
   stopFindUniqueMock: vi.fn(),
   stopFindFirstMock: vi.fn().mockResolvedValue(null),
@@ -32,7 +32,7 @@ const {
   dayTitleDeleteMock: vi.fn().mockResolvedValue({ id: "dt-1" }),
 }));
 
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NOT_FOUND");
@@ -320,14 +320,11 @@ describe("setDayTitle", () => {
     );
   });
 
-  it("revalidates plan, calendar, day and Home paths", async () => {
+  it("revalidates the trip's plan scope", async () => {
     stopFindUniqueMock.mockResolvedValue(LISBON);
     await setDayTitle({ stopId: LISBON.id, date: "2026-12-11", title: "Sintra day trip" });
 
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${LISBON.tripId}/plan`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${LISBON.tripId}/calendar`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${LISBON.tripId}/day/2026-12-11`);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${LISBON.tripId}`);
+    expect(revalidateTripMock).toHaveBeenCalledWith(LISBON.tripId, "plan");
   });
 
   describe("Activity", () => {

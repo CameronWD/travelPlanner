@@ -12,6 +12,7 @@ import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
 
+import { todayLocalISO } from "@/lib/dates";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 
@@ -150,6 +151,45 @@ describe("CostEditor", () => {
       }),
       undefined,
     );
+  });
+
+  it("ticking Paid pre-fills You paid with the cost amount and Date paid with today", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "50.00");
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("50.00");
+    expect(screen.getByLabelText("Date paid")).toHaveValue(todayLocalISO());
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 5000, paidMinor: 5000, paidAt: todayLocalISO() }),
+      undefined,
+    );
+  });
+
+  it("Paid ticked with a blank paid amount is refused with Enter what you paid, never saved unpaid", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "50.00");
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.clear(screen.getByLabelText("You paid amount"));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(await screen.findByText("Enter what you paid")).toBeInTheDocument();
+    expect(createCost).not.toHaveBeenCalled();
+  });
+
+  it("editing a legacy paid cost with no paid amount opens paid with the cost as its paid amount and resaves it paid", async () => {
+    const user = userEvent.setup();
+    const legacy: CostRow = { ...sampleCost, paidAt: new Date("2026-10-01T00:00:00Z") };
+    render(<CostEditor {...baseProps} costs={[legacy]} />);
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("50.00");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ paidMinor: 5000, paidAt: "2026-10-01" }));
   });
 
   it("deleting a cost shows a dialog with the cost label and calls deleteCost on confirm", async () => {

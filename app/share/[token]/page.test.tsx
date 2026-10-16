@@ -247,7 +247,7 @@ describe("SharePage — public guarantees", () => {
     }
     expect(text).not.toMatch(/[$€£¥]\s?\d/);
     expect(text).not.toMatch(/€\s?\d/);
-    // Money is a shared pot, and never shown here — no splitting language either.
+    // Money is one group total, and never shown here — no splitting language either.
     expect(text).not.toMatch(/per person|each owes|split/i);
   });
 

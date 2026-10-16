@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { walkSources } from "@/test/helpers/walk-sources";
 
@@ -38,7 +38,10 @@ const FILES = [
 const BANNED = [/shadow-soft/, /border-border\/70/, /bg-card\/40/];
 const RAW_HEX = /["'\s]#[0-9a-fA-F]{6}\b/;
 
-const targets = [...DIRS.flatMap((d) => walkSources(d, { skipTests: true })), ...FILES].filter(
+const targets = [
+  ...DIRS.filter((d) => existsSync(d)).flatMap((d) => walkSources(d, { skipTests: true })),
+  ...FILES,
+].filter(
   (f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f),
 );
 

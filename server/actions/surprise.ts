@@ -6,7 +6,6 @@
  * (the day after it is over) and the reveal on leaving live in
  * lib/surprise-sweep.ts.
  */
-import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
@@ -16,6 +15,7 @@ import { surpriseSummary } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { type ActionResult, fail } from "@/lib/action-result";
+import { revalidateTrip } from "@/lib/revalidate";
 
 export type SurpriseKind = "STOP" | "ITEM";
 
@@ -90,7 +90,7 @@ export async function setSurprise(input: { kind: SurpriseKind; id: string; forId
     surpriseOf: { type: input.kind, id: row.id },
     changes: surpriseSummary({ kind: "set", kindOf: input.kind, label: row.label, forNames }),
   });
-  revalidatePath(`/trips/${row.tripId}`, "layout");
+  revalidateTrip(row.tripId, "plan");
   return { success: true };
 }
 
@@ -114,6 +114,6 @@ export async function revealSurprise(input: { kind: SurpriseKind; id: string }):
     surpriseOf,
     changes: surpriseSummary({ kind: "reveal", kindOf: input.kind, label: row.label }),
   });
-  revalidatePath(`/trips/${row.tripId}`, "layout");
+  revalidateTrip(row.tripId, "plan");
   return { success: true };
 }

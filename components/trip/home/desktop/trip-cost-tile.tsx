@@ -6,7 +6,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 
-interface SharedPotNextPayment {
+interface TripCostNextPayment {
   amountMinor: number;
   currency: string;
   label: string;
@@ -14,7 +14,7 @@ interface SharedPotNextPayment {
   dueDate: string;
 }
 
-export interface SharedPotTileProps {
+export interface TripCostTileProps {
   /** The Money page. */
   href: Route;
   hasCover: boolean;
@@ -22,33 +22,34 @@ export interface SharedPotTileProps {
   paidTotalMinor: number;
   /** The Trip's home currency — the totals are in it. */
   currency: string;
-  nextPayment: SharedPotNextPayment | null;
+  nextPayment: TripCostNextPayment | null;
 }
 
 const EYEBROW = "text-[11px] font-extrabold uppercase tracking-[0.08em]";
 
 /**
- * Desktop Home "Shared pot" tile (spec 2026-09-27-desktop-home §5). Sun card;
- * the whole tile links to Money through a stretched link underneath the
- * content, so the "Add your first cost" link can sit on top without nesting.
- * Money is a shared pot — never split per person. Totals abbreviate from 1,000 ($11.1k);
- * any unabbreviated amount shows 2 decimals ($115.20).
+ * Desktop Home "Trip cost" tile (spec 2026-09-27-desktop-home §5, renamed
+ * 2026-10-15 card 2.Q). Sun card; the whole tile links to Money through a
+ * stretched link underneath the content, so the "Add your first cost" link
+ * can sit on top without nesting. Money is one group total, never split per
+ * person. Totals abbreviate from 1,000 ($11.1k); any unabbreviated amount
+ * shows 2 decimals ($115.20).
  */
-export function SharedPotTile({
+export function TripCostTile({
   href,
   hasCover,
   costTotalMinor,
   paidTotalMinor,
   currency,
   nextPayment,
-}: SharedPotTileProps) {
+}: TripCostTileProps) {
   const costed = costTotalMinor > 0;
   const pct = costed ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100)) : 0;
   const total = formatMoneyAuto(costed ? costTotalMinor : 0, currency);
 
   const totalBlock = (
     <>
-      <h2 className={EYEBROW}>Shared pot</h2>
+      <h2 className={EYEBROW}>Trip cost</h2>
       <p className="mt-1.5 font-display text-[40px] font-extrabold leading-none tracking-[-0.02em]">{total}</p>
       <p className="text-sm font-semibold">planned so far</p>
     </>
@@ -77,7 +78,7 @@ export function SharedPotTile({
   const link = (
     <Link
       href={href}
-      aria-label={`Shared pot: ${total} planned. Open Money`}
+      aria-label={`Trip cost: ${total} planned. Open Money`}
       className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-[3px] focus-visible:-outline-offset-4 focus-visible:outline-ring"
     />
   );

@@ -32,7 +32,7 @@ See also: **`docs/adr/0026-shared-ui-conventions.md`** (extraction decisions) an
 | `pinHex(category)` | `lib/map-pins.ts` | Category → map-pin hex (Tailwind-500 shade), falling back to OTHER. |
 | `applyLeafletIconDefaults(L)` | `lib/map-icons.ts` | Repoints Leaflet's bundler-broken default marker URLs at `public/leaflet/`. Call once per map init. |
 | `useDeleteWithConfirm` | `components/ui/use-delete-with-confirm.ts` | Confirm-then-delete. Composes `useConfirm` + `useServerAction`. Returns `{ requestDelete, isPending, dialog }`. |
-| `<InlineCostFields>` | `components/trip/inline-cost-fields.tsx` | Estimated / actual / date-paid cost input trio for transport, accommodation, and item form dialogs. |
+| `<InlineCostFields>` | `components/money/cost-fields/inline-cost-fields.tsx` | The inline Cost fields (cost amount, Settlement, Paid, paid amount, date paid) for the transport, accommodation and item form dialogs and the CostEditor; state from `useCostFields`. |
 | `<AppLink>` | `components/navigation/app-link.tsx` | `next/link` that reports its navigation to the pending context (ADR 0063). Every in-app nav control uses it. Extra prop `pendingClassName`. |
 | `useAppRouter` | `components/navigation/use-app-router.ts` | `useRouter` whose `push`/`replace` report to the pending context. Use instead of `useRouter` for programmatic navigation. |
 | `useEffectivePathname` | `components/navigation/navigation-pending.tsx` | The pathname a nav control should light for: the tapped target while a navigation is in flight, else the real one. |

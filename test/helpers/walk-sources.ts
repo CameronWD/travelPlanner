@@ -10,6 +10,13 @@ const SKIP = new Set(["node_modules", "design_handoff"]);
  * directories like `app/.well-known` included) — the same generic skip the
  * seven guard tests' own `walk()` copies applied before this helper replaced
  * them.
+ *
+ * `opts.skipTests` drops `*.test.ts`/`*.test.tsx` files from the result.
+ *
+ * `dir` must exist — a missing directory throws ENOENT (`readdirSync`'s own
+ * error), same as reading any other file; callers that walk a directory
+ * that might not exist (an optional subtree, a renamed/removed folder) guard
+ * it with `existsSync(dir)` first rather than catching here.
  */
 export function walkSources(dir: string, opts: { exts?: readonly string[]; skipTests?: boolean } = {}): string[] {
   const exts = opts.exts ?? [".ts", ".tsx"];

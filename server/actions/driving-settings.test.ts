@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
-const { requireTripAccessMock, revalidatePathMock, tripUpdateMock } = vi.hoisted(() => ({
+const { requireTripAccessMock, revalidateTripMock, tripUpdateMock } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
-  revalidatePathMock: vi.fn(),
+  revalidateTripMock: vi.fn(),
   tripUpdateMock: vi.fn().mockResolvedValue({ id: "trip-1" }),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: {
@@ -30,9 +30,7 @@ describe("updateDrivingSettings", () => {
     });
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/settings");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/plan");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/summary");
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("passes through in-range values", async () => {
