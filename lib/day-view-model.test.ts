@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, stopLine, planCountLabel, dayIdeasRows, forecastOpensOn } from "@/lib/day-view-model";
+import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, stopLine, planCountLabel, dayIdeasRows, forecastOpensOn, buildDayModel, type DayRows } from "@/lib/day-view-model";
 
 const T = { start: "2026-12-04", end: "2027-01-08" };
 
@@ -119,3 +119,107 @@ describe("dayIdeasRows (spec decision 5)", () => {
 });
 
 it("forecastOpensOn is 15 days before", () => expect(forecastOpensOn("2027-01-02")).toBe("Fri 18 Dec"));
+
+describe("buildDayModel (card 3.M)", () => {
+  const stop = (o: Partial<DayRows["stops"][number]> & { id: string; name: string; arriveDate: string; departDate: string; sortOrder: number }) => ({
+    country: "France", countryCode: "FR", timezone: "Europe/Paris", lat: 48.57, lng: 7.75, surprise: null, ...o,
+  });
+  const item = (o: Partial<DayRows["items"][number]> & { id: string; date: string }) => ({
+    title: `Item ${o.id}`, category: "SIGHTSEEING", startTime: null, endTime: null, sortOrder: 0, stopId: "s-stras",
+    lat: null, lng: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false,
+    photoAttachmentId: null, surprise: null, ...o,
+  });
+  const SURPRISED = { plannerId: "u-pat", plannerName: "Pat", forIds: ["u-viv"], forNames: ["Viv"], youAreSurprised: true };
+  const HOTEL = {
+    id: "a-corbeau", stopId: "s-stras", name: "Hôtel Cour du Corbeau", address: "6 Rue des Couples", checkIn: "2026-12-10",
+    checkOut: "2026-12-13", checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: 48.5795, lng: 7.7498,
+  };
+  function rows(over: Partial<DayRows> = {}): DayRows {
+    return {
+      trip: { name: "Xmas", startDate: "2026-12-04", endDate: "2026-12-20", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: null, chaptersEnabled: true, roundTrip: true },
+      startDate: "2026-12-04",
+      endDate: "2026-12-20",
+      stops: [
+        stop({ id: "s-paris", name: "Paris", arriveDate: "2026-12-06", departDate: "2026-12-10", sortOrder: 0, lat: 48.8566, lng: 2.3522 }),
+        stop({ id: "s-stras", name: "Strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-13", sortOrder: 1 }),
+      ],
+      items: [
+        item({ id: "i-photo", date: "2026-12-11", startTime: "09:00", lat: 48.58, lng: 7.75, photoAttachmentId: "att-1" }),
+        item({ id: "i-secret", date: "2026-12-11", title: "Surprise", category: "OTHER", surprise: SURPRISED }),
+      ],
+      transports: [],
+      accommodations: [HOTEL],
+      wishlist: [
+        { id: "w-near", title: "Petite France walk", category: "SIGHTSEEING", lat: 48.5809, lng: 7.7406, countryCode: "FR" },
+        { id: "w-cc", title: "Tarte flambée", category: "FOOD", lat: null, lng: null, countryCode: "FR" },
+      ],
+      attachments: [
+        { id: "att-1", filename: "a.jpg", title: null, mime: "image/jpeg", size: 1, url: "/api/attachments/att-1", uploadedById: "u-1", createdAt: new Date("2026-11-01T00:00:00Z"), targetId: "i-photo" },
+      ],
+      chapters: [{ id: "c-alsace", name: "Alsace", colour: "sky", startDate: "2026-12-10", endDate: "2026-12-13", sortOrder: 0 }],
+      dayTitles: [{ stopId: "s-stras", dayIndex: 1, title: "Market day" }],
+      thingsToDo: [{ id: "t-market", title: "Christkindelsmärik", category: "SHOPPING", startTime: "17:00", endTime: null, stopId: "s-stras" }],
+      ...over,
+    };
+  }
+
+  it("a planned day: its plan, Stop, title, Chapter, number, tonight, map, photo and Surprise view", () => {
+    const m = buildDayModel(rows(), "2026-12-11");
+    expect(m.date).toBe("2026-12-11");
+    expect(m.dayPlan?.dateISO).toBe("2026-12-11");
+    expect(m.hasEntries).toBe(true);
+    expect(m.freeForm).toBe(false);
+    expect(m.dayStop?.id).toBe("s-stras");
+    expect(m.dayTitle).toEqual({ title: "Market day", stopId: "s-stras" });
+    expect(m.chapter?.name).toBe("Alsace");
+    expect(m.dayNumber).toBe(8);
+    expect(m.totalDays).toBe(17);
+    expect(m.tonight?.id).toBe("a-corbeau");
+    expect(m.accommodations.map((a) => a.id)).toEqual(["a-corbeau"]);
+    expect(m.dayMap.points.map((p) => p.id)).toContain("i-photo");
+    expect(Object.keys(m.itemDirections)).toContain("i-photo");
+    expect(m.nearby.map((n) => n.id)).toEqual(["w-near"]);
+    expect(m.thingsToDo).toEqual([]); // a planned day offers no things to do
+    expect(m.attachmentsByTarget["i-photo"]?.map((a) => a.id)).toEqual(["att-1"]);
+    const planned = [...m.dayPlan!.timedItems, ...m.dayPlan!.untimedItems].map((e) => e.item);
+    expect(planned.find((i) => i.id === "i-photo")?.photoUrl).toBe("/api/attachments/att-1");
+    expect(planned.find((i) => i.id === "i-secret")).toMatchObject({ title: "Surprise", surprise: SURPRISED });
+  });
+
+  it("a free-form day with a Stop: that Stop's things to do and its Wishlist ideas", () => {
+    const m = buildDayModel(rows(), "2026-12-12");
+    expect(m.freeForm).toBe(true);
+    expect(m.hasEntries).toBe(false);
+    expect(m.thingsToDo).toEqual([{ id: "t-market", title: "Christkindelsmärik", category: "SHOPPING", startTime: "17:00", endTime: null }]);
+    expect(m.ideasWishlist.map((w) => w.id)).toEqual(["w-near", "w-cc"]);
+  });
+
+  it("a gap day: no Stop, no tonight, no ideas", () => {
+    const m = buildDayModel(rows(), "2026-12-16");
+    expect(m.dayStop).toBeNull();
+    expect(m.tonight).toBeNull();
+    expect(m.thingsToDo).toEqual([]);
+    expect(m.ideasWishlist).toEqual([]);
+  });
+
+  it("a date outside the Trip has no plan", () => {
+    expect(buildDayModel(rows(), "2027-01-01").dayPlan).toBeNull();
+  });
+
+  it("the itinerary covers every stay, not just the day's (TB-10): a check-in shows on its own day whatever day is asked for", () => {
+    const m = buildDayModel(rows(), "2026-12-05");
+    expect(m.accommodations).toEqual([]);
+    const checkInDay = m.itinerary.find((d) => d.dateISO === "2026-12-10");
+    expect(checkInDay?.accommodationEntries.map((e) => e.kind)).toEqual(["accommodation-checkin"]);
+  });
+
+  it("days of one read share one itinerary, built once", () => {
+    const r = rows();
+    expect(buildDayModel(r, "2026-12-11").itinerary).toBe(buildDayModel(r, "2026-12-12").itinerary);
+    expect(buildDayModel(rows(), "2026-12-11").itinerary).not.toBe(buildDayModel(r, "2026-12-11").itinerary);
+  });
+
+  it("a Trip with Chapters off has no Chapter", () => {
+    expect(buildDayModel(rows({ chapters: [] }), "2026-12-11").chapter).toBeNull();
+  });
+});
