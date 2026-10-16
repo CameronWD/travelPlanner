@@ -70,6 +70,7 @@ const S = {
 
 /** Readers of Item/Accommodation rows that do not go through readPlan (ADR 0072, amended 2026-10-15). */
 export const SURPRISE_VISIBILITY_READERS = [
+  "lib/day-reads.ts",
   "lib/day-view-loader.ts",
   "lib/budget-loader.ts",
   "lib/money-due-count.ts",
