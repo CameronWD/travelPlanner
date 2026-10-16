@@ -4,8 +4,8 @@ import { getDays } from "@/lib/day-view-loader";
 
 // Real Postgres (npm run test:integration). The seed test for the loaders
 // spec 2026-10-06 §B/§C reshaped: their unit tests mock the db and count
-// queries, so only a real database proves every select, relation filter and
-// groupBy is one Postgres accepts.
+// queries, so only a real database proves every select and relation filter
+// is one Postgres accepts.
 const USER = "it-day-user";
 const CO = "it-day-co";
 const TRIP_ID = "it-day-trip";

@@ -40,7 +40,7 @@ describe("revalidateTrip", () => {
 
 /**
  * Which tables each page under /trips/{id} reads. Keep in step with the pages'
- * loaders (readPlan, getDay, readTripShell, …). "" is Home.
+ * loaders (readPlan, getDays, readTripShell, …). "" is Home.
  *
  * Verified against each page's loader (task 4, 2026-10-15):
  * - "/calendar", "/summary", "/print" read the real plan directly

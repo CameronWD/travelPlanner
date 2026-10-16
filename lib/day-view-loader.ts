@@ -457,9 +457,6 @@ function projectDayView(
   };
 }
 
-/** Bridge for the Day page until 3.M.4 moves it onto getDays. */
-export const getDay = async (tripId: string, date: string, viewerId: string) => (await getDays(tripId, [date], viewerId))[0];
-
 /** Separate, awaited inside a Suspense boundary (DAY_VIEW §4). */
 export interface DayWeatherView {
   theme: WeatherTheme;
