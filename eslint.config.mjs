@@ -39,6 +39,8 @@ const S = {
     // `/trips/${…}` — but not `/api/trips/${…}` (ids) or inside revalidatePath(…) (takes the id path).
     { selector: "TemplateElement[tail=false][value.raw=/(?<!\\/api)\\/trips\\/$/]:not(CallExpression[callee.name='revalidatePath'] TemplateElement)", message: TRIP_LINK },
     { selector: "BinaryExpression[operator='+'] > Literal.left[value='/trips/']", message: TRIP_LINK },
+    // `base + "/trips/" + id`: the literal is the right operand of the inner `+`.
+    { selector: "BinaryExpression[operator='+'] > Literal.right[value='/trips/']", message: TRIP_LINK },
     { selector: "BinaryExpression[operator='+'] > TemplateLiteral.left[expressions.length=0][quasis.0.value.raw='/trips/']", message: TRIP_LINK },
   ],
   imageLoader: [
@@ -52,6 +54,14 @@ const S = {
   ],
   mustUseRowAccess: [
     { selector: "Program:not(:has(ImportDeclaration[source.value='@/lib/guards'] > ImportSpecifier[imported.name='requireRowAccess']))", message: "lib/mcp/real-plan.ts delegates its Surprise check to requireRowAccess from lib/guards (ADR 0072)." },
+  ],
+  // Any mention of runAsTraveller (a dynamic import's property included) outside its module and the MCP route.
+  runAsName: [
+    { selector: "Identifier[name='runAsTraveller']", message: "runAsTraveller is reachable only from app/api/mcp/route.ts." },
+  ],
+  // `export * from` the module would re-publish runAsTraveller, from any file (the route included).
+  exportAllActing: [
+    { selector: `ExportAllDeclaration[source.value=/${ACTING.replaceAll("/", "\\/")}/]`, message: "Never `export *` from lib/mcp/acting-traveller: it would re-export runAsTraveller." },
   ],
   noUseServer: [
     { selector: "ExpressionStatement[directive='use server']", message: "lib/mcp/acting-traveller.ts must never be \"use server\": runAsTraveller would become a callable action." },
@@ -95,7 +105,7 @@ const runAs = (imports) => imports.map((p) => (p === I.acting ? I.runAs : p));
  * Broad → narrow. `match` mirrors `files` so a single-file block below can
  * start from its folder's zone instead of silently replacing it.
  */
-const ZONES = [
+const ZONE_DEFS = [
   { name: "everywhere", files: ["**/*.{js,mjs,cjs,ts,tsx}"], match: () => true, imports: [I.acting], syntax: S.actingDynamic },
   { name: "server", files: ["server/**"], match: (f) => f.startsWith("server/"), imports: [I.acting], syntax: LIB_S },
   { name: "app", files: ["app/**"], match: (f) => f.startsWith("app/"), imports: [I.acting, I.enums, I.motion], syntax: UI_S },
@@ -115,6 +125,13 @@ const ZONES = [
   { name: "acting-module", files: ["lib/mcp/acting-traveller.ts"], match: (f) => f === "lib/mcp/acting-traveller.ts", imports: MCP_I.filter((p) => p !== I.acting), syntax: [...S.tripLinks, ...S.noUseServer] },
   { name: "mcp-route", files: ["app/api/mcp/route.ts"], match: (f) => f === "app/api/mcp/route.ts", imports: [I.enums, I.motion], syntax: [...S.tripLinks, ...S.imageLoader] },
 ];
+
+/** Every zone also bans `export * from` the module, and every zone but the module and the route bans the name runAsTraveller. */
+const RUN_AS_OWNERS = new Set(["acting-module", "mcp-route"]);
+const ZONES = ZONE_DEFS.map((z) => ({
+  ...z,
+  syntax: [...z.syntax, ...S.exportAllActing, ...(RUN_AS_OWNERS.has(z.name) ? [] : S.runAsName)],
+}));
 
 const zoneOf = (file) => ZONES.findLast((z) => z.match(file));
 const glob = (file) => file.replace(/[[\]]/g, "\\$&");

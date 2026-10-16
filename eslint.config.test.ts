@@ -57,6 +57,9 @@ const CASES: [string, string, string, boolean][] = [
   ["guards → acting-traveller", "lib/guards.ts", `import { getActingTraveller } from "@/lib/mcp/acting-traveller";\n${GUARD}`, false],
   ["guards → runAsTraveller", "lib/guards.ts", `import { runAsTraveller } from "@/lib/mcp/acting-traveller";\n${GUARD}`, true],
   ["an allowlisted acting-traveller importer is still a lib file", "lib/guards.ts", `import { x } from "@/components/ui/button";\n${GUARD}`, true],
+  ["guards → dynamic runAsTraveller", "lib/guards.ts", `export const r = async () => (await import("@/lib/mcp/acting-traveller")).runAsTraveller;\n${GUARD}`, true],
+  ["run-tool → dynamic runAsTraveller", "lib/mcp/run-tool.ts", 'export const r = async () => (await import("@/lib/mcp/acting-traveller")).runAsTraveller;', true],
+  ["export * from acting-traveller, even in the MCP route", "app/api/mcp/route.ts", 'export * from "@/lib/mcp/acting-traveller";', true],
   ["MCP route → runAsTraveller", "app/api/mcp/route.ts", 'import { runAsTraveller } from "@/lib/mcp/acting-traveller";', false],
   ["an action → acting-traveller", "server/actions/probe.ts", 'import { getActingTraveller } from "@/lib/mcp/acting-traveller";', true],
   ["relative → acting-traveller", "lib/mcp/reads/probe.ts", 'import { getActingTraveller } from "../acting-traveller";', true],
@@ -66,6 +69,8 @@ const CASES: [string, string, string, boolean][] = [
   // ADR 0064: Trip links through tripPath
   ["hand-built /trips/${…}", "components/probe.tsx", "export const u = (id: string) => `/trips/${id}/plan`;", true],
   ['"/trips/" + id', "server/actions/probe.ts", 'export const u = (id: string) => "/trips/" + id;', true],
+  ['base + "/trips/" + id', "components/probe.tsx", 'export const u = (base: string, id: string) => base + "/trips/" + id;', true],
+  ['base + "/api/trips/" + id is an id route', "components/probe.tsx", 'export const u = (base: string, id: string) => base + "/api/trips/" + id;', false],
   ["/api/trips/${…} is an id route", "components/probe.tsx", "export const u = (id: string) => `/api/trips/${id}/cover`;", false],
   ["revalidatePath takes the id path", "server/actions/probe.ts", 'import { revalidatePath } from "next/cache";\nexport const r = (id: string) => revalidatePath(`/trips/${id}/plan`);', false],
   ["lib/trip-path.ts builds them", "lib/trip-path.ts", "export const u = (id: string) => `/trips/${id}`;", false],
