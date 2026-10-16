@@ -77,4 +77,24 @@ describe("refreshStayWarnings", () => {
     const next = flight("2026-12-01T10:00", "s-lis", "2026-12-03T07:15", [M.arrivesOutsideStay("Lisbon"), dup]);
     expect(refreshStayWarnings(prev, next, STOPS).warnings).toEqual([dup]);
   });
+
+  it("replaces a date-only departure's stay warning once the edit gives it a wall time (BI-04 fix round 1)", () => {
+    // build.ts earns this warning from `end.date` alone, with no `depAt` yet
+    // (no wall time printed in the booking) — stayWarnings(prev) can't see
+    // that from prev.input, so the drop must go by message shape, not replay.
+    const dateOnlyDep: TransportProposal = {
+      ...BASE,
+      warnings: [M.departsOutsideStay("Lisbon")],
+      clientId: "p1",
+      kind: "transport",
+      input: { mode: "FLIGHT", fromStopId: "s-lis", arrIsHome: true },
+    };
+    expect(dateOnlyDep.input).not.toHaveProperty("depAt");
+
+    const backInside = { ...dateOnlyDep, input: { ...dateOnlyDep.input, depAt: "2026-12-03T10:00" } };
+    expect(refreshStayWarnings(dateOnlyDep, backInside, STOPS).warnings).toEqual([]);
+
+    const stillOutside = { ...dateOnlyDep, input: { ...dateOnlyDep.input, depAt: "2026-12-20T10:00" } };
+    expect(refreshStayWarnings(dateOnlyDep, stillOutside, STOPS).warnings).toEqual([M.departsOutsideStay("Lisbon")]);
+  });
 });

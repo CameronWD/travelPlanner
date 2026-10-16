@@ -78,6 +78,29 @@ describe("buildProposals: the sample booking", () => {
     expect(p2.input).not.toHaveProperty("costMinor");
   });
 
+  it("still warns a departure outside the stay when only its date is printed, no time (BI-04 fix round 1)", () => {
+    const dated: ExtractedProposal = { ...RETURN, transport: { ...RETURN.transport!, dep: { ...RETURN.transport!.dep, localDateTime: "2026-12-15" } } };
+    const p = byId(buildProposals(report(dated), CTX).proposals, "p1");
+    expect(p.warnings).toContain(M.departsOutsideStay("Lisbon"));
+    expect(p.input).not.toHaveProperty("depAt");
+  });
+
+  it("warns an arrival outside the stay when only its date is printed, no time (BI-04 fix round 1)", () => {
+    const arrivesLate: ExtractedProposal = {
+      ...OUTBOUND,
+      cost: null,
+      doubleCheck: [],
+      transport: {
+        ...OUTBOUND.transport!,
+        dep: { place: "Lisbon (LIS)", city: "Lisbon", country: "Portugal", localDateTime: "2026-12-05T09:00" },
+        arr: { place: "Porto (OPO)", city: "Porto", country: "Portugal", localDateTime: "2026-12-20" },
+      },
+    };
+    const p = byId(buildProposals(report(arrivesLate), CTX).proposals, "p1");
+    expect(p.warnings).toContain(M.arrivesOutsideStay("Porto"));
+    expect(p.input).not.toHaveProperty("arrAt");
+  });
+
   it("puts the stay in Lisbon with its times, confirmation and EUR Cost, and highlights the uncertain field", () => {
     const p3 = byId(buildProposals(SAMPLE_EXTRACTION, CTX).proposals, "p3");
     expect(p3).toMatchObject({ kind: "accommodation", highlight: ["checkInTime"], warnings: [] });
