@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const { findFirst, findMany } = vi.hoisted(() => ({ findFirst: vi.fn(), findMany: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: { shareLink: { findFirst }, stop: { findMany } } }));
 
-import { findShareLink, loadShareStops } from "./share-lookup";
+import { findShareLink, loadShareStops } from "./lookup";
 
 beforeEach(() => vi.clearAllMocks());
 

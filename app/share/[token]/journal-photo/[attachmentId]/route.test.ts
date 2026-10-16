@@ -53,7 +53,7 @@ function callGET() {
   return GET(req(), { params: Promise.resolve({ token: TOKEN, attachmentId: ATTACHMENT_ID }) });
 }
 
-// The row lib/share-lookup.ts's findShareLink selects (it reads db.shareLink
+// The row lib/share/lookup.ts's findShareLink selects (it reads db.shareLink
 // itself, so the db-level mock and its where-assertion still apply).
 const shareLink = (over: Partial<Record<string, unknown>> = {}) => ({
   id: "link-1",

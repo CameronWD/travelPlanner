@@ -2,7 +2,7 @@ import { Check, Route as RouteIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { stopDotClass } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatNights } from "@/lib/dates";
-import type { RouteListStopModel, ShareStage } from "@/lib/share-view";
+import type { RouteListStopModel, ShareStage } from "@/lib/share/view";
 import { cn } from "@/lib/cn";
 
 /** A rough Stop (no dates) lists with its nights and "Dates to come" (spec 2026-10-13 D4). */

@@ -11,12 +11,12 @@ import {
   type ShareLinkView,
   type ShareScopeInput,
 } from "@/server/actions/share";
-import { scopeCaption } from "@/lib/share-view";
+import { scopeCaption } from "@/lib/share/view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toastRejected } from "@/components/ui/action-failure";
-import { shareUrl } from "@/lib/share-url";
+import { shareUrl } from "@/lib/share/share-url";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).

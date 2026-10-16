@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { ShareHrefs } from "@/lib/share-ref";
-import type { ShareStage } from "@/lib/share-view";
+import type { ShareHrefs } from "@/lib/share/ref";
+import type { ShareStage } from "@/lib/share/view";
 import { ShareReveal } from "./share-reveal";
 import { PendingLink } from "./pending-link";
 

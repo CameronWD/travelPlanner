@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shareOgModel } from "./share-og";
+import { shareOgModel } from "./og";
 
 const trip = { name: "Christmas in Europe", startDate: "2026-12-04", endDate: "2027-01-08" };
 const stops = [

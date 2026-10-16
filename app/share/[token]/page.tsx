@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata, Viewport } from "next";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import type { ShareScope, ShareSection, ShareStage } from "@/lib/share-view";
+import type { ShareScope, ShareSection, ShareStage } from "@/lib/share/view";
 import {
   buildRouteListStops,
   currentLeg,
@@ -15,7 +15,7 @@ import {
   shareTally,
   stopStatuses,
   tonightsStay,
-} from "@/lib/share-view";
+} from "@/lib/share/view";
 import { formatDayLabel, formatWeekday, nightsBetween } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
 import { loadDayTitles } from "@/lib/day-titles-loader";
@@ -30,11 +30,11 @@ import { countdownFor } from "@/lib/countdown";
 import { todayISOInZone, currentTripTimezone, instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import { journalWritableDates } from "@/lib/journal-window";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
-import { findShareLink, loadShareStops } from "@/lib/share-lookup";
+import { findShareLink, loadShareStops } from "@/lib/share/lookup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { mergePlanItems } from "@/lib/plan-reads";
-import { shareTraveller } from "@/lib/share-traveller";
-import { shareHrefs, shareRefParam } from "@/lib/share-ref";
+import { shareTraveller } from "@/lib/share/share-traveller";
+import { shareHrefs, shareRefParam } from "@/lib/share/ref";
 import { stopDotClass } from "@/lib/stop-colours";
 import type { SketchStop } from "@/lib/trips/route-sketch";
 import { ShareTopBar } from "./share-top-bar";

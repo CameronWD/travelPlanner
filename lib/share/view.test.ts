@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { scopeCaption, tonightsStay } from "./share-view";
+import { scopeCaption, tonightsStay } from "./view";
 import {
   shareStage, dayIndex, currentLeg, stopStatuses, nextStopAfter, shareTally,
   travellersLabel, polaroidTilt, isDoneAt, groupDaysByStop, shareSections,
   scheduledShareStops, shareStopNights, buildRouteListStops,
-} from "./share-view";
+} from "./view";
 
 const scope = (over: Partial<Parameters<typeof scopeCaption>[0]> = {}) => ({
   includeAccommodation: true,

@@ -1,11 +1,11 @@
 /**
  * The Share link's OG image model (SHARE.md §3: the hero at 1200×630) —
  * name, sub line and the cover's route sketch. Pure, and built only from the
- * public projection (lib/share-lookup.ts): never the uploaded cover photo,
+ * public projection (lib/share/lookup.ts): never the uploaded cover photo,
  * never a Traveller.
  */
 import { formatDayRange, formatMonthSpan, nightsBetween } from "@/lib/dates";
-import { shareStage } from "@/lib/share-view";
+import { shareStage } from "@/lib/share/view";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { sketchModel, type Point, type SketchStop } from "@/lib/trips/route-sketch";
 

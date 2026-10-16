@@ -80,7 +80,7 @@ import SharePage, { dynamic, metadata } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { addDays } from "@/lib/dates";
-import { shareRefParam } from "@/lib/share-ref";
+import { shareRefParam } from "@/lib/share/ref";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, placeholderItem, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";

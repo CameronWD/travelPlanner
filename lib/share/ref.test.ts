@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shareRefParam, shareHrefs } from "./share-ref";
+import { shareRefParam, shareHrefs } from "./ref";
 
 describe("shareRefParam", () => {
   it("is a stable 10-char hex prefix that is not the token", () => {

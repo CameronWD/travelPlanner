@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { shareTraveller, avatarInput } from "./share-traveller";
-import { travellerImageUrl } from "./traveller";
+import { travellerImageUrl } from "../traveller";
 
 const cam = {
   id: "u1", name: "Cam Williams", displayName: "Cameron", image: "https://lh3.example/cam.png",

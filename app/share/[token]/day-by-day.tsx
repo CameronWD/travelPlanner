@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 import { HUE_CLASSES } from "@/lib/hues";
 import { stopDotClass, stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatDayLabel, formatNights } from "@/lib/dates";
-import type { StopStatus } from "@/lib/share-view";
+import type { StopStatus } from "@/lib/share/view";
 import { MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 

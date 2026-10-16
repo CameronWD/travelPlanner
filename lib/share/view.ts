@@ -9,7 +9,7 @@
 
 import type { TripPhase } from "@/lib/trip-phase";
 import { daysBetween, dayNumberInTrip, nightsBetween } from "@/lib/dates";
-import type { ShareStop, ScheduledShareStop } from "@/lib/share-lookup";
+import type { ShareStop, ScheduledShareStop } from "@/lib/share/lookup";
 
 export interface ShareScope {
   includeAccommodation: boolean;
