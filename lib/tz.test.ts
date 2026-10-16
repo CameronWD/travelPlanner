@@ -13,6 +13,8 @@ import {
   todayISOInZone,
   currentTripTimezone,
   stopTimezone,
+  homeBaseTimezone,
+  UNCHOSEN_TIMEZONE,
 } from "./tz";
 
 describe("TIMEZONES", () => {
@@ -302,5 +304,32 @@ describe("stopTimezone (the one Stop timezone rule)", () => {
     expect(stopTimezone({})).toBe("UTC");
     expect(stopTimezone({ timezone: "UTC", country: "Atlantis" })).toBe("UTC");
     expect(stopTimezone({ timezone: "", countryCode: null, country: null })).toBe("UTC");
+  });
+  it("the zone at the point beats the country's (F3)", () => {
+    expect(stopTimezone({ countryCode: "au", pointZone: "Australia/Brisbane" })).toBe("Australia/Brisbane");
+  });
+  it("the UTC fallback with a point takes the point's zone", () => {
+    expect(stopTimezone({ timezone: UNCHOSEN_TIMEZONE, countryCode: "au", pointZone: "Australia/Perth" })).toBe("Australia/Perth");
+  });
+  it("a chosen zone beats the point", () => {
+    expect(stopTimezone({ timezone: "Australia/Sydney", countryCode: "au", pointZone: "Australia/Perth" })).toBe("Australia/Sydney");
+  });
+  it("no point zone falls back to the country", () => {
+    expect(stopTimezone({ timezone: "UTC", countryCode: "au", pointZone: null })).toBe("Australia/Sydney");
+  });
+});
+
+describe("homeBaseTimezone (the Home-base twin)", () => {
+  it("a sent zone wins, UTC included (no Home-base client sends UTC as a fallback)", () => {
+    expect(homeBaseTimezone({ timezone: "Australia/Sydney", pointZone: "Australia/Brisbane", countryCode: "au" })).toBe("Australia/Sydney");
+    expect(homeBaseTimezone({ timezone: "UTC", pointZone: "Europe/London", countryCode: "gb" })).toBe("UTC");
+  });
+  it("an empty zone is none: the point, then the country", () => {
+    expect(homeBaseTimezone({ timezone: "", pointZone: "Australia/Brisbane", countryCode: "au" })).toBe("Australia/Brisbane");
+    expect(homeBaseTimezone({ pointZone: null, countryCode: "au" })).toBe("Australia/Sydney");
+  });
+  it("nothing known is null, never a UTC guess", () => {
+    expect(homeBaseTimezone({})).toBeNull();
+    expect(homeBaseTimezone({ countryCode: "zz" })).toBeNull();
   });
 });

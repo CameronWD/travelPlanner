@@ -8,7 +8,7 @@
  * `homeBaseTimezone` in lib/tz.ts, which stays pure.
  */
 import tzlookup from "@photostructure/tz-lookup";
-import { isValidTimeZone } from "@/lib/tz";
+import { homeBaseTimezone, isValidTimeZone, stopTimezone } from "@/lib/tz";
 
 /**
  * The IANA zone at `lat`/`lng`, or null when there is no point, the lookup
@@ -25,4 +25,25 @@ export function pointTimezone(lat?: number | null, lng?: number | null): string 
   }
   if (zone.startsWith("Etc/") || !isValidTimeZone(zone)) return null;
   return zone;
+}
+
+/** `stopTimezone` with the zone at the Stop's point looked up — every server-side Stop write. */
+export function resolveStopTimezone(stop: {
+  timezone?: string | null;
+  countryCode?: string | null;
+  country?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+}): string {
+  return stopTimezone({ ...stop, pointZone: pointTimezone(stop.lat, stop.lng) });
+}
+
+/** `homeBaseTimezone` with the zone at the Home point looked up — createTrip and updateTrip. */
+export function resolveHomeTimezone(home: {
+  timezone?: string | null;
+  countryCode?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+}): string | null {
+  return homeBaseTimezone({ timezone: home.timezone, countryCode: home.countryCode, pointZone: pointTimezone(home.lat, home.lng) });
 }

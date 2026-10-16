@@ -7,7 +7,7 @@ vi.mock("@photostructure/tz-lookup", async (importOriginal) => {
   return { default: (lat: number, lng: number) => override.zone ?? real(lat, lng) };
 });
 
-import { pointTimezone } from "./tz-point";
+import { pointTimezone, resolveStopTimezone, resolveHomeTimezone } from "./tz-point";
 
 describe("pointTimezone (F3: the zone at a point)", () => {
   it("finds the zone inside a multi-zone country", () => {
@@ -32,5 +32,25 @@ describe("pointTimezone (F3: the zone at a point)", () => {
     } finally {
       override.zone = null;
     }
+  });
+});
+
+describe("resolveStopTimezone (server: the rule with the lookup)", () => {
+  it("chosen zone, else the point's, else the country's, else UTC", () => {
+    expect(resolveStopTimezone({ timezone: "Australia/Sydney", countryCode: "au", lat: -27.47, lng: 153.03 })).toBe("Australia/Sydney");
+    expect(resolveStopTimezone({ timezone: "UTC", countryCode: "au", lat: -27.47, lng: 153.03 })).toBe("Australia/Brisbane");
+    expect(resolveStopTimezone({ countryCode: "au", lat: -31.95, lng: 115.86 })).toBe("Australia/Perth");
+    expect(resolveStopTimezone({ countryCode: "au", lat: 0, lng: -30 })).toBe("Australia/Sydney");
+    expect(resolveStopTimezone({ country: "Italy", lat: null, lng: null })).toBe("Europe/Rome");
+    expect(resolveStopTimezone({})).toBe("UTC");
+  });
+});
+
+describe("resolveHomeTimezone", () => {
+  it("sent zone, else the point's, else the country's, else null", () => {
+    expect(resolveHomeTimezone({ timezone: "Australia/Sydney", countryCode: "au", lat: -27.47, lng: 153.03 })).toBe("Australia/Sydney");
+    expect(resolveHomeTimezone({ timezone: "", countryCode: "au", lat: -27.47, lng: 153.03 })).toBe("Australia/Brisbane");
+    expect(resolveHomeTimezone({ countryCode: "au" })).toBe("Australia/Sydney");
+    expect(resolveHomeTimezone({})).toBeNull();
   });
 });

@@ -296,21 +296,42 @@ export function timezoneForCountryOrNull(country?: string | null): string | null
   return COUNTRY_TO_TZ[country.trim().toLowerCase()] ?? null;
 }
 
+/** The zone every client sends when it chose none ("UTC" — its fallback when it knew no place). Never a choice. */
+export const UNCHOSEN_TIMEZONE = "UTC";
+
 /**
- * The one rule for a Stop's timezone (spec 2026-10-14, card 3.L): a zone the
- * caller chose wins, unless it is "UTC" — the fallback every client sends
- * when it knew no country — and then the Stop's country decides: its
- * two-letter code first, then its name. Neither known: "UTC" (the Booking
- * import warns on that, `lib/booking-import/build.ts`). Pure and client-safe;
- * read-side `?? "UTC"` fallbacks for a stored null are not this rule.
+ * The one rule for a Stop's timezone (spec 2026-10-14 card 3.L, amended
+ * 2026-10-16 F3): a zone the caller chose wins, unless it is "UTC"
+ * (UNCHOSEN_TIMEZONE); then the zone at the Stop's point (`pointZone`,
+ * looked up by `pointTimezone` in lib/tz-point.ts — server code calls
+ * `resolveStopTimezone` there); then its country — two-letter code first,
+ * then name. Nothing known: "UTC" (the Booking import warns on that,
+ * `lib/booking-import/build.ts`). Pure and client-safe; read-side `?? "UTC"`
+ * fallbacks for a stored null are not this rule.
  */
 export function stopTimezone(stop: {
   timezone?: string | null;
+  pointZone?: string | null;
   countryCode?: string | null;
   country?: string | null;
 }): string {
-  if (stop.timezone && stop.timezone !== "UTC") return stop.timezone;
-  return timezoneForCountryOrNull(stop.countryCode) ?? timezoneForCountryOrNull(stop.country) ?? "UTC";
+  if (stop.timezone && stop.timezone !== UNCHOSEN_TIMEZONE) return stop.timezone;
+  return stop.pointZone ?? timezoneForCountryOrNull(stop.countryCode) ?? timezoneForCountryOrNull(stop.country) ?? "UTC";
+}
+
+/**
+ * The Home base's twin of `stopTimezone` (ADR 0030, amended 2026-10-16): a
+ * sent zone wins — "UTC" included, since no Home-base client sends it as a
+ * fallback (Settings sends "" when untouched) — else the zone at the Home
+ * point, else the country's, else null (a Home end with no zone keeps
+ * ADR 0030's other-end fallback; never a UTC guess).
+ */
+export function homeBaseTimezone(home: {
+  timezone?: string | null;
+  pointZone?: string | null;
+  countryCode?: string | null;
+}): string | null {
+  return (home.timezone || null) ?? home.pointZone ?? timezoneForCountryOrNull(home.countryCode);
 }
 
 /** Every two-letter country code in the table with its zone, for the SQL backfill test. */
