@@ -723,6 +723,7 @@ model Transport {
   fromStop   Stop? @relation("TransportFromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
   toStop     Stop? @relation("TransportToStop", fields: [toStopId], references: [id], onDelete: SetNull)
   anchorStop Stop? @relation("TransportAnchorStop", fields: [anchorStopId], references: [id], onDelete: SetNull)
+  reminders  Reminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -808,6 +809,7 @@ model Item {
   placements   Item[]  @relation("ItemPlacedFrom")
   sourceMarker Marker? @relation("ItemFromMarker", fields: [sourceMarkerId], references: [id], onDelete: SetNull)
   votes        Vote[]
+  reminders    Reminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -961,27 +963,39 @@ model PackingTemplate {
 /// A Traveller's dated note (CONTEXT.md "Reminder"). Carries a date and never
 /// a time: TEEPEE dispatches at a few fixed hours, so a promised 14:30 would
 /// be a lie — an Alarm is what fires precisely. Surfaces in that day's Digest
-/// and on Home. See ADR 0047.
+/// (title only) and on Home. See ADR 0047.
 ///
-/// `stopId` (Task 7): a Reminder may be about a Stop. NULL means "about the
-/// Trip as a whole" — every Reminder before this column existed reads that
-/// way. Deleting the Stop does not delete the Reminder (onDelete: SetNull):
-/// the note the Traveller wrote still matters even once its Stop is gone.
+/// "About" (Task 7, spec 2026-10-16 F8): a Reminder may be about ONE Stop,
+/// ONE Item or ONE Transport leg — never several. All three NULL means "about
+/// the Trip as a whole". The hand-written CHECK "Reminder_about_one_thing_check"
+/// (migration 20261016120000) holds at most one set; Prisma cannot express it.
+/// Deleting the thing does not delete the Reminder (onDelete: SetNull): the
+/// note the Traveller wrote still matters once its thing is gone.
+///
+/// `notes`: optional detail shown in the app (folded on Home), never read out
+/// in the Digest.
 model Reminder {
-  id     String  @id @default(cuid())
-  tripId String
-  stopId String?
-  title  String
-  date   String // "YYYY-MM-DD"
+  id          String  @id @default(cuid())
+  tripId      String
+  stopId      String?
+  itemId      String?
+  transportId String?
+  title       String
+  notes       String?
+  date        String // "YYYY-MM-DD"
 
-  trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  stop Stop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stop      Stop?      @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  item      Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  transport Transport? @relation(fields: [transportId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([tripId])
   @@index([date])
   @@index([stopId])
+  @@index([itemId])
+  @@index([transportId])
   @@index([tripId, date])
 }
 
