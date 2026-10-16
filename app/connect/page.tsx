@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { authServer } from "@/lib/auth";
+import { authServer } from "@/lib/auth/auth";
 import { requireUser } from "@/lib/guards";
 import { verifyOAuthQueryParams } from "@better-auth/oauth-provider";
 import { signedOAuthQuery, toSearchParams, type SearchParamsRecord } from "@/lib/oauth-continuation";
@@ -51,14 +51,14 @@ async function askingClient(params: URLSearchParams) {
 const headingClass = "font-display text-2xl font-extrabold leading-tight tracking-[-0.03em]";
 
 /**
- * Claude's consent screen (ADR 0071, lib/auth.ts `consentPage`). The OAuth
+ * Claude's consent screen (ADR 0071, lib/auth/auth.ts `consentPage`). The OAuth
  * provider sends a signed-in Traveller here with the authorise request in a
  * signed query, the first time a client asks. Allow or Cancel posts that query
  * back to /oauth2/consent, which redirects to the client with a code or with
  * access_denied.
  *
  * Client registration is open, so a client's name is self-asserted: the page
- * also shows where it returns to (the redirect host, which lib/auth.ts holds
+ * also shows where it returns to (the redirect host, which lib/auth/auth.ts holds
  * to an allowlist), and an unnamed client is never given a name.
  */
 export default async function ConnectPage({ searchParams }: { searchParams: Promise<SearchParamsRecord> }) {

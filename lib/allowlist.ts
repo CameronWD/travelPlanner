@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
  *   - ALLOWED_EMAILS env var — bootstrap and break-glass against a wiped or
  *     restored-empty AllowedEmail table. It is NOT break-glass against a
  *     *down* database: the table lookup below, and the Prisma adapter one
- *     line after this callback runs in lib/auth.ts, both need Postgres
+ *     line after this callback runs in lib/auth/auth.ts, both need Postgres
  *     regardless, so an outage takes sign-in down either way. NEVER written
  *     by code.
  *   - AllowedEmail table — everyone admitted through the product: by
@@ -78,7 +78,7 @@ export async function hasPendingTripInvite(email: string): Promise<boolean> {
  *
  * Without this, admission by Invite is a one-shot ticket: the Invite itself
  * gets marked accepted moments after sign-in (the events.signIn hook in
- * lib/auth.ts, and app/(app)/layout.tsx again on every authenticated load),
+ * lib/auth/auth.ts, and app/(app)/layout.tsx again on every authenticated load),
  * so a second call to hasPendingTripInvite for the same address comes back
  * false. The next time that person's JWT session lapses or they sign out —
  * Auth.js's default session lifetime is 30 days — they hold a User row, a
@@ -92,7 +92,7 @@ export async function hasPendingTripInvite(email: string): Promise<boolean> {
  * existing row (e.g. one an approved Access request already wrote with a
  * different note).
  *
- * Returns whether this call is what created the row. The caller (lib/auth.ts)
+ * Returns whether this call is what created the row. The caller (lib/auth/auth.ts)
  * uses that to fire an admin notification on the FIRST admission only —
  * admission by Invite is otherwise silent, and the operator has accepted
  * that it's transitive (anyone admitted can create a Trip and invite others)

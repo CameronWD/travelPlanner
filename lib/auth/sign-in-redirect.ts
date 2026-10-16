@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { REQUEST_PATH_HEADER, signInHref } from "@/lib/sign-in-href";
+import { REQUEST_PATH_HEADER, signInHref } from "@/lib/auth/sign-in-href";
 
 /**
  * The one signed-out exit for every guard (app and focus layouts,

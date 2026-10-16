@@ -2653,7 +2653,7 @@ being closed by a different shape of fix than the one suggested is still closed.
 ## 2026-10-01 · Landing fan, Help, sign-in links, offline, Welcome (spec 2026-10-01-landing-shuffle-help-offline)
 
 - **LS-01 · Email sign-in via magic links (Resend).** Expands LK-02. Auth.js's built-in Resend
-  provider beside Google in `lib/auth.ts`, gated on `AUTH_RESEND_KEY` like Google is on its
+  provider beside Google in `lib/auth/auth.ts`, gated on `AUTH_RESEND_KEY` like Google is on its
   credentials; the adapter and `VerificationToken` table it needs already exist. Gate the
   allowlist **before** sending: the `signIn` callback runs for the email provider before the
   mail goes out, so a refused address gets no token and no email. The panel's copy stays
@@ -2696,7 +2696,7 @@ being closed by a different shape of fix than the one suggested is still closed.
   `PopoverContent`, `SelectContent`, `DialogContent` all portal to `<body>`,
   outside the page's light root) — the Stops menu
   (`day-by-day-client.tsx` `StopPicker`) carries its own lock for this reason.
-- **SL-02 · Restyle the Sign-in link email.** `lib/sign-in-email.ts` is the
+- **SL-02 · Restyle the Sign-in link email.** `lib/auth/sign-in-email.ts` is the
   minimal branded version (one line, one button, raw link, footer). Cam
   wants it to pop more; the design-kit `emails/magic-link` template in
   `design_handoff/` is the reference. Keep `renderSignInEmail`'s signature

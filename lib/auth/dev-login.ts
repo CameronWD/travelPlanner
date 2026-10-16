@@ -8,11 +8,11 @@ import type { BetterAuthPlugin } from "better-auth";
  * it looks up an existing (seeded) User by email and signs them in. It never
  * creates a User.
  *
- * lib/auth.ts registers it only when ALLOW_DEV_LOGIN === "true" and
+ * lib/auth/auth.ts registers it only when ALLOW_DEV_LOGIN === "true" and
  * NODE_ENV !== "production", so copying a repo with ALLOW_DEV_LOGIN in its
  * .env to a host must never re-open it. The NODE_ENV check below is
- * belt-and-braces, and the session hook in lib/auth.ts runs the one door
- * (lib/sign-in-door.ts) as "dev-login", which refuses in production too.
+ * belt-and-braces, and the session hook in lib/auth/auth.ts runs the one door
+ * (lib/auth/sign-in-door.ts) as "dev-login", which refuses in production too.
  */
 export function devLogin() {
   return {

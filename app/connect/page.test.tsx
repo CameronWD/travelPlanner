@@ -10,10 +10,10 @@ const { requireUser, getOAuthClientPublic, consent, assign, SECRET } = vi.hoiste
   assign: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireUser }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/auth", () => ({
   authServer: { api: { getOAuthClientPublic }, $context: Promise.resolve({ secret: SECRET }) },
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { oauth2: { consent } } }));
+vi.mock("@/lib/auth/client", () => ({ authClient: { oauth2: { consent } } }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers({ cookie: "session=1" })) }));
 
 import ConnectPage, { metadata } from "./page";

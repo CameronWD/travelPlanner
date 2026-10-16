@@ -15,7 +15,7 @@ vi.mock("next/link", () => ({
     <a href={href} {...props}>{children}</a>
   ),
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
+vi.mock("@/lib/auth/client", () => ({ authClient: { signOut: vi.fn() } }));
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DropdownMenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => <button {...props}>{children}</button>,

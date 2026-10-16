@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Tests for recordAccessRequest (lib/access-requests.ts).
  *
  * The sign-in attempt IS the Access request — this only ever runs from
- * inside the Auth.js signIn callback (lib/auth.ts), given Google's verified
+ * inside the Auth.js signIn callback (lib/auth/auth.ts), given Google's verified
  * profile. `@/lib/admin-notify` is mocked out entirely: its own behaviour
  * (resolving admins, loading Devices, calling sendPush) is covered by
  * lib/admin-notify.test.ts, not here.

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/auth";
 import { reportError } from "@/lib/error-sink";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 

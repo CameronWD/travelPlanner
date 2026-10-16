@@ -39,7 +39,7 @@ model User {
 
   /// Whether this Traveller's email has been verified (Better Auth, ADR
   /// 0071). Better Auth's `emailVerified` field, mapped to this column in
-  /// lib/auth.ts (`user.fields`) so the old column keeps its name and type.
+  /// lib/auth/auth.ts (`user.fields`) so the old column keeps its name and type.
   isEmailVerified Boolean @default(false)
   image           String?
 

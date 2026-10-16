@@ -10,7 +10,7 @@ const { verifyMcpAccessToken, findUnique, reportError } = vi.hoisted(() => ({
 // The real lib/mcp/oauth.ts runs (bearer parsing, the RFC 9728 challenge);
 // only the auth instance's token check is stubbed: "Bearer good" acts for
 // user-1, "Bearer rate-<n>" for user rate-<n>, anything else is inactive.
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/auth", () => ({
   authServer: { api: { verifyMcpAccessToken } },
   mcpResourceForRequest: () => "http://localhost:3000/api/mcp",
 }));

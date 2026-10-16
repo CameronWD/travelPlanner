@@ -21,8 +21,8 @@ import { buildDigestPayload, sendPush, type SendPushResult } from "@/lib/push";
  * the reason their own operation fails.
  *
  * Fix round 1, item 3: this is awaited directly from the sign-in door's
- * hooks (lib/sign-in-door.ts, lib/access-requests.ts, called from Better
- * Auth's databaseHooks in lib/auth.ts) rather than deferred with
+ * hooks (lib/auth/sign-in-door.ts, lib/access-requests.ts, called from Better
+ * Auth's databaseHooks in lib/auth/auth.ts) rather than deferred with
  * `next/server`'s `after()`. `after()` needs Next's request-scoped
  * AsyncLocalStorage context to still be live when it's called, and Auth.js
  * v5's own issue tracker (the previous library here, ADR 0071) had open

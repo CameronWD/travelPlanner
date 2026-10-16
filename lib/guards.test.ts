@@ -51,7 +51,7 @@ const {
 
 const cacheWrapped = vi.hoisted(() => [] as unknown[]);
 
-vi.mock("@/lib/auth", () => ({ auth: authMock }));
+vi.mock("@/lib/auth/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     tripMember: { findMany: findManyMock },

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthMemoryStore } from "@/test/helpers/auth-memory-store";
 
 // The dev-login door end to end through the REAL Better Auth instance in
-// lib/auth.ts: only the Prisma adapter is swapped for Better Auth's own
+// lib/auth/auth.ts: only the Prisma adapter is swapped for Better Auth's own
 // in-memory adapter, so the plugin endpoint, the session hooks (which must
 // recognise a dev-login session and not run the allowlist on it) and the
 // session cookie are all exercised for real.
@@ -26,8 +26,8 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-vi.mock("@/lib/auth-prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
-vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
+vi.mock("@/lib/auth/prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
+vi.mock("@/lib/auth/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
 vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: acceptPendingInvitesMock }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -43,7 +43,7 @@ async function load(env: Record<string, string | undefined>) {
   for (const k of ["ALLOW_DEV_LOGIN", "AUTH_RESEND_KEY", "AUTH_RESEND_FROM", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "APP_URL", "VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"]) delete process.env[k];
   Object.assign(process.env, { AUTH_SECRET: "test-secret-test-secret-test-secret-0123", ...env });
   try {
-    return await import("@/lib/auth");
+    return await import("@/lib/auth/auth");
   } finally {
     process.env = prev;
   }

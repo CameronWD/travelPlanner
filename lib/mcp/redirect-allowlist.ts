@@ -3,7 +3,7 @@
  * screen (ADR 0071). Registration is open (RFC 7591, so Claude can register
  * itself), which means a client's name and redirect URIs are self-asserted.
  * Without this list anyone could register an app called "Claude" that
- * returns codes to their own site. lib/auth.ts applies it at registration and
+ * returns codes to their own site. lib/auth/auth.ts applies it at registration and
  * at authorise.
  *
  * Allowed: https on claude.ai, claude.com, anthropic.com or any subdomain of

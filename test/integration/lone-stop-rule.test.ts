@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 //
 // createStop calls requirePlanAccess and deleteStop (via requireStopAccess)
 // calls requireRowAccess("stop", id) (ADR 0074 Tasks 2-6); both mocked here
-// (the real guard imports `@/lib/auth`). requireRowAccess loads the Stop
+// (the real guard imports `@/lib/auth/auth`). requireRowAccess loads the Stop
 // from the real local Postgres with the same select lib/guards.ts uses.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));

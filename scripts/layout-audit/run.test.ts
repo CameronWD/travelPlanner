@@ -275,7 +275,7 @@ describe("safety: harness imports are allowlisted", () => {
   it("rejects anything that could reach a database (positive control)", () => {
     for (const bad of [
       `import { db } from "@/lib/db";`,
-      `import { auth } from "@/lib/auth";`, // transitive: lib/auth imports lib/db
+      `import { auth } from "@/lib/auth/auth";`, // transitive: lib/auth imports lib/db
       `import "../load-env";`,
       `import "../../scripts/load-env";`,
       `export * from "../load-env";`,

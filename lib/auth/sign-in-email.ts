@@ -2,7 +2,7 @@
  * The Sign-in link email (spec 2026-10-01 §B4; CONTEXT.md "Sign-in link").
  * Minimal and branded: one line, one button, the raw link for clients that
  * strip buttons, and the once/24-hours/ignore footer. Pure — the send
- * happens in lib/auth.ts's provider. Cam restyles this later; keep it
+ * happens in lib/auth/auth.ts's provider. Cam restyles this later; keep it
  * table-free and image-free so it reads everywhere.
  */
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };

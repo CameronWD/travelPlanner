@@ -143,7 +143,7 @@ never reuse the dev value.
 
 ### How the dev-login bypass is gated
 
-In `lib/auth.ts`, the dev-login provider is only registered when
+In `lib/auth/auth.ts`, the dev-login provider is only registered when
 `ALLOW_DEV_LOGIN === "true"` and `NODE_ENV !== "production"`. Set
 `ALLOW_DEV_LOGIN="false"` (or omit it) in production and the bypass is
 completely absent from the auth stack.
@@ -156,7 +156,7 @@ A trip owner invites a partner by email on the trip's Settings page. This create
 2. Creates a `TripMember` row for each matching trip the user is not already a member of.
 3. Marks the invite as accepted.
 
-The relevant files are `lib/invites.ts` (pure acceptance logic) and `lib/auth.ts` (where the sign-in hook calls it). No manual step is required, the partner just signs in and is auto-added.
+The relevant files are `lib/invites.ts` (pure acceptance logic) and `lib/auth/auth.ts` (where the sign-in hook calls it). No manual step is required, the partner just signs in and is auto-added.
 
 ### Migrating from the previous auth stack
 

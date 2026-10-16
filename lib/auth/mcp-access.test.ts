@@ -15,7 +15,7 @@ import {
 import { oauthContinuation, signedOAuthQuery } from "@/lib/oauth-continuation";
 
 // Claude's OAuth connection end to end through the REAL Better Auth instance
-// in lib/auth.ts, with only the Prisma adapter swapped for Better Auth's
+// in lib/auth/auth.ts, with only the Prisma adapter swapped for Better Auth's
 // in-memory one. test/integration/mcp.test.ts runs the same flow on Postgres.
 const { store, sendMailMock } = vi.hoisted(() => ({
   store: {} as Record<string, Record<string, unknown>[]>,
@@ -35,8 +35,8 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-vi.mock("@/lib/auth-prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
-vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: vi.fn(async ({ email }: { email: string }) => ({ allow: true, email })) }));
+vi.mock("@/lib/auth/prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
+vi.mock("@/lib/auth/sign-in-door", () => ({ decideSignIn: vi.fn(async ({ email }: { email: string }) => ({ allow: true, email })) }));
 vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ sendMail: sendMailMock }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -51,7 +51,7 @@ async function load(env: Record<string, string> = {}) {
   for (const k of ["APP_URL", "VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL", "AUTH_GOOGLE_ID", "AUTH_RESEND_KEY"]) delete process.env[k];
   Object.assign(process.env, { AUTH_SECRET: "test-secret-test-secret-test-secret-0123", ALLOW_DEV_LOGIN: "true", ...env });
   try {
-    const mod = await import("@/lib/auth");
+    const mod = await import("@/lib/auth/auth");
     // After the import: the adapter mock empties the store when it first loads.
     store.user.push({ id: "u1", email: EMAIL, name: "Ana", image: null, isEmailVerified: true, createdAt: new Date(), updatedAt: new Date() });
     return mod;

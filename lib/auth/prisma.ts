@@ -10,13 +10,13 @@ import type { PrismaClient } from "@prisma/client";
  * throws and every /api/auth request fails), and it reads a NULL column back
  * as `[]`.
  *
- * So, for the nullable list columns only, the Prisma client lib/auth.ts hands
+ * So, for the nullable list columns only, the Prisma client lib/auth/auth.ts hands
  * to Better Auth writes `null` as an empty list and reads an empty list back
  * as `null`. Nothing in this app stores a deliberately empty list in these
  * columns. `OauthClient.clientCredentialsScopes` is required and treats `[]`
  * as "none", so it is left alone.
  *
- * Keep in step with prisma/schema.prisma (lib/auth-prisma.test.ts checks).
+ * Keep in step with prisma/schema.prisma (lib/auth/prisma.test.ts checks).
  */
 export const NULLABLE_LIST_FIELDS: Record<string, readonly string[]> = {
   OauthClient: ["scopes", "contacts", "redirectUris", "postLogoutRedirectUris", "grantTypes", "responseTypes"],

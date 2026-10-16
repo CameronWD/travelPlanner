@@ -44,7 +44,7 @@ function stringOrNull(value: unknown): string | null {
 
 /**
  * ADR 0057's one door, as a pure module. Performs the same side effects
- * today's Auth.js `signIn` callback (lib/auth.ts) performs — admit, notify,
+ * today's Auth.js `signIn` callback (lib/auth/auth.ts) performs — admit, notify,
  * record — but returns a decision instead of a boolean/string, so Task 3's
  * Better Auth hooks can translate it into whatever shape each hook needs
  * (including the send pass's "answer exactly as an accepted address would"
@@ -57,7 +57,7 @@ export async function decideSignIn(
   const nodeEnv = input.nodeEnv ?? process.env.NODE_ENV;
 
   // Dev login is a passwordless sign-in-as-anyone door. The env var opts in
-  // (lib/auth.ts's provider registration), and this check is belt-and-braces
+  // (lib/auth/auth.ts's provider registration), and this check is belt-and-braces
   // so a future refactor can't silently reopen it in production through this
   // door alone.
   if (input.method === "dev-login") {

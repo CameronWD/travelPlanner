@@ -5,12 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 // lib/db.ts — which throws at import time without DATABASE_URL set. Every
 // test below injects its own deps mocks and never exercises the real
 // functions, so a trivial db stub is enough to let the import chain resolve
-// (same idiom as lib/auth.test.ts).
+// (same idiom as lib/auth/auth.test.ts).
 vi.mock("@/lib/db", () => ({ db: {} }));
 const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
-import { decideSignIn, type DoorDeps } from "@/lib/sign-in-door";
+import { decideSignIn, type DoorDeps } from "@/lib/auth/sign-in-door";
 
 function makeDeps(overrides: Partial<DoorDeps> = {}): DoorDeps {
   return {

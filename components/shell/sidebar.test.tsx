@@ -19,7 +19,7 @@ vi.mock("next/link", () => ({
     <a href={href} {...props}>{children}</a>
   ),
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
+vi.mock("@/lib/auth/client", () => ({ authClient: { signOut: vi.fn() } }));
 // Radix only renders menu content when open; stub so the menu is inspectable.
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,

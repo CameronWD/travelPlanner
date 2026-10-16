@@ -22,7 +22,7 @@ const INACTIVE: McpAccess = { active: false };
  * instance so the OAuth provider's own token hashing and client lookup are
  * used (getOAuthProviderApi is its documented seam for companion plugins).
  *
- * lib/auth.ts makes every access token opaque (`disableJwtPlugin`), so each
+ * lib/auth/auth.ts makes every access token opaque (`disableJwtPlugin`), so each
  * one is a row that Disconnect and /oauth2/revoke can delete. A token is
  * active only when its row exists, is unexpired and unrevoked, names a User,
  * belongs to a client that still exists and is not disabled, is a plain

@@ -9,7 +9,7 @@ import { EmailSignInForm } from "./email-sign-in";
  * still on the way — no disabled placeholders. The surrounding copy (invite
  * line, access-denied text) is each surface's own.
  *
- * Each method is gated on its own env — the same shape as lib/auth.ts, so a
+ * Each method is gated on its own env — the same shape as lib/auth/auth.ts, so a
  * deploy without the Resend vars shows no field and nothing else changes.
  */
 function Divider() {

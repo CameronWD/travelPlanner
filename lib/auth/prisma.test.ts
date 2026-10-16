@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { NULLABLE_LIST_FIELDS, rewriteArgs, rewriteResult } from "@/lib/auth-prisma";
+import { NULLABLE_LIST_FIELDS, rewriteArgs, rewriteResult } from "@/lib/auth/prisma";
 
 describe("Better Auth's nullable list columns on Prisma", () => {
   it("writes null as an empty list, which Prisma accepts (the resource seed on boot)", () => {

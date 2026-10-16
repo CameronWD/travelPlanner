@@ -48,7 +48,7 @@ vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
 // app/(app)/layout.test.tsx does, so this stays a server-component test of
 // AccountPage's own wiring, not of Search/sign-out internals (each has its
 // own tests).
-vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
+vi.mock("@/lib/auth/client", () => ({ authClient: { signOut: vi.fn() } }));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -65,7 +65,7 @@ vi.mock("@/lib/db", () => ({
 }));
 // server/actions/connected-apps imports the auth server for Disconnect; the
 // page only lists, so the real Better Auth instance has no place here.
-vi.mock("@/lib/auth", () => ({ authServer: { api: {} } }));
+vi.mock("@/lib/auth/auth", () => ({ authServer: { api: {} } }));
 vi.mock("@/components/account/connected-apps-panel", () => ({
   ConnectedAppsPanel: ({ initial }: { initial: { clientName: string }[] }) => (
     <div data-testid="connected-apps-panel">{initial.map((a) => a.clientName).join(",") || "none"}</div>

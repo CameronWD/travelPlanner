@@ -8,7 +8,7 @@ import { connectClaude, refreshTokens, type ClaudeConnection } from "./helpers/o
 //
 // Only the Next request boundary is mocked: `requireUser` (the signed-in
 // Traveller, as the Account page would see them) and revalidation. The
-// action, the auth server and lib/auth-prisma.ts all run for real.
+// action, the auth server and lib/auth/prisma.ts all run for real.
 const { requireUserMock } = vi.hoisted(() => ({ requireUserMock: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("@/lib/guards", async (importOriginal) => ({
@@ -17,7 +17,7 @@ vi.mock("@/lib/guards", async (importOriginal) => ({
 }));
 
 type DbModule = typeof import("@/lib/db");
-type AuthModule = typeof import("@/lib/auth");
+type AuthModule = typeof import("@/lib/auth/auth");
 type RouteModule = typeof import("@/app/api/mcp/route");
 type ActionsModule = typeof import("@/server/actions/connected-apps");
 
@@ -55,7 +55,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Connected apps: list and Disco
     process.env.AUTH_SECRET ||= "integration-secret-integration-secret-0123";
     for (const k of ["APP_URL", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_URL", "VERCEL_BRANCH_URL"]) delete process.env[k];
     ({ db } = await import("@/lib/db"));
-    ({ authServer } = await import("@/lib/auth"));
+    ({ authServer } = await import("@/lib/auth/auth"));
     ({ POST } = await import("@/app/api/mcp/route"));
     actions = await import("@/server/actions/connected-apps");
 

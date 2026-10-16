@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthMemoryStore } from "@/test/helpers/auth-memory-store";
 
 // The Sign-in link end to end through the REAL Better Auth instance in
-// lib/auth.ts (Better Auth's in-memory adapter in place of Prisma): send the
+// lib/auth/auth.ts (Better Auth's in-memory adapter in place of Prisma): send the
 // link, then click it, with the one door mocked per pass. Pins Review Focus 1
 // (a revoked Traveller gets no session) and 2 (a refused new address gets no
 // User row) against the real hook wiring.
@@ -25,8 +25,8 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-vi.mock("@/lib/auth-prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
-vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
+vi.mock("@/lib/auth/prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
+vi.mock("@/lib/auth/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
 vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ sendMail: sendMailMock }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -43,7 +43,7 @@ async function load() {
     AUTH_RESEND_FROM: "Teepee <signin@example.com>",
   });
   try {
-    return await import("@/lib/auth");
+    return await import("@/lib/auth/auth");
   } finally {
     process.env = prev;
   }

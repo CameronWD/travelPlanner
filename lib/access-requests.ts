@@ -36,7 +36,7 @@ export function isUniqueConstraintError(err: unknown): boolean {
  * Record (or bump) an Access request from a refused sign-in attempt.
  *
  * The sign-in attempt IS the Access request: this is called from inside the
- * Auth.js `signIn` callback (lib/auth.ts), immediately before it returns
+ * Auth.js `signIn` callback (lib/auth/auth.ts), immediately before it returns
  * `false`, using Google's *verified* profile — or, for the Sign-in link, the
  * address alone. The Sign-in link field (spec 2026-10-01 §B) is typed input:
  * its refusals are recorded so the Admin can see and accept them, but never

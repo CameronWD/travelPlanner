@@ -7,15 +7,15 @@ import { nextCookies } from "better-auth/next-js";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { mcp } from "@better-auth/mcp";
 import { db } from "@/lib/db";
-import { withBetterAuthLists } from "@/lib/auth-prisma";
+import { withBetterAuthLists } from "@/lib/auth/prisma";
 import { siteUrl } from "@/lib/site-url";
-import { decideSignIn, type DoorMethod } from "@/lib/sign-in-door";
+import { decideSignIn, type DoorMethod } from "@/lib/auth/sign-in-door";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { reportError } from "@/lib/error-sink";
-import { renderSignInEmail } from "@/lib/sign-in-email";
+import { renderSignInEmail } from "@/lib/auth/sign-in-email";
 import { sendMail } from "@/lib/mail";
-import { devLogin } from "@/lib/auth-dev-login";
-import { mcpAccessToken } from "@/lib/auth-mcp-access";
+import { devLogin } from "@/lib/auth/dev-login";
+import { mcpAccessToken } from "@/lib/auth/mcp-access";
 import { isAllowedRedirectUri } from "@/lib/mcp/redirect-allowlist";
 
 /**
@@ -25,7 +25,7 @@ import { isAllowedRedirectUri } from "@/lib/mcp/redirect-allowlist";
  *   - Sign-in link (magic link) only when AUTH_RESEND_KEY + AUTH_RESEND_FROM are set.
  *   - Dev login only when ALLOW_DEV_LOGIN === "true" and never in production.
  *
- * Who may sign in is decided in ONE place, lib/sign-in-door.ts (ADR 0057).
+ * Who may sign in is decided in ONE place, lib/auth/sign-in-door.ts (ADR 0057).
  * The hooks below only translate its decision into each Better Auth seam:
  *   - user.validateUserInfo runs before a User row is created, before Google
  *     is linked onto an existing User, and on every returning Google sign-in,
@@ -138,7 +138,7 @@ export const authServer = betterAuth({
   basePath: "/api/auth",
   // BETTER_AUTH_SECRET, falling back to AUTH_SECRET so today's deploy var keeps working.
   secret: process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
-  // Through lib/auth-prisma.ts: Better Auth's nullable list columns (OAuth
+  // Through lib/auth/prisma.ts: Better Auth's nullable list columns (OAuth
   // scopes and resources) on Prisma's Postgres scalar lists.
   database: prismaAdapter(withBetterAuthLists(db), { provider: "postgresql" }),
   session: {

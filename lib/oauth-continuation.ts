@@ -2,7 +2,7 @@ import { verifyOAuthQueryParams } from "@better-auth/oauth-provider";
 
 /**
  * Claude's sign-in passes through the Landing (ADR 0071). When /oauth2/authorize
- * finds no session it redirects to "/" (lib/auth.ts `loginPage`) with the
+ * finds no session it redirects to "/" (lib/auth/auth.ts `loginPage`) with the
  * authorise request in a signed query: `client_id`, `redirect_uri`, `state`,
  * PKCE, `resource`, plus `exp`, `ba_iat`, the signed-parameter list `ba_param`
  * and `sig`. After sign-in the Traveller must go back into that request, not

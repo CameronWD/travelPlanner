@@ -7,7 +7,7 @@ import { createHash, randomBytes } from "node:crypto";
  * tokens, refresh and revoke. The same steps Claude takes, minus the browser.
  *
  * Used by test/integration/mcp.test.ts (real Postgres, through
- * lib/auth-prisma.ts) and lib/auth-mcp-access.test.ts (in-memory adapter).
+ * lib/auth/prisma.ts) and lib/auth/mcp-access.test.ts (in-memory adapter).
  */
 export type AuthHandler = (req: Request) => Promise<Response>;
 

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { signInRedirect } from "@/lib/sign-in-redirect";
+import { signInRedirect } from "@/lib/auth/sign-in-redirect";
 import { cookies } from "next/headers";
 import { AppLink } from "@/components/navigation/app-link";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 import { readMemberTrips } from "@/lib/membership-reads";

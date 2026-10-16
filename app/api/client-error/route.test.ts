@@ -5,7 +5,7 @@ const { reportErrorMock, authMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
 }));
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
-vi.mock("@/lib/auth", () => ({ auth: authMock }));
+vi.mock("@/lib/auth/auth", () => ({ auth: authMock }));
 
 // Dynamic import + vi.resetModules() per test (same pattern as
 // lib/db.test.ts / lib/push.test.ts) rather than a static top-level import:

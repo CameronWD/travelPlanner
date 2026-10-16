@@ -10,7 +10,7 @@ const { auth, redirect, userFind, reconcile, headersGet } = vi.hoisted(() => ({
   reconcile: vi.fn(),
   headersGet: vi.fn<(name: string) => string | null>(() => null),
 }));
-vi.mock("@/lib/auth", () => ({ auth }));
+vi.mock("@/lib/auth/auth", () => ({ auth }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("next/headers", () => ({ headers: async () => ({ get: headersGet }) }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: userFind } } }));

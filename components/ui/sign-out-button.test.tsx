@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 const signOutMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: signOutMock } }));
+vi.mock("@/lib/auth/client", () => ({ authClient: { signOut: signOutMock } }));
 
 import { SignOutButton, SignOutMenuItem } from "./sign-out-button";
 

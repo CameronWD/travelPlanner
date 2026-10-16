@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { decls, lightTheme } from "@/test/helpers/css";
 import { Landing } from "./landing";
 
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/client", () => ({
   authClient: { signIn: { social: vi.fn(), magicLink: vi.fn() }, $fetch: vi.fn() },
 }));
 

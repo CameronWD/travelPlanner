@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BetterAuthOptions } from "better-auth";
 
-// The wiring of lib/auth.ts onto Better Auth: the one door (lib/sign-in-door.ts,
+// The wiring of lib/auth/auth.ts onto Better Auth: the one door (lib/auth/sign-in-door.ts,
 // tested on its own) is mocked here, and these tests pin WHERE and HOW each
 // Better Auth hook asks it.
 const { decideSignInMock, acceptPendingInvitesMock, userFindUniqueMock, headersMock, reportErrorMock } = vi.hoisted(() => ({
@@ -14,7 +14,7 @@ const { decideSignInMock, acceptPendingInvitesMock, userFindUniqueMock, headersM
 
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: userFindUniqueMock } } }));
 const { withBetterAuthListsMock } = vi.hoisted(() => ({ withBetterAuthListsMock: vi.fn((db: unknown) => db) }));
-vi.mock("@/lib/auth-prisma", () => ({ withBetterAuthLists: withBetterAuthListsMock }));
+vi.mock("@/lib/auth/prisma", () => ({ withBetterAuthLists: withBetterAuthListsMock }));
 // The real instance initialises eagerly (the MCP OAuth provider seeds its
 // resource), so it needs a working database: Better Auth's in-memory one.
 vi.mock("@better-auth/prisma-adapter", async () => {
@@ -23,14 +23,14 @@ vi.mock("@better-auth/prisma-adapter", async () => {
   return { prismaAdapter: () => memoryAdapter(resetAuthMemoryStore({})) };
 });
 vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: acceptPendingInvitesMock }));
-vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
+vi.mock("@/lib/auth/sign-in-door", () => ({ decideSignIn: decideSignInMock }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: headersMock }));
 vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-0123";
 
-import { auth, authServer, MCP_RESOURCE, mcpResourceFor } from "@/lib/auth";
+import { auth, authServer, MCP_RESOURCE, mcpResourceFor } from "@/lib/auth/auth";
 
 // Widened to the declared option types: betterAuth() infers the literal
 // config, whose inline hooks declare fewer parameters than Better Auth passes.
@@ -61,7 +61,7 @@ describe("Better Auth options", () => {
     expect(options.verification?.modelName).toBe("authVerification");
   });
 
-  it("hands Better Auth the Prisma client through the nullable-list shim (lib/auth-prisma.ts)", async () => {
+  it("hands Better Auth the Prisma client through the nullable-list shim (lib/auth/prisma.ts)", async () => {
     const { db } = await import("@/lib/db");
     expect(listShimCalls).toEqual([[db]]);
   });

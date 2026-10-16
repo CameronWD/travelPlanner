@@ -1,8 +1,8 @@
 /** The codes Better Auth's magic-link and OAuth callback flows redirect a
- * refused sign-in to `/?error=<code>` with (ADR 0071; lib/sign-in-door.ts):
+ * refused sign-in to `/?error=<code>` with (ADR 0071; lib/auth/sign-in-door.ts):
  * - `AccessDenied`: the door's own refusal, from `validateUserInfo` — a new
  *   magic-link User or a Google sign-in whose profile/allowlist check fails
- *   (lib/auth.ts `ACCESS_DENIED`).
+ *   (lib/auth/auth.ts `ACCESS_DENIED`).
  * - `failed_to_create_session`: a *returning* magic-link User refused by
  *   `databaseHooks.session.create.before` (e.g. a revoked allowlist entry) —
  *   `validateUserInfo` doesn't re-run for a returning link User, so this is
