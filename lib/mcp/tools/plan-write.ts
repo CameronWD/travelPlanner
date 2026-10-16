@@ -15,15 +15,15 @@
  * first (`../real-plan.ts`, or the PATCH loaders' own `forkId: null`), since
  * the actions look rows up by id alone and would act on a Fork's row.
  *
- * `update_thing_to_do` and `update_chapter` are PATCH, not replace (same
- * ruling as Task 11's `update_trip`/`update_stop`): `updateItem` writes every
- * `ItemInput` field it's given, including absent ones, as the new value
+ * `update_thing_to_do` is PATCH, not replace (same ruling as Task 11's
+ * `update_trip`/`update_stop`): `updateItem` writes every `ItemInput` field
+ * it's given, including absent ones, as the new value
  * (`hiddenFromShares: data.hiddenFromShares ?? false`, for instance, so a
  * patch that only touches `notes` would silently un-hide a hidden Item from
- * shared links), and `updateChapter` requires `name`/`colour` on every call
- * even though this tool only means to change one field. So both load the
- * current row, merge only the fields the caller actually supplied over it,
- * and send the action a complete, merged input instead.
+ * shared links). So it loads the current row, merges only the fields the
+ * caller actually supplied over it, and sends the action a complete, merged
+ * input instead. `update_chapter` forwards only the fields it's given:
+ * `updateChapter` takes a PATCH (ADR 0075) and merges onto the row it holds.
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -49,7 +49,6 @@ import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { VOTE_LEVELS } from "@/lib/enum-values";
 import type { ItemInput } from "@/lib/validations/item";
-import type { ChapterInput } from "@/lib/validations/chapter";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
@@ -182,67 +181,6 @@ function mergeItemPatch(current: ItemRow, patch: ItemPatch): ItemInput {
     notes: patch.notes ?? current.notes ?? undefined,
     hiddenFromShares: current.hiddenFromShares,
   };
-}
-
-// ---------------------------------------------------------------------------
-// update_chapter patch helpers
-// ---------------------------------------------------------------------------
-
-type ChapterRow = {
-  tripId: string;
-  name: string;
-  colour: string;
-  startDate: string | null;
-  endDate: string | null;
-};
-type ChapterPatch = { name?: string; colour?: string; startDate?: string; endDate?: string };
-
-const CHAPTER_DATE_PAIR_REQUIRED: Failure = {
-  success: false,
-  errors: { startDate: ["Pass both startDate and endDate, or neither, to a rough Chapter."] },
-};
-
-/** Loads the current Chapter for a patch; access-checked first, same as every other trip-scoped tool. */
-async function loadChapterForPatch(chapterId: string): Promise<ChapterRow> {
-  const chapter = await db.chapter.findUnique({
-    where: { id: chapterId, forkId: null },
-    select: { tripId: true, name: true, colour: true, startDate: true, endDate: true },
-  });
-  if (!chapter) notFound();
-  await requireTripAccess(chapter.tripId);
-  return chapter;
-}
-
-/**
- * Merges a patch onto the current Chapter row.
- *
- * `name` and `colour` are required on every `ChapterInput`, so a patch that
- * only means to change one of the other fields must still forward both from
- * the current row. The dates follow the same lone-date rule as
- * `update_stop`'s `arriveDate`/`departDate`: supplying both switches/keeps
- * the Chapter dated; supplying neither keeps whatever it currently is; a
- * lone date merges with the current counterpart when the Chapter is already
- * dated, and is a tool error (not a silent no-op) against a rough one, since
- * there's no current date to pair it with.
- */
-function mergeChapterPatch(current: ChapterRow, patch: ChapterPatch): ChapterInput | Failure {
-  const name = patch.name ?? current.name;
-  const colour = patch.colour ?? current.colour;
-
-  const hasStart = patch.startDate !== undefined;
-  const hasEnd = patch.endDate !== undefined;
-  const suppliesBoth = hasStart && hasEnd;
-  const suppliesNeither = !hasStart && !hasEnd;
-  const wasDated = current.startDate != null;
-
-  if (!suppliesBoth && !suppliesNeither && !wasDated) {
-    return CHAPTER_DATE_PAIR_REQUIRED;
-  }
-
-  const startDate = suppliesNeither ? current.startDate ?? undefined : patch.startDate ?? current.startDate ?? undefined;
-  const endDate = suppliesNeither ? current.endDate ?? undefined : patch.endDate ?? current.endDate ?? undefined;
-
-  return { name, colour, startDate, endDate } as ChapterInput;
 }
 
 export function registerPlanWriteTools(server: McpServer): void {
@@ -427,10 +365,8 @@ export function registerPlanWriteTools(server: McpServer): void {
     },
     ({ chapterId, ...patch }) =>
       runTool("update_chapter", async () => {
-        const current = await loadChapterForPatch(chapterId);
-        const merged = mergeChapterPatch(current, patch);
-        if (isFailure(merged)) return merged;
-        return updateChapter(chapterId, merged);
+        await requireRealPlanRow("chapter", chapterId);
+        return updateChapter(chapterId, patch);
       }),
   );
 }

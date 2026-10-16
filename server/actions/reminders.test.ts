@@ -362,6 +362,45 @@ describe("updateReminder", () => {
 });
 
 // ---------------------------------------------------------------------------
+// updateReminder — PATCH merge (ADR 0075), moved here from the MCP tool
+// ---------------------------------------------------------------------------
+
+describe("updateReminder (PATCH, ADR 0075)", () => {
+  const ROW = { id: "r1", tripId: "trip-1", title: "Reconfirm the tour", date: "2026-07-02", stopId: null, stop: null };
+  // Brief literal was "new-stop" — not a valid cuid, and this now goes through
+  // the real reminderSchema (stopId: z.string().cuid()), so a valid-looking
+  // cuid stands in for it, same substitution already made above for "stop-1".
+  const NEW_STOP_ID = "cst0p00000000000000000002";
+
+  it("with only title keeps the current date and writes no stopId", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ title: "New title", date: "2026-07-02", stop: null });
+    await updateReminder("r1", { title: "New title" });
+    expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "r1" },
+      data: { title: "New title", date: "2026-07-02" },
+    }));
+  });
+
+  it("a supplied stopId replaces the current one", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    stopFindFirstMock.mockResolvedValue({ id: NEW_STOP_ID });
+    reminderUpdateMock.mockResolvedValue({ title: "Reconfirm the tour", date: "2026-07-02", stop: null });
+    await updateReminder("r1", { stopId: NEW_STOP_ID });
+    expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: { title: "Reconfirm the tour", date: "2026-07-02", stopId: NEW_STOP_ID },
+    }));
+  });
+
+  it("a null title is refused by the schema, nothing written", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    const r = await updateReminder("r1", { title: null });
+    expect(r.success).toBe(false);
+    expect(reminderUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // deleteReminder
 // ---------------------------------------------------------------------------
 

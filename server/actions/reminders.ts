@@ -14,6 +14,7 @@ import { recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { revalidateTrip, revalidateTripsList } from "@/lib/revalidate";
+import { applyPatch, type Patch } from "@/lib/patch";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -125,17 +126,21 @@ export async function addReminder(
 }
 
 /**
- * Update a reminder's title and/or date.
+ * Update a Reminder (PATCH, ADR 0075): `title` and `date` merge onto the
+ * held row. `stopId` keeps its "absent = leave as it is" meaning — there is
+ * still no way to clear it (the schema has no null for it).
  *
  * - Access-checked via requireReminderAccess → requireTripAccess.
  */
 export async function updateReminder(
   id: string,
-  input: ReminderInput,
+  patch: Patch<ReminderInput>,
 ): Promise<ReminderActionResult> {
   const reminder = await requireReminderAccess(id);
 
-  const parsed = reminderSchema.safeParse(input);
+  const parsed = reminderSchema.safeParse(
+    applyPatch<ReminderInput>({ title: reminder.title, date: reminder.date }, patch),
+  );
   if (!parsed.success) {
     return validationResult(parsed.error);
   }

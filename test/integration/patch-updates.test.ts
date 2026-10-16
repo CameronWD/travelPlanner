@@ -1,0 +1,74 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// ADR 0075 against the real Postgres: an update that names one field keeps
+// every other column; an explicit null clears. Only the Next/auth boundary,
+// the network (geocode, FX) and Activity are mocked; the actions and Prisma run for real.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
+vi.mock("@/lib/geocode", () => ({
+  geocodePlace: vi.fn(async () => null),
+  geocodePlaceDetailed: vi.fn(async () => null),
+}));
+vi.mock("@/lib/fx", () => ({
+  resolveRateForTrip: vi.fn(async () => ({ rate: 1, persist: null })),
+  persistRate: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
+vi.mock("@/lib/guards", async () => ({
+  isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
+  requireUser: vi.fn(async () => ({ id: "it-user" })),
+  requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
+  requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
+  // The actions only read id/tripId/forkId (+ the reminder's own fields) off the guard's row.
+  requireRowAccess: vi.fn(async (kind: string, id: string) => {
+    const { db } = await import("@/lib/db");
+    const { notFound } = await import("next/navigation");
+    const delegate = (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind];
+    const row = await delegate.findUnique({ where: { id }, ...(kind === "reminder" ? { include: { stop: { select: { name: true } } } } : {}) });
+    if (!row) notFound();
+    return { row, user: { id: "it-user" }, membership: { role: "owner" }, surpriseOf: null };
+  }),
+}));
+vi.mock("@/lib/surprise-guard", async () => ({
+  ...(await vi.importActual<object>("@/lib/surprise-guard")),
+  requireOutsideSurprise: vi.fn(async () => null),
+}));
+
+import { db } from "@/lib/db";
+import { updateReminder } from "@/server/actions/reminders";
+import { updateChapter } from "@/server/actions/chapters";
+
+const TRIP_ID = "it-trip-patch";
+
+describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (ADR 0075, real Postgres)", () => {
+  beforeAll(async () => {
+    await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.user.upsert({ where: { id: "it-user" }, update: {}, create: { id: "it-user", email: "it-user@example.test", name: "It User", isEmailVerified: true } });
+    await db.trip.create({
+      data: { id: TRIP_ID, name: "PATCH trip", homeCurrency: "AUD", startDate: "2026-05-01", endDate: "2026-05-20", hardEndDate: "2026-05-25", createdById: "it-user",
+        members: { create: { userId: "it-user", role: "owner" } } },
+    });
+  });
+  afterAll(async () => {
+    await db.trip.deleteMany({ where: { id: TRIP_ID } });
+  });
+
+  describe("Reminder", () => {
+    it("a title-only patch keeps the date and the Stop", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Rome", nights: 2, sortOrder: 0 } });
+      const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Old", date: "2026-05-02", stopId: stop.id } });
+      expect(await updateReminder(r.id, { title: "New" })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ title: "New", date: "2026-05-02", stopId: stop.id });
+    });
+  });
+
+  describe("Chapter", () => {
+    it("a name-only patch keeps colour and dates; explicit nulls clear the dates", async () => {
+      const ch = await db.chapter.create({ data: { tripId: TRIP_ID, name: "Italy", colour: "amber", startDate: "2026-05-01", endDate: "2026-05-05", sortOrder: 0 } });
+      await updateChapter(ch.id, { name: "Italia" });
+      expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", colour: "amber", startDate: "2026-05-01", endDate: "2026-05-05" });
+      await updateChapter(ch.id, { startDate: null, endDate: null });
+      expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", startDate: null, endDate: null });
+    });
+  });
+});

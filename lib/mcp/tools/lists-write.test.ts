@@ -167,55 +167,20 @@ describe("reminder and checklist write tools", () => {
   });
 
   describe("update_reminder (PATCH)", () => {
-    it("with only title keeps the current date and (absent) stopId", async () => {
-      reminderFindUnique.mockResolvedValue(reminderRow());
+    it("forwards only the fields passed", async () => {
       updateReminder.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, title: "New title" } });
-      expect(updateReminder).toHaveBeenCalledWith(REMINDER_ID, { title: "New title", date: "2026-07-02" });
-    });
-
-    it("with only title forwards an existing stopId unchanged", async () => {
-      reminderFindUnique.mockResolvedValue(reminderRow({ stopId: STOP_ID }));
-      updateReminder.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, title: "New title" } });
-      expect(updateReminder).toHaveBeenCalledWith(REMINDER_ID, {
-        title: "New title",
-        date: "2026-07-02",
-        stopId: STOP_ID,
-      });
-    });
-
-    it("a supplied stopId overrides the current one", async () => {
-      reminderFindUnique.mockResolvedValue(reminderRow({ stopId: "old-stop" }));
-      updateReminder.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, stopId: "new-stop" } });
-      expect(updateReminder).toHaveBeenCalledWith(REMINDER_ID, {
-        title: "Reconfirm the tour",
-        date: "2026-07-02",
-        stopId: "new-stop",
-      });
+      expect(updateReminder).toHaveBeenCalledWith(REMINDER_ID, { title: "New title" });
+      expect(reminderFindUnique).not.toHaveBeenCalled();
     });
 
     it("a made-up reminderId reads as NOT_FOUND_TEXT, same as a non-member's", async () => {
-      reminderFindUnique.mockResolvedValue(null);
+      updateReminder.mockRejectedValue(notFoundErr());
       const c = await connectTestClient();
       const r = await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, title: "x" } });
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
-      expect(updateReminder).not.toHaveBeenCalled();
-    });
-
-    it("checks trip access before using the loaded row", async () => {
-      reminderFindUnique.mockResolvedValue(reminderRow());
-      requireTripAccess.mockRejectedValue(notFoundErr());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, title: "x" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
-      expect(updateReminder).not.toHaveBeenCalled();
     });
   });
 
