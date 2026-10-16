@@ -505,6 +505,16 @@ export function surpriseSummary(input: {
   return { summary: `made ${input.label} a surprise for ${who}` };
 }
 
+/**
+ * A Home timezone change (ADR 0030 amendment 2026-10-16): one trip-level
+ * line. `keptLocalTimes` when at least one Home-end time was re-filed so it
+ * keeps the local time it showed.
+ */
+export function homeTimezoneSummary(to: string | null, keptLocalTimes: boolean): ActivitySummary {
+  const head = to === null ? "cleared the Home timezone" : `changed the Home timezone to ${to}`;
+  return { summary: keptLocalTimes ? `${head} — Home-end times kept as local times` : head };
+}
+
 // ---------------------------------------------------------------------------
 // activityLine — the one sentence every surface shows
 // ---------------------------------------------------------------------------
