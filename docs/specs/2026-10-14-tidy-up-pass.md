@@ -85,7 +85,7 @@ Per `CLAUDE.md`. In addition:
 | TB-07 | `components/trip/itinerary-manager.tsx:1600, 1660, 1673, 1698, 1761` | Awaited reorders with no catch; Undo `.then` with no `.catch`. | G |
 | TB-09 | `lib/past-home-loader.ts:237`, `components/trip/home/budget-glance.tsx:18`, `components/home/desktop/trip-cost-tile.tsx:47` | Paid percentage rounds 99.5 %+ up to "100 %" while money is still owed; `lib/money/summary-lines.ts` `paidPct` already caps at 99 (Q15). | P |
 | TB-08 | `server/actions/forks.ts` `getComparison` | Compare read every plan unfiltered by Surprise; now reads through `readPlan` and hides the inside like every other page (CONTEXT.md **Surprise**). | A/B |
-| TB-10 | lib/day-view-loader.ts:409 (projectDay) | The Day strip's check-in/check-out dots ignored every stay that did not touch the shown day (from 2026-12-04 a check-in on 2026-12-10 showed 0 dots). Found while planning 3.M; buildDayModel builds the itinerary from every stay. | M |
+| TB-10 | lib/day-view-loader.ts:409 (projectDay) | The Day strip's check-in/check-out dots ignored every stay that did not touch the shown day (from 2026-12-04 a check-in on 2026-12-10 showed 0 dots). Found while planning 3.M; buildDayModel builds the Trip's day plans from every stay. | M |
 
 ---
 
@@ -475,7 +475,7 @@ The card notes and the SDD ledger
    in `readDayRows` (`lib/day-reads.ts`).
 2. The strip's dot counts come from the dated Items already read; the
    `item.groupBy` query is gone.
-3. TB-10 (below) found and fixed: the itinerary is built from every stay.
+3. TB-10 (in *Bugs* above) found and fixed: the day plan is built from every stay.
 4. Today shows the Surprise badge, Item photos and the "Hidden from shares"
    icon (see above); its Wishlist read gained `forkId: null`, which changes
    nothing.
