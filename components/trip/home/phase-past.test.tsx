@@ -399,7 +399,6 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
   it("shows under/over as a status chip, not an accent", async () => {
     let div = await dom();
     const under = [...div.querySelectorAll("span")].filter((s) => /under$/.test(s.textContent ?? "")).pop()!;
-    // The status token itself — Badge variant="success" still resolves to bg-teal (a hue).
     expect(under.className).toMatch(/\bbg-success\b/);
     expect(under.className).toMatch(/\btext-success-foreground\b/);
     expect(under.className).not.toMatch(/\bbg-teal\b/);

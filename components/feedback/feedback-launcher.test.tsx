@@ -1001,10 +1001,10 @@ describe("FeedbackLauncher", () => {
     await user.click(screen.getByRole("button", { name: /leave feedback/i }));
 
     const done = await screen.findByText("Done");
-    expect(done.className).toContain("bg-teal");
+    expect(done.className).toContain("bg-success");
 
     const wontFix = screen.getByText("Won't fix");
-    expect(wontFix.className).not.toContain("bg-teal");
+    expect(wontFix.className).not.toContain("bg-success");
   });
 
   it("labels a note whose status it does not recognise instead of striking it out silently", async () => {
