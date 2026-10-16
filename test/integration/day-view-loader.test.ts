@@ -1,16 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { getDay } from "@/lib/day-view-loader";
+import { getDays } from "@/lib/day-view-loader";
 
 // Real Postgres (npm run test:integration). The seed test for the loaders
 // spec 2026-10-06 §B/§C reshaped: their unit tests mock the db and count
 // queries, so only a real database proves every select, relation filter and
 // groupBy is one Postgres accepts.
 const USER = "it-day-user";
+const CO = "it-day-co";
 const TRIP_ID = "it-day-trip";
 const STOP_ID = "it-day-lisbon";
+const one = async (d: string) => (await getDays(TRIP_ID, [d], USER))[0];
 
-describe.skipIf(process.env.INTEGRATION !== "1")("getDay (real Postgres)", () => {
+describe.skipIf(process.env.INTEGRATION !== "1")("getDays (real Postgres)", () => {
   beforeAll(async () => {
     await db.user.upsert({ where: { id: USER }, update: {}, create: { id: USER, email: "day@example.test", name: "Day IT" } });
   });
@@ -38,12 +40,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("getDay (real Postgres)", () =>
   });
 
   afterAll(async () => {
+    await db.journalEntry.deleteMany({ where: { authorId: CO } });
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
   });
 
   it("projects one day from the Trip's real rows", async () => {
-    const day = await getDay(TRIP_ID, "2027-05-02", USER);
-    if (typeof day === "string") throw new Error(`getDay returned ${day}`);
+    const day = await one("2027-05-02");
+    if (typeof day === "string") throw new Error(`getDays returned ${day}`);
     expect(day.stop?.name).toBe("IT Lisbon");
     expect(day.dayNumber).toBe(2);
     expect(day.totalDays).toBe(4);
@@ -54,12 +57,17 @@ describe.skipIf(process.env.INTEGRATION !== "1")("getDay (real Postgres)", () =>
     expect(day.strip.dates.find((d) => d.iso === "2027-05-02")?.count).toBe(1);
   });
 
-  it("serves the Day page's three neighbouring days from one Trip", async () => {
-    const days = await Promise.all(["2027-05-01", "2027-05-02", "2027-05-03"].map((d) => getDay(TRIP_ID, d, USER)));
-    expect(days.map((d) => (typeof d === "string" ? d : d.dayNumber))).toEqual([1, 2, 3]);
+  it("serves the Day page's window from one read, each day with its own Journal", async () => {
+    await db.user.upsert({ where: { id: CO }, update: {}, create: { id: CO, email: "day-co@example.test", name: "Day Co" } });
+    await db.tripMember.create({ data: { tripId: TRIP_ID, userId: CO, role: "member" } });
+    await db.journalEntry.create({ data: { tripId: TRIP_ID, date: "2027-05-02", authorId: CO, body: "IT Custard tarts" } });
+    const days = await getDays(TRIP_ID, ["2027-05-02", "2027-05-01", "2027-05-03"], USER);
+    expect(days.map((d) => (typeof d === "string" ? d : d.dayNumber))).toEqual([2, 1, 3]);
+    const bodies = days.map((d) => (typeof d === "string" ? d : d.journal.others.map((o) => o.body)));
+    expect(bodies).toEqual([["IT Custard tarts"], [], []]);
   });
 
   it("answers out-of-range far outside the Trip", async () => {
-    expect(await getDay(TRIP_ID, "2030-01-01", USER)).toBe("out-of-range");
+    expect(await one("2030-01-01")).toBe("out-of-range");
   });
 });

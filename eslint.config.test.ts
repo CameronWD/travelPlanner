@@ -78,9 +78,9 @@ const CASES: [string, string, string, boolean][] = [
   ["loader= in a Server Component", "components/probe.tsx", 'import Image from "next/image";\nconst l = () => "";\nexport const C = () => <Image src="a" alt="" loader={l} />;', true],
   ["loader= in a Client Component", "components/probe.tsx", '"use client";\nimport Image from "next/image";\nconst l = () => "";\nexport const C = () => <Image src="a" alt="" loader={l} />;', false],
   // ADR 0072: non-readPlan readers import the Surprise helpers
-  ["a visibility reader without the import", "lib/day-view-loader.ts", "export const x = 1;", true],
-  ["a visibility reader with it", "lib/day-view-loader.ts", VIS, false],
-  ["a visibility reader is still a lib file", "lib/day-view-loader.ts", `${VIS}\nimport type { A } from "@/components/x";`, true],
+  ["a visibility reader without the import", "lib/day-reads.ts", "export const x = 1;", true],
+  ["a visibility reader with it", "lib/day-reads.ts", VIS, false],
+  ["a visibility reader is still a lib file", "lib/day-reads.ts", `${VIS}\nimport type { A } from "@/components/x";`, true],
   ["an app visibility reader without the import", "app/(app)/trips/[tripId]/layout.tsx", "export const x = 1;", true],
   ["an attachment-bytes reader without the guard", "app/api/attachments/[id]/route.ts", "export const x = 1;", true],
   ["real-plan without requireRowAccess", "lib/mcp/real-plan.ts", 'import { requireUser } from "@/lib/guards";\nexport const x = requireUser;', true],
