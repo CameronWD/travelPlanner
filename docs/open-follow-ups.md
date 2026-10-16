@@ -374,16 +374,24 @@ ledger (`.superpowers/sdd/2026-09-21-close-the-open-backlog/progress.md`) and
 have not been independently re-derived here** — treat each as a lead to check,
 not as a verified finding. Fold them into whatever next touches the file.
 
-- **`server/actions/invites.test.ts`** — the admin-bypass test asserts only
-  `success === true`, not the created Invite's shape.
-- **`components/account/push-subscribe.ts`** — the client-side conflict retry
+- ~~**`server/actions/invites.test.ts`** — the admin-bypass test asserts only
+  `success === true`, not the created Invite's shape.~~ **Fixed 2026-10-16**
+  (tidy-up batch 3): the admin case asserts the returned `inviteId` and the
+  whole `upsert` call — `tripId`, normalised `email`, `role: "member"`, a
+  token and an expiry.
+- ~~**`components/account/push-subscribe.ts`** — the client-side conflict retry
   that ADR 0053 depends on has no automated coverage; no test file exists for
   that module. This is the half of `CD-02`'s fix a future refactor breaks
-  silently.
-- **`lib/digest-dispatch.test.ts`** — nothing asserts the cooldown
+  silently.~~ **Already covered** — `components/account/push-subscribe.test.ts`
+  ("on a conflict, drops the endpoint and retries with a FRESH one", `:93`)
+  pins the retry; struck 2026-10-16 (tidy-up batch 3), nothing rebuilt.
+- ~~**`lib/digest-dispatch.test.ts`** — nothing asserts the cooldown
   `findFirst`'s `where` **shape**, i.e. that it is keyed on `slot` *without*
   `localDate`, which is the whole point of ADR 0054. Correctness currently
-  rests on reading the implementation.
+  rests on reading the implementation.~~ **Already covered** —
+  `lib/digest-dispatch.test.ts:284-291` asserts the cooldown `where` equals
+  `{ userId, tripId, slot, createdAt }` and has no `localDate`; struck
+  2026-10-16 (tidy-up batch 3).
 - **The cooldown `findFirst` has no covering index** (the existing unique
   constrains `localDate`, which this query does not use). Not functional at two
   Travellers' row counts; adding one needs a migration.
