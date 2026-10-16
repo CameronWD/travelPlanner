@@ -7,6 +7,7 @@
 
 import { addDays, nightsBetween } from "./dates";
 import type { FlowConflict } from "./firm-up";
+import { compareScheduled } from "./plan-order";
 
 /**
  * Compute the sortOrder for a new stop inserted after `afterStopId`, and the
@@ -323,4 +324,22 @@ export function collisionPush(
     cur = departDate;
   }
   return { results, conflicts };
+}
+
+/**
+ * ADR 0038: reflow a plan whose stops are given in their new arrangement
+ * (sortOrder) order. The arrangement's scheduled stops are the new order; the
+ * same stops sorted chronologically are the old one. Shared by the server's
+ * reflowSpanTx and the Plan editor's optimistic prediction, so the two agree.
+ */
+export function reflowArrangement<S extends { id: string; sortOrder: number; arriveDate: string | null; departDate: string | null; pinned: boolean }>(
+  arranged: readonly S[],
+  movedIds: ReadonlySet<string>,
+): { scheduled: (S & { arriveDate: string; departDate: string })[]; results: ReflowResult[]; conflicts: FlowConflict[] } {
+  const scheduled = arranged.filter(
+    (s): s is S & { arriveDate: string; departDate: string } => s.arriveDate != null && s.departDate != null,
+  );
+  const oldScheduled = [...scheduled].sort(compareScheduled);
+  const { results, conflicts } = spanReflow(oldScheduled, scheduled, movedIds);
+  return { scheduled, results, conflicts };
 }

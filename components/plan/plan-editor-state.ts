@@ -12,12 +12,14 @@
  * Every row set the reducer stores passes through `orderPlanStops`
  * (ADR 0038; ARCH-CMP-3). The commands are pure ports of the Plan's drag,
  * assign and nights handlers: they return the optimistic rows, the request
- * to send, and the placements that put the rows back if the write fails.
+ * to send, and the local pre-image (`before`) that puts the rows back if the
+ * write fails. `before` is not the server Undo payload: that is
+ * `touchedPlacements(settledRows.stops, preRows.stops)`.
  */
 import type { ItineraryChapter, ItineraryStop, ItineraryTransport } from "@/components/trip/itinerary-manager";
 import { addDays } from "@/lib/dates";
-import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
-import { moveChapterBlocks, moveStopInOrder, spanReflow } from "@/lib/reorder";
+import { orderPlanStops } from "@/lib/plan-order";
+import { moveChapterBlocks, moveStopInOrder, reflowArrangement } from "@/lib/reorder";
 
 export interface PlanRows { stops: ItineraryStop[]; chapters: ItineraryChapter[]; transports: ItineraryTransport[] }
 export interface PlanEditorState {
@@ -29,12 +31,17 @@ export interface PlanEditorState {
 }
 /** The fields a placement write changes; what Undo writes back. */
 export interface StopPlacement { id: string; sortOrder: number; chapterId: string | null; arriveDate: string | null; departDate: string | null }
+/**
+ * The local pre-image a `revert` writes back (rule 5): Stop placements, the
+ * whole chapter list when a write moved chapters, and rough Stops' nights.
+ */
+export interface PlanRestore { placements: StopPlacement[]; chapters?: ItineraryChapter[]; nights?: { id: string; nights: number | null }[] }
 
 export type PlanEditorEvent =
   | { type: "props"; rows: PlanRows }                                   // rules 1–3
   | { type: "begin"; rows: PlanRows }                                   // optimistic rows; pending + 1
   | { type: "settle"; rows?: PlanRows }                                 // pending − 1; rows = server-confirmed local rows (e.g. `changed` applied)
-  | { type: "revert"; placements: StopPlacement[] }                     // rule 5: the one revert path
+  | { type: "revert"; restore: PlanRestore }                            // rule 5: the one revert path
   | { type: "flashed" };                                                // clear newStopIds
 
 type StopItem = { id: string; chapterId: string | null };
@@ -80,14 +87,17 @@ export function planEditorReducer(state: PlanEditorState, event: PlanEditorEvent
       return next;
     }
     case "revert": {
-      const byId = new Map(event.placements.map((p) => [p.id, p]));
+      const { placements, chapters, nights } = event.restore;
+      const byId = new Map(placements.map((p) => [p.id, p]));
+      const nightsById = new Map((nights ?? []).map((n) => [n.id, n.nights]));
       const stops = state.rows.stops
         .map((s) => {
           const p = byId.get(s.id);
-          return p ? { ...s, sortOrder: p.sortOrder, chapterId: p.chapterId, arriveDate: p.arriveDate, departDate: p.departDate } : s;
+          const placed = p ? { ...s, sortOrder: p.sortOrder, chapterId: p.chapterId, arriveDate: p.arriveDate, departDate: p.departDate } : s;
+          return nightsById.has(s.id) ? { ...placed, nights: nightsById.get(s.id)! } : placed;
         })
         .sort((a, b) => a.sortOrder - b.sortOrder);
-      return { ...state, rows: { ...state.rows, stops: orderPlanStops(stops) } };
+      return { ...state, rows: { ...state.rows, chapters: chapters ?? state.rows.chapters, stops: orderPlanStops(stops) } };
     }
     case "flashed":
       return state.newStopIds.length === 0 ? state : { ...state, newStopIds: [] };
@@ -149,11 +159,7 @@ function fromItems(stops: ItineraryStop[], items: StopItem[]): ItineraryStop[] {
  * confirmed `changed` dates arrive.
  */
 function predictReflow(stops: ItineraryStop[], movedIds: ReadonlySet<string>): ItineraryStop[] {
-  const newScheduled = stops
-    .filter((s): s is ItineraryStop & { arriveDate: string; departDate: string } => s.arriveDate != null && s.departDate != null)
-    .map((s) => ({ id: s.id, sortOrder: s.sortOrder, arriveDate: s.arriveDate, departDate: s.departDate, pinned: s.pinned }));
-  const oldScheduled = [...newScheduled].sort(compareScheduled);
-  const { results } = spanReflow(oldScheduled, newScheduled, movedIds);
+  const { results } = reflowArrangement(stops, movedIds);
   const byId = new Map(results.filter((r) => r.changed).map((r) => [r.id, r]));
   return stops.map((s) => {
     const r = byId.get(s.id);
@@ -176,7 +182,7 @@ function arrayMove<T>(list: readonly T[], from: number, to: number): T[] {
  * or a rough Stop into a dated chapter.
  */
 export function reorderCommand(state: PlanEditorState, a: { activeId: string; overId: string; chapterId: string | null }):
-  { rows: PlanRows; request: { items: { id: string; chapterId: string | null }[]; movedStopIds: string[] }; before: StopPlacement[] } | null {
+  { rows: PlanRows; request: { items: { id: string; chapterId: string | null }[]; movedStopIds: string[] }; before: PlanRestore } | null {
   const { activeId, overId } = a;
   const stops = state.rows.stops;
   const activeStop = stops.find((s) => s.id === activeId);
@@ -223,18 +229,42 @@ export function reorderCommand(state: PlanEditorState, a: { activeId: string; ov
   return {
     rows: { ...state.rows, stops: next },
     request: { items, movedStopIds: [activeId] },
-    before: touchedPlacements(next, stops),
+    before: { placements: touchedPlacements(next, stops) },
   };
+}
+
+/**
+ * reorderChapters' stop order (server/actions/chapters.ts): from the stops in
+ * sortOrder order, each listed chapter's stops in the new chapter order, then
+ * every other stop at the end.
+ */
+function chapterStopOrder(stops: ItineraryStop[], chapterIds: string[]): StopItem[] {
+  const listed = new Set(chapterIds);
+  const bySortOrder = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const out: StopItem[] = [];
+  for (const id of chapterIds) {
+    for (const s of bySortOrder) if (s.chapterId === id) out.push({ id: s.id, chapterId: s.chapterId });
+  }
+  for (const s of bySortOrder) {
+    if (s.chapterId == null || !listed.has(s.chapterId)) out.push({ id: s.id, chapterId: s.chapterId });
+  }
+  return out;
+}
+
+/** reorderChapters' movedIds: the dragged chapter's own stops. */
+function movedIdsOf(stops: ItineraryStop[], chapterId: string): Set<string> {
+  return new Set(stops.filter((s) => s.chapterId === chapterId).map((s) => s.id));
 }
 
 /**
  * A chapter drag (handleDragEnd's chapter branch). Rough chapter: permute the
  * rough blocks, then reorderChapters(rough ids) and reorderStops(stopItems).
- * Dated chapter: move it among every chapter and let reorderChapters rebuild
- * the stop order (stopItems null; stops stay until the server answers).
+ * Dated chapter: move it among every chapter; reorderChapters rebuilds the
+ * stop order and reflows (stopItems null) — predicted here, so the optimistic
+ * rows and `before` carry every Stop the server will move.
  */
 export function reorderChaptersCommand(state: PlanEditorState, a: { activeId: string; overId: string }):
-  { rows: PlanRows; request: { chapterIds: string[]; movedChapterId: string; stopItems: { id: string; chapterId: string | null }[] | null }; before: StopPlacement[] } | null {
+  { rows: PlanRows; request: { chapterIds: string[]; movedChapterId: string; stopItems: { id: string; chapterId: string | null }[] | null }; before: PlanRestore } | null {
   const { activeId, overId } = a;
   if (activeId === overId) return null;
   const chapters = state.rows.chapters;
@@ -254,37 +284,41 @@ export function reorderChaptersCommand(state: PlanEditorState, a: { activeId: st
     return {
       rows: { ...state.rows, chapters: [...datedChapters, ...reorderedRough], stops },
       request: { chapterIds: roughChapterIds, movedChapterId: activeId, stopItems },
-      before: touchedPlacements(stops, state.rows.stops),
+      before: { placements: touchedPlacements(stops, state.rows.stops), chapters },
     };
   }
 
   const oldIndex = chapters.findIndex((c) => c.id === activeId);
   const newIndex = chapters.findIndex((c) => c.id === overId);
   if (oldIndex === -1 || newIndex === -1) return null;
-  const nextChapters = arrayMove(chapters, oldIndex, newIndex);
+  const nextChapters = arrayMove(chapters, oldIndex, newIndex).map((c, idx) => ({ ...c, sortOrder: idx }));
+  const chapterIds = nextChapters.map((c) => c.id);
+  const stops = orderPlanStops(predictReflow(fromItems(state.rows.stops, chapterStopOrder(state.rows.stops, chapterIds)), movedIdsOf(state.rows.stops, activeId)));
   return {
-    rows: { ...state.rows, chapters: nextChapters },
-    request: { chapterIds: nextChapters.map((c) => c.id), movedChapterId: activeId, stopItems: null },
-    before: [],
+    rows: { ...state.rows, chapters: nextChapters, stops },
+    request: { chapterIds, movedChapterId: activeId, stopItems: null },
+    before: { placements: touchedPlacements(stops, state.rows.stops), chapters },
   };
 }
 
 /** Assign a Stop to a chapter, or to none (handleAssign). */
-export function assignChapterCommand(state: PlanEditorState, a: { stopId: string; chapterId: string | null }): { rows: PlanRows; before: StopPlacement[] } {
+export function assignChapterCommand(state: PlanEditorState, a: { stopId: string; chapterId: string | null }): { rows: PlanRows; before: PlanRestore } {
   const stops = state.rows.stops;
   const next = orderPlanStops(stops.map((s) => (s.id === a.stopId ? { ...s, chapterId: a.chapterId } : s)));
-  return { rows: { ...state.rows, stops: next }, before: touchedPlacements(next, stops) };
+  return { rows: { ...state.rows, stops: next }, before: { placements: touchedPlacements(next, stops) } };
 }
 
 /** −/+ nights (handleSetNights): a scheduled Stop moves its depart date; a rough Stop writes nights. */
-export function setNightsCommand(state: PlanEditorState, a: { stopId: string; nights: number }): { rows: PlanRows; before: StopPlacement[] } {
+export function setNightsCommand(state: PlanEditorState, a: { stopId: string; nights: number }): { rows: PlanRows; before: PlanRestore } {
   const stops = state.rows.stops;
   const next = orderPlanStops(
     stops.map((s) =>
       s.id !== a.stopId ? s : s.arriveDate ? { ...s, departDate: addDays(s.arriveDate, a.nights) } : { ...s, nights: a.nights },
     ),
   );
-  return { rows: { ...state.rows, stops: next }, before: touchedPlacements(next, stops) };
+  const target = stops.find((s) => s.id === a.stopId);
+  const nights = target && !target.arriveDate ? [{ id: target.id, nights: target.nights }] : undefined;
+  return { rows: { ...state.rows, stops: next }, before: { placements: touchedPlacements(next, stops), ...(nights ? { nights } : {}) } };
 }
 
 /** The server's reflowed dates (a write's `changed`), applied in plan order. */
