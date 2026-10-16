@@ -5,8 +5,10 @@ sequential branches. Target `main`, each branch merged and deployed by Cam
 before the next starts. **Batch 1 is built** on `chore/tidy-up-1-foundations`
 (2026-10-15), merged and deployed. **Batch 2 is built** on
 `chore/tidy-up-2-writes-editor` (2026-10-16), with card 2.Q (wording) added
-by the 2026-10-15 session's grill; awaiting Cam's review, merge and deploy.
-Batch 3 is next, then the Claude Design refinement (`DS-01`).
+by the 2026-10-15 session's grill, merged and deployed. **Batch 3 re-grilled
+2026-10-16** against the code after batch 2 (decisions Q13–Q15 and the
+*Batch 3 drift* notes below); building on `chore/tidy-up-3-shape-hygiene`.
+Then the Claude Design refinement (`DS-01`).
 **Source:** `docs/audits/2026-10-14-architecture-review.html` (sixteen
 candidates A–P, six verified bugs, and the routing of every open follow-up;
 also published at https://claude.ai/artifact/FZickqRiUEfmSLXxz4BttR). The
@@ -41,6 +43,9 @@ of those is listed under *Bugs* below.
 | Q9 | `lib` folders without barrels: `auth/`, `money/` (finished), `feedback/` + `feedback/cli/`, `map/`, `share/`. Last task of batch 3. |
 | Q10 | Page tests: **rewrite the mocks, keep the assertions.** Shared builders in `test/builders/`; query-shape-only assertions move to the reader's unit test and the integration tier. |
 | Q11 | Dependencies: minor and patch bumps only; `@types/node` to 22. Majors recorded as follow-up `TD-01`. |
+| Q13 | (2026-10-16) 3.L covers **all eight** MCP patch pairs — Stop, Trip, Accommodation, Transport, Cost, Reminder, Item, Chapter — not only the three the card named. |
+| Q14 | (2026-10-16) The `lib → server` lint error carries one named exemption: `lib/mcp/tools/**` and `lib/booking-import/confirm.ts` may import `server/actions/*` (they are adapters over the actions), nothing else under `server/`. |
+| Q15 | (2026-10-16) `paidPct`: the shared rule wins — 100 only when fully paid, otherwise capped at 99. The three `Math.min(100, …)` copies were wrong (TB-09). |
 | Q12 | Between batches Cam merges and deploys; the next branch starts from fresh `main`. The spec, ADR 0074, the review and the follow-ups edits ship on branch 1. No Feedback notes are open, so no `Resolves-Feedback:` trailers are owed. |
 
 ## Branch rules
@@ -77,6 +82,7 @@ Per `CLAUDE.md`. In addition:
 | TB-05 | `server/actions/trips.ts:534-541` | `duplicateTrip` copies Fork rows into the new real plan. | F |
 | TB-06 | `server/actions/stops.ts:1326` | A second, published `assignStopToChapter` with no chapter-ownership check; `chapters.ts:252` is the real one. Delete and drop from the allowlist. | P |
 | TB-07 | `components/trip/itinerary-manager.tsx:1600, 1660, 1673, 1698, 1761` | Awaited reorders with no catch; Undo `.then` with no `.catch`. | G |
+| TB-09 | `lib/past-home-loader.ts:237`, `components/trip/home/budget-glance.tsx:18`, `components/home/desktop/trip-cost-tile.tsx:47` | Paid percentage rounds 99.5 %+ up to "100 %" while money is still owed; `lib/money/summary-lines.ts` `paidPct` already caps at 99 (Q15). | P |
 | TB-08 | `server/actions/forks.ts` `getComparison` | Compare read every plan unfiltered by Surprise; now reads through `readPlan` and hides the inside like every other page (CONTEXT.md **Surprise**). | A/B |
 
 ---
@@ -309,6 +315,45 @@ Teepee is for one Traveller or many.
 ---
 
 ## Batch 3 — Shape and hygiene (`chore/tidy-up-3-shape-hygiene`)
+
+### Batch 3 drift (re-checked 2026-10-16, after batch 2)
+
+These win over the cards below where they differ.
+
+- **3.L** — all eight entities (Q13). Six places decide the Stop timezone
+  default today (`server/actions/stops.ts` `resolveTimezone`,
+  `lib/mcp/tools/trips-stops-write.ts` create + merge, `server/actions/stop-flow.ts`,
+  `components/trip/stop-form-dialog.tsx`, `components/plan/mobile/add-stop-sheet.tsx`,
+  `lib/booking-import/build.ts`); one pure `lib` function replaces them all, usable
+  client-side. Read-side `?? "UTC"` fallbacks are out of scope. Forms keep
+  sending full input.
+- **3.M** — `lib/day-view-model.ts` already exists (display helpers);
+  `buildDayModel` is added to it.
+- **3.N** — `lib → server` is 15 files (batch 2 added `lib/money/cost-form-state.ts`),
+  with the Q14 exemption. `lib → components` is 13 imports in 10 files: the view
+  types move to `lib`, and `components/ui/logo-paths` (pure constants, used by
+  `lib/og-card.tsx`) moves to `lib`. Guard tests other than the five replaced
+  and the two kept are untouched.
+- **3.P** —
+  - `isoDate` replaces every zod copy (the 10 consts and the ~10 inline
+    regexes); non-zod regex tests stay.
+  - `formatISODate` has 7 inline sites (batch 2 added two).
+  - `paidPct` per Q15.
+  - `EmptyState` in `timeline.tsx` and the per-render `BY_VALUE` are already
+    done; only the double import remains.
+  - Bare "Member" is gone; what remains is "Trip members (N)" in three
+    aria-labels → "Travellers (N)", "member avatars" in the Help guide →
+    "Traveller avatars", and the dialog title "Command palette" → "Search".
+  - BI-14's length check exists; only the country-agreement check is missing.
+  - The push-subscribe retry and the digest cooldown `where` are already
+    tested; struck in `docs/open-follow-ups.md`, not rebuilt.
+  - Scripts archived: `backfill-geocode`, `backfill-cover-aspect`,
+    `backfill-cover-small` (+ `-run` and its test), `sweep-orphaned-costs`,
+    with their npm entries. `booking-import-smoke.ts` and
+    `verify-r2-presign.ts` stay (DEPLOY.md and the runbook name them).
+- **3.O** — `lib/feedback/cli/` holds the argument parsers
+  (`feedback-accept-args`, `feedback-resolve-args`, `feedback-resolve-site`);
+  the rest go to `lib/feedback/`. `lib/auth/` includes `auth-client`.
 
 ### 3.L · PATCH-shaped updates
 - `updateStop`, `updateTrip`, `updateAccommodation` accept
