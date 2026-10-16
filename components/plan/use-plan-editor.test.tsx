@@ -175,6 +175,32 @@ describe("usePlanEditor — ARCH-CMP-1/2: props and Undo", () => {
     expect(result.current.state.pending).toBe(0);
   });
 
+  it("Undo after an intervening edit restores only the moved rows; the other edit survives (Review Focus 2)", async () => {
+    reorderStopsMock.mockResolvedValue({ success: true, changed: [{ id: "a", arriveDate: "2026-11-03", departDate: "2026-11-06" }], conflicts: [] });
+    restoreStopsMock.mockResolvedValue({ success: true });
+    const { result, rerender } = mount(rowsABC);
+    await act(() => result.current.reorder({ activeId: "b", overId: "a", chapterId: null, movedName: "Porto" }));
+    const { onUndo } = undoToastMock.mock.calls.at(-1)![0];
+
+    // A separate edit lands: the server's snapshot now has the move and Faro renamed and redated.
+    const fb = { ...sb, sortOrder: 0, arriveDate: "2026-11-01", departDate: "2026-11-03" };
+    const fa = { ...sa, sortOrder: 1, arriveDate: "2026-11-03", departDate: "2026-11-06" };
+    const fc = { ...sc, name: "Faro Old Town", arriveDate: "2026-11-07", departDate: "2026-11-12" };
+    rerender({ rows: rows([fb, fa, fc]) });
+    expect(result.current.state.rows.stops.find((s) => s.id === "c")!.name).toBe("Faro Old Town");
+
+    await act(async () => { onUndo(); });
+    const entries = restoreStopsMock.mock.calls[0][0];
+    expect(entries.map((e) => e.id).sort()).toEqual(["a", "b"]);
+    expect(entries.find((e) => e.id === "a")).toEqual({ id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-11-01", departDate: "2026-11-04" });
+    expect(entries.find((e) => e.id === "b")).toEqual({ id: "b", sortOrder: 1, chapterId: null, arriveDate: "2026-11-04", departDate: "2026-11-06" });
+    // Locally a and b are back; c keeps the intervening edit.
+    expect(ids(result.current.state.rows.stops)).toEqual(["a", "b", "c"]);
+    const c = result.current.state.rows.stops.find((s) => s.id === "c")!;
+    expect(c).toMatchObject({ name: "Faro Old Town", arriveDate: "2026-11-07", departDate: "2026-11-12" });
+    expect(result.current.state.pending).toBe(0);
+  });
+
   it("Undo carries the inverted payload and the Fork", async () => {
     reorderStopsMock.mockResolvedValue({
       success: true, changed: [], conflicts: [],
