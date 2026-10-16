@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderInbox, toInboxNote, type InboxNote } from "@/lib/feedback-inbox";
-import { siteOf } from "@/lib/feedback-site";
+import { renderInbox, toInboxNote, type InboxNote } from "@/lib/feedback/inbox";
+import { siteOf } from "@/lib/feedback/site";
 
 const generatedAt = new Date("2026-09-08T10:00:00.000Z");
 

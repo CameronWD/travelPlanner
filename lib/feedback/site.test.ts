@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feedbackSite, siteLabel, siteOf } from "./feedback-site";
+import { feedbackSite, siteLabel, siteOf } from "./site";
 
 describe("feedbackSite", () => {
   it("production is main", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { siteMismatchWarning } from "./feedback-resolve-site";
+import { siteMismatchWarning } from "./resolve-site";
 
 describe("siteMismatchWarning", () => {
   it("warns when the note's site differs from the site being resolved for", () => {

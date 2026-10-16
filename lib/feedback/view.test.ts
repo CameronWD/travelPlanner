@@ -5,7 +5,7 @@ import {
   resolutionLine,
   toView,
   type FeedbackNoteQueryRow,
-} from "./feedback-view";
+} from "./view";
 
 const row = (site: string | null): FeedbackNoteQueryRow => ({
   id: "n1",

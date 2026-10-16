@@ -1,5 +1,5 @@
 /**
- * lib/feedback-view.ts — the row → panel shape for a **Feedback note**.
+ * lib/feedback/view.ts — the row → panel shape for a **Feedback note**.
  *
  * Pure mapping, no I/O. It lives here rather than in
  * `server/actions/feedback.ts` because that module carries the `"use server"`
@@ -11,14 +11,14 @@
  * mapper as a network-reachable action. Same reasoning as `lib/fork-plan.ts`
  * and `lib/chapters.ts`.
  *
- * `lib/feedback-inbox.ts` is the sibling of this file on the export side: it
+ * `lib/feedback/inbox.ts` is the sibling of this file on the export side: it
  * maps the same table into the committed inbox document (ADR 0040), where this
  * one maps it into what the Feedback panel renders.
  */
 
 import type { FeedbackStatus } from "@/lib/enum-values";
 import { MONTH_SHORT } from "@/lib/dates";
-import { siteLabel, siteOf } from "@/lib/feedback-site";
+import { siteLabel, siteOf } from "@/lib/feedback/site";
 
 /** A Feedback note as the Feedback panel sees it. Dates are ISO strings. */
 export type FeedbackNoteView = {

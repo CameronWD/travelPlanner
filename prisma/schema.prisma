@@ -1220,7 +1220,7 @@ model FeedbackNote {
   userAgent String?
 
   /// Which deployment the note was written on — "main", a preview branch
-  /// ("beta"), or "local". Set by the server (lib/feedback-site.ts), never by
+  /// ("beta"), or "local". Set by the server (lib/feedback/site.ts), never by
   /// the client. NULL = written before sites were recorded; counts as main
   /// (ADR 0040, amended 2026-09-26).
   site      String?

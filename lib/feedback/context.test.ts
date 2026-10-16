@@ -3,7 +3,7 @@ import {
   areaForRoute,
   pageLabelForRoute,
   tripIdFromRoute,
-} from "@/lib/feedback-context";
+} from "@/lib/feedback/context";
 
 describe("pageLabelForRoute", () => {
   it.each([

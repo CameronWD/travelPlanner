@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAcceptArgs } from "./feedback-accept-args";
+import { parseAcceptArgs } from "./accept-args";
 
 describe("parseAcceptArgs", () => {
   it("takes an id and optional --dry-run", () => {

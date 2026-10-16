@@ -24,9 +24,9 @@
 import "./load-env";
 
 import { db } from "../lib/db";
-import { parseResolveArgs } from "../lib/feedback-resolve-args";
-import { siteMismatchWarning } from "../lib/feedback-resolve-site";
-import { siteLabel, siteOf } from "../lib/feedback-site";
+import { parseResolveArgs } from "../lib/feedback/cli/resolve-args";
+import { siteMismatchWarning } from "../lib/feedback/cli/resolve-site";
+import { siteLabel, siteOf } from "../lib/feedback/site";
 
 /**
  * The host of DATABASE_URL and nothing else — never the user, password or

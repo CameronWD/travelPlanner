@@ -35,7 +35,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { db } from "../lib/db";
-import { renderInbox, toInboxNote } from "../lib/feedback-inbox";
+import { renderInbox, toInboxNote } from "../lib/feedback/inbox";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const OUT_PATH = path.join(process.cwd(), "docs", "feedback", "inbox.md");

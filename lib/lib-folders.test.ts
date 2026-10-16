@@ -14,6 +14,7 @@ const flat = readdirSync(LIB).filter((f) => /\.tsx?$/.test(f));
 const FOLDERS: Record<string, RegExp> = {
   auth: /^(auth|sign-in)[.-]/,
   share: /^share-/,
+  feedback: /^feedback-/,
 };
 
 describe.each(Object.entries(FOLDERS))("lib/%s/", (folder, flatName) => {

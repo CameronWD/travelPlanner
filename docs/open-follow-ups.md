@@ -1399,7 +1399,7 @@ applied, so production has the columns too.
 - **Evidence:** `components/feedback/feedback-launcher.tsx:445-446` —
   `setPending(removeFromQueue(note.clientKey)); setSent((prev) => [...prev, result.note]);`.
   `setSent` is pushed unconditionally on a successful send. But
-  `removeFromQueue` goes through `lib/feedback-queue.ts`'s `write()`, which
+  `removeFromQueue` goes through `lib/feedback/queue.ts`'s `write()`, which
   swallows a `localStorage.setItem` failure (quota, private mode) and returns the
   *unchanged* queue — so `setPending` is handed a queue that still contains the
   note while `setSent` adds the same note to the sent list.
@@ -1420,7 +1420,7 @@ applied, so production has the columns too.
   `isQueued` helper already defined a few lines above for the offline-enqueue
   path — no new predicate.
 - **The regression test exercises the real swallowed write, not a mock of the
-  fix's own condition.** This test file does not mock `lib/feedback-queue.ts`
+  fix's own condition.** This test file does not mock `lib/feedback/queue.ts`
   at all; it runs the real module against jsdom's `localStorage`. The test
   spies on `window.Storage.prototype.setItem`, lets the initial `enqueue`
   through, and makes every call after it throw `QuotaExceededError`. `4b33884`
@@ -1492,7 +1492,7 @@ applied, so production has the columns too.
 
 - **Source:** none — found during the final whole-branch review of this
   document, while checking the sweep's claims. No source doc records it.
-- **Evidence:** `lib/feedback-inbox.ts:24` exports `FeedbackNoteRow` (the
+- **Evidence:** `lib/feedback/inbox.ts:24` exports `FeedbackNoteRow` (the
   Prisma selection `scripts/feedback-pull.ts` reads). `server/actions/feedback.ts:36`
   separately declares a private `type FeedbackNoteRow` with a different shape
   (it carries `authorId` and `author: { name }`; the exported one does not).
@@ -1512,7 +1512,7 @@ applied, so production has the columns too.
 - **What shipped:** the rename this entry proposed, in the direction it
   proposed. The private type in `server/actions/feedback.ts` is now
   `FeedbackNoteQueryRow` (4 references); the exported `FeedbackNoteRow` in
-  `lib/feedback-inbox.ts:24` is untouched.
+  `lib/feedback/inbox.ts:24` is untouched.
 - **One grep discrepancy resolved while doing it:** `scripts/feedback-pull.ts`
   never names either type textually — it passes its raw `select` result to
   `toInboxNote()`, whose *parameter* carries the annotation. So the exported
@@ -2003,10 +2003,10 @@ on an operator decision. That decision was taken on 2026-09-21: it was
 ### FN-07 · A failed `removeFromQueue` write leaves a "discarded" Feedback note re-appearing forever
 
 - **Source:** `FN` (`:49-51`)
-- **Evidence:** `lib/feedback-queue.ts:61-67` — `write()` catches a
+- **Evidence:** `lib/feedback/queue.ts:61-67` — `write()` catches a
   `localStorage.setItem` failure (quota, private mode) and silently returns
   `readQueue()`, i.e. the write did not happen, with no signal to the caller.
-  `lib/feedback-queue.ts:134` — `flushQueue` calls
+  `lib/feedback/queue.ts:134` — `flushQueue` calls
   `removeFromQueue(note.clientKey)` and ignores its return value entirely;
   line 135 unconditionally pushes to `discarded` on a `rejected` outcome
   regardless of whether the removal persisted.
@@ -2229,7 +2229,7 @@ on an operator decision. That decision was taken on 2026-09-21: it was
 - **Evidence:** `scripts/feedback-pull.ts:62-75` — the `rows.map((row) => ({...}))`
   mapping is written inline in the script, not extracted. No test file exists for
   it.
-- **Fix:** extract the row→`InboxNote` shape function into `lib/feedback-inbox.ts`
+- **Fix:** extract the row→`InboxNote` shape function into `lib/feedback/inbox.ts`
   (which already exists and holds `renderInbox`) and add a field-mapping unit
   test.
 - **Category:** test-coverage · **Effort:** S

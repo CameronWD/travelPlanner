@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
-import { feedbackSite } from "@/lib/feedback-site";
+import { feedbackSite } from "@/lib/feedback/site";
 import { TRAVELLER_SELECT, travellerName } from "@/lib/traveller";
 import {
   createFeedbackNoteSchema,
@@ -14,7 +14,7 @@ import { type ActionResult, ok, validationResult, formFail } from "@/lib/action-
 // here: this module is `"use server"`, so every *value* it exports has to be
 // an async function (Next publishes them as endpoints). `toView` is a pure
 // mapper and has no business being callable over the network — see
-// lib/feedback-view.ts.
+// lib/feedback/view.ts.
 import {
   REVIEW_SELECT,
   toReviewView,
@@ -24,7 +24,7 @@ import {
   type FeedbackNoteView,
   type FeedbackReviewQueryRow,
   type FeedbackReviewView,
-} from "@/lib/feedback-view";
+} from "@/lib/feedback/view";
 
 // A type-only re-export, so the Feedback panel can keep importing the view
 // shape alongside the actions it calls. Types are erased, which is why this

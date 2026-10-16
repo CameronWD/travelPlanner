@@ -1,4 +1,4 @@
-import { siteLabel, siteOf } from "@/lib/feedback-site";
+import { siteLabel, siteOf } from "@/lib/feedback/site";
 
 /** A non-blocking heads-up when a note is resolved for a site it wasn't written on (ADR 0040, 2026-09-26). */
 export function siteMismatchWarning(noteSite: string | null, resolvingFor: string | null): string | null {

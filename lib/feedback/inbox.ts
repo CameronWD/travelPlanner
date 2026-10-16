@@ -1,8 +1,8 @@
 import { formatISODate } from "@/lib/dates";
 import { FEEDBACK_STATUSES, type FeedbackStatus } from "@/lib/enum-values";
-import { areaForRoute } from "@/lib/feedback-context";
-import { describeDevice } from "@/lib/feedback-device";
-import { siteLabel, siteOf } from "@/lib/feedback-site";
+import { areaForRoute } from "@/lib/feedback/context";
+import { describeDevice } from "@/lib/feedback/device";
+import { siteLabel, siteOf } from "@/lib/feedback/site";
 
 /** A Feedback note as the inbox renders it. */
 export type InboxNote = {

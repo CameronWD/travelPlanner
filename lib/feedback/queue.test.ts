@@ -7,7 +7,7 @@ import {
   readQueue,
   removeFromQueue,
   type QueuedFeedbackNote,
-} from "@/lib/feedback-queue";
+} from "@/lib/feedback/queue";
 
 const STORAGE_KEY = "teepee.feedback.queue.v1";
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeDevice } from "@/lib/feedback-device";
+import { describeDevice } from "@/lib/feedback/device";
 
 describe("describeDevice", () => {
   it("has nothing to say about a missing agent", () => {

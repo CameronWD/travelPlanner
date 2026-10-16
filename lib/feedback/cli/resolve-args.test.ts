@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseResolveArgs } from "@/lib/feedback-resolve-args";
+import { parseResolveArgs } from "@/lib/feedback/cli/resolve-args";
 
 describe("parseResolveArgs", () => {
   it("marks a Feedback note done with a resolution", () => {
