@@ -11,6 +11,8 @@ const files = new Set([
   "lib/money/to-pay.ts",
   "lib/demo/index.ts",
   "lib/feedback-inbox.ts",
+  "lib/share-lookup.ts",
+  "lib/share-view.ts",
   "app/x/page.tsx",
   "app/(app)/admin/feedback-review.tsx",
   "scripts/feedback-pull.ts",
@@ -21,6 +23,8 @@ const moves = {
   "lib/share-traveller.ts": "lib/share/share-traveller.ts",
   "lib/money.ts": "lib/money/money.ts",
   "lib/feedback-inbox.ts": "lib/feedback/inbox.ts",
+  "lib/share-lookup.ts": "lib/share/lookup.ts",
+  "lib/share-view.ts": "lib/share/view.ts",
 };
 
 describe("rewriteSource", () => {
@@ -61,6 +65,41 @@ describe("rewriteSource", () => {
     );
   });
 
+  it("re-points export … from, vi.importActual and importOriginal<typeof import(…)>", () => {
+    const src = [
+      `export { shareUrl } from "@/lib/share-url";`,
+      `export * from "@/lib/money";`,
+      `const real = await vi.importActual<typeof import("@/lib/money")>("@/lib/money");`,
+      `vi.mock("@/lib/money", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/money")>()) }));`,
+    ].join("\n");
+    expect(rewriteSource(src, "app/x/page.tsx", moves, files)).toBe(
+      [
+        `export { shareUrl } from "@/lib/share/share-url";`,
+        `export * from "@/lib/money/money";`,
+        `const real = await vi.importActual<typeof import("@/lib/money/money")>("@/lib/money/money");`,
+        `vi.mock("@/lib/money/money", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/money/money")>()) }));`,
+      ].join("\n"),
+    );
+  });
+
+  it("keeps an explicit .ts extension, alias and relative alike", () => {
+    expect(rewriteSource(`import { m } from "@/lib/money.ts";\nimport { r } from "../lib/feedback-inbox.ts";`, "scripts/feedback-pull.ts", moves, files)).toBe(
+      `import { m } from "@/lib/money/money.ts";\nimport { r } from "../lib/feedback/inbox.ts";`,
+    );
+  });
+
+  it("re-points ../<moved> from a file already inside the destination folder", () => {
+    expect(rewriteSource(`import { convertMinor } from "../money";`, "lib/money/to-pay.ts", moves, files)).toBe(
+      `import { convertMinor } from "./money";`,
+    );
+  });
+
+  it("re-points a moved file's import of a moved, renamed neighbour", () => {
+    expect(rewriteSource(`import { toView } from "./share-view";`, "lib/share-lookup.ts", moves, files)).toBe(
+      `import { toView } from "./view";`,
+    );
+  });
+
   it("leaves unrelated, same-named, index and package specifiers alone", () => {
     const src = `import "server-only";\nimport { d } from "@/lib/demo";\nimport { P } from "./feedback-review";`;
     expect(rewriteSource(src, "app/(app)/admin/page.tsx", moves, files)).toBe(src);
@@ -71,6 +110,21 @@ describe("rewritePathMentions", () => {
   it("rewrites exact repo paths, with or without a line number, and nothing longer", () => {
     expect(rewritePathMentions(`see lib/share-url.ts:4 and "lib/share-url.test.ts"; not lib/share-url.tsx or lib/money.tsx`, moves)).toBe(
       `see lib/share/share-url.ts:4 and "lib/share/share-url.test.ts"; not lib/share-url.tsx or lib/money.tsx`,
+    );
+  });
+
+  it("rewrites a path after @/, ./ or ../ but not one nested under another directory", () => {
+    const src = [
+      "lib/money.ts",
+      "`@/lib/money.ts` ./lib/money.ts ../lib/money.ts ../../lib/feedback-inbox.ts",
+      "test/fixtures/lib/money.ts node_modules/x/lib/money.ts https://example.com/lib/feedback-inbox.ts",
+    ].join("\n");
+    expect(rewritePathMentions(src, moves)).toBe(
+      [
+        "lib/money/money.ts",
+        "`@/lib/money/money.ts` ./lib/money/money.ts ../lib/money/money.ts ../../lib/feedback/inbox.ts",
+        "test/fixtures/lib/money.ts node_modules/x/lib/money.ts https://example.com/lib/feedback-inbox.ts",
+      ].join("\n"),
     );
   });
 
@@ -93,6 +147,6 @@ describe("movesFor", () => {
 
   it("refuses an unknown folder and a stem with no file", () => {
     expect(() => movesFor("nope", files)).toThrow(/Unknown folder/);
-    expect(() => movesFor("share", files)).toThrow(/lib\/share-lookup\.ts not found/);
+    expect(() => movesFor("share", files)).toThrow(/lib\/share-og\.ts not found/);
   });
 });

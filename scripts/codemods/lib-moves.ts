@@ -143,11 +143,17 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// A path mention starts at a real path start: the start of the text, or after
+// a character that can't be part of a path, optionally through `@/`, `./` or
+// `../` (repeated). `test/fixtures/lib/money.ts` or a URL ending in
+// `/lib/fx.ts` names some other file, so it never matches.
+const PATH_START = String.raw`(?<![\w.\-/@])((?:@\/|\.\/|(?:\.\.\/)+)?)`;
+
 /** Repo-path mentions (`lib/share-url.ts`, `lib/share-url.test.ts:4`) in code strings, comments and living docs. */
 export function rewritePathMentions(src: string, moves: Moves): string {
   let out = src;
   for (const [from, to] of Object.entries(moves).sort((a, b) => b[0].length - a[0].length)) {
-    out = out.replace(new RegExp(`(^|[^\\w.-])${escapeRe(from)}(?![\\w-])`, "g"), `$1${to}`);
+    out = out.replace(new RegExp(`${PATH_START}${escapeRe(from)}(?![\\w-])`, "g"), `$1${to}`);
   }
   return out;
 }
