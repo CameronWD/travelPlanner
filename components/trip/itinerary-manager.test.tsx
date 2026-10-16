@@ -1209,9 +1209,12 @@ describe("empty chapter remove control", () => {
       />,
     );
 
-    expect(
-      desktop().getByRole("button", { name: "Remove Asia chapter" }),
-    ).toBeInTheDocument();
+    const button = desktop().getByRole("button", { name: "Remove Asia chapter" });
+    expect(button).toBeInTheDocument();
+    // ADR 0029 / ARCH-CMP-4: the icon is visible at size-8 (32px), not the old h-7 w-7.
+    expect(button.className).toMatch(/\bsize-8\b/);
+    expect(button.className).not.toMatch(/\bh-7\b|\bw-7\b/);
+    expect(button.className).toMatch(/\btap-target\b/);
   });
 
   it("does NOT call deleteChapter when the confirm dialog is cancelled", async () => {

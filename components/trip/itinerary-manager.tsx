@@ -1900,7 +1900,7 @@ export function ItineraryManager({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="tap-target h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            className="tap-target size-8 p-0 text-muted-foreground hover:text-destructive"
                             aria-label={`Remove ${chapter.name} chapter`}
                             disabled={pendingId === `delete-chapter-${chapter.id}`}
                             onClick={() => handleDeleteChapter(chapter.id)}
