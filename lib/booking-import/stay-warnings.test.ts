@@ -97,4 +97,45 @@ describe("refreshStayWarnings", () => {
     const stillOutside = { ...dateOnlyDep, input: { ...dateOnlyDep.input, depAt: "2026-12-20T10:00" } };
     expect(refreshStayWarnings(dateOnlyDep, stillOutside, STOPS).warnings).toEqual([M.departsOutsideStay("Lisbon")]);
   });
+
+  describe("a date-only end's import-time stay warning (BI-04 final review)", () => {
+    // build.ts earns these from `end.date` with depAt/arrAt unset; nothing in
+    // the input can re-earn them, so they stay until that end gets a date or
+    // a different Stop.
+    const dateOnly = (warnings: string[]): TransportProposal => ({
+      ...BASE,
+      warnings,
+      clientId: "p1",
+      kind: "transport",
+      input: { mode: "FLIGHT", fromStopId: "s-lis", toStopId: "s-opo" },
+    });
+
+    it("keeps a date-only departure's warning when the next input still has no depAt", () => {
+      const prev = dateOnly([M.departsOutsideStay("Lisbon")]);
+      expect(refreshStayWarnings(prev, { ...prev, input: { ...prev.input } }, STOPS).warnings).toEqual([M.departsOutsideStay("Lisbon")]);
+    });
+
+    it("keeps a date-only arrival's warning when the next input still has no arrAt", () => {
+      const prev = dateOnly([M.arrivesOutsideStay("Porto")]);
+      expect(refreshStayWarnings(prev, { ...prev, input: { ...prev.input } }, STOPS).warnings).toEqual([M.arrivesOutsideStay("Porto")]);
+    });
+
+    it("keeps both through an unrelated-field edit", () => {
+      const prev = dateOnly([M.departsOutsideStay("Lisbon"), M.arrivesOutsideStay("Porto")]);
+      const next = { ...prev, input: { ...prev.input, reference: "ABC123" } };
+      expect(refreshStayWarnings(prev, next, STOPS).warnings).toEqual([M.departsOutsideStay("Lisbon"), M.arrivesOutsideStay("Porto")]);
+    });
+
+    it("drops an end's warning when that end's Stop changes, keeping the other end's", () => {
+      const prev = dateOnly([M.departsOutsideStay("Lisbon"), M.arrivesOutsideStay("Porto")]);
+      const next = { ...prev, input: { ...prev.input, fromStopId: "s-opo" } };
+      expect(refreshStayWarnings(prev, next, STOPS).warnings).toEqual([M.arrivesOutsideStay("Porto")]);
+    });
+
+    it("keeps an Item's warning through an unrelated edit, drops it when its Stop changes", () => {
+      const prev = item("2026-12-20", "s-lis", [M.itemOutsideStay("Lisbon", formatDayLabel("2026-12-20"))]);
+      expect(refreshStayWarnings(prev, { ...prev, input: { ...prev.input, title: "Other" } }, STOPS).warnings).toEqual([M.itemOutsideStay("Lisbon", formatDayLabel("2026-12-20"))]);
+      expect(refreshStayWarnings(prev, item("2026-12-20", "s-opo", prev.warnings), STOPS).warnings).toEqual([M.itemOutsideStay("Porto", formatDayLabel("2026-12-20"))]);
+    });
+  });
 });

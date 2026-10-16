@@ -147,4 +147,15 @@ describe("ProposalEditor", () => {
     await waitFor(() => expect(onConfirm).toHaveBeenCalled());
     expect((onConfirm.mock.calls[0][0] as Extract<Proposal, { kind: "transport" }>).input).toMatchObject({ depIsHome: true, depTimezone: "Australia/Brisbane" });
   });
+
+  it("keeps a date-only Transport's import-time stay warning through the mount-time draft (BI-04 final review)", async () => {
+    // build.ts earns this from the booking's date alone; depAt stays unset.
+    const dateOnly: Proposal = { ...BASE, clientId: "p1", kind: "transport", warnings: [M.arrivesOutsideStay("Lisbon")], input: { mode: "FLIGHT", depIsHome: true, toStopId: "proposed:s1" } };
+    const drafts: Proposal[] = [];
+    render(<DraftSpyHarness initial={dateOnly} onDraft={(next) => drafts.push(next)} />);
+    await waitFor(() => expect(drafts.length).toBeGreaterThan(0));
+    expect((drafts.at(-1) as Extract<Proposal, { kind: "transport" }>).input).not.toHaveProperty("arrAt");
+    expect(drafts.at(-1)!.warnings).toContain(M.arrivesOutsideStay("Lisbon"));
+  });
 });
+

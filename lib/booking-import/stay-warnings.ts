@@ -15,20 +15,38 @@ import type { Proposal } from "./types";
 /** `outsideStay` only reads a Stop's dates; a PreviewStop has those. */
 const asMatchStop = (stop: PreviewStop): MatchStop => ({ ...stop, country: null, countryCode: null, sortOrder: 0 });
 
+const DEPARTS_PREFIX = "This leaves on a day outside your stay in ";
+const ARRIVES_PREFIX = "This arrives on a day outside your stay in ";
+const isItemStayWarning = (msg: string) => msg.startsWith("This is on ") && msg.includes(", outside your stay in ");
+
 /**
- * Recognises a `departsOutsideStay`/`arrivesOutsideStay`/`itemOutsideStay`
- * message (messages.ts) by its fixed wording, for any Stop name or day:
- * `refreshStayWarnings` uses this to drop a Proposal's *previous* stay
- * warning without recomputing it from the Proposal it came from. That
- * Proposal's input may be the date-only shape a Transport end gets at
- * import with no wall time yet (`depAt`/`arrAt` unset, `end.date` only) —
- * `stayWarnings` alone can't tell, from the input, that it once earned one.
+ * Whether `next` can stand behind (or retract) the stay warning `prev`
+ * carried for one end: it can when that end has a date to check (`depAt`,
+ * `arrAt`, an Item's `date`), when that date changed, or when the end's Stop
+ * changed. Otherwise the warning is kept as is — a Transport end gets the
+ * date-only shape at import (`end.date`, no wall time, so `depAt`/`arrAt`
+ * unset) and nothing in its input can re-earn the warning build.ts gave it
+ * (BI-04: opening the editor or editing an unrelated field must keep it).
  */
-function isStaleStayWarning(kind: Proposal["kind"], msg: string): boolean {
-  if (kind === "transport") {
-    return msg.startsWith("This leaves on a day outside your stay in ") || msg.startsWith("This arrives on a day outside your stay in ");
+const endIsRecheckable = (prevDate: string | undefined | null, nextDate: string | undefined | null, prevStop: string | undefined | null, nextStop: string | undefined | null) =>
+  !!nextDate || (prevDate ?? null) !== (nextDate ?? null) || (prevStop ?? null) !== (nextStop ?? null);
+
+/**
+ * `prev`'s stay warnings (recognised by their fixed wording in messages.ts,
+ * for any Stop name or day) that `next` re-decides — see `endIsRecheckable`.
+ */
+function isStaleStayWarning(prev: Proposal, next: Proposal, msg: string): boolean {
+  if (next.kind === "transport") {
+    const before = prev.kind === "transport" ? prev.input : next.input;
+    const { input } = next;
+    if (msg.startsWith(DEPARTS_PREFIX)) return endIsRecheckable(before.depAt, input.depAt, before.fromStopId, input.fromStopId);
+    if (msg.startsWith(ARRIVES_PREFIX)) return endIsRecheckable(before.arrAt, input.arrAt, before.toStopId, input.toStopId);
+    return false;
   }
-  if (kind === "item") return msg.startsWith("This is on ") && msg.includes(", outside your stay in ");
+  if (next.kind === "item") {
+    const before = prev.kind === "item" ? prev.input : next.input;
+    return isItemStayWarning(msg) && endIsRecheckable(before.date, next.input.date, before.stopId, next.input.stopId);
+  }
   return false;
 }
 
@@ -55,14 +73,15 @@ export function stayWarnings(proposal: Proposal, stops: ReadonlyMap<string, Prev
 }
 
 /**
- * `next` with its stay warnings recomputed: whatever stay warning `prev`
- * carried (recognised by message shape — see `isStaleStayWarning`, not
- * recomputed from `prev.input`) is dropped, `next`'s current ones are added,
- * and every other warning (a duplicate, a rough Stop, …) is kept. `prev` is
- * taken alongside `next` for the caller's symmetry with `mergeTransportEdit`
- * et al.; both share one `kind` in practice, since an edit never changes it.
+ * `next` with its stay warnings recomputed: a stay warning `next` carries is
+ * dropped only for an end `next` re-decides (a date, a changed date or a
+ * changed Stop — `isStaleStayWarning`; recognised by message shape, not
+ * recomputed from `prev.input`), `next`'s current ones are added, and every
+ * other warning (a duplicate, a rough Stop, a date-only end's import-time
+ * stay warning, …) is kept. `prev` is the Proposal the edit started from;
+ * both share one `kind` in practice, since an edit never changes it.
  */
 export function refreshStayWarnings(prev: Proposal, next: Proposal, stops: ReadonlyMap<string, PreviewStop>): Proposal {
-  const kept = next.warnings.filter((w) => !isStaleStayWarning(next.kind, w));
+  const kept = next.warnings.filter((w) => !isStaleStayWarning(prev, next, w));
   return { ...next, warnings: [...new Set([...kept, ...stayWarnings(next, stops)])] };
 }
