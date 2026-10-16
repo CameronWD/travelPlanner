@@ -19,8 +19,9 @@ Traveller-visible behaviour. Grouped by the card the task belongs to.
 
 ## Card 2.E — revalidation (Tasks 5, 6)
 
-- Commit `eb783bc5`'s trailer reads "Claude Sonnet 5" instead of the project's
-  "Claude Opus 5.5 (1M context)" trailer. Cosmetic; left as-is so history stays stable.
+- Commits `eb783bc5` and `25c0523b` carry a "Claude Sonnet 5" attribution trailer
+  instead of the project's "Claude Opus 5.5 (1M context)" one. Cosmetic; left as-is
+  so history stays stable.
 - `deleteItem`/`deleteAccommodation`/`deleteTransport` also delete the Costs they own,
   but their revalidation only names the `plan` scope, not `money`. Not a real gap:
   every page that reads `money` is a subset of the pages that read `plan`.
@@ -85,3 +86,14 @@ Traveller-visible behaviour. Grouped by the card the task belongs to.
   pre-existing, not introduced by this batch.
 - The Undo-failure revert test is pure; if `revertUndo`'s own revert line threw,
   `pending` would stay at 1 — negligible, untested.
+
+## Final whole-branch review
+
+- A server snapshot held during a move is adopted when the move settles
+  (`settle` → adopt the held rows). If that snapshot was taken before the move
+  landed, the plan can briefly show the move's old order until the next props
+  arrive. It heals itself on the next refresh.
+- Integration tests were not run in the build container. Before deploy, run
+  `npm run test:integration` against a local DB (`docker compose up -d`, then
+  `npx prisma migrate deploy`): the access checks in `reorderStops` and
+  `restoreStops` changed on this branch.
