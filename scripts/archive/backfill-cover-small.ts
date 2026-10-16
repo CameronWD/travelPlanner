@@ -2,10 +2,7 @@
  * One-time cover-small-copy backfill script (spec 2026-10-06 §H; PX-01).
  *
  * Run command:
- *   npx tsx scripts/backfill-cover-small.ts [--dry-run]
- *
- * Or via the npm script:
- *   npm run backfill:cover-small [-- --dry-run]
+ *   npx tsx --conditions=react-server scripts/archive/backfill-cover-small.ts [--dry-run]
  *
  * Settings from .env.production.local override shell variables (scripts/load-env.ts
  * uses override: true), so storage settings must be edited in that file.
@@ -43,12 +40,12 @@
  *   run --dry-run first.
  */
 
-import "./load-env";
+import "../load-env";
 
-import { db } from "../lib/db";
-import { getStorage } from "../lib/storage";
+import { db } from "../../lib/db";
+import { getStorage } from "../../lib/storage";
 import { backfillCoverSmall } from "./backfill-cover-small-run";
-import { assertStorageMatchesDatabase, describeTarget } from "./lib/storage-target";
+import { assertStorageMatchesDatabase, describeTarget } from "../lib/storage-target";
 
 const dryRun = process.argv.includes("--dry-run");
 

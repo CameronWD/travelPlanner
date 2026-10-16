@@ -28,7 +28,7 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: ['./test/setup.ts'],
-    exclude: ['node_modules', '.next', 'test/integration/**'],
+    exclude: ['node_modules', '.next', 'test/integration/**', 'scripts/archive/**'],
     // Spec 2026-10-08 §B: pure tests skip the DOM's per-file startup cost.
     // A .ts test that needs a DOM opts in with `// @vitest-environment jsdom`.
     projects: [

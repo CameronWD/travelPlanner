@@ -11,7 +11,6 @@
 
 import * as path from "node:path";
 
-export type { Theme, MapReveal } from "../lib/audit-browser";
 import type { MapReveal, Theme } from "../lib/audit-browser";
 
 // --------------------------------------------------------------------------
@@ -19,7 +18,6 @@ import type { MapReveal, Theme } from "../lib/audit-browser";
 // --------------------------------------------------------------------------
 
 export const WIDTHS = [360, 375, 390, 430, 768, 1024, 1280, 1440, 1920, 2560] as const;
-export type Width = (typeof WIDTHS)[number];
 
 /** All five trip phases a page can be in, including "planning" (the phase of
  * the "deep" trip, EU Christmas) — used to verify a phase trip's actual

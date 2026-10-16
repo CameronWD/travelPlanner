@@ -30,7 +30,7 @@ import type { OverlayMeta } from "./config";
 // Types
 // --------------------------------------------------------------------------
 
-export type Role = "button" | "menuitem" | "tab" | "link";
+type Role = "button" | "menuitem" | "tab" | "link";
 
 /**
  * `click.optional` — skip this step instead of reporting a gap when the

@@ -1,14 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
   "entry": [
-    "scripts/*.ts",
-    "scripts/**/*.ts",
+    "scripts/booking-import-smoke.ts",
+    "scripts/verify-r2-presign.ts",
     "prisma/seed*.ts",
     "vitest.integration.config.ts"
   ],
   "project": ["**/*.{ts,tsx,css,prisma}"],
   "ignore": [
     "design_handoff/**",
+    "scripts/archive/**",
     "test/server-only-stub.ts"
   ]
 }

@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { COVER_SMALL_WIDTH } from "./cover";
+import { COVER_SMALL_WIDTH } from "../../lib/cover";
 
 /** Spec 2026-10-08 §E: the operator backfill's twin of lib/image-compress.ts compressCoverSmall. */
 const QUALITY = 82;
@@ -11,7 +11,7 @@ export function isGif(bytes: Buffer): boolean {
 
 /**
  * Make a ~480px-wide WebP copy of a cover image, server-side, for the
- * one-off operator backfill (`scripts/backfill-cover-small-run.ts`). The
+ * one-off operator backfill (`scripts/archive/backfill-cover-small-run.ts`). The
  * browser-side equivalent is `lib/image-compress.ts`'s `compressCoverSmall`.
  *
  * Returns null for a GIF (`isGif` — animation would be lost) or bytes sharp

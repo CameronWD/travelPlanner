@@ -89,7 +89,7 @@ has more than ~5 maps or wants React state bound to map state,
 ┌─ Server (network I/O, "use server") ────────────────────────────────┐
 │  lib/geocode.ts             Nominatim client (cached, never throws) │
 │  server/actions/*.ts        geocode-on-save; search actions         │
-│  scripts/backfill-geocode.ts throttled one-off backfill             │
+│  scripts/archive/backfill-geocode.ts  one-off backfill (archived)   │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ Loader boundary (the ssr:false seam) ──────────────────────────────┐
 │  components/ui/map-loader.tsx  createMapLoader<P>() factory         │
@@ -385,7 +385,7 @@ because a departure terminal is tens of kilometres from the city centre pin
 `reverseGeocodeAction` (drop-a-pin: click the Globe → reverse-geocode → prefill
 the title and place).
 
-**Retroactively**, `scripts/backfill-geocode.ts` — idempotent (only touches rows
+**Retroactively**, `scripts/archive/backfill-geocode.ts` (archived) — idempotent (only touches rows
 missing coords), throttled at 1100 ms, `--dry-run` supported, prints a
 scanned/geocoded/skipped/failed summary. Explicitly *not* run inside
 `prisma migrate deploy`: slow network calls don't belong in a migration.

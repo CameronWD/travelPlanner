@@ -174,6 +174,8 @@ const eslintConfig = defineConfig([
     // Exported design-tool artefacts (mock HTML + its support bundle), not
     // app source — linting them reports on generated third-party output.
     "design_handoff/**",
+    // One-off operator scripts kept for reference, unmaintained (scripts/archive/README.md).
+    "scripts/archive/**",
   ]),
 ]);
 

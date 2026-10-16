@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { backfillCoverSmall, type BackfillCoverSmallDeps } from "./backfill-cover-small-run";
-import { coverSmallKeyFor } from "../lib/cover";
+import { coverSmallKeyFor } from "../../lib/cover";
 
 /** Casts the fake db/storage to the deps type — same pattern as lib/blob-retention.test.ts's
  * `as unknown as Parameters<...>` for a Prisma delegate narrower than the real client. */

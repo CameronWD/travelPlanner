@@ -1,7 +1,7 @@
-import type { db as realDb } from "../lib/db";
-import type { Storage } from "../lib/storage";
-import { coverSmallKeyFor } from "../lib/cover";
-import { isGif, makeCoverSmall } from "../lib/cover-small-image";
+import type { db as realDb } from "../../lib/db";
+import type { Storage } from "../../lib/storage";
+import { coverSmallKeyFor } from "../../lib/cover";
+import { isGif, makeCoverSmall } from "./cover-small-image";
 
 export interface BackfillCoverSmallDeps {
   db: { trip: Pick<typeof realDb.trip, "findMany" | "updateMany"> };

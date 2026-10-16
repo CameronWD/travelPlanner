@@ -2,10 +2,7 @@
  * One-time cover-aspect backfill script (spec F — cmuj4l1d9).
  *
  * Run command:
- *   npx tsx scripts/backfill-cover-aspect.ts [--dry-run]
- *
- * Or via the npm script:
- *   npm run backfill:cover-aspect [-- --dry-run]
+ *   npx tsx --conditions=react-server scripts/archive/backfill-cover-aspect.ts [--dry-run]
  *
  * Settings from .env.production.local override shell variables (scripts/load-env.ts
  * uses override: true), so storage settings must be edited in that file.
@@ -40,12 +37,12 @@
  *   Operator-run only — do NOT wire this into CI or a migration.
  */
 
-import "./load-env";
+import "../load-env";
 
-import { db } from "../lib/db";
-import { getStorage } from "../lib/storage";
-import { readImageSize } from "../lib/image-size";
-import { assertStorageMatchesDatabase, describeTarget } from "./lib/storage-target";
+import { db } from "../../lib/db";
+import { getStorage } from "../../lib/storage";
+import { readImageSize } from "../../lib/image-size";
+import { assertStorageMatchesDatabase, describeTarget } from "../lib/storage-target";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 

@@ -2830,12 +2830,13 @@ being closed by a different shape of fix than the one suggested is still closed.
   batch still have `coverSmallKey` null, so
   `app/api/trips/[tripId]/cover/route.ts` serves them the large copy for
   every `?w=` (correct, just heavier on the trips page and the blurred
-  backdrop). **The backfill script exists**: `npm run backfill:cover-small
-  [-- --dry-run]` (`scripts/backfill-cover-small.ts`, shaped like
-  `scripts/backfill-cover-aspect.ts`; its loop is `scripts/
-  backfill-cover-small-run.ts`, unit-tested against a fake db/storage). It
+  backdrop). **The backfill script exists**: `npx tsx --conditions=react-server
+  scripts/archive/backfill-cover-small.ts [--dry-run]` (archived 2026-10-16;
+  shaped like `scripts/archive/backfill-cover-aspect.ts`; its loop is
+  `scripts/archive/backfill-cover-small-run.ts`, unit-tested against a fake
+  db/storage). It
   reads each Trip with `coverImageKey` set and `coverSmallKey` null, makes a
-  ~480w WebP with `lib/cover-small-image.ts`'s `makeCoverSmall` (sharp
+  ~480w WebP with `scripts/archive/cover-small-image.ts`'s `makeCoverSmall` (sharp
   0.35.4 — the server-side twin of the browser's `compressCoverSmall`,
   since that compression is otherwise browser-only), saves it at
   `coverSmallKeyFor(coverImageKey)`, and sets `coverSmallKey` (plus

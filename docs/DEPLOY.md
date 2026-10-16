@@ -685,13 +685,13 @@ closed the door; it did not undo what was already reachable through it.
 2. Create your trip, then invite your partner by email on the trip's Settings page.
 3. Your partner signs in with that email — Google, or a Sign-in link if docs/resendDeploy.md is done — and is auto-added.
 
-### One-off: sweep orphaned costs (after the ADR 0039 deploy)
+### One-off: sweep orphaned costs (after the ADR 0039 deploy — done; archived)
 
 Deletes before ADR 0039 orphaned Cost rows (owner gone, money still in the
 budget). Run ONCE against prod after deploying the reliability round:
 
-    npx tsx --conditions=react-server scripts/sweep-orphaned-costs.ts            # dry run — review output
-    npx tsx --conditions=react-server scripts/sweep-orphaned-costs.ts --execute  # apply
+    npx tsx --conditions=react-server scripts/archive/sweep-orphaned-costs.ts            # dry run — review output
+    npx tsx --conditions=react-server scripts/archive/sweep-orphaned-costs.ts --execute  # apply
 
 Never-paid orphans are deleted; ever-paid orphans become "Other costs"
 labelled "<label> (deleted)". Requires DATABASE_URL pointing at prod.

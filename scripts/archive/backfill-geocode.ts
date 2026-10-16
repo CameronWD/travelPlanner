@@ -2,10 +2,7 @@
  * One-time geocode backfill script.
  *
  * Run command:
- *   npx tsx scripts/backfill-geocode.ts [--dry-run]
- *
- * Or via the npm script:
- *   npm run backfill:geocode [-- --dry-run]
+ *   npx tsx --conditions=react-server scripts/archive/backfill-geocode.ts [--dry-run]
  *
  * What it does:
  *   Scans Item, Accommodation, and Transport rows that have a place string but
@@ -38,10 +35,10 @@
  *   when that file exists.
  */
 
-import "./load-env";
-import { db } from "../lib/db";
-import { geocodePlace, geocodePlaceDetailed } from "../lib/geocode";
-import { dbTargetLine } from "./lib/script-guards";
+import "../load-env";
+import { db } from "../../lib/db";
+import { geocodePlace, geocodePlaceDetailed } from "../../lib/geocode";
+import { dbTargetLine } from "../lib/script-guards";
 
 // ---------------------------------------------------------------------------
 // Helpers

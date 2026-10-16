@@ -4,15 +4,15 @@
  * unpaid orphans are deleted, ever-paid orphans convert to Other costs with
  * a generic label (their owners are gone, so no name is recoverable).
  *
- *   npx tsx scripts/sweep-orphaned-costs.ts            # dry run (default)
- *   npx tsx scripts/sweep-orphaned-costs.ts --execute  # apply changes
+ *   npx tsx scripts/archive/sweep-orphaned-costs.ts            # dry run (default)
+ *   npx tsx scripts/archive/sweep-orphaned-costs.ts --execute  # apply changes
  *
  *   Loads `.env.production.local` via `scripts/load-env.ts`, so it targets production
  *   when that file exists.
  */
-import "./load-env";
+import "../load-env";
 import { db } from "@/lib/db";
-import { dbTargetLine } from "./lib/script-guards";
+import { dbTargetLine } from "../lib/script-guards";
 
 const TYPE_LABEL: Record<string, string> = {
   ACCOMMODATION: "Accommodation",
