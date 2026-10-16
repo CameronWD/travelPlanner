@@ -194,8 +194,10 @@ export function reorderCommand(state: PlanEditorState, a: { activeId: string; ov
   if (activeIsScheduled && activeStop.pinned) return null;
   if (activeIsScheduled && activeId === overId) return null;
 
+  // Dropped on its own preview (over === active): the container shown is the caller's `chapterId`.
+  const overSelf = overId === activeId;
   const overStop = stops.find((s) => s.id === overId);
-  const targetChapterId: string | null = overStop ? overStop.chapterId : a.chapterId;
+  const targetChapterId: string | null = overStop && !overSelf ? overStop.chapterId : a.chapterId;
 
   const targetChapter = targetChapterId ? state.rows.chapters.find((c) => c.id === targetChapterId) : null;
   if (!activeIsScheduled && targetChapter && targetChapter.startDate !== null) return null;
@@ -222,7 +224,7 @@ export function reorderCommand(state: PlanEditorState, a: { activeId: string; ov
     // and the drop index was always read off that previewed list.
     const containerStops = stops.filter((s) => s.arriveDate === null && (s.chapterId === targetChapterId || s.id === activeId));
     let targetIndex = containerStops.length;
-    if (overStop && overStop.arriveDate === null && overStop.chapterId === targetChapterId) {
+    if (overStop && overStop.arriveDate === null && (overSelf || overStop.chapterId === targetChapterId)) {
       const overIdx = containerStops.findIndex((s) => s.id === overId);
       if (overIdx !== -1) targetIndex = overIdx;
     }

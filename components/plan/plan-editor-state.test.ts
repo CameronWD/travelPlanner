@@ -212,6 +212,19 @@ describe("reorderCommand (ported from handleDragEnd's stop drag)", () => {
     expect(over.request.items).toEqual([{ id: "b", chapterId: "chR" }, { id: "a", chapterId: "chR" }, { id: "c", chapterId: "chR" }]);
   });
 
+  it("a rough stop dropped on its own preview lands in the hovered container (over === active)", () => {
+    const chR = itineraryChapter({ id: "chR", startDate: null, endDate: null });
+    const s = initPlanEditor(rows([rough("a", 0), rough("b", 1, "chR"), rough("c", 2, "chR")], [chR]));
+    const cmd = reorderCommand(s, { activeId: "a", overId: "a", chapterId: "chR" })!;
+    expect(cmd.rows.stops.find((x) => x.id === "a")!.chapterId).toBe("chR");
+    // Where the preview showed it: at its own plan position inside chR's block.
+    expect(cmd.request.items).toEqual([{ id: "a", chapterId: "chR" }, { id: "b", chapterId: "chR" }, { id: "c", chapterId: "chR" }]);
+  });
+
+  it("a scheduled stop dropped on itself stays a no-op, whatever container is shown", () => {
+    expect(reorderCommand(initPlanEditor(rowsAB), { activeId: "a", overId: "a", chapterId: "chX" })).toBeNull();
+  });
+
   it("blocks a rough stop from entering a dated chapter", () => {
     const chD = itineraryChapter({ id: "chD" });
     const s = initPlanEditor(rows([rough("a", 0), { ...sb, sortOrder: 1, chapterId: "chD" }], [chD]));

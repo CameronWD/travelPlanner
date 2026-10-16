@@ -1225,6 +1225,10 @@ export function ItineraryManager({
     const activeId = active.id as string;
     const overId = over.id as string;
 
+    // Over its own preview (closestCenter doesn't skip the active stop): the
+    // container shown is still right — no change, or the preview ping-pongs.
+    if (overId === activeId) return;
+
     const activeStop = rows.stops.find((s) => s.id === activeId);
     if (!activeStop) return;
     // ADR 0038: a pinned scheduled stop's drag is blocked outright on drop —
@@ -1277,8 +1281,12 @@ export function ItineraryManager({
       await editor.reorder({
         activeId,
         overId,
-        // The drop container when `over` isn't a Stop (a Stop's own chapter wins).
-        chapterId: overId === "ungrouped" ? null : overId,
+        // The drop container when `over` isn't another Stop (that Stop's own
+        // chapter wins). Dropped on its own preview: the container it was shown in
+        // (this closure's `dragOver` is the hover's, despite setDragOver(null) above).
+        chapterId: overId === activeId
+          ? (dragOver ? dragOver.chapterId : activeStop.chapterId)
+          : overId === "ungrouped" ? null : overId,
         movedName: activeStop.name,
       });
     } else if (activeType === "chapter") {

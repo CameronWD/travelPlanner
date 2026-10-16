@@ -93,24 +93,27 @@ export function usePlanEditor({ tripId, forkId, rows }: { tripId: string; forkId
       done: (w: Write, r: UndoableSuccess<Placed>) =>
         w.movedName === null ? null : summariseReorder(w.movedName, r.changed ?? [], r.conflicts),
       // Undo writes back only what the write touched, with the pre-move values (ARCH-CMP-2).
+      // A successful Undo settles here; a failed one settles in revertUndo,
+      // after the revert, so props held meanwhile are adopted last and win.
       undo: async (w: Write, r: UndoableSuccess<Placed>) => {
-        try {
-          return await restoreStops(
-            touchedPlacements(settledRows(w, r).stops, w.pre.stops),
-            forkId ?? null,
-            r.payload ? undoPayloadFor(r.payload) : undefined,
-          );
-        } finally {
-          dispatch({ type: "settle" });
-        }
+        const res = await restoreStops(
+          touchedPlacements(settledRows(w, r).stops, w.pre.stops),
+          forkId ?? null,
+          r.payload ? undoPayloadFor(r.payload) : undefined,
+        );
+        if (res.success) dispatch({ type: "settle" });
+        return res;
       },
       applyUndo: (w: Write, r: UndoableSuccess<Placed>) => {
-        dispatch({ type: "revert", restore: { placements: touchedPlacements(settledRows(w, r).stops, w.pre.stops) } });
         dispatch({ type: "begin" }); // the Undo is a write too: props hold until it answers
+        dispatch({ type: "revert", restore: { placements: touchedPlacements(settledRows(w, r).stops, w.pre.stops) } });
       },
-      // Back to what the server still holds; idempotent.
-      revertUndo: (w: Write, r: UndoableSuccess<Placed>) =>
-        dispatch({ type: "revert", restore: { placements: touchedPlacements(w.pre.stops, settledRows(w, r).stops) } }),
+      // Back to what the server still holds, then settle the Undo (runUndo
+      // calls this once per failed Undo; the revert itself is idempotent).
+      revertUndo: (w: Write, r: UndoableSuccess<Placed>) => {
+        dispatch({ type: "revert", restore: { placements: touchedPlacements(w.pre.stops, settledRows(w, r).stops) } });
+        dispatch({ type: "settle" });
+      },
       failure,
     };
   }

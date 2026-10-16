@@ -201,6 +201,29 @@ describe("usePlanEditor — ARCH-CMP-1/2: props and Undo", () => {
     expect(result.current.state.pending).toBe(0);
   });
 
+  it("a failed Undo settles after reverting, so props held during it win", async () => {
+    reorderStopsMock.mockResolvedValue({ success: true, changed: [], conflicts: [] });
+    const restore = deferred<Awaited<ReturnType<typeof restoreStops>>>();
+    restoreStopsMock.mockReturnValue(restore.promise);
+    const { result, rerender } = mount(rowsAB);
+    await act(() => result.current.reorder({ activeId: "b", overId: "a", chapterId: null, movedName: "Porto" }));
+    await clickUndo();
+    expect(result.current.state.pending).toBe(1);
+    // A newer server snapshot lands while the Undo is in flight: held.
+    const newer = rows([
+      { ...sb, sortOrder: 0, arriveDate: "2026-11-01", departDate: "2026-11-03", name: "Oporto" },
+      // Someone else stretched Lisbon meanwhile: a placement the revert must not paper over.
+      { ...sa, sortOrder: 1, arriveDate: "2026-11-03", departDate: "2026-11-08" },
+    ]);
+    rerender({ rows: newer });
+    expect(result.current.state.held).not.toBeNull();
+    await act(async () => { restore.reject(new Error("offline")); });
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: UNDO_FAILED })));
+    expect(result.current.state.pending).toBe(0);
+    expect(result.current.state.held).toBeNull();
+    expect(result.current.state.rows.stops).toEqual(newer.stops);
+  });
+
   it("an Undo the server refuses also re-shows the server's rows", async () => {
     reorderStopsMock.mockResolvedValue({ success: true, changed: [], conflicts: [] });
     restoreStopsMock.mockResolvedValue({ success: false, errors: { _: ["Nope."] } });

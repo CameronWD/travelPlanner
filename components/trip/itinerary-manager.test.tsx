@@ -1474,6 +1474,32 @@ describe("Task 10: blocked pinned-stop drag doesn't corrupt chapterId (regressio
   });
 });
 
+describe("a stop dragged over its own preview (card 2.G fix round 1)", () => {
+  it("keeps the preview in the hovered chapter and drops the stop there", async () => {
+    const chR = { id: "chR", name: "Asia", colour: "rose" as const, startDate: null, endDate: null, sortOrder: 0 };
+    const a = makeStop({ id: "s-a", name: "Athens", chapterId: null, sortOrder: 0 });
+    const b = makeStop({ id: "s-b", name: "Bangkok", chapterId: "chR", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[a, b]} chapters={[chR]} />);
+    expect(desktop().getByText("1 stop · rough")).toBeInTheDocument();
+
+    const stopDrag = { id: "s-a", data: { current: { type: "stop" } } };
+    // Hover Asia's container: the preview shows Athens inside it.
+    act(() => { dndCapture.onDragOver!({ active: stopDrag, over: { id: "chR", data: { current: {} } } }); });
+    expect(desktop().getByText("2 stops · rough")).toBeInTheDocument();
+    // closestCenter now finds Athens's own (previewed) droppable under the pointer: no flicker.
+    act(() => { dndCapture.onDragOver!({ active: stopDrag, over: { id: "s-a", data: { current: { type: "stop" } } } }); });
+    expect(desktop().getByText("2 stops · rough")).toBeInTheDocument();
+
+    await act(async () => {
+      await dndCapture.onDragEnd!({ active: stopDrag, over: { id: "s-a", data: { current: { type: "stop" } } } });
+    });
+    expect(reorderStops).toHaveBeenCalledTimes(1);
+    const items = vi.mocked(reorderStops).mock.calls[0][1] as { id: string; chapterId: string | null }[];
+    expect(items.find((i) => i.id === "s-a")?.chapterId).toBe("chR");
+    expect(desktop().getByText("2 stops · rough")).toBeInTheDocument();
+  });
+});
+
 describe("Task 10: summariseReorder (Undo toast copy)", () => {
   it("names the moved entity and the count of shifted stops (plural)", () => {
     const { title, description } = summariseReorder(
