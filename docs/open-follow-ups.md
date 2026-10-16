@@ -628,6 +628,19 @@ ADR 0056) is written and unapplied — see the trust statement above.
   `computePlanMetrics` counts a dated Stop's nights from its dates); closes
   when deployed.
 
+### ARCH-CMP-1..4, ARCH-OBS-3 · closed by tidy-up batch 2, 2026-10-16
+
+Full text lives in `docs/architecture-sitrep-2026-09-22.md:1010-1084` (CMP-1..4)
+and `:890` (OBS-3), each now carrying its own `CLOSED 2026-10-16` line on
+`chore/tidy-up-2-writes-editor`. In short: ARCH-CMP-1..3 (a revalidation
+clobbering an in-flight edit, Undo reverting the whole Trip, a failed reorder
+reverting to raw un-normalised props) are closed by card 2.G's
+`plan-editor-state.ts` reducer and its Q7 reconciliation rules; ARCH-CMP-4
+(the empty-chapter delete button's size) by Task 18 (`b4ee4112`, `size-8`);
+ARCH-OBS-3 (`recordActivity` swallowing failures silently) by card 2.K
+(`befd3711`, reports through `reportError` first). Closes when deployed, same
+as every item in this document.
+
 ---
 
 

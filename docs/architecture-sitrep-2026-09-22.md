@@ -888,6 +888,7 @@ deliberately kept) and reports no errors.
   global `CronHeartbeat` row can stay as the coarse "is the cron firing at all" check.
 
 ### ARCH-OBS-3 · `recordActivity` swallows every failure silently
+**CLOSED 2026-10-16** — `chore/tidy-up-2-writes-editor`, card 2.K (commit `befd3711`). A failed Activity write now reports through `reportError` (ADR 0059) before the catch swallows it.
 - **Severity: P2** · **Blocks rollout: no** — Activity is a secondary feature, but this is
   the quietest failure path in the codebase.
 - **Evidence:** `server/actions/activity.ts:15-32` — the entire body including `requireUser()`
@@ -1008,6 +1009,7 @@ rough-chapter persist where the chapter reorder succeeds and the follow-up stop 
 `:1388-1398`.
 
 ### ARCH-CMP-2 · Undo on a scheduled drag restores the entire Trip's Stop snapshot, discarding any edit made in the 6-second window
+**CLOSED 2026-10-16** — `chore/tidy-up-2-writes-editor`, card 2.G. `components/plan/plan-editor-state.ts`'s pure reducer now tracks Undo as the touched rows only (`touchedPlacements`), not a whole-Trip snapshot; `restoreStops` receives only those rows. One revert path (TB-07) replaces the four ad hoc Undo implementations.
 - **Severity: P0** · **Blocks rollout: no** — reachable by one Traveller alone, so it is not
   made qualitatively worse by more of them. Fix it early anyway.
 - **Evidence:** `components/trip/itinerary-manager.tsx:1263-1270` — the snapshot is captured
@@ -1033,6 +1035,7 @@ rough-chapter persist where the chapter reorder succeeds and the follow-up stop 
 - **See also:** `ARCH-TEN-1` — the same function's missing ownership check.
 
 ### ARCH-CMP-1 · A revalidation can silently discard an in-flight local edit, because the props-to-local resync treats any new object reference as authoritative
+**CLOSED 2026-10-16** — `chore/tidy-up-2-writes-editor`, card 2.G. The Q7 reconciliation rules are now enforced inside `components/plan/plan-editor-state.ts`'s reducer: adopt new server rows only when idle, hold while a write is pending, and compare by content rather than object identity.
 - **Severity: P0** · **Blocks rollout: no** — same reasoning as `ARCH-CMP-2`; it does get
   more likely as more Travellers make more pages revalidate.
 - **Evidence:** `app/(app)/trips/[tripId]/plan/page.tsx:378-410` — `initialStops`,
@@ -1056,6 +1059,7 @@ rough-chapter persist where the chapter reorder succeeds and the follow-up stop 
   on every revalidation regardless of what the server memoises.)
 
 ### ARCH-CMP-3 · On a failed reorder, local state reverts to raw un-normalised props, bypassing the file's own ordering invariant
+**CLOSED 2026-10-16** — `chore/tidy-up-2-writes-editor`, card 2.G. The reducer is the one source of local rows now; a rejected reorder reverts through the same normalising revert path as every other write, never the raw prop.
 - **Severity: P2** · **Blocks rollout: no** — order-only, until the next unrelated
   revalidation happens to fix it (which `ARCH-CMP-1` shows is not guaranteed soon).
 - **Evidence:** `itinerary-manager.tsx:1318-1324` reverts with `setLocalStops(initialStops)` —
@@ -1070,6 +1074,7 @@ rough-chapter persist where the chapter reorder succeeds and the follow-up stop 
   other local-state path in the file.
 
 ### ARCH-CMP-4 · An empty chapter's delete button is undersized against ADR 0029 and not logged as a deliberate exception
+**CLOSED 2026-10-16** — `chore/tidy-up-2-writes-editor`, Task 18 (commit `b4ee4112`). The button already had `tap-target` (a 44px coarse-pointer hit area, added 2026-09-30); the remaining gap was its visible 28px size, now `size-8` per ADR 0029.
 - **Severity: P3** · **Blocks rollout: no**
 - **Evidence:** `itinerary-manager.tsx:2024-2036` uses `size="sm"` with `h-7 w-7 p-0` (28px).
   ADR 0029 §1 (`docs/adr/0029-normalized-ui-conventions.md:25-38`) mandates 32px for icon

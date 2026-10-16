@@ -3,10 +3,10 @@
 **Status:** agreed in the 2026-10-14 session (grill). One spec, three
 sequential branches. Target `main`, each branch merged and deployed by Cam
 before the next starts. **Batch 1 is built** on `chore/tidy-up-1-foundations`
-(2026-10-15), merged and deployed. **Batch 2 is in build** on
-`chore/tidy-up-2-writes-editor` (2026-10-15), with card 2.Q (wording) added
-by that session's grill; batch 3 follows it, and the Claude Design
-refinement (`DS-01`) waits until both are done.
+(2026-10-15), merged and deployed. **Batch 2 is built** on
+`chore/tidy-up-2-writes-editor` (2026-10-16), with card 2.Q (wording) added
+by the 2026-10-15 session's grill; awaiting Cam's review, merge and deploy.
+Batch 3 is next, then the Claude Design refinement (`DS-01`).
 **Source:** `docs/audits/2026-10-14-architecture-review.html` (sixteen
 candidates A–P, six verified bugs, and the routing of every open follow-up;
 also published at https://claude.ai/artifact/FZickqRiUEfmSLXxz4BttR). The
@@ -202,6 +202,14 @@ Per `CLAUDE.md`. In addition:
   after actions removed where covered. A test derives "every page that
   reads a table is in the scope that writes it" from a declared map.
   ADR 0064 gains a dated amendment: revalidation goes through this builder.
+- *As built (2026-10-16):* 131 literal `revalidatePath` calls in
+  `server/actions` were replaced, not 164 — the plan's count was measured
+  wrong; the nine helpers were as stated. Only **three** `router.refresh()`
+  calls remain (two others had already been removed by commits `94e2067c`,
+  `3344e125` on 2026-10-06): none of the three follows a revalidating
+  action — two follow `markAllRead` (the Activity read marker, deliberately
+  not revalidated), one follows a slug-changing `router.replace` — so
+  **none is removed**.
 
 ### 2.G · A plan-editor state module
 - `components/plan/plan-editor-state.ts`: a pure reducer and commands
@@ -212,6 +220,10 @@ Per `CLAUDE.md`. In addition:
   Closes ARCH-CMP-1, -2, -3. ARCH-CMP-4: the empty-chapter delete button
   gets its 44px hit area. Reducer tests replace the handler-capture drag
   tests; the render test keeps its rendering assertions (Q10).
+- *As built (2026-10-16):* ARCH-CMP-4 was a size change only — the button
+  already had `tap-target` (a 44px coarse-pointer hit area, added
+  2026-09-30); the remaining gap was its visible 28px size vs ADR 0029's
+  `size-8`, fixed in Task 18 (`b4ee4112`).
 
 ### 2.H · One undoable-mutation hook
 - `components/ui/use-undoable-action.ts`: `{ apply, persist, revert, undo }`
@@ -219,6 +231,12 @@ Per `CLAUDE.md`. In addition:
   implementation. The manager's nine try/catch copies, the four Undo
   implementations and `unschedule-item-button` go through it. The local
   `toastRejected` is deleted in favour of `action-failure.ts`.
+- *As built (2026-10-16):* a rejected (thrown/network) write in the plan
+  editor now toasts the handler's own failure copy (e.g. "Couldn't move
+  it.") instead of the generic `SOMETHING_WENT_WRONG`; a refusal (the
+  action returning, not throwing) still shows the server's `"_"` message.
+  This is the hook's contract (ADR 0074's split of guard/validation/
+  infrastructure failures) and keeps the copy specific.
 
 ### 2.I · A Cost fields sub-form
 - `components/money/cost-fields/`: `useCostFields(seed)`, `toCostPayload()`,
@@ -227,6 +245,23 @@ Per `CLAUDE.md`. In addition:
   editors and the MCP `completeInlineCost`. One ADR 0037 implementation;
   the `null` versus `undefined` drift ends. BI-04: warnings recompute from
   the shared state after an edit.
+- *As built (2026-10-16):* the three entity forms used to silently drop a
+  cost amount they couldn't parse and save without it; with the shared
+  payload builder they now refuse with "Enter the cost", like the editors
+  already did — a bug fix (a typed cost was being silently lost). The same
+  builder also refuses Paid ticked with a blank paid amount ("Enter what
+  you paid") in every form, where entity forms used to save it unpaid —
+  ADR 0037's no-Paid-without-an-amount rule, now enforced everywhere. A
+  legacy Cost row with a paid amount but no paid date still opens Paid
+  unticked (`paidAt` is the sole "is paid" signal); a legacy row that **is**
+  paid but has no recorded paid amount now opens — and stays saveable — with
+  the cost amount as its paid amount, in both the forms (`costToFormState`)
+  and the MCP (`paidFieldsFromRow`), matching the pre-fill behaviour
+  ticking Paid already gave a fresh row. BI-04 keeps the import-time stay
+  warning for a Transport end known only by a date (no wall time, so no
+  `depAt`/`arrAt` for the shared state to recompute from) — the fix is
+  edits refreshing warnings without stale or duplicate entries, not
+  removing that warning.
 
 ### 2.K · An audited-update helper
 - `auditedUpdate(delegate, id, data, plan)` in `lib/activity.ts` typed over
@@ -234,6 +269,16 @@ Per `CLAUDE.md`. In addition:
   it; the 39 `as unknown as Record` casts go. ARCH-OBS-3: the swallow in
   `recordActivity` reports through `reportError` (ADR 0059) before it
   swallows.
+- *As built (2026-10-16):* `auditedUpdate` and its sibling `recordUpdate`
+  live in `lib/activity-guard.ts`, not `lib/activity.ts` — `lib/activity.ts`
+  is a pure module by contract ("no Prisma / React / network"), and
+  `lib/activity-guard.ts` already owned `recordPlanActivity`. The pure
+  `describeChanges`/`entityLabel` stayed in `lib/activity.ts` with new
+  parameter types so the 39 casts could go. Five update sites run inside
+  `db.$transaction` (some building a synthetic `after`); those call
+  `recordUpdate(entityType, { tripId, plan, entityId, before, after })`
+  after commit instead of `auditedUpdate`. Activity is still only ever
+  recorded after the write succeeds.
 
 ### 2.Q · Wording: "Your whole trip, in one place." and no "shared pot"
 Added 2026-10-15 (grill). Closes Feedback note `cmva2k0km000008jpa7pjv26q`
