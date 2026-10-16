@@ -34,7 +34,7 @@ import {
   setPaid,
   toCostPayload,
   type CostFormState,
-} from "@/components/money/cost-fields/cost-form-state";
+} from "@/lib/money/cost-form-state";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import type { FieldErrors } from "@/lib/action-result";

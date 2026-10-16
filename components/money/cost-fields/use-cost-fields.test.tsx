@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useCostFields } from "./use-cost-fields";
-import { emptyCostFormState, toCostPayload, type CostFormState } from "./cost-form-state";
+import { emptyCostFormState, toCostPayload, type CostFormState } from "@/lib/money/cost-form-state";
 
 vi.mock("@/lib/dates", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/dates")>()),

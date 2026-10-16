@@ -3,7 +3,7 @@
 import * as React from "react";
 import { todayLocalISO } from "@/lib/dates";
 import type { CostSettlement } from "@/lib/enum-values";
-import { setCostAmount, setPaid, toCostPayload, type CostFormState, type CostPayload } from "./cost-form-state";
+import { setCostAmount, setPaid, toCostPayload, type CostFormState, type CostPayload } from "@/lib/money/cost-form-state";
 import type { InlineCostFieldsProps } from "./inline-cost-fields";
 
 export type CostFieldProps = Pick<
@@ -25,7 +25,7 @@ export type CostFieldProps = Pick<
 /**
  * One inline Cost's state for an entity form (card 2.I): seeded once, edited
  * through `fieldProps` (spread onto `<InlineCostFields>`), turned into the
- * action's Cost fields by `payload()`. The rules live in `cost-form-state.ts`.
+ * action's Cost fields by `payload()`. The rules live in `lib/money/cost-form-state.ts`.
  */
 export function useCostFields(seed: CostFormState): {
   state: CostFormState;

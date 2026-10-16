@@ -24,7 +24,7 @@ import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fields";
 import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
-import { seedCostFormState } from "@/components/money/cost-fields/cost-form-state";
+import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import type { ProposedAccommodationInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
@@ -182,7 +182,7 @@ function AccommodationForm({
   const [notes, setNotes] = React.useState(accommodation?.notes ?? proposed?.notes ?? "");
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
-  // import), else empty — the rules are cost-form-state.ts's (card 2.I).
+  // import), else empty — the rules are lib/money/cost-form-state.ts's (card 2.I).
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 

@@ -19,7 +19,7 @@ export interface InlineCostFieldsProps {
   paid: boolean;
   /**
    * Ticking Paid should pre-fill the paid amount and date — pass
-   * `setPaid` from `cost-form-state.ts` (`useCostFields` does).
+   * `setPaid` from `lib/money/cost-form-state.ts` (`useCostFields` does).
    */
   onPaidChange: (v: boolean) => void;
   paidAmount: string;

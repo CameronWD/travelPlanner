@@ -34,7 +34,7 @@ import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fields";
 import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
-import { seedCostFormState } from "@/components/money/cost-fields/cost-form-state";
+import { seedCostFormState } from "@/lib/money/cost-form-state";
 import type { TransportMode } from "@/lib/enum-values";
 import { fail, type ActionResult } from "@/lib/action-result";
 import type { ProposedTransportInput } from "@/lib/booking-import/types";
@@ -447,7 +447,7 @@ function TransportForm({
   const { t: timing } = useMotionTiming();
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
-  // import), else empty — the rules are cost-form-state.ts's (card 2.I).
+  // import), else empty — the rules are lib/money/cost-form-state.ts's (card 2.I).
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
   // Cost starts collapsed behind "+ Add cost" unless a cost already exists.

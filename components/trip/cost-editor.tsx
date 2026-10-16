@@ -21,7 +21,7 @@ import {
   setPaid,
   toCostPayload,
   type CostFormState,
-} from "@/components/money/cost-fields/cost-form-state";
+} from "@/lib/money/cost-form-state";
 import { todayLocalISO } from "@/lib/dates";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { cn } from "@/lib/cn";

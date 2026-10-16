@@ -84,7 +84,7 @@ import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from
 import { transportModeSchema, costOwnerTypeSchema, costSettlementSchema } from "@/lib/enums";
 import { TRANSPORT_MODES, COST_SETTLEMENTS } from "@/lib/enum-values";
 import { CURRENCY_CODES } from "@/lib/currencies";
-import { paidFieldsFromRow } from "@/components/money/cost-fields/cost-form-state";
+import { paidFieldsFromRow } from "@/lib/money/cost-form-state";
 import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
