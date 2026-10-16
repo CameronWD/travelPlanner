@@ -425,17 +425,17 @@ export async function updateStop(
     // typed text is geocoded best-effort as before (failure leaves coords as they were).
     let updateRoughLat: number | null | undefined;
     let updateRoughLng: number | null | undefined;
-    let updateRoughCountryCode: string | null = null;
+    // A sent countryCode wins over the geocoder's, as in createStop and the scheduled branch.
+    let updateRoughCountryCode: string | null = pickedCountryCode ?? null;
     if (pickedLat !== undefined && pickedLng !== undefined) {
       updateRoughLat = pickedLat;
       updateRoughLng = pickedLng;
-      updateRoughCountryCode = pickedCountryCode ?? null;
     } else {
       const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
       if (updateRoughCoords) {
         updateRoughLat = updateRoughCoords.lat;
         updateRoughLng = updateRoughCoords.lng;
-        updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+        updateRoughCountryCode = pickedCountryCode ?? updateRoughCoords.countryCode ?? null;
       }
     }
 

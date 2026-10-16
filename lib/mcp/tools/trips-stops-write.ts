@@ -218,7 +218,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Update stop",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. Supplying both arriveDate and departDate makes the Stop scheduled; supplying nights with no dates on a scheduled Stop makes it rough again, same as make_stop_rough. A dated Trip's only Stop always keeps the Trip's dates; making it rough is refused (ADR 0073).",
+        "Changes only the fields you pass; fields you omit keep their current value. Passing country or countryCode re-locates the Stop: its point is looked up again from the place. Supplying both arriveDate and departDate makes the Stop scheduled; supplying nights with no dates on a scheduled Stop makes it rough again, same as make_stop_rough. A dated Trip's only Stop always keeps the Trip's dates; making it rough is refused (ADR 0073).",
       inputSchema: { stopId: z.string(), ...stopPatchShape },
     },
     ({ stopId, ...patch }) =>

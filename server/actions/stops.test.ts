@@ -1118,6 +1118,18 @@ describe("updateStop (PATCH, ADR 0075)", () => {
     await updateStop("s1", { mode: "scheduled", name: "Kyoto", country: "Japan", timezone: "UTC", arriveDate: "2026-07-01", departDate: "2026-07-05" });
     expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Asia/Tokyo", countryCode: "jp" }) }));
   });
+  it("a sent countryCode on a rough Stop wins over the geocoder's, and survives a geocode miss", async () => {
+    stopFindUniqueMock.mockResolvedValue(held);
+    chapterFindUniqueMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
+    stopUpdateMock.mockResolvedValue({});
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 41.9, lng: 12.5, countryCode: "it" });
+    await updateStop("s1", { countryCode: "fr" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ countryCode: "fr" }) }));
+    geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+    await updateStop("s1", { countryCode: "fr" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ countryCode: "fr" }) }));
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
+  });
   it("a lone date on a rough Stop is refused before anything is written", async () => {
     stopFindUniqueMock.mockResolvedValue(held);
     const r = await updateStop("s1", { arriveDate: "2026-06-01" });

@@ -88,11 +88,12 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
   const point = saysWhere
     ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined }
     : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined };
+  const notes = patched(patch.notes, current.notes);
   const place = {
     name: patch.name ?? current.name,
     country: patched(patch.country, current.country),
     ...Object.fromEntries(Object.entries(point).filter(([, v]) => v !== undefined)),
-    ...(patched(patch.notes, current.notes) !== undefined ? { notes: patched(patch.notes, current.notes) } : {}),
+    ...(notes !== undefined ? { notes } : {}),
   };
 
   if (mode === "scheduled") {

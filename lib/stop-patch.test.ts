@@ -55,4 +55,22 @@ describe("mergeStopPatch", () => {
     expect(mergeStopPatch(rough, { mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", timezone: "Asia/Tokyo", arriveDate: "2026-12-22", departDate: "2026-12-24", notes: null }))
       .toEqual({ mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", timezone: "Asia/Tokyo", arriveDate: "2026-12-22", departDate: "2026-12-24" });
   });
+  it("a countryCode-only patch says where: the row's lat/lng go, the sent code stays", () => {
+    const m = mergeStopPatch(rough, { countryCode: "fr" });
+    expect(m).toMatchObject({ mode: "rough", countryCode: "fr", country: "Italy" });
+    expect(m).not.toHaveProperty("lat");
+    expect(m).not.toHaveProperty("lng");
+  });
+  it("an explicit country: null clears the country and drops the row's point", () => {
+    const m = mergeStopPatch(scheduled, { country: null });
+    expect(m).toMatchObject({ mode: "scheduled", name: "Rome", timezone: "Europe/Rome" });
+    expect((m as { country?: string }).country).toBeUndefined();
+    expect(m).not.toHaveProperty("lat");
+    expect(m).not.toHaveProperty("countryCode");
+  });
+  it("nights alone on a rough Stop re-nights it and keeps the chapter and the point", () => {
+    expect(mergeStopPatch(rough, { nights: 4 })).toEqual({
+      mode: "rough", name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: "old notes", nights: 4, chapterId: "chap-1",
+    });
+  });
 });

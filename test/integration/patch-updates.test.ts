@@ -145,7 +145,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       const s = await db.stop.create({ data: { tripId: TRIP_ID, name: "Naples", country: "Italy", countryCode: "it", lat: 40.85, lng: 14.27, nights: 3, chapterId: ch.id, notes: "pizza", sortOrder: 9 } });
       expect(await updateStop(s.id, { notes: "more pizza" })).toMatchObject({ success: true });
       expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ notes: "more pizza", chapterId: ch.id, nights: 3, lat: 40.85, countryCode: "it" });
-      await updateStop(s.id, { notes: null });
+      expect(await updateStop(s.id, { notes: null })).toMatchObject({ success: true });
       expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ notes: null, chapterId: ch.id });
     });
 
