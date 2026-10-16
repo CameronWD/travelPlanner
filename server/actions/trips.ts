@@ -17,6 +17,9 @@ import { todayISO } from "@/lib/dates";
 import { roughStopRows, type RoughStopSeed } from "@/lib/new-trip/rough-stops";
 import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
 import { recordActivity } from "@/lib/activity-record";
+import { homeTimezoneSummary } from "@/lib/activity";
+import { refileHomeEndsTx } from "@/lib/home-timezone-refile";
+import { growTripEndTx } from "@/server/actions/trip-window";
 import { revealSurprisesPlannedBy } from "@/lib/surprise-sweep";
 import { recomputeChapterSpans, scheduleLoneStopTx } from "@/server/actions/stop-flow";
 import {
@@ -227,6 +230,10 @@ export type UpdateTripResult = ActionResult<{ slug?: string }>;
  * already mean "absent = unchanged" below. A date sent as `null` or `""`
  * (the settings form's empty date input) is cleared.
  *
+ * A save that changes `homeTimezone` keeps every Home-end Transport time at
+ * the local time it showed, in the real plan and every Fork, in the same
+ * transaction (ADR 0030 amendment 2026-10-16).
+ *
  * Note: changing homeCurrency doesn't retro-convert already-snapshotted cost
  * rates (rateToHome on Cost rows). That's intentional — the budget page can
  * refresh rates explicitly when needed.
@@ -378,15 +385,29 @@ export async function updateTrip(
     },
   };
 
-  if (datesChanged) {
-    // ADR 0073: new Trip dates pull the only Stop along, in the real plan and
-    // every Fork (the lone-Stop count is per plan; Trip dates are trip-wide).
+  // F5 (ADR 0030 amendment 2026-10-16): the zone this save actually moves to,
+  // whichever rule above picked it. Same-zone writes were already folded into
+  // KEEP_TIMEZONE, so a written zone is always a move.
+  const zoneMove =
+    timezoneUpdate !== KEEP_TIMEZONE ? { from: before.homeTimezone ?? null, to: timezoneUpdate } : null;
+  let homeEndsKept = 0;
+
+  if (datesChanged || zoneMove) {
     await db.$transaction(async (tx) => {
       await tx.trip.update(update);
-      const forks = await tx.fork.findMany({ where: { tripId }, select: { id: true } });
-      for (const forkId of [null, ...forks.map((f) => f.id)]) {
-        await scheduleLoneStopTx(tx, tripId, forkId, "follow");
+      // Home-end times keep their local time in the new zone — every Plan
+      // (the Home base is trip-wide). After the zone write, in the same tx.
+      if (zoneMove) homeEndsKept = await refileHomeEndsTx(tx, tripId, zoneMove.from, zoneMove.to);
+      if (datesChanged) {
+        // ADR 0073: new Trip dates pull the only Stop along, in the real plan and
+        // every Fork (the lone-Stop count is per plan; Trip dates are trip-wide).
+        const forks = await tx.fork.findMany({ where: { tripId }, select: { id: true } });
+        for (const forkId of [null, ...forks.map((f) => f.id)]) {
+          await scheduleLoneStopTx(tx, tripId, forkId, "follow");
+        }
       }
+      // F4: the return leg's landing, read in the new Home zone, may grow the soft end.
+      if (zoneMove) await growTripEndTx(tx, tripId, null);
     });
   } else {
     await db.trip.update(update);
@@ -397,6 +418,21 @@ export async function updateTrip(
   // already owns (the store reuses own slugs), and a Trip created without one
   // during a deploy window gets one on its next save.
   const slug = await db.$transaction((tx) => assignTripSlug(tx, tripId, name));
+
+  // One trip-level line for a Home timezone change (ADR 0030 amendment
+  // 2026-10-16). "TRIP" isn't an ActivityEntityType; TRANSPORT is the closest
+  // fit, as CHAPTER/FORK are for the toggles below. It names no Surprise thing.
+  if (zoneMove) {
+    await recordActivity({
+      tripId,
+      verb: "UPDATED",
+      entityType: "TRANSPORT",
+      entityId: null,
+      entityLabel: "Home timezone",
+      changes: homeTimezoneSummary(zoneMove.to, homeEndsKept > 0),
+      surpriseOf: null,
+    });
+  }
 
   revalidateTrip(tripId, "trip");
 
