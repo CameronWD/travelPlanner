@@ -38,6 +38,7 @@ import { db } from "@/lib/db";
 import { updateReminder } from "@/server/actions/reminders";
 import { updateChapter } from "@/server/actions/chapters";
 import { updateTrip } from "@/server/actions/trips";
+import { updateCost } from "@/server/actions/costs";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -79,6 +80,22 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.trip.findUnique({ where: { id: TRIP_ID } })).toMatchObject({
         name: "PATCH trip, renamed", startDate: "2026-05-01", endDate: "2026-05-20", hardEndDate: "2026-05-25", homeCurrency: "AUD",
       });
+    });
+  });
+
+  describe("Cost", () => {
+    it("a category-only patch on a paid Cost keeps it paid; the editor's paidAt: null un-pays it and keeps the amount", async () => {
+      const cost = await db.cost.create({ data: { tripId: TRIP_ID, ownerType: "OTHER", label: "Museum pass", costMinor: 12000, paidMinor: 12000, currency: "AUD", rateToHome: 1, paidAt: new Date("2026-04-01T00:00:00Z"), settlement: "BEFORE" } });
+      await updateCost(cost.id, { category: "Tours" });
+      expect(await db.cost.findUnique({ where: { id: cost.id } })).toMatchObject({ category: "Tours", label: "Museum pass", paidMinor: 12000, paidAt: new Date("2026-04-01T00:00:00Z") });
+      await updateCost(cost.id, { costMinor: 12000, currency: "AUD", paidAt: null, settlement: "BEFORE" });
+      expect(await db.cost.findUnique({ where: { id: cost.id } })).toMatchObject({ paidAt: null, paidMinor: 12000 });
+    });
+
+    it("a cost-amount-only patch (as through Claude) keeps a paid Cost paid with its paid pair", async () => {
+      const cost = await db.cost.create({ data: { tripId: TRIP_ID, ownerType: "OTHER", label: "Ferry", costMinor: 8000, paidMinor: 7500, currency: "AUD", rateToHome: 1, paidAt: new Date("2026-04-02T00:00:00Z"), settlement: "BEFORE" } });
+      expect(await updateCost(cost.id, { costMinor: 9000 })).toMatchObject({ success: true });
+      expect(await db.cost.findUnique({ where: { id: cost.id } })).toMatchObject({ costMinor: 9000, paidMinor: 7500, paidAt: new Date("2026-04-02T00:00:00Z"), label: "Ferry" });
     });
   });
 });

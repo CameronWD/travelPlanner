@@ -58,26 +58,16 @@
  * `costMinor`/`currency` with no existing Cost to complete the other half
  * from.
  *
- * `update_cost` is the same PATCH shape, with one more wrinkle: `paidMinor`/
- * `paidAt` aren't on its schema either (same "use the dedicated tool"
- * reasoning), but `updateCost` writes `paidAt: data.paidAt ?? null`
- * unconditionally — so every patch would un-pay the Cost unless the current
- * `paidMinor`/`paidAt` are forwarded. Every owned-cost dialog (`cost-editor
- * .tsx`, `other-cost-editor.tsx`) resends the current paid pair on every
- * save, currency change included — it never recomputes the amount for the
- * new currency, it just resubmits the same text — so this tool matches that
- * exactly: when the Cost is currently paid (`paidAt` and `paidMinor` both
- * set), both are always forwarded, currency change or not. Only when the
- * Cost is NOT currently paid (either is missing/null) are both left
- * unforwarded, which is also the only case where `updateCost`'s own
- * currency-change clearing rule (comment-tagged P3-3 in
- * `server/actions/costs.ts`) can ever fire — and it's a no-op there anyway.
+ * `update_cost` passes only the fields the caller supplied: `updateCost`
+ * takes a PATCH (ADR 0075); the paid pair and Due date rules are
+ * `lib/money/cost-patch.ts`'s. `paidMinor`/`paidAt` are not on its schema —
+ * use `mark_cost_paid`/`mark_cost_unpaid`.
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { createAccommodation, updateAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
 import { createTransport, updateTransport, deleteTransport } from "@/server/actions/transport";
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "@/server/actions/costs";
@@ -545,57 +535,6 @@ const costPatchShape = {
   settlement: describedSettlement.optional(),
 };
 
-type CostPatch = {
-  costMinor?: number;
-  currency?: string;
-  ownerType?: string;
-  ownerId?: string;
-  label?: string;
-  category?: string;
-  dueDate?: string;
-  settlement?: string;
-};
-
-type CostRow = {
-  tripId: string;
-  costMinor: number;
-  currency: string;
-  paidMinor: number | null;
-  paidAt: Date | null;
-  dueDate: string | null;
-  ownerType: string;
-  ownerId: string | null;
-  label: string | null;
-  category: string | null;
-  settlement: string;
-};
-
-/**
- * Loads the current Cost for a patch, trip-access-checked. Same
- * notFound()-before-access-check shape as the other loaders above.
- */
-async function loadCostForPatch(costId: string): Promise<CostRow> {
-  const cost = await db.cost.findUnique({
-    where: { id: costId, forkId: null },
-    select: {
-      tripId: true,
-      costMinor: true,
-      currency: true,
-      paidMinor: true,
-      paidAt: true,
-      dueDate: true,
-      ownerType: true,
-      ownerId: true,
-      label: true,
-      category: true,
-      settlement: true,
-    },
-  });
-  if (!cost) notFound();
-  await requireTripAccess(cost.tripId);
-  return cost;
-}
-
 /**
  * Loads a Cost's `tripId` only, for the `mark_cost_paid`/`mark_cost_unpaid`
  * access check. `markCostPaid`/`markCostUnpaid` do their own lookup too,
@@ -611,62 +550,6 @@ async function loadCostForMark(costId: string): Promise<{ tripId: string }> {
   if (!cost) notFound();
   await requireTripAccess(cost.tripId);
   return cost;
-}
-
-/**
- * Merges a patch onto the current Cost row.
- *
- * `costMinor`/`currency`/`ownerType` are required on every `CostRawInput`
- * (no fallback), so they're always forwarded when the patch omits them, or
- * `costSchema`'s parse would fail. `dueDate`, `ownerId`, `label`, `category`
- * are written as `data.X ?? null` — forwarded to avoid nulling. `settlement`
- * has a schema `.default("BEFORE")` that fires whenever the key is absent —
- * forwarded, or every patch would silently reset Settlement to Before.
- *
- * `paidMinor`/`paidAt` aren't part of this tool's input at all (use
- * `mark_cost_paid`/`mark_cost_unpaid`) — every owned-cost dialog resends
- * the current paid pair on every save, currency change included, so this
- * forwards both together whenever the Cost is currently paid (`paidAt` set —
- * `paidFieldsFromRow`; a legacy row with no paid amount falls back to the
- * cost), regardless of what else the patch changes. A Cost that isn't
- * currently paid (no `paidAt`) forwards neither — matching a
- * dialog that opens with the Paid box unticked — which also leaves
- * `updateCost`'s own currency-change clearing rule (P3-3) free to fire,
- * harmlessly, since there was nothing paid to clear.
- *
- * `dueDate` also drops out (like the dialogs: `!form.paid &&
- * !isOnTrip(settlement)`) once the Cost reads as paid or its Settlement is
- * On the trip — neither state has a meaningful Due date. Only the
- * forwarded (current-row) dueDate is cleared silently, as the dialogs do; a
- * dueDate the caller passes in that state is a tool error instead, since
- * dropping it would read as success (final review finding 2).
- */
-function mergeCostPatch(current: CostRow, patch: CostPatch): CostRawInput | Failure {
-  const paid = paidFieldsFromRow(current);
-  const isPaid = paid.paidAt !== undefined;
-  const settlement = (patch.settlement ?? current.settlement) as CostRawInput["settlement"];
-  const noDueDate = isPaid || settlement === "ON_TRIP";
-  if (noDueDate && patch.dueDate !== undefined) {
-    return {
-      success: false,
-      errors: {
-        dueDate: ["A due date only applies to an unpaid cost paid before the trip. Mark it unpaid or change settlement first, or leave dueDate out."],
-      },
-    };
-  }
-  const dueDate = noDueDate ? undefined : (patch.dueDate ?? current.dueDate ?? undefined);
-  return {
-    costMinor: patch.costMinor ?? current.costMinor,
-    currency: patch.currency ?? current.currency,
-    ownerType: (patch.ownerType ?? current.ownerType) as CostRawInput["ownerType"],
-    ownerId: patch.ownerId ?? current.ownerId ?? undefined,
-    label: patch.label ?? current.label ?? undefined,
-    category: patch.category ?? current.category ?? undefined,
-    dueDate,
-    settlement,
-    paidMinor: paid.paidMinor,
-    paidAt: paid.paidAt,
-  };
 }
 
 /**
@@ -844,16 +727,13 @@ export function registerBookingsWriteTools(server: McpServer): void {
     },
     ({ costId, ...patch }) =>
       runTool("update_cost", async () => {
-        const current = await loadCostForPatch(costId);
+        const { row } = await requireRowAccess("cost", costId, { realPlanOnly: true });
         if (patch.ownerType !== undefined || patch.ownerId !== undefined) {
-          const ownerType = patch.ownerType ?? current.ownerType;
-          const ownerId = patch.ownerId ?? current.ownerId;
-          const kind = realPlanKindForOwner(ownerType);
+          const kind = realPlanKindForOwner(patch.ownerType ?? row.ownerType);
+          const ownerId = patch.ownerId ?? row.ownerId;
           if (kind && ownerId) await requireRealPlanRow(kind, ownerId);
         }
-        const merged = mergeCostPatch(current, patch);
-        if (isFailure(merged)) return merged;
-        return updateCost(costId, merged);
+        return updateCost(costId, patch);
       }),
   );
 

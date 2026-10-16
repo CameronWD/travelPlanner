@@ -742,110 +742,13 @@ describe("bookings write tools", () => {
   });
 
   describe("update_cost (PATCH)", () => {
-    it("with only category keeps every other field, including the paid amount and date", async () => {
+    it("checks the Cost is real-plan, then forwards only the fields passed", async () => {
       costFindUnique.mockResolvedValue(costRow());
       updateCost.mockResolvedValue({ success: true });
       const c = await connectTestClient();
-      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "New category" } });
-      expect(updateCost).toHaveBeenCalledWith(COST_ID, {
-        costMinor: 10000,
-        currency: "USD",
-        ownerType: "OTHER",
-        ownerId: undefined,
-        label: "Travel insurance",
-        category: "New category",
-        dueDate: undefined,
-        settlement: "BEFORE",
-        paidMinor: 10000,
-        paidAt: "2026-04-01",
-      });
-    });
-
-    it("a currency change on a paid Cost still forwards paidMinor/paidAt, matching the dialog resubmitting the same paid pair", async () => {
-      costFindUnique.mockResolvedValue(costRow());
-      updateCost.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, currency: "EUR" } });
-      const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ currency: "EUR", paidMinor: 10000, paidAt: "2026-04-01" }));
-    });
-
-    it("re-stating the same currency also forwards the paid pair", async () => {
-      costFindUnique.mockResolvedValue(costRow());
-      updateCost.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, currency: "USD" } });
-      const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ paidMinor: 10000, paidAt: "2026-04-01" }));
-    });
-
-    it("an unpaid Cost (no paidAt) forwards neither paidMinor nor paidAt", async () => {
-      costFindUnique.mockResolvedValue(costRow({ paidAt: null }));
-      updateCost.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
-      const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ paidMinor: undefined, paidAt: undefined }));
-    });
-
-    it("a legacy row with paidAt set but paidMinor null stays paid, its paid amount falling back to the cost (paidAt decides)", async () => {
-      costFindUnique.mockResolvedValue(costRow({ paidMinor: null }));
-      updateCost.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
-      const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ paidMinor: 10000, paidAt: "2026-04-01" }));
-    });
-
-    it("drops dueDate when the patch sets settlement to ON_TRIP", async () => {
-      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null, dueDate: "2026-06-01" }));
-      updateCost.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, settlement: "ON_TRIP" } });
-      const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ settlement: "ON_TRIP", dueDate: undefined }));
-    });
-
-    it("an explicit dueDate on a paid Cost is a tool error, not silently dropped", async () => {
-      costFindUnique.mockResolvedValue(costRow());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, dueDate: "2026-06-01" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toContain("dueDate");
-      expect(updateCost).not.toHaveBeenCalled();
-    });
-
-    it("an explicit dueDate with settlement ON_TRIP (patched or current) is a tool error", async () => {
-      const c = await connectTestClient();
-      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null }));
-      const patched = await c.callTool({
-        name: "update_cost",
-        arguments: { costId: COST_ID, dueDate: "2026-06-01", settlement: "ON_TRIP" },
-      });
-      expect(patched.isError).toBe(true);
-      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null, settlement: "ON_TRIP" }));
-      const current = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, dueDate: "2026-06-01" } });
-      expect(current.isError).toBe(true);
-      expect((current.content as { text: string }[])[0].text).toContain("dueDate");
-      expect(updateCost).not.toHaveBeenCalled();
-    });
-
-    it("an explicit dueDate on an unpaid Cost paid before the trip is forwarded", async () => {
-      costFindUnique.mockResolvedValue(costRow({ paidAt: null, paidMinor: null }));
-      updateCost.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, dueDate: "2026-06-01" } });
-      expect(r.isError).toBeFalsy();
-      expect(updateCost.mock.calls[0][1]).toEqual(expect.objectContaining({ dueDate: "2026-06-01" }));
-    });
-
-    it("drops dueDate when the Cost is paid, even if a dueDate is present on the row", async () => {
-      costFindUnique.mockResolvedValue(costRow({ dueDate: "2026-06-01" }));
-      updateCost.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "x" } });
-      const call = updateCost.mock.calls[0];
-      expect(call[1]).toEqual(expect.objectContaining({ dueDate: undefined }));
+      await c.callTool({ name: "update_cost", arguments: { costId: COST_ID, category: "Tours" } });
+      expect(requireRowAccessMock).toHaveBeenCalledWith("cost", COST_ID, { realPlanOnly: true });
+      expect(updateCost).toHaveBeenCalledWith(COST_ID, { category: "Tours" });
     });
 
     it("checks trip access before using the loaded row, so a non-member's cost id returns NOT_FOUND_TEXT and does not call updateCost", async () => {

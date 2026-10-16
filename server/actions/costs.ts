@@ -11,6 +11,9 @@ import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
+import { notFound } from "next/navigation";
+import { mergeCostPatch } from "@/lib/money/cost-patch";
+import { type Patch } from "@/lib/patch";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -176,18 +179,23 @@ export async function createCost(
 }
 
 /**
- * Update an existing cost.
+ * Update a Cost (PATCH, ADR 0075): merges onto the held row
+ * (`lib/money/cost-patch.ts` — the paid pair and Due date rules).
  *
  * - Access-checks via requireCostAccess → requireTripAccess.
  * - Re-snapshots rateToHome (currency may have changed).
  */
 export async function updateCost(
   costId: string,
-  input: CostRawInput,
+  patch: Patch<CostRawInput>,
 ): Promise<CostActionResult> {
   const existing = await requireCostAccess(costId);
+  const before = await db.cost.findUnique({ where: { id: costId } });
+  if (!before) notFound();
 
-  const parsed = costSchema.safeParse(input);
+  const merged = mergeCostPatch(before, patch);
+  if ("success" in merged) return merged;
+  const parsed = costSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
@@ -211,8 +219,6 @@ export async function updateCost(
 
   const resolved = await resolveRateForTrip(existing.tripId, data.currency, trip.homeCurrency, { db });
 
-  const before = await db.cost.findUnique({ where: { id: costId } });
-
   const updated = await db.$transaction(async (tx) => {
     if (resolved.persist) {
       await persistRate(tx, existing.tripId, resolved.persist);
@@ -230,9 +236,9 @@ export async function updateCost(
         label: data.label ?? null,
         category: data.category ?? null,
         settlement: data.settlement,
-        // paidMinor is included only when the caller actually provided a
-        // value — un-ticking Paid sends paidMinor: undefined (never null) so
-        // the paid amount survives as history (CONTEXT.md "Paid"); omitting
+        // paidMinor is included only when the merged Cost carries one —
+        // an un-paid Cost's merge leaves it undefined (never null), so the
+        // paid amount survives as history (CONTEXT.md "Paid"); omitting
         // the key here leaves Prisma's existing value untouched instead of
         // nulling it out.
         ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
