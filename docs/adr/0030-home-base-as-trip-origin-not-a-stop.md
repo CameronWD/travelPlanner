@@ -83,3 +83,22 @@ for storing no zone no longer holds.
 
 Zones are not worked out from coordinates. A Transport end that is a departure
 or arrival point with no Stop keeps the other end's zone.
+
+## Amendment — 2026-10-16: the zone comes from the point
+
+The 2026-10-14 amendment guessed `homeTimezone` from the country and kept a
+hand-picked zone across a same-country rename, because the guess was
+country-granular (Australia → Sydney). With an offline point lookup
+(`@photostructure/tz-lookup`, spec 2026-10-16 F3) the guess is the zone at the
+Home base's point, so that protection now keeps exactly the wrong zone.
+
+1. **One rule, shared with Stops** (`homeBaseTimezone` beside `stopTimezone`
+   in `lib/tz.ts`; `resolveHomeTimezone` in `lib/tz-point.ts` does the lookup):
+   a zone the Traveller sent wins; else the zone at the Home point; else the
+   country's; else none. A point at sea gives no zone.
+2. **A rename re-derives it** from the new point when no zone is sent with
+   it. When the new place gives no zone, an unchanged country keeps the zone
+   and a changed one clears it. A failed geocode still keeps it.
+3. "Zones are not worked out from coordinates" (above) no longer holds for
+   the Home base or a Stop. A Transport end that is a departure or arrival
+   point with no Stop still keeps the other end's zone.

@@ -9,7 +9,7 @@ import { checkQuota } from "@/lib/storage-quota";
 import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { timezoneForCountryOrNull } from "@/lib/tz";
+import { resolveHomeTimezone } from "@/lib/tz-point";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
@@ -104,7 +104,7 @@ export async function createTrip(
       homeLat,
       homeLng,
       homeCountryCode: resolvedCountryCode,
-      homeTimezone: homeTimezone || timezoneForCountryOrNull(resolvedCountryCode),
+      homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: homeLat, lng: homeLng, countryCode: resolvedCountryCode }),
     };
   } else if (trimmedHome) {
     const geo = await geocodePlaceDetailed(trimmedHome);
@@ -114,7 +114,7 @@ export async function createTrip(
       homeLat: geo?.lat ?? null,
       homeLng: geo?.lng ?? null,
       homeCountryCode: resolvedCountryCode,
-      homeTimezone: homeTimezone || timezoneForCountryOrNull(resolvedCountryCode),
+      homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: geo?.lat, lng: geo?.lng, countryCode: resolvedCountryCode }),
     };
   }
 
@@ -335,11 +335,12 @@ export async function updateTrip(
         // than forcing it to null.
         timezoneUpdate = KEEP_TIMEZONE;
       } else {
+        // A rename re-locates the Home base: the zone at the new point,
+        // else its country's (F3, ADR 0030 amended 2026-10-16). Neither
+        // known: an unchanged country keeps the zone, a changed one clears it.
+        const derived = resolveHomeTimezone({ lat: geo.lat, lng: geo.lng, countryCode: geo.countryCode });
         const countryChanged = (geo.countryCode ?? null) !== (before.homeCountryCode ?? null);
-        timezoneUpdate =
-          countryChanged || before.homeTimezone == null
-            ? timezoneForCountryOrNull(geo.countryCode)
-            : KEEP_TIMEZONE;
+        timezoneUpdate = derived ?? (countryChanged ? null : KEEP_TIMEZONE);
       }
     } else if (sentTimezone !== undefined) {
       // Name unchanged, but a new zone was explicitly sent.
@@ -349,6 +350,12 @@ export async function updateTrip(
 
     homeUpdate = { homeName: nextHomeName, coordFields };
   }
+
+  // Writing the zone the Trip already has is no change: omit it, so a
+  // written homeTimezone always means the zone moved. A rename can move it
+  // without one being sent (F3), so "did the Home zone change?" is
+  // `timezoneUpdate !== KEEP_TIMEZONE`, not "was homeTimezone sent?".
+  if (timezoneUpdate === (before.homeTimezone ?? null)) timezoneUpdate = KEEP_TIMEZONE;
 
   const update = {
     where: { id: tripId },
