@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { ESLint } from "eslint";
 import { beforeAll, describe, expect, it } from "vitest";
-import { SURPRISE_GUARD_READERS, SURPRISE_VISIBILITY_READERS } from "./eslint.config.mjs";
+import { SURPRISE_GUARD_READERS, SURPRISE_VISIBILITY_READERS, SINGLE_FILE_BOUNDARY_PATHS } from "./eslint.config.mjs";
 
 /**
  * The import boundaries (spec 2026-10-14 card 3.N, Q8, Q14) are lint rules in
@@ -96,7 +96,11 @@ describe("import boundaries (eslint.config.mjs, card 3.N)", { timeout: 30_000 },
     expect(await reports(file, code)).toBe(expected);
   });
 
-  it.each([...SURPRISE_VISIBILITY_READERS, ...SURPRISE_GUARD_READERS, "lib/mcp/real-plan.ts"])(
+  // SINGLE_FILE_BOUNDARY_PATHS (derived in eslint.config.mjs from the zone
+  // definitions, lib/mcp/real-plan.ts included) covers every ZONES/mustImport
+  // block whose `files` names one exact file rather than a glob — a rename
+  // or move would silently stop that block matching anything.
+  it.each([...SURPRISE_VISIBILITY_READERS, ...SURPRISE_GUARD_READERS, ...SINGLE_FILE_BOUNDARY_PATHS])(
     "%s exists (a lint files glob that matches nothing is silent)",
     (file) => {
       expect(existsSync(file)).toBe(true);

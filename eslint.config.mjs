@@ -153,11 +153,26 @@ const mustImport = (name, file, extra) => {
   return { name: `boundaries/${name}:${file}`, files: [glob(file)], ignores: TESTS, rules: rules(z.imports, [...z.syntax, ...extra]) };
 };
 
+const REAL_PLAN_FILE = "lib/mcp/real-plan.ts";
+
 const boundaries = [
   ...ZONES.map((z) => ({ name: `boundaries/${z.name}`, files: z.files, ignores: TESTS, rules: rules(z.imports, z.syntax) })),
   ...SURPRISE_VISIBILITY_READERS.map((f) => mustImport("surprise-visibility", f, S.mustImportVisibility)),
   ...SURPRISE_GUARD_READERS.map((f) => mustImport("surprise-guard", f, S.mustImportGuard)),
-  mustImport("real-plan", "lib/mcp/real-plan.ts", S.mustUseRowAccess),
+  mustImport("real-plan", REAL_PLAN_FILE, S.mustUseRowAccess),
+];
+
+/**
+ * Every ZONE_DEFS `files` entry that names one exact file rather than a
+ * glob (no `*`), plus `lib/mcp/real-plan.ts`'s own single-file `mustImport`
+ * block above — derived here, not hand-typed again in
+ * eslint.config.test.ts, so a path that moves without updating ZONE_DEFS
+ * fails the "exists" check there instead of its zone silently matching
+ * nothing.
+ */
+export const SINGLE_FILE_BOUNDARY_PATHS = [
+  ...ZONE_DEFS.flatMap((z) => z.files).filter((f) => !f.includes("*")),
+  REAL_PLAN_FILE,
 ];
 
 const eslintConfig = defineConfig([
