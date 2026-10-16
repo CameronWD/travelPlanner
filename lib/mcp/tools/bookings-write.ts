@@ -53,9 +53,8 @@ import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows, type RealPlanKind } from "../real-plan";
 import { homeContradictionError } from "@/lib/transport-patch";
 import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
+import { isoDate, hhmm } from "@/lib/validations/primitives";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
-const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format (24h)");
 const currencySchema = z.enum(CURRENCY_CODES as [string, ...string[]]);
 const describedTransportMode = transportModeSchema.describe(
   describeValues(

@@ -54,8 +54,8 @@ import { NIGHTS_REQUIRED, LONE_DATE, TIMEZONE_ON_ROUGH, nightsMismatch } from "@
 import type { StopInput } from "@/lib/validations/stop";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
+import { isoDate } from "@/lib/validations/primitives";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 const roughMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month");
 
 /** The shape every field-error-shaped tool failure shares (ActionFailure). */

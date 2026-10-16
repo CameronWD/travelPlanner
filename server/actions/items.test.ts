@@ -978,6 +978,14 @@ describe("scheduleItem", () => {
     expect(itemCreateMock).not.toHaveBeenCalled();
   });
 
+  it("refuses a date that matches the format but is not a calendar date", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" });
+    const result = await scheduleItem("item-1", { date: "2026-02-30" }, null);
+    expect(result).toMatchObject({ success: false, errors: { date: ["Date must be a real calendar date"] } });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
   // ADR 0049 rule 4 — an Item keeps its owning Stop while that Stop still
   // covers the date, including a Changeover day the next Stop also claims.
   it("in-place reschedule onto a shared changeover day KEEPS the owning stop", async () => {

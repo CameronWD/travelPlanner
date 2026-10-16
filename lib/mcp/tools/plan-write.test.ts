@@ -253,6 +253,15 @@ describe("plan write tools", () => {
     expect(call[1]).toEqual({ date: "2026-05-02", startTime: "09:00", endTime: undefined });
   });
 
+  it("the schedule tool refuses 24:00 and an impossible date before calling the action", async () => {
+    const c = await connectTestClient();
+    const bad = await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: "i1", date: "2026-04-31" } });
+    expect(bad.isError).toBe(true);
+    const late = await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: "i1", date: "2026-04-30", startTime: "24:00" } });
+    expect(late.isError).toBe(true);
+    expect(scheduleItem).not.toHaveBeenCalled();
+  });
+
   it("unschedule_thing_to_do calls unscheduleItem", async () => {
     unscheduleItem.mockResolvedValue({ success: true, mode: "unslotted", sourceItemId: null });
     const c = await connectTestClient();

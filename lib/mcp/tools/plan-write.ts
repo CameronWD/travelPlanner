@@ -43,9 +43,8 @@ import { VOTE_LEVELS } from "@/lib/enum-values";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
+import { isoDate, hhmm } from "@/lib/validations/primitives";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
-const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format");
 const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
 const describedCategory = categorySchema.describe(describeValues("The thing's Category.", CATEGORY_MEANING, CATEGORY_VALUES));
 const describedVoteLevel = voteLevelSchema.describe(describeValues("How keen you are.", VOTE_LEVEL_MEANING, VOTE_LEVELS));

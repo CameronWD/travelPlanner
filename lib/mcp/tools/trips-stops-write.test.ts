@@ -413,6 +413,17 @@ describe("trip and stop write tools", () => {
     expect(assignStopToChapter).toHaveBeenCalledWith(STOP_ID, null);
   });
 
+  it("set_stop_dates refuses a date that matches the format but is not a calendar date, and never calls the action", async () => {
+    const c = await connectTestClient();
+    const r = await c.callTool({
+      name: "set_stop_dates",
+      arguments: { stopId: STOP_ID, arriveDate: "2026-02-30", departDate: "2026-03-04" },
+    });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toMatch(/real calendar date/);
+    expect(setStopDates).not.toHaveBeenCalled();
+  });
+
   it("surfaces an action's field errors as a readable tool error, not success", async () => {
     stopFindUnique.mockResolvedValue(roughStopRow());
     updateStop.mockResolvedValue({ success: false, errors: { name: ["Required"] } });
