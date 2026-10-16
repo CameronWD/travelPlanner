@@ -1,4 +1,4 @@
-import { decimalsFor, formatMoney } from "@/lib/money";
+import { decimalsFor, formatMoney } from "@/lib/money/money";
 
 /** Stored with two decimals (ISO 4217) but never shown with cents. */
 const NO_CENTS_DISPLAY = new Set(["IDR"]);

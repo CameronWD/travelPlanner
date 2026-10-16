@@ -45,7 +45,7 @@ import { createTransport, updateTransport, deleteTransport } from "@/server/acti
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "@/server/actions/costs";
 import { transportModeSchema, costOwnerTypeSchema, costSettlementSchema } from "@/lib/enums";
 import { TRANSPORT_MODES, COST_SETTLEMENTS } from "@/lib/enum-values";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight, Info, TriangleAlert } from "lucide-react";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { formatLongDate } from "@/lib/dates";
 import { diffMetrics, diffRoute, type RouteDiffStop } from "@/lib/compare";
 import type { ComparisonPlan } from "@/server/actions/forks";

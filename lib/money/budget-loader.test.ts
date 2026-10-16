@@ -15,12 +15,12 @@ const buildBudget = vi.hoisted(() => vi.fn());
 const loadSurpriseVisibility = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({ db }));
-vi.mock("@/lib/budget", async (orig) => ({
+vi.mock("@/lib/money/budget", async (orig) => ({
   ...(await orig<typeof import("./budget")>()),
   buildBudget,
 }));
 vi.mock("@/lib/surprise-visibility", async (orig) => ({
-  ...(await orig<typeof import("./surprise-visibility")>()),
+  ...(await orig<typeof import("../surprise-visibility")>()),
   loadSurpriseVisibility,
 }));
 

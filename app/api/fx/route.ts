@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTripAccess } from "@/lib/guards";
-import { persistRate, resolveRateForTrip } from "@/lib/fx";
+import { persistRate, resolveRateForTrip } from "@/lib/money/fx";
 import { db } from "@/lib/db";
 
 /**

@@ -38,15 +38,15 @@ import {
   type BudgetItem,
   type BudgetAccommodation,
   type BudgetTransport,
-} from "@/lib/budget";
+} from "@/lib/money/budget";
 import { buildTripNextSteps, surprisesToReveal } from "@/lib/next-steps-builder";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { buildNextSteps, type NextStep } from "@/lib/next-steps";
 import { tripHomeBase } from "@/lib/home-base";
 import { computeProjection } from "@/lib/trip-projection";
 import { orderPlanStops } from "@/lib/plan-order";
-import { buildCostLabelMap } from "@/lib/cost-labels";
-import { buildUpcomingPayments, type UpcomingPayment } from "@/lib/upcoming-payments";
+import { buildCostLabelMap } from "@/lib/money/cost-labels";
+import { buildUpcomingPayments, type UpcomingPayment } from "@/lib/money/upcoming-payments";
 
 const COST_SELECT = {
   id: true,
@@ -259,7 +259,7 @@ async function load(
   }));
 
   // A date-less (Sketching) trip has no day window; the grand total counts
-  // every cost regardless of the window (lib/budget.ts), so today stands in.
+  // every cost regardless of the window (lib/money/budget.ts), so today stands in.
   const startDate = trip.startDate ?? today;
   const endDate = trip.endDate ?? startDate;
 

@@ -70,7 +70,7 @@ vi.mock("@/lib/db", () => ({
 // tripSlugFor reads through readTripShell (whose module pulls in server
 // actions and auth); stub it as phase-past.test.tsx does.
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
-// Keep the real `daysBetween` — lib/upcoming-payments.ts (exercised for real,
+// Keep the real `daysBetween` — lib/money/upcoming-payments.ts (exercised for real,
 // not mocked) depends on it to compute daysUntil for the upcoming-payments card.
 vi.mock("@/lib/dates", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/dates")>();
@@ -91,7 +91,7 @@ vi.mock("@/lib/itinerary", async (importOriginal) => {
 vi.mock("@/lib/day-map", () => ({ buildDayMapModel: vi.fn(), buildItemDirections: vi.fn() }));
 vi.mock("@/lib/nearby", () => ({ nearbyWishlistItems: vi.fn(), dayIdeasWishlist: dayIdeasWishlistMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForDate: vi.fn() }));
-vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: vi.fn() }));
+vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: vi.fn() }));
 vi.mock("@/lib/transport", () => ({ TRANSPORT_MODE_META: {} }));
 vi.mock("@/lib/time-display", () => ({ zoneLabel: vi.fn() }));
 vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {}, THINGS_TO_DO_WHERE: {}, REAL_PLAN: { forkId: null } }));
@@ -732,7 +732,7 @@ describe("PhaseTravelling Today's journal placement (Task 7 / spec K)", () => {
 // Desktop (lg+) layout — spec D / Task 17
 // ---------------------------------------------------------------------------
 
-const spendMod = await import("@/lib/spend-so-far");
+const spendMod = await import("@/lib/money/spend-so-far");
 
 describe("PhaseTravelling desktop layout (spec D)", () => {
   beforeEach(() => {
@@ -894,7 +894,7 @@ describe("PhaseTravelling — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
 
   it("a hidden-owner Cost counts in spend so far but is not an upcoming payment line", async () => {
     const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
-    const { buildSpendSoFar } = await import("@/lib/spend-so-far");
+    const { buildSpendSoFar } = await import("@/lib/money/spend-so-far");
     loadSurpriseVisibilityMock.mockResolvedValueOnce(
       hiddenVisibility({ placeholders: [placeholderItem({ id: "i-secret", date: "2026-01-04" })] }),
     );

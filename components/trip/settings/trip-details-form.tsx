@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { updateTrip, setForksEnabled, type UpdateTripResult } from "@/server/actions/trips";
 import { tripPath } from "@/lib/trip-path";
-import { CURRENCIES } from "@/lib/currencies";
+import { CURRENCIES } from "@/lib/money/currencies";
 import { TIMEZONES } from "@/lib/tz";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";

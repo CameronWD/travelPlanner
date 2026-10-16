@@ -4,7 +4,7 @@ import * as React from "react";
 import { AlertTriangle } from "lucide-react";
 import { previewStopDeletion } from "@/server/actions/stops";
 import type { StopDeletionPreview } from "@/server/actions/stops";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { firstErrorMessage } from "@/components/ui/action-failure";
 
 export type { StopDeletionPreview };

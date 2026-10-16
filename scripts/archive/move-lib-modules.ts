@@ -2,7 +2,7 @@
  * One-off codemod, spec 2026-10-14 card 3.O (Q9): move one lib area into its
  * folder and re-point every reference, then `git mv` so history follows.
  *
- *   npx tsx scripts/codemods/move-lib-modules.ts <auth|money|feedback|map|share> [--dry-run]
+ *   npx tsx scripts/archive/move-lib-modules.ts <auth|money|feedback|map|share> [--dry-run]
  *
  * Reads the tracked file list at run time, so imports added after the plan
  * was written are covered. --dry-run prints what would change and writes

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRANSPORT_MODES, costSettlementSchema } from "@/lib/enums";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { WALL_TIME_RE } from "@/lib/wall-time";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 

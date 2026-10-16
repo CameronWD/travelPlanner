@@ -11,7 +11,7 @@ import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
-import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
 import type { MarkerView } from "@/components/globe/types";

@@ -26,8 +26,8 @@ import {
   type BudgetItem,
   type BudgetAccommodation,
   type BudgetTransport,
-} from "@/lib/budget";
-import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
+} from "@/lib/money/budget";
+import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
 import { paidPct } from "@/lib/money/summary-lines";
 import { chapterForStop } from "@/lib/chapters";
 import type { RouteMapStop } from "@/lib/route-map";

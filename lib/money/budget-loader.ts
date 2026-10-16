@@ -13,7 +13,7 @@
  *   Claude connection's `get_budget` tool).
  *
  * A date-less trip has no day window; buildBudget's grand total counts every
- * cost regardless of the window (lib/budget.ts), so `today` stands in for
+ * cost regardless of the window (lib/money/budget.ts), so `today` stands in for
  * both ends — same fallback as `loadHomePlanningData` (lib/desktop-home-loader.ts).
  */
 import { db } from "@/lib/db";
@@ -28,7 +28,7 @@ import {
   type BudgetItem,
   type BudgetAccommodation,
   type BudgetTransport,
-} from "@/lib/budget";
+} from "@/lib/money/budget";
 import type { ChapterLike } from "@/lib/chapters";
 
 const COST_SELECT = {

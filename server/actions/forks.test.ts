@@ -300,7 +300,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 // ---------------------------------------------------------------------------
 
 import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork, moveFork } from "./forks";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { planRows } from "@/test/builders/plan-rows";

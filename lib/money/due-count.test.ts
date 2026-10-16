@@ -10,11 +10,11 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn().mockResolvedValue({ 
 vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => shell.current) }));
 vi.mock("@/lib/trip-today", () => ({ tripTodayISO: () => "2026-10-10" }));
 vi.mock("@/lib/surprise-visibility", async (orig) => ({
-  ...(await orig<typeof import("./surprise-visibility")>()),
+  ...(await orig<typeof import("../surprise-visibility")>()),
   loadSurpriseVisibility,
 }));
 
-import { loadMoneyDueCount } from "./money-due-count";
+import { loadMoneyDueCount } from "./due-count";
 import { requireTripAccess } from "@/lib/guards";
 
 beforeEach(() => {

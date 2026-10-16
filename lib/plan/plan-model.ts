@@ -6,7 +6,7 @@
 import { uncoveredNightDates, uncoveredNights } from "@/lib/accommodation-coverage";
 import { addDays, daysBetween, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
 import { flowDates, type FlowStop, type ProjectionStop } from "@/lib/firm-up";
-import { formatMoney, sumMinorToHome } from "@/lib/money";
+import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { orderPlanStops } from "@/lib/plan-order";
 import type { PlanSummary } from "@/lib/plan-overview";
 import { plural } from "@/lib/plural";

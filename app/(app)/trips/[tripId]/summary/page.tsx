@@ -11,10 +11,10 @@ import {
 import { readPlan } from "@/lib/plan-reads";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { tripPath } from "@/lib/trip-path";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
-import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
+import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
 import { homeMapPoint } from "@/lib/route-map";
 import { computeProjection } from "@/lib/trip-projection";
@@ -27,7 +27,7 @@ import type {
   BudgetItem,
   BudgetAccommodation,
   BudgetTransport,
-} from "@/lib/budget";
+} from "@/lib/money/budget";
 import type {
   FlagTransport,
   FlagAccommodation,

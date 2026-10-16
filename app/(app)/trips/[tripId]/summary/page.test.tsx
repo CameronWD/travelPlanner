@@ -43,8 +43,8 @@ vi.mock("@/lib/guards", async () => {
     isTripOwnerOrAdmin,
   };
 });
-vi.mock("@/lib/money", () => ({ formatMoney: vi.fn((minor: number, currency: string) => `${minor}${currency}`) }));
-vi.mock("@/lib/budget", () => ({
+vi.mock("@/lib/money/money", () => ({ formatMoney: vi.fn((minor: number, currency: string) => `${minor}${currency}`) }));
+vi.mock("@/lib/money/budget", () => ({
   buildBudget: vi.fn(() => ({
     grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 },
     byCategory: [],
@@ -77,7 +77,7 @@ vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-tes
 
 const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
-const { buildBudget } = await import("@/lib/budget");
+const { buildBudget } = await import("@/lib/money/budget");
 const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
 const { trip, stop, chapter, transport, stay } = await import("@/test/builders");
 const { planRows } = await import("@/test/builders/plan-rows");

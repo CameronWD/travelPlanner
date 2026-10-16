@@ -7,7 +7,7 @@
  */
 import type { TripPhase } from "@/lib/trip-phase";
 import type { CostSettlement } from "@/lib/enum-values";
-import { currencyForCountry } from "@/lib/currency-for-country";
+import { currencyForCountry } from "@/lib/money/currency-for-country";
 
 export interface OtherCostDefaults {
   currency: string;

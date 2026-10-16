@@ -1,5 +1,5 @@
 /**
- * ISO 3166-1 alpha-2 → a home currency Teepee offers (lib/currencies.ts).
+ * ISO 3166-1 alpha-2 → a home currency Teepee offers (lib/money/currencies.ts).
  * Only countries whose everyday currency is one of those; anything else is
  * undefined and the caller keeps what it had (NEW_TRIP.md §4).
  */

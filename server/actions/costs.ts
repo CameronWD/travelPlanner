@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
-import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";

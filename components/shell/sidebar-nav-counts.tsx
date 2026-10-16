@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { loadNavCounts } from "@/lib/nav-counts";
-import { loadMoneyDueCount } from "@/lib/money-due-count";
+import { loadMoneyDueCount } from "@/lib/money/due-count";
 import { COUNT_CLASS, type SidebarNavCounts } from "@/components/shell/sidebar-nav";
 
 /** Plan row's count: Flags on the real plan. Hidden (renders nothing) at 0. */

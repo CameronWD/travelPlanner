@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { COST_SETTLEMENTS, costOwnerTypeSchema } from "@/lib/enums";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { isoDateWith } from "@/lib/validations/primitives";
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 /**
- * Comprehensive tests for lib/budget.ts — pure budget roll-up logic.
+ * Comprehensive tests for lib/money/budget.ts — pure budget roll-up logic.
  */
 
 import { describe, it, expect } from "vitest";

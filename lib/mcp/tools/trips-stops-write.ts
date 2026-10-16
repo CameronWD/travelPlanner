@@ -48,7 +48,7 @@ import {
 // path that the app's own Chapter UI uses.
 import { assignStopToChapter } from "@/server/actions/chapters";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { stopTimezone } from "@/lib/tz";
 import { NIGHTS_REQUIRED, LONE_DATE, TIMEZONE_ON_ROUGH, nightsMismatch } from "@/lib/stop-patch";
 import type { StopInput } from "@/lib/validations/stop";

@@ -5,7 +5,7 @@ import { useTransition } from "react";
 import { GitMerge, AlertTriangle } from "lucide-react";
 import { getPromotionPreview, promoteFork } from "@/server/actions/forks";
 import type { PromotionPreview } from "@/server/actions/forks";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

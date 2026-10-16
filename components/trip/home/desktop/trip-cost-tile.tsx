@@ -1,7 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money";
+import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money/money";
 import { paidPct } from "@/lib/money/summary-lines";
 import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";

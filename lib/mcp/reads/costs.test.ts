@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { convertMinor } from "@/lib/money";
+import { convertMinor } from "@/lib/money/money";
 
 const { requireTripAccess, tripFindUnique, costFindMany, exchangeRateFindMany, stopFindMany, itemFindMany, loadSurpriseVisibility } = vi.hoisted(
   () => ({

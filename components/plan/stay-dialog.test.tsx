@@ -8,7 +8,7 @@ vi.mock("@/server/actions/notes", () => ({ addNote: vi.fn(), deleteNote: vi.fn()
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), deleteAttachment: vi.fn() }));
 
 import { StayDialog, type StayDetailAccommodation, type StayDialogProps } from "./stay-dialog";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 
 const ROME = { arriveDate: "2026-12-15", departDate: "2026-12-20" }; // 5 nights
 

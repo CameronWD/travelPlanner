@@ -8,7 +8,7 @@
  *   - Human-readable headline strings (headline)
  */
 
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { formatLongDate, formatDayLabel, formatISODate } from "@/lib/dates";
 import { categoryLabel, type Category } from "@/lib/categories";
 import type { VoteLevel } from "@/lib/enum-values";

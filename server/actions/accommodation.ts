@@ -12,7 +12,7 @@ import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
-import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { applyPatch, type Patch } from "@/lib/patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";

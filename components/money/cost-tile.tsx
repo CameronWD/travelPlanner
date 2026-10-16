@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
 import { formatMoneyWhole } from "@/lib/money/format-parts";
 import { perNightMinor, perPersonMinor } from "@/lib/money/summary-lines";
-import type { BudgetTotals } from "@/lib/budget";
+import type { BudgetTotals } from "@/lib/money/budget";
 import { MoneyEntrance } from "./money-entrance";
 import { MoneyCountUp } from "./money-count-up";
 import { PaidBar } from "./paid-bar";

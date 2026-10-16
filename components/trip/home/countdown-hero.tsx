@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateRange } from "@/lib/dates";
-import { currencySymbol } from "@/lib/money";
+import { currencySymbol } from "@/lib/money/money";
 import type { PhaseDescription } from "@/lib/trip-phase";
 
 interface CountdownHeroProps {

@@ -27,13 +27,13 @@ import { tripTodayISO } from "@/lib/trip-today";
 import { effectiveTodayISO, type TransportDepartureEntry } from "@/lib/itinerary";
 import { buildDayModel } from "@/lib/day-view-model";
 import { readDayRows } from "@/lib/day-reads";
-import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
+import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { zoneLabel } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import { buildCostLabelMap } from "@/lib/cost-labels";
-import { buildUpcomingPayments } from "@/lib/upcoming-payments";
+import { buildCostLabelMap } from "@/lib/money/cost-labels";
+import { buildUpcomingPayments } from "@/lib/money/upcoming-payments";
 import { loadTodaysJournal } from "@/lib/journal-loader";
 import { surprisesToReveal } from "@/lib/next-steps-builder";
 import { revealSurpriseStep } from "@/lib/next-steps";
@@ -108,7 +108,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const homeCurrency = trip.homeCurrency;
   const spend = buildSpendSoFar({ costs: costs as SpendCost[], homeCurrency, tripStart: startDate, tripEnd: endDate, today: effectiveDate });
 
-  // ── Upcoming payments ── Owner labels (lib/cost-labels.ts) prefer the
+  // ── Upcoming payments ── Owner labels (lib/money/cost-labels.ts) prefer the
   // linked Stop's current name over the Transport's free text.
   const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
   const ownerNames = buildCostLabelMap({

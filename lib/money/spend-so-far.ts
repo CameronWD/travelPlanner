@@ -1,4 +1,4 @@
-import { convertCostToHome, type BudgetCost } from "@/lib/budget";
+import { convertCostToHome, type BudgetCost } from "@/lib/money/budget";
 import { daysBetween } from "@/lib/dates";
 
 // `paidAt` (the sole "is this paid" signal) now lives on BudgetCost itself —

@@ -5,9 +5,9 @@
  */
 import type { Category } from "@/lib/categories";
 import { countryName } from "@/lib/countries";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { formatDayLabel } from "@/lib/dates";
-import { decimalsFor, parseAmountToMinor } from "@/lib/money";
+import { decimalsFor, parseAmountToMinor } from "@/lib/money/money";
 import { stopTimezone, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
 import { countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";

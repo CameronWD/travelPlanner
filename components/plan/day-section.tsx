@@ -12,7 +12,7 @@ import { useTripHref } from "@/components/trip/use-trip-href";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
-import { formatMoney, sumMinorToHome } from "@/lib/money";
+import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { formatDayLabel } from "@/lib/dates";
 import { plural } from "@/lib/plural";
 import type { CostRow } from "@/server/actions/costs";

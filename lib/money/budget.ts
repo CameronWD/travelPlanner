@@ -7,7 +7,7 @@
  * and returns a rich budget summary ready for the budget page.
  */
 
-import { convertMinor } from "@/lib/money";
+import { convertMinor } from "@/lib/money/money";
 import { isOnTrip } from "@/lib/enum-values";
 import { categoryLabel } from "@/lib/categories";
 import { addDays, daysBetween, nightsBetween } from "@/lib/dates";

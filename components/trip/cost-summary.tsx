@@ -1,6 +1,6 @@
 import * as React from "react";
 import { DollarSign, CheckCircle2 } from "lucide-react";
-import { formatMoney, convertMinor } from "@/lib/money";
+import { formatMoney, convertMinor } from "@/lib/money/money";
 import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 

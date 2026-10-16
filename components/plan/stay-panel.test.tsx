@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StayPanel, type StayPanelAccommodation } from "./stay-panel";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 
 const PARIS = { arriveDate: "2026-12-10", departDate: "2026-12-14" }; // 4 nights: 10–13 Dec
 

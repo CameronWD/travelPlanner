@@ -135,7 +135,7 @@ describe("OtherCostFormDialog form behaviour", () => {
     expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
   });
 
-  // Trap: gate on parse validity, never string presence (lib/money.ts —
+  // Trap: gate on parse validity, never string presence (lib/money/money.ts —
   // parseAmountToMinor returns null for non-empty-but-unparseable input).
   it("an unparseable paid amount (pasted currency symbol) is refused with Enter what you paid, never saved unpaid", async () => {
     const user = userEvent.setup();

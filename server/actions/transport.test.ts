@@ -4,7 +4,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for transport server actions.
  *
- * Mocks: lib/db, lib/guards, next/cache, lib/fx
+ * Mocks: lib/db, lib/guards, next/cache, lib/money/fx
  */
 
 const {
@@ -138,7 +138,7 @@ vi.mock("@/lib/geocode", () => ({
   searchPlacesWithStatus: searchPlacesWithStatusMock,
 }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("@/lib/fx", () => ({
+vi.mock("@/lib/money/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
 }));

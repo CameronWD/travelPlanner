@@ -144,7 +144,7 @@ vi.mock("@/lib/surprise-guard", () => ({
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
-vi.mock("@/lib/fx", () => ({
+vi.mock("@/lib/money/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
 }));

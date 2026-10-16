@@ -25,7 +25,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { createCost, updateCost } from "@/server/actions/costs";
 import { isOnTrip } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { todayLocalISO } from "@/lib/dates";
 import { toPatch } from "@/lib/patch";
 import {

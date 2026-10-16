@@ -32,7 +32,7 @@ import { isoDate } from "@/lib/validations/primitives";
 import { loadCostsForMcp } from "../reads/costs";
 import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadAttachmentContentForMcp } from "../reads/attachment-content";
-import { loadBudget } from "@/lib/budget-loader";
+import { loadBudget } from "@/lib/money/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { runTool, runToolContent } from "../run-tool";

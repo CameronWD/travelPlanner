@@ -1,4 +1,4 @@
-import { convertMinor } from "@/lib/money";
+import { convertMinor } from "@/lib/money/money";
 import { daysBetween, formatDayLabel, formatDayMonth, formatISODate } from "@/lib/dates";
 import { isOnTrip } from "@/lib/enum-values";
 

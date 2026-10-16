@@ -4,7 +4,7 @@ import * as React from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import type { FieldErrors } from "@/lib/action-result";
 import type { CostSettlement } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";

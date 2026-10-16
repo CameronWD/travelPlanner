@@ -10,7 +10,7 @@ import { geocodePlace, searchPlacesWithStatus, type PlaceSearchOutcome } from "@
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { type ActionFailure, type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { mergeTransportPatch, type TransportPatch } from "@/lib/transport-patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";

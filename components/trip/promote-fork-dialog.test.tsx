@@ -20,7 +20,7 @@ import {
 import type { PromotionPreview } from "@/server/actions/forks";
 import { toast } from "@/components/ui/use-toast";
 import { PromoteForkDialog, formatBudgetDelta } from "./promote-fork-dialog";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 
 // ---------------------------------------------------------------------------
 // Unit tests for formatBudgetDelta (pure helper, no render needed)

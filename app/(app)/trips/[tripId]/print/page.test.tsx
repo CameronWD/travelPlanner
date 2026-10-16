@@ -33,8 +33,8 @@ vi.mock("@/lib/guards", () => ({
 // Real buildBudget runs (never faked) — wrapped in a spy so a test can read
 // what it was called with and what it computed, without changing behaviour.
 const { buildBudgetSpy } = vi.hoisted(() => ({ buildBudgetSpy: vi.fn() }));
-vi.mock("@/lib/budget", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/budget")>();
+vi.mock("@/lib/money/budget", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/money/budget")>();
   return {
     ...actual,
     buildBudget: ((input: Parameters<typeof actual.buildBudget>[0]) => {

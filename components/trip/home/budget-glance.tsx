@@ -1,6 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { formatMoneyCompact } from "@/lib/money";
+import { formatMoneyCompact } from "@/lib/money/money";
 import { paidPct } from "@/lib/money/summary-lines";
 import { StatCard } from "@/components/ui/stat-card";
 

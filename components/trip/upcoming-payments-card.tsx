@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { tripPath } from "@/lib/trip-path";
-import type { UpcomingPayment } from "@/lib/upcoming-payments";
+import type { UpcomingPayment } from "@/lib/money/upcoming-payments";
 
 interface UpcomingPaymentsCardProps {
   payments: UpcomingPayment[];

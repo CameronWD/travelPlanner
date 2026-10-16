@@ -1,8 +1,8 @@
 import { TrendingUp, TrendingDown, Wallet } from "lucide-react";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { SpendSoFar } from "@/lib/spend-so-far";
+import type { SpendSoFar } from "@/lib/money/spend-so-far";
 
 interface SpendSoFarCardProps {
   spend: SpendSoFar;

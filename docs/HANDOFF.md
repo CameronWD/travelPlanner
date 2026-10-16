@@ -449,7 +449,7 @@ fast-follow pass then closed the remaining items:
   email can have at most one invite row per trip.
 - **FX staleness threshold is unified.** Both the `/api/fx` route and the budget
   page use the single `FX_STALE_AFTER_MS` (24h) / `isRateStale` helper in
-  `lib/fx.ts` — there is no longer a per-view discrepancy.
+  `lib/money/fx.ts` — there is no longer a per-view discrepancy.
 
 ---
 

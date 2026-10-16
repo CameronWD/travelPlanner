@@ -56,16 +56,16 @@ vi.mock("@/lib/dates", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/dates")>()),
   nightsBetween: vi.fn(),
 }));
-vi.mock("@/lib/money", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/money")>()),
+vi.mock("@/lib/money/money", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/money/money")>()),
   formatMoney: vi.fn(),
 }));
-vi.mock("@/lib/budget", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/budget")>()),
+vi.mock("@/lib/money/budget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/money/budget")>()),
   buildBudget: buildBudgetMock,
   applyFxRatesToCosts: vi.fn(),
 }));
-vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: buildSpendSoFarMock }));
+vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: buildSpendSoFarMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));
 vi.mock("@/lib/chapter-colours", () => ({ chapterColourSwatch: vi.fn() }));
 vi.mock("@/lib/cn", () => ({ cn: (...args: unknown[]) => args.filter(Boolean).join(" ") }));
@@ -366,7 +366,7 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
     });
     const dates = await import("@/lib/dates");
     vi.mocked(dates.nightsBetween).mockReturnValue(9);
-    const money = await import("@/lib/money");
+    const money = await import("@/lib/money/money");
     vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
   });
 
@@ -423,9 +423,9 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
   });
 
   it("reads 'Trip cost' and 'of X cost' from one FX source — a foreign cost priced only by the rate table counts in both", async () => {
-    const actualBudget = await vi.importActual<typeof import("@/lib/budget")>("@/lib/budget");
-    const actualSpend = await vi.importActual<typeof import("@/lib/spend-so-far")>("@/lib/spend-so-far");
-    const budgetMod = await import("@/lib/budget");
+    const actualBudget = await vi.importActual<typeof import("@/lib/money/budget")>("@/lib/money/budget");
+    const actualSpend = await vi.importActual<typeof import("@/lib/money/spend-so-far")>("@/lib/money/spend-so-far");
+    const budgetMod = await import("@/lib/money/budget");
     buildBudgetMock.mockImplementation(actualBudget.buildBudget);
     vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(actualBudget.applyFxRatesToCosts);
     buildSpendSoFarMock.mockImplementation(actualSpend.buildSpendSoFar);
@@ -562,7 +562,7 @@ describe("PhasePast desktop layout (spec D)", () => {
     });
     const dates = await import("@/lib/dates");
     vi.mocked(dates.nightsBetween).mockReturnValue(9);
-    const money = await import("@/lib/money");
+    const money = await import("@/lib/money/money");
     vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
   });
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { isValidTimeZone } from "@/lib/tz";
 import { isoDate } from "@/lib/validations/primitives";
 

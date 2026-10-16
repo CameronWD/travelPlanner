@@ -80,8 +80,8 @@ const S = {
 // lib/nav-counts.ts and lib/next-steps-loader.ts are not listed: they read through lib/flags-loader.ts's loadFlagRows (listed), which applies it. lib/day-view-loader.ts reads through lib/day-reads.ts's readDayRows (listed), and its own Cost read takes the fragment from readDayRows's context. lib/travelling-home-loader.ts likewise.
 export const SURPRISE_VISIBILITY_READERS = [
   "lib/day-reads.ts",
-  "lib/budget-loader.ts",
-  "lib/money-due-count.ts",
+  "lib/money/budget-loader.ts",
+  "lib/money/due-count.ts",
   "lib/desktop-home-loader.ts",
   "lib/past-home-loader.ts",
   "lib/flags-loader.ts",

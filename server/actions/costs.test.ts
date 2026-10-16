@@ -4,7 +4,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for costs server actions.
  *
- * Mocks: lib/db, lib/guards, lib/fx, lib/revalidate, next/navigation
+ * Mocks: lib/db, lib/guards, lib/money/fx, lib/revalidate, next/navigation
  */
 
 const {
@@ -63,7 +63,7 @@ const {
 
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("NOT_FOUND"); }) }));
-vi.mock("@/lib/fx", () => ({
+vi.mock("@/lib/money/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
 }));

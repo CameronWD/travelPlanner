@@ -16,7 +16,7 @@ import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
-import { formatMoneyCompact } from "@/lib/money";
+import { formatMoneyCompact } from "@/lib/money/money";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SpendSoFarCard } from "./spend-so-far-card";
-import type { SpendSoFar } from "@/lib/spend-so-far";
+import type { SpendSoFar } from "@/lib/money/spend-so-far";
 
 const spend = (o: Partial<SpendSoFar> = {}): SpendSoFar => ({
   costTotalMinor: 68000,

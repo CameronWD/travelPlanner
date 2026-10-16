@@ -16,7 +16,7 @@ import { previewStopDeletion, deleteStop } from "@/server/actions/stops";
 import type { StopDeletionPreview } from "@/server/actions/stops";
 import { toast } from "@/components/ui/use-toast";
 import { DeleteStopDialog } from "./delete-stop-dialog";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 
 // ---------------------------------------------------------------------------
 // Fixtures

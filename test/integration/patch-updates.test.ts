@@ -9,7 +9,7 @@ vi.mock("@/lib/geocode", () => ({
   geocodePlace: vi.fn(async () => null),
   geocodePlaceDetailed: vi.fn(async () => null),
 }));
-vi.mock("@/lib/fx", () => ({
+vi.mock("@/lib/money/fx", () => ({
   resolveRateForTrip: vi.fn(async () => ({ rate: 1, persist: null })),
   persistRate: vi.fn(async () => undefined),
 }));

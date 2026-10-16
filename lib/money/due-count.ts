@@ -16,7 +16,7 @@ const MONEY_DUE_WINDOW_DAYS = 14;
  *
  * Surprise (ADR 0051): a Cost hidden from this viewer is not theirs to
  * chase, so `v.where.cost` keeps it out of the count — the budget's totals
- * still carry it (lib/budget.ts), only this nudge is filtered.
+ * still carry it (lib/money/budget.ts), only this nudge is filtered.
  */
 export const loadMoneyDueCount = cache(async (tripId: string): Promise<number> => {
   const { user } = await requireTripAccess(tripId);
