@@ -503,7 +503,7 @@ evidence there is.
 ---
 # Open items
 
-**6 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), `TU-01` and `TU-02` (added 2026-10-16).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**5 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), ~~`TU-01`~~ (fixed 2026-10-16) and `TU-02` (added 2026-10-16).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -579,8 +579,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   `npm update --save`, fail with `ERESOLVE`. Re-run `npm outdated` first;
   this list is a snapshot of 2026-10-16.
 
-### TU-01 · The Chapter form's "Set dates now" switched off on an edit keeps the dates
+### ~~TU-01 · The Chapter form's "Set dates now" switched off on an edit keeps the dates~~
 
+- **Fixed 2026-10-16** on `feat/feedback-tz-enddate-review` (tasks D.1–D.2, spec 2026-10-16 F9): with the switch off the edit sends both dates as `null`, and `updateChapter` unlinks the Chapter's dated Stops in the same transaction so `recomputeChapterSpans` can't re-date it. The form warns "This Chapter will no longer group its dated stops."
 - **Priority: P1** · **Effort: S** — one form, one test.
 - **Source:** none — found while drafting card 3.L (PATCH-shaped updates) of
   the 2026-10-14 tidy-up pass, 2026-10-16 (`docs/specs/2026-10-14-tidy-up-pass.md`,
