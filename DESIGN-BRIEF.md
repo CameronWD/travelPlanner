@@ -308,7 +308,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 **Files** (`/files`) — attachments grouped by entity type (Trip/Stops/Activities/Transport/Accommodation/Journal/Markers). Row = colour-coded mime icon + filename + type badge + size + open + delete. Dashed upload control. A **compact** variant is reused inside cards/popovers.
 
-**Checklists** (`/checklists`) — **Tabs**: Pre-trip · Packing · Booking parser. Items = checkbox + text (strikethrough when done) + (pre-trip) due-date badge (normal/soon-amber/overdue-red) + assignee avatar; inline add row; drag-reorder. Packing adds a **templates bar** (apply/save template).
+**Checklists** (`/checklists`) — **Tabs**: Pre-trip · Packing · Shopping. Items = checkbox + text (strikethrough when done) + (pre-trip) due-date badge (normal/soon-amber/overdue-red) + assignee avatar; inline add row; drag-reorder. Packing adds a **templates bar** (apply/save template). Shopping holds Packing items marked **Need to buy** plus standalone items (CONTEXT.md **Shopping list**).
 
 ## C10 · Summary, Compare, Activity, Settings, Share, Print
 

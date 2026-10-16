@@ -71,9 +71,9 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
   money with `Intl` instead. Pre-existing and inert today, but ISK's "Kr"
   reads inconsistently next to the Nordic codes (DKK/NOK/SEK) if the field is
   ever surfaced.
-- **BI-16 · `DESIGN-BRIEF.md:311` still lists "Booking parser"** under
-  Checklists — stale, predates this branch's Booking import feature.
-  **Scheduled for batch 3** of the 2026-10-14 tidy-up pass.
+- **BI-16 · Fixed, 2026-10-16, tidy-up batch 3.** `DESIGN-BRIEF.md`'s
+  Checklists tabs now read Pre-trip · Packing · Shopping, matching the page;
+  "Booking parser" is gone (the Booking import lives on the Plan header).
 - **BI-17 · Commit `1d08d76b` carries a mis-attributed trailer.** It reads
   `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` instead of the
   project's standard trailer for that session. Noted rather than rewritten,
