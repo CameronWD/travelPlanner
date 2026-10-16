@@ -18,7 +18,7 @@ import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
 import { itemPhotoUrl } from "@/lib/item-photo";
 import { titlesByDate } from "@/lib/day-titles";
-import type { ReminderItem } from "@/server/actions/reminders";
+import type { ReminderItem } from "@/lib/reminder-reads";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { isAiConfigured } from "@/lib/ai";
 import { tripTodayISO } from "@/lib/trip-today";

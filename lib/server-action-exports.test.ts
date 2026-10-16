@@ -118,7 +118,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "push.ts": ["healRotatedSubscription", "subscribeToPush", "unsubscribeFromPush"],
   "rates.ts": ["clearManualRate", "refreshRates", "setManualRate"],
   "release-notes.ts": ["dismissWhatsNew"],
-  "reminders.ts": ["addReminder", "deleteReminder", "listRemindersForTrip", "updateReminder"],
+  "reminders.ts": ["addReminder", "deleteReminder", "updateReminder"],
   "search.ts": ["listMyTrips", "searchTrip"],
   "share.ts": ["createShareLink", "listShareLinks", "revokeShareLink", "rotateShareLink", "updateShareLink"],
   "stops.ts": [

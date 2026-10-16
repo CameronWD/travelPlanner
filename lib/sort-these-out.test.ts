@@ -2,7 +2,7 @@ import type { Route } from "next";
 import { describe, expect, it } from "vitest";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "./sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
-import type { ReminderItem } from "@/server/actions/reminders";
+import type { ReminderItem } from "@/lib/reminder-reads";
 
 const BASE = "/trips/t1";
 const step = (id: string, title: string, extra: Partial<NextStep> = {}): NextStep => ({

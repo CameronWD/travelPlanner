@@ -25,7 +25,8 @@ vi.mock("@/lib/db", () => ({
 const listRemindersForTrip = vi.hoisted(() =>
   vi.fn(async () => [{ id: "r1", title: "Print insurance", date: "2099-01-01", stopId: null, stopName: null }]),
 );
-vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
+vi.mock("@/server/actions/reminders", () => ({}));
+vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip }));
 vi.mock("@/components/trip/reminders-card", () => ({
   RemindersCard: (p: { tripId: string; reminders: { title: string }[]; today: string; stops?: { name: string }[] }) => (
     <div data-testid="reminders-card" data-today={p.today}>

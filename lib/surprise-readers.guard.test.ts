@@ -38,7 +38,7 @@ const VISIBILITY_READERS = [
   "lib/travelling-home-loader.ts",
   "lib/past-home-loader.ts",
   "lib/flags-loader.ts",
-  "server/actions/reminders.ts",
+  "lib/reminder-reads.ts",
   "lib/activity-reads.ts",
   "app/(app)/trips/[tripId]/activity/page.tsx",
   "lib/digest-dispatch.ts",

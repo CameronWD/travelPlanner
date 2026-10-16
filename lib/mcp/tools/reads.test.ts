@@ -50,7 +50,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/server/actions/checklists", () => ({ listTemplates }));
-vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
+vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip }));
 vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostsForMcp }));

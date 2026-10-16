@@ -57,7 +57,8 @@ vi.mock("@/lib/fork-reads", () => ({
   listForks: vi.fn(async () => []),
 }));
 vi.mock("@/server/actions/forks", () => ({}));
-vi.mock("@/server/actions/reminders", () => ({
+vi.mock("@/server/actions/reminders", () => ({}));
+vi.mock("@/lib/reminder-reads", () => ({
   listRemindersForTrip: vi.fn(async () => []),
 }));
 vi.mock("@/components/trips/trip-cover", () => ({

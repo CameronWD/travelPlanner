@@ -7,13 +7,13 @@
  * Order: those Reminders, then Transport steps, then every other step in its
  * existing (ranked) order. At most 4 rows; `total` counts everything.
  *
- * PURE — no Prisma/React. Only type imports from the reminders action module.
+ * PURE — no Prisma/React. Only type imports from the reminder reads module.
  */
 import type { Route } from "next";
 import { addDays, formatDayLabel } from "@/lib/dates";
 import type { NextStep } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
-import type { ReminderItem } from "@/server/actions/reminders";
+import type { ReminderItem } from "@/lib/reminder-reads";
 
 export type SortTone = "coral" | "sun" | "teal" | "lilac" | "pink" | "stone";
 export type SortIcon =

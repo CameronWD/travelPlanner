@@ -18,7 +18,7 @@ import { showsPortraitCoverFrame } from "@/lib/cover";
 import { cn } from "@/lib/cn";
 import { assignTripHues } from "@/lib/trips/trip-colour";
 import { RemindersCard } from "@/components/trip/reminders-card";
-import { listRemindersForTrip } from "@/server/actions/reminders";
+import { listRemindersForTrip, type ReminderItem } from "@/lib/reminder-reads";
 import { readMemberTrips } from "@/lib/membership-reads";
 import { orderPlanStops } from "@/lib/plan-order";
 import { nightsBetween } from "@/lib/dates";
@@ -40,7 +40,6 @@ import { loadHomePlanningData } from "@/lib/desktop-home-loader";
 import { buildHomeMapStops } from "@/lib/home-map-stops";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "@/lib/sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
-import type { ReminderItem } from "@/server/actions/reminders";
 import type { TripPhase } from "@/lib/trip-phase";
 
 export default async function TripHomePage({
@@ -50,7 +49,7 @@ export default async function TripHomePage({
 }) {
   const { tripId } = await params;
   // Called here, and again inside listRemindersForTrip below
-  // (server/actions/reminders.ts:69). That is deliberate defence in depth —
+  // (lib/reminder-reads.ts). That is deliberate defence in depth —
   // every entry point guards itself rather than trusting its caller already
   // did — and it is free: requireTripAccess is wrapped in React's cache() and
   // memoised per request, keyed on tripId. Do NOT remove either call. The

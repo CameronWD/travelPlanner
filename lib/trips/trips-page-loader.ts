@@ -13,7 +13,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { loadYourTravels } from "@/lib/travel-stats-loader";
 import { loadNextSteps } from "@/lib/next-steps-loader";
-import { listRemindersForTrip } from "@/server/actions/reminders";
+import { listRemindersForTrip } from "@/lib/reminder-reads";
 import { sortTheseOut } from "@/lib/sort-these-out";
 import type { TravelStats } from "@/lib/travel-stats";
 import { assignTripHues } from "@/lib/trips/trip-colour";

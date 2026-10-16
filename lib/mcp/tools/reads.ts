@@ -23,7 +23,7 @@ import { REAL_PLAN, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 import { todayISO } from "@/lib/dates";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
-import { listRemindersForTrip } from "@/server/actions/reminders";
+import { listRemindersForTrip } from "@/lib/reminder-reads";
 import { findPlaces } from "@/server/actions/places";
 import { activityLine, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";

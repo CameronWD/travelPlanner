@@ -10,7 +10,7 @@ const m = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db: { tripMember: { findMany: m.findMany }, user: { findUnique: m.userFind } } }));
 vi.mock("@/lib/travel-stats-loader", () => ({ loadYourTravels: m.yourTravels }));
 vi.mock("@/lib/next-steps-loader", () => ({ loadNextSteps: m.nextSteps }));
-vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip: m.reminders }));
+vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip: m.reminders }));
 
 import { loadTripsPage } from "./trips-page-loader";
 
