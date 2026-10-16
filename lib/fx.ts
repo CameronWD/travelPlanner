@@ -42,6 +42,9 @@ interface StoredRate {
   fetchedAt: Date;
 }
 
+/** Frankfurter's v1 API. api.frankfurter.app 301-redirects here (BI-10); call it directly. */
+const FRANKFURTER_BASE = "https://api.frankfurter.dev/v1";
+
 // ---------------------------------------------------------------------------
 // fetchRate — network-isolated, called via injected fetcher in tests
 // ---------------------------------------------------------------------------
@@ -61,7 +64,7 @@ export async function fetchRate(from: string, to: string): Promise<number | null
   const timeoutId = setTimeout(() => controller.abort(), 6000);
 
   try {
-    const url = `https://api.frankfurter.app/latest?base=${encodeURIComponent(from)}&symbols=${encodeURIComponent(to)}`;
+    const url = `${FRANKFURTER_BASE}/latest?base=${encodeURIComponent(from)}&symbols=${encodeURIComponent(to)}`;
     const res = await fetch(url, { signal: controller.signal, next: { revalidate: FX_FETCH_REVALIDATE_SECONDS } });
     if (!res.ok) return null;
     const json = (await res.json()) as { rates?: Record<string, number> };

@@ -41,11 +41,10 @@ Left open by `feat/ai-booking-importer` (spec `docs/specs/2026-10-14-booking-imp
 - **BI-09 · The Proposal card shows `TransportCard` without `LegPill`.** The
   pill belongs to the plan's leg strip and needs an `onClick`; it was left out
   of the sheet.
-- **BI-10 · `lib/fx.ts` calls a URL that now redirects.** It requests
+- **BI-10 · Fixed, 2026-10-16, tidy-up batch 3.** `lib/fx.ts` requested
   `https://api.frankfurter.app`, which 301-redirects to
-  `https://api.frankfurter.dev/v1`. It works today via the redirect; switch the
-  base URL to avoid depending on that. **Scheduled for batch 3** of the
-  2026-10-14 tidy-up pass.
+  `https://api.frankfurter.dev/v1`; it now calls `https://api.frankfurter.dev/v1`
+  directly (`lib/fx.test.ts` pins the URL).
 - **BI-11 · A Booking import takes ~6-20 s on Haiku 5.5** (measured
   2026-10-14). The sheet's in-progress state matters for this; consider
   streaming the extraction or giving a progress hint if Travellers find it

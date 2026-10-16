@@ -216,7 +216,7 @@ The attachment serve route (`app/api/attachments/[id]/route.ts`) streams bytes f
 
 ## 4. FX Rates
 
-Powered by the [Frankfurter API](https://frankfurter.dev/) (`https://api.frankfurter.dev`). No API key is required. Rate lookups are cached in the `ExchangeRate` table per trip.
+Powered by the [Frankfurter API](https://frankfurter.dev/) (`https://api.frankfurter.dev/v1`). No API key is required. Rate lookups are cached in the `ExchangeRate` table per trip.
 
 Users can manually override any rate on the Budget page — the manual flag is stored alongside the rate and prevents automatic refresh for that currency pair.
 

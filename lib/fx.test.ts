@@ -399,3 +399,13 @@ describe("fetchRate cross-instance cache (spec 2026-10-06 §U)", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("fetchRate base URL (BI-10)", () => {
+  it("asks Frankfurter's current host directly, not the redirecting api.frankfurter.app", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rates: { AUD: 1.6 } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await fetchRate("EUR", "AUD")).toBe(1.6);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=AUD");
+    vi.unstubAllGlobals();
+  });
+});
