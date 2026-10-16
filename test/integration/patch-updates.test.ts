@@ -37,6 +37,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 import { db } from "@/lib/db";
 import { updateReminder } from "@/server/actions/reminders";
 import { updateChapter } from "@/server/actions/chapters";
+import { updateTrip } from "@/server/actions/trips";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -69,6 +70,15 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", colour: "amber", startDate: "2026-05-01", endDate: "2026-05-05" });
       await updateChapter(ch.id, { startDate: null, endDate: null });
       expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", startDate: null, endDate: null });
+    });
+  });
+
+  describe("Trip", () => {
+    it("a name-only patch keeps the dates and the Hard end date (the hardEndDate data-loss round)", async () => {
+      expect(await updateTrip(TRIP_ID, { name: "PATCH trip, renamed" })).toMatchObject({ success: true });
+      expect(await db.trip.findUnique({ where: { id: TRIP_ID } })).toMatchObject({
+        name: "PATCH trip, renamed", startDate: "2026-05-01", endDate: "2026-05-20", hardEndDate: "2026-05-25", homeCurrency: "AUD",
+      });
     });
   });
 });

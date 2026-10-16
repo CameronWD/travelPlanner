@@ -13,15 +13,9 @@
  * checked against the real plan first (`../real-plan.ts`), since the
  * actions look rows up by id alone and would act on a Fork's row.
  *
- * `update_trip` and `update_stop` are PATCH, not replace (fix round 1,
- * 2026-10-09): both actions write every field they're given, including
- * `null`/absent ones, as the new value — `updateStop`'s rough branch always
- * writes `chapterId: chapterId ?? null`, for instance, so a tool that built
- * a full `StopInput` without a `chapterId` field (there's no such field on
- * either tool's input; `assign_stop_to_chapter` owns that) would silently
- * un-assign the Stop's Chapter on every edit. So these two tools load the
- * current row, merge only the fields the caller actually supplied over it,
- * and send the action a complete, merged input instead.
+ * `update_trip` and `update_stop` are PATCH: the actions take a PATCH (ADR
+ * 0075) and merge onto the row they hold, so these tools pass only the
+ * fields the caller supplied (after the real-plan check for a Stop).
  *
  * Timezone for a scheduled Stop: `stopTimezone` (lib/tz.ts), the one rule
  * the Add-a-stop UI, `createStop`/`updateStop`, the lone-Stop rule and the
@@ -57,7 +51,6 @@ import { CURRENCY_CODES } from "@/lib/currencies";
 import { stopTimezone } from "@/lib/tz";
 import { nightsBetween } from "@/lib/dates";
 import type { StopInput } from "@/lib/validations/stop";
-import type { TripInput } from "@/lib/validations/trip";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 
@@ -66,7 +59,7 @@ const roughMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month");
 
 /** The shape every field-error-shaped tool failure shares (ActionFailure). */
 type Failure = { success: false; errors: Record<string, string[]> };
-const isFailure = (v: StopInput | Failure | TripInput): v is Failure => "success" in v && v.success === false;
+const isFailure = (v: StopInput | Failure): v is Failure => "success" in v && v.success === false;
 
 const NIGHTS_REQUIRED: Failure = {
   success: false,
@@ -294,57 +287,6 @@ async function loadStopPinned(stopId: string): Promise<boolean> {
   return stop.pinned;
 }
 
-// ---------------------------------------------------------------------------
-// update_trip patch helpers
-// ---------------------------------------------------------------------------
-
-type TripRow = {
-  name: string;
-  startDate: string | null;
-  endDate: string | null;
-  hardEndDate: string | null;
-  homeCurrency: string;
-};
-type TripPatch = { name?: string; startDate?: string; endDate?: string; homeCurrency?: string; homeTimezone?: string };
-
-/** Loads the current Trip for a patch; access-checked first, same as every other trip-scoped tool. */
-async function loadTripForPatch(tripId: string): Promise<TripRow> {
-  await requireTripAccess(tripId);
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { name: true, startDate: true, endDate: true, hardEndDate: true, homeCurrency: true },
-  });
-  if (!trip) notFound();
-  return trip;
-}
-
-/**
- * Merges a patch onto the current Trip row.
- *
- * `updateTrip` writes every `TripInput` key it's given, absent or not: an
- * absent `startDate`/`endDate`/`hardEndDate` is written as `null` (cleared),
- * so all three must be forwarded from the current row whenever the patch
- * doesn't supply them — `hardEndDate` isn't even part of this tool's input
- * (that's `set_hard_end_date`'s job), so without this it would be cleared
- * on every `update_trip` call (fix round 2, data loss). `homeName` and
- * `roundTrip` are the opposite: `updateTrip` already treats an absent key
- * on those two as "leave unchanged", and neither is part of this tool's
- * input, so they're correctly left out of the object entirely rather than
- * loaded and forwarded. `homeTimezone` is the same shape as `homeName`/
- * `roundTrip`: `updateTrip` treats an absent key as "leave unchanged", so it
- * is forwarded only when the patch actually supplies it.
- */
-function mergeTripPatch(current: TripRow, patch: TripPatch): TripInput {
-  return {
-    name: patch.name ?? current.name,
-    startDate: patch.startDate ?? current.startDate ?? undefined,
-    endDate: patch.endDate ?? current.endDate ?? undefined,
-    hardEndDate: current.hardEndDate ?? undefined,
-    homeCurrency: (patch.homeCurrency ?? current.homeCurrency) as TripInput["homeCurrency"],
-    ...(patch.homeTimezone !== undefined ? { homeTimezone: patch.homeTimezone } : {}),
-  };
-}
-
 export function registerTripStopWriteTools(server: McpServer): void {
   server.registerTool(
     "create_trip",
@@ -380,10 +322,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
       },
     },
     ({ tripId, ...patch }) =>
-      runTool("update_trip", async () => {
-        const current = await loadTripForPatch(tripId);
-        return updateTrip(tripId, mergeTripPatch(current, patch));
-      }),
+      runTool("update_trip", () => updateTrip(tripId, patch)),
   );
 
   server.registerTool(

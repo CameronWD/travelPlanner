@@ -1,7 +1,7 @@
 "use server";
 
 import type { Route } from "next";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
@@ -27,6 +27,7 @@ import {
   type TripInput,
 } from "@/lib/validations/trip";
 import { type ActionResult, fail, formFail, validationResult } from "@/lib/action-result";
+import { applyPatch, type Patch } from "@/lib/patch";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { revalidateTrip, revalidateTripsList } from "@/lib/revalidate";
 
@@ -221,7 +222,10 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
 export type UpdateTripResult = ActionResult<{ slug?: string }>;
 
 /**
- * Update a trip's name, dates, and home currency.
+ * Update a Trip (PATCH, ADR 0075): name, dates, Hard end date and home
+ * currency merge onto the row; `homeName`, `homeTimezone` and `roundTrip`
+ * already mean "absent = unchanged" below. A date sent as `null` or `""`
+ * (the settings form's empty date input) is cleared.
  *
  * Note: changing homeCurrency doesn't retro-convert already-snapshotted cost
  * rates (rateToHome on Cost rows). That's intentional — the budget page can
@@ -229,11 +233,30 @@ export type UpdateTripResult = ActionResult<{ slug?: string }>;
  */
 export async function updateTrip(
   tripId: string,
-  input: TripInput,
+  patch: Patch<TripInput>,
 ): Promise<UpdateTripResult> {
   await requireTripAccess(tripId);
 
-  const parsed = tripSchema.safeParse(input);
+  // One read serves the merge, the home base diff and the date diff (ADR 0073).
+  const before = await db.trip.findUnique({
+    where: { id: tripId },
+    select: {
+      name: true, startDate: true, endDate: true, hardEndDate: true, homeCurrency: true,
+      homeName: true, homeCountryCode: true, homeTimezone: true,
+    },
+  });
+  if (!before) notFound();
+
+  const parsed = tripSchema.safeParse(applyPatch<TripInput>(
+    {
+      name: before.name,
+      startDate: before.startDate,
+      endDate: before.endDate,
+      hardEndDate: before.hardEndDate,
+      homeCurrency: before.homeCurrency as TripInput["homeCurrency"],
+    },
+    patch,
+  ));
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
@@ -249,14 +272,9 @@ export async function updateTrip(
     roundTrip,
   } = parsed.data;
 
-  // One read serves both the home base diff and the date diff (ADR 0073).
-  const before = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { homeName: true, startDate: true, endDate: true, homeCountryCode: true, homeTimezone: true },
-  });
   const datesChanged =
-    (startDate ?? null) !== (before?.startDate ?? null) ||
-    (endDate ?? null) !== (before?.endDate ?? null);
+    (startDate ?? null) !== (before.startDate ?? null) ||
+    (endDate ?? null) !== (before.endDate ?? null);
 
   // Home base update logic:
   //   - key absent (undefined)  → leave homeName + coords completely unchanged
@@ -287,13 +305,13 @@ export async function updateTrip(
     // A Home base that already exists can still have its zone changed
     // directly (no rename). No Home base before (or after, since the key is
     // absent) means a sent zone has nothing to attach to — ignored.
-    if (sentTimezone !== undefined && before?.homeName) {
+    if (sentTimezone !== undefined && before.homeName) {
       timezoneUpdate = sentTimezone;
     }
   } else {
     const nextHomeName = rawHomeName.trim() !== "" ? rawHomeName.trim() : null;
 
-    const nameChanged = nextHomeName !== null && nextHomeName !== before?.homeName;
+    const nameChanged = nextHomeName !== null && nextHomeName !== before.homeName;
     const nameCleared = nextHomeName === null;
 
     let coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
@@ -317,9 +335,9 @@ export async function updateTrip(
         // than forcing it to null.
         timezoneUpdate = KEEP_TIMEZONE;
       } else {
-        const countryChanged = (geo.countryCode ?? null) !== (before?.homeCountryCode ?? null);
+        const countryChanged = (geo.countryCode ?? null) !== (before.homeCountryCode ?? null);
         timezoneUpdate =
-          countryChanged || before?.homeTimezone == null
+          countryChanged || before.homeTimezone == null
             ? timezoneForCountryOrNull(geo.countryCode)
             : KEEP_TIMEZONE;
       }

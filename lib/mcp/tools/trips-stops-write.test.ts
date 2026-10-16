@@ -213,62 +213,15 @@ describe("trip and stop write tools", () => {
   });
 
   describe("update_trip (PATCH)", () => {
-    it("with only name keeps the other fields", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
+    it("forwards only the fields passed", async () => {
       updateTrip.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      expect(updateTrip).toHaveBeenCalledWith(TRIP_ID, {
-        name: "New name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: undefined,
-        homeCurrency: "GBP",
-      });
-    });
-
-    it("with only name forwards an existing hardEndDate unchanged and leaves the home base untouched", async () => {
-      // "home base" (homeName/roundTrip) is never loaded or forwarded by this
-      // tool at all — updateTrip already treats an absent key on those two as
-      // "leave unchanged" — so proving they're untouched is proving they're
-      // simply not in the object sent to updateTrip.
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: "2026-01-15",
-        homeCurrency: "GBP",
-      });
-      updateTrip.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      const call = updateTrip.mock.calls[0];
-      expect(call[0]).toBe(TRIP_ID);
-      expect(call[1]).toEqual({
-        name: "New name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: "2026-01-15",
-        homeCurrency: "GBP",
-      });
-      expect(call[1]).not.toHaveProperty("homeName");
-      expect(call[1]).not.toHaveProperty("roundTrip");
+      expect(updateTrip).toHaveBeenCalledWith(TRIP_ID, { name: "New name" });
+      expect(tripFindUnique).not.toHaveBeenCalled();
     });
 
     it("with homeTimezone forwards it to updateTrip", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
       updateTrip.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({
@@ -281,29 +234,7 @@ describe("trip and stop write tools", () => {
       );
     });
 
-    it("without homeTimezone, the merged input has no homeTimezone key", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
-      updateTrip.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      const call = updateTrip.mock.calls[0];
-      expect(call[1]).not.toHaveProperty("homeTimezone");
-    });
-
     it("surfaces updateTrip's validation error for an invalid homeTimezone", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
       updateTrip.mockResolvedValue({
         success: false,
         errors: { homeTimezone: ["Pick a timezone from the list."] },
@@ -319,16 +250,6 @@ describe("trip and stop write tools", () => {
       );
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toContain("Pick a timezone from the list.");
-    });
-
-    it("checks trip access before using the loaded row", async () => {
-      requireTripAccess.mockRejectedValue(notFoundErr());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
-      expect(tripFindUnique).not.toHaveBeenCalled();
-      expect(updateTrip).not.toHaveBeenCalled();
     });
   });
 
