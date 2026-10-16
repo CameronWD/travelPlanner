@@ -196,6 +196,25 @@ describe("trip and stop write tools", () => {
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ tripId: "t1", href: "/trips/t1" });
   });
 
+  it("create_trip forwards homeTimezone and describes the default", async () => {
+    createTrip.mockResolvedValue({ success: true, tripId: "t1", href: "/trips/t1" });
+    const c = await connectTestClient();
+    const tool = (await c.listTools()).tools.find((t) => t.name === "create_trip")!;
+    const props = (tool.inputSchema as { properties?: Record<string, { description?: string }> }).properties ?? {};
+    expect(Object.keys(props)).toContain("homeTimezone");
+    expect(props.homeTimezone.description).toMatch(/where the Home base is/i);
+    await c.callTool({ name: "create_trip", arguments: { name: "Oz", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane" } });
+    expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Brisbane", homeTimezone: "Australia/Brisbane" }));
+  });
+
+  it("create_trip surfaces createTrip's error for an invalid homeTimezone", async () => {
+    createTrip.mockResolvedValue({ success: false, errors: { homeTimezone: ["Pick a timezone from the list."] } });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "create_trip", arguments: { name: "Oz", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Mars/Olympus" } });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toContain("Pick a timezone from the list.");
+  });
+
   describe("update_trip (PATCH)", () => {
     it("forwards only the fields passed", async () => {
       updateTrip.mockResolvedValue({ success: true });
@@ -294,15 +313,15 @@ describe("trip and stop write tools", () => {
     expect(call[2]).toBeUndefined();
   });
 
-  it("add_stop derives a timezone from countryCode when scheduled and timezone is omitted", async () => {
+  it("add_stop leaves an omitted timezone unchosen, so createStop takes it from the place's point (F3)", async () => {
     createStop.mockResolvedValue({ success: true });
     const c = await connectTestClient();
     await c.callTool({
       name: "add_stop",
-      arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", arriveDate: "2026-05-01", departDate: "2026-05-04" },
+      arguments: { tripId: TRIP_ID, name: "Brisbane", countryCode: "au", arriveDate: "2026-05-01", departDate: "2026-05-04" },
     });
     const call = createStop.mock.calls[0];
-    expect((call[1] as { timezone: string }).timezone).toBe("Europe/Rome");
+    expect((call[1] as { timezone: string }).timezone).toBe("UTC");
   });
 
   it("add_stop passes afterStopId through as the 4th argument", async () => {

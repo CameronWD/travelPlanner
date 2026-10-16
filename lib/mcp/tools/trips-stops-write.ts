@@ -21,7 +21,8 @@
  * Timezone for a scheduled Stop: `stopTimezone` (lib/tz.ts), the one rule
  * the Add-a-stop UI, `createStop`/`updateStop`, the lone-Stop rule and the
  * Booking import share — an explicit zone wins unless it is the "UTC"
- * fallback, then the country code, then the country name.
+ * fallback, then the zone at the Stop's point, then the country (F3). The
+ * tools send no guess of their own: the actions resolve it server-side.
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -49,7 +50,7 @@ import {
 import { assignStopToChapter } from "@/server/actions/chapters";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
-import { stopTimezone } from "@/lib/tz";
+import { UNCHOSEN_TIMEZONE } from "@/lib/tz";
 import { NIGHTS_REQUIRED, LONE_DATE, TIMEZONE_ON_ROUGH, nightsMismatch } from "@/lib/stop-patch";
 import type { StopInput } from "@/lib/validations/stop";
 import { runTool } from "../run-tool";
@@ -122,7 +123,9 @@ function buildStopInput(args: {
       name,
       country,
       countryCode,
-      timezone: stopTimezone({ timezone, countryCode, country }),
+      // Unchosen unless the caller sent one: createStop resolves it at the
+      // final point (picked or geocoded), which a country guess here would beat (F3).
+      timezone: timezone ?? UNCHOSEN_TIMEZONE,
       arriveDate,
       departDate,
       lat,
@@ -153,7 +156,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
     "create_trip",
     {
       title: "Create trip",
-      description: "Creates a new Trip for the acting Traveller, who becomes its owner.",
+      description: "Creates a new Trip for the acting Traveller, who becomes its owner. Give homeName for a Home base; its timezone is taken from where the Home base is unless you pass homeTimezone.",
       inputSchema: {
         name: z.string().trim().min(1),
         startDate: isoDate.optional(),
@@ -161,6 +164,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
         hardEndDate: isoDate.optional(),
         homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]]),
         homeName: z.string().optional(),
+        homeTimezone: z.string().trim().optional().describe("IANA timezone of the Home base, e.g. Australia/Brisbane. Omit it and it is taken from where the Home base is (its point, else its country). Home ends of Transport are read and written in it."),
         roundTrip: z.boolean().optional(),
         roughMonth: roughMonth.optional(),
       },
@@ -201,7 +205,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Add stop",
       description:
-        "Adds a Stop to the trip's real plan. Give arriveDate and departDate for a scheduled Stop (timezone is derived from the country if you omit it); give nights instead for a rough Stop with no dates yet. afterStopId inserts right after that Stop; omit it to append at the end.",
+        "Adds a Stop to the trip's real plan. Give arriveDate and departDate for a scheduled Stop (omit timezone and it is taken from the place: the zone at its point, else its country); give nights instead for a rough Stop with no dates yet. afterStopId inserts right after that Stop; omit it to append at the end.",
       inputSchema: { tripId: z.string(), afterStopId: z.string().optional(), ...stopCreateShape },
     },
     ({ tripId, afterStopId, ...rest }) =>
@@ -218,7 +222,7 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Update stop",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. Passing country or countryCode re-locates the Stop: its point is looked up again from the place. Supplying both arriveDate and departDate makes the Stop scheduled; supplying nights with no dates on a scheduled Stop makes it rough again, same as make_stop_rough. A dated Trip's only Stop always keeps the Trip's dates; making it rough is refused (ADR 0073).",
+        "Changes only the fields you pass; fields you omit keep their current value. Passing country or countryCode re-locates the Stop: its point is looked up again from the place. Re-locating a scheduled Stop without a timezone gives it the zone at its new place. Supplying both arriveDate and departDate makes the Stop scheduled; supplying nights with no dates on a scheduled Stop makes it rough again, same as make_stop_rough. A dated Trip's only Stop always keeps the Trip's dates; making it rough is refused (ADR 0073).",
       inputSchema: { stopId: z.string(), ...stopPatchShape },
     },
     ({ stopId, ...patch }) =>
