@@ -104,8 +104,9 @@ export async function surpriseRootForEntity(entityType: string, entityId: string
       return a ? surpriseRootFor({ target: a }, now) : null;
     }
     case "REMINDER": {
-      const r = await db.reminder.findUnique({ where: { id: entityId }, select: { stopId: true } });
-      return r ? surpriseRootFor({ stopId: r.stopId }, now) : null;
+      const r = await db.reminder.findUnique({ where: { id: entityId }, select: { stopId: true, itemId: true } });
+      if (!r) return null;
+      return surpriseRootFor(r.itemId ? { itemId: r.itemId } : { stopId: r.stopId }, now);
     }
     case "DAY_TITLE": {
       const d = await db.dayTitle.findUnique({ where: { id: entityId }, select: { stopId: true } });
@@ -118,10 +119,11 @@ export async function surpriseRootForEntity(entityType: string, entityId: string
 
 /**
  * The ids of everything inside a Surprise, as Activity.entityId holds them:
- * for a Stop, the Stop, its Items, Accommodations, Day titles and Reminders,
- * the Notes and Attachments on any of those, and the Costs of its Items and
- * Accommodations; for an Item, the Item, its Notes and Attachments and the
- * Costs it owns. setSurprise stamps the Activity already written about them.
+ * for a Stop, the Stop, its Items, Accommodations, Day titles and Reminders
+ * about it or its Items, the Notes and Attachments on any of those, and the
+ * Costs of its Items and Accommodations; for an Item, the Item, its Notes,
+ * Attachments, Reminders and the Costs it owns. setSurprise stamps the
+ * Activity already written about them.
  */
 export async function insideSurpriseEntityIds(kind: SurpriseRoot["type"], id: string): Promise<string[]> {
   const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
@@ -134,11 +136,13 @@ export async function insideSurpriseEntityIds(kind: SurpriseRoot["type"], id: st
       db.item.findMany(byStop),
       db.accommodation.findMany(byStop),
       db.dayTitle.findMany(byStop),
-      db.reminder.findMany(byStop),
+      db.reminder.findMany({ where: { OR: [{ stopId: id }, { item: { stopId: id } }] }, select: { id: true } }),
     ]);
     owners = [...ids(items), ...ids(accs)];
     targets = [id, ...owners];
     rest = [...ids(dayTitles), ...ids(reminders)];
+  } else {
+    rest = ids(await db.reminder.findMany({ where: { itemId: id }, select: { id: true } }));
   }
   const [notes, attachments, costs] = await Promise.all([
     db.note.findMany({ where: { targetId: { in: targets } }, select: { id: true } }),

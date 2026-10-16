@@ -106,10 +106,13 @@ describe("loadSurpriseVisibility", () => {
     expect(v.where.note).toEqual({
       AND: [{ targetId: { notIn: ["stop-1", "item-in-1", "acc-1"] } }],
     });
-    // Reminder.stopId and Attachment.targetId are nullable, so they keep the
-    // OR-with-null form.
+    // Reminder.stopId/itemId and Attachment.targetId are nullable, so they keep
+    // the OR-with-null form. F8: a Reminder about a hidden Item is hidden too.
     expect(v.where.reminder).toEqual({
-      AND: [{ OR: [{ stopId: null }, { stopId: { notIn: ["stop-1"] } }] }],
+      AND: [
+        { OR: [{ stopId: null }, { stopId: { notIn: ["stop-1"] } }] },
+        { OR: [{ itemId: null }, { itemId: { notIn: ["item-in-1"] } }] },
+      ],
     });
     expect(v.where.attachment).toEqual({
       AND: [{ OR: [{ targetId: null }, { targetId: { notIn: ["stop-1", "item-in-1", "acc-1"] } }] }],
@@ -134,6 +137,17 @@ describe("loadSurpriseVisibility", () => {
     expect(v.hiddenRootIds).toEqual(["stop-1"]);
     expect(v.where.activity).toEqual({
       AND: [{ OR: [{ surpriseOfId: null }, { surpriseOfId: { notIn: ["stop-1", "item-nested", "item-plain"] } }] }],
+    });
+  });
+
+  it("F8: a Reminder about a Surprise Item the viewer is surprised by is filtered out", async () => {
+    itemFindManyMock.mockResolvedValueOnce([liveItemRow({ id: "item-root" })]); // pre-query; surprises sam
+    const v = await loadSurpriseVisibility(TRIP_ID, "sam", { now: NOW });
+    expect(v.where.reminder).toEqual({
+      AND: [
+        { OR: [{ stopId: null }, { stopId: { notIn: [] } }] },
+        { OR: [{ itemId: null }, { itemId: { notIn: ["item-root"] } }] },
+      ],
     });
   });
 

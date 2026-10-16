@@ -515,6 +515,16 @@ describe("requireRowAccess (card C)", () => {
     expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { stopId: null });
   });
 
+  it("a reminder about an Item is checked against the Item (F8)", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+    reminderFindUniqueMock.mockResolvedValue({ id: "r3", tripId: "trip-1", stopId: null, itemId: "i1" });
+
+    await requireRowAccess("reminder", "r3");
+
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("u1", { itemId: "i1" });
+  });
+
   it("a surprised viewer is refused a note on the Surprise", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } });
     findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);

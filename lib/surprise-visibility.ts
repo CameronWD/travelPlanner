@@ -199,7 +199,10 @@ export async function loadSurpriseVisibility(
     where: {
       item: { AND: [nullableNotIn("stopId", hiddenStopIds), { id: { notIn: hiddenRootItemIds } }] },
       accommodation: { AND: [{ stopId: { notIn: hiddenStopIds } }] },
-      reminder: { AND: [nullableNotIn("stopId", hiddenStopIds)] },
+      // F8: a Reminder about a hidden Stop or a hidden Item (a Surprise Item, or
+      // any Item inside a hidden Stop) is hidden. Transport is outside every
+      // Surprise, so a Reminder about a leg never is.
+      reminder: { AND: [nullableNotIn("stopId", hiddenStopIds), nullableNotIn("itemId", hiddenItemIds)] },
       dayTitle: { AND: [{ stopId: { notIn: hiddenStopIds } }] },
       note: { AND: [{ targetId: { notIn: hiddenTargetIds } }] },
       attachment: { AND: [nullableNotIn("targetId", hiddenTargetIds)] },

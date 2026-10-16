@@ -219,6 +219,7 @@ type ReminderRow = {
   title: string;
   date: string;
   stopId: string | null;
+  itemId: string | null;
   stop: { name: string } | null;
 };
 type ChecklistItemRow = {
@@ -257,7 +258,7 @@ const ROW_SELECT = {
   cost: { id: true, tripId: true, forkId: true, currency: true, ownerType: true, ownerId: true },
   chapter: { id: true, tripId: true, forkId: true },
   note: { id: true, tripId: true, authorId: true, targetType: true, targetId: true },
-  reminder: { id: true, tripId: true, title: true, date: true, stopId: true, stop: { select: { name: true } } },
+  reminder: { id: true, tripId: true, title: true, date: true, stopId: true, itemId: true, stop: { select: { name: true } } },
   checklistItem: CHECKLIST_ITEM_ACTIVITY_SELECT,
 } as const;
 
@@ -312,8 +313,10 @@ function surpriseRefFor<K extends RowKind>(kind: K, row: RowOf<K>): SurpriseRef 
     }
     case "note":
       return { target: row as NoteRow };
-    case "reminder":
-      return { stopId: (row as ReminderRow).stopId };
+    case "reminder": {
+      const r = row as ReminderRow;
+      return r.itemId ? { itemId: r.itemId } : { stopId: r.stopId };
+    }
     default:
       return null;
   }
