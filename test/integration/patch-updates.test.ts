@@ -42,6 +42,7 @@ import { updateCost } from "@/server/actions/costs";
 import { updateAccommodation } from "@/server/actions/accommodation";
 import { updateItem } from "@/server/actions/items";
 import { updateTransport } from "@/server/actions/transport";
+import { updateStop } from "@/server/actions/stops";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -135,6 +136,26 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.transport.findUnique({ where: { id: t.id } })).toMatchObject({ fromStopId: a.id, toStopId: b.id, depPlace: "Roma Termini", depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"), reference: "FR 9514", notes: "coach 4" });
       expect(await updateTransport(t.id, { notes: null })).toEqual({ success: true });
       expect(await db.transport.findUnique({ where: { id: t.id } })).toMatchObject({ notes: null, reference: "FR 9514" });
+    });
+  });
+
+  describe("Stop", () => {
+    it("a notes-only patch keeps the chapter, nights and the point; null clears the notes", async () => {
+      const ch = await db.chapter.create({ data: { tripId: TRIP_ID, name: "South", colour: "rose", sortOrder: 1 } });
+      const s = await db.stop.create({ data: { tripId: TRIP_ID, name: "Naples", country: "Italy", countryCode: "it", lat: 40.85, lng: 14.27, nights: 3, chapterId: ch.id, notes: "pizza", sortOrder: 9 } });
+      expect(await updateStop(s.id, { notes: "more pizza" })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ notes: "more pizza", chapterId: ch.id, nights: 3, lat: 40.85, countryCode: "it" });
+      await updateStop(s.id, { notes: null });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ notes: null, chapterId: ch.id });
+    });
+
+    it("a rough Stop scheduled with no timezone takes its country's zone, else UTC", async () => {
+      const known = await db.stop.create({ data: { tripId: TRIP_ID, name: "Bari", country: "Italy", countryCode: "it", lat: 41.12, lng: 16.87, nights: 2, sortOrder: 10 } });
+      const unknown = await db.stop.create({ data: { tripId: TRIP_ID, name: "Cair Paravel", country: "Narnia", lat: 1, lng: 2, nights: 2, sortOrder: 11 } });
+      expect(await updateStop(known.id, { arriveDate: "2026-05-10", departDate: "2026-05-12" })).toMatchObject({ success: true });
+      expect(await updateStop(unknown.id, { arriveDate: "2026-05-12", departDate: "2026-05-14" })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: known.id } })).toMatchObject({ arriveDate: "2026-05-10", timezone: "Europe/Rome", lat: 41.12 });
+      expect(await db.stop.findUnique({ where: { id: unknown.id } })).toMatchObject({ arriveDate: "2026-05-12", timezone: "UTC" });
     });
   });
 });

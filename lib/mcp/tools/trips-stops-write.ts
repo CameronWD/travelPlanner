@@ -13,9 +13,10 @@
  * checked against the real plan first (`../real-plan.ts`), since the
  * actions look rows up by id alone and would act on a Fork's row.
  *
- * `update_trip` and `update_stop` are PATCH: the actions take a PATCH (ADR
- * 0075) and merge onto the row they hold, so these tools pass only the
- * fields the caller supplied (after the real-plan check for a Stop).
+ * `update_trip` and `update_stop` pass only the fields the caller supplied
+ * (ADR 0075): the actions merge onto the row they hold — `updateStop` by
+ * lib/stop-patch.ts's rules (mode from the dates, the lone-date and nights
+ * checks, the Chapter carried).
  *
  * Timezone for a scheduled Stop: `stopTimezone` (lib/tz.ts), the one rule
  * the Add-a-stop UI, `createStop`/`updateStop`, the lone-Stop rule and the
@@ -49,7 +50,7 @@ import { assignStopToChapter } from "@/server/actions/chapters";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { stopTimezone } from "@/lib/tz";
-import { nightsBetween } from "@/lib/dates";
+import { NIGHTS_REQUIRED, LONE_DATE, TIMEZONE_ON_ROUGH, nightsMismatch } from "@/lib/stop-patch";
 import type { StopInput } from "@/lib/validations/stop";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
@@ -60,34 +61,6 @@ const roughMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Pick a month");
 /** The shape every field-error-shaped tool failure shares (ActionFailure). */
 type Failure = { success: false; errors: Record<string, string[]> };
 const isFailure = (v: StopInput | Failure): v is Failure => "success" in v && v.success === false;
-
-const NIGHTS_REQUIRED: Failure = {
-  success: false,
-  errors: { nights: ["Nights is required for a rough stop."] },
-};
-
-// No accepted input is silently dropped (final review finding 1): each of
-// these is a field the tool would otherwise take and then ignore.
-const LONE_DATE: Failure = {
-  success: false,
-  errors: { arriveDate: ["Pass both arriveDate and departDate to schedule a Stop."] },
-};
-
-const TIMEZONE_ON_ROUGH: Failure = {
-  success: false,
-  errors: { timezone: ["A timezone only applies to a Stop with dates. Pass arriveDate and departDate too, or leave timezone out."] },
-};
-
-/** `nights` alongside both dates must agree with them; the dates win otherwise, so a mismatch would be dropped. */
-function nightsMismatch(nights: number | undefined, arriveDate: string, departDate: string): Failure | null {
-  if (nights === undefined) return null;
-  const covered = nightsBetween(arriveDate, departDate);
-  if (nights === covered) return null;
-  return {
-    success: false,
-    errors: { nights: [`Those dates cover ${covered} nights, not ${nights}. Pass matching nights, or leave nights out.`] },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // add_stop / update_stop shared field shapes
@@ -121,9 +94,15 @@ const stopPatchShape = {
   timezone: z.string().trim().optional(),
 };
 
-type StopPatch = {
-  name?: string;
-  countryCode?: string;
+/**
+ * Builds the StopInput createStop expects: "scheduled" when both dates are
+ * given, else "rough". A rough Stop with no `nights` anywhere is a tool
+ * error, not a silently-invalid create call; so is a lone date, a timezone
+ * on a rough Stop, or nights that disagree with both dates.
+ */
+function buildStopInput(args: {
+  name: string;
+  countryCode: string;
   country?: string;
   lat?: number;
   lng?: number;
@@ -132,15 +111,7 @@ type StopPatch = {
   arriveDate?: string;
   departDate?: string;
   timezone?: string;
-};
-
-/**
- * Builds the StopInput createStop expects: "scheduled" when both dates are
- * given, else "rough". A rough Stop with no `nights` anywhere is a tool
- * error, not a silently-invalid create call; so is a lone date, a timezone
- * on a rough Stop, or nights that disagree with both dates.
- */
-function buildStopInput(args: StopPatch & { name: string; countryCode: string }): StopInput | Failure {
+}): StopInput | Failure {
   const { name, countryCode, country, lat, lng, notes, nights, arriveDate, departDate, timezone } = args;
   if ((arriveDate === undefined) !== (departDate === undefined)) return LONE_DATE;
   if (arriveDate !== undefined && departDate !== undefined) {
@@ -162,116 +133,6 @@ function buildStopInput(args: StopPatch & { name: string; countryCode: string })
   if (timezone !== undefined) return TIMEZONE_ON_ROUGH;
   if (nights === undefined) return NIGHTS_REQUIRED;
   return { mode: "rough", name, country, countryCode, nights, lat, lng, notes };
-}
-
-type StopRow = {
-  tripId: string;
-  name: string;
-  country: string | null;
-  countryCode: string | null;
-  lat: number | null;
-  lng: number | null;
-  notes: string | null;
-  nights: number | null;
-  arriveDate: string | null;
-  departDate: string | null;
-  timezone: string | null;
-  chapterId: string | null;
-};
-
-/**
- * Loads the current Stop for a patch, trip-access-checked. A missing row
- * (or a Fork's: `forkId: null` scopes to the real plan) reads as
- * `notFound()` (mapped by `runTool` to the same "not found" text a
- * non-member's id gets), checked *before* the access check can even run —
- * membership is then verified before any of the row's values are used.
- */
-async function loadStopForPatch(stopId: string): Promise<StopRow> {
-  const stop = await db.stop.findUnique({
-    where: { id: stopId, forkId: null },
-    select: {
-      tripId: true,
-      name: true,
-      country: true,
-      countryCode: true,
-      lat: true,
-      lng: true,
-      notes: true,
-      nights: true,
-      arriveDate: true,
-      departDate: true,
-      timezone: true,
-      chapterId: true,
-    },
-  });
-  if (!stop) notFound();
-  await requireTripAccess(stop.tripId);
-  return stop;
-}
-
-/**
- * Merges a patch onto the current Stop row into a full `StopInput`.
- *
- * Mode stays whatever the Stop currently is UNLESS the caller supplies both
- * `arriveDate` and `departDate` (→ scheduled), or supplies `nights` with no
- * dates on an already-scheduled Stop (→ rough, same as `make_stop_rough`).
- * `chapterId` is never part of this tool's input — it always carries the
- * current value forward (use `assign_stop_to_chapter` to change it).
- *
- * A single date with no partner is only meaningful against an *already*
- * scheduled Stop, where it merges with the current other date (re-dating
- * one end of the stay); against a rough Stop there is no current date to
- * pair it with, and silently dropping it would read as success while
- * changing nothing, so that's a tool error instead (fix round 2). Same for
- * a timezone on a Stop that ends up rough, and for nights supplied with
- * both dates that disagree with them (final review finding 1).
- */
-function mergeStopPatch(current: StopRow, patch: StopPatch): StopInput | Failure {
-  const name = patch.name ?? current.name;
-  const country = patch.country ?? current.country ?? undefined;
-  const countryCode = patch.countryCode ?? current.countryCode ?? undefined;
-  const lat = patch.lat ?? current.lat ?? undefined;
-  const lng = patch.lng ?? current.lng ?? undefined;
-  const notes = patch.notes ?? current.notes ?? undefined;
-
-  const hasArrive = patch.arriveDate !== undefined;
-  const hasDepart = patch.departDate !== undefined;
-  const suppliesBothDates = hasArrive && hasDepart;
-  const wasScheduled = current.arriveDate != null;
-  const switchesToRough = patch.nights !== undefined && !suppliesBothDates && wasScheduled;
-  const scheduled = suppliesBothDates || (wasScheduled && !switchesToRough);
-
-  if (!scheduled && hasArrive !== hasDepart) return LONE_DATE;
-  if (!scheduled && patch.timezone !== undefined) return TIMEZONE_ON_ROUGH;
-  if (suppliesBothDates) {
-    const mismatch = nightsMismatch(patch.nights, patch.arriveDate as string, patch.departDate as string);
-    if (mismatch) return mismatch;
-  }
-
-  if (scheduled) {
-    // wasScheduled guarantees current.arriveDate/departDate are both set
-    // (the app always writes them together); suppliesBothDates guarantees
-    // both from the patch; the lone-date check above covers the one
-    // remaining case (one date from the patch, the other from current).
-    const arriveDate = (patch.arriveDate ?? current.arriveDate) as string;
-    const departDate = (patch.departDate ?? current.departDate) as string;
-    return {
-      mode: "scheduled",
-      name,
-      country,
-      countryCode,
-      timezone: stopTimezone({ timezone: patch.timezone ?? current.timezone, countryCode, country }),
-      arriveDate,
-      departDate,
-      lat,
-      lng,
-      notes,
-    };
-  }
-
-  const nights = patch.nights ?? current.nights ?? undefined;
-  if (nights === undefined) return NIGHTS_REQUIRED;
-  return { mode: "rough", name, country, countryCode, nights, chapterId: current.chapterId, lat, lng, notes };
 }
 
 /**
@@ -362,10 +223,8 @@ export function registerTripStopWriteTools(server: McpServer): void {
     },
     ({ stopId, ...patch }) =>
       runTool("update_stop", async () => {
-        const current = await loadStopForPatch(stopId);
-        const merged = mergeStopPatch(current, patch);
-        if (isFailure(merged)) return merged;
-        return updateStop(stopId, merged);
+        await requireRealPlanRow("stop", stopId);
+        return updateStop(stopId, patch);
       }),
   );
 

@@ -6,6 +6,7 @@ import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAd
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { stopTimezone } from "@/lib/tz";
+import { mergeStopPatch, type StopPatch } from "@/lib/stop-patch";
 import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
@@ -387,24 +388,26 @@ export async function createStop(
 }
 
 /**
- * Update an existing stop.
- *
- * Handles both rough and scheduled modes.
+ * Update a Stop (PATCH, ADR 0075): merges onto the held row
+ * (`lib/stop-patch.ts` — mode, dates, place and Chapter rules), then the
+ * rough or scheduled write as before. A scheduled save resolves its
+ * timezone by `stopTimezone` with the final country, as `createStop` does.
  * Verifies the stop belongs to a trip the user can access.
- * For scheduled: optionally re-geocodes if lat/lng are still absent.
  */
 export async function updateStop(
   stopId: string,
-  input: StopInput,
+  patch: StopPatch,
 ): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
+  const before = await db.stop.findUnique({ where: { id: stopId } });
+  if (!before) notFound();
 
-  const parsed = stopSchema.safeParse(input);
+  const merged = mergeStopPatch(before, patch);
+  if ("success" in merged) return merged;
+  const parsed = stopSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
-
-  const before = await db.stop.findUnique({ where: { id: stopId } });
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
@@ -494,7 +497,7 @@ export async function updateStop(
       data: {
         name,
         country: country ?? null,
-        timezone,
+        timezone: stopTimezone({ timezone, countryCode: parsed.data.countryCode ?? updateCountryCode, country }),
         arriveDate,
         departDate,
         lat: lat ?? null,
@@ -507,7 +510,7 @@ export async function updateStop(
     // collision-push through followers — that ripple is setStopDates' job,
     // exercised via the reorder dialog). Renames rarely touch dates, so this
     // covers the common "renamed while dates unchanged" case with no writes.
-    if (before?.arriveDate && (before.arriveDate !== arriveDate || before.departDate !== departDate)) {
+    if (before.arriveDate && (before.arriveDate !== arriveDate || before.departDate !== departDate)) {
       await shiftStopPayloadTx(tx, { id: stopId, arriveDate: before.arriveDate }, arriveDate, departDate);
     }
     await recomputeChapterSpans(tx, stop.tripId, stop.forkId);

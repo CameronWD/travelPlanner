@@ -24,6 +24,8 @@ import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
+import { toPatch } from "@/lib/patch";
+import type { StopPatch } from "@/lib/stop-patch";
 import type { StopCardStop } from "@/components/plan/types";
 import { FormDialog, useFormDirty } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
@@ -33,6 +35,8 @@ import type { ActionResult } from "@/lib/action-result";
 import type { ProposedStopInput } from "@/lib/booking-import/types";
 
 const NO_CHAPTER = "__none__";
+/** An edit's empty fields are clears (ADR 0075). Not the point: an unpicked place is re-geocoded, never cleared. */
+const STOP_CLEARABLE = ["country", "notes", "chapterId"] as const;
 
 export interface StopFormDialogProps {
   tripId: string;
@@ -251,8 +255,9 @@ function StopForm({
     submit: () => {
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input as ProposedStopInput);
+      // `toPatch` nulls only STOP_CLEARABLE's fields, each nullable in StopPatch.
       return isEdit && stop
-        ? updateStop(stop.id, input)
+        ? updateStop(stop.id, toPatch<StopPatch>(input, STOP_CLEARABLE) as StopPatch)
         : createStop(tripId, input, forkId ?? undefined);
     },
     onClose,

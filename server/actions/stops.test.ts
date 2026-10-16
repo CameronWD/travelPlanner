@@ -1101,6 +1101,31 @@ describe("updateStop", () => {
   });
 });
 
+describe("updateStop (PATCH, ADR 0075)", () => {
+  const held = { id: "s1", tripId: "trip-1", forkId: null, sortOrder: 0, pinned: false, name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: "old notes", nights: 2, arriveDate: null, departDate: null, timezone: null, chapterId: "chap-1" };
+  it("a notes-only patch on a rough Stop keeps the chapter and the point, with no geocode", async () => {
+    stopFindUniqueMock.mockResolvedValue(held);
+    chapterFindUniqueMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { notes: "new notes" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ notes: "new notes", chapterId: "chap-1", lat: 41.9, lng: 12.5, countryCode: "it", nights: 2 }) });
+  });
+  it("an edit that sends UTC takes the geocoded country's zone, as create does", async () => {
+    stopFindUniqueMock.mockResolvedValue({ ...held, nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "UTC", chapterId: null });
+    geocodePlaceDetailedMock.mockResolvedValue({ lat: 35.01, lng: 135.77, countryCode: "jp" });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { mode: "scheduled", name: "Kyoto", country: "Japan", timezone: "UTC", arriveDate: "2026-07-01", departDate: "2026-07-05" });
+    expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Asia/Tokyo", countryCode: "jp" }) }));
+  });
+  it("a lone date on a rough Stop is refused before anything is written", async () => {
+    stopFindUniqueMock.mockResolvedValue(held);
+    const r = await updateStop("s1", { arriveDate: "2026-06-01" });
+    expect(r).toEqual({ success: false, errors: { arriveDate: ["Pass both arriveDate and departDate to schedule a Stop."] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // deleteStop
 // ---------------------------------------------------------------------------
