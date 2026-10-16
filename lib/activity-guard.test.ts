@@ -89,6 +89,19 @@ describe("auditedUpdate", () => {
   it("db delegates fit AuditedDelegate", () => {
     expectTypeOf<typeof db.stop>().toMatchTypeOf<AuditedDelegate<Stop, Prisma.StopUpdateInput>>();
   });
+
+  it("auditedUpdate with a held before row writes and diffs without reading again", async () => {
+    const delegate = {
+      findUnique: vi.fn(),
+      update: vi.fn().mockResolvedValue({ id: "a1", tripId: "t1", name: "Hilton", notes: "late check-in" }),
+    };
+    const before = { id: "a1", tripId: "t1", name: "Hilton", notes: null };
+    await auditedUpdate("ACCOMMODATION", delegate, "a1", { notes: "late check-in" }, null, { before });
+    expect(delegate.findUnique).not.toHaveBeenCalled();
+    expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: "ACCOMMODATION", entityId: "a1", changes: [expect.objectContaining({ field: "notes" })],
+    }));
+  });
 });
 
 describe("recordUpdate", () => {
