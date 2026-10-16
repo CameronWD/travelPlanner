@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/stops", () => ({
@@ -223,6 +223,47 @@ describe("StopFormDialog", () => {
       await user.click(await screen.findByRole("option", { name: "No chapter" }));
       await user.click(screen.getByRole("button", { name: /save changes/i }));
       expect(updateStop).toHaveBeenLastCalledWith("stop-2", expect.objectContaining({ mode: "rough", chapterId: null }));
+    });
+
+    const BRISBANE = { name: "Brisbane, Queensland, Australia", lat: -27.47, lng: 153.03, city: "Brisbane", country: "Australia", countryCode: "au" };
+
+    it("a pick previews the zone at the picked point once the lookup loads (F3)", async () => {
+      findPlaces.mockResolvedValue({ status: "ok", candidates: [BRISBANE] });
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} stop={LONDON} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.clear(place);
+      await user.type(place, "Bris");
+      await user.click(await screen.findByRole("option", { name: /Brisbane/ }));
+      // Radix mirrors every TIMEZONES label into a hidden, aria-hidden native
+      // <select> (for browser autofill) that `getByText` can't tell apart
+      // from the visible trigger, so the trigger is found by role instead —
+      // the same `getAllByRole("combobox")` pattern already used above
+      // (~:222) to pick out a Select trigger from a plain text input.
+      await waitFor(() => {
+        const tzTrigger = screen.getAllByRole("combobox").find((el) => el.textContent?.includes("Brisbane"));
+        expect(tzTrigger).toHaveTextContent("Brisbane (AEST)");
+      });
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({
+        name: "Brisbane", countryCode: "au", lat: -27.47, lng: 153.03, timezone: "Australia/Brisbane",
+      }));
+    });
+
+    it("a lookup still in flight never overwrites a zone typed into the Country field after the pick", async () => {
+      findPlaces.mockResolvedValue({ status: "ok", candidates: [BRISBANE] });
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} stop={LONDON} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.clear(place);
+      await user.type(place, "Bris");
+      await user.click(await screen.findByRole("option", { name: /Brisbane/ }));
+      const country = screen.getByPlaceholderText(/e\.g\. united kingdom/i);
+      await user.clear(country);
+      await user.type(country, "Japan");
+      await import("@/lib/tz-point"); // let any pending lookup settle
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({ country: "Japan", timezone: "Asia/Tokyo" }));
     });
 
     it("labels the modes like the add sheet: Exact dates / Roughly", () => {
