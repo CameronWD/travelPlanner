@@ -2479,6 +2479,21 @@ describe("reorderStops", () => {
 
     expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-1");
   });
+
+  // Final review: access comes first, before any row is read — and an empty
+  // reorder is no shortcut past it.
+  it("refuses an outsider with notFound even for an empty reorder", async () => {
+    requireTripAccessMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+    await expect(reorderStops("trip-1", [])).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    expect(stopFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("checks trip access before reading the reordered rows", async () => {
+    requireTripAccessMock.mockRejectedValueOnce(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+    await expect(reorderStops("trip-1", [{ id: "s1", chapterId: null }])).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    expect(stopFindManyMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

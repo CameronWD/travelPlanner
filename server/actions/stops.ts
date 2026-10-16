@@ -1276,6 +1276,9 @@ export async function reorderStops(
   forkId?: PlanId,
   movedStopIds?: string[],
 ): Promise<ReorderResult> {
+  // Access first, before any row is read (the plan check below still needs
+  // the rows' own forkId) — an empty reorder is no shortcut past it.
+  await requireTripAccess(tripId);
   if (items.length === 0) return { success: true, changed: [], conflicts: [] };
 
   // Derive the plan (forkId) from the stops being reordered. They all belong to
