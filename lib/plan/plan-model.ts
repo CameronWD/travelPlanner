@@ -9,6 +9,7 @@ import { flowDates, type FlowStop, type ProjectionStop } from "@/lib/firm-up";
 import { formatMoney, sumMinorToHome } from "@/lib/money";
 import { orderPlanStops } from "@/lib/plan-order";
 import type { PlanSummary } from "@/lib/plan-overview";
+import { plural } from "@/lib/plural";
 
 export type StayStatus = {
   kind: "covered" | "partial" | "none";
@@ -166,8 +167,6 @@ export function tripEyebrow(name: string, startDate: string | null): string {
   const year = startDate.slice(0, 4);
   return name.trimEnd().endsWith(year) ? name : `${name} ${year}`;
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** PLAN.md §1.1 header meta: "{stops} · {rough} · {range}", dropping empty parts. */
 export function planHeaderMeta(s: { stopCount: number; roughCount: number }, start: string | null, end: string | null): string {

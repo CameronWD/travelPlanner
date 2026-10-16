@@ -9,6 +9,8 @@
  * Queue-based, not seen-based (spec 2026-10-02 §A): there is no "last
  * looked" anywhere; the total is simply what is still undecided.
  */
+import { plural } from "@/lib/plural";
+
 export interface AdminQueue {
   accessRequests: number;
   feedbackNeedingReview: number;
@@ -23,11 +25,6 @@ export function adminQueueTotal(queue: AdminQueue): number {
 /** Whether the dot shows: Admins only, and only while something is waiting. */
 export function hasAdminQueue(isAdmin: boolean, queue: AdminQueue): boolean {
   return isAdmin && adminQueueTotal(queue) > 0;
-}
-
-/** "1 access request" / "3 access requests" — also used by the Account card with capitalised nouns. */
-export function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
 }
 
 /** The menu badge's accessible name: "1 access request and 2 feedback notes waiting" — "" when nothing is. */

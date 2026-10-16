@@ -19,6 +19,7 @@ import {
 import type { DaySlot } from "@/lib/plan/day-density";
 import type { StopCardStop, ThingToDo } from "./types";
 import type { StopDayItem } from "@/lib/stop-days";
+import { plural } from "@/lib/plural";
 import type { CostRow } from "@/server/actions/costs";
 
 /** The three kinds of "extras" a Stop can have (spec §D2): files, notes, reminders. */
@@ -58,8 +59,6 @@ interface ExtrasLink {
   icon: typeof Paperclip;
   label: string;
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** The days this Traveller folded on this Trip (lib/plan/day-collapse.ts). Every day is open on the server and while hydrating. */
 function useCollapsedDays(tripId: string): ReadonlySet<string> {

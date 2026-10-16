@@ -14,6 +14,7 @@ import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import { formatMoney, sumMinorToHome } from "@/lib/money";
 import { formatDayLabel } from "@/lib/dates";
+import { plural } from "@/lib/plural";
 import type { CostRow } from "@/server/actions/costs";
 import { PresenceDiv } from "./presence";
 import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
@@ -74,8 +75,6 @@ export function claimDragHint(): boolean {
     return false;
   }
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** "Fri 11" from "Fri 11 Dec" — the empty-state / footer + Add label needs no month. */
 function shortDayLabel(dateISO: string): string {

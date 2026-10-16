@@ -1,6 +1,5 @@
 import { relativeTime } from "@/lib/relative-time";
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+import { plural } from "@/lib/plural";
 
 /** "In AUD · 35 nights · 14 costs in 3 currencies" (MONEY.md §2); zero parts drop out. */
 export function moneyMetaLine({

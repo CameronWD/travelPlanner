@@ -9,13 +9,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { firstErrorMessage } from "@/components/ui/action-failure";
 import type { RecentlyDeletedTrip } from "@/lib/trips/recently-deleted-loader";
+import { plural } from "@/lib/plural";
 
 const MAX_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function plural(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`;
-}
 
 function daysText(deletedAt: Date, now: Date): string {
   const elapsed = Math.floor((now.getTime() - deletedAt.getTime()) / MS_PER_DAY);

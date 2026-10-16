@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
-import { adminQueueTotal, plural, type AdminQueue } from "@/lib/admin-queue";
+import { adminQueueTotal, type AdminQueue } from "@/lib/admin-queue";
+import { plural } from "@/lib/plural";
 
 /**
  * The Admin queue on Account (CONTEXT.md "Admin queue"; spec 2026-10-02 §C):

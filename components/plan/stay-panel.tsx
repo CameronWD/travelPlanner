@@ -16,6 +16,7 @@ import {
 } from "@/lib/plan/plan-model";
 import type { AccommodationCardAccommodation } from "@/components/trip/accommodation-card";
 import type { CostRow } from "@/server/actions/costs";
+import { plural } from "@/lib/plural";
 
 /** One Accommodation as the stay panel lists it: the card's fields plus its Costs and file count. */
 export interface StayPanelAccommodation extends AccommodationCardAccommodation {
@@ -31,8 +32,6 @@ export interface StayPanelProps {
   onOpen(accommodationId: string): void;
   onAdd(): void;
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 const ADD_CLASS = "tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text";
 

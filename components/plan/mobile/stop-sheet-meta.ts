@@ -1,8 +1,7 @@
 import { nightsBetween, tzAbbrev } from "@/lib/dates";
 import { formatStayRange } from "@/lib/plan/plan-model";
+import { plural } from "@/lib/plural";
 import type { StopCardStop } from "@/components/plan/types";
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /**
  * "Thu 10 – Sat 12 Dec · 2 nights · CET", or "Rough · ~3 nights" (PLAN.md §7.2).
