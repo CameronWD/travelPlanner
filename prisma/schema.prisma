@@ -448,7 +448,7 @@ model Trip {
   id           String @id @default(cuid())
   name         String
   startDate    String? // "YYYY-MM-DD" — null while the trip is a date-less idea
-  endDate      String? // "YYYY-MM-DD" — soft; auto-extends to cover scheduled stops
+  endDate      String? // "YYYY-MM-DD" — soft; only grows, to cover scheduled stops and the return leg home (F4, server/actions/trip-window.ts)
   hardEndDate  String? // "YYYY-MM-DD" — optional traveller-set ceiling; never auto-extends (see ADR 0013)
   roughMonth   String? // "YYYY-MM" — CONTEXT.md "Rough month". A wish, never a date: no date engine, Flags or Phase. Cleared whenever startDate is set.
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
