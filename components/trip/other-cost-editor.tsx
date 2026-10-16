@@ -313,6 +313,9 @@ function OtherCostDialog({
 // Standalone form dialog
 // ---------------------------------------------------------------------------
 
+/** An edit's empties are clears (ADR 0075): a removed Due date or Category, un-ticked Paid. */
+const OTHER_COST_CLEARABLE = ["paidAt", "dueDate", "category"] as const;
+
 export interface OtherCostFormDialogProps {
   tripId: string;
   homeCurrency: string;
@@ -338,7 +341,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
     setSubmitting(true);
     setErrors({});
     try {
-      const result = cost ? await updateCost(cost.id, toPatch(parsed.input, ["paidAt", "dueDate", "category"])) : await createCost(tripId, parsed.input);
+      const result = cost ? await updateCost(cost.id, toPatch(parsed.input, OTHER_COST_CLEARABLE)) : await createCost(tripId, parsed.input);
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
     } finally {
