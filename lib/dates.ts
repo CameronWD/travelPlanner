@@ -31,6 +31,19 @@ export function formatISODate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * True when `s` is a YYYY-MM-DD string naming a real calendar date — rejects
+ * overflow like 2026-02-30, which `new Date` would silently roll into March,
+ * and anything not in YYYY-MM-DD form. Zod-free so client gates can share it
+ * (lib/reminder-input.ts); the zod primitive lives in lib/validations/primitives.ts.
+ */
+export function isRealCalendarDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------

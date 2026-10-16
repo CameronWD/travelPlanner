@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isoDateWith } from "@/lib/validations/primitives";
 
 /**
  * Zod schema for creating / updating a Reminder.
@@ -19,9 +20,7 @@ export const reminderSchema = z.object({
     .trim()
     .min(1, "Reminder title is required")
     .max(200, "Title must be 200 characters or fewer"),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Reminder date must be a date (YYYY-MM-DD)"),
+  date: isoDateWith("Reminder date must be a date (YYYY-MM-DD)", "Reminder date must be a real date"),
   stopId: z.string().cuid().optional(),
 });
 

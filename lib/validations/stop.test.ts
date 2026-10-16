@@ -16,6 +16,10 @@ describe("stopSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("refuses an arrive date that is not a real calendar date", () => {
+    expect(stopSchema.safeParse({ ...VALID, arriveDate: "2026-02-30" }).success).toBe(false);
+  });
+
   it("trims name whitespace", () => {
     const result = stopSchema.safeParse({ ...VALID, name: "  London  " });
     expect(result.success).toBe(true);

@@ -10,6 +10,9 @@ describe("chapterSchema", () => {
   it("rejects an empty name", () => {
     expect(chapterSchema.safeParse({ ...VALID, name: "  " }).success).toBe(false);
   });
+  it("refuses a start date that is not a real calendar date", () => {
+    expect(chapterSchema.safeParse({ ...VALID, startDate: "2026-06-31" }).success).toBe(false);
+  });
   it("rejects an unknown colour", () => {
     expect(chapterSchema.safeParse({ ...VALID, colour: "chartreuse" }).success).toBe(false);
   });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isoDate } from "@/lib/validations/primitives";
 
 /**
  * Zod schema for the *shape* of a journal-entry save request: date format,
@@ -9,9 +10,7 @@ import { z } from "zod";
  * `journalBodyExceedsLimit` below, which does have that context.
  */
 export const saveJournalEntrySchema = z.object({
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+  date: isoDate,
   body: z.string().trim(),
 });
 

@@ -18,6 +18,10 @@ describe("createTripSchema", () => {
     }
   });
 
+  it("refuses a start date that is not a real calendar date", () => {
+    expect(createTripSchema.safeParse({ ...VALID_INPUT, startDate: "2026-02-30" }).success).toBe(false);
+  });
+
   it("trims the name", () => {
     const result = createTripSchema.safeParse({
       ...VALID_INPUT,

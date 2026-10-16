@@ -160,6 +160,12 @@ describe("addReminder", () => {
     expect(reminderCreateMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a date that matches the format but is not a calendar date", async () => {
+    const result = await addReminder(TRIP_ID, { ...VALID_INPUT, date: "2026-02-30" });
+    expect(result).toMatchObject({ success: false, errors: { date: ["Reminder date must be a real date"] } });
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
   // A Reminder carries a date and never a time (CONTEXT.md "Reminder") — the
   // string the Traveller picked must reach the row untouched, with no Date
   // round-trip that could shunt it a day either way.

@@ -27,6 +27,7 @@ import {
   formatDayRange,
   formatMonthSpan,
   formatWeekday,
+  isRealCalendarDate,
 } from "./dates";
 
 afterEach(() => vi.useRealTimers());
@@ -387,5 +388,17 @@ describe("formatCheckTimes (spec 2026-10-04 §B)", () => {
   });
   it("long: Check-in / Check-out", () => {
     expect(formatCheckTimes("15:00", "11:00", "long")).toBe("Check-in 15:00 · Check-out 11:00");
+  });
+});
+
+describe("isRealCalendarDate", () => {
+  it("accepts real dates, including a leap day", () => {
+    expect(isRealCalendarDate("2024-02-29")).toBe(true);
+    expect(isRealCalendarDate("2026-10-16")).toBe(true);
+  });
+  it("refuses overflow and non-format strings", () => {
+    for (const s of ["2026-02-30", "2027-02-29", "2026-13-01", "2026-7-1", "", "abc"]) {
+      expect(isRealCalendarDate(s)).toBe(false);
+    }
   });
 });
