@@ -1150,6 +1150,18 @@ describe("updateStop (PATCH, ADR 0075)", () => {
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
     expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Australia/Brisbane" }) }));
   });
+  it("TU-02: re-locating a scheduled Stop with no timezone takes the zone at the new point", async () => {
+    stopFindUniqueMock.mockResolvedValue({ ...held, name: "Tokyo", country: "Japan", countryCode: "jp", lat: 35.68, lng: 139.69, nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "Asia/Tokyo", chapterId: null });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { name: "Paris", country: "France", countryCode: "fr", lat: 48.86, lng: 2.35 });
+    expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Europe/Paris", countryCode: "fr" }) }));
+  });
+  it("first scheduling a rough Stop with no zone takes the zone at the row's point", async () => {
+    stopFindUniqueMock.mockResolvedValue({ ...held, countryCode: "au", country: "Australia", lat: -27.47, lng: 153.03 });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { arriveDate: "2026-07-01", departDate: "2026-07-05" });
+    expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Australia/Brisbane" }) }));
+  });
   it("a sent countryCode on a rough Stop wins over the geocoder's, and survives a geocode miss", async () => {
     stopFindUniqueMock.mockResolvedValue(held);
     chapterFindUniqueMock.mockResolvedValue({ tripId: "trip-1", forkId: null });

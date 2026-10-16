@@ -157,5 +157,19 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.stop.findUnique({ where: { id: known.id } })).toMatchObject({ arriveDate: "2026-05-10", timezone: "Europe/Rome", lat: 41.12 });
       expect(await db.stop.findUnique({ where: { id: unknown.id } })).toMatchObject({ arriveDate: "2026-05-12", timezone: "UTC" });
     });
+
+    it("TU-02: re-locating a scheduled Stop with no timezone takes the new place's zone; a sent zone still wins", async () => {
+      const s = await db.stop.create({ data: { tripId: TRIP_ID, name: "Tokyo", country: "Japan", countryCode: "jp", lat: 35.68, lng: 139.69, arriveDate: "2026-05-14", departDate: "2026-05-16", timezone: "Asia/Tokyo", sortOrder: 12 } });
+      expect(await updateStop(s.id, { name: "Paris", country: "France", countryCode: "fr", lat: 48.86, lng: 2.35 })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-05-14", lat: 48.86 });
+      // A move inside one country moves the zone too (F3).
+      expect(await updateStop(s.id, { name: "Brisbane", country: "Australia", countryCode: "au", lat: -27.47, lng: 153.03 })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ timezone: "Australia/Brisbane" });
+      expect(await updateStop(s.id, { name: "Perth", countryCode: "au", lat: -31.95, lng: 115.86, timezone: "Australia/Brisbane" })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ name: "Perth", timezone: "Australia/Brisbane" });
+      // Naming no place keeps the zone.
+      expect(await updateStop(s.id, { notes: "kept" })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ timezone: "Australia/Brisbane" });
+    });
   });
 });

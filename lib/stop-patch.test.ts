@@ -1,10 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { mergeStopPatch, LONE_DATE, NIGHTS_REQUIRED, TIMEZONE_ON_ROUGH } from "./stop-patch";
+import { UNCHOSEN_TIMEZONE } from "@/lib/tz";
 
 const rough = { name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: "old notes", nights: 2, arriveDate: null, departDate: null, timezone: null, chapterId: "chap-1" };
 const scheduled = { ...rough, nights: null, arriveDate: "2026-05-01", departDate: "2026-05-04", timezone: "Europe/Rome", chapterId: null };
 
 describe("mergeStopPatch", () => {
+  // TU-02: re-locating names a new place, so the row's old zone no longer applies.
+  it("TU-02: a scheduled Stop re-located with no timezone leaves the zone unchosen, for updateStop to derive at the new point", () => {
+    const tokyo = { ...scheduled, name: "Tokyo", country: "Japan", countryCode: "jp", lat: 35.68, lng: 139.69, timezone: "Asia/Tokyo" };
+    expect(mergeStopPatch(tokyo, { country: "France", countryCode: "fr", lat: 48.86, lng: 2.35 })).toMatchObject({ mode: "scheduled", countryCode: "fr", lat: 48.86, timezone: UNCHOSEN_TIMEZONE });
+    expect(mergeStopPatch(tokyo, { lat: -27.47, lng: 153.03 })).toMatchObject({ timezone: UNCHOSEN_TIMEZONE });
+  });
+  it("TU-02: a re-locating patch that sends a timezone keeps it; one that names no place keeps the row's", () => {
+    const tokyo = { ...scheduled, countryCode: "jp", timezone: "Asia/Tokyo" };
+    expect(mergeStopPatch(tokyo, { countryCode: "fr", timezone: "Asia/Tokyo" })).toMatchObject({ timezone: "Asia/Tokyo" });
+    expect(mergeStopPatch(tokyo, { notes: "x", arriveDate: "2026-05-02" })).toMatchObject({ timezone: "Asia/Tokyo" });
+  });
   it("on a rough Stop with only notes keeps chapterId, mode and the point", () => {
     expect(mergeStopPatch(rough, { notes: "new notes" })).toEqual({
       mode: "rough", name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: "new notes", nights: 2, chapterId: "chap-1",
@@ -18,8 +30,8 @@ describe("mergeStopPatch", () => {
   it("switches a scheduled Stop to rough when nights is given with no dates", () => {
     expect(mergeStopPatch(scheduled, { nights: 5 })).toMatchObject({ mode: "rough", nights: 5 });
   });
-  it("switches a rough Stop to scheduled when both dates are given, the zone from the country", () => {
-    expect(mergeStopPatch(rough, { arriveDate: "2026-06-01", departDate: "2026-06-03" })).toMatchObject({ mode: "scheduled", arriveDate: "2026-06-01", departDate: "2026-06-03", timezone: "Europe/Rome" });
+  it("switches a rough Stop to scheduled when both dates are given; with no zone sent it is left for updateStop to derive", () => {
+    expect(mergeStopPatch(rough, { arriveDate: "2026-06-01", departDate: "2026-06-03" })).toMatchObject({ mode: "scheduled", arriveDate: "2026-06-01", departDate: "2026-06-03", timezone: UNCHOSEN_TIMEZONE });
   });
   it("a rough patch with no nights anywhere is refused", () => {
     expect(mergeStopPatch({ ...rough, nights: null }, { notes: "x" })).toEqual(NIGHTS_REQUIRED);
@@ -63,7 +75,7 @@ describe("mergeStopPatch", () => {
   });
   it("an explicit country: null clears the country and drops the row's point", () => {
     const m = mergeStopPatch(scheduled, { country: null });
-    expect(m).toMatchObject({ mode: "scheduled", name: "Rome", timezone: "Europe/Rome" });
+    expect(m).toMatchObject({ mode: "scheduled", name: "Rome", timezone: UNCHOSEN_TIMEZONE });
     expect((m as { country?: string }).country).toBeUndefined();
     expect(m).not.toHaveProperty("lat");
     expect(m).not.toHaveProperty("countryCode");
