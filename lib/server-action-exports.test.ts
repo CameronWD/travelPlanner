@@ -126,7 +126,6 @@ const ALLOWLIST: Record<string, string[]> = {
     "deleteStop",
     "firmUpSegment",
     "firmUpTrip",
-    "getTripProjection",
     "makeStopRough",
     "moveStop",
     "previewStopDeletion",

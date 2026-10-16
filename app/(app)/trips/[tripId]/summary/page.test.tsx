@@ -58,8 +58,9 @@ vi.mock("@/lib/budget", () => ({
 vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(() => null) }));
 vi.mock("@/lib/route-map", () => ({ homeMapPoint: vi.fn(() => null) }));
-vi.mock("@/server/actions/stops", () => ({
-  getTripProjection: vi.fn(async () => ({ projectedEnd: null, hardEndDate: null })),
+vi.mock("@/server/actions/stops", () => ({}));
+vi.mock("@/lib/trip-projection-reads", () => ({
+  getTripProjection: vi.fn(async () => ({ projectedEnd: null, hardEndDate: null, deadline: null })),
 }));
 // `@/lib/chapters` and the `@/lib/dates` it depends on internally (isDateWithin)
 // are left REAL — pure, deterministic functions — so chapter grouping actually

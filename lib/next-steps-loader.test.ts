@@ -19,7 +19,7 @@ const loadFlagRowsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({})) }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "eu") }));
-vi.mock("@/server/actions/stops", () => ({ getTripProjection }));
+vi.mock("@/lib/trip-projection-reads", () => ({ getTripProjection }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlagRows: loadFlagRowsMock }));
 
 import { loadNextSteps } from "./next-steps-loader";

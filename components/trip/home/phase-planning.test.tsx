@@ -64,7 +64,8 @@ vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn() }));
 vi.mock("@/lib/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
 vi.mock("@/lib/next-steps", () => ({ buildNextSteps: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(), hasOutboundLeg: vi.fn(), hasReturnLeg: vi.fn() }));
-vi.mock("@/server/actions/stops", () => ({ getTripProjection: getTripProjectionMock }));
+vi.mock("@/server/actions/stops", () => ({}));
+vi.mock("@/lib/trip-projection-reads", () => ({ getTripProjection: getTripProjectionMock }));
 // The projection is computed from the loader's own rows now (spec 2026-10-06 §C); lib/dates is mocked in this file, so stub it like getTripProjection was.
 vi.mock("@/lib/trip-projection", () => ({ computeProjection: vi.fn(() => ({ projectedEnd: null, hardEndDate: null, deadline: null })) }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));
