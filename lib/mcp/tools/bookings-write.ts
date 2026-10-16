@@ -46,6 +46,8 @@ import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from
 import { transportModeSchema, costOwnerTypeSchema, costSettlementSchema } from "@/lib/enums";
 import { TRANSPORT_MODES, COST_SETTLEMENTS } from "@/lib/enum-values";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
+import { MORE_THAN_ONE_COST } from "@/lib/money/cost-patch";
+import type { ActionResult } from "@/lib/action-result";
 import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
@@ -218,6 +220,22 @@ function realPlanKindForOwner(ownerType: string): RealPlanKind | null {
   }
 }
 
+/**
+ * `update_accommodation`/`update_transport`: the app-wide inline-Cost
+ * refusal (`lib/money/cost-patch.ts`'s `MORE_THAN_ONE_COST`) speaks only
+ * Traveller wording, because it can also reach the Accommodation/Transport
+ * dialogs — it has no "update_cost" to point at. Through Claude there is
+ * one, so this appends the tool-specific sentence onto that same refusal
+ * rather than cost-patch.ts knowing about tool names.
+ */
+function withUpdateCostGuidance(result: ActionResult): ActionResult {
+  if (result !== MORE_THAN_ONE_COST) return result;
+  return {
+    success: false,
+    errors: { costMinor: [`${MORE_THAN_ONE_COST.errors.costMinor![0]} Use update_cost to edit a specific one.`] },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tool registration
 // ---------------------------------------------------------------------------
@@ -252,7 +270,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
           ["accommodation", accommodationId],
           ["stop", patch.stopId],
         ]);
-        return updateAccommodation(accommodationId, patch);
+        return withUpdateCostGuidance(await updateAccommodation(accommodationId, patch));
       }),
   );
 
@@ -326,7 +344,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
           ["stop", patch.toStopId || undefined],
           ["stop", patch.anchorStopId],
         ]);
-        return updateTransport(transportId, patch);
+        return withUpdateCostGuidance(await updateTransport(transportId, patch));
       }),
   );
 

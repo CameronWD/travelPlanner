@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeInlineCost, mergeCostPatch, paidPairAfter, DUE_DATE_NOT_APPLICABLE } from "./cost-patch";
+import { completeInlineCost, mergeCostPatch, paidPairAfter, DUE_DATE_NOT_APPLICABLE, MORE_THAN_ONE_COST } from "./cost-patch";
 
 const paidRow = {
   costMinor: 12000, currency: "EUR", paidMinor: 12000, paidAt: new Date("2026-04-01T00:00:00Z"), dueDate: null,
@@ -86,8 +86,11 @@ describe("completeInlineCost", () => {
   it("currency-only with no owned Cost is refused", () => {
     expect(completeInlineCost({ currency: "EUR" }, [])).toMatchObject({ success: false, errors: { costMinor: [expect.stringMatching(/Pass both costMinor and currency/)] } });
   });
-  it("against more than one owned Cost is refused", () => {
-    expect(completeInlineCost({ costMinor: 1 }, [paid, { ...paid, id: "c2" }])).toMatchObject({ success: false, errors: { costMinor: [expect.stringMatching(/more than one Cost/)] } });
+  it("against more than one owned Cost is refused with Traveller wording (no tool name — that's the MCP tool's job to add)", () => {
+    const result = completeInlineCost({ costMinor: 1 }, [paid, { ...paid, id: "c2" }]);
+    expect(result).toEqual(MORE_THAN_ONE_COST);
+    expect(result).toMatchObject({ success: false, errors: { costMinor: ["This now has more than one Cost — edit them in Money."] } });
+    expect(JSON.stringify(result)).not.toMatch(/update_cost/);
   });
   it("the form's unpaid save (paidAt: null) un-pays, keeping the amount as history", () => {
     expect(completeInlineCost({ costMinor: 9000, currency: "EUR", paidAt: null, settlement: "BEFORE" }, [paid]))

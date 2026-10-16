@@ -91,9 +91,17 @@ export type InlineCostPatch = {
 };
 export type InlineCost = { costMinor: number; currency: string; paidMinor?: number; paidAt?: string; settlement?: "BEFORE" | "ON_TRIP" };
 
-const MORE_THAN_ONE_COST: ActionFailure = {
+/**
+ * Traveller-facing wording only (CONTEXT.md: Cost, Traveller — no "member",
+ * no tool name): this refusal can reach the app's Item/Accommodation/
+ * Transport dialogs, not just a Claude tool. The MCP write tools
+ * (`lib/mcp/tools/bookings-write.ts`) that *do* have an `update_cost` to
+ * point at augment this with their own tool-specific sentence rather than
+ * this module knowing about tool names.
+ */
+export const MORE_THAN_ONE_COST: ActionFailure = {
   success: false,
-  errors: { costMinor: ["This has more than one Cost already. Use update_cost to edit a specific one."] },
+  errors: { costMinor: ["This now has more than one Cost — edit them in Money."] },
 };
 const BOTH_HALVES: ActionFailure = {
   success: false,

@@ -105,6 +105,7 @@ vi.mock("@/lib/guards", () => ({
 
 import { connectTestClient } from "../test-client";
 import { NOT_FOUND_TEXT } from "../run-tool";
+import { MORE_THAN_ONE_COST } from "@/lib/money/cost-patch";
 
 const TRIP_ID = "trip-1";
 const STOP_ID = "stop-1";
@@ -253,6 +254,17 @@ describe("bookings write tools", () => {
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
       expect(updateAccommodation).not.toHaveBeenCalled();
+    });
+
+    it("more than one owned Cost: the app's Traveller-wording refusal gets the tool's own update_cost sentence appended", async () => {
+      accommodationFindUnique.mockResolvedValue(accommodationRow());
+      updateAccommodation.mockResolvedValue(MORE_THAN_ONE_COST);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
+      expect(r.isError).toBe(true);
+      const t = (r.content as { text: string }[])[0].text;
+      expect(t).toContain("This now has more than one Cost — edit them in Money.");
+      expect(t).toContain("Use update_cost to edit a specific one.");
     });
   });
 
@@ -412,6 +424,17 @@ describe("bookings write tools", () => {
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
       expect(updateTransport).not.toHaveBeenCalled();
+    });
+
+    it("more than one owned Cost: the app's Traveller-wording refusal gets the tool's own update_cost sentence appended", async () => {
+      transportFindUnique.mockResolvedValue(transportRow());
+      updateTransport.mockResolvedValue(MORE_THAN_ONE_COST);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, costMinor: 9500 } });
+      expect(r.isError).toBe(true);
+      const t = (r.content as { text: string }[])[0].text;
+      expect(t).toContain("This now has more than one Cost — edit them in Money.");
+      expect(t).toContain("Use update_cost to edit a specific one.");
     });
   });
 
