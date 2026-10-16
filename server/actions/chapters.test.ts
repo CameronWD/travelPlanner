@@ -4,7 +4,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 const {
   requireTripAccessMock, requirePlanAccessMock, revalidateTripMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
-  stopFindManyMock, stopFindUniqueMock, stopFindUniqueTxMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
+  stopFindManyMock, stopFindUniqueMock, stopFindUniqueTxMock, stopUpdateMock, stopUpdateManyMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
   itemFindManyMock, itemUpdateMock, accommodationFindManyMock, accommodationUpdateMock,
 } = vi.hoisted(() => {
   const queryRawMock = vi.fn();
@@ -14,6 +14,7 @@ const {
   // so createChapter's "never looked up the origin stop" assertions stay true.
   const stopFindUniqueTxMock = vi.fn().mockResolvedValue({ tripId: "trip-1", forkId: null });
   const stopUpdateMock = vi.fn();
+  const stopUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const chapterFindManyMock = vi.fn().mockResolvedValue([]);
   const chapterUpdateMock = vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   const tripFindUniqueMock = vi.fn();
@@ -26,7 +27,7 @@ const {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, update: stopUpdateMock },
+        stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, update: stopUpdateMock, updateMany: stopUpdateManyMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
@@ -54,6 +55,7 @@ const {
     stopFindUniqueMock: vi.fn(),
     stopFindUniqueTxMock,
     stopUpdateMock,
+    stopUpdateManyMock,
     tripFindUniqueMock,
     queryRawMock,
     dbTransactionMock,
@@ -108,7 +110,7 @@ vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     chapter: { findUnique: chapterFindUniqueMock, findMany: chapterFindManyMock, count: chapterCountMock, create: chapterCreateMock, createMany: chapterCreateManyMock, update: chapterUpdateMock, delete: chapterDeleteMock },
-    stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueMock, update: stopUpdateMock },
+    stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueMock, update: stopUpdateMock, updateMany: stopUpdateManyMock },
     trip: { findUnique: tripFindUniqueMock },
     $transaction: dbTransactionMock,
   },
@@ -152,7 +154,7 @@ afterEach(() => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, update: stopUpdateMock },
+        stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, update: stopUpdateMock, updateMany: stopUpdateManyMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
@@ -352,6 +354,8 @@ describe("updateChapter (PATCH, ADR 0075)", () => {
     chapterFindUniqueMock.mockResolvedValue(dated);
     chapterFindManyMock.mockResolvedValue([]);
     chapterUpdateMock.mockResolvedValue({ ...dated, name: "New name" });
+    queryRawMock.mockResolvedValue([]); // lockPlanStopsTx
+    stopUpdateManyMock.mockResolvedValue({ count: 0 });
   });
   it("with only name keeps colour and dates, reading the row once", async () => {
     await updateChapter("c1", { name: "New name" });
@@ -377,6 +381,43 @@ describe("updateChapter (PATCH, ADR 0075)", () => {
     expect(chapterUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ startDate: null, endDate: null }),
     }));
+  });
+
+  // TU-01: dates off on a dated Chapter makes it rough. Its dated Stops keep
+  // their dates and leave it — an explicit link left from when they were
+  // rough (ADR 0009) would let recomputeChapterSpans (ADR 0021) re-date it.
+  it("clearing a dated chapter's dates unlinks its dated stops under the plan lock, in one transaction", async () => {
+    chapterUpdateMock.mockResolvedValue({ ...dated, startDate: null, endDate: null });
+    const r = await updateChapter("c1", { startDate: null, endDate: null });
+    expect(r).toEqual({ success: true });
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+    expect(queryRawMock).toHaveBeenCalledTimes(1); // lockPlanStopsTx
+    expect(stopUpdateManyMock).toHaveBeenCalledWith({
+      where: { chapterId: "c1", arriveDate: { not: null } },
+      data: { chapterId: null, chapterSortOrder: 0 },
+    });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { name: "Italy", colour: "amber", startDate: null, endDate: null },
+    });
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "UPDATED", entityType: "CHAPTER", entityId: "c1" }));
+  });
+
+  it("a rename of a dated chapter touches no stop", async () => {
+    await updateChapter("c1", { name: "New name" });
+    expect(stopUpdateManyMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("clearing an already-rough chapter touches no stop", async () => {
+    chapterFindUniqueMock.mockResolvedValue({ ...dated, startDate: null, endDate: null });
+    await updateChapter("c1", { startDate: null, endDate: null });
+    expect(stopUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("re-dating a chapter touches no stop", async () => {
+    await updateChapter("c1", { startDate: "2026-05-02", endDate: "2026-05-11" });
+    expect(stopUpdateManyMock).not.toHaveBeenCalled();
   });
 });
 

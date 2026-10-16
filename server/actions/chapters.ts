@@ -8,7 +8,7 @@ import { applyPatch, type Patch } from "@/lib/patch";
 import { chaptersOverlap, canAssignToChapter } from "@/lib/chapters";
 import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
 import { nextChapterColour } from "@/lib/chapter-colours";
-import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
+import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 import { reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
@@ -103,7 +103,10 @@ export async function createChapter(
   return { success: true };
 }
 
-/** Update a Chapter (PATCH, ADR 0075). A lone date against a rough Chapter is refused by the schema ("Set both dates or neither"). */
+/**
+ * Update a Chapter (PATCH, ADR 0075). A lone date against a rough Chapter is refused by the schema ("Set both dates or neither").
+ * Clearing a dated Chapter's dates makes it rough and unlinks its dated Stops (TU-01).
+ */
 export async function updateChapter(
   chapterId: string,
   patch: Patch<ChapterInput>,
@@ -124,7 +127,27 @@ export async function updateChapter(
 
   // Dates written `?? null`: absent now means "carried from the row" (merged above), so an explicit null clears.
   const data = { ...parsed.data, startDate: parsed.data.startDate ?? null, endDate: parsed.data.endDate ?? null };
-  await auditedUpdate("CHAPTER", db.chapter, chapterId, data, chapter.forkId ?? null, { before });
+  const plan = chapter.forkId ?? null;
+
+  if (before.startDate != null && data.startDate === null) {
+    // TU-01: a dated Chapter made rough no longer groups its dated Stops. They
+    // keep their dates; any explicit link left from when they were rough
+    // (ADR 0009) is dropped, or recomputeChapterSpans (ADR 0021) would count
+    // them as span contributors and re-date the Chapter on the next Stop edit.
+    // Rough members keep their explicit membership. ADR 0007: the plan's Stop
+    // lock before writing Stop rows.
+    const after = await db.$transaction(async (tx) => {
+      await lockPlanStopsTx(tx, chapter.tripId, plan);
+      await tx.stop.updateMany({
+        where: { chapterId, arriveDate: { not: null } },
+        data: { chapterId: null, chapterSortOrder: 0 },
+      });
+      return tx.chapter.update({ where: { id: chapterId }, data });
+    });
+    await recordUpdate("CHAPTER", { tripId: chapter.tripId, plan, entityId: chapterId, before, after });
+  } else {
+    await auditedUpdate("CHAPTER", db.chapter, chapterId, data, plan, { before });
+  }
   revalidateTrip(chapter.tripId, "plan");
   return { success: true };
 }

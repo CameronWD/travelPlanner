@@ -43,6 +43,7 @@ import { updateAccommodation } from "@/server/actions/accommodation";
 import { updateItem } from "@/server/actions/items";
 import { updateTransport } from "@/server/actions/transport";
 import { updateStop } from "@/server/actions/stops";
+import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -75,6 +76,27 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", colour: "amber", startDate: "2026-05-01", endDate: "2026-05-05" });
       await updateChapter(ch.id, { startDate: null, endDate: null });
       expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", startDate: null, endDate: null });
+    });
+
+    it("dates off on a dated Chapter makes it rough: its dated Stops keep their dates and leave it, rough members stay, and a later span recompute leaves it rough (TU-01)", async () => {
+      const ch = await db.chapter.create({ data: { tripId: TRIP_ID, name: "Tuscany", colour: "rose", startDate: "2026-05-15", endDate: "2026-05-18", sortOrder: 7 } });
+      const linked = await db.stop.create({ data: { tripId: TRIP_ID, name: "Siena", country: "Italy", arriveDate: "2026-05-15", departDate: "2026-05-17", nights: 2, chapterId: ch.id, chapterSortOrder: 0, sortOrder: 30 } });
+      const byDate = await db.stop.create({ data: { tripId: TRIP_ID, name: "Lucca", country: "Italy", arriveDate: "2026-05-17", departDate: "2026-05-18", nights: 1, sortOrder: 31 } });
+      const rough = await db.stop.create({ data: { tripId: TRIP_ID, name: "Pisa", country: "Italy", nights: 1, chapterId: ch.id, chapterSortOrder: 1, sortOrder: 32 } });
+
+      expect(await updateChapter(ch.id, { startDate: null, endDate: null })).toEqual({ success: true });
+
+      expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ startDate: null, endDate: null });
+      expect(await db.stop.findUnique({ where: { id: linked.id } })).toMatchObject({ arriveDate: "2026-05-15", departDate: "2026-05-17", chapterId: null });
+      expect(await db.stop.findUnique({ where: { id: byDate.id } })).toMatchObject({ arriveDate: "2026-05-17", chapterId: null });
+      expect(await db.stop.findUnique({ where: { id: rough.id } })).toMatchObject({ arriveDate: null, chapterId: ch.id });
+
+      // Any later Stop write runs this self-heal; it must not re-date the Chapter.
+      await db.$transaction((tx) => recomputeChapterSpans(tx, TRIP_ID, null));
+      expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ startDate: null, endDate: null });
+
+      await db.stop.deleteMany({ where: { id: { in: [linked.id, byDate.id, rough.id] } } });
+      await db.chapter.delete({ where: { id: ch.id } });
     });
   });
 
