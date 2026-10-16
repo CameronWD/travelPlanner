@@ -176,14 +176,15 @@ export function registerTripStopWriteTools(server: McpServer): void {
     "update_trip",
     {
       title: "Update trip",
-      description: "Changes only the fields you pass; fields you omit keep their current value.",
+      description:
+        "Changes only the fields you pass; fields you omit keep their current value. Changing homeTimezone keeps every Home-end Transport time at the local time it shows (a 06:10 departure stays 06:10), in the real plan and every what-if plan; only the moment it stands for moves with the zone. Fix a wrong Home timezone this way rather than editing the leg times.",
       inputSchema: {
         tripId: z.string(),
         name: z.string().trim().min(1).optional(),
         startDate: isoDate.optional(),
         endDate: isoDate.optional(),
         homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]]).optional(),
-        homeTimezone: z.string().trim().optional().describe("IANA timezone of the Home base, e.g. Australia/Brisbane. Home ends of Transport are read and written in it."),
+        homeTimezone: z.string().trim().optional().describe("IANA timezone of the Home base, e.g. Australia/Brisbane. Home ends of Transport are read and written in it; changing it keeps their local times."),
       },
     },
     ({ tripId, ...patch }) =>

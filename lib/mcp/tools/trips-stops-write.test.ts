@@ -216,6 +216,15 @@ describe("trip and stop write tools", () => {
   });
 
   describe("update_trip (PATCH)", () => {
+    it("says a Home timezone change keeps Home-end times as local times (F5)", async () => {
+      const c = await connectTestClient();
+      const tool = (await c.listTools()).tools.find((t) => t.name === "update_trip")!;
+      expect(tool.description).toMatch(/homeTimezone/);
+      expect(tool.description).toMatch(/keeps? .*local time/i);
+      const tz = (tool.inputSchema as { properties: Record<string, { description?: string }> }).properties.homeTimezone;
+      expect(tz.description).toMatch(/local time/i);
+    });
+
     it("forwards only the fields passed", async () => {
       updateTrip.mockResolvedValue({ success: true });
       const c = await connectTestClient();
