@@ -1,7 +1,15 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
-import { REMINDER_ITEM_SELECT, toReminderItem, type ReminderItem } from "@/lib/reminder-about";
+import { REAL_PLAN } from "@/lib/plan-scope";
+import {
+  REMINDER_ITEM_SELECT,
+  REMINDER_TRANSPORT_SELECT,
+  reminderTransportLabel,
+  toReminderItem,
+  type ReminderAboutOptions,
+  type ReminderItem,
+} from "@/lib/reminder-about";
 
 export type { ReminderItem } from "@/lib/reminder-about";
 
@@ -59,4 +67,37 @@ export async function readRemindersAbout(tripId: string, v: SurpriseVisibility):
     else if (r.transportId) push(out.byTransportId, r.transportId, r);
   }
   return out;
+}
+
+/**
+ * What the Reminders card's "About" picker offers (spec F8): the real plan's
+ * Stops, Items and Transport legs — a Reminder hangs off the real plan only —
+ * minus whatever a live Surprise hides from this viewer (they could not write
+ * a Reminder about it anyway: requireOutsideSurprise refuses).
+ */
+export async function readReminderAboutOptions(tripId: string): Promise<ReminderAboutOptions> {
+  const { user } = await requireTripAccess(tripId);
+  const v = await loadSurpriseVisibility(tripId, user.id);
+  const [stops, items, transports] = await Promise.all([
+    db.stop.findMany({
+      where: { tripId, ...REAL_PLAN, id: { notIn: v.hiddenStopIds } },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true },
+    }),
+    db.item.findMany({
+      where: { tripId, ...REAL_PLAN, ...v.where.item },
+      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+      select: { id: true, title: true },
+    }),
+    db.transport.findMany({
+      where: { tripId, ...REAL_PLAN },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, ...REMINDER_TRANSPORT_SELECT },
+    }),
+  ]);
+  return {
+    stops,
+    items,
+    transports: transports.map((t) => ({ id: t.id, label: reminderTransportLabel(t) })),
+  };
 }

@@ -6,7 +6,7 @@ vi.mock("@/lib/guards", () => ({
 }));
 
 import { db } from "@/lib/db";
-import { listRemindersForTrip, readRemindersAbout } from "@/lib/reminder-reads";
+import { listRemindersForTrip, readReminderAboutOptions, readRemindersAbout } from "@/lib/reminder-reads";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 // Real Postgres (npm run test:integration): the Reminders read moved out of
@@ -88,5 +88,16 @@ describe.skipIf(process.env.INTEGRATION !== "1")("listRemindersForTrip (real Pos
     expect(forMember.byItemId.has("it-rem-secret-item")).toBe(false);
     expect(forMember.byStopId.has(SECRET)).toBe(false);
     expect(forMember.byItemId.get("it-rem-tram")?.length).toBe(1);
+  });
+
+  it("readReminderAboutOptions never offers the surprised Traveller the Surprise Stop or anything inside it", async () => {
+    const forOwner = await readReminderAboutOptions(TRIP_ID);
+    expect(forOwner.stops.map((s) => s.id)).toEqual(["it-rem-porto", SECRET]);
+    expect(forOwner.items.map((i) => i.id).sort()).toEqual(["it-rem-secret-item", "it-rem-tram"]);
+    expect(forOwner.transports).toEqual([{ id: "it-rem-leg", label: "Train IT Porto → IT Secret" }]);
+    viewer.id = MEMBER;
+    const forMember = await readReminderAboutOptions(TRIP_ID);
+    expect(forMember.stops.map((s) => s.id)).toEqual(["it-rem-porto"]);
+    expect(forMember.items.map((i) => i.id)).toEqual(["it-rem-tram"]);
   });
 });

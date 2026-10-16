@@ -4,20 +4,32 @@ import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibili
 import { REMINDER_ITEM_SELECT } from "@/lib/reminder-about";
 import { reminderItem } from "@/test/helpers/reminder-item";
 
-const { requireTripAccessMock, reminderFindManyMock, loadSurpriseVisibilityMock } = vi.hoisted(() => ({
+const {
+  requireTripAccessMock, reminderFindManyMock, loadSurpriseVisibilityMock, stopFindManyMock, itemFindManyMock, transportFindManyMock,
+} = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "user-1" }, membership: { role: "owner" } }),
   reminderFindManyMock: vi.fn(),
   loadSurpriseVisibilityMock: vi.fn(),
+  stopFindManyMock: vi.fn(),
+  itemFindManyMock: vi.fn(),
+  transportFindManyMock: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("@/lib/db", () => ({ db: { reminder: { findMany: reminderFindManyMock } } }));
+vi.mock("@/lib/db", () => ({
+  db: {
+    reminder: { findMany: reminderFindManyMock },
+    stop: { findMany: stopFindManyMock },
+    item: { findMany: itemFindManyMock },
+    transport: { findMany: transportFindManyMock },
+  },
+}));
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
   loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
   return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
 
-import { listRemindersForTrip, readRemindersAbout } from "./reminder-reads";
+import { listRemindersForTrip, readReminderAboutOptions, readRemindersAbout } from "./reminder-reads";
 
 const TRIP_ID = "trip-1";
 beforeEach(() => vi.clearAllMocks());
@@ -120,5 +132,37 @@ describe("readRemindersAbout", () => {
     expect(out.byStopId.get("s1")?.map((r) => r.id)).toEqual(["a", "c"]);
     expect(out.byItemId.get("i1")?.map((r) => r.itemTitle)).toEqual(["Bouchon"]);
     expect(out.byTransportId.size).toBe(0);
+  });
+});
+
+describe("readReminderAboutOptions", () => {
+  it("offers the real plan's Stops, Items and legs the viewer can see, labelled", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", name: "Lyon" }]);
+    itemFindManyMock.mockResolvedValue([{ id: "i1", title: "Bouchon" }]);
+    transportFindManyMock.mockResolvedValue([
+      { id: "t1", mode: "TRAIN", depPlace: "Paris", arrPlace: "Lyon", depIsHome: false, arrIsHome: false, fromStop: null, toStop: null, trip: { homeName: null } },
+    ]);
+    const v = hiddenVisibility({ hiddenStopIds: ["s-secret"] });
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(v);
+
+    const out = await readReminderAboutOptions(TRIP_ID);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expect(stopFindManyMock).toHaveBeenCalledWith({
+      where: { tripId: TRIP_ID, forkId: null, id: { notIn: ["s-secret"] } },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true },
+    });
+    expect(itemFindManyMock).toHaveBeenCalledWith({
+      where: { tripId: TRIP_ID, forkId: null, ...MARKER_WHERE.item },
+      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+      select: { id: true, title: true },
+    });
+    expect(transportFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: TRIP_ID, forkId: null }, orderBy: { sortOrder: "asc" } }));
+    expect(out).toEqual({
+      stops: [{ id: "s1", name: "Lyon" }],
+      items: [{ id: "i1", title: "Bouchon" }],
+      transports: [{ id: "t1", label: "Train Paris → Lyon" }],
+    });
   });
 });
