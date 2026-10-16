@@ -449,12 +449,16 @@ dynamic parts stream in behind `"use cache"` boundaries.
   (`scripts/nav-audit.ts`) with hold checks for the trip switcher, browser
   back, Calendar, Wishlist, More, Help and What's new — the switches the beta
   checklist names that the audit does not yet drive.
-- **NAV-05 · A range loader for the Day view.** The Day page loads three days (the day
-  before, shown, after) with three parallel `getDay` calls so the carousel has something to
-  drag into view (ADR 0065). Each call repeats the trip, stops and items reads. Replace with
-  one `getDays(tripId, dates, viewerId)` that reads the window once and projects each day.
-  Also, if rapid swiping feels stuck on the phone (a second swipe before the first lands
-  meets the end of the scroller): render two neighbours each side.
+- **~~NAV-05 · A range loader for the Day view.~~** The Day page loaded three days (the
+  day before, shown, after) with three parallel `getDay` calls (ADR 0065).
+  **Closed 2026-10-16, card 3.M:** one `getDays(tripId, dates, viewerId)`
+  (`lib/day-view-loader.ts`) reads the window once through `readDayRows`
+  (`lib/day-reads.ts`) and assembles each day with `buildDayModel`
+  (`lib/day-view-model.ts`), which the Travelling Home now uses too, so Day and Today
+  agree by construction. Also fixed on the way: TB-10 (strip dots missed check-ins
+  and check-outs on days the shown day's stay did not touch). **Still open (watch
+  item):** if rapid swiping feels stuck on the phone (a second swipe before the first
+  lands meets the end of the scroller), render two neighbours each side.
 
 ### Priority key
 

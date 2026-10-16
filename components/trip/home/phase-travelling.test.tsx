@@ -956,6 +956,29 @@ describe("PhaseTravelling — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
       expect.objectContaining({ id: "i-real", title: "Surprise", date: "2026-01-05", startTime: "19:30", notes: null, address: null }),
     ]);
   });
+
+  it("Today's plan carries what the Day view's does: the placeholder's Surprise view and an Item's photo (card 3.M)", async () => {
+    const { hiddenVisibility, placeholderItem, SURPRISED_VIEW } = await import("@/test/helpers/surprise-visibility");
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(
+      hiddenVisibility({ placeholders: [placeholderItem({ id: "i-real", date: "2026-01-05", startTime: "19:30" })] }),
+    );
+    itemFindManyMock.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+      where.date !== null && where.date !== undefined
+        ? [{ id: "i-photo", title: "Belvedere", category: "SIGHTSEEING", date: "2026-01-05", startTime: null, endTime: null, sortOrder: 0, stopId: null, lat: null, lng: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false, photoAttachmentId: "att-1" }]
+        : [],
+    );
+    attachmentFindManyMock.mockResolvedValue([
+      { id: "att-1", filename: "b.jpg", title: null, mime: "image/jpeg", size: 1, url: "/api/attachments/att-1", uploadedById: "u-viewer", createdAt: new Date(), targetId: "i-photo" },
+    ]);
+    await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer" });
+    const { items } = buildItineraryMock.mock.calls[0][0];
+    expect(items).toEqual([
+      expect.objectContaining({ id: "i-photo", photoUrl: "/api/attachments/att-1", surprise: null }),
+      expect.objectContaining({ id: "i-real", title: "Surprise", surprise: SURPRISED_VIEW }),
+    ]);
+    itemFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
