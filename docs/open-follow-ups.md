@@ -494,7 +494,7 @@ naming, doc drift.
 | `SW-` | **no source doc** — found during the 2026-09-21 sweep (`SW-01`–`SW-03`) or the final whole-branch review that corrected this document (`SW-04`–`SW-05`) |
 | `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
 | `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
-| `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; ledger `.superpowers/sdd/2026-10-16-tidy-up-3-shape-hygiene/progress.md`) |
+| `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; the build ledger was scratch and is gone — the as-built notes in `docs/specs/2026-10-14-tidy-up-pass.md` are the record) |
 
 `SW-`, `CB-`, `RG-` and `TU-` are the prefixes with nothing to follow the citation
 back to. Those entries are self-contained: the evidence in them is all the
