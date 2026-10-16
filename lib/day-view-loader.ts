@@ -18,7 +18,7 @@ import { titlesByDate } from "@/lib/day-titles";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { buildItinerary, orderDayEntries, isFreeFormDay, dayHasEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
+import { buildDayMapModel, buildItemDirections, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist, type NearbyResult } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
 import { daylight, utcHmToZone } from "@/lib/daylight";
@@ -46,11 +46,10 @@ import {
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import type { TransportMode } from "@/lib/enum-values";
-import type { DayEntryEditor } from "@/components/trip/day-entry-link";
-import type { AttachmentView } from "@/components/trip/attachment-list";
-import type { ItemDirections } from "@/components/trip/timeline";
-import type { DaylightView } from "@/components/weather/daylight-bar";
-import type { CostRow } from "@/server/actions/costs";
+import type { DayEntryEditor } from "@/lib/plan-entity-views";
+import type { AttachmentView } from "@/lib/attachment-view";
+import type { DaylightView } from "@/lib/daylight";
+import type { CostRow } from "@/lib/money/cost-row";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
 const BUFFER_DAYS = 2;

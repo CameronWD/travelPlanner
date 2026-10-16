@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { suggestMarkersForTrip } from "./globe-suggestions";
-import type { MarkerView } from "@/components/globe/types";
+import type { MarkerView } from "@/lib/globe-views";
 
 function marker(id: string, overrides: Partial<MarkerView> = {}): MarkerView {
   return {

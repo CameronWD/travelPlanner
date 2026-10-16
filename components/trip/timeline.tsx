@@ -38,15 +38,11 @@ import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";
 import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/components/trip/day-entry-link";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
+import type { ItemDirections } from "@/lib/day-map";
 
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
-
-export interface ItemDirections {
-  google: string | null;
-  apple: string | null;
-}
 
 export interface TimelineProps {
   day: DayPlan;

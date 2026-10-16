@@ -22,8 +22,7 @@ import type { SketchStop } from "@/lib/trips/route-sketch";
 import {
   orderForCarousel, cardKind, cardBigNumber, cardDateLine, countUpcomingAndDone, type CardTrip,
 } from "@/lib/trips/trip-status";
-import type { TripCardModel } from "@/components/trips/trip-card";
-import type { TravelMapTrip } from "@/components/trips/travel-map";
+import type { TripCardModel, TravelMapTrip } from "@/lib/trips/trip-views";
 
 export interface TripsPageData {
   firstName: string;

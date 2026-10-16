@@ -1,6 +1,5 @@
 "use client";
 
-import type { Route } from "next";
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -28,31 +27,9 @@ import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { attachmentName } from "@/lib/attachment-name";
 import { formatBytes } from "@/lib/format-bytes";
 import { AttachmentLink } from "@/components/trip/attachment-link";
+import type { AttachmentView } from "@/lib/attachment-view";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface AttachmentView {
-  id: string;
-  filename: string;
-  /** A Traveller-given name (CONTEXT.md "Attachment"); shown in place of the filename when set. */
-  title?: string | null;
-  mime: string;
-  size: number;
-  url: string;
-  uploadedById: string;
-  createdAt: Date;
-  owner?: FileOwner | null;
-  /** The owner's id, when the row carries it (Files page); lets Link-to preselect the current Item. */
-  targetId?: string | null;
-}
-
-/** What a file is attached to, as Files shows it: a name, and a link to where it lives (null when the owner is gone). */
-export interface FileOwner {
-  label: string;
-  href: Route | null;
-}
+export type { AttachmentView };
 
 export interface AttachmentListProps {
   /** Trip-scoped attachments set `tripId`; Globe-scoped (Marker) attachments set `globeId`. Exactly one. */

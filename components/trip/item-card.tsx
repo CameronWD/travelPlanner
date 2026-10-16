@@ -25,34 +25,9 @@ import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
 import { ItemPhotoThumb } from "./item-photo-thumb";
-import type { SurpriseView } from "@/lib/surprise";
+import type { ItemCardItem } from "@/lib/plan-entity-views";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ItemCardItem {
-  id: string;
-  title: string;
-  category: string;
-  date?: string | null;
-  startTime?: string | null;
-  endTime?: string | null;
-  address?: string | null;
-  link?: string | null;
-  booking?: string | null;
-  notes?: string | null;
-  stopId?: string | null;
-  stopName?: string | null; // resolved from stop relation
-  lat?: number | null;
-  lng?: number | null;
-  /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
-  hiddenFromShares?: boolean;
-  /** CONTEXT.md "Item photo" (spec §I) — `lib/item-photo.ts`'s `itemPhotoUrl`, resolved by the loader. Null/absent = no photo. */
-  photoUrl?: string | null;
-  /** CONTEXT.md "Surprise" — the live Surprise this Item is; null/absent = none. */
-  surprise?: SurpriseView | null;
-}
+export type { ItemCardItem };
 
 export interface ItemCardProps {
   item: ItemCardItem;

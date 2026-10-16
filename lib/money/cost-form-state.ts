@@ -25,7 +25,7 @@ import type { CostSettlement } from "@/lib/enum-values";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { ProposalCostFields } from "@/lib/booking-import/types";
 import type { FieldErrors } from "@/lib/action-result";
-import type { CostRow } from "@/server/actions/costs";
+import type { CostRow } from "@/lib/money/cost-row";
 
 // ---------------------------------------------------------------------------
 // Types

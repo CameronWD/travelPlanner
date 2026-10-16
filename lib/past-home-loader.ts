@@ -29,7 +29,7 @@ import {
 } from "@/lib/budget";
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { chapterForStop } from "@/lib/chapters";
-import type { RouteMapStop } from "@/components/trip/route-map";
+import type { RouteMapStop } from "@/lib/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 

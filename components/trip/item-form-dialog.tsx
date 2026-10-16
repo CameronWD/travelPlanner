@@ -42,18 +42,9 @@ import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
 import { travellerFirstName, type TravellerLike } from "@/lib/traveller";
+import type { StopOption } from "@/lib/plan-entity-views";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface StopOption {
-  id: string;
-  name: string;
-  /** Stop's arrive date (YYYY-MM-DD) — the scheduled-mode date default. Null/absent for a rough Stop. */
-  arriveDate?: string | null;
-}
-
+export type { StopOption };
 
 export interface ItemFormDialogProps {
   tripId: string;

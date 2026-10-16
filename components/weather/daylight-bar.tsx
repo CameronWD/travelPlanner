@@ -1,6 +1,7 @@
 import { cn } from "@/lib/cn";
+import type { DaylightView } from "@/lib/daylight";
 
-export interface DaylightView { sunrise: string | null; sunset: string | null; dayLengthMin: number; polarDay: boolean; polarNight: boolean }
+export type { DaylightView };
 
 const toMin = (hm: string) => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
 

@@ -1,29 +1,14 @@
-import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { tripPath } from "@/lib/trip-path";
-import type { SortRow } from "@/lib/sort-these-out";
-import { cardAccessibleName, type BigNumber, type TripCardKind } from "@/lib/trips/trip-status";
-import { TripCover, type TripCoverInput } from "@/components/trips/trip-cover";
+import { cardAccessibleName, type BigNumber } from "@/lib/trips/trip-status";
+import { TripCover } from "@/components/trips/trip-cover";
 import { StatusPill } from "@/components/trips/status-pill";
 import { HUE_CLASSES } from "@/lib/hues";
 import { cn } from "@/lib/cn";
+import type { TripCardModel } from "@/lib/trips/trip-views";
 
-export interface TripCardModel {
-  id: string;
-  /** The Trip's current slug, or id fallback — its URL ref (ADR 0064). */
-  ref: string;
-  name: string;
-  kind: TripCardKind;
-  big: BigNumber;
-  dateLine: string;
-  href: Route;
-  cover: TripCoverInput;
-  /** Position among the standard cards (polaroid tilt). */
-  index: number;
-  /** Up next / On the road only: the first "Sort these out" row. */
-  nextStep?: SortRow | null;
-}
+export type { TripCardModel };
 
 /** Stretched link: the whole card is one link; siblings with `relative z-10` stay clickable. */
 export function StretchedLink({ model, className }: { model: TripCardModel; className?: string }) {

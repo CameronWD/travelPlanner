@@ -7,7 +7,7 @@ import {
   WORDMARK_TRANSFORM,
   WORDMARK_WORD_D,
   WORDMARK_DOT_D,
-} from "@/components/ui/logo-paths";
+} from "@/lib/wordmark";
 
 /**
  * Last-resort error boundary for failures in the root layout itself. Replaces

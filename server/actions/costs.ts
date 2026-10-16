@@ -332,29 +332,5 @@ export async function markCostUnpaid(costId: string): Promise<CostActionResult> 
 // Read helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Shape of a cost row as rendered by the entity cards. Pages fetch costs
- * inline via `db.cost.findMany` (after `requireTripAccess`) and pass rows
- * matching this shape to the cards.
- *
- * NOTE: this module is `"use server"`, so every runtime export must be an
- * async server action. We therefore keep this an explicit (compile-time only)
- * type rather than deriving it from an exported query helper — which would
- * have been an unauthenticated, callable server action that leaks cost rows
- * by entity id.
- */
-export type CostRow = {
-  id: string;
-  costMinor: number;
-  paidMinor: number | null;
-  currency: string;
-  rateToHome: number | null;
-  paidAt: Date | null;
-  dueDate: string | null;
-  ownerType: string;
-  ownerId: string | null;
-  label: string | null;
-  category: string | null;
-  /** CONTEXT.md "Settlement" — BEFORE | ON_TRIP; anything else reads as BEFORE. */
-  settlement: string;
-};
+// CostRow lives in lib/money/cost-row.ts; re-exported (type-only, erased) for the 27 component importers.
+export type { CostRow } from "@/lib/money/cost-row";

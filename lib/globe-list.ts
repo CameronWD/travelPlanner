@@ -1,4 +1,4 @@
-import type { MarkerView } from "@/components/globe/types";
+import type { MarkerView } from "@/lib/globe-views";
 
 export interface MarkerFilter {
   category: string | null;

@@ -1,26 +1,11 @@
-import type { Hue } from "@/lib/hues";
-import { sketchModel, type SketchStop } from "@/lib/trips/route-sketch";
+import { sketchModel } from "@/lib/trips/route-sketch";
 import { Polaroid, type PolaroidSize } from "@/components/trips/polaroid";
 import { CoverRouteSketch } from "@/components/trips/cover-route-sketch";
 import { CoverStamp, stampPlace } from "@/components/trips/cover-stamp";
 import { CoverAddPhoto } from "@/components/trips/cover-add-photo";
 import { CoverPhotoImage } from "@/components/trips/cover-photo-image";
 import { cn } from "@/lib/cn";
-
-export interface TripCoverInput {
-  tripId: string;
-  name: string;
-  hue: Hue;
-  /** Uploaded photo, or null → generated cover. `url` already carries `?v=`. */
-  photo: { url: string; focalX: number | null; focalY: number | null; version?: string | null } | null;
-  /** Located real-plan Stops in plan order, Home base excluded. */
-  stops: SketchStop[];
-  startDate: string | null;
-  /** Replaces the stamp's date line — a Rough month's "APR 27". */
-  stampDateLabel?: string | null;
-  /** Show the Add photo / Change pill. */
-  canEdit: boolean;
-}
+import type { TripCoverInput } from "@/lib/trips/trip-views";
 
 const BOX = { hero: { w: 100, h: 133, pad: 0.12 }, small: { w: 100, h: 100, pad: 0.12 } } as const;
 const SIZES_PX: Record<PolaroidSize, string> = { hero: "(min-width: 768px) 300px, 172px", small: "184px", "mobile-hero": "172px" };
