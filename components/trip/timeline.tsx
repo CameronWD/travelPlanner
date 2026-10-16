@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/cn";
 import { CATEGORY_ICON } from "@/lib/category-icons";
 import { CategoryPill } from "./category-pill";
-import { categoryClasses } from "@/lib/categories";
+import { CATEGORIES, categoryClasses, type Category } from "@/lib/categories";
 import { groupByCategory } from "@/lib/group-by-category";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
@@ -26,11 +26,8 @@ import {
   type AccommodationCheckoutEntry,
   type ItemEntry,
 } from "@/lib/itinerary";
-import { CATEGORIES, type Category } from "@/lib/categories";
 import { formatDayLabel } from "@/lib/dates";
 import { endpointLabel } from "@/lib/home-base";
-
-const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
 import type { TransportMode } from "@/lib/enum-values";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import type { AttachmentView } from "@/components/trip/attachment-list";
@@ -39,6 +36,8 @@ import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/compon
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import type { ItemDirections } from "@/lib/day-map";
+
+const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
 
 // ---------------------------------------------------------------------------
 // Props
