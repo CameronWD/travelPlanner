@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { instantToZonedTime, zonedWallTimeToInstant } from "@/lib/tz";
-import { keepWallTime, refileHomeEnds, type HomeLeg } from "./home-timezone-refile";
+import { keepWallTime, refileHomeEnds, refileHomeEndsTx, type HomeLeg, type RefileTx } from "./home-timezone-refile";
 
 const SYD = "Australia/Sydney";
 const BNE = "Australia/Brisbane";
@@ -104,5 +104,46 @@ describe("refileHomeEnds", () => {
   it("same zone before and after → nothing", () => {
     const out = refileHomeEnds([leg({ depIsHome: true, depAt: at("2026-12-10", "06:10", SYD) })], SYD, SYD);
     expect(out).toEqual([]);
+  });
+});
+
+describe("refileHomeEndsTx", () => {
+  function fakeTx(rows: unknown[]) {
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const update = vi.fn().mockResolvedValue({});
+    return { tx: { transport: { findMany, update } } as unknown as RefileTx, findMany, update };
+  }
+
+  it("reads every Plan's Home legs (no forkId filter) with their Stops' zones", async () => {
+    const { tx, findMany } = fakeTx([]);
+    await refileHomeEndsTx(tx, "trip-1", SYD, BNE);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", OR: [{ depIsHome: true }, { arrIsHome: true }] },
+      select: {
+        id: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true,
+        fromStop: { select: { timezone: true } },
+        toStop: { select: { timezone: true } },
+      },
+    });
+  });
+
+  it("writes only the ends that moved and returns how many legs it rewrote", async () => {
+    const { tx, update } = fakeTx([
+      { id: "out", depAt: at("2026-12-10", "06:10", SYD), arrAt: at("2026-12-11", "07:15", LIS), depIsHome: true, arrIsHome: false, fromStop: null, toStop: { timezone: LIS } },
+      { id: "fork-ret", depAt: null, arrAt: at("2026-12-26", "05:30", SYD), depIsHome: false, arrIsHome: true, fromStop: { timezone: LIS }, toStop: null },
+      { id: "winter", depAt: at("2026-07-10", "06:10", SYD), arrAt: null, depIsHome: true, arrIsHome: false, fromStop: null, toStop: { timezone: LIS } },
+    ]);
+    expect(await refileHomeEndsTx(tx, "trip-1", SYD, BNE)).toBe(2);
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenCalledWith({ where: { id: "out" }, data: { depAt: at("2026-12-10", "06:10", BNE) } });
+    expect(update).toHaveBeenCalledWith({ where: { id: "fork-ret" }, data: { arrAt: at("2026-12-26", "05:30", BNE) } });
+  });
+
+  it("a Stop whose zone is null (rough) reads as no zone", async () => {
+    const { tx, update } = fakeTx([
+      { id: "t", depAt: at("2026-12-10", "06:10", "UTC"), arrAt: null, depIsHome: true, arrIsHome: false, fromStop: null, toStop: { timezone: null } },
+    ]);
+    expect(await refileHomeEndsTx(tx, "trip-1", null, BNE)).toBe(1);
+    expect(update).toHaveBeenCalledWith({ where: { id: "t" }, data: { depAt: at("2026-12-10", "06:10", BNE) } });
   });
 });

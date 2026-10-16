@@ -9,6 +9,7 @@
  * the write path and every display share: an end is re-filed exactly when
  * the zone it was typed in and the zone it is now shown in differ.
  */
+import type { Prisma } from "@prisma/client";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { instantToZonedDateISO, instantToZonedTime, zonedWallTimeToInstant } from "@/lib/tz";
 
@@ -59,4 +60,42 @@ export function refileHomeEnds(
     if (depAt || arrAt) out.push({ id: leg.id, ...(depAt ? { depAt } : {}), ...(arrAt ? { arrAt } : {}) });
   }
   return out;
+}
+
+export type RefileTx = Pick<Prisma.TransactionClient, "transport">;
+
+/**
+ * Re-file every Home-end time on the Trip, in the real plan and every Fork
+ * (the Home base is trip-wide, CONTEXT.md), inside the caller's transaction.
+ * Call it in the same transaction that writes the new `homeTimezone`.
+ * Returns how many legs were rewritten.
+ */
+export async function refileHomeEndsTx(
+  tx: RefileTx,
+  tripId: string,
+  oldHomeTimezone: string | null,
+  newHomeTimezone: string | null,
+): Promise<number> {
+  const rows = await tx.transport.findMany({
+    where: { tripId, OR: [{ depIsHome: true }, { arrIsHome: true }] },
+    select: {
+      id: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true,
+      fromStop: { select: { timezone: true } },
+      toStop: { select: { timezone: true } },
+    },
+  });
+  const legs: HomeLeg[] = rows.map((r) => ({
+    id: r.id,
+    depAt: r.depAt,
+    arrAt: r.arrAt,
+    depIsHome: r.depIsHome,
+    arrIsHome: r.arrIsHome,
+    fromTimezone: r.fromStop?.timezone ?? null,
+    toTimezone: r.toStop?.timezone ?? null,
+  }));
+  const changes = refileHomeEnds(legs, oldHomeTimezone, newHomeTimezone);
+  for (const { id, ...data } of changes) {
+    await tx.transport.update({ where: { id }, data });
+  }
+  return changes.length;
 }
