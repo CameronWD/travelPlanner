@@ -16,7 +16,7 @@ import { coverUrlForWidth } from "@/lib/cover";
  * A Client Component on purpose: `next/image` is itself a Client Component,
  * and a `loader` function can only be passed to it from the client side of
  * the boundary — a Server Component doing so throws at request time (React
- * #441 in production). `lib/image-loader-boundary.test.ts` guards this.
+ * #441 in production). `eslint.config.mjs` (no-restricted-syntax) guards this.
  */
 const coverLoader: ImageLoader = ({ src, width }) => coverUrlForWidth(src, width);
 

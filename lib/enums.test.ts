@@ -16,8 +16,15 @@ import {
   transportModeSchema,
   voteLevelSchema,
 } from "@/lib/enums";
+import * as enumValues from "@/lib/enum-values";
+import * as enumsModule from "@/lib/enums";
 
 describe("enums", () => {
+  it("re-exports the very same values as lib/enum-values (spec 2026-10-06 §R)", () => {
+    expect(enumsModule.TRANSPORT_MODES).toBe(enumValues.TRANSPORT_MODES);
+    expect(enumsModule.isOnTrip).toBe(enumValues.isOnTrip);
+  });
+
   it("defines the transport modes", () => {
     expect(TRANSPORT_MODES).toEqual([
       "FLIGHT",

@@ -2,7 +2,7 @@ import type { Route } from "next";
 
 /**
  * The one way to build an internal Trip page URL (ADR 0064). A test fails on
- * hand-built `/trips/${…}` links anywhere else (lib/trip-links.guard.test.ts).
+ * hand-built `/trips/${…}` links anywhere else (eslint.config.mjs, ADR 0064).
  *
  * `ref` is the Trip's current slug. When no slug is known — a Trip created by
  * the previous build during a deploy's migrate-then-build window — pass its id:
