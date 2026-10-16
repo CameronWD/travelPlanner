@@ -556,7 +556,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   moving, the full suite each time.
 - **Source:** the 2026-10-14 tidy-up grilling (Q11,
   `docs/specs/2026-10-14-tidy-up-pass.md`). That pass takes minor and patch
-  bumps only, and `@types/node` to 22 to match `engines`.
+  bumps only, and `@types/node` to 22 to match `engines`. Done 2026-10-16
+  on `chore/tidy-up-3-shape-hygiene` (tasks 3.P.20–3.P.21): every package is
+  at its newest release within its current major, and `@types/node` is on 22.
 - **Owed:** `motion` 12 → 14 (touches the `LazyMotion` setup from the
   2026-10-06 batch); ESLint 9 → 10 (the boundary rules from card N sit on
   the flat-config API, so do this after batch 3 lands);
@@ -565,7 +567,16 @@ ADR 0056) is written and unapplied — see the trust statement above.
   `@anthropic-ai/sdk` 0.105 → latest (under the Booking import's
   structured-outputs path; bump when the import is next touched);
   `dotenv` 17 → 18; `@babel/core` 7 → 8 (only if the React Compiler preset
-  needs it). Re-run `npm outdated` first; this list is a snapshot.
+  needs it); `typescript` 5 → 7 (the compiler rewrite — its own branch);
+  `vitest` 4 → 5 (with `@vitejs/plugin-react` and the React Compiler preset
+  in `vitest.config.ts`); `prisma` / `@prisma/client` / `@prisma/adapter-pg`
+  7 → 8 (8.0 was a release candidate on 2026-10-16 — wait for stable).
+  `@types/node` stays on 22 while `engines` says Node 22; it moves with the
+  runtime, not on its own. Nothing was pinned back in 3.P.20 or 3.P.21. The
+  `better-auth` family (`better-auth` and `@better-auth/*`) must move
+  together: their exact `better-call` peer pin makes a lone bump, or a bare
+  `npm update --save`, fail with `ERESOLVE`. Re-run `npm outdated` first;
+  this list is a snapshot of 2026-10-16.
 
 ### RG-01 · The production database dumps were downloadable by anyone while the repository was public
 
