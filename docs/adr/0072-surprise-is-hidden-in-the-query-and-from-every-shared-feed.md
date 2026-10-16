@@ -41,12 +41,15 @@ rather than trying to ask "surprised to whom".
    imports it rather than re-deriving the rule. `lib/surprise-guard.ts` does
    the equivalent check for Attachment bytes (a file's content is reached by
    id, not by a list query, so it is guarded at the point of fetch rather
-   than filtered out of a `findMany`). The import check in `eslint.config.mjs`
-   (`SURPRISE_VISIBILITY_READERS`) asserts, by import, that the full reader list still goes through one or
-   the other — in the style of `lib/trip-shell-reads.test.ts`'s layout
-   guard — and walks every trip page by name so a new page that calls
-   `db.item.findMany` or `db.accommodation.findMany` directly fails the
-   guard instead of silently shipping a leak.
+   than filtered out of a `findMany`). The import check in
+   `eslint.config.mjs` (`SURPRISE_VISIBILITY_READERS`,
+   `SURPRISE_GUARD_READERS`) asserts, by import, that every listed reader
+   still goes through one or the other: a listed file that drops the import
+   fails lint instead of silently shipping a leak. It checks the listed
+   files only, so a new reader that does not go through `readPlan` joins the
+   list (amended 2026-10-16: a lint rule since spec 2026-10-14 card 3.N; the
+   walk over every trip page by name went with the 2026-10-15 amendment,
+   when Plan pages moved onto `readPlan`'s required viewer).
 
 2. **The Calendar feed and Share links hide the inside from everyone until
    reveal, rather than becoming per-Traveller.** Neither carries a viewer to

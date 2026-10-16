@@ -7,8 +7,9 @@ before the next starts. **Batch 1 is built** on `chore/tidy-up-1-foundations`
 `chore/tidy-up-2-writes-editor` (2026-10-16), with card 2.Q (wording) added
 by the 2026-10-15 session's grill, merged and deployed. **Batch 3 re-grilled
 2026-10-16** against the code after batch 2 (decisions Q13–Q15 and the
-*Batch 3 drift* notes below); building on `chore/tidy-up-3-shape-hygiene`.
-Then the Claude Design refinement (`DS-01`).
+*Batch 3 drift* notes below). **Batch 3 is built** on
+`chore/tidy-up-3-shape-hygiene` (2026-10-16); awaiting Cam's review, merge
+and deploy. Then the Claude Design refinement (`DS-01`).
 **Source:** `docs/audits/2026-10-14-architecture-review.html` (sixteen
 candidates A–P, six verified bugs, and the routing of every open follow-up;
 also published at https://claude.ai/artifact/FZickqRiUEfmSLXxz4BttR). The
@@ -84,6 +85,7 @@ Per `CLAUDE.md`. In addition:
 | TB-07 | `components/trip/itinerary-manager.tsx:1600, 1660, 1673, 1698, 1761` | Awaited reorders with no catch; Undo `.then` with no `.catch`. | G |
 | TB-09 | `lib/past-home-loader.ts:237`, `components/trip/home/budget-glance.tsx:18`, `components/home/desktop/trip-cost-tile.tsx:47` | Paid percentage rounds 99.5 %+ up to "100 %" while money is still owed; `lib/money/summary-lines.ts` `paidPct` already caps at 99 (Q15). | P |
 | TB-08 | `server/actions/forks.ts` `getComparison` | Compare read every plan unfiltered by Surprise; now reads through `readPlan` and hides the inside like every other page (CONTEXT.md **Surprise**). | A/B |
+| TB-10 | lib/day-view-loader.ts:409 (projectDay) | The Day strip's check-in/check-out dots ignored every stay that did not touch the shown day (from 2026-12-04 a check-in on 2026-12-10 showed 0 dots). Found while planning 3.M; buildDayModel builds the itinerary from every stay. | M |
 
 ---
 
@@ -354,6 +356,195 @@ These win over the cards below where they differ.
 - **3.O** — `lib/feedback/cli/` holds the argument parsers
   (`feedback-accept-args`, `feedback-resolve-args`, `feedback-resolve-site`);
   the rest go to `lib/feedback/`. `lib/auth/` includes `auth-client`.
+
+#### As built (2026-10-16)
+
+Built on `chore/tidy-up-3-shape-hygiene`, 47 tasks plus the gate (3.Z).
+Every deviation from the cards and the drift notes above, one line each.
+The card notes and the SDD ledger
+(`.superpowers/sdd/2026-10-16-tidy-up-3-shape-hygiene/`) hold the reasoning.
+
+**Traveller-visible — flag these to Cam with the batch:**
+
+- Today now shows the Surprise badge ("who is planning it") and Item photos
+  that the Day view already showed; Day and Today are one assembly (3.M.5).
+- Today also shows the "Hidden from shares" icon on an Item, as the Day view
+  does (3.M.5).
+- Paid reads 99% until a Cost is fully paid; only exactly paid reads 100%,
+  on the mobile Budget glance, the desktop Trip cost tile and the Past-phase
+  Summary (TB-09, 3.P.5).
+- `updateStop` resolves a sent `"UTC"` from the Stop's country, as
+  `createStop` already did: a form edit that sends `"UTC"` for a Stop the
+  geocoder places in Japan saves `Asia/Tokyo` (3.L, deviation 3).
+- A Stop stored as `"UTC"` in a known country gets its country's zone when
+  a Trip re-date moves it (the lone-Stop "follow" rule; Ruling 3.L.1).
+- The aria label "Trip members (N)" reads "Travellers (N)" (three places),
+  the Help guide says "Traveller avatars", and the Search dialog's name is
+  "Search", not "Command palette" (3.P).
+- An impossible date in the right format (`2026-02-30`) is refused by every
+  date field and by the Add a Reminder dialog ("Reminder date must be a real
+  date") instead of rolling into March; one time-format message, "Time must
+  be in HH:MM format (24h)" (3.P.1–3.P.2).
+- Through Claude (MCP): `update_stop` with `country`/`countryCode` alone
+  re-geocodes the Stop instead of keeping the old point under the new
+  country; with `name` alone it still keeps the point (3.L, deviation 4).
+- Through Claude: `update_transport` with `depIsHome: true` and an empty
+  `depPlace`/`fromStopId` is Home, not a tool error, as `add_transport`
+  already ruled; an empty Stop *and* an empty place is still an error
+  (3.L, deviation 5).
+- Through Claude: the tool-only refusals (lone date, timezone on a rough
+  Stop, nights required or mismatched, "more than one Cost", cost amount
+  without currency, due date on a paid Cost, "needs a stop or a place") now
+  come from the actions, with their wording unchanged (3.L, deviation 6).
+- Through Claude: a lone date on a rough Chapter is refused with "Set both
+  dates or neither" (on `endDate`) instead of the tool's own wording (on
+  `startDate`) (3.L, deviation 7).
+- Through Claude: an inline Cost on an update to an owner with more than one
+  Cost is refused for every caller; it was silently skipped outside the
+  tool. No form sends it (3.L, deviation 9).
+
+**3.N — import boundaries as lint:**
+
+1. The counts differ from the card: the final rule set reported 26 boundary
+   errors (9 `lib→server` in 8 files, 13 `lib→components`, 3
+   `components→lib/db`, 1 `components→app`). Test files are outside every
+   boundary.
+2. `recordActivity` moved to `lib/activity-record.ts` (a write, so not a
+   `*-reads` name); it is no longer a published Server Action.
+3. `getRecentActivity`, `getUnreadActivityCount`, `listForks`,
+   `getTripProjection` and `listRemindersForTrip` left the published surface
+   too; the `server-action-exports` ALLOWLIST shrank by six.
+4. `lib/mcp/acting-traveller-imports.test.ts` was replaced by lint as well
+   (static, dynamic, `require`, by name, `export *`, no `"use server"`).
+   Recorded weakening: an `eslint-disable` comment can silence it.
+5. The Surprise readers guard became "must import" selectors over the same
+   lists (`SURPRISE_VISIBILITY_READERS`, `SURPRISE_GUARD_READERS`);
+   `eslint.config.test.ts` checks every listed file exists.
+6. The `enum-values` identity check stayed a unit test (`lib/enums.test.ts`);
+   "zod-free" became a lint restriction, which no longer covers test files.
+7. Zones are written broad → narrow with every restriction repeated (ESLint
+   never merges a rule's options across blocks); `eslint.config.test.ts`
+   lints probe snippets through the real config.
+8. Small translation differences: the trip-links check is AST-based (ignores
+   comments, exempts a link inside `revalidatePath(…)`); the image-loader
+   check reads the directive prologue.
+9. `TravelMapPoint` and `TravelWhen` stayed module-private in
+   `lib/trips/trip-views.ts` (knip; nothing imports them) (Ruling 3.N.1).
+10. Review round on 3.N.7 also fenced `runAsTraveller` behind dynamic
+    imports, `base + "/trips/" + id` links and `export *` from
+    `acting-traveller`, restrictions the deleted tests had held.
+
+**3.L — PATCH-shaped updates (ADR 0075):**
+
+1. Update forms still build full input, but wrap it in `toPatch(input,
+   CLEARABLE)` so a cleared field is sent as `null`; create calls, drafts and
+   Booking-import proposals are unchanged.
+2. The second access check survives as `requireRealPlanRow` in the tools;
+   the row loads, hand-written merges and per-entity row types are gone.
+3. `updateStop` applies the one Stop timezone rule (`stopTimezone`,
+   `lib/tz.ts`); see the Traveller-visible list.
+4. A Stop patch re-locates the Stop only when it says where (`country`,
+   `countryCode`, `lat`, `lng`); a rough Stop keeps a sent `countryCode`
+   when the geocoder misses (3.L.9 review).
+5. `update_transport`'s Home rule matches `add_transport` (see above).
+6. The tool-only refusals moved into the actions, wording unchanged.
+7. Chapter has no merge rule of its own; `updateChapter` writes `null` dates
+   as a clear. Not fixed: the Chapter form's "Set dates now" off on an edit
+   keeps the dates (follow-up `TU-01`).
+8. `auditedUpdate` takes an optional held `before`, so the four actions that
+   read the row to merge read it once.
+9. An inline Cost on an update refuses "more than one owned Cost" for every
+   caller.
+10. A lone `paidMinor` (no `paidAt`) never un-pays a Cost: paid is decided by
+    `paidAt` only (Ruling 3.L.5).
+11. A Stop stored as `"UTC"` in a known country gets its zone on a Trip
+    re-date (Ruling 3.L.1); relocating a scheduled Stop through a patch keeps
+    its old zone, as before (follow-up `TU-02`).
+12. The Accommodation `notes` field-diff entry that 3.L.2 added to make its
+    test pass was reverted (it would have changed the Activity feed); the
+    test pins a field already diffed.
+13. Several existing tests changed only their input to state PATCH intent
+    (explicit `null` to clear, a valid cuid where the real schema now runs),
+    with assertions kept; `Failure`/`isFailure` left `bookings-write.ts`
+    once unused.
+
+**3.M — one day-assembly module:**
+
+1. `buildDayModel(rows, date)` takes no viewer: masking and placeholders
+   need the `server-only` visibility loader, so they happen once per read
+   in `readDayRows` (`lib/day-reads.ts`).
+2. The strip's dot counts come from the dated Items already read; the
+   `item.groupBy` query is gone.
+3. TB-10 (below) found and fixed: the itinerary is built from every stay.
+4. Today shows the Surprise badge, Item photos and the "Hidden from shares"
+   icon (see above); its Wishlist read gained `forkId: null`, which changes
+   nothing.
+5. NAV-05's second half (two neighbours each side if rapid swiping sticks)
+   is not built; it stays open as a watch item in `docs/open-follow-ups.md`.
+6. `getDay` and the loader's `cache()` are deleted; `getDays` serves every
+   caller, and `lib/day-view-loader.cache.test.ts`'s assertions moved.
+
+**3.P part A — primitives, helpers, UI, copy:**
+
+1. 11 `isoDate` const copies (not 10), 7 inline zod regexes, 6 `hhmm`
+   sites; the two `hhmm` messages became one.
+2. A non-format string gets only the format issue (the real-date refine
+   skips it).
+3. `lib/reminder-input.ts` (the Reminder client gate) gained the real-date
+   check through `isRealCalendarDate`, keeping zod out of the client.
+4. Non-zod format checks stayed format-only, as the card says.
+5. One `plural(n, one, many = one + "s")` replaced 8 copies with two
+   signatures; `share-tally.tsx`'s `pluralize` (word only) stayed.
+6. `CHIP_TOUCH` had three copies (`wishlist-board.tsx` the third).
+7. The Badge workaround had two sites (`countdown-hero.tsx` the second);
+   the status tokens equal the old hues, so nothing changes visually; the
+   feedback-launcher test that pinned `bg-teal` now pins `bg-success`.
+8. `scripts/layout-audit/overlays.ts` follows the dialog name "Search";
+   `aria-label="Command search"`, the Globe's "Current members" and
+   `docs/mobile-pwa-checklist.md` stayed.
+9. The `isoDay` lint (3.P.4) also converted
+   `scripts/booking-import-smoke.ts`, an eighth site.
+
+**3.P part B — tests, scripts, BI items, deps:**
+
+1. `lib/cover-small-image.ts` and its test were archived with the cover
+   backfill.
+2. BI-13 adds the AiUsage outcome `error` ("billed, then the import failed
+   on our side"); no migration (`String` column).
+3. BI-14's country check is lenient, like the Stop check; the gap fixed was
+   `matchesHome`; `sameCity` is unchanged.
+4. Dependencies were two tasks (3.P.20 caret bumps + `@types/node` 22;
+   3.P.21 exact pins within their majors + TD-01), each running the full
+   suite. Both hit `ERESOLVE` from the `better-auth` family's exact
+   `better-call` peer pin and resolved it without `--force`.
+5. Archived npm entries: `backfill:geocode`, `backfill:cover-aspect`,
+   `backfill:cover-small`, `sweep:orphaned-costs`.
+6. knip's `entry` names only the four recurring scripts that have no npm
+   entry (npm scripts are knip inputs already); narrowing it exposed dead
+   exports in `scripts/layout-audit/`, which were removed (Ruling 3.P.13).
+7. ADRs 0011, 0028 and 0039 keep the archived scripts' old paths (decision
+   records); living docs were updated.
+8. BI items are tracked only in `docs/follow-ups/2026-10-14-booking-import.md`.
+9. The repo is on Vitest 4, not 3; `postcss` became a direct devDependency
+   at the 8.5.28 already in the tree.
+
+**3.O — `lib` folders:**
+
+1. Naming rule: inside `lib/<folder>/` a module drops a leading `<folder>-`
+   prefix; one named after the folder keeps its name (`auth/auth.ts`,
+   `money/money.ts`, `map/maps.ts`); `share/share-traveller.ts` and
+   `share/share-url.ts` keep the prefix (`lib/traveller.ts`, `lib/url.ts`).
+2. No frozen site list: a committed codemod (now
+   `scripts/archive/`) rewrote every resolving specifier, `vi.mock` path and
+   living-doc mention, then ran `git mv`.
+3. A new guard, `lib/lib-folders.test.ts`, checks no barrel and nothing of
+   an area left flat.
+4. History (dated docs, ADRs, migrations, `design_handoff/`) was left alone.
+
+**Gate (3.Z):** `npm test`, `npx tsc --noEmit`, `npx eslint .` (0 errors),
+`npm run knip`, `npm run test:integration` (against a sandbox Postgres) and
+`npm run build` (in a copy with a localhost-only `.env`) all passed with no
+fixes needed.
 
 ### 3.L · PATCH-shaped updates
 - `updateStop`, `updateTrip`, `updateAccommodation` accept

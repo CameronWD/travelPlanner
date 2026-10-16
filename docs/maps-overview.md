@@ -422,10 +422,10 @@ justifies the key/cost/rate-limit burden.
 
 The split in §4 is what makes this testable at all:
 
-- **Pure `lib/` modules have real unit tests** — `geo.test.ts`, `maps.test.ts`,
-  `day-map.test.ts`, `map-tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
-  `route-sketch.test.ts`, `escape-html.test.ts`, `map-icons.test.ts`,
-  `map-pins.test.ts`. This is where the actual logic lives, so this is where
+- **Pure `lib/` modules have real unit tests** — `geo.test.ts`, `map/maps.test.ts`,
+  `day-map.test.ts`, `map/tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
+  `route-sketch.test.ts`, `escape-html.test.ts`, `map/icons.test.ts`,
+  `map/pins.test.ts`. This is where the actual logic lives, so this is where
   the coverage is.
 - **Real Leaflet never runs in jsdom — but the map components themselves now
   do get rendered there**, with only the `leaflet` package swapped for a test
@@ -530,11 +530,11 @@ To stand this up in another Next.js App Router project:
 2. Copy `node_modules/leaflet/dist/images/marker-icon.png`, `marker-icon-2x.png`,
    `marker-shadow.png` → `public/leaflet/`
 3. Add `.leaflet-container { isolation: isolate; }` to global CSS
-4. Copy the `lib/` map helpers: `map-tiles.ts` (tile config — get a free
+4. Copy the `lib/` map helpers: `lib/map/tiles.ts` (tile config — get a free
    `NEXT_PUBLIC_CARTO_API_KEY` at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)
-   or tiles ship watermarked), `map-icons.ts` (default-icon fix), `map-pins.ts`
-   (category → hex), `escape-html.ts` (popup escaping). All four are
-   dependency-free and copy verbatim.
+   or tiles ship watermarked), `lib/map/icons.ts` (default-icon fix),
+   `lib/map/pins.ts` (category → hex), `lib/escape-html.ts` (popup
+   escaping). All four are dependency-free and copy verbatim.
 5. Copy `components/ui/map-loader.tsx` (the `createMapLoader` factory)
 6. Copy `lib/map/maps.ts` verbatim if you want the deep links, `lib/geo.ts` for
    distance/drive estimates

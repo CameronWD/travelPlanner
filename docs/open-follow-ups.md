@@ -447,14 +447,14 @@ dynamic parts stream in behind `"use cache"` boundaries.
   `travellers`, `trip`); only `trip` and `travellers` stay layout-wide — the
   rest name the pages they actually touch. See ADR 0064's 2026-10-15
   amendment.
-- **NAV-03 · Let a day change run only `getDay`.** On a client navigation Next
+- **NAV-03 · Let a day change run only `getDays`.** On a client navigation Next
   re-renders only the segment that changed, so the trip layout does not run on
   day → day — but the Day page still reads its header's bell count, recent
   activity and members itself (the `cache()` dedupe in
   `lib/trip-shell-reads.ts` only helps a cold load or `router.refresh()`, when
   layout and page render in one request). Move the Day header's bell count,
   recent activity and members into data the trip layout already holds
-  (context), so a day change runs only `getDay`.
+  (context), so a day change runs only `getDays`.
 - **NAV-04 · Widen the navigation audit.** Extend `npm run audit:nav`
   (`scripts/nav-audit.ts`) with hold checks for the trip switcher, browser
   back, Calendar, Wishlist, More, Help and What's new — the switches the beta
@@ -494,15 +494,16 @@ naming, doc drift.
 | `SW-` | **no source doc** — found during the 2026-09-21 sweep (`SW-01`–`SW-03`) or the final whole-branch review that corrected this document (`SW-04`–`SW-05`) |
 | `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
 | `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
+| `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; ledger `.superpowers/sdd/2026-10-16-tidy-up-3-shape-hygiene/progress.md`) |
 
-`SW-`, `CB-` and `RG-` are the prefixes with nothing to follow the citation
+`SW-`, `CB-`, `RG-` and `TU-` are the prefixes with nothing to follow the citation
 back to. Those entries are self-contained: the evidence in them is all the
 evidence there is.
 
 ---
 # Open items
 
-**4 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**6 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), `TU-01` and `TU-02` (added 2026-10-16).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -577,6 +578,43 @@ ADR 0056) is written and unapplied — see the trust statement above.
   together: their exact `better-call` peer pin makes a lone bump, or a bare
   `npm update --save`, fail with `ERESOLVE`. Re-run `npm outdated` first;
   this list is a snapshot of 2026-10-16.
+
+### TU-01 · The Chapter form's "Set dates now" switched off on an edit keeps the dates
+
+- **Priority: P1** · **Effort: S** — one form, one test.
+- **Source:** none — found while drafting card 3.L (PATCH-shaped updates) of
+  the 2026-10-14 tidy-up pass, 2026-10-16 (`docs/specs/2026-10-14-tidy-up-pass.md`,
+  *Batch 3 drift*, as-built notes). Not fixed there: it predates the card.
+- **What:** editing a dated Chapter and switching "Set dates now" off, then
+  saving, leaves the Chapter's dates in place. A Traveller who wanted the
+  Chapter rough again sees nothing change.
+- **Where:** `components/trip/chapter-form-dialog.tsx`, the `submit` in
+  `useEntityForm`: with the switch off it sends `{ name, colour }`. Under the
+  PATCH contract (ADR 0075, undefined keeps, null clears) that means "leave
+  the dates", which is also what it meant before the card. `updateChapter`
+  (`server/actions/chapters.ts`) already writes an explicit `null` as a clear.
+- **Fix:** on an edit with the switch off, send `startDate: null,
+  endDate: null`. Write the failing form test first (switch off on a dated
+  Chapter → the update carries both nulls), plus a `patch-updates`
+  integration case that the dates clear.
+
+### TU-02 · Relocating a scheduled Stop through a patch keeps the Stop's old timezone
+
+- **Priority: P2** · **Effort: S** — one merge rule.
+- **Source:** none — the review of task 3.L.9 (tidy-up batch 3,
+  2026-10-16). The old `update_stop` merge did the same, so it is not a
+  regression.
+- **What:** `update_stop` (or any `updateStop` patch) that moves a scheduled
+  Stop to another country — `country`/`countryCode`/`lat`/`lng` — without a
+  `timezone` keeps the row's stored zone. A Stop moved from Tokyo to Paris
+  keeps `Asia/Tokyo`, so anything read in the Stop's zone (a Surprise's
+  reveal day, ADR 0072) follows the old place. The app's own form always sends a zone, so this is reached through
+  Claude only.
+- **Where:** `lib/stop-patch.ts` `mergeStopPatch`, the scheduled branch:
+  `patch.timezone ?? current.timezone ?? stopTimezone(...)`.
+- **Fix to decide:** when the patch says where (`saysWhere`) and sends no
+  zone, take `stopTimezone` from the new point rather than the row's zone.
+  Pin it with a pure case in `lib/stop-patch.test.ts` and an integration case.
 
 ### RG-01 · The production database dumps were downloadable by anyone while the repository was public
 
@@ -3005,8 +3043,9 @@ being closed by a different shape of fix than the one suggested is still closed.
   (`lib/surprise-visibility.ts`) and one guard (`lib/surprise-guard.ts`)
   back every one of the roughly thirty readers, held to that by
   `readPlan`'s required viewer argument (lib/plan-reads.ts) for Plan pages and
-  by the slim `lib/surprise-readers.guard.test.ts` for the rest (ADR 0072,
-  amended 2026-10-15).
+  by the reader lists in `eslint.config.mjs` (`SURPRISE_VISIBILITY_READERS`,
+  `SURPRISE_GUARD_READERS`, a lint rule since 2026-10-16) for the rest
+  (ADR 0072, amended 2026-10-15 and 2026-10-16).
 - **TC-13 · Drop the Auth.js tables (Account, Session, VerificationToken)
   and the migration's Google-link copy once main has run on Better Auth for
   a release (and the now unused `User.emailVerified` timestamp); also gate /oauth2/create-client and update-client behind the

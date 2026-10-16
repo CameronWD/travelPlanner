@@ -77,7 +77,7 @@ const S = {
 };
 
 /** Readers of Item/Accommodation rows that do not go through readPlan (ADR 0072, amended 2026-10-15). */
-// lib/nav-counts.ts and lib/next-steps-loader.ts are not listed: they read through lib/flags-loader.ts's loadFlagRows (listed), which applies it. lib/day-view-loader.ts reads through lib/day-reads.ts's readDayRows (listed), and its own Cost read takes the fragment from readDayRows's context. lib/travelling-home-loader.ts likewise.
+// lib/nav-counts.ts and lib/next-steps-loader.ts are not listed: they read through lib/flags-loader.ts's loadFlagRows (listed), which applies it. lib/day-view-loader.ts reads through lib/day-reads.ts's readDayRows (listed), and its own Cost read takes the fragment from readDayRows's context. lib/travelling-home-loader.ts also reads through readDayRows, but its own Cost read is whole by design (money stays in spend so far; only the upcoming payment lines drop Costs owned by hidden Items and Accommodation, using readDayRows's visibility) and takes no fragment.
 export const SURPRISE_VISIBILITY_READERS = [
   "lib/day-reads.ts",
   "lib/money/budget-loader.ts",
