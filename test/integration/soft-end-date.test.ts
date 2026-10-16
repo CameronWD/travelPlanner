@@ -36,6 +36,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 import { db } from "@/lib/db";
 import { growTripEndTx } from "@/server/actions/trip-window";
 import { createStop, updateStop } from "@/server/actions/stops";
+import { createTransport, updateTransport } from "@/server/actions/transport";
 
 const TRIP_ID = "it-trip-soft-end";
 const DATELESS_ID = "it-trip-soft-end-dateless";
@@ -119,6 +120,37 @@ describe.skipIf(process.env.INTEGRATION !== "1")("soft end date covers the retur
       expect(await endDate()).toBe("2026-12-13");
       expect(await updateStop(tokyoId, { departDate: "2026-12-10" })).toEqual({ success: true });
       expect(await endDate()).toBe("2026-12-13");
+    });
+  });
+
+  describe("Transport actions (the spec scenario)", () => {
+    it("a return leg leaving Tokyo 11 Dec 22:00 and landing Brisbane 12 Dec 08:30 local ends the Trip on 12 Dec", async () => {
+      const r = await createTransport(TRIP_ID, {
+        mode: "FLIGHT", fromStopId: tokyoId, arrIsHome: true,
+        depAt: "2026-12-11T22:00", arrAt: "2026-12-12T08:30",
+      });
+      expect(r).toMatchObject({ success: true });
+      const leg = await db.transport.findUnique({ where: { id: (r as { id: string }).id } });
+      // Typed in the Home base's zone (AEST, +10): the UTC instant is still 11 Dec.
+      expect(leg?.arrAt?.toISOString()).toBe("2026-12-11T22:30:00.000Z");
+      expect(await endDate()).toBe("2026-12-12");
+    });
+
+    it("dating an existing return leg with updateTransport grows the end; moving it earlier doesn't shrink it", async () => {
+      const leg = await db.transport.create({ data: { tripId: TRIP_ID, mode: "FLIGHT", fromStopId: tokyoId, arrIsHome: true } });
+      expect(await updateTransport(leg.id, { arrAt: "2026-12-12T08:30" })).toEqual({ success: true });
+      expect(await endDate()).toBe("2026-12-12");
+      expect(await updateTransport(leg.id, { arrAt: "2026-12-11T20:00" })).toEqual({ success: true });
+      expect(await endDate()).toBe("2026-12-12");
+    });
+
+    it("a Fork's return leg leaves the Trip window alone", async () => {
+      const fork = await db.fork.create({ data: { tripId: TRIP_ID, name: "Plan B", createdById: "it-user" } });
+      const forkTokyo = await db.stop.create({ data: { tripId: TRIP_ID, forkId: fork.id, name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2026-12-05", departDate: "2026-12-13", sortOrder: 0 } });
+      expect(await createTransport(TRIP_ID, {
+        mode: "FLIGHT", fromStopId: forkTokyo.id, arrIsHome: true, arrAt: "2026-12-14T08:30",
+      }, fork.id)).toMatchObject({ success: true });
+      expect(await endDate()).toBe("2026-12-11");
     });
   });
 });

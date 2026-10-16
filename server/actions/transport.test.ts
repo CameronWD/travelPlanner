@@ -168,6 +168,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+// F4: the rule itself is tested in lib/soft-end.test.ts and the integration
+// tier; here only the wiring.
+const growTripEndTxMock = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null));
+vi.mock("@/server/actions/trip-window", () => ({
+  growTripEndTx: growTripEndTxMock,
+  tripWindowScopes: (g: string | null) => (g ? ["trip"] : []),
+}));
+
 vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/server/actions/target-cleanup")>();
   return {
@@ -227,6 +235,50 @@ describe("plan-scope: createTransport sortOrder", () => {
         where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
       }),
     );
+  });
+});
+
+describe("F4: a dated leg grows the soft end", () => {
+  it("createTransport runs the rule for its plan after the write", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+
+    await createTransport("trip-1", VALID_INPUT);
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
+    expect(transportCreateMock.mock.invocationCallOrder[0]).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
+  });
+
+  it("createTransport revalidates the layout when the window grew", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+    growTripEndTxMock.mockResolvedValueOnce("2026-12-12");
+
+    await createTransport("trip-1", VALID_INPUT);
+
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money", "trip");
+  });
+
+  it("a Fork leg passes its Fork (the rule leaves the Trip window alone)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+
+    await createTransport("trip-1", VALID_INPUT, "fork-9");
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", "fork-9");
+  });
+
+  it("updateTransport runs the rule for the leg's plan after the write", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-1", tripId: "trip-1", forkId: null });
+    transportUpdateMock.mockResolvedValue({ id: "t-1", tripId: "trip-1" });
+    growTripEndTxMock.mockResolvedValueOnce("2026-12-12");
+
+    await updateTransport("t-1", { mode: "FLIGHT" });
+
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
+    expect(transportUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money", "trip");
   });
 });
 
