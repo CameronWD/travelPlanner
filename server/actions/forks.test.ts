@@ -63,6 +63,8 @@ const {
   attachmentFindManyMock,
   exchangeRateFindManyMock,
   tripFindUniqueMock,
+  tripUpdateManyMock,
+  stopFindFirstMock,
   txMock,
   computePlanMetricsMock,
   diffMetricsMock,
@@ -111,6 +113,8 @@ const {
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const exchangeRateFindManyMock = vi.fn().mockResolvedValue([]);
   const tripFindUniqueMock = vi.fn();
+  const tripUpdateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+  const stopFindFirstMock = vi.fn().mockResolvedValue(null);
 
   // computePlanMetrics mock — returns a predictable stub metrics object
   const computePlanMetricsMock = vi.fn().mockReturnValue({
@@ -147,12 +151,13 @@ const {
       fork: { create: forkCreateMock, update: forkUpdateMock, delete: forkDeleteMock, deleteMany: forkDeleteManyMock },
       attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
       chapter: { create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
-      stop: { create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
+      stop: { create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock, findFirst: stopFindFirstMock },
       accommodation: { create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
       item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
       transport: { create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
       cost: { create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
       dayTitle: { create: dayTitleCreateMock },
+      trip: { updateMany: tripUpdateManyMock },
     };
     return cb(tx);
   });
@@ -211,6 +216,8 @@ const {
     attachmentFindManyMock,
     exchangeRateFindManyMock,
     tripFindUniqueMock,
+    tripUpdateManyMock,
+    stopFindFirstMock,
     txMock,
     computePlanMetricsMock,
     diffMetricsMock,
@@ -287,6 +294,13 @@ vi.mock("@/lib/item-photo-copy", () => ({ copyItemPhoto: copyItemPhotoMock }));
 // lib/plan-reads.test.ts. The promote preview keeps its own `db` reads.
 const { readPlanMock } = vi.hoisted(() => ({ readPlanMock: vi.fn() }));
 vi.mock("@/lib/plan-reads", () => ({ readPlan: readPlanMock }));
+// F4: Forks don't own the Trip window; promotion is when a Fork's dates become
+// the real plan's, so the soft end runs then (rule tested elsewhere).
+const growTripEndTxMock = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null));
+vi.mock("@/server/actions/trip-window", () => ({
+  growTripEndTx: growTripEndTxMock,
+  tripWindowScopes: (g: string | null) => (g ? ["trip"] : []),
+}));
 // Surprise (ADR 0051): getPromotionPreview asks the visibility loader and
 // spreads its fragments into its own queries; the loader is tested on its own.
 const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
@@ -1904,6 +1918,65 @@ describe("promoteFork", () => {
     it("revalidates the core trip paths after promotion", async () => {
       await promoteFork("fork-9");
 
+      expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
+    });
+
+    it("grows the soft end to the promoted plan inside the transaction, after the Forks are gone (F4)", async () => {
+      growTripEndTxMock.mockResolvedValueOnce("2026-10-18");
+
+      await promoteFork("fork-9");
+
+      expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
+      expect(forkDeleteManyMock.mock.invocationCallOrder[0]).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
+      expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money", "trip");
+    });
+
+    it("a dated Trip keeps its start: no first-Stop read, no start write (F4)", async () => {
+      await promoteFork("fork-9");
+
+      expect(stopFindFirstMock).not.toHaveBeenCalled();
+      expect(tripUpdateManyMock).not.toHaveBeenCalled();
+    });
+
+    it("a date-less Trip takes its start from the promoted plan's first scheduled arrival, then grows the end (F4)", async () => {
+      requireForkAccessMock.mockResolvedValue({
+        user: { id: "user-1" },
+        fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
+        trip: { id: "trip-1", startDate: null, endDate: null, forksEnabled: true },
+      });
+      stopFindFirstMock.mockResolvedValueOnce({ arriveDate: "2026-11-03" });
+
+      await promoteFork("fork-9");
+
+      expect(stopFindFirstMock).toHaveBeenCalledWith({
+        where: { tripId: "trip-1", forkId: null, arriveDate: { not: null } },
+        orderBy: { arriveDate: "asc" },
+        select: { arriveDate: true },
+      });
+      expect(tripUpdateManyMock).toHaveBeenCalledWith({
+        where: { id: "trip-1", startDate: null },
+        data: { startDate: "2026-11-03", roughMonth: null },
+      });
+      // After the retag (the promoted rows are the real plan), before the grow.
+      expect(stopUpdateManyMock.mock.invocationCallOrder[0]).toBeLessThan(stopFindFirstMock.mock.invocationCallOrder[0]);
+      expect(tripUpdateManyMock.mock.invocationCallOrder[0]).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
+      // The header's date range moved even though the (mocked) grow didn't.
+      expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money", "trip");
+    });
+
+    it("a date-less Trip whose promoted plan is all rough stays date-less (F4)", async () => {
+      requireForkAccessMock.mockResolvedValue({
+        user: { id: "user-1" },
+        fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
+        trip: { id: "trip-1", startDate: null, endDate: null, forksEnabled: true },
+      });
+      stopFindFirstMock.mockResolvedValueOnce(null);
+
+      await promoteFork("fork-9");
+
+      expect(stopFindFirstMock).toHaveBeenCalled();
+      expect(tripUpdateManyMock).not.toHaveBeenCalled();
+      expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
       expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
     });
   });

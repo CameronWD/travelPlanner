@@ -17,6 +17,15 @@ vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => unde
 vi.mock("@/lib/guards", async () => ({
   isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
   requireUser: vi.fn(async () => ({ id: "it-user" })),
+  assertForkingAllowed: vi.fn(),
+  requireForkAccess: vi.fn(async (forkId: string) => {
+    const { db } = await import("@/lib/db");
+    const fork = await db.fork.findUniqueOrThrow({
+      where: { id: forkId },
+      select: { id: true, tripId: true, name: true, trip: { select: { id: true, startDate: true, endDate: true, forksEnabled: true } } },
+    });
+    return { user: { id: "it-user", email: "it@example.test" }, fork, trip: fork.trip };
+  }),
   requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
   requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
   requireRowAccess: vi.fn(async (kind: string, id: string) => {
@@ -37,6 +46,7 @@ import { db } from "@/lib/db";
 import { growTripEndTx } from "@/server/actions/trip-window";
 import { createStop, updateStop } from "@/server/actions/stops";
 import { createTransport, updateTransport } from "@/server/actions/transport";
+import { promoteFork } from "@/server/actions/forks";
 
 const TRIP_ID = "it-trip-soft-end";
 const DATELESS_ID = "it-trip-soft-end-dateless";
@@ -151,6 +161,27 @@ describe.skipIf(process.env.INTEGRATION !== "1")("soft end date covers the retur
         mode: "FLIGHT", fromStopId: forkTokyo.id, arrIsHome: true, arrAt: "2026-12-14T08:30",
       }, fork.id)).toMatchObject({ success: true });
       expect(await endDate()).toBe("2026-12-11");
+    });
+  });
+
+  describe("promoteFork", () => {
+    it("promoting a Fork whose return leg lands later grows the end to it", async () => {
+      await db.trip.update({ where: { id: TRIP_ID }, data: { forksEnabled: true } });
+      const fork = await db.fork.create({ data: { tripId: TRIP_ID, name: "Plan B", createdById: "it-user" } });
+      const forkTokyo = await db.stop.create({ data: { tripId: TRIP_ID, forkId: fork.id, name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2026-12-05", departDate: "2026-12-13", sortOrder: 0 } });
+      await db.transport.create({ data: { tripId: TRIP_ID, forkId: fork.id, mode: "FLIGHT", fromStopId: forkTokyo.id, arrIsHome: true, arrAt: new Date("2026-12-13T22:30:00Z") } });
+      expect(await promoteFork(fork.id)).toEqual({ success: true });
+      expect(await endDate()).toBe("2026-12-14");
+    });
+
+    it("promoting onto a date-less Trip dates it from the promoted plan", async () => {
+      await db.trip.create({ data: { id: DATELESS_ID, name: "Idea", homeCurrency: "AUD", createdById: "it-user", forksEnabled: true, roughMonth: "2026-07", members: { create: { userId: "it-user", role: "owner" } } } });
+      const fork = await db.fork.create({ data: { tripId: DATELESS_ID, name: "Plan B", createdById: "it-user" } });
+      await db.stop.create({ data: { tripId: DATELESS_ID, forkId: fork.id, name: "Rome", timezone: "Europe/Rome", arriveDate: "2026-07-01", departDate: "2026-07-04", sortOrder: 0 } });
+      await db.stop.create({ data: { tripId: DATELESS_ID, forkId: fork.id, name: "Florence", timezone: "Europe/Rome", arriveDate: "2026-07-04", departDate: "2026-07-08", sortOrder: 1 } });
+      expect(await promoteFork(fork.id)).toEqual({ success: true });
+      expect(await db.trip.findUnique({ where: { id: DATELESS_ID }, select: { startDate: true, endDate: true, roughMonth: true } }))
+        .toEqual({ startDate: "2026-07-01", endDate: "2026-07-08", roughMonth: null });
     });
   });
 });
