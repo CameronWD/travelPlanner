@@ -197,7 +197,6 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "checkInTime", label: "Check-in time" },
     { key: "checkOutTime", label: "Check-out time" },
     { key: "confirmation", label: "Confirmation" },
-    { key: "notes", label: "Notes" },
   ],
   CHAPTER: [
     { key: "name", label: "Name" },

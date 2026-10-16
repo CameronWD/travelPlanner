@@ -93,13 +93,13 @@ describe("auditedUpdate", () => {
   it("auditedUpdate with a held before row writes and diffs without reading again", async () => {
     const delegate = {
       findUnique: vi.fn(),
-      update: vi.fn().mockResolvedValue({ id: "a1", tripId: "t1", name: "Hilton", notes: "late check-in" }),
+      update: vi.fn().mockResolvedValue({ id: "a1", tripId: "t1", name: "Hilton", address: "1 High St" }),
     };
-    const before = { id: "a1", tripId: "t1", name: "Hilton", notes: null };
-    await auditedUpdate("ACCOMMODATION", delegate, "a1", { notes: "late check-in" }, null, { before });
+    const before = { id: "a1", tripId: "t1", name: "Hilton", address: null };
+    await auditedUpdate("ACCOMMODATION", delegate, "a1", { address: "1 High St" }, null, { before });
     expect(delegate.findUnique).not.toHaveBeenCalled();
     expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
-      entityType: "ACCOMMODATION", entityId: "a1", changes: [expect.objectContaining({ field: "notes" })],
+      entityType: "ACCOMMODATION", entityId: "a1", changes: [expect.objectContaining({ field: "address" })],
     }));
   });
 });
