@@ -43,6 +43,11 @@ export const UNDO_FAILED = "Couldn't undo. Nothing changed. Try again.";
  *
  * `spec` is read through a ref captured at `run` time, so a re-render mid-run
  * never swaps an in-flight run's callbacks. `run` is stable across renders.
+ *
+ * Because the Undo (up to 6s later) runs those run-time callbacks, write
+ * `apply`/`revert`/`applyUndo`/`revertUndo` with functional updaters
+ * (`setX((prev) => …)`) or snapshots carried in the intent, never render-time
+ * state; and keep `revertUndo` idempotent — it also runs after a throwing `applyUndo`.
  */
 export function useUndoableAction<I, R extends object = Record<never, never>>(
   spec: UndoableSpec<I, R>,

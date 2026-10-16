@@ -190,7 +190,8 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 });
 
 import type * as React from "react";
-import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates, setStopNights } from "@/server/actions/stops";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates, setStopNights, toggleStopPin, makeStopRough } from "@/server/actions/stops";
+import { UNDO_FAILED } from "@/components/ui/use-undoable-action";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
@@ -1272,11 +1273,14 @@ describe("empty chapter remove control", () => {
     await waitFor(() => {
       expect(deleteChapter).toHaveBeenCalledWith("ch-empty");
     });
-    expect(vi.mocked(toast)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: "destructive",
-        title: expect.stringMatching(/nothing changed/i),
-      }),
+    // Card 2.H: a rejection now carries the handler's own failure copy.
+    await waitFor(() =>
+      expect(vi.mocked(toast)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          title: "Couldn't remove that chapter.",
+        }),
+      ),
     );
   });
 });
@@ -2498,7 +2502,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
   };
 
-  it("a rejected move (network/thrown) shows the standard destructive toast, no Undo and no flash", async () => {
+  it("a rejected move (network/thrown) shows the move's destructive toast, no Undo and no flash", async () => {
     const { scheduleItem } = await import("@/server/actions/items");
     const { toastWithUndo } = await import("@/components/ui/undo-toast");
     vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("network"));
@@ -2506,7 +2510,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       await dndCapture.onDragEnd!(MOVE);
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't do that. Nothing changed. Try again." });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it." });
     expect(toastWithUndo).not.toHaveBeenCalled();
     expect(screen.getByTestId("plan-desktop-list").querySelector("[data-flash]")).toBeNull();
   });
@@ -2526,14 +2530,14 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       onUndo();
     });
-    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't undo the move." }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: UNDO_FAILED }));
 
     vi.mocked(toast).mockClear();
     vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("network"));
     await act(async () => {
       onUndo();
     });
-    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't undo the move." }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: UNDO_FAILED }));
   });
 
   it("a rejected firm-up from a rough chapter's Firm up pill toasts and re-enables the pill (P2-1)", async () => {
@@ -2832,7 +2836,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't do that. Nothing changed. Try again." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't schedule it." })),
     );
     expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
   });
@@ -2938,7 +2942,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
         expect.objectContaining({
           variant: "destructive",
-          title: expect.stringMatching(/nothing changed/i),
+          title: "Couldn't suggest chapters.",
         }),
       ),
     );
@@ -3099,6 +3103,46 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     await user.click(await screen.findByRole("button", { name: "Delete" }));
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stay was already removed." })),
+    );
+  });
+
+  // Card 2.H: these three ignored a `success: false` answer and said nothing.
+  it("a refused pin toggle says so (it was silent)", async () => {
+    vi.mocked(toggleStopPin).mockResolvedValueOnce({ success: false, errors: { _: ["Can't pin a rough stop."] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /^Pin dates/ }));
+    await waitFor(() => expect(toggleStopPin).toHaveBeenCalledWith("par"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Can't pin a rough stop." })),
+    );
+  });
+
+  it("a refused move says so (it was silent)", async () => {
+    vi.mocked(moveStop).mockResolvedValueOnce({ success: false, errors: { _: ["That stop is already first."] } });
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stopA, stopB]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Berlin" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move up" }));
+    await waitFor(() => expect(moveStop).toHaveBeenCalledWith("s-2", "up"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stop is already first." })),
+    );
+  });
+
+  it("a refused make-rough says so (it was silent)", async () => {
+    vi.mocked(makeStopRough).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that stop."] } });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
+    await user.click(await screen.findByRole("button", { name: "Make rough" }));
+    await waitFor(() => expect(makeStopRough).toHaveBeenCalledWith("par"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't find that stop." })),
     );
   });
 

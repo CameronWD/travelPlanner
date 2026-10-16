@@ -66,8 +66,8 @@ import {
 import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
-import { failureMessage } from "@/components/ui/failure-message";
-import { toastRefused, SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
 import { addDays, suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
@@ -536,13 +536,6 @@ export function transportDefaultsFromParams(
   };
 }
 
-// A rejected action (network drop, thrown server error) must behave like a
-// failed one — report, and the caller reverts whatever it drew optimistically.
-// One message for the whole editor; it names the connection when offline.
-function toastRejected() {
-  toast({ variant: "destructive", title: failureMessage(SOMETHING_WENT_WRONG) });
-}
-
 export function ItineraryManager({
   tripId,
   initialStops,
@@ -835,32 +828,29 @@ export function ItineraryManager({
     setDeletingStop({ id: stopId, name: stop?.name ?? "this stop" });
   }
 
-  async function handleMoveStop(stopId: string, direction: "up" | "down") {
-    setPendingId(stopId);
+  // Card 2.H: every write below goes through useUndoableAction, so a refusal
+  // (`success: false`) and a rejection (network, thrown server error) both
+  // toast — moveStop, toggleStopPin and makeStopRough used to ignore a refusal.
+  // `pendingId` stays the "which row is busy" key, set around `run`.
+  async function busy<T>(id: string, work: () => Promise<T>): Promise<T> {
+    setPendingId(id);
     try {
-      await moveStop(stopId, direction);
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
+      return await work();
     } finally {
       setPendingId(null);
     }
   }
 
-  async function handleTogglePin(stopId: string) {
-    setPendingId(stopId);
-    try {
-      await toggleStopPin(stopId);
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+  const moveStopAction = useUndoableAction({
+    persist: ({ stopId, direction }: { stopId: string; direction: "up" | "down" }) => moveStop(stopId, direction),
+  });
+  function handleMoveStop(stopId: string, direction: "up" | "down") {
+    return busy(stopId, () => moveStopAction.run({ stopId, direction }));
+  }
+
+  const togglePinAction = useUndoableAction({ persist: (stopId: string) => toggleStopPin(stopId) });
+  function handleTogglePin(stopId: string) {
+    return busy(stopId, () => togglePinAction.run(stopId));
   }
 
   /** "Make it a surprise": opens "Surprise for…", everyone but the planner ticked. */
@@ -870,18 +860,20 @@ export function ItineraryManager({
     else setSurpriseStopId(stopId);
   }
 
+  const setSurpriseAction = useUndoableAction({
+    persist: ({ stopId, forIds }: { stopId: string; forIds: string[] | undefined }) =>
+      setSurprise({ kind: "STOP", id: stopId, forIds }),
+    failure: "Couldn't make that a surprise.",
+  });
   async function handleConfirmSurprise(stopId: string, forIds: string[] | undefined) {
     setSurpriseStopId(null);
-    setPendingId(stopId);
-    try {
-      const r = await setSurprise({ kind: "STOP", id: stopId, forIds });
-      if (!r.success) toastRefused(r.errors, "Couldn't make that a surprise.");
-    } catch {
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(stopId, () => setSurpriseAction.run({ stopId, forIds }));
   }
+
+  const revealSurpriseAction = useUndoableAction({
+    persist: (stopId: string) => revealSurprise({ kind: "STOP", id: stopId }),
+    failure: "Couldn't reveal that surprise.",
+  });
 
   async function handleRevealSurprise(stopId: string) {
     const stop = localStops.find((s) => s.id === stopId);
@@ -891,17 +883,10 @@ export function ItineraryManager({
       confirmLabel: "Reveal the surprise",
     });
     if (!confirmed) return;
-    setPendingId(stopId);
-    try {
-      const r = await revealSurprise({ kind: "STOP", id: stopId });
-      if (!r.success) toastRefused(r.errors, "Couldn't reveal that surprise.");
-    } catch {
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(stopId, () => revealSurpriseAction.run(stopId));
   }
 
+  const makeRoughAction = useUndoableAction({ persist: (stopId: string) => makeStopRough(stopId) });
   async function handleMakeRough(stopId: string) {
     const stop = localStops.find((s) => s.id === stopId);
     const confirmed = await confirm({
@@ -911,17 +896,7 @@ export function ItineraryManager({
       destructive: false,
     });
     if (!confirmed) return;
-    setPendingId(stopId);
-    try {
-      await makeStopRough(stopId);
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(stopId, () => makeRoughAction.run(stopId));
   }
 
   function handleAdjustDates(stop: StopCardStop) {
@@ -1109,6 +1084,10 @@ export function ItineraryManager({
   }
 
   // ── Chapter handlers ──
+  const deleteChapterAction = useUndoableAction({
+    persist: (chapterId: string) => deleteChapter(chapterId),
+    failure: "Couldn't remove that chapter.",
+  });
   async function handleDeleteChapter(chapterId: string) {
     const chapter = localChapters.find((c) => c.id === chapterId);
     const confirmed = await confirm({
@@ -1118,20 +1097,19 @@ export function ItineraryManager({
       destructive: true,
     });
     if (!confirmed) return;
-    setPendingId(`delete-chapter-${chapterId}`);
-    try {
-      const r = await deleteChapter(chapterId);
-      if (!r.success) toastRefused(r.errors, "Couldn't remove that chapter.");
-    } catch {
-      // A rejected action (network, thrown server error) must not surface as
-      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(`delete-chapter-${chapterId}`, () => deleteChapterAction.run(chapterId));
   }
 
   // ── Transport handlers ──
+  // Optimistic: the leg disappears at once; a failure puts the list back as it
+  // was before this delete (the snapshot travels in the intent).
+  const deleteTransportAction = useUndoableAction({
+    apply: ({ transportId }: { transportId: string; snapshot: ItineraryTransport[] }) =>
+      setLocalTransports((prev) => prev.filter((tr) => tr.id !== transportId)),
+    persist: ({ transportId }) => deleteTransport(transportId),
+    revert: ({ snapshot }) => setLocalTransports(snapshot),
+    failure: "Couldn't delete that transport.",
+  });
   async function handleDeleteTransport(transportId: string) {
     const t = localTransports.find((tr) => tr.id === transportId);
     const modeLabel = t ? (TRANSPORT_MODE_META[t.mode]?.label ?? t.mode) : "transport leg";
@@ -1153,23 +1131,14 @@ export function ItineraryManager({
     });
     if (!confirmed) return;
     const snapshot = localTransports;
-    setLocalTransports((prev) => prev.filter((tr) => tr.id !== transportId));
-    setPendingId(transportId);
-    try {
-      const res = await deleteTransport(transportId);
-      if (!res.success) {
-        setLocalTransports(snapshot);
-        toast({ variant: "destructive", title: "Couldn't delete that transport." });
-      }
-    } catch {
-      setLocalTransports(snapshot);
-      toast({ variant: "destructive", title: "Couldn't delete that transport." });
-    } finally {
-      setPendingId(null);
-    }
+    await busy(transportId, () => deleteTransportAction.run({ transportId, snapshot }));
   }
 
   // ── Accommodation handlers ──
+  const deleteAccommodationAction = useUndoableAction({
+    persist: (accId: string) => deleteAccommodation(accId),
+    failure: "Couldn't delete that stay.",
+  });
   async function handleDeleteAccommodation(accId: string) {
     const acc = localStops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
     const confirmed = await confirm({
@@ -1179,17 +1148,7 @@ export function ItineraryManager({
       destructive: true,
     });
     if (!confirmed) return;
-    setPendingId(accId);
-    try {
-      const r = await deleteAccommodation(accId);
-      if (!r.success) toastRefused(r.errors, "Couldn't delete that stay.");
-    } catch {
-      // A rejected action (network, thrown server error) must not surface as
-      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
-      toastRejected();
-    } finally {
-      setPendingId(null);
-    }
+    await busy(accId, () => deleteAccommodationAction.run(accId));
   }
 
   // ── Chapter handler ──
@@ -1236,17 +1195,19 @@ export function ItineraryManager({
   // would duplicate dated chapters. A ref, not state: it must block a click
   // landing before the next render.
   const suggestingRef = React.useRef(false);
+  // `run` never rejects, so nothing thrown inside the transition can unmount
+  // the Plan page into plan/error.tsx for an action that changed nothing.
+  const suggestAction = useUndoableAction({
+    persist: (id: string) => suggestChaptersFromCountries(id),
+    done: (_id, result) => suggestResultToast(result),
+    failure: "Couldn't suggest chapters.",
+  });
   function handleSuggestChapters() {
     if (suggestingRef.current) return;
     suggestingRef.current = true;
     startSuggestTransition(async () => {
       try {
-        const result = await suggestChaptersFromCountries(tripId);
-        toast(suggestResultToast(result));
-      } catch {
-        // Caught inside the transition: a throw here would otherwise unmount
-        // the Plan page into plan/error.tsx for an action that changed nothing.
-        toastRejected();
+        await suggestAction.run(tripId);
       } finally {
         suggestingRef.current = false;
       }
@@ -1254,53 +1215,36 @@ export function ItineraryManager({
   }
 
   // Schedule an idea onto a day, keeping any times it already carries.
-  async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
-    // Things-to-do can carry times (kept on unschedule "to make undo
-    // lossless" — see unscheduleItem's doc comment in server/actions/items.ts).
-    // scheduleItem's in-place branch overwrites startTime/endTime wholesale
-    // when absent from the input, so pass the thing's existing times through
-    // explicitly or picking a day silently wipes them.
-    try {
-      const res = await scheduleItem(thing.id, {
+  // Things-to-do can carry times (kept on unschedule "to make undo
+  // lossless" — see unscheduleItem's doc comment in server/actions/items.ts).
+  // scheduleItem's in-place branch overwrites startTime/endTime wholesale
+  // when absent from the input, so pass the thing's existing times through
+  // explicitly or picking a day silently wipes them.
+  const scheduleThingAction = useUndoableAction({
+    persist: ({ thing, dateISO }: { thing: ThingToDo; dateISO: string }) =>
+      scheduleItem(thing.id, {
         date: dateISO,
         ...(thing.startTime ? { startTime: thing.startTime } : {}),
         ...(thing.endTime ? { endTime: thing.endTime } : {}),
-      });
-      if (!res.success) {
-        toast({ title: "Couldn't schedule it.", variant: "destructive" });
-        return;
-      }
-    } catch {
-      toastRejected();
-      return;
-    }
+      }),
+    failure: "Couldn't schedule it.",
+  });
+  async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
+    if (!(await scheduleThingAction.run({ thing, dateISO }))) return;
     // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
     if (thing.stopId) revealDay(thing.stopId, dateISO);
   }
 
   // A plan dragged onto another day of its stop's strip (spec D5): it keeps
   // its times, the target slot pulses, and Undo puts it back where it was.
+  const moveItemAction = useUndoableAction({
+    persist: (drop: ItemDrop) => scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from)),
+    undo: (drop) => scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from)),
+    done: (drop) => ({ title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}` }),
+    failure: "Couldn't move it.",
+  });
   async function handleMoveItem(drop: ItemDrop) {
-    try {
-      const res = await scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from));
-      if (!res.success) {
-        toast({ variant: "destructive", title: "Couldn't move it." });
-        return;
-      }
-    } catch {
-      toastRejected();
-      return;
-    }
-    flashSlot(drop.stopId, drop.to);
-    toastWithUndo({
-      title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}`,
-      onUndo: () =>
-        void scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from))
-          .then((r) => {
-            if (!r.success) toast({ variant: "destructive", title: "Couldn't undo the move." });
-          })
-          .catch(() => toast({ variant: "destructive", title: "Couldn't undo the move." })),
-    });
+    if (await moveItemAction.run(drop)) flashSlot(drop.stopId, drop.to);
   }
 
   useRegisterPlanActions({
