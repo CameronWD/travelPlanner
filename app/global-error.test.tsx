@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { describe, it, expect, vi } from "vitest";
 import GlobalError from "@/app/global-error";
+import { decls, lightTheme } from "@/test/helpers/css";
 
 describe("global-error", () => {
   it("renders a retry that calls reset", () => {
@@ -35,7 +36,6 @@ describe("global-error", () => {
 // Light only while dark mode is parked (spec 2026-10-04 §F, DM-01).
 describe("global-error CSS variables mirror globals.css", () => {
   const src = readFileSync("app/global-error.tsx", "utf8");
-  const globals = readFileSync("app/globals.css", "utf8");
   const block = (css: string, opener: string) => {
     const start = css.indexOf(opener);
     if (start < 0) throw new Error(`${opener} not found`);
@@ -45,7 +45,7 @@ describe("global-error CSS variables mirror globals.css", () => {
     Object.fromEntries([...css.matchAll(/--([\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 
   const localLight = vars(block(src, ":root{"));
-  const rootLight = vars(block(globals, ":root {"));
+  const rootLight = decls(lightTheme());
 
   it("declares its variables", () => {
     expect(Object.keys(localLight).length).toBeGreaterThan(0);
@@ -56,6 +56,6 @@ describe("global-error CSS variables mirror globals.css", () => {
   });
 
   it.each(Object.keys(localLight))("light --%s === globals.css :root", (name) => {
-    expect(localLight[name]).toBe(rootLight[name]);
+    expect(localLight[name]).toBe(rootLight[`--${name}`]);
   });
 });

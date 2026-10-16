@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { decls, lightTheme } from "@/test/helpers/css";
 import { Landing } from "./landing";
 
 vi.mock("@/lib/auth-client", () => ({
@@ -64,8 +63,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     const root = container.firstElementChild as HTMLElement;
     expect(root).toHaveAttribute("data-theme", "light");
     expect(root.className).toContain("light");
-    const css = readFileSync(join(__dirname, "..", "globals.css"), "utf8");
-    expect(css).toMatch(/\[data-theme="light"\],\s*:root\s*\{\s*--background: 40 100% 98%;/);
+    expect(decls(lightTheme())["--background"]).toBe("40 100% 98%");
   });
   it("uses the kit's lilac-card copy and never 'hotel' or 'stay'", () => {
     const { container } = render(<Landing />);

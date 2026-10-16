@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { decls, lightTheme } from "@/test/helpers/css";
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OG_COLOURS, ShareOgCard } from "./og-card";
@@ -15,11 +15,9 @@ function hslToHex(triple: string): string {
   return "#" + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("").toUpperCase();
 }
 function rootToken(name: string): string {
-  const css = readFileSync("app/globals.css", "utf8");
-  const root = css.slice(css.indexOf(":root {"), css.indexOf("}", css.indexOf(":root {")));
-  const m = root.match(new RegExp(`--${name}:\\s*([^;]+);`));
-  if (!m) throw new Error(`token --${name} not found in :root`);
-  return hslToHex(m[1]);
+  const value = decls(lightTheme())[`--${name}`];
+  if (!value) throw new Error(`token --${name} not found in the light palette`);
+  return hslToHex(value);
 }
 
 describe("OG_COLOURS mirror the light tokens", () => {
