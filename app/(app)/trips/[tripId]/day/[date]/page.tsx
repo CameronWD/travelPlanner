@@ -6,7 +6,7 @@ import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { dayTitle } from "@/lib/page-title";
 import { addDays, formatDayLabel } from "@/lib/dates";
-import { getDay, type DayViewData } from "@/lib/day-view-loader";
+import { getDays, type DayViewData } from "@/lib/day-view-loader";
 import { readTripShell, readUnreadActivityCount, readRecentActivity } from "@/lib/trip-shell-reads";
 import { DayAddMenu } from "@/components/day/day-add-menu";
 import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
@@ -29,10 +29,10 @@ export async function generateMetadata({ params }: { params: Promise<{ tripId: s
 
 /**
  * The Day view (spec 2026-09-27 §C, DAY_VIEW.md; ADR 0065). The day shown and
- * the day either side come from `getDay`, in parallel, so the carousel has a
- * neighbour to drag into view; weather streams in its own Suspense boundary
- * per day. The phone and the desktop trees are both rendered and one is
- * hidden by breakpoint (the same pattern as the Home route).
+ * the day either side come from one getDays read (NAV-05), so the carousel
+ * has a neighbour to drag into view; weather streams in its own Suspense
+ * boundary per day. The phone and the desktop trees are both rendered and
+ * one is hidden by breakpoint (the same pattern as the Home route).
  */
 export default async function DayPage({ params }: { params: Promise<{ tripId: string; date: string }> }) {
   const { tripId, date } = await params;
@@ -40,19 +40,19 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   const wellFormed = ISO_DATE.test(date);
   // Policy (not a BND-2 spelling exemption): this dated view always shows the
   // real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
-  const [data, before, after, unreadCount, recent, shell, slug] = await Promise.all([
-    getDay(tripId, date, user.id),
-    wellFormed ? getDay(tripId, addDays(date, -1), user.id) : Promise.resolve("invalid" as const),
-    wellFormed ? getDay(tripId, addDays(date, 1), user.id) : Promise.resolve("invalid" as const),
+  const [days3, unreadCount, recent, shell, slug] = await Promise.all([
+    // The day shown first, then its neighbours (ADR 0065).
+    getDays(tripId, wellFormed ? [date, addDays(date, -1), addDays(date, 1)] : [date], user.id),
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
     readTripShell(tripId),
     tripSlugFor(tripId),
   ]);
+  const [data, before = "invalid" as const, after = "invalid" as const] = days3;
   if (data === "dateless") redirect(tripPath(slug, "/plan"));
   if (data === "invalid" || data === "out-of-range") notFound();
   const d: DayViewData = data;
-  // getDay clamps a date just outside the Trip to its end, which would hand
+  // getDays clamps a date just outside the Trip to its end, which would hand
   // the day shown back as its own neighbour — only a different date is a panel.
   const days = [before, d, after].filter((r): r is DayViewData => typeof r !== "string").filter((r, i, all) => all.findIndex((x) => x.date === r.date) === i);
   const shownIndex = days.findIndex((x) => x.date === d.date);

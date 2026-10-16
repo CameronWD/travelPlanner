@@ -23,15 +23,16 @@ import { REAL_PLAN, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 import { todayISO } from "@/lib/dates";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
-import { listRemindersForTrip } from "@/server/actions/reminders";
+import { listRemindersForTrip } from "@/lib/reminder-reads";
 import { findPlaces } from "@/server/actions/places";
 import { activityLine, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
+import { isoDate } from "@/lib/validations/primitives";
 import { loadCostsForMcp } from "../reads/costs";
 import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadAttachmentContentForMcp } from "../reads/attachment-content";
-import { loadBudget } from "@/lib/budget-loader";
+import { loadBudget } from "@/lib/money/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { runTool, runToolContent } from "../run-tool";
@@ -279,7 +280,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get reminders",
       description: "Reads this trip's Reminders dated on or after a date (today by default), soonest first.",
-      inputSchema: { tripId: z.string(), fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() },
+      inputSchema: { tripId: z.string(), fromDate: isoDate.optional() },
       annotations: { readOnlyHint: true },
     },
     ({ tripId, fromDate }) => runTool("get_reminders", () => listRemindersForTrip(tripId, fromDate ?? todayISO())),

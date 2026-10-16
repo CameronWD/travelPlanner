@@ -1,9 +1,9 @@
 /**
- * An in-memory database for Better Auth in unit tests: lib/auth.ts's
+ * An in-memory database for Better Auth in unit tests: lib/auth/auth.ts's
  * prismaAdapter is mocked to `memoryAdapter(store)` so the real instance can
  * initialise (the MCP OAuth provider seeds its resource on init) and serve
  * requests without Postgres. Keys are the Prisma client's model names that
- * lib/auth.ts and its plugins use.
+ * lib/auth/auth.ts and its plugins use.
  */
 const AUTH_MODELS = [
   "user",

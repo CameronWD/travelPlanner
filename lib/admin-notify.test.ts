@@ -257,7 +257,7 @@ describe("notifyAdmins — stalled push endpoints (fix round 1, item 3)", () => 
     ]);
     // Simulates a push endpoint that never responds — no timeout on the
     // underlying HTTPS client (lib/push.ts), so without a bound here this
-    // promise would never settle and the caller (lib/auth.ts's signIn
+    // promise would never settle and the caller (lib/auth/auth.ts's signIn
     // callback) would hang until the platform kills the function.
     sendPushMock.mockImplementation(() => new Promise(() => {}));
 

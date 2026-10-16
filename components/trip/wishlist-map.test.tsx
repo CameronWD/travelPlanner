@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
-import { cartoTiles } from "@/lib/map-tiles";
+import { cartoTiles } from "@/lib/map/tiles";
 
 const hoisted = vi.hoisted(() => ({
   leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,

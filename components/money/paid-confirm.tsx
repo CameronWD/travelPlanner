@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
-import { formatMinor, parseAmountToMinor } from "@/lib/money";
+import { formatMinor, parseAmountToMinor } from "@/lib/money/money";
 import { todayLocalISO } from "@/lib/dates";
 import { markCostPaid } from "@/server/actions/costs";
 import { toast } from "@/components/ui/use-toast";

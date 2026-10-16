@@ -17,6 +17,10 @@ describe("accommodationSchema", () => {
     expect(accommodationSchema.safeParse(VALID).success).toBe(true);
   });
 
+  it("refuses a check-in that is not a real calendar date", () => {
+    expect(accommodationSchema.safeParse({ ...VALID, checkIn: "2026-04-31" }).success).toBe(false);
+  });
+
   it("trims name whitespace", () => {
     const result = accommodationSchema.safeParse({ ...VALID, name: "  Hilton  " });
     expect(result.success).toBe(true);

@@ -14,7 +14,7 @@ import {
 import { mergeTemplateTexts } from "@/lib/checklists";
 import { type ActionResult, formFail, validationResult } from "@/lib/action-result";
 import { buyStateSchema, type BuyState } from "@/lib/enums";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import { recordUpdate } from "@/lib/activity-guard";
 import {
   checklistItemsAddedSummary,

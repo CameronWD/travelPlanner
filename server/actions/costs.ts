@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
-import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
@@ -11,6 +11,9 @@ import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
+import { notFound } from "next/navigation";
+import { mergeCostPatch } from "@/lib/money/cost-patch";
+import { type Patch } from "@/lib/patch";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -176,18 +179,23 @@ export async function createCost(
 }
 
 /**
- * Update an existing cost.
+ * Update a Cost (PATCH, ADR 0075): merges onto the held row
+ * (`lib/money/cost-patch.ts` — the paid pair and Due date rules).
  *
  * - Access-checks via requireCostAccess → requireTripAccess.
  * - Re-snapshots rateToHome (currency may have changed).
  */
 export async function updateCost(
   costId: string,
-  input: CostRawInput,
+  patch: Patch<CostRawInput>,
 ): Promise<CostActionResult> {
   const existing = await requireCostAccess(costId);
+  const before = await db.cost.findUnique({ where: { id: costId } });
+  if (!before) notFound();
 
-  const parsed = costSchema.safeParse(input);
+  const merged = mergeCostPatch(before, patch);
+  if ("success" in merged) return merged;
+  const parsed = costSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
@@ -211,8 +219,6 @@ export async function updateCost(
 
   const resolved = await resolveRateForTrip(existing.tripId, data.currency, trip.homeCurrency, { db });
 
-  const before = await db.cost.findUnique({ where: { id: costId } });
-
   const updated = await db.$transaction(async (tx) => {
     if (resolved.persist) {
       await persistRate(tx, existing.tripId, resolved.persist);
@@ -230,9 +236,9 @@ export async function updateCost(
         label: data.label ?? null,
         category: data.category ?? null,
         settlement: data.settlement,
-        // paidMinor is included only when the caller actually provided a
-        // value — un-ticking Paid sends paidMinor: undefined (never null) so
-        // the paid amount survives as history (CONTEXT.md "Paid"); omitting
+        // paidMinor is included only when the merged Cost carries one —
+        // an un-paid Cost's merge leaves it undefined (never null), so the
+        // paid amount survives as history (CONTEXT.md "Paid"); omitting
         // the key here leaves Prisma's existing value untouched instead of
         // nulling it out.
         ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
@@ -332,29 +338,5 @@ export async function markCostUnpaid(costId: string): Promise<CostActionResult> 
 // Read helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Shape of a cost row as rendered by the entity cards. Pages fetch costs
- * inline via `db.cost.findMany` (after `requireTripAccess`) and pass rows
- * matching this shape to the cards.
- *
- * NOTE: this module is `"use server"`, so every runtime export must be an
- * async server action. We therefore keep this an explicit (compile-time only)
- * type rather than deriving it from an exported query helper — which would
- * have been an unauthenticated, callable server action that leaks cost rows
- * by entity id.
- */
-export type CostRow = {
-  id: string;
-  costMinor: number;
-  paidMinor: number | null;
-  currency: string;
-  rateToHome: number | null;
-  paidAt: Date | null;
-  dueDate: string | null;
-  ownerType: string;
-  ownerId: string | null;
-  label: string | null;
-  category: string | null;
-  /** CONTEXT.md "Settlement" — BEFORE | ON_TRIP; anything else reads as BEFORE. */
-  settlement: string;
-};
+// CostRow lives in lib/money/cost-row.ts; re-exported (type-only, erased) for the 27 component importers.
+export type { CostRow } from "@/lib/money/cost-row";

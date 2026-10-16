@@ -1,5 +1,6 @@
 "use server";
 
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import {
@@ -11,8 +12,10 @@ import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
-import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { applyPatch, type Patch } from "@/lib/patch";
+import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { revalidateTrip } from "@/lib/revalidate";
@@ -148,17 +151,37 @@ export async function createAccommodation(
 }
 
 /**
- * Update an existing accommodation.
+ * Update an Accommodation (PATCH, ADR 0075): merges onto the held row; an
+ * inline Cost is completed from its single owned Cost (`completeInlineCost`).
  *
  * Looks up the accommodation → requireTripAccess(acc.tripId).
  */
 export async function updateAccommodation(
   accommodationId: string,
-  input: AccommodationInput,
+  patch: Patch<AccommodationInput>,
 ): Promise<AccommodationActionResult> {
   const acc = await requireAccommodationAccess(accommodationId);
+  const before = await db.accommodation.findUnique({ where: { id: accommodationId } });
+  if (!before) notFound();
 
-  const parsed = accommodationSchema.safeParse(input);
+  const owned = patch.costMinor != null || patch.currency != null
+    ? await db.cost.findMany({ where: { ownerType: "ACCOMMODATION", ownerId: accommodationId }, select: OWNED_COST_SELECT })
+    : [];
+  const inlineCost = completeInlineCost(patch, owned);
+  if (inlineCost && "success" in inlineCost) return inlineCost;
+
+  // The current values omit lat/lng: the point is geocoded from `address`,
+  // never read from the input.
+  const parsed = accommodationSchema.safeParse({
+    ...applyPatch<AccommodationInput>(
+      {
+        stopId: before.stopId, name: before.name, address: before.address, checkIn: before.checkIn, checkOut: before.checkOut,
+        checkInTime: before.checkInTime, checkOutTime: before.checkOutTime, confirmation: before.confirmation, notes: before.notes,
+      },
+      patch,
+    ),
+    ...inlineCost,
+  });
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
@@ -199,18 +222,17 @@ export async function updateAccommodation(
     notes: data.notes ?? null,
     lat,
     lng,
-  }, acc.forkId ?? null);
+  }, acc.forkId ?? null, { before });
 
   // Inline cost management:
   // 0 existing costs + amount provided → create
   // 1 existing cost + amount provided → update it
-  // >1 existing costs → leave CostEditor authoritative (never clobber)
+  // >1 existing costs → refused above (completeInlineCost); CostEditor is authoritative
   // No amount provided → skip
   if (data.costMinor !== undefined && data.currency) {
-    const existingCosts = await db.cost.findMany({
-      where: { ownerType: "ACCOMMODATION", ownerId: accommodationId },
-      select: { id: true },
-    });
+    // Loaded above whenever the patch touches the Cost — the only way
+    // costMinor/currency reach `data`.
+    const existingCosts = owned;
 
     if (existingCosts.length <= 1) {
       const trip = await db.trip.findUnique({

@@ -6,7 +6,7 @@ const { recordActivityMock } = vi.hoisted(() => ({
   recordActivityMock: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 
 import { auditedUpdate, recordPlanActivity, recordUpdate, type AuditedDelegate } from "./activity-guard";
 
@@ -88,6 +88,19 @@ describe("auditedUpdate", () => {
 
   it("db delegates fit AuditedDelegate", () => {
     expectTypeOf<typeof db.stop>().toMatchTypeOf<AuditedDelegate<Stop, Prisma.StopUpdateInput>>();
+  });
+
+  it("auditedUpdate with a held before row writes and diffs without reading again", async () => {
+    const delegate = {
+      findUnique: vi.fn(),
+      update: vi.fn().mockResolvedValue({ id: "a1", tripId: "t1", name: "Hilton", address: "1 High St" }),
+    };
+    const before = { id: "a1", tripId: "t1", name: "Hilton", address: null };
+    await auditedUpdate("ACCOMMODATION", delegate, "a1", { address: "1 High St" }, null, { before });
+    expect(delegate.findUnique).not.toHaveBeenCalled();
+    expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: "ACCOMMODATION", entityId: "a1", changes: [expect.objectContaining({ field: "address" })],
+    }));
   });
 });
 

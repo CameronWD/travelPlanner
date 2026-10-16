@@ -13,7 +13,8 @@ const { requireTripAccess, stopFindMany, tripFindUnique, getTripProjection, setS
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
 vi.mock("@/lib/db", () => ({ db: { stop: { findMany: stopFindMany }, trip: { findUnique: tripFindUnique } } }));
-vi.mock("@/server/actions/stops", () => ({ getTripProjection, setStopNights, deleteStop }));
+vi.mock("@/server/actions/stops", () => ({ setStopNights, deleteStop }));
+vi.mock("@/lib/trip-projection-reads", () => ({ getTripProjection }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 
 import { connectTestClient } from "../test-client";

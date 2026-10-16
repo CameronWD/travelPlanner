@@ -18,7 +18,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
-vi.mock("@/server/actions/stops", () => ({ getTripProjection }));
+vi.mock("@/lib/trip-projection-reads", () => ({ getTripProjection }));
 vi.mock("@/lib/flags", async (orig) => ({
   ...(await orig<typeof import("./flags")>()),
   detectFlags,

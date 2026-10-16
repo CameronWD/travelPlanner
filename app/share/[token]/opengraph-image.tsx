@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
 import { DefaultOgCard, OG_SIZE, ShareOgCard, ogFonts } from "@/lib/og-card";
-import { findShareLink, loadShareStops } from "@/lib/share-lookup";
-import { shareOgModel } from "@/lib/share-og";
-import { scheduledShareStops } from "@/lib/share-view";
+import { findShareLink, loadShareStops } from "@/lib/share/lookup";
+import { shareOgModel } from "@/lib/share/og";
+import { scheduledShareStops } from "@/lib/share/view";
 import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
 
 export const size = OG_SIZE;

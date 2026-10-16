@@ -180,7 +180,7 @@ export const LIB_EXCLUSIONS: LibExclusion[] = [
     reason: "operator CLI for the blob sweep script; console output only, never rendered to a traveller",
   },
   {
-    prefix: "lib/feedback-inbox.ts",
+    prefix: "lib/feedback/inbox.ts",
     reason: "feedback:pull operator CLI; writes docs/feedback/inbox.md, never rendered to a traveller",
   },
   {

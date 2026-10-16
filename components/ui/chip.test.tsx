@@ -28,4 +28,20 @@ describe("Chip", () => {
     await userEvent.click(screen.getByRole("button", { name: "Food" }));
     expect(onClick).toHaveBeenCalledOnce();
   });
+
+  it("grows its hit area to 44px on touch when asked", () => {
+    const { rerender } = render(<Chip>Food</Chip>);
+    expect(screen.getByRole("button").className).not.toContain("pointer-coarse:after:-inset-2");
+    rerender(<Chip touch>Food</Chip>);
+    const cls = screen.getByRole("button").className;
+    expect(cls).toMatch(/(^|\s)relative(\s|$)/);
+    expect(cls).toContain("pointer-coarse:after:absolute");
+    expect(cls).toContain("pointer-coarse:after:-inset-2");
+    expect(cls).toContain("pointer-coarse:after:content-['']");
+  });
+
+  it("does not pass touch through to the DOM", () => {
+    render(<Chip touch>Food</Chip>);
+    expect(screen.getByRole("button")).not.toHaveAttribute("touch");
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/accommodation", () => ({
@@ -121,6 +121,37 @@ describe("AccommodationFormDialog", () => {
       expect.objectContaining({ name: "Hilton Garden Inn" }),
     );
     expect(createAccommodation).not.toHaveBeenCalled();
+  });
+
+  it("an edit that empties Notes, Address and Confirmation and the check-in time sends them as null (PATCH)", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={{ ...existingAccommodation, checkInTime: "15:00" }}
+      />,
+    );
+
+    await user.clear(screen.getByLabelText(/^notes$/i));
+    await user.clear(screen.getByLabelText(/^address$/i));
+    await user.clear(screen.getByLabelText(/^booking confirmation$/i));
+    fireEvent.change(screen.getByLabelText(/^check-in time$/i), { target: { value: "" } });
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateAccommodation).toHaveBeenCalledWith(
+      "acc-1",
+      expect.objectContaining({ notes: null, address: null, confirmation: null, checkInTime: null }),
+    );
+  });
+
+  it("a create still sends undefined for an empty field (toPatch is the update path only)", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} />);
+
+    await user.type(screen.getByPlaceholderText(/hilton garden inn/i), "My Hotel");
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+
+    expect(vi.mocked(createAccommodation).mock.calls[0][0].notes).toBeUndefined();
   });
 
   // -------------------------------------------------------------------------
@@ -510,7 +541,7 @@ describe("AccommodationFormDialog", () => {
       "acc-1",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: undefined,
+        paidAt: null, // an edit's empty paid date is a clear (toPatch, ADR 0075)
       }),
     );
   });
@@ -702,7 +733,7 @@ describe("AccommodationFormDialog", () => {
       "acc-1",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: undefined,
+        paidAt: null, // an edit's empty paid date is a clear (toPatch, ADR 0075)
       }),
     );
   });

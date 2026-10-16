@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { readWhatsNewSeen } from "@/lib/traveller-reads";
 import { requireUser } from "@/lib/guards";
 import {
   RELEASE_NOTES,
@@ -20,10 +20,7 @@ import { WhatsNewCard } from "./whats-new-card";
 export async function WhatsNewBanner({ className }: { className?: string } = {}) {
   const user = await requireUser();
 
-  const row = await db.user.findUnique({
-    where: { id: user.id },
-    select: { whatsNewSeenAt: true, createdAt: true },
-  });
+  const row = await readWhatsNewSeen(user.id);
   if (!row) return null;
 
   const unread = unreadReleaseNotes(

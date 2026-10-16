@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { NotebookPen, PlaneTakeoff, Route } from "lucide-react";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { loadPastHome } from "@/lib/past-home-loader";
@@ -128,10 +128,7 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
             {pct}% of {formatMoney(costTotalMinor, trip.homeCurrency)} cost
           </span>
           {/* Under/over is a state: status tokens, not an accent hue. */}
-          <Badge
-            variant={underBudget ? undefined : "destructive"}
-            className={underBudget ? "bg-success text-success-foreground" : undefined}
-          >
+          <Badge variant={underBudget ? "success" : "destructive"}>
             {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
           </Badge>
         </span>

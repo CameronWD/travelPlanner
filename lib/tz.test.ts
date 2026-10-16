@@ -12,6 +12,7 @@ import {
   zonedWallTimeToInstant,
   todayISOInZone,
   currentTripTimezone,
+  stopTimezone,
 } from "./tz";
 
 describe("TIMEZONES", () => {
@@ -277,5 +278,29 @@ describe("isValidTimeZone", () => {
     expect(isValidTimeZone("UTC")).toBe(true);
     expect(isValidTimeZone("Mars/Olympus")).toBe(false);
     expect(isValidTimeZone("")).toBe(false);
+  });
+});
+
+describe("stopTimezone (the one Stop timezone rule)", () => {
+  it("an explicit zone wins", () => {
+    expect(stopTimezone({ timezone: "Europe/Lisbon", countryCode: "fr", country: "France" })).toBe("Europe/Lisbon");
+  });
+  it("the UTC fallback takes the country code's zone", () => {
+    expect(stopTimezone({ timezone: "UTC", countryCode: "jp" })).toBe("Asia/Tokyo");
+  });
+  it("no zone at all takes the country code's zone", () => {
+    expect(stopTimezone({ countryCode: "it", country: "Italy" })).toBe("Europe/Rome");
+    expect(stopTimezone({ timezone: null, countryCode: "it" })).toBe("Europe/Rome");
+  });
+  it("an unknown code falls through to the country name", () => {
+    expect(stopTimezone({ timezone: "UTC", countryCode: "zz", country: "Italy" })).toBe("Europe/Rome");
+  });
+  it("the country name alone is enough", () => {
+    expect(stopTimezone({ country: "  France " })).toBe("Europe/Paris");
+  });
+  it("nothing known is UTC", () => {
+    expect(stopTimezone({})).toBe("UTC");
+    expect(stopTimezone({ timezone: "UTC", country: "Atlantis" })).toBe("UTC");
+    expect(stopTimezone({ timezone: "", countryCode: null, country: null })).toBe("UTC");
   });
 });

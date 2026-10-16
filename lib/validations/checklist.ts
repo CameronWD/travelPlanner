@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { checklistKindSchema } from "@/lib/enums";
-
-/** YYYY-MM-DD regex */
-const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
+import { isoDate } from "@/lib/validations/primitives";
 
 /**
  * Schema for creating or updating a ChecklistItem.

@@ -50,7 +50,8 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { nightsOver, buildTrimPlan, buildDropCandidates, type FitStop } from "@/lib/make-it-fit";
-import { getTripProjection, setStopNights, deleteStop } from "@/server/actions/stops";
+import { setStopNights, deleteStop } from "@/server/actions/stops";
+import { getTripProjection } from "@/lib/trip-projection-reads";
 import { runTool, fieldErrors } from "../run-tool";
 
 async function loadFitStops(tripId: string): Promise<FitStop[]> {

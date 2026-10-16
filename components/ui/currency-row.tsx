@@ -4,7 +4,7 @@ import * as React from "react";
 import { AnimatePresence, m } from "motion/react";
 import { Check, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CURRENCIES, currencyName } from "@/lib/currencies";
+import { CURRENCIES, currencyName } from "@/lib/money/currencies";
 
 export interface CurrencyRowProps {
   value: string;

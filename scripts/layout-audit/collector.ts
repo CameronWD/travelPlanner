@@ -20,7 +20,7 @@ export interface Rect {
   h: number;
 }
 
-export interface RawEl {
+interface RawEl {
   /** Short path: nearest `[data-testid]` ancestor-or-self, then up to three
    * levels of `tag.firstClass:nth-of-type(n)`. */
   sel: string;

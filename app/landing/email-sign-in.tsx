@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 /**
  * The Sign-in link field (CONTEXT.md "Sign-in link"; spec 2026-10-01 §B3).
  * Posts the address to Better Auth's magic-link plugin without leaving the
- * page. The gate (lib/sign-in-door.ts, ADR 0057) runs before any mail is
+ * page. The gate (lib/auth/sign-in-door.ts, ADR 0057) runs before any mail is
  * sent, and the send endpoint answers a refused address with the same
  * `{status:true}` response as an accepted one, so the response itself is not
  * an oracle. An `error` that isn't a network/transport failure (e.g. the

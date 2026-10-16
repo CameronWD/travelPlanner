@@ -5,10 +5,10 @@
  */
 import type { Category } from "@/lib/categories";
 import { countryName } from "@/lib/countries";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { formatDayLabel } from "@/lib/dates";
-import { decimalsFor, parseAmountToMinor } from "@/lib/money";
-import { guessTimezoneForCountry, timezoneForCountryOrNull } from "@/lib/tz";
+import { decimalsFor, parseAmountToMinor } from "@/lib/money/money";
+import { stopTimezone, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
 import { countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
 import { BOOKING_IMPORT_MESSAGES as M } from "./messages";
@@ -315,7 +315,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     .map(({ key, s, arriveDate, departDate }, i) => {
       const clientId = `s${i + 1}`;
       stopClientIds.set(key, clientId);
-      const timezone = guessTimezoneForCountry(s.countryCode ?? s.country);
+      const timezone = stopTimezone({ countryCode: s.countryCode, country: s.country });
       const proposal: StopProposal = {
         clientId,
         kind: "stop",

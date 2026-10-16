@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { authServer } from "@/lib/auth";
+import { authServer } from "@/lib/auth/auth";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { revalidateAccountPage } from "@/lib/revalidate";
 
@@ -78,7 +78,7 @@ export async function listConnectedApps(): Promise<ConnectedApp[]> {
 /**
  * Disconnect one app (CONTEXT.md **Connected apps**): its access ends at
  * once and it has to ask again. Deletes this Traveller's refresh tokens,
- * access tokens and consent for that app (lib/auth-mcp-access.ts,
+ * access tokens and consent for that app (lib/auth/mcp-access.ts,
  * `disconnectMcpClient`), so the next /api/mcp call with an old access
  * token gets a 401 and the old refresh token is refused.
  *

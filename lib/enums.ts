@@ -13,7 +13,7 @@ import {
 /**
  * Zod schemas for the "enum-ish" string columns (validated in app code, not
  * Prisma enums). Server-side only — client code imports the plain values
- * from `lib/enum-values.ts` (spec 2026-10-06 §R; lib/enum-values.guard.test.ts).
+ * from `lib/enum-values.ts` (spec 2026-10-06 §R; enforced in eslint.config.mjs).
  */
 export * from "./enum-values";
 

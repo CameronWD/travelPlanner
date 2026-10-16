@@ -14,7 +14,7 @@ vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => (
 
 import { DaySection, HOVER_OPEN_MS, claimDragHint, daySectionId, useHoverOpen } from "./day-section";
 import { setDayTitle } from "@/server/actions/day-titles";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { resolveItemDrop, type ItemDrop } from "./plan-dnd";
 
 // testing-library's getByText only normalises the DOM node's own text before

@@ -3,11 +3,10 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { type TripDeadline } from "@/lib/trip-deadline";
-import { computeProjection } from "@/lib/trip-projection";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { guessTimezoneForCountry } from "@/lib/tz";
+import { stopTimezone } from "@/lib/tz";
+import { mergeStopPatch, type StopPatch } from "@/lib/stop-patch";
 import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { type PayloadShiftResult } from "@/lib/payload-shift";
@@ -72,16 +71,6 @@ async function requireStopAccess(stopId: string) {
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
-
-/**
- * A scheduled stop sent with the "UTC" fallback (no country known on the
- * client) takes its country's zone once the server knows one — picked or
- * geocoded countryCode first, then the country name.
- */
-function resolveTimezone(timezone: string, countryCode: string | null, country: string | undefined): string {
-  if (timezone !== "UTC") return timezone;
-  return [countryCode, country].map((c) => guessTimezoneForCountry(c)).find((tz) => tz !== "UTC") ?? timezone;
-}
 
 /**
  * Create a new stop in the given trip.
@@ -243,7 +232,7 @@ export async function createStop(
 
       // scheduled
       const { name, country, arriveDate, departDate, notes } = parsed.data;
-      const timezone = resolveTimezone(parsed.data.timezone, derivedCountryCode, country);
+      const timezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: derivedCountryCode, country });
       // A dated Stop belongs to whichever Chapter's dates cover its arrive date
       // (CONTEXT.md "Chapter", ADR 0008), so it stores no chapter — never the
       // anchor's (the stored anchor can differ from the displayed neighbour).
@@ -368,7 +357,7 @@ export async function createStop(
     }
   }
 
-  const appendTimezone = resolveTimezone(parsed.data.timezone, appendCountryCode, country);
+  const appendTimezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: appendCountryCode, country });
 
   // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
   const created = await db.$transaction(async (tx) => {
@@ -399,24 +388,26 @@ export async function createStop(
 }
 
 /**
- * Update an existing stop.
- *
- * Handles both rough and scheduled modes.
+ * Update a Stop (PATCH, ADR 0075): merges onto the held row
+ * (`lib/stop-patch.ts` — mode, dates, place and Chapter rules), then the
+ * rough or scheduled write as before. A scheduled save resolves its
+ * timezone by `stopTimezone` with the final country, as `createStop` does.
  * Verifies the stop belongs to a trip the user can access.
- * For scheduled: optionally re-geocodes if lat/lng are still absent.
  */
 export async function updateStop(
   stopId: string,
-  input: StopInput,
+  patch: StopPatch,
 ): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
+  const before = await db.stop.findUnique({ where: { id: stopId } });
+  if (!before) notFound();
 
-  const parsed = stopSchema.safeParse(input);
+  const merged = mergeStopPatch(before, patch);
+  if ("success" in merged) return merged;
+  const parsed = stopSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
-
-  const before = await db.stop.findUnique({ where: { id: stopId } });
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
@@ -434,17 +425,17 @@ export async function updateStop(
     // typed text is geocoded best-effort as before (failure leaves coords as they were).
     let updateRoughLat: number | null | undefined;
     let updateRoughLng: number | null | undefined;
-    let updateRoughCountryCode: string | null = null;
+    // A sent countryCode wins over the geocoder's, as in createStop and the scheduled branch.
+    let updateRoughCountryCode: string | null = pickedCountryCode ?? null;
     if (pickedLat !== undefined && pickedLng !== undefined) {
       updateRoughLat = pickedLat;
       updateRoughLng = pickedLng;
-      updateRoughCountryCode = pickedCountryCode ?? null;
     } else {
       const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
       if (updateRoughCoords) {
         updateRoughLat = updateRoughCoords.lat;
         updateRoughLng = updateRoughCoords.lng;
-        updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+        updateRoughCountryCode = pickedCountryCode ?? updateRoughCoords.countryCode ?? null;
       }
     }
 
@@ -506,7 +497,7 @@ export async function updateStop(
       data: {
         name,
         country: country ?? null,
-        timezone,
+        timezone: stopTimezone({ timezone, countryCode: parsed.data.countryCode ?? updateCountryCode, country }),
         arriveDate,
         departDate,
         lat: lat ?? null,
@@ -519,7 +510,7 @@ export async function updateStop(
     // collision-push through followers — that ripple is setStopDates' job,
     // exercised via the reorder dialog). Renames rarely touch dates, so this
     // covers the common "renamed while dates unchanged" case with no writes.
-    if (before?.arriveDate && (before.arriveDate !== arriveDate || before.departDate !== departDate)) {
+    if (before.arriveDate && (before.arriveDate !== arriveDate || before.departDate !== departDate)) {
       await shiftStopPayloadTx(tx, { id: stopId, arriveDate: before.arriveDate }, arriveDate, departDate);
     }
     await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
@@ -1575,30 +1566,4 @@ export async function restoreStops(
 
   revalidateTrip(tripId, "plan");
   return { success: true };
-}
-
-/**
- * Compute a plan's projected end, its hard end date and its deadline (a dated
- * return leg's departure, else the hard end date — ADR 0068) in one round
- * trip, for the Flag detector on the Summary, Home and nav counts. Stops and
- * transports are read in plan scope, so a Fork resolves its own deadline.
- */
-export async function getTripProjection(
-  tripId: string,
-  forkId?: PlanId,
-): Promise<{ projectedEnd: string | null; hardEndDate: string | null; deadline: TripDeadline | null }> {
-  await requireTripAccess(tripId);
-  const [trip, stops, transports] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, hardEndDate: true, roundTrip: true } }),
-    db.stop.findMany({
-      where: { tripId, ...planScope(forkId) },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, arriveDate: true, departDate: true, nights: true, pinned: true, sortOrder: true, timezone: true },
-    }),
-    db.transport.findMany({
-      where: { tripId, ...planScope(forkId) },
-      select: { mode: true, fromStopId: true, toStopId: true, depAt: true, arrIsHome: true },
-    }),
-  ]);
-  return computeProjection({ trip, stops, transports });
 }

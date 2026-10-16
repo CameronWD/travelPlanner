@@ -1,5 +1,5 @@
-import { signInRedirect } from "@/lib/sign-in-redirect";
-import { auth } from "@/lib/auth";
+import { signInRedirect } from "@/lib/auth/sign-in-redirect";
+import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
 

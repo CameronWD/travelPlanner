@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { markerToWishlistItemData } from "./marker-to-item";
-import type { MarkerView } from "@/components/globe/types";
+import type { MarkerView } from "@/lib/globe-views";
 
 function marker(overrides: Partial<MarkerView> = {}): MarkerView {
   return {

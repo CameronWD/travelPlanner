@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 
 /**
  * Cost (and, when paid, the paid amount) rendered with locked alignment,

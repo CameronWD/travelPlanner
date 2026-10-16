@@ -1,6 +1,6 @@
 /**
  * The one place TEEPEE talks to Resend (spec 2026-10-02 §B). Two senders
- * use it: the Sign-in link (lib/auth.ts, which still throws to Auth.js on
+ * use it: the Sign-in link (lib/auth/auth.ts, which still throws to Auth.js on
  * a failure) and the approval email (server/actions/access-requests.ts,
  * which must never let mail undo an approval). Never throws; a failure is
  * a value. Configured only when both AUTH_RESEND_KEY and AUTH_RESEND_FROM

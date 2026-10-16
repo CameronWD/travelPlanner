@@ -1,5 +1,5 @@
 import { haversineKm } from "@/lib/geo";
-import type { MarkerView } from "@/components/globe/types";
+import type { MarkerView } from "@/lib/globe-views";
 
 /** A Trip Stop's location fields relevant to Globe-overlap matching. */
 interface TripStopLocation {

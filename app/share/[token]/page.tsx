@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata, Viewport } from "next";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import type { ShareScope, ShareSection, ShareStage } from "@/lib/share-view";
+import type { ShareScope, ShareSection, ShareStage } from "@/lib/share/view";
 import {
   buildRouteListStops,
   currentLeg,
@@ -15,7 +15,7 @@ import {
   shareTally,
   stopStatuses,
   tonightsStay,
-} from "@/lib/share-view";
+} from "@/lib/share/view";
 import { formatDayLabel, formatWeekday, nightsBetween } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
 import { loadDayTitles } from "@/lib/day-titles-loader";
@@ -24,17 +24,17 @@ import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enum-values";
 import { homeMapPoint } from "@/lib/route-map";
-import { MAP_INK } from "@/lib/map-palette";
+import { MAP_INK } from "@/lib/map/palette";
 import { describePhase } from "@/lib/trip-phase";
 import { countdownFor } from "@/lib/countdown";
 import { todayISOInZone, currentTripTimezone, instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import { journalWritableDates } from "@/lib/journal-window";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
-import { findShareLink, loadShareStops } from "@/lib/share-lookup";
+import { findShareLink, loadShareStops } from "@/lib/share/lookup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { mergePlanItems } from "@/lib/plan-reads";
-import { shareTraveller } from "@/lib/share-traveller";
-import { shareHrefs, shareRefParam } from "@/lib/share-ref";
+import { shareTraveller } from "@/lib/share/share-traveller";
+import { shareHrefs, shareRefParam } from "@/lib/share/ref";
 import { stopDotClass } from "@/lib/stop-colours";
 import type { SketchStop } from "@/lib/trips/route-sketch";
 import { ShareTopBar } from "./share-top-bar";
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
 // §A): the root below forces the light tokens, the map is pinned light, and
 // this pins the address bar light. Redundant while dark mode is parked app-wide
 // (spec 2026-10-04 §F, DM-01), and kept so un-parking leaves this page as is.
-// Sourced from lib/map-palette's MAP_INK (the only lib file allowed hex
+// Sourced from lib/map/palette's MAP_INK (the only lib file allowed hex
 // literals) rather than a literal here, per this directory's style ban on
 // raw hex (share-style-bans.test.ts) — same value as the --background token.
 export const viewport: Viewport = { themeColor: MAP_INK.light.paper };

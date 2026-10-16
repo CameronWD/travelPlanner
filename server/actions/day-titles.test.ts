@@ -5,7 +5,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
  * Tests for the setDayTitle server action.
  *
  * Mocks: lib/db, lib/guards, next/cache, next/navigation,
- * server/actions/activity (recordActivity) — lib/activity-guard and
+ * lib/activity-record (recordActivity) — lib/activity-guard and
  * lib/activity run for real, same pattern as accommodation.test.ts.
  */
 
@@ -38,7 +38,7 @@ vi.mock("next/navigation", () => ({
     throw new Error("NOT_FOUND");
   }),
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,

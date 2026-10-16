@@ -9,7 +9,7 @@
  * No React, no Prisma, no network — fully unit-testable.
  */
 
-import { googleDirectionsUrl, appleDirectionsUrl } from "@/lib/maps";
+import { googleDirectionsUrl, appleDirectionsUrl } from "@/lib/map/maps";
 
 type DayMapPointKind = "item" | "accommodation" | "transport-dep" | "transport-arr";
 
@@ -186,11 +186,17 @@ export function buildDayMapModel(input: {
 // Per-item directions helper
 // ---------------------------------------------------------------------------
 
+/** Directions links to one Item from the previous located point (Timeline renders them). */
+export interface ItemDirections {
+  google: string | null;
+  apple: string | null;
+}
+
 /** Per-item directions URLs from the previous located point to each located item. */
 export function buildItemDirections(
   model: DayMapModel,
-): Record<string, { google: string | null; apple: string | null }> {
-  const out: Record<string, { google: string | null; apple: string | null }> = {};
+): Record<string, ItemDirections> {
+  const out: Record<string, ItemDirections> = {};
   for (const p of model.points) {
     if (p.kind !== "item") continue;
     const prev = model.perItemPrev[p.id];

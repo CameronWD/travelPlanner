@@ -142,7 +142,7 @@ function describeCost(cost: DemoInlineCost | null | undefined): string {
   if (!cost.paid) return `${amount} · unpaid`;
   const paidAmount = `${((cost.paidMinor ?? cost.costMinor) / 100).toFixed(2)}`;
   // A paid cost with no paidAt is a real hazard, not a cosmetic one: the
-  // persister stamps the seed *run date* in its place, and lib/budget.ts
+  // persister stamps the seed *run date* in its place, and lib/money/budget.ts
   // treats paidAt as the sole signal that money has left the account.
   const when = cost.paidAt ? `paid ${cost.paidAt}` : "paid ⚠️ NO DATE — seed will stamp today";
   return `${amount} · ${when} (${paidAmount} ${cost.currency})`;

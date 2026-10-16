@@ -15,7 +15,7 @@ import type { ChecklistKind } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { tripTodayISO } from "@/lib/trip-today";
-import { listRemindersForTrip } from "@/server/actions/reminders";
+import { listRemindersForTrip } from "@/lib/reminder-reads";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { tripSlugFor } from "@/lib/trip-slug-read";

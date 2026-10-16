@@ -26,7 +26,7 @@ export const metadata: Metadata = { title: "Files" };
 // Helpers
 // ---------------------------------------------------------------------------
 
-export { FILES_SECTION_HEADER_CLASS } from "./section-class";
+export { FILES_SECTION_HEADER_CLASS } from "@/components/trip/files-section-class";
 
 const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   TRIP: "Trip-level",

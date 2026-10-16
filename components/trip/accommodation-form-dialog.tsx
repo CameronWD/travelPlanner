@@ -26,6 +26,7 @@ import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fie
 import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
 import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
+import { toPatch } from "@/lib/patch";
 import type { ProposedAccommodationInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
@@ -139,6 +140,9 @@ interface AccommodationFormProps {
   preview?: React.ReactNode;
 }
 
+/** An edit's empty fields are clears (ADR 0075). The Cost's paid date: an un-ticked Paid. */
+const ACCOMMODATION_CLEARABLE = ["address", "checkInTime", "checkOutTime", "confirmation", "notes", "paidAt"] as const;
+
 function AccommodationForm({
   tripId,
   stopId,
@@ -231,7 +235,7 @@ function AccommodationForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && accommodation
-        ? updateAccommodation(accommodation.id, input)
+        ? updateAccommodation(accommodation.id, toPatch(input, ACCOMMODATION_CLEARABLE))
         : createAccommodation(input, forkId ?? undefined);
     },
     onClose,

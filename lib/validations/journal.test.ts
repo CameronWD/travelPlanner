@@ -15,6 +15,10 @@ describe("saveJournalEntrySchema", () => {
     }
   });
 
+  it("refuses a date that is not a real calendar date", () => {
+    expect(saveJournalEntrySchema.safeParse({ date: "2026-02-30", body: "x" }).success).toBe(false);
+  });
+
   it("accepts an empty body (signals delete)", () => {
     const result = saveJournalEntrySchema.safeParse({
       date: "2026-07-15",

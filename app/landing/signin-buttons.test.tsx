@@ -4,7 +4,7 @@ import { GoogleSignInButton, DevSignInButton } from "./signin-buttons";
 
 const socialMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/client", () => ({
   authClient: {
     signIn: { social: socialMock },
     $fetch: fetchMock,

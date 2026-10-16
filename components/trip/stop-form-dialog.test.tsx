@@ -208,6 +208,23 @@ describe("StopFormDialog", () => {
       expect(input).not.toHaveProperty("countryCode");
     });
 
+    it("an edit that empties Notes and Country, or picks No chapter on a rough Stop, sends them as null (PATCH)", async () => {
+      const user = userEvent.setup();
+      const { unmount } = render(<StopFormDialog {...baseProps} stop={{ ...LONDON, notes: "near the station" }} />);
+      await user.clear(screen.getByPlaceholderText(/e\.g\. united kingdom/i));
+      await user.clear(screen.getByDisplayValue("near the station"));
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({ notes: null, country: null }));
+      unmount();
+
+      const ROME = { ...LONDON, id: "stop-2", name: "Rome", country: "Italy", timezone: null, arriveDate: null, departDate: null, nights: 3, chapterId: "chap-1" };
+      render(<StopFormDialog {...baseProps} stop={ROME} chapters={[{ id: "chap-1", name: "South" }]} />);
+      await user.click(screen.getAllByRole("combobox").find((el) => el.textContent?.includes("South"))!);
+      await user.click(await screen.findByRole("option", { name: "No chapter" }));
+      await user.click(screen.getByRole("button", { name: /save changes/i }));
+      expect(updateStop).toHaveBeenLastCalledWith("stop-2", expect.objectContaining({ mode: "rough", chapterId: null }));
+    });
+
     it("labels the modes like the add sheet: Exact dates / Roughly", () => {
       render(<StopFormDialog {...baseProps} />);
       expect(screen.getByRole("radio", { name: "Exact dates" })).toBeInTheDocument();

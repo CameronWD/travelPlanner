@@ -52,8 +52,8 @@ import {
 } from "@/lib/digest";
 import { buildDigestPayload, sendPush } from "@/lib/push";
 import { computeTripPhase } from "@/lib/trip-phase";
-import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
-import { formatMoney } from "@/lib/money";
+import { buildCostLabelMap, costLabel } from "@/lib/money/cost-labels";
+import { formatMoney } from "@/lib/money/money";
 import { addDays, daysBetween } from "@/lib/dates";
 import { endpointLabel } from "@/lib/home-base";
 import {
@@ -390,7 +390,7 @@ type DueCostRow = {
  * Name and price each upcoming payment.
  *
  * The owner-label map is built exactly as the budget page and both Home phases
- * build it (lib/cost-labels.ts): a stop-linked Transport has no free-text place
+ * build it (lib/money/cost-labels.ts): a stop-linked Transport has no free-text place
  * of its own, so its endpoints are resolved through the trip's stop names. Get
  * this wrong and the line reads "Cost · £240" instead of "Airbnb · £240".
  */

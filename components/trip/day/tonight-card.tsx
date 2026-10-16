@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDayLabel } from "@/lib/dates";
-import { mapsUrl } from "@/lib/maps";
+import { mapsUrl } from "@/lib/map/maps";
 import type { DayViewData } from "@/lib/day-view-loader";
 import { useTripHref } from "@/components/trip/use-trip-href";
 

@@ -1,9 +1,9 @@
 import { CoverArt } from "@/components/trips/trip-cover";
 import type { SketchStop } from "@/lib/trips/route-sketch";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
-import { avatarInput, type ShareTraveller } from "@/lib/share-traveller";
-import type { DayIndex, ShareStage } from "@/lib/share-view";
-import { travellersLabel } from "@/lib/share-view";
+import { avatarInput, type ShareTraveller } from "@/lib/share/share-traveller";
+import type { DayIndex, ShareStage } from "@/lib/share/view";
+import { travellersLabel } from "@/lib/share/view";
 import { formatDayRange, formatMonthSpan } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { PlayOnce } from "./share-reveal";

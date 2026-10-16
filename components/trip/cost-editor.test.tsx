@@ -362,11 +362,11 @@ describe("CostEditor", () => {
     expect(screen.getByRole("button", { name: /delete cost/i }).className).toContain("tap-target");
   });
 
-  it("ticking Paid on a cost with a stored due date clears it — updateCost is called with no dueDate key", async () => {
+  it("ticking Paid on a cost with a stored due date clears it — updateCost is called with dueDate: null", async () => {
     // Regression: parseFormToInput omits `dueDate` whenever form.paid is
-    // true, and updateCost writes `dueDate: data.dueDate ?? null`
-    // unconditionally — so ticking Paid and saving must clear a previously
-    // stored due date, never carry it forward.
+    // true, and the edit's toPatch turns that into `dueDate: null` (PATCH,
+    // ADR 0075: an omitted key would keep it) — so ticking Paid and saving
+    // must clear a previously stored due date, never carry it forward.
     const costWithDueDate: CostRow = { ...sampleCost, dueDate: "2026-11-20" };
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} costs={[costWithDueDate]} />);
@@ -377,7 +377,19 @@ describe("CostEditor", () => {
 
     expect(updateCost).toHaveBeenCalled();
     const call = (updateCost as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(call).not.toHaveProperty("dueDate");
+    expect(call.dueDate).toBeNull();
+  });
+
+  it("an edit that un-ticks Paid sends paidAt: null, and a cleared Due date sends dueDate: null (PATCH: undefined would keep them)", async () => {
+    const paidCost: CostRow = { ...sampleCost, paidMinor: 5000, paidAt: new Date("2026-06-04T00:00:00Z") };
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[paidCost]} />);
+
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ paidAt: null, dueDate: null }));
   });
 
   it("toasts when deleteCost refuses, and when it rejects (spec 2026-10-06 §E)", async () => {

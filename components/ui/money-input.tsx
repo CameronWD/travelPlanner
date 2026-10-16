@@ -9,8 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toMoneyValue, type MoneyValue } from "@/lib/money";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { toMoneyValue, type MoneyValue } from "@/lib/money/money";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { cn } from "@/lib/cn";
 
 /** Every currency Teepee offers; trips can pass their own narrower list. */

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { UpcomingPaymentsCard } from "./upcoming-payments-card";
-import type { UpcomingPayment } from "@/lib/upcoming-payments";
+import type { UpcomingPayment } from "@/lib/money/upcoming-payments";
 
 const payment = (o: Partial<UpcomingPayment> & { costId: string }): UpcomingPayment => ({
   label: "Hotel Lutetia",

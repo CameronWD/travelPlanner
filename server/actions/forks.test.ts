@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  *   - lib/guards       → requireTripAccess, assertForkingAllowed
  *   - lib/trip-phase   → computeTripPhase
  *   - lib/dates        → todayISO
- *   - server/actions/activity → recordActivity
+ *   - lib/activity-record → recordActivity
  *   - lib/revalidate   → revalidateTrip
  */
 
@@ -255,7 +255,7 @@ vi.mock("@/lib/tz", () => ({
   currentTripTimezone: currentTripTimezoneMock,
 }));
 
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-record", () => ({
   recordActivity: recordActivityMock,
 }));
 
@@ -300,7 +300,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 // ---------------------------------------------------------------------------
 
 import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork, moveFork } from "./forks";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { planRows } from "@/test/builders/plan-rows";

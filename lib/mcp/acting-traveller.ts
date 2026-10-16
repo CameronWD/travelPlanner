@@ -7,7 +7,8 @@
  * NEVER add "use server" to this module: that would publish runAsTraveller
  * as a callable server action. Only app/api/mcp/route.ts may call
  * runAsTraveller, and only after verifying a token
- * (lib/mcp/acting-traveller-imports.test.ts enforces the importer list).
+ * (eslint.config.mjs enforces the importer list: lib/guards.ts,
+ * lib/activity-record.ts, lib/mcp/run-tool.ts, app/api/mcp/route.ts).
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 

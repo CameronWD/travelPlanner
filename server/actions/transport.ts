@@ -1,5 +1,6 @@
 "use server";
 
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
@@ -9,8 +10,10 @@ import { geocodePlace, searchPlacesWithStatus, type PlaceSearchOutcome } from "@
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { type ActionFailure, type ActionResult, validationResult, formFail } from "@/lib/action-result";
+import { mergeTransportPatch, type TransportPatch } from "@/lib/transport-patch";
+import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
@@ -214,17 +217,29 @@ export async function createTransport(
 }
 
 /**
- * Update an existing transport.
+ * Update a Transport (PATCH, ADR 0075): merges onto the held row
+ * (`lib/transport-patch.ts` — the endpoint rules); an inline Cost completes
+ * from its single owned Cost.
  *
  * Looks up the transport → requireTripAccess(transport.tripId).
  */
 export async function updateTransport(
   transportId: string,
-  input: TransportInput,
+  patch: TransportPatch,
 ): Promise<TransportActionResult> {
   const transport = await requireTransportAccess(transportId);
+  const before = await db.transport.findUnique({ where: { id: transportId } });
+  if (!before) notFound();
 
-  const parsed = transportSchema.safeParse(input);
+  const merged = mergeTransportPatch(before, patch);
+  if ("success" in merged) return merged;
+  const owned = patch.costMinor != null || patch.currency != null
+    ? await db.cost.findMany({ where: { ownerType: "TRANSPORT", ownerId: transportId }, select: OWNED_COST_SELECT })
+    : [];
+  const inlineCost = completeInlineCost(patch, owned);
+  if (inlineCost && "success" in inlineCost) return inlineCost;
+
+  const parsed = transportSchema.safeParse({ ...merged, ...inlineCost });
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
@@ -304,18 +319,17 @@ export async function updateTransport(
     depLng,
     arrLat,
     arrLng,
-  }, transport.forkId ?? null);
+  }, transport.forkId ?? null, { before });
 
   // Inline cost management:
   // 0 existing costs + amount provided → create
   // 1 existing cost + amount provided → update it
-  // >1 existing costs → leave CostEditor authoritative (never clobber)
+  // >1 existing costs → refused above (completeInlineCost); CostEditor is authoritative
   // No amount provided → skip
   if (data.costMinor !== undefined && data.currency) {
-    const existingCosts = await db.cost.findMany({
-      where: { ownerType: "TRANSPORT", ownerId: transportId },
-      select: { id: true },
-    });
+    // Loaded above whenever the patch touches the Cost — the only way
+    // costMinor/currency reach `data`.
+    const existingCosts = owned;
 
     if (existingCosts.length <= 1) {
       const trip = await db.trip.findUnique({
@@ -366,7 +380,6 @@ export async function updateTransport(
         });
       }
     }
-    // >1 costs: do nothing — CostEditor is authoritative
   }
 
   revalidateTrip(transport.tripId, "plan", "money");

@@ -13,8 +13,8 @@ vi.mock("@better-auth/prisma-adapter", async () => {
   return { prismaAdapter: () => memoryAdapter(store) };
 });
 vi.mock("@/lib/db", () => ({ db: {} }));
-vi.mock("@/lib/auth-prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
-vi.mock("@/lib/sign-in-door", () => ({ decideSignIn: vi.fn() }));
+vi.mock("@/lib/auth/prisma", () => ({ withBetterAuthLists: (db: unknown) => db }));
+vi.mock("@/lib/auth/sign-in-door", () => ({ decideSignIn: vi.fn() }));
 vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));

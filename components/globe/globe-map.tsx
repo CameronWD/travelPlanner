@@ -13,11 +13,11 @@ import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type { ArrivalPin, MarkerView } from "@/components/globe/types";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map-tiles";
+import { cartoTiles } from "@/lib/map/tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { pinHex, pinHtml, pinSize } from "@/lib/map-pins";
-import { hueHex } from "@/lib/map-palette";
-import { applyLeafletIconDefaults } from "@/lib/map-icons";
+import { pinHex, pinHtml, pinSize } from "@/lib/map/pins";
+import { hueHex } from "@/lib/map/palette";
+import { applyLeafletIconDefaults } from "@/lib/map/icons";
 import { ARRIVAL_FLY_S, PIN_STAGGER_MS } from "./arrival";
 
 export interface GlobeMapProps {

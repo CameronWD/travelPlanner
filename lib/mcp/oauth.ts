@@ -1,15 +1,15 @@
 import "server-only";
 import { createResourceServerChallenge, metadataResponse } from "@better-auth/oauth-provider";
 import { APIError } from "better-auth/api";
-import { authServer, mcpResourceForRequest } from "@/lib/auth";
+import { authServer, mcpResourceForRequest } from "@/lib/auth/auth";
 
 /**
  * /api/mcp as an OAuth protected resource (ADR 0071, RFC 9728). Claude
  * finds the authorisation server from the protected-resource metadata, and
- * its access tokens are checked in process by lib/auth-mcp-access.ts.
+ * its access tokens are checked in process by lib/auth/mcp-access.ts.
  *
  * Everything is per host: production, beta and a preview each bind tokens
- * to their own /api/mcp (lib/auth.ts MCP_RESOURCES), and a request is held
+ * to their own /api/mcp (lib/auth/auth.ts MCP_RESOURCES), and a request is held
  * to the resource of the host it came to.
  */
 

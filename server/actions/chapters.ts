@@ -1,8 +1,10 @@
 "use server";
 
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
+import { applyPatch, type Patch } from "@/lib/patch";
 import { chaptersOverlap, canAssignToChapter } from "@/lib/chapters";
 import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
 import { nextChapterColour } from "@/lib/chapter-colours";
@@ -100,20 +102,28 @@ export async function createChapter(
   return { success: true };
 }
 
+/** Update a Chapter (PATCH, ADR 0075). A lone date against a rough Chapter is refused by the schema ("Set both dates or neither"). */
 export async function updateChapter(
   chapterId: string,
-  input: ChapterInput,
+  patch: Patch<ChapterInput>,
 ): Promise<ChapterActionResult> {
   const chapter = await requireChapterAccess(chapterId);
+  const before = await db.chapter.findUnique({ where: { id: chapterId } });
+  if (!before) notFound();
 
-  const parsed = chapterSchema.safeParse(input);
+  const parsed = chapterSchema.safeParse(applyPatch<ChapterInput>(
+    { name: before.name, colour: before.colour as ChapterInput["colour"], startDate: before.startDate, endDate: before.endDate },
+    patch,
+  ));
   if (!parsed.success) return validationResult(parsed.error);
 
   if (await firstOverlap(chapter.tripId, parsed.data, chapterId)) {
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
   }
 
-  await auditedUpdate("CHAPTER", db.chapter, chapterId, parsed.data, chapter.forkId ?? null);
+  // Dates written `?? null`: absent now means "carried from the row" (merged above), so an explicit null clears.
+  const data = { ...parsed.data, startDate: parsed.data.startDate ?? null, endDate: parsed.data.endDate ?? null };
+  await auditedUpdate("CHAPTER", db.chapter, chapterId, data, chapter.forkId ?? null, { before });
   revalidateTrip(chapter.tripId, "plan");
   return { success: true };
 }

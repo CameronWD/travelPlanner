@@ -10,10 +10,10 @@ const redirectMock = vi.hoisted(() =>
 );
 const findUnique = vi.hoisted(() => vi.fn());
 const SECRET = vi.hoisted(() => "test-secret-test-secret-test-secret-0123");
-vi.mock("@/lib/auth", () => ({ auth: authMock, authServer: { $context: Promise.resolve({ secret: SECRET }) } }));
+vi.mock("@/lib/auth/auth", () => ({ auth: authMock, authServer: { $context: Promise.resolve({ secret: SECRET }) } }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 const signInMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth-client", () => ({ authClient: { signIn: { social: signInMock } } }));
+vi.mock("@/lib/auth/client", () => ({ authClient: { signIn: { social: signInMock } } }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique } } }));
 
 import RootPage, { metadata } from "./page";

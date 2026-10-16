@@ -32,9 +32,9 @@ That's it. Notably **not** installed:
 
 | Service | Used for | Auth | Where |
 |---|---|---|---|
-| **CARTO basemaps** (Positron / Dark Matter) | Raster tiles, light + dark | Free `NEXT_PUBLIC_CARTO_API_KEY` recommended — since late Aug 2026, unauthenticated tiles are watermarked | `lib/map-tiles.ts` |
+| **CARTO basemaps** (Positron / Dark Matter) | Raster tiles, light + dark | Free `NEXT_PUBLIC_CARTO_API_KEY` recommended — since late Aug 2026, unauthenticated tiles are watermarked | `lib/map/tiles.ts` |
 | **OpenStreetMap Nominatim** | Forward geocode, place search, reverse geocode | None — but a real contact in `User-Agent` is mandatory | `lib/geocode.ts` |
-| **Google Maps / Apple Maps** | "Open in Maps" + turn-by-turn directions deep links | None — URL schemes only | `lib/maps.ts` |
+| **Google Maps / Apple Maps** | "Open in Maps" + turn-by-turn directions deep links | None — URL schemes only | `lib/map/maps.ts` |
 
 **Why CARTO instead of raw OSM tiles:** OSM's standard raster tiles have no dark
 variant, and dark mode is first-class in this app. CARTO publishes Positron
@@ -47,7 +47,7 @@ free `NEXT_PUBLIC_CARTO_API_KEY` to avoid a watermark on every tile (see
 [ADR 0033's amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)).
 
 ```ts
-// lib/map-tiles.ts — the entire tile layer config, 54 lines
+// lib/map/tiles.ts — the entire tile layer config, 54 lines
 const KEY_QUERY = API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : "";
 export const CARTO_TILES = {
   light: { url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png${KEY_QUERY}`, ... },
@@ -79,17 +79,17 @@ has more than ~5 maps or wants React state bound to map state,
 ```
 ┌─ Pure logic (no React, no network, no Prisma) ──────────────────────┐
 │  lib/geo.ts          haversine distance, offline drive estimates    │
-│  lib/maps.ts         Google/Apple URL builders                      │
+│  lib/map/maps.ts     Google/Apple URL builders                      │
 │  lib/day-map.ts      builds the day's point model + route order     │
 │  lib/route-map.ts    home-base point extraction                     │
 │  lib/trips/route-sketch.ts lat/lng → SVG projection (route sketch)  │
 │  lib/nearby.ts       radius search over located items               │
-│  lib/map-tiles.ts    tile config + theme selection                  │
+│  lib/map/tiles.ts    tile config + theme selection                  │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ Server (network I/O, "use server") ────────────────────────────────┐
 │  lib/geocode.ts             Nominatim client (cached, never throws) │
 │  server/actions/*.ts        geocode-on-save; search actions         │
-│  scripts/backfill-geocode.ts throttled one-off backfill             │
+│  scripts/archive/backfill-geocode.ts  one-off backfill (archived)   │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ Loader boundary (the ssr:false seam) ──────────────────────────────┐
 │  components/ui/map-loader.tsx  createMapLoader<P>() factory         │
@@ -178,12 +178,12 @@ Next's bundler vs. Vitest's.
 ### 5.3 Self-host the marker icons
 
 Leaflet's default icon URLs are derived from the CSS path and break under every
-bundler. The fix lives in `lib/map-icons.ts`, run once per map init immediately
+bundler. The fix lives in `lib/map/icons.ts`, run once per map init immediately
 after the dynamic `import("leaflet")` resolves, with the three PNGs copied from
 `node_modules/leaflet/dist/images/` into `public/leaflet/`:
 
 ```tsx
-// lib/map-icons.ts — call once per map init, after import("leaflet") resolves
+// lib/map/icons.ts — call once per map init, after import("leaflet") resolves
 applyLeafletIconDefaults(L);
 ```
 
@@ -244,7 +244,7 @@ per-type colours instead.
 
 ```tsx
 import { escapeHtml } from "@/lib/escape-html";   // shared — never re-implement
-import { pinHex } from "@/lib/map-pins";          // category → pin colour
+import { pinHex } from "@/lib/map/pins";          // category → pin colour
 ```
 
 **Popups are raw HTML, so every interpolated value goes through `escapeHtml`.**
@@ -385,14 +385,14 @@ because a departure terminal is tens of kilometres from the city centre pin
 `reverseGeocodeAction` (drop-a-pin: click the Globe → reverse-geocode → prefill
 the title and place).
 
-**Retroactively**, `scripts/backfill-geocode.ts` — idempotent (only touches rows
+**Retroactively**, `scripts/archive/backfill-geocode.ts` (archived) — idempotent (only touches rows
 missing coords), throttled at 1100 ms, `--dry-run` supported, prints a
 scanned/geocoded/skipped/failed summary. Explicitly *not* run inside
 `prisma migrate deploy`: slow network calls don't belong in a migration.
 
 ## 7. Directions — deep links, not a routing API
 
-`lib/maps.ts` builds URLs; nothing calls a routing or distance-matrix service.
+`lib/map/maps.ts` builds URLs; nothing calls a routing or distance-matrix service.
 
 ```ts
 mapsUrl({ lat, lng, address, label })            // → google.com/maps/search/?api=1&query=…
@@ -422,10 +422,10 @@ justifies the key/cost/rate-limit burden.
 
 The split in §4 is what makes this testable at all:
 
-- **Pure `lib/` modules have real unit tests** — `geo.test.ts`, `maps.test.ts`,
-  `day-map.test.ts`, `map-tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
-  `route-sketch.test.ts`, `escape-html.test.ts`, `map-icons.test.ts`,
-  `map-pins.test.ts`. This is where the actual logic lives, so this is where
+- **Pure `lib/` modules have real unit tests** — `geo.test.ts`, `map/maps.test.ts`,
+  `day-map.test.ts`, `map/tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
+  `route-sketch.test.ts`, `escape-html.test.ts`, `map/icons.test.ts`,
+  `map/pins.test.ts`. This is where the actual logic lives, so this is where
   the coverage is.
 - **Real Leaflet never runs in jsdom — but the map components themselves now
   do get rendered there**, with only the `leaflet` package swapped for a test
@@ -530,13 +530,13 @@ To stand this up in another Next.js App Router project:
 2. Copy `node_modules/leaflet/dist/images/marker-icon.png`, `marker-icon-2x.png`,
    `marker-shadow.png` → `public/leaflet/`
 3. Add `.leaflet-container { isolation: isolate; }` to global CSS
-4. Copy the `lib/` map helpers: `map-tiles.ts` (tile config — get a free
+4. Copy the `lib/` map helpers: `lib/map/tiles.ts` (tile config — get a free
    `NEXT_PUBLIC_CARTO_API_KEY` at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)
-   or tiles ship watermarked), `map-icons.ts` (default-icon fix), `map-pins.ts`
-   (category → hex), `escape-html.ts` (popup escaping). All four are
-   dependency-free and copy verbatim.
+   or tiles ship watermarked), `lib/map/icons.ts` (default-icon fix),
+   `lib/map/pins.ts` (category → hex), `lib/escape-html.ts` (popup
+   escaping). All four are dependency-free and copy verbatim.
 5. Copy `components/ui/map-loader.tsx` (the `createMapLoader` factory)
-6. Copy `lib/maps.ts` verbatim if you want the deep links, `lib/geo.ts` for
+6. Copy `lib/map/maps.ts` verbatim if you want the deep links, `lib/geo.ts` for
    distance/drive estimates
 7. Copy `lib/geocode.ts`, set `NOMINATIM_CONTACT` to a **real** email or app URL
    in every environment — and re-read §6/§10 about whether Nominatim suits your

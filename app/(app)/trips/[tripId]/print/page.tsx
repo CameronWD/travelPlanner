@@ -11,14 +11,14 @@ import {
 } from "lucide-react";
 import { readPlan } from "@/lib/plan-reads";
 import { requireTripAccess } from "@/lib/guards";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
 import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
-import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
+import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { cn } from "@/lib/cn";
 import { PrintButton } from "./print-button";
-import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/money/budget";
 import type { TransportMode } from "@/lib/enum-values";
 
 export const metadata: Metadata = { title: "Print" };

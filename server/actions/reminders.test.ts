@@ -13,7 +13,6 @@ const {
   revalidateTripsListMock,
   notFoundMock,
   reminderFindUniqueMock,
-  reminderFindManyMock,
   reminderCreateMock,
   reminderUpdateMock,
   reminderDeleteMock,
@@ -30,7 +29,6 @@ const {
     throw new Error("NOT_FOUND");
   }),
   reminderFindUniqueMock: vi.fn(),
-  reminderFindManyMock: vi.fn(),
   reminderCreateMock: vi.fn(),
   reminderUpdateMock: vi.fn(),
   reminderDeleteMock: vi.fn(),
@@ -46,7 +44,6 @@ vi.mock("@/lib/db", () => ({
   db: {
     reminder: {
       findUnique: reminderFindUniqueMock,
-      findMany: reminderFindManyMock,
       create: reminderCreateMock,
       update: reminderUpdateMock,
       delete: reminderDeleteMock,
@@ -56,7 +53,7 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
@@ -86,23 +83,13 @@ vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
   requireRowAccess: requireRowAccessMock,
 }));
-// Surprise (ADR 0051): listRemindersForTrip reads through the visibility
-// loader; nothing is hidden unless a test says so.
-const loadSurpriseVisibilityMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
-  loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
-  return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
-});
 
 // Import after mocks
 import {
   addReminder,
   updateReminder,
   deleteReminder,
-  listRemindersForTrip,
 } from "@/server/actions/reminders";
-import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
 const TRIP_ID = "trip-1";
 const REMINDER_ID = "rem-1";
@@ -170,6 +157,12 @@ describe("addReminder", () => {
       date: "28 Nov",
     });
     expect(result.success).toBe(false);
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a date that matches the format but is not a calendar date", async () => {
+    const result = await addReminder(TRIP_ID, { ...VALID_INPUT, date: "2026-02-30" });
+    expect(result).toMatchObject({ success: false, errors: { date: ["Reminder date must be a real date"] } });
     expect(reminderCreateMock).not.toHaveBeenCalled();
   });
 
@@ -253,81 +246,6 @@ describe("addReminder", () => {
       errors: { stopId: ["That Stop isn't on this trip"] },
     });
     expect(reminderCreateMock).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// listRemindersForTrip
-// ---------------------------------------------------------------------------
-
-describe("listRemindersForTrip", () => {
-  it("checks trip access before reading anything", async () => {
-    reminderFindManyMock.mockResolvedValue([]);
-    await listRemindersForTrip(TRIP_ID, "2026-07-01");
-    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-  });
-
-  it("returns reminders dated on or after fromDate, soonest first, capped at 20", async () => {
-    reminderFindManyMock.mockResolvedValue([
-      { id: "r1", title: "Print docs", date: "2026-07-02", stopId: null, stop: null },
-    ]);
-
-    const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
-
-    expect(reminderFindManyMock).toHaveBeenCalledWith({
-      where: { tripId: TRIP_ID, date: { gte: "2026-07-01" } },
-      orderBy: { date: "asc" },
-      take: 20,
-      select: {
-        id: true,
-        title: true,
-        date: true,
-        stopId: true,
-        stop: { select: { name: true } },
-      },
-    });
-    expect(result).toEqual([
-      { id: "r1", title: "Print docs", date: "2026-07-02", stopId: null, stopName: null },
-    ]);
-  });
-
-  // Task 7: a Reminder may be about a Stop — the card renders a chip from the
-  // related Stop's name.
-  it("returns stopName from the related Stop when the reminder is about one", async () => {
-    reminderFindManyMock.mockResolvedValue([
-      {
-        id: "r1",
-        title: "Reconfirm the tour",
-        date: "2026-07-02",
-        stopId: "s1",
-        stop: { name: "Denpasar" },
-      },
-    ]);
-
-    const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
-
-    expect(result).toEqual([
-      {
-        id: "r1",
-        title: "Reconfirm the tour",
-        date: "2026-07-02",
-        stopId: "s1",
-        stopName: "Denpasar",
-      },
-    ]);
-  });
-
-  it("a Reminder about a Stop hidden from the viewer stays in the database (ADR 0051)", async () => {
-    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ viewerId: "user-1", hiddenStopIds: ["s1"] }));
-    reminderFindManyMock.mockResolvedValue([]);
-    await listRemindersForTrip(TRIP_ID, "2026-07-01");
-    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, "user-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, loadSurpriseVisibilityMock);
-    expect(reminderFindManyMock.mock.calls[0][0].where).toEqual({
-      tripId: TRIP_ID,
-      date: { gte: "2026-07-01" },
-      ...MARKER_WHERE.reminder,
-    });
   });
 });
 
@@ -445,6 +363,45 @@ describe("updateReminder", () => {
       success: false,
       errors: { stopId: ["That Stop isn't on this trip"] },
     });
+    expect(reminderUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateReminder — PATCH merge (ADR 0075), moved here from the MCP tool
+// ---------------------------------------------------------------------------
+
+describe("updateReminder (PATCH, ADR 0075)", () => {
+  const ROW = { id: "r1", tripId: "trip-1", title: "Reconfirm the tour", date: "2026-07-02", stopId: null, stop: null };
+  // Brief literal was "new-stop" — not a valid cuid, and this now goes through
+  // the real reminderSchema (stopId: z.string().cuid()), so a valid-looking
+  // cuid stands in for it, same substitution already made above for "stop-1".
+  const NEW_STOP_ID = "cst0p00000000000000000002";
+
+  it("with only title keeps the current date and writes no stopId", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ title: "New title", date: "2026-07-02", stop: null });
+    await updateReminder("r1", { title: "New title" });
+    expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "r1" },
+      data: { title: "New title", date: "2026-07-02" },
+    }));
+  });
+
+  it("a supplied stopId replaces the current one", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    stopFindFirstMock.mockResolvedValue({ id: NEW_STOP_ID });
+    reminderUpdateMock.mockResolvedValue({ title: "Reconfirm the tour", date: "2026-07-02", stop: null });
+    await updateReminder("r1", { stopId: NEW_STOP_ID });
+    expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: { title: "Reconfirm the tour", date: "2026-07-02", stopId: NEW_STOP_ID },
+    }));
+  });
+
+  it("a null title is refused by the schema, nothing written", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    const r = await updateReminder("r1", { title: null });
+    expect(r.success).toBe(false);
     expect(reminderUpdateMock).not.toHaveBeenCalled();
   });
 });

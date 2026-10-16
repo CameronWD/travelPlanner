@@ -10,7 +10,7 @@
 
 import type { RawCollect, Rect } from "./collector";
 
-export type CheckName =
+type CheckName =
   | "sideways-scroll"
   | "spill"
   | "clipped-text"

@@ -127,13 +127,13 @@ vi.mock("@/lib/guards", () => ({
 }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
-vi.mock("@/lib/fx", () => ({
+vi.mock("@/lib/money/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
 }));
@@ -176,7 +176,7 @@ import {
   updateAccommodation,
   deleteAccommodation,
 } from "./accommodation";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
   stopId: "stop-1",
@@ -896,7 +896,7 @@ describe("updateAccommodation: inline cost update/create", () => {
     );
   });
 
-  it("does NOT touch any costs when accommodation has >1 existing costs (CostEditor authoritative)", async () => {
+  it("refuses cost fields when accommodation has >1 existing costs (CostEditor authoritative)", async () => {
     accFindUniqueMock
       .mockResolvedValueOnce({ id: "au-3", tripId: "trip-1", forkId: null }) // requireAccommodationAccess
       .mockResolvedValueOnce({ id: "au-3", name: "Grand Hotel" }); // before snapshot
@@ -913,7 +913,9 @@ describe("updateAccommodation: inline cost update/create", () => {
       currency: "AUD",
     });
 
-    expect(result.success).toBe(true);
+    // Deviation 9 (card 3.L): refused for every caller, not silently skipped.
+    expect(result).toMatchObject({ success: false, errors: { costMinor: [expect.stringMatching(/more than one Cost/)] } });
+    expect(accUpdateMock).not.toHaveBeenCalled();
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
     // Transaction should not be called for cost when >1 costs
@@ -933,6 +935,38 @@ describe("updateAccommodation: inline cost update/create", () => {
     expect(transactionMock).not.toHaveBeenCalled();
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateAccommodation (PATCH, ADR 0075)", () => {
+  const row = { id: "acc-1", tripId: "trip-1", forkId: null, stopId: "stop-1", name: "Hilton", address: "1 Via Roma", checkIn: "2026-05-01", checkOut: "2026-05-04", checkInTime: "15:00", checkOutTime: null, confirmation: "ABC", notes: "old", lat: 41.9, lng: 12.5 };
+  beforeEach(() => {
+    accFindUniqueMock.mockResolvedValue(row); // guard row, then the held row
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accUpdateMock.mockResolvedValue({ ...row });
+  });
+  it("with only name keeps every other field, including stopId and dates, reading the row once", async () => {
+    await updateAccommodation("acc-1", { name: "Hilton Garden Inn" });
+    expect(accUpdateMock).toHaveBeenCalledWith({ where: { id: "acc-1" }, data: expect.objectContaining({
+      stopId: "stop-1", name: "Hilton Garden Inn", address: "1 Via Roma", checkIn: "2026-05-01", checkOut: "2026-05-04", checkInTime: "15:00", confirmation: "ABC", notes: "old",
+    }) });
+    expect(accFindUniqueMock).toHaveBeenCalledTimes(2); // guard + held row; auditedUpdate does not re-read
+  });
+  it("explicit null clears notes and address", async () => {
+    await updateAccommodation("acc-1", { notes: null, address: null });
+    expect(accUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notes: null, address: null, lat: null, lng: null }) }));
+  });
+  it("costMinor-only on a paid owned Cost keeps it paid (passes the real schema)", async () => {
+    costFindManyMock.mockResolvedValue([{ id: "c1", costMinor: 9000, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00Z") }]);
+    const r = await updateAccommodation("acc-1", { costMinor: 9500 });
+    expect(r).toEqual({ success: true });
+    expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({ costMinor: 9500, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15") }) }));
+  });
+  it("cost fields against more than one owned Cost are refused before anything is written", async () => {
+    costFindManyMock.mockResolvedValue([{ id: "c1", costMinor: 1, currency: "EUR", paidMinor: null, paidAt: null }, { id: "c2", costMinor: 2, currency: "EUR", paidMinor: null, paidAt: null }]);
+    const r = await updateAccommodation("acc-1", { costMinor: 5 });
+    expect(r.success).toBe(false);
+    expect(accUpdateMock).not.toHaveBeenCalled();
   });
 });
 

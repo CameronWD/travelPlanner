@@ -3,7 +3,7 @@ import { Plane, TrainFront, Bus, Car, Ship, ArrowRight, BedDouble, type LucideIc
 import { cn } from "@/lib/cn";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { orderDayEntries, type DayPlan } from "@/lib/itinerary";
-import { isDoneAt } from "@/lib/share-view";
+import { isDoneAt } from "@/lib/share/view";
 
 // ---------------------------------------------------------------------------
 // Pure row builder + row renderer for the share page's "today" lists (the

@@ -1,5 +1,5 @@
 import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
-import { authServer } from "@/lib/auth";
+import { authServer } from "@/lib/auth/auth";
 
 /**
  * RFC 8414 metadata for the authorisation server, at the root. Better Auth

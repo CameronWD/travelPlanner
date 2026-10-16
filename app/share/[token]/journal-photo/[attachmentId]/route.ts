@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { findShareLink } from "@/lib/share-lookup";
+import { findShareLink } from "@/lib/share/lookup";
 import { canWriteJournal } from "@/lib/journal-window";
 import { loadJournalWindow } from "@/lib/journal-window-loader";
 import { serveAttachment } from "@/lib/attachment-serve";
@@ -46,7 +46,7 @@ export async function GET(
 ) {
   const { token, attachmentId } = await params;
 
-  // 1. Token → link, dial on. The one Share-link lookup (lib/share-lookup.ts):
+  // 1. Token → link, dial on. The one Share-link lookup (lib/share/lookup.ts):
   // an unknown, revoked or rotated token, or a Trip in Recently deleted
   // (ADR 0067), matches nothing and 404s the same.
   const shareLink = await findShareLink(token);

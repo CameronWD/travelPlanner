@@ -43,7 +43,7 @@ describe("dbTargetLine", () => {
 import { readFileSync } from "node:fs";
 
 describe("operator scripts import load-env first", () => {
-  for (const f of ["scripts/backfill-geocode.ts", "scripts/sweep-orphaned-costs.ts", "scripts/sweep-deleted-blobs.ts"]) {
+  for (const f of ["scripts/sweep-deleted-blobs.ts", "scripts/feedback-pull.ts", "scripts/feedback-resolve.ts", "scripts/feedback-accept.ts"]) {
     it(f, () => {
       const firstImport = readFileSync(f, "utf8").split("\n").find((l) => l.startsWith("import "));
       expect(firstImport).toBe('import "./load-env";');

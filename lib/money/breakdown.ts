@@ -1,4 +1,4 @@
-import type { BudgetResult } from "@/lib/budget";
+import type { BudgetResult } from "@/lib/money/budget";
 import { type Hue, LEGACY_TO_HUE } from "@/lib/hues";
 import { CATEGORIES } from "@/lib/categories";
 import { formatDayLabel } from "@/lib/dates";

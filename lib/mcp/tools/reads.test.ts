@@ -50,13 +50,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/server/actions/checklists", () => ({ listTemplates }));
-vi.mock("@/server/actions/reminders", () => ({ listRemindersForTrip }));
+vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip }));
 vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
 vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp }));
 vi.mock("../reads/attachment-content", () => ({ loadAttachmentContentForMcp }));
-vi.mock("@/lib/budget-loader", () => ({ loadBudget }));
+vi.mock("@/lib/money/budget-loader", () => ({ loadBudget }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();

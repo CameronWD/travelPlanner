@@ -11,7 +11,7 @@
  *   Items each Stop card should even be handed in the first place — grouped
  *   by DATE COVERAGE, not by `stopId`. On a Changeover day (ADR 0049) that
  *   deliberately puts the same Item under both adjoining Stops' cards; Item
- *   *ownership* (what `lib/budget.ts` counts a Cost against) is untouched by
+ *   *ownership* (what `lib/money/budget.ts` counts a Cost against) is untouched by
  *   this grouping. `stop-day-list.tsx` calls `buildStopDays` on whatever this
  *   function handed it.
  */
@@ -85,7 +85,7 @@ export interface GroupableStop {
  * calendar day two consecutive Stops both claim — that puts the same Item
  * under both cards, which is the point (ADR 0049 rule 1). Ownership is
  * untouched: the Items come back carrying whatever `stopId` they had, and
- * `lib/budget.ts` still counts their Cost against exactly one Stop.
+ * `lib/money/budget.ts` still counts their Cost against exactly one Stop.
  *
  * Rough Stops are skipped: with no dates they cover no days.
  */

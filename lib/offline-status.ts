@@ -4,7 +4,7 @@
  * Settings row (components/trip/settings/saved-for-offline.tsx) reads it and
  * asks for a "Save again". The two live in different layouts, so a tiny
  * external store rather than context — the same shape as
- * lib/feedback-trip-store.ts.
+ * lib/feedback/trip-store.ts.
  *
  * `savedAt` is kept in localStorage per Trip so the row still says "Saved
  * for offline · 2h ago" after a reload, when the in-memory state is gone but

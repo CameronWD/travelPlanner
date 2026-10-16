@@ -57,9 +57,6 @@ export function GlobeSuggestionsStrip({
     }
   }
 
-  // Chips are the kit's 28px pills; on touch the hit area grows to 44px.
-  const touch = "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']";
-
   return (
     <Card aria-label="From your Globe" role="region" className="p-3.5">
       <div className="flex items-center gap-2">
@@ -85,7 +82,7 @@ export function GlobeSuggestionsStrip({
               onClick={() => handleAdd(marker)}
               disabled={pending === marker.id}
               aria-label={`Add ${marker.title}`}
-              className={touch}
+              touch
             >
               <span className={cn("size-2.5 shrink-0 rounded-full", dot)} aria-hidden="true" />
               {marker.title}
@@ -94,7 +91,7 @@ export function GlobeSuggestionsStrip({
           );
         })}
         {overflow > 0 && (
-          <Chip size="l" dashed onClick={onSeeMore} className={touch}>
+          <Chip size="l" dashed onClick={onSeeMore} touch>
             +{overflow} more
           </Chip>
         )}

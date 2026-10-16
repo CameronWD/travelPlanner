@@ -32,11 +32,11 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...p }: { href: string
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: {} }) }));
 vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => scenario.trip), readTripHeader: vi.fn(async () => scenario.trip) }));
-vi.mock("@/lib/fx", () => ({ isRateStale: vi.fn(() => false) }));
+vi.mock("@/lib/money/fx", () => ({ isRateStale: vi.fn(() => false) }));
 vi.mock("@/lib/tz", () => ({ todayISOInZone: vi.fn(() => "2026-01-05"), currentTripTimezone: vi.fn(() => "UTC") }));
 vi.mock("@/lib/dates", async (orig) => ({ ...(await orig<typeof import("@/lib/dates")>()), nightsBetween: vi.fn(() => 9) }));
-vi.mock("@/lib/budget", () => ({ buildBudget: vi.fn() }));
-vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: vi.fn(() => ({ paidSoFarMinor: 0 })) }));
+vi.mock("@/lib/money/budget", () => ({ buildBudget: vi.fn() }));
+vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: vi.fn(() => ({ paidSoFarMinor: 0 })) }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
 vi.mock("@/components/trip/variant-banner", () => ({
   VariantBanner: ({ variantName }: { variantName: string }) => <div data-testid="variant-banner">{variantName}</div>,
@@ -69,7 +69,7 @@ vi.mock("@/components/money/rate-cell", () => ({
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { name: string }) => <span>{name}</span> }));
 
 const { default: BudgetPage } = await import("./page");
-const { buildBudget } = await import("@/lib/budget");
+const { buildBudget } = await import("@/lib/money/budget");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { maskPlanStops } = await import("@/lib/plan-reads");
 const { planRows } = await import("@/test/builders/plan-rows");

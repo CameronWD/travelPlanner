@@ -1,7 +1,8 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money";
+import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money/money";
+import { paidPct } from "@/lib/money/summary-lines";
 import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -44,7 +45,7 @@ export function TripCostTile({
   nextPayment,
 }: TripCostTileProps) {
   const costed = costTotalMinor > 0;
-  const pct = costed ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100)) : 0;
+  const pct = paidPct(paidTotalMinor, costTotalMinor);
   const total = formatMoneyAuto(costed ? costTotalMinor : 0, currency);
 
   const totalBlock = (

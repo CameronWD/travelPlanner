@@ -5,7 +5,7 @@ Moved out of `docs/DEPLOY.md` §3b on 2026-10-01 (spec 2026-10-01 §F). Read
 for turning the Sign-in link on.
 
 The email field on the Landing appears only when both env vars below are set
-(`lib/auth.ts`, spec 2026-10-01 §B1). Until then Google is the only door and
+(`lib/auth/auth.ts`, spec 2026-10-01 §B1). Until then Google is the only door and
 nothing else changes, so this can be done after the deploy.
 
 1. Create an account at resend.com.

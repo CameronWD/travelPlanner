@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { getRateForTrip } from "@/lib/fx";
+import { getRateForTrip } from "@/lib/money/fx";
 import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------

@@ -2,11 +2,11 @@
 
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { requireTripAccess, requireForkAccess, assertForkingAllowed, isTripOwnerOrAdmin } from "@/lib/guards";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
@@ -19,29 +19,6 @@ import { revalidateTrip } from "@/lib/revalidate";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
-
-// ---------------------------------------------------------------------------
-// listForks
-// ---------------------------------------------------------------------------
-
-export interface ForkListItem {
-  id: string;
-  name: string;
-  sortOrder: number;
-}
-
-/**
- * List all forks for a trip in sortOrder.
- * Used by the trip layout to populate the ForkSwitcher.
- */
-export async function listForks(tripId: string): Promise<ForkListItem[]> {
-  await requireTripAccess(tripId);
-  return db.fork.findMany({
-    where: { tripId },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true, sortOrder: true },
-  });
-}
 
 export type CreateForkResult = ActionResult<{ forkId: string }>;
 

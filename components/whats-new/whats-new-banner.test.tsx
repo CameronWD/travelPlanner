@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/db", () => ({ db: { user: { findUnique: vi.fn() } } }));
+vi.mock("@/lib/traveller-reads", () => ({ readWhatsNewSeen: vi.fn() }));
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn() }));
 vi.mock("./whats-new-card", () => ({
   WhatsNewCard: (props: { notes: unknown[]; totalUnread: number }) => props,
@@ -18,11 +18,11 @@ vi.mock("@/lib/release-notes", async (importOriginal) => {
   };
 });
 
-import { db } from "@/lib/db";
+import { readWhatsNewSeen } from "@/lib/traveller-reads";
 import { requireUser } from "@/lib/guards";
 import { WhatsNewBanner } from "./whats-new-banner";
 
-const mockFindUnique = db.user.findUnique as unknown as ReturnType<typeof vi.fn>;
+const mockFindUnique = readWhatsNewSeen as unknown as ReturnType<typeof vi.fn>;
 const mockRequireUser = requireUser as unknown as ReturnType<typeof vi.fn>;
 
 describe("WhatsNewBanner", () => {

@@ -6,7 +6,7 @@ import { SignInControls } from "./sign-in-controls";
 const socialMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
 const magicLinkMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/client", () => ({
   authClient: { signIn: { social: socialMock, magicLink: magicLinkMock }, $fetch: fetchMock },
 }));
 

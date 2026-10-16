@@ -2,7 +2,7 @@
  * A plan's projected end, hard end date and deadline (ADR 0068), computed
  * from rows a loader already holds (spec 2026-10-06 §C) — so a page that has
  * read its Stops and Transports doesn't read them again for the projection.
- * Pure. getTripProjection (server/actions/stops.ts) wraps it for callers
+ * Pure. getTripProjection (lib/trip-projection-reads.ts) wraps it for callers
  * that haven't read anything yet.
  */
 import { computeProjectedEnd, type ProjectionStop } from "@/lib/firm-up";

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { m, useReducedMotion, useTransform } from "motion/react";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { formatMoneyParts } from "@/lib/money/format-parts";
 import { useMoneyEntrance } from "./money-entrance";
 import { useTween } from "./use-tween";

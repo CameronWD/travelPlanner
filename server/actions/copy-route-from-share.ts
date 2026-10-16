@@ -1,5 +1,5 @@
-import { findShareLink, loadShareStops } from "@/lib/share-lookup";
-import { shareStopNights } from "@/lib/share-view";
+import { findShareLink, loadShareStops } from "@/lib/share/lookup";
+import { shareStopNights } from "@/lib/share/view";
 
 // Deliberately NOT "use server": only createTrip calls this, after its own
 // requireUser(). As a server action it would be a second, unguarded endpoint.

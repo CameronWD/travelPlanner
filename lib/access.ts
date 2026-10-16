@@ -33,7 +33,7 @@ export function findMembership<T extends MembershipLike>(
  *
  * Lives here rather than in `lib/guards.ts` deliberately: this file is
  * framework- and db-free (see the module comment above), and `lib/guards.ts`
- * transitively imports `lib/auth.ts` → Better Auth → `next/server`. A test
+ * transitively imports `lib/auth/auth.ts` → Better Auth → `next/server`. A test
  * file that wants the real predicate without dragging in Better Auth's
  * module graph should import it from here.
  *

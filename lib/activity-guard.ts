@@ -7,11 +7,9 @@
  * fork actions directly and are NOT routed through this helper.
  */
 
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity, type RecordActivityInput } from "@/lib/activity-record";
 import { describeChanges, entityLabel, type ActivityEntityType } from "@/lib/activity";
 import type { PlanId } from "@/lib/plan-scope";
-
-type RecordActivityInput = Parameters<typeof recordActivity>[0];
 
 /**
  * Call recordActivity only when forkId is null (real plan).
@@ -34,7 +32,9 @@ export interface AuditedDelegate<Row, Data> {
 /**
  * Read-before → update → record UPDATED (Fork edits stay silent). Returns
  * both rows. Activity is recorded only after the update succeeds: a thrown
- * update records nothing.
+ * update records nothing. An action that already holds the row (a PATCH
+ * merge reads it first — ADR 0075) passes it as `held` and no second read
+ * is made.
  */
 export async function auditedUpdate<Row extends { tripId: string }, Data>(
   entityType: ActivityEntityType,
@@ -42,8 +42,9 @@ export async function auditedUpdate<Row extends { tripId: string }, Data>(
   id: string,
   data: Data,
   plan: PlanId,
+  held?: { before: Row | null },
 ): Promise<{ before: Row | null; after: Row }> {
-  const before = await delegate.findUnique({ where: { id } });
+  const before = held ? held.before : await delegate.findUnique({ where: { id } });
   const after = await delegate.update({ where: { id }, data });
   await recordUpdate(entityType, { tripId: after.tripId, plan, entityId: id, before, after });
   return { before, after };

@@ -1,21 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// phase-sketching.tsx is a lightweight async server component with two DB
-// calls. We assert their fork-scoping by mocking db per-model methods
-// directly (mirrors server/actions/search.test.ts and the sibling
-// phase-planning.test.tsx / phase-past.test.tsx / phase-travelling.test.tsx).
+// phase-sketching.tsx is a lightweight async server component that reads its
+// plan rows through lib/sketch-reads (card 3.N); the query-shape assertions
+// (fork-scoping, ordering, the Task-13 chapter skip) live in
+// lib/sketch-reads.test.ts now. This file only asserts the component calls
+// the reader with the right arguments and renders what it returns.
 
-const { stopFindManyMock, chapterFindManyMock } = vi.hoisted(() => ({
-  stopFindManyMock: vi.fn(),
-  chapterFindManyMock: vi.fn(),
-}));
+const { readSketchingPlanMock } = vi.hoisted(() => ({ readSketchingPlanMock: vi.fn() }));
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    stop: { findMany: stopFindManyMock },
-    chapter: { findMany: chapterFindManyMock },
-  },
-}));
+vi.mock("@/lib/sketch-reads", () => ({ readSketchingPlan: readSketchingPlanMock }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
@@ -27,60 +20,43 @@ import React from "react";
 
 const { PhaseSketching } = await import("./phase-sketching");
 
-describe("PhaseSketching fork-scoped plan queries", () => {
+describe("PhaseSketching plan read", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    stopFindManyMock.mockResolvedValue([
-      { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
-    ]);
-    chapterFindManyMock.mockResolvedValue([]);
+    readSketchingPlanMock.mockResolvedValue({
+      stops: [{ id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null }],
+      chapters: [],
+    });
   });
 
-  async function renderSketching() {
+  it("reads the Sketching plan for this trip, chapters enabled by default", async () => {
     await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
-  }
-
-  it("scopes the stops query to the real plan", async () => {
-    await renderSketching();
-    expect(stopFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
-    );
-  });
-
-  it("scopes the chapters query to the real plan", async () => {
-    await renderSketching();
-    expect(chapterFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
-    );
+    expect(readSketchingPlanMock).toHaveBeenCalledWith("trip-1", true);
   });
 });
 
 describe("PhaseSketching chapter gating (Task 13)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    stopFindManyMock.mockResolvedValue([
-      { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
-    ]);
-    chapterFindManyMock.mockResolvedValue([
-      { id: "c1", name: "Chapter One", colour: "sky" },
-    ]);
+    readSketchingPlanMock.mockResolvedValue({
+      stops: [{ id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null }],
+      chapters: [{ id: "c1", name: "Chapter One", colour: "sky" }],
+    });
   });
 
-  it("skips the chapters query when chaptersEnabled is false", async () => {
+  it("passes chaptersEnabled: false through to the reader", async () => {
     await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip", chaptersEnabled: false });
-    expect(chapterFindManyMock).not.toHaveBeenCalled();
+    expect(readSketchingPlanMock).toHaveBeenCalledWith("trip-1", false);
   });
 
-  it("runs the chapters query when chaptersEnabled is true", async () => {
+  it("passes chaptersEnabled: true through to the reader", async () => {
     await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip", chaptersEnabled: true });
-    expect(chapterFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
-    );
+    expect(readSketchingPlanMock).toHaveBeenCalledWith("trip-1", true);
   });
 
   it("defaults to enabled when chaptersEnabled is omitted (pre-toggle call sites)", async () => {
     await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
-    expect(chapterFindManyMock).toHaveBeenCalled();
+    expect(readSketchingPlanMock).toHaveBeenCalledWith("trip-1", true);
   });
 });
 
@@ -108,11 +84,13 @@ function findEl(node: unknown, type: unknown): { props: Record<string, unknown> 
 describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    stopFindManyMock.mockResolvedValue([
-      { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
-      { id: "s2", name: "Florence", country: "Italy", nights: 2, chapterId: null, arriveDate: null },
-    ]);
-    chapterFindManyMock.mockResolvedValue([]);
+    readSketchingPlanMock.mockResolvedValue({
+      stops: [
+        { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
+        { id: "s2", name: "Florence", country: "Italy", nights: 2, chapterId: null, arriveDate: null },
+      ],
+      chapters: [],
+    });
   });
 
   it("renders the coral hero Card and a Route Card, headings in order", async () => {
@@ -143,7 +121,7 @@ describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
   });
 
   it("renders the kit 'Plan' empty treatment when there are no stops", async () => {
-    stopFindManyMock.mockResolvedValue([]);
+    readSketchingPlanMock.mockResolvedValue({ stops: [], chapters: [] });
     const tree = await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
     const empty = findEl(tree, EmptyState);
     expect(empty).not.toBeNull();
@@ -152,7 +130,7 @@ describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
   });
 
   it("the no-stops empty state's '+ Add a place' opens the add-Stop form (spec 2026-10-06 §F)", async () => {
-    stopFindManyMock.mockResolvedValue([]);
+    readSketchingPlanMock.mockResolvedValue({ stops: [], chapters: [] });
     const tree = await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
     const empty = findEl(tree, EmptyState)!;
     const action = empty.props.action as { props: { children: { props: { href: string } } } };
@@ -167,10 +145,10 @@ describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
 describe("PhaseSketching reminders slot (LA-029/045)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    stopFindManyMock.mockResolvedValue([
-      { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
-    ]);
-    chapterFindManyMock.mockResolvedValue([]);
+    readSketchingPlanMock.mockResolvedValue({
+      stops: [{ id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null }],
+      chapters: [],
+    });
   });
 
   it("renders reminders inside the right column, not as a full-width row", async () => {
@@ -188,7 +166,7 @@ describe("PhaseSketching reminders slot (LA-029/045)", () => {
   });
 
   it("still renders reminders when the trip has no stops (no aside to align with)", async () => {
-    stopFindManyMock.mockResolvedValue([]);
+    readSketchingPlanMock.mockResolvedValue({ stops: [], chapters: [] });
     const div = document.createElement("div");
     div.innerHTML = renderToStaticMarkup(
       (await PhaseSketching({
@@ -203,7 +181,7 @@ describe("PhaseSketching reminders slot (LA-029/045)", () => {
   // M-4: the empty branch stacks EmptyState and Reminders with the page's
   // card gap, rather than rendering Reminders flush under the empty state.
   it("spaces reminders below the no-stops empty state with the card gap", async () => {
-    stopFindManyMock.mockResolvedValue([]);
+    readSketchingPlanMock.mockResolvedValue({ stops: [], chapters: [] });
     const div = document.createElement("div");
     div.innerHTML = renderToStaticMarkup(
       (await PhaseSketching({

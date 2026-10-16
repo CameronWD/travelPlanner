@@ -11,8 +11,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WRITING_STYLE, CHECK_FACTS } from "./vocab";
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+import { isoDate } from "@/lib/validations/primitives";
 
 /** Shared by plan-day and check-day (spec 2026-10-11-mcp-read-pass Part E). */
 const LOGISTICS_CHECK =

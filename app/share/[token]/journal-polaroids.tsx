@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
-import { avatarInput, shareTraveller, type ShareTraveller } from "@/lib/share-traveller";
-import { polaroidTilt, type ShareStage } from "@/lib/share-view";
+import { avatarInput, shareTraveller, type ShareTraveller } from "@/lib/share/share-traveller";
+import { polaroidTilt, type ShareStage } from "@/lib/share/view";
 import { formatDayLabel } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import type { TravellerLike } from "@/lib/traveller";

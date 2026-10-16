@@ -17,7 +17,7 @@ const requireTripAccessMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 
 const getTripProjectionMock = vi.hoisted(() => vi.fn());
-vi.mock("@/server/actions/stops", () => ({ getTripProjection: getTripProjectionMock }));
+vi.mock("@/lib/trip-projection-reads", () => ({ getTripProjection: getTripProjectionMock }));
 
 const loadFlagRowsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/flags-loader", async (importOriginal) => {

@@ -1,8 +1,7 @@
-import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateRange } from "@/lib/dates";
-import { currencySymbol } from "@/lib/money";
+import { currencySymbol } from "@/lib/money/money";
 import type { PhaseDescription } from "@/lib/trip-phase";
 
 interface CountdownHeroProps {
@@ -48,7 +47,7 @@ export function CountdownHero({
       className="flex flex-col p-[18px] lg:row-span-2 lg:min-h-0 lg:p-[22px]"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <Badge caps className={cn(urgent && "bg-warning text-warning-foreground")}>
+        <Badge caps variant={urgent ? "warning" : undefined}>
           {description.label}
         </Badge>
         {range && <span className="text-label">{range}</span>}

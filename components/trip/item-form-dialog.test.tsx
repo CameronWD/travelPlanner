@@ -240,6 +240,34 @@ describe("ItemFormDialog", () => {
     expect(createItem).not.toHaveBeenCalled();
   });
 
+  it("an edit that empties Link, Booking and Notes and the date sends them as null (PATCH)", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        item={{
+          ...existingItem,
+          link: "https://example.test",
+          booking: "BOOK-1",
+          notes: "Bring passport",
+          date: "2026-05-01",
+        }}
+      />,
+    );
+
+    await user.clear(screen.getByLabelText(/^link$/i));
+    await user.clear(screen.getByLabelText(/booking reference/i));
+    await user.clear(screen.getByLabelText(/^notes$/i));
+    await user.clear(screen.getByLabelText(/^date$/i));
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateItem).toHaveBeenCalledWith(
+      "item-99",
+      expect.objectContaining({ link: null, booking: null, notes: null, date: null, startTime: null, endTime: null }),
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 4: server-returned form-level error is displayed
   // -------------------------------------------------------------------------
@@ -525,7 +553,7 @@ describe("ItemFormDialog", () => {
       "item-99",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: undefined,
+        paidAt: null, // an edit's empty paid date is a clear (toPatch, ADR 0075)
       }),
     );
   });
@@ -711,7 +739,7 @@ describe("ItemFormDialog", () => {
       "item-99",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: undefined,
+        paidAt: null, // an edit's empty paid date is a clear (toPatch, ADR 0075)
       }),
     );
   });

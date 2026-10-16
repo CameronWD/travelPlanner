@@ -22,8 +22,8 @@ export const metadata: Metadata = {
  *   - prisma/schema.prisma (PushSubscription, Activity, FeedbackNote,
  *     Account, Session field lists)
  *   - lib/device-label.ts (device label is derived from the user agent)
- *   - lib/push.ts, lib/geocode.ts (Nominatim and Photon, ADR 0069), lib/map-tiles.ts, lib/storage.ts,
- *     lib/weather.ts, lib/fx.ts (outbound third parties)
+ *   - lib/push.ts, lib/geocode.ts (Nominatim and Photon, ADR 0069), lib/map/tiles.ts, lib/storage.ts,
+ *     lib/weather.ts, lib/money/fx.ts (outbound third parties)
  *   - components/analytics.tsx + app/layout.tsx (Vercel Web Analytics and Speed Insights — what
  *     it redacts and what it deliberately keeps)
  *   - .github/workflows/db-backup.yml (GitHub holds the backups — no claim

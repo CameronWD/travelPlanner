@@ -1,15 +1,12 @@
 import { z } from "zod";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { isValidTimeZone } from "@/lib/tz";
-
-const isoDateString = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
+import { isoDate } from "@/lib/validations/primitives";
 
 /** A YYYY-MM-DD date that is optional: a blank string (from an empty date input) is treated as "no date". */
 const optionalIsoDate = z.preprocess(
   (v) => (v === "" || v == null ? undefined : v),
-  isoDateString.optional(),
+  isoDate.optional(),
 );
 
 const tripFields = {

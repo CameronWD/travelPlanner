@@ -3,8 +3,12 @@ import { db } from "@/lib/db";
 import { reportError } from "@/lib/error-sink";
 import { estimateCostMicroUsd, type AiTokenUsage } from "@/lib/ai-pricing";
 
-/** AiUsage.outcome (spec 2026-10-14 "Spend"). */
-type AiUsageOutcome = "ok" | "not_booking" | "unreadable" | "api_error" | "rate_limited";
+/**
+ * AiUsage.outcome (spec 2026-10-14 "Spend"). `error`: the API call was made
+ * (and billed), then the import failed on our side before Proposals were
+ * built (BI-13).
+ */
+type AiUsageOutcome = "ok" | "not_booking" | "unreadable" | "api_error" | "rate_limited" | "error";
 
 export interface AiUsageRecord {
   tripId: string;

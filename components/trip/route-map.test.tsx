@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
-import { cartoTiles } from "@/lib/map-tiles";
-import { pinHtml } from "@/lib/map-pins";
+import { cartoTiles } from "@/lib/map/tiles";
+import { pinHtml } from "@/lib/map/pins";
 import { stopHex } from "@/lib/stop-colours";
 
 const hoisted = vi.hoisted(() => ({

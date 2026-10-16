@@ -61,10 +61,11 @@ vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }
 vi.mock("@/lib/dates", () => ({ daysBetween: vi.fn() }));
 vi.mock("@/lib/trip-phase", () => ({ describePhase: vi.fn() }));
 vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn() }));
-vi.mock("@/lib/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
+vi.mock("@/lib/money/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
 vi.mock("@/lib/next-steps", () => ({ buildNextSteps: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(), hasOutboundLeg: vi.fn(), hasReturnLeg: vi.fn() }));
-vi.mock("@/server/actions/stops", () => ({ getTripProjection: getTripProjectionMock }));
+vi.mock("@/server/actions/stops", () => ({}));
+vi.mock("@/lib/trip-projection-reads", () => ({ getTripProjection: getTripProjectionMock }));
 // The projection is computed from the loader's own rows now (spec 2026-10-06 §C); lib/dates is mocked in this file, so stub it like getTripProjection was.
 vi.mock("@/lib/trip-projection", () => ({ computeProjection: vi.fn(() => ({ projectedEnd: null, hardEndDate: null, deadline: null })) }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));
@@ -907,7 +908,7 @@ describe("PhasePlanning — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
 
   it("a hidden-owner Cost counts in the Trip cost total but is not an upcoming payment line", async () => {
     const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
-    const budgetMod = await import("@/lib/budget");
+    const budgetMod = await import("@/lib/money/budget");
     vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(((i: { costs: unknown[] }) => i.costs) as never);
     loadSurpriseVisibilityMock.mockResolvedValueOnce(
       hiddenVisibility({ placeholders: [placeholderItem({ id: "i-secret", date: "2026-01-04" })] }),

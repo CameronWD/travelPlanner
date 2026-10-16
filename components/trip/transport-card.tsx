@@ -2,7 +2,6 @@ import * as React from "react";
 import { ArrowRight, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
-import type { TransportMode } from "@/lib/enum-values";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
 import { endpointLabel } from "@/lib/home-base";
 import { CostEditor } from "./cost-editor";
@@ -11,37 +10,9 @@ import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
+import type { TransportCardTransport } from "@/lib/plan-entity-views";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface TransportCardTransport {
-  id: string;
-  mode: TransportMode;
-  fromStopId?: string | null;
-  toStopId?: string | null;
-  anchorStopId?: string | null;
-  depIsHome?: boolean | null;
-  arrIsHome?: boolean | null;
-  depPlace?: string | null;
-  arrPlace?: string | null;
-  depAt?: Date | null;
-  arrAt?: Date | null;
-  reference?: string | null;
-  notes?: string | null;
-  sortOrder: number;
-  /** Resolved name of the fromStop (if linked) */
-  fromStopName?: string | null;
-  /** Resolved name of the toStop (if linked) */
-  toStopName?: string | null;
-  /** IANA timezone of fromStop (used for dep time display) */
-  fromStopTimezone?: string | null;
-  /** IANA timezone of toStop (used for arr time display) */
-  toStopTimezone?: string | null;
-  /** Precomputed offline drive estimate; present only for Car legs without real times. */
-  driveEstimate?: { minutes: number; roadKm: number } | null;
-}
+export type { TransportCardTransport };
 
 interface TransportCardProps {
   transport: TransportCardTransport;

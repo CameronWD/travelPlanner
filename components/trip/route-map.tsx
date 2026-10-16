@@ -20,30 +20,19 @@ import { useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDateRange } from "@/lib/dates";
-import type { HomeMapPoint } from "@/lib/route-map";
+import type { HomeMapPoint, RouteMapStop } from "@/lib/route-map";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map-tiles";
+import { cartoTiles } from "@/lib/map/tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { applyLeafletIconDefaults } from "@/lib/map-icons";
-import { pinHtml, pinSize } from "@/lib/map-pins";
-import { routeStyles } from "@/lib/map-palette";
+import { applyLeafletIconDefaults } from "@/lib/map/icons";
+import { pinHtml, pinSize } from "@/lib/map/pins";
+import { routeStyles } from "@/lib/map/palette";
 import { stopHex } from "@/lib/stop-colours";
 
 // Leaflet CSS is imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
 
-export interface RouteMapStop {
-  id: string;
-  name: string;
-  lat?: number | null;
-  lng?: number | null;
-  arriveDate: string;
-  departDate: string;
-  /** Stop order — pins and legs take the Stop's own colour (lib/stop-colours), the same as the calendar. */
-  sortOrder: number;
-  /** Display name of the chapter this stop belongs to. */
-  chapterName?: string | null;
-}
+export type { RouteMapStop };
 
 export interface RouteMapProps {
   stops: RouteMapStop[];

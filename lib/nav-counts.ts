@@ -29,7 +29,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 import { loadFlagRows, flagsForRows } from "@/lib/flags-loader";
-import { getTripProjection } from "@/server/actions/stops";
+import { getTripProjection } from "@/lib/trip-projection-reads";
 
 export interface NavCounts {
   flags: number;

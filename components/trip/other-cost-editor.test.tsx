@@ -135,7 +135,7 @@ describe("OtherCostFormDialog form behaviour", () => {
     expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
   });
 
-  // Trap: gate on parse validity, never string presence (lib/money.ts —
+  // Trap: gate on parse validity, never string presence (lib/money/money.ts —
   // parseAmountToMinor returns null for non-empty-but-unparseable input).
   it("an unparseable paid amount (pasted currency symbol) is refused with Enter what you paid, never saved unpaid", async () => {
     const user = userEvent.setup();
@@ -207,10 +207,11 @@ describe("OtherCostFormDialog form behaviour", () => {
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     // paidMinor is omitted (undefined), never resent or nulled, so the
-    // existing amount survives as history for whenever Paid is ticked.
+    // existing amount survives as history for whenever Paid is ticked; the
+    // unpaid state is said as paidAt: null (PATCH, ADR 0075).
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
-      expect.objectContaining({ costMinor: 1250, paidMinor: undefined, paidAt: undefined }),
+      expect.objectContaining({ costMinor: 1250, paidMinor: undefined, paidAt: null }),
     );
   });
 
@@ -232,6 +233,18 @@ describe("OtherCostFormDialog form behaviour", () => {
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ dueDate: "2026-11-20" }));
+  });
+
+  it("an edit that un-ticks Paid sends paidAt: null, and a cleared Due date sends dueDate: null (PATCH: undefined would keep them)", async () => {
+    // The Category Select offers no "none" item, so an empty Category is
+    // rendered from a row without one; its save says category: null too.
+    const user = userEvent.setup();
+    renderForm({ ...sampleCost, category: null, paidMinor: 1250, paidAt: new Date("2026-06-04T00:00:00Z") });
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ paidAt: null, dueDate: null, category: null }));
   });
 });
 

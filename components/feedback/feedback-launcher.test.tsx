@@ -136,7 +136,7 @@ function stubViewport(dockedFromMd: boolean) {
  * happy-dom it is order-dependent in a way neither the spy nor its test can
  * see: `window.localStorage.setItem` does not re-resolve `Storage.prototype`
  * on every call. The first time anything in this file calls it for real
- * (several earlier tests do, via `enqueue`/`write` in lib/feedback-queue.ts),
+ * (several earlier tests do, via `enqueue`/`write` in lib/feedback/queue.ts),
  * happy-dom binds that *instance*'s `setItem` to whatever the prototype
  * method was at that moment and keeps using that bound reference from then
  * on — so a `vi.spyOn` installed in a later test patches the prototype
@@ -543,7 +543,7 @@ describe("FeedbackLauncher", () => {
     // Storage accepts the initial enqueue (call 1) but then goes on to refuse
     // every write after it — including the removeFromQueue write once the
     // server has accepted the note. write() swallows that failure and hands
-    // back the queue unchanged (lib/feedback-queue.ts), so the note is still
+    // back the queue unchanged (lib/feedback/queue.ts), so the note is still
     // genuinely pending even though the server has it.
     stubLocalStorageQuotaExceeded(2);
 
@@ -1001,10 +1001,10 @@ describe("FeedbackLauncher", () => {
     await user.click(screen.getByRole("button", { name: /leave feedback/i }));
 
     const done = await screen.findByText("Done");
-    expect(done.className).toContain("bg-teal");
+    expect(done.className).toContain("bg-success");
 
     const wontFix = screen.getByText("Won't fix");
-    expect(wontFix.className).not.toContain("bg-teal");
+    expect(wontFix.className).not.toContain("bg-success");
   });
 
   it("labels a note whose status it does not recognise instead of striking it out silently", async () => {

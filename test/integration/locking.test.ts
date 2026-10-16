@@ -12,7 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 //
 // moveStop calls requireRowAccess("stop", id) and reorderTransports calls
 // requirePlanAccess (ADR 0074 Tasks 2-6); both are mocked here rather than
-// imported for real (the real guard imports `@/lib/auth`). requireRowAccess
+// imported for real (the real guard imports `@/lib/auth/auth`). requireRowAccess
 // loads the Stop from the real local Postgres with the same select
 // lib/guards.ts uses, so a missing row still notFound()s.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));

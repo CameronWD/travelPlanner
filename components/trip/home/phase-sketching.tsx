@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Route } from "lucide-react";
-import { db } from "@/lib/db";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { readSketchingPlan } from "@/lib/sketch-reads";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { Button } from "@/components/ui/button";
@@ -31,25 +30,7 @@ export async function PhaseSketching({
   reminders,
 }: PhaseSketchingProps) {
   const slug = await tripSlugFor(tripId);
-  const [stops, chapters] = await Promise.all([
-    db.stop.findMany({
-      // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
-      // deliberately ignores `?plan=` — never wire in a variable plan here.
-      where: { tripId, ...REAL_PLAN },
-      orderBy: [{ chapterSortOrder: "asc" }, { sortOrder: "asc" }],
-      select: { id: true, name: true, country: true, nights: true, chapterId: true, arriveDate: true },
-    }),
-    // A disabled trip renders as if it had no chapters — skip the query
-    // entirely rather than fetch-then-discard.
-    chaptersEnabled
-      ? db.chapter.findMany({
-          where: { tripId, ...REAL_PLAN },
-          orderBy: { name: "asc" },
-          select: { id: true, name: true, colour: true },
-        })
-      : Promise.resolve([]),
-  ]);
+  const { stops, chapters } = await readSketchingPlan(tripId, chaptersEnabled);
 
   const totalNights = stops.reduce((n, s) => n + (s.nights ?? 0), 0);
   const chapterById = new Map(chapters.map((c) => [c.id, c]));

@@ -296,7 +296,7 @@ describe("transports", () => {
 
   // Payment state is the whole reason this branch exists (its first commit is
   // "preserve real payment dates"): resolvePaidAt stamps the seed *run date* on
-  // any paid cost that arrives without a paidAt, and lib/budget.ts treats
+  // any paid cost that arrives without a paidAt, and lib/money/budget.ts treats
   // paidAt as the sole signal that money has actually left the account. An
   // unpinned paidAt is therefore a silently fabricated value, not a cosmetic
   // gap — so every costed leg's paid/paidMinor/paidAt is asserted here.

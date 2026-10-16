@@ -24,7 +24,7 @@ import {
   type BudgetItem,
   type BudgetAccommodation,
   type BudgetTransport,
-} from "@/lib/budget";
+} from "@/lib/money/budget";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";

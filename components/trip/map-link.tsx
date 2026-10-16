@@ -1,7 +1,7 @@
 import * as React from "react";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { mapsUrl } from "@/lib/maps";
+import { mapsUrl } from "@/lib/map/maps";
 
 export interface MapLinkProps {
   lat?: number | null;

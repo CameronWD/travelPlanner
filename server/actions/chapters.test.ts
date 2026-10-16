@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
@@ -113,10 +113,10 @@ vi.mock("@/lib/db", () => ({
     $transaction: dbTransactionMock,
   },
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
 import { createChapter, updateChapter, deleteChapter, suggestChaptersFromCountries, reorderChapters, assignStopToChapter } from "./chapters";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import type { ChapterInput } from "@/lib/validations/chapter";
 
 const VALID: ChapterInput = { name: "Italy", colour: "rose", startDate: "2026-07-10", endDate: "2026-07-18" };
@@ -334,6 +334,40 @@ describe("updateChapter", () => {
     chapterFindManyMock.mockResolvedValue([{ id: "other", startDate: "2026-07-15", endDate: "2026-07-20" }]);
     await updateChapter("c1", VALID);
     expect(recordActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateChapter (PATCH, ADR 0075)", () => {
+  const dated = { id: "c1", tripId: "trip-1", forkId: null, name: "Italy", colour: "amber", startDate: "2026-05-01", endDate: "2026-05-10" };
+  beforeEach(() => {
+    chapterFindUniqueMock.mockResolvedValue(dated);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterUpdateMock.mockResolvedValue({ ...dated, name: "New name" });
+  });
+  it("with only name keeps colour and dates, reading the row once", async () => {
+    await updateChapter("c1", { name: "New name" });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { name: "New name", colour: "amber", startDate: "2026-05-01", endDate: "2026-05-10" },
+    });
+  });
+  it("a lone endDate on a dated chapter merges with the current startDate", async () => {
+    await updateChapter("c1", { endDate: "2026-05-12" });
+    expect(chapterUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ startDate: "2026-05-01", endDate: "2026-05-12" }),
+    }));
+  });
+  it("a lone startDate on a rough chapter is refused, nothing written", async () => {
+    chapterFindUniqueMock.mockResolvedValue({ ...dated, startDate: null, endDate: null });
+    const r = await updateChapter("c1", { startDate: "2026-06-01" });
+    expect(r).toEqual({ success: false, errors: { endDate: ["Set both dates or neither"] } });
+    expect(chapterUpdateMock).not.toHaveBeenCalled();
+  });
+  it("explicit nulls clear both dates", async () => {
+    await updateChapter("c1", { startDate: null, endDate: null });
+    expect(chapterUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ startDate: null, endDate: null }),
+    }));
   });
 });
 

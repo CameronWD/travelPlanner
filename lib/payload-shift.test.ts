@@ -109,6 +109,22 @@ describe("shiftItemDates", () => {
       { id: "dinner", date: null, prevDate: "2026-05-10" },
     ]);
   });
+
+  it("re-files an Item dated before the Stop's arrive date onto the Stop covering that day (ADR 0055, offset < 0)", () => {
+    // Salzburg 5-2..5-5, Munich 5-5..5-10. A breakfast on the 4th sits on
+    // Munich (stranded: before Munich's arrive). Shorten Munich to 5-5..5-9:
+    // its arrive date is unmoved, so ADR 0055 applies to a before-arrive day
+    // too, and Salzburg still covers the 4th.
+    const salzburg = { id: "salzburg", arriveDate: "2026-05-02", departDate: "2026-05-05" };
+    const munich = { id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-09" };
+    expect(
+      shiftItemDates([{ id: "breakfast", date: "2026-05-04", stopId: "munich" }], "2026-05-05", "2026-05-05", "2026-05-09", [salzburg, munich]),
+    ).toEqual([{ id: "breakfast", date: "2026-05-04", prevDate: "2026-05-04", stopId: "salzburg", prevStopId: "munich" }]);
+    // With no Stop covering the 4th, the same Item un-slots.
+    expect(shiftItemDates([{ id: "breakfast", date: "2026-05-04" }], "2026-05-05", "2026-05-05", "2026-05-09", [munich])).toEqual([
+      { id: "breakfast", date: null, prevDate: "2026-05-04" },
+    ]);
+  });
 });
 
 describe("shiftAccommodationDates", () => {

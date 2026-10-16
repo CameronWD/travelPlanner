@@ -7,17 +7,17 @@
  * touches `window` during SSR.
  *
  * Pins: 30px numbered stickers in each Stop's own colour (lib/stop-colours →
- * lib/map-palette hex). After every fit/zoom, pins closer than 32px on screen
- * are merged into one count pin (lib/map-overlap) — clicking it zooms in.
+ * lib/map/palette hex). After every fit/zoom, pins closer than 32px on screen
+ * are merged into one count pin (lib/map/overlap) — clicking it zooms in.
  * Clicking a Stop pin opens the Plan at that Stop (`#stop-<id>`).
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map-tiles";
-import { hueHex, routeStyles } from "@/lib/map-palette";
-import { pinHtml, pinSize } from "@/lib/map-pins";
-import { mergeOverlapping } from "@/lib/map-overlap";
+import { cartoTiles } from "@/lib/map/tiles";
+import { hueHex, routeStyles } from "@/lib/map/palette";
+import { pinHtml, pinSize } from "@/lib/map/pins";
+import { mergeOverlapping } from "@/lib/map/overlap";
 import { escapeHtml } from "@/lib/escape-html";
 import type { Hue } from "@/lib/hues";
 

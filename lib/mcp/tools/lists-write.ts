@@ -16,24 +16,15 @@
  * checklists.ts) and `applyTemplate`'s ownership check all do
  * findUnique → `notFound()` → `requireTripAccess` (or an equivalent
  * ownership check that also ends in `notFound()`) before touching the row,
- * so there's nothing left for this file to pre-load for those tools. The
- * one exception is `update_reminder` — see below. A Reminder's optional
- * `stopId` is checked against the real plan first (`../real-plan.ts`), so a
- * Fork's Stop reads as not found (final review finding 3).
+ * so there's nothing left for this file to pre-load for those tools. A
+ * Reminder's optional `stopId` is checked against the real plan first
+ * (`../real-plan.ts`), so a Fork's Stop reads as not found (final review
+ * finding 3).
  *
- * `update_reminder` is PATCH, not replace (same ruling as Task 11's
- * `update_trip`/`update_stop`): `updateReminder` requires a full
- * `ReminderInput` — `title` and `date` are not optional on that schema, so
- * a caller that means to change only one of them would otherwise have the
- * other silently reset to... nothing valid (the call would just fail
- * validation, or worse, overwrite with an empty value if the caller forgot
- * to resend it). So this tool loads the current Reminder, merges only the
- * fields the caller actually supplied over it, and sends the action a
- * complete, merged `ReminderInput` instead. There's no way to *clear* an
- * existing `stopId` through this tool (the schema has no null for it,
- * `z.string().cuid().optional()` only) — that's a real gap in the action,
- * not something this tool can accept and silently drop, so it isn't
- * exposed at all; omitting `stopId` always means "leave it as is".
+ * `update_reminder` passes only the fields the caller supplied: `updateReminder`
+ * takes a PATCH (ADR 0075) and merges onto the row it holds. There is still
+ * no way to clear an existing `stopId` (the schema has no null for it), so
+ * omitting `stopId` always means "leave it as is".
  *
  * `update_checklist_item` needs no such merge: `checklistItemUpdateSchema`
  * already treats every field as a genuine partial-update field (an absent
@@ -63,7 +54,6 @@
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { notFound } from "next/navigation";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
@@ -80,55 +70,15 @@ import {
   applyTemplate,
 } from "@/server/actions/checklists";
 import { buyStateSchema } from "@/lib/enums";
-import type { ReminderInput } from "@/lib/validations/reminder";
 import { runTool } from "../run-tool";
 import { requireRealPlanRows } from "../real-plan";
 import { CHECKLIST_KIND_MEANING, describeValues } from "../vocab";
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
+import { isoDate } from "@/lib/validations/primitives";
 
 /** `add_checklist_item`'s `kind` never includes "SHOPPING" — that's `add_shopping_item`'s job. */
 const addableChecklistKind = z
   .enum(["PRETRIP", "PACKING"])
   .describe(describeValues("Which list.", CHECKLIST_KIND_MEANING, ["PRETRIP", "PACKING"] as const));
-
-// ---------------------------------------------------------------------------
-// update_reminder patch helpers
-// ---------------------------------------------------------------------------
-
-type ReminderRow = { tripId: string; title: string; date: string; stopId: string | null };
-type ReminderPatch = { title?: string; date?: string; stopId?: string };
-
-/**
- * Loads the current Reminder for a patch, trip-access-checked. A missing
- * row reads as `notFound()` (mapped by `runTool` to the same "not found"
- * text a non-member's id gets), checked before the access check can run —
- * membership is then verified before any of the row's values are used.
- */
-async function loadReminderForPatch(reminderId: string): Promise<ReminderRow> {
-  const reminder = await db.reminder.findUnique({
-    where: { id: reminderId },
-    select: { tripId: true, title: true, date: true, stopId: true },
-  });
-  if (!reminder) notFound();
-  await requireTripAccess(reminder.tripId);
-  return reminder;
-}
-
-/**
- * Merges a patch onto the current Reminder row. `stopId` is forwarded only
- * when the patch doesn't touch it and the current Reminder already has one
- * — `updateReminder` treats an absent key as "leave unchanged", so there's
- * no need to force the key in when there's nothing to carry forward.
- */
-function mergeReminderPatch(current: ReminderRow, patch: ReminderPatch): ReminderInput {
-  const stopId = patch.stopId !== undefined ? patch.stopId : (current.stopId ?? undefined);
-  return {
-    title: patch.title ?? current.title,
-    date: patch.date ?? current.date,
-    ...(stopId !== undefined ? { stopId } : {}),
-  };
-}
 
 export function registerListWriteTools(server: McpServer): void {
   // ---------------------------------------------------------------------
@@ -169,9 +119,8 @@ export function registerListWriteTools(server: McpServer): void {
     },
     ({ reminderId, ...patch }) =>
       runTool("update_reminder", async () => {
-        const current = await loadReminderForPatch(reminderId);
         await requireRealPlanRows([["stop", patch.stopId]]);
-        return updateReminder(reminderId, mergeReminderPatch(current, patch));
+        return updateReminder(reminderId, patch);
       }),
   );
 

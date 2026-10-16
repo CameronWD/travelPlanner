@@ -50,6 +50,8 @@ export interface DaylightResult {
   polarNight: boolean;
 }
 
+export interface DaylightView { sunrise: string | null; sunset: string | null; dayLengthMin: number; polarDay: boolean; polarNight: boolean }
+
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
 

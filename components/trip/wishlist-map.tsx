@@ -16,10 +16,10 @@ import { useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map-tiles";
+import { cartoTiles } from "@/lib/map/tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { pinHex, pinHtml, pinSize } from "@/lib/map-pins";
-import { applyLeafletIconDefaults } from "@/lib/map-icons";
+import { pinHex, pinHtml, pinSize } from "@/lib/map/pins";
+import { applyLeafletIconDefaults } from "@/lib/map/icons";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";

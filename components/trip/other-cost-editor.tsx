@@ -25,8 +25,9 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { createCost, updateCost } from "@/server/actions/costs";
 import { isOnTrip } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { todayLocalISO } from "@/lib/dates";
+import { toPatch } from "@/lib/patch";
 import {
   costToFormState as costToCostFormState,
   emptyCostFormState,
@@ -312,6 +313,9 @@ function OtherCostDialog({
 // Standalone form dialog
 // ---------------------------------------------------------------------------
 
+/** An edit's empties are clears (ADR 0075): a removed Due date or Category, un-ticked Paid. */
+const OTHER_COST_CLEARABLE = ["paidAt", "dueDate", "category"] as const;
+
 export interface OtherCostFormDialogProps {
   tripId: string;
   homeCurrency: string;
@@ -337,7 +341,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
     setSubmitting(true);
     setErrors({});
     try {
-      const result = cost ? await updateCost(cost.id, parsed.input) : await createCost(tripId, parsed.input);
+      const result = cost ? await updateCost(cost.id, toPatch(parsed.input, OTHER_COST_CLEARABLE)) : await createCost(tripId, parsed.input);
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
     } finally {

@@ -27,6 +27,7 @@ import {
   formatDayRange,
   formatMonthSpan,
   formatWeekday,
+  isRealCalendarDate,
 } from "./dates";
 
 afterEach(() => vi.useRealTimers());
@@ -56,6 +57,19 @@ describe("formatISODate", () => {
   it("pads single-digit month and day", () => {
     const d = new Date("2026-01-05T00:00:00Z");
     expect(formatISODate(d)).toBe("2026-01-05");
+  });
+
+  it("names the same UTC calendar day toISOString does, at the edges of a day and across offsets", () => {
+    for (const iso of [
+      "2026-10-01T00:00:00.000Z",
+      "2026-10-01T23:59:59.999Z",
+      "2026-10-02T09:30:00+10:00", // 23:30 UTC on the 1st
+      "2026-09-30T20:00:00-05:00", // 01:00 UTC on the 1st
+      "2024-02-29T12:00:00Z",
+    ]) {
+      const d = new Date(iso);
+      expect(formatISODate(d)).toBe(d.toISOString().slice(0, 10));
+    }
   });
 });
 
@@ -387,5 +401,17 @@ describe("formatCheckTimes (spec 2026-10-04 §B)", () => {
   });
   it("long: Check-in / Check-out", () => {
     expect(formatCheckTimes("15:00", "11:00", "long")).toBe("Check-in 15:00 · Check-out 11:00");
+  });
+});
+
+describe("isRealCalendarDate", () => {
+  it("accepts real dates, including a leap day", () => {
+    expect(isRealCalendarDate("2024-02-29")).toBe(true);
+    expect(isRealCalendarDate("2026-10-16")).toBe(true);
+  });
+  it("refuses overflow and non-format strings", () => {
+    for (const s of ["2026-02-30", "2027-02-29", "2026-13-01", "2026-7-1", "", "abc"]) {
+      expect(isRealCalendarDate(s)).toBe(false);
+    }
   });
 });

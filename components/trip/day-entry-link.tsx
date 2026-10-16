@@ -2,14 +2,18 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
-import { ItemFormDialog, type StopOption } from "@/components/trip/item-form-dialog";
+import { ItemFormDialog } from "@/components/trip/item-form-dialog";
 import { TransportFormDialog } from "@/components/trip/transport-form-dialog";
 import { AccommodationFormDialog } from "@/components/trip/accommodation-form-dialog";
-import type { ItemCardItem } from "@/components/trip/item-card";
-import type { TransportCardTransport } from "@/components/trip/transport-card";
-import type { AccommodationCardAccommodation } from "@/components/trip/accommodation-card";
-import type { CostRow } from "@/server/actions/costs";
 import type { AttachmentView } from "@/components/trip/attachment-list";
+import type {
+  DayEntryEditor,
+  ItemCardItem,
+  TransportCardTransport,
+  AccommodationCardAccommodation,
+} from "@/lib/plan-entity-views";
+
+export type { DayEntryEditor };
 
 export type DayEntryTarget =
   | { kind: "item"; item: ItemCardItem }
@@ -19,22 +23,6 @@ export type DayEntryTarget =
       accommodation: AccommodationCardAccommodation;
       stopDateRange: { arriveDate: string; departDate: string };
     };
-
-/** Everything the three edit dialogs need, built once by the day page and looked up by entity id. */
-export interface DayEntryEditor {
-  tripId: string;
-  stops: (StopOption & { timezone?: string | null })[];
-  homeCurrency?: string;
-  homeBaseName?: string | null;
-  homeTimezone?: string | null;
-  items: Record<string, ItemCardItem>;
-  transports: Record<string, TransportCardTransport>;
-  accommodations: Record<
-    string,
-    { accommodation: AccommodationCardAccommodation; stopDateRange: { arriveDate: string; departDate: string } }
-  >;
-  costsByOwner: Record<string, CostRow[]>;
-}
 
 interface DayEntryLinkProps {
   target: DayEntryTarget;

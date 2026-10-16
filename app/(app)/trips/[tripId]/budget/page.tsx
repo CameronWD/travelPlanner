@@ -8,17 +8,17 @@ import { chapterForStop } from "@/lib/chapters";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { buildBudgetFromRows } from "@/lib/budget-loader";
-import { isRateStale } from "@/lib/fx";
+import { buildBudgetFromRows } from "@/lib/money/budget-loader";
+import { isRateStale } from "@/lib/money/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
-import type { BudgetStopWithDates } from "@/lib/budget";
-import { buildSpendSoFar } from "@/lib/spend-so-far";
-import type { SpendCost } from "@/lib/spend-so-far";
+import type { BudgetStopWithDates } from "@/lib/money/budget";
+import { buildSpendSoFar } from "@/lib/money/spend-so-far";
+import type { SpendCost } from "@/lib/money/spend-so-far";
 import { nightsBetween } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { otherCostDefaults, type OtherCostDefaults } from "@/lib/money/other-cost-defaults";
-import { buildCostLabelMap } from "@/lib/cost-labels";
+import { buildCostLabelMap } from "@/lib/money/cost-labels";
 import { cn } from "@/lib/cn";
 import { moneyMetaLine, missingRatesLine, ratesUpdatedNote } from "@/lib/money/summary-lines";
 import { breakdownOptions, parseBy, rowsFor, segmentsFor } from "@/lib/money/breakdown";
@@ -134,7 +134,7 @@ export default async function BudgetPage({
 
   const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
 
-  // Owner-label map (lib/cost-labels.ts): the budget page has no free-text
+  // Owner-label map (lib/money/cost-labels.ts): the budget page has no free-text
   // depPlace/arrPlace to fall back on for transports, so it resolves both
   // endpoints via the stop-name map — same as before this was extracted.
   const ownerName = buildCostLabelMap({
@@ -160,7 +160,7 @@ export default async function BudgetPage({
     sortOrder: s.sortOrder,
   }));
 
-  // The roll-up itself: lib/budget-loader.ts's `buildBudgetFromRows` is the
+  // The roll-up itself: lib/money/budget-loader.ts's `buildBudgetFromRows` is the
   // same input-assembly + buildBudget() call `get_budget`'s loadBudget uses,
   // run here against the Plan rows read above (no new queries —
   // allCosts/items/accommodations/transports/chapters are all reused for

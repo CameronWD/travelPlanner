@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { REQUEST_PATH_HEADER } from "@/lib/sign-in-href";
+import { REQUEST_PATH_HEADER } from "@/lib/auth/sign-in-href";
 
 /**
  * One proxy, two jobs (Next allows a single proxy.ts):
  * - Every signed-in route: forward the requested pathname + search as the
- *   `x-request-path` request header (lib/sign-in-href.ts), so a signed-out
+ *   `x-request-path` request header (lib/auth/sign-in-href.ts), so a signed-out
  *   guard can send the visitor to the Landing with a callbackUrl back here
  *   (spec 2026-10-01 §E). Set before any other decision and overwriting
  *   whatever the client sent.

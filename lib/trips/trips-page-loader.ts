@@ -13,7 +13,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { loadYourTravels } from "@/lib/travel-stats-loader";
 import { loadNextSteps } from "@/lib/next-steps-loader";
-import { listRemindersForTrip } from "@/server/actions/reminders";
+import { listRemindersForTrip } from "@/lib/reminder-reads";
 import { sortTheseOut } from "@/lib/sort-these-out";
 import type { TravelStats } from "@/lib/travel-stats";
 import { assignTripHues } from "@/lib/trips/trip-colour";
@@ -22,8 +22,7 @@ import type { SketchStop } from "@/lib/trips/route-sketch";
 import {
   orderForCarousel, cardKind, cardBigNumber, cardDateLine, countUpcomingAndDone, type CardTrip,
 } from "@/lib/trips/trip-status";
-import type { TripCardModel } from "@/components/trips/trip-card";
-import type { TravelMapTrip } from "@/components/trips/travel-map";
+import type { TripCardModel, TravelMapTrip } from "@/lib/trips/trip-views";
 
 export interface TripsPageData {
   firstName: string;

@@ -25,7 +25,7 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { getTripProjection } from "@/server/actions/stops";
+import { getTripProjection } from "@/lib/trip-projection-reads";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import type { TripProjection } from "@/lib/trip-projection";
 import { tripHomeBase } from "@/lib/home-base";

@@ -15,11 +15,11 @@ import {
 // (revalidatePath/revalidateTag) — everything else, including @/lib/guards
 // and the whole Better Auth OAuth provider, runs for real: Claude's access
 // token comes from the real flow (dev login, registration, authorise,
-// consent, token) against this database, through lib/auth-prisma.ts.
+// consent, token) against this database, through lib/auth/prisma.ts.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 
 type DbModule = typeof import("@/lib/db");
-type AuthModule = typeof import("@/lib/auth");
+type AuthModule = typeof import("@/lib/auth/auth");
 type RouteModule = typeof import("@/app/api/mcp/route");
 
 const BASE = "http://localhost:3000";
@@ -58,12 +58,12 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
   const handler = (req: Request) => authServer.handler(req);
 
   beforeAll(async () => {
-    // lib/auth.ts reads these at import time; the route imports it (guards).
+    // lib/auth/auth.ts reads these at import time; the route imports it (guards).
     process.env.ALLOW_DEV_LOGIN = "true";
     process.env.AUTH_SECRET ||= "integration-secret-integration-secret-0123";
     for (const k of ["APP_URL", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_URL", "VERCEL_BRANCH_URL"]) delete process.env[k];
     ({ db } = await import("@/lib/db"));
-    ({ authServer } = await import("@/lib/auth"));
+    ({ authServer } = await import("@/lib/auth/auth"));
     ({ POST } = await import("@/app/api/mcp/route"));
     ({ NOT_FOUND_TEXT } = await import("@/lib/mcp/run-tool"));
 
@@ -105,7 +105,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("/api/mcp end to end over OAuth
     process.env = prevEnv;
   });
 
-  it("the flow stored the tokens and consent through lib/auth-prisma.ts (scopes and resources as lists)", async () => {
+  it("the flow stored the tokens and consent through lib/auth/prisma.ts (scopes and resources as lists)", async () => {
     const token = await db.oauthAccessToken.findFirst({ where: { clientId: a.clientId } });
     expect(token?.userId).toBe(USER_A);
     expect(token?.resources).toEqual([RESOURCE]);

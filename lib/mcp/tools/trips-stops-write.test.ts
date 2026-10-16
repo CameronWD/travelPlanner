@@ -136,22 +136,6 @@ const roughStopRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
   ...overrides,
 });
 
-const scheduledStopRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
-  tripId: TRIP_ID,
-  name: "Rome",
-  country: "Italy",
-  countryCode: "it",
-  lat: 41.9,
-  lng: 12.5,
-  notes: "old notes",
-  nights: null,
-  arriveDate: "2026-05-01",
-  departDate: "2026-05-04",
-  timezone: "Europe/Rome",
-  chapterId: null,
-  ...overrides,
-});
-
 describe("trip and stop write tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -213,62 +197,15 @@ describe("trip and stop write tools", () => {
   });
 
   describe("update_trip (PATCH)", () => {
-    it("with only name keeps the other fields", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
+    it("forwards only the fields passed", async () => {
       updateTrip.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      expect(updateTrip).toHaveBeenCalledWith(TRIP_ID, {
-        name: "New name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: undefined,
-        homeCurrency: "GBP",
-      });
-    });
-
-    it("with only name forwards an existing hardEndDate unchanged and leaves the home base untouched", async () => {
-      // "home base" (homeName/roundTrip) is never loaded or forwarded by this
-      // tool at all — updateTrip already treats an absent key on those two as
-      // "leave unchanged" — so proving they're untouched is proving they're
-      // simply not in the object sent to updateTrip.
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: "2026-01-15",
-        homeCurrency: "GBP",
-      });
-      updateTrip.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      const call = updateTrip.mock.calls[0];
-      expect(call[0]).toBe(TRIP_ID);
-      expect(call[1]).toEqual({
-        name: "New name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: "2026-01-15",
-        homeCurrency: "GBP",
-      });
-      expect(call[1]).not.toHaveProperty("homeName");
-      expect(call[1]).not.toHaveProperty("roundTrip");
+      expect(updateTrip).toHaveBeenCalledWith(TRIP_ID, { name: "New name" });
+      expect(tripFindUnique).not.toHaveBeenCalled();
     });
 
     it("with homeTimezone forwards it to updateTrip", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
       updateTrip.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({
@@ -281,29 +218,7 @@ describe("trip and stop write tools", () => {
       );
     });
 
-    it("without homeTimezone, the merged input has no homeTimezone key", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
-      updateTrip.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      const call = updateTrip.mock.calls[0];
-      expect(call[1]).not.toHaveProperty("homeTimezone");
-    });
-
     it("surfaces updateTrip's validation error for an invalid homeTimezone", async () => {
-      tripFindUnique.mockResolvedValue({
-        name: "Old name",
-        startDate: "2026-01-01",
-        endDate: "2026-01-10",
-        hardEndDate: null,
-        homeCurrency: "GBP",
-      });
       updateTrip.mockResolvedValue({
         success: false,
         errors: { homeTimezone: ["Pick a timezone from the list."] },
@@ -319,16 +234,6 @@ describe("trip and stop write tools", () => {
       );
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toContain("Pick a timezone from the list.");
-    });
-
-    it("checks trip access before using the loaded row", async () => {
-      requireTripAccess.mockRejectedValue(notFoundErr());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "New name" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
-      expect(tripFindUnique).not.toHaveBeenCalled();
-      expect(updateTrip).not.toHaveBeenCalled();
     });
   });
 
@@ -419,100 +324,11 @@ describe("trip and stop write tools", () => {
   });
 
   describe("update_stop (PATCH)", () => {
-    it("on a rough Stop with only notes keeps chapterId and mode", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow());
+    it("checks the Stop is real-plan, then forwards only the fields passed", async () => {
       updateStop.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, notes: "new notes" } });
-      expect(updateStop).toHaveBeenCalledWith(
-        STOP_ID,
-        expect.objectContaining({ mode: "rough", chapterId: "chap-1", notes: "new notes", nights: 2, name: "Rome" }),
-      );
-    });
-
-    it("on a scheduled Stop with only name keeps dates and timezone", async () => {
-      stopFindUnique.mockResolvedValue(scheduledStopRow());
-      updateStop.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, name: "New name" } });
-      expect(updateStop).toHaveBeenCalledWith(
-        STOP_ID,
-        expect.objectContaining({
-          mode: "scheduled",
-          name: "New name",
-          arriveDate: "2026-05-01",
-          departDate: "2026-05-04",
-          timezone: "Europe/Rome",
-        }),
-      );
-    });
-
-    it("switches a scheduled Stop to rough when nights is given with no dates", async () => {
-      stopFindUnique.mockResolvedValue(scheduledStopRow());
-      updateStop.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, nights: 5 } });
-      expect(updateStop).toHaveBeenCalledWith(STOP_ID, expect.objectContaining({ mode: "rough", nights: 5 }));
-    });
-
-    it("switches a rough Stop to scheduled when both dates are given", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow({ timezone: null }));
-      updateStop.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, arriveDate: "2026-06-01", departDate: "2026-06-03" } });
-      expect(updateStop).toHaveBeenCalledWith(
-        STOP_ID,
-        expect.objectContaining({ mode: "scheduled", arriveDate: "2026-06-01", departDate: "2026-06-03", timezone: "Europe/Rome" }),
-      );
-    });
-
-    it("returns a tool error and does not call updateStop when a rough patch ends up with no nights", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow({ nights: null }));
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, notes: "x" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toContain("nights");
-      expect(updateStop).not.toHaveBeenCalled();
-    });
-
-    it("a lone arriveDate on a rough Stop is a tool error, not a silent no-op", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, arriveDate: "2026-06-01" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toContain("Pass both arriveDate and departDate");
-      expect(updateStop).not.toHaveBeenCalled();
-    });
-
-    it("a lone departDate on a rough Stop is a tool error, not a silent no-op", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, departDate: "2026-06-03" } });
-      expect(r.isError).toBe(true);
-      expect((r.content as { text: string }[])[0].text).toContain("Pass both arriveDate and departDate");
-      expect(updateStop).not.toHaveBeenCalled();
-    });
-
-    it("a lone arriveDate on a scheduled Stop merges with the current departDate", async () => {
-      stopFindUnique.mockResolvedValue(scheduledStopRow());
-      updateStop.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, arriveDate: "2026-05-02" } });
-      expect(updateStop).toHaveBeenCalledWith(
-        STOP_ID,
-        expect.objectContaining({ mode: "scheduled", arriveDate: "2026-05-02", departDate: "2026-05-04", timezone: "Europe/Rome" }),
-      );
-    });
-
-    it("a lone departDate on a scheduled Stop merges with the current arriveDate", async () => {
-      stopFindUnique.mockResolvedValue(scheduledStopRow());
-      updateStop.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, departDate: "2026-05-06" } });
-      expect(updateStop).toHaveBeenCalledWith(
-        STOP_ID,
-        expect.objectContaining({ mode: "scheduled", arriveDate: "2026-05-01", departDate: "2026-05-06", timezone: "Europe/Rome" }),
-      );
+      expect(updateStop).toHaveBeenCalledWith(STOP_ID, { notes: "new notes" });
     });
 
     it("a non-member's stop id returns NOT_FOUND_TEXT and does not call updateStop", async () => {
@@ -597,6 +413,17 @@ describe("trip and stop write tools", () => {
     expect(assignStopToChapter).toHaveBeenCalledWith(STOP_ID, null);
   });
 
+  it("set_stop_dates refuses a date that matches the format but is not a calendar date, and never calls the action", async () => {
+    const c = await connectTestClient();
+    const r = await c.callTool({
+      name: "set_stop_dates",
+      arguments: { stopId: STOP_ID, arriveDate: "2026-02-30", departDate: "2026-03-04" },
+    });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toMatch(/real calendar date/);
+    expect(setStopDates).not.toHaveBeenCalled();
+  });
+
   it("surfaces an action's field errors as a readable tool error, not success", async () => {
     stopFindUnique.mockResolvedValue(roughStopRow());
     updateStop.mockResolvedValue({ success: false, errors: { name: ["Required"] } });
@@ -605,7 +432,7 @@ describe("trip and stop write tools", () => {
     expect(r.isError).toBe(true);
     expect((r.content as { text: string }[])[0].text).toContain("name: Required");
   });
-  describe("add_stop and update_stop never drop an accepted field", () => {
+  describe("add_stop never drops an accepted field", () => {
     const LONE = "Pass both arriveDate and departDate to schedule a Stop.";
     const errText = (r: Awaited<ReturnType<Awaited<ReturnType<typeof connectTestClient>>["callTool"]>>) =>
       (r.content as { text: string }[])[0].text;
@@ -663,57 +490,6 @@ describe("trip and stop write tools", () => {
       });
       expect(r.isError).toBeFalsy();
       expect(createStop.mock.calls[0][1]).toEqual(expect.objectContaining({ mode: "scheduled", arriveDate: "2026-05-01", departDate: "2026-05-04" }));
-    });
-
-    it("update_stop with a timezone on a rough Stop is a tool error", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, timezone: "Europe/Rome" } });
-      expect(r.isError).toBe(true);
-      expect(errText(r)).toContain("timezone");
-      expect(updateStop).not.toHaveBeenCalled();
-    });
-
-    it("update_stop with nights and a timezone that makes a scheduled Stop rough is a tool error", async () => {
-      stopFindUnique.mockResolvedValue(scheduledStopRow());
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, nights: 4, timezone: "Europe/Rome" } });
-      expect(r.isError).toBe(true);
-      expect(errText(r)).toContain("timezone");
-      expect(updateStop).not.toHaveBeenCalled();
-    });
-
-    it("update_stop with a timezone on a scheduled Stop is accepted", async () => {
-      stopFindUnique.mockResolvedValue(scheduledStopRow());
-      updateStop.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, timezone: "Europe/Paris" } });
-      expect(r.isError).toBeFalsy();
-      expect(updateStop).toHaveBeenCalledWith(STOP_ID, expect.objectContaining({ mode: "scheduled", timezone: "Europe/Paris" }));
-    });
-
-    it("update_stop with nights that don't match both supplied dates is a tool error", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow());
-      const c = await connectTestClient();
-      const r = await c.callTool({
-        name: "update_stop",
-        arguments: { stopId: STOP_ID, nights: 7, arriveDate: "2026-06-01", departDate: "2026-06-03" },
-      });
-      expect(r.isError).toBe(true);
-      expect(errText(r)).toContain("nights");
-      expect(updateStop).not.toHaveBeenCalled();
-    });
-
-    it("update_stop with nights that match both supplied dates is accepted", async () => {
-      stopFindUnique.mockResolvedValue(roughStopRow());
-      updateStop.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      const r = await c.callTool({
-        name: "update_stop",
-        arguments: { stopId: STOP_ID, nights: 2, arriveDate: "2026-06-01", departDate: "2026-06-03" },
-      });
-      expect(r.isError).toBeFalsy();
-      expect(updateStop).toHaveBeenCalledWith(STOP_ID, expect.objectContaining({ mode: "scheduled", arriveDate: "2026-06-01" }));
     });
   });
 

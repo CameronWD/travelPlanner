@@ -4,7 +4,7 @@
  * `Trip.coverAspect` stores width/height for the trip's cover photo: set at
  * upload time by `server/actions/cover.ts` (via `lib/image-size.ts`'s
  * `readImageSize`), backfilled for older covers by the operator-run
- * `scripts/backfill-cover-aspect.ts`. A portrait cover gets a different
+ * `scripts/archive/backfill-cover-aspect.ts`. A portrait cover gets a different
  * trips-list card layout (`components/trip/trip-card.tsx`) and a different
  * Home countdown treatment (Task 12) — both key off `isPortrait` so the two
  * surfaces can't disagree about what counts as portrait.

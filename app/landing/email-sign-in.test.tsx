@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { EmailSignInForm } from "./email-sign-in";
 
 const magicLinkMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/client", () => ({
   authClient: { signIn: { magicLink: magicLinkMock } },
 }));
 

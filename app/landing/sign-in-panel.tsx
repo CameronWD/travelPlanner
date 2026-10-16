@@ -11,11 +11,11 @@ import { cn } from "@/lib/cn";
  * 2026-10-01 §G): "Sign in" and "Become a tester" under the hero open one
  * small panel — the shared Dialog, a bottom sheet on phones and a centred
  * dialog from sm. Both modes hold the same Google controls; a refused Google
- * sign-in already records an Access request (lib/auth.ts), so "Become a
+ * sign-in already records an Access request (lib/auth/auth.ts), so "Become a
  * tester" only changes the words around them.
  *
  * A refused sign-in redirects Auth.js back to "/?error=AccessDenied"
- * (lib/auth.ts pages.error); the Landing passes `initialMode="denied"` so
+ * (lib/auth/auth.ts pages.error); the Landing passes `initialMode="denied"` so
  * this panel opens on load with the neutral denied copy — the same controls,
  * no header button to fall back to. A spent or expired Sign-in link comes
  * back as "/?error=Verification" and opens the panel in "link-expired" mode

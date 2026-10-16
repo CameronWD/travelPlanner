@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterMarkers, groupMarkersByCountry, distinctCountries } from "./globe-list";
-import type { MarkerView } from "@/components/globe/types";
+import type { MarkerView } from "@/lib/globe-views";
 
 const m = (over: Partial<MarkerView>): MarkerView => ({
   id: "x",

@@ -7,7 +7,7 @@ import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { targetTypeSchema } from "@/lib/enums";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { reportError } from "@/lib/error-sink";
 import { canWriteJournal } from "@/lib/journal-window";

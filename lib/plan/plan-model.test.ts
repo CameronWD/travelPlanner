@@ -5,7 +5,7 @@ import {
   addStopConsequence, costPaidState, fitTileModel, formatNightRuns, formatStayRange, planHeaderMeta, routeCentroid,
   stayCostLabel, stayCoverage, stayCoverageLine, stayNightsLabel, stayNightsOfStop, stayStatus, stayWindowLabel, tripEyebrow,
 } from "./plan-model";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 
 const ROME = { arriveDate: "2026-12-15", departDate: "2026-12-20" }; // 5 nights
 

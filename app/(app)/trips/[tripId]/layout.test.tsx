@@ -84,13 +84,15 @@ vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
 }));
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-reads", () => ({
   getUnreadActivityCount: vi.fn(async () => 0),
   getRecentActivity: vi.fn(async () => []),
 }));
-vi.mock("@/server/actions/forks", () => ({
+vi.mock("@/server/actions/activity", () => ({}));
+vi.mock("@/lib/fork-reads", () => ({
   listForks: vi.fn(async () => []),
 }));
+vi.mock("@/server/actions/forks", () => ({}));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => null }));
 vi.mock("@/components/trip/share-chooser", () => ({ ShareChooserMount: () => null, ShareTripButton: () => null }));
@@ -282,7 +284,7 @@ describe("TripLayout", () => {
     expect(screen.queryByTestId("portrait-cover")).toBeNull();
   });
 
-  it("member avatars are one 44px link to the travellers settings", async () => {
+  it("Traveller avatars are one 44px link to the travellers settings", async () => {
     mockDb.trip.findUnique.mockResolvedValue({
       ...BASE_TRIP,
       members: [
@@ -291,7 +293,7 @@ describe("TripLayout", () => {
       ],
     });
     await renderLayout();
-    const link = screen.getByRole("link", { name: /trip members \(2\)/i });
+    const link = screen.getByRole("link", { name: "Travellers (2)" });
     expect(link).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
     expect(link.className).toContain("min-h-11");
   });

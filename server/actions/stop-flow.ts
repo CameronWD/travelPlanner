@@ -6,7 +6,7 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { reflowArrangement } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
-import { guessTimezoneForCountry } from "@/lib/tz";
+import { stopTimezone } from "@/lib/tz";
 
 // ---------------------------------------------------------------------------
 // lockPlanStopsTx / lockPlanTransportsTx — canonical lock acquisition (ADR 0007)
@@ -144,7 +144,7 @@ export async function scheduleLoneStopTx(
       arriveDate: trip.startDate,
       departDate: trip.endDate,
       nights: null,
-      timezone: stop.timezone ?? guessTimezoneForCountry(stop.countryCode ?? stop.country),
+      timezone: stopTimezone(stop),
     },
   });
   // ADR 0038: a re-dated Stop carries its slotted Items and Accommodation.

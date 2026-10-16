@@ -225,17 +225,24 @@ describe("inviteToTrip", () => {
     expect(inviteUpsertMock).not.toHaveBeenCalled();
   });
 
-  it("allows an admin who is not the owner", async () => {
+  it("allows an admin who is not the owner, and creates the same Invite an owner would", async () => {
     requireTripAccessMock.mockResolvedValue({
       user: { id: "u3", email: "admin@example.com" },
       membership: { role: "member" },
     });
     isAdminEmailMock.mockReturnValue(true);
     tripMemberFindManyMock.mockResolvedValue([]);
+    inviteUpsertMock.mockResolvedValue({ id: "admin-invite-id" });
 
-    const result = await inviteToTrip("trip1", "new@example.com");
+    const result = await inviteToTrip("trip1", "New@Example.com");
 
-    expect(result.success).toBe(true);
+    expect(result).toEqual({ success: true, inviteId: "admin-invite-id" });
+    expect(inviteUpsertMock).toHaveBeenCalledWith({
+      where: { tripId_email: { tripId: "trip1", email: "new@example.com" } },
+      update: {},
+      create: { tripId: "trip1", email: "new@example.com", token: expect.any(String), role: "member", expiresAt: expect.any(Date) },
+      select: { id: true },
+    });
   });
 });
 

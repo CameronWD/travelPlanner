@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { render, screen } from "@testing-library/react";
 import type { PlanRows } from "@/lib/plan-reads";
 import type { item } from "@/test/builders";
+import { decls, lightTheme } from "@/test/helpers/css";
 
 // print/page.tsx is a heavy async server component, but since Task 14 its
 // one read is `readPlan` (lib/plan-reads.ts) — mocked here with a prebuilt
@@ -32,8 +33,8 @@ vi.mock("@/lib/guards", () => ({
 // Real buildBudget runs (never faked) — wrapped in a spy so a test can read
 // what it was called with and what it computed, without changing behaviour.
 const { buildBudgetSpy } = vi.hoisted(() => ({ buildBudgetSpy: vi.fn() }));
-vi.mock("@/lib/budget", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/budget")>();
+vi.mock("@/lib/money/budget", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/money/budget")>();
   return {
     ...actual,
     buildBudget: ((input: Parameters<typeof actual.buildBudget>[0]) => {
@@ -50,16 +51,12 @@ vi.mock("@/lib/budget", async (importOriginal) => {
 const dir = join(process.cwd(), "app/(app)/trips/[tripId]/print");
 const page = readFileSync(join(dir, "page.tsx"), "utf8");
 const button = readFileSync(join(dir, "print-button.tsx"), "utf8");
-const globals = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
 
 const RAW_PALETTE = /\b(bg|text|border)-(stone|slate|zinc|gray|amber|sky|emerald|violet|rose|indigo)-[0-9]/;
 
-/** `--name: h s% l%` pairs declared in the first `:root {…}` block of globals.css (the light theme). */
+/** `--name: h s% l%` pairs declared on globals.css's light palette rule. */
 function lightTokens(): Map<string, string> {
-  const root = globals.slice(globals.indexOf(":root {"), globals.indexOf(".dark {"));
-  const m = new Map<string, string>();
-  for (const [, k, v] of root.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)) m.set(k, v.trim());
-  return m;
+  return new Map(Object.entries(decls(lightTheme())).filter(([k]) => k.startsWith("--")));
 }
 
 describe("Print view — tokens only (Task 15)", () => {

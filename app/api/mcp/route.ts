@@ -5,8 +5,8 @@
  * Traveller and every tool goes through the app's own guards.
  *
  * Auth is OAuth: an opaque access token from Claude's own sign-in
- * (lib/auth.ts mcp()), bound to this host's /api/mcp and checked in process
- * (lib/mcp/oauth.ts, lib/auth-mcp-access.ts). Without an active one the
+ * (lib/auth/auth.ts mcp()), bound to this host's /api/mcp and checked in process
+ * (lib/mcp/oauth.ts, lib/auth/mcp-access.ts). Without an active one the
  * answer is the RFC 9728 challenge that starts that sign-in.
  */
 import { createHash } from "node:crypto";

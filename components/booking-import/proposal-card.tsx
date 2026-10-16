@@ -10,7 +10,7 @@ import { highlightAttrs } from "@/components/trip/card-highlight";
 import { ItemCard } from "@/components/trip/item-card";
 import { TransportCard } from "@/components/trip/transport-card";
 import { formatDayLabel } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money/money";
 import { stayRange, transportPreview, type PreviewStop } from "@/lib/booking-import/preview";
 import type { BookingProposal, Confidence } from "@/lib/booking-import/types";
 

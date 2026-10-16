@@ -248,9 +248,6 @@ export function WishlistBoard({
     label: ADD_LABEL,
   };
 
-  // Map filter chips are the kit's 28px pills; on touch the hit area grows to 44px.
-  const chipTouch = "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']";
-
   function renderIdeaGrid(groupItems: ItemCardItem[], withAddTile: boolean) {
     return (
       <AnimatedList
@@ -350,7 +347,7 @@ export function WishlistBoard({
                 tone={mapStopFilter === "all" ? "coral" : "white"}
                 selected={mapStopFilter === "all"}
                 onClick={() => setMapStopFilter("all")}
-                className={chipTouch}
+                touch
               >
                 All
               </Chip>
@@ -360,7 +357,7 @@ export function WishlistBoard({
                   tone={mapStopFilter === stop.id ? "coral" : "white"}
                   selected={mapStopFilter === stop.id}
                   onClick={() => setMapStopFilter(stop.id)}
-                  className={chipTouch}
+                  touch
                 >
                   {stop.name}
                 </Chip>

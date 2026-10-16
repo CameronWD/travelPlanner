@@ -70,7 +70,7 @@ describe("HomeHeader", () => {
 
   it("stacks 40px avatars linking to the trip's travellers", () => {
     renderHeader();
-    const people = screen.getByRole("link", { name: /Trip members \(2\)/ });
+    const people = screen.getByRole("link", { name: /^Travellers \(2\)/ });
     expect(people).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
     expect(people.querySelector(".-space-x-2\\.5")).not.toBeNull();
     expect(people.querySelectorAll(".size-10")).toHaveLength(2);
@@ -78,7 +78,12 @@ describe("HomeHeader", () => {
 
   it("offers invites in the people label only to the Owner", () => {
     renderHeader({ isOwner: false });
-    expect(screen.getByRole("link", { name: "Trip members (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Travellers (2)" })).toBeInTheDocument();
+  });
+
+  it("names the people link 'Travellers' for the Owner too, with the invite hint", () => {
+    renderHeader({ isOwner: true });
+    expect(screen.getByRole("link", { name: "Travellers (2), invite people" })).toBeInTheDocument();
   });
 
   it("has a single primary '+ Add a stop' button into the Plan's add-Stop flow", () => {

@@ -1,5 +1,5 @@
-import { CURRENCY_CODES, DEFAULT_HOME_CURRENCY } from "@/lib/currencies";
-import { currencyForCountry } from "@/lib/currency-for-country";
+import { CURRENCY_CODES, DEFAULT_HOME_CURRENCY } from "@/lib/money/currencies";
+import { currencyForCountry } from "@/lib/money/currency-for-country";
 import { formatDayLabel, formatNights, nightsBetween } from "@/lib/dates";
 import { formatRoughMonth, isRoughMonth } from "@/lib/rough-month";
 import type { PickedPlace } from "@/lib/picked-place";

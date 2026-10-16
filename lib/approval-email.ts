@@ -1,4 +1,4 @@
-import { escapeHtml } from "@/lib/sign-in-email";
+import { escapeHtml } from "@/lib/auth/sign-in-email";
 
 /**
  * The approval email (spec 2026-10-02 §B; CONTEXT.md "Access request"):

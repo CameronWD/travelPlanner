@@ -9,12 +9,12 @@ const findUnique = vi.fn<(...a: unknown[]) => Promise<{ id: string; name: string
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: (...a: unknown[]) => findUnique(...a) } } }));
 const getUnreadActivityCount = vi.fn<(...a: unknown[]) => Promise<number>>(async () => 3);
 const getRecentActivity = vi.fn<(...a: unknown[]) => Promise<unknown[]>>(async () => []);
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-reads", () => ({
   getUnreadActivityCount: (...a: unknown[]) => getUnreadActivityCount(...a),
   getRecentActivity: (...a: unknown[]) => getRecentActivity(...a),
 }));
 const listForks = vi.fn<(...a: unknown[]) => Promise<{ id: string; name: string; sortOrder: number }[]>>(async () => [{ id: "f1", name: "B", sortOrder: 0 }]);
-vi.mock("@/server/actions/forks", () => ({ listForks: (...a: unknown[]) => listForks(...a) }));
+vi.mock("@/lib/fork-reads", () => ({ listForks: (...a: unknown[]) => listForks(...a) }));
 
 import { readTripShell, readTripHeader, readUnreadActivityCount, readRecentActivity, readForks, TRIP_SHELL_SELECT } from "./trip-shell-reads";
 
@@ -65,7 +65,7 @@ describe("the trip layout, Home and Day pages share the cached reads", () => {
     ["components/trip/trip-header-trailing.tsx", path.resolve(__dirname, "..", "components", "trip", "trip-header-trailing.tsx")],
   ])("%s", (_label, file) => {
     const src = readFileSync(file, "utf8");
-    expect(src).not.toMatch(/from "@\/server\/actions\/activity"/);
+    expect(src).not.toMatch(/from "@\/(server\/actions\/activity|lib\/activity-reads|lib\/fork-reads)"/);
     expect(src).toMatch(/from "@\/lib\/trip-shell-reads"/);
   });
 

@@ -117,17 +117,6 @@ const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ER
 
 const itemRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
   tripId: TRIP_ID,
-  title: "Colosseum",
-  category: "SIGHTSEEING",
-  stopId: "stop-1",
-  date: null,
-  startTime: null,
-  endTime: null,
-  address: "Rome, Italy",
-  link: null,
-  booking: null,
-  notes: "old notes",
-  hiddenFromShares: true,
   ...overrides,
 });
 
@@ -203,22 +192,12 @@ describe("plan write tools", () => {
   });
 
   describe("update_thing_to_do (PATCH)", () => {
-    it("with only notes keeps the other fields, including hiddenFromShares (not part of this tool's input)", async () => {
-      itemFindUnique.mockResolvedValue(itemRow());
+    it("checks the item and any new Stop are real-plan, then forwards only the fields passed", async () => {
       updateItem.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, notes: "new notes" } });
-      expect(updateItem).toHaveBeenCalledWith(
-        ITEM_ID,
-        expect.objectContaining({
-          title: "Colosseum",
-          category: "SIGHTSEEING",
-          stopId: "stop-1",
-          address: "Rome, Italy",
-          notes: "new notes",
-          hiddenFromShares: true,
-        }),
-      );
+      expect(itemFindUnique).toHaveBeenCalledWith({ where: { id: ITEM_ID, forkId: null }, select: { tripId: true } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { notes: "new notes" });
     });
 
     it("checks trip access before using the loaded row, so a non-member's item id returns NOT_FOUND_TEXT and does not call updateItem", async () => {
@@ -272,6 +251,15 @@ describe("plan write tools", () => {
     expect(call).toHaveLength(2);
     expect(call[0]).toBe(ITEM_ID);
     expect(call[1]).toEqual({ date: "2026-05-02", startTime: "09:00", endTime: undefined });
+  });
+
+  it("the schedule tool refuses 24:00 and an impossible date before calling the action", async () => {
+    const c = await connectTestClient();
+    const bad = await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: "i1", date: "2026-04-31" } });
+    expect(bad.isError).toBe(true);
+    const late = await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: "i1", date: "2026-04-30", startTime: "24:00" } });
+    expect(late.isError).toBe(true);
+    expect(scheduleItem).not.toHaveBeenCalled();
   });
 
   it("unschedule_thing_to_do calls unscheduleItem", async () => {
@@ -337,38 +325,16 @@ describe("plan write tools", () => {
   });
 
   describe("update_chapter (PATCH)", () => {
-    it("with only name keeps colour and dates", async () => {
-      chapterFindUnique.mockResolvedValue(chapterRow());
+    it("checks the Chapter is real-plan, then forwards only the fields passed", async () => {
       updateChapter.mockResolvedValue({ success: true });
       const c = await connectTestClient();
       await c.callTool({ name: "update_chapter", arguments: { chapterId: CHAPTER_ID, name: "New name" } });
-      expect(updateChapter).toHaveBeenCalledWith(CHAPTER_ID, {
-        name: "New name",
-        colour: "amber",
-        startDate: "2026-05-01",
-        endDate: "2026-05-10",
-      });
+      expect(chapterFindUnique).toHaveBeenCalledWith({ where: { id: CHAPTER_ID, forkId: null }, select: { tripId: true } });
+      expect(updateChapter).toHaveBeenCalledWith(CHAPTER_ID, { name: "New name" });
     });
 
-    it("a lone startDate on a rough chapter is a tool error, not a silent no-op", async () => {
-      chapterFindUnique.mockResolvedValue(chapterRow({ startDate: null, endDate: null }));
-      const c = await connectTestClient();
-      const r = await c.callTool({ name: "update_chapter", arguments: { chapterId: CHAPTER_ID, startDate: "2026-06-01" } });
-      expect(r.isError).toBe(true);
-      expect(updateChapter).not.toHaveBeenCalled();
-    });
-
-    it("a lone endDate on a dated chapter merges with the current startDate", async () => {
-      chapterFindUnique.mockResolvedValue(chapterRow());
-      updateChapter.mockResolvedValue({ success: true });
-      const c = await connectTestClient();
-      await c.callTool({ name: "update_chapter", arguments: { chapterId: CHAPTER_ID, endDate: "2026-05-12" } });
-      expect(updateChapter).toHaveBeenCalledWith(
-        CHAPTER_ID,
-        expect.objectContaining({ startDate: "2026-05-01", endDate: "2026-05-12" }),
-      );
-    });
-
+    // keep, unchanged: "checks trip access before …" and "a made-up chapter id …" —
+    // requireRealPlanRow's access check now refuses them.
     it("checks trip access before using the loaded row, so a non-member's chapter id returns NOT_FOUND_TEXT and does not call updateChapter", async () => {
       chapterFindUnique.mockResolvedValue(chapterRow());
       requireTripAccess.mockRejectedValue(notFoundErr());
@@ -386,6 +352,13 @@ describe("plan write tools", () => {
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
       expect(updateChapter).not.toHaveBeenCalled();
+    });
+
+    it("the action's refusal maps to isError", async () => {
+      updateChapter.mockResolvedValue({ success: false, errors: { endDate: ["Set both dates or neither"] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_chapter", arguments: { chapterId: CHAPTER_ID, startDate: "2026-06-01" } });
+      expect(r.isError).toBe(true);
     });
   });
   it("add_thing_to_do's description recommends a stopId alongside a date", async () => {

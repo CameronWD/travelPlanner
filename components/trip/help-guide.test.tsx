@@ -199,6 +199,13 @@ describe("HelpGuide", () => {
     expect(container.textContent?.toLowerCase()).not.toContain("command palette");
   });
 
+  it("calls the header's people 'Traveller avatars', never 'member avatars'", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("Traveller avatars");
+    expect(text.toLowerCase()).not.toContain("member avatars");
+  });
+
   it("documents the trip settings, including how to delete a trip", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#trip-settings")?.textContent ?? "";

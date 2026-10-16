@@ -19,7 +19,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useOnlineStatus } from "@/components/ui/use-online-status";
 import { cn } from "@/lib/cn";
 import { relativeTime } from "@/lib/relative-time";
-import { pageLabelForRoute, tripIdFromRoute } from "@/lib/feedback-context";
+import { pageLabelForRoute, tripIdFromRoute } from "@/lib/feedback/context";
 import { useTripIdFromRef } from "@/components/trip/use-trip-href";
 import {
   enqueue,
@@ -28,12 +28,12 @@ import {
   readQueue,
   removeFromQueue,
   type QueuedFeedbackNote,
-} from "@/lib/feedback-queue";
+} from "@/lib/feedback/queue";
 import {
   getCurrentTrip,
   getCurrentTripServerSnapshot,
   subscribeToCurrentTrip,
-} from "@/lib/feedback-trip-store";
+} from "@/lib/feedback/trip-store";
 import { subscribeAttention } from "@/lib/attention";
 import {
   createFeedbackNote,
@@ -41,7 +41,7 @@ import {
   listFeedbackNotes,
   type FeedbackNoteView,
 } from "@/server/actions/feedback";
-import { isHiddenResolved, resolutionLine } from "@/lib/feedback-view";
+import { isHiddenResolved, resolutionLine } from "@/lib/feedback/view";
 
 /** A note in the log: either landed on the server, or still queued locally. */
 type LogEntry =
@@ -193,7 +193,7 @@ const STATUS_LABEL: Partial<Record<FeedbackNoteView["status"], string>> = {
 /**
  * The badge a note wears, or null for an open one. An unrecognised status
  * shows itself rather than vanishing — a struck-through note with no badge
- * explaining why is worse than an unfamiliar word (lib/feedback-inbox.ts does
+ * explaining why is worse than an unfamiliar word (lib/feedback/inbox.ts does
  * the same). Returns both the label and variant so they cannot drift.
  *
  * FP-12: the `"success" | "muted"` union is hand-written on purpose rather
@@ -228,7 +228,7 @@ function whereWritten(note: {
  *
  * `enqueue` reports failure by omission: when localStorage rejects the write
  * (quota, private mode) it returns the queue *as persisted*, without our note
- * (see lib/feedback-queue.ts). Silently treating that as saved is how a written
+ * (see lib/feedback/queue.ts). Silently treating that as saved is how a written
  * note gets lost, which is the one thing this feature exists to prevent.
  */
 function isQueued(queue: QueuedFeedbackNote[], clientKey: string): boolean {

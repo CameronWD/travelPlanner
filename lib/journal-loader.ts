@@ -11,7 +11,7 @@
 import { db } from "@/lib/db";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { groupJournalDayByAuthor } from "@/lib/journal-authors";
-import type { AttachmentView } from "@/components/trip/attachment-list";
+import type { AttachmentView } from "@/lib/attachment-view";
 
 interface TodaysJournalMine {
   body: string;

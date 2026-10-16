@@ -11,25 +11,9 @@ import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
+import type { AccommodationCardAccommodation } from "@/lib/plan-entity-views";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface AccommodationCardAccommodation {
-  id: string;
-  stopId: string;
-  name: string;
-  address?: string | null;
-  checkIn: string;
-  checkOut: string;
-  checkInTime?: string | null;
-  checkOutTime?: string | null;
-  confirmation?: string | null;
-  notes?: string | null;
-  lat?: number | null;
-  lng?: number | null;
-}
+export type { AccommodationCardAccommodation };
 
 export interface AccommodationCardStop {
   arriveDate: string;

@@ -224,6 +224,21 @@ describe("TransportFormDialog", () => {
     expect(createTransport).not.toHaveBeenCalled();
   });
 
+  it("an edit that empties the reference, notes and the departure point sends them as null (PATCH)", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} />);
+
+    await user.clear(screen.getByLabelText(/booking ref/i));
+    await user.clear(screen.getByLabelText(/^notes/i));
+    await user.clear(screen.getByLabelText("Departure point"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({ reference: null, notes: null, depPlace: null, fromStopId: "stop-a", depIsHome: false }),
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 4: server-returned form-level error is displayed
   // -------------------------------------------------------------------------
@@ -583,7 +598,7 @@ describe("TransportFormDialog", () => {
       "transport-99",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: undefined,
+        paidAt: null, // the PATCH clear (ADR 0075): unpaid
       }),
     );
   });
@@ -763,7 +778,7 @@ describe("TransportFormDialog", () => {
       "transport-99",
       expect.objectContaining({
         paidMinor: undefined,
-        paidAt: undefined,
+        paidAt: null, // the PATCH clear (ADR 0075): unpaid
       }),
     );
   });
@@ -1762,7 +1777,7 @@ describe("TransportFormDialog: a Stop end keeps its departure/arrival point (Tas
     );
   });
 
-  it("clearing the Departure point and saving sends depPlace: undefined, still with fromStopId set", async () => {
+  it("clearing the Departure point and saving sends depPlace: null (a PATCH clear), still with fromStopId set", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} stops={POINT_STOPS} transport={legWithPoints} />);
 
@@ -1773,12 +1788,12 @@ describe("TransportFormDialog: a Stop end keeps its departure/arrival point (Tas
       "t-points",
       expect.objectContaining({
         fromStopId: "paris",
-        depPlace: undefined,
+        depPlace: null,
       }),
     );
   });
 
-  it("clearing the Arrival point and saving sends arrPlace: undefined, still with toStopId set", async () => {
+  it("clearing the Arrival point and saving sends arrPlace: null (a PATCH clear), still with toStopId set", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} stops={POINT_STOPS} transport={legWithPoints} />);
 
@@ -1789,7 +1804,7 @@ describe("TransportFormDialog: a Stop end keeps its departure/arrival point (Tas
       "t-points",
       expect.objectContaining({
         toStopId: "london",
-        arrPlace: undefined,
+        arrPlace: null,
       }),
     );
   });

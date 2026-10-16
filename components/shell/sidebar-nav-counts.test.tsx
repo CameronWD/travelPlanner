@@ -4,7 +4,7 @@ import { Suspense, type ReactElement } from "react";
 const loadNavCountsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/nav-counts", () => ({ loadNavCounts: loadNavCountsMock }));
 const loadMoneyDueCountMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/money-due-count", () => ({ loadMoneyDueCount: loadMoneyDueCountMock }));
+vi.mock("@/lib/money/due-count", () => ({ loadMoneyDueCount: loadMoneyDueCountMock }));
 
 import { PlanCount, WishlistCount, MoneyCount, sidebarNavCounts } from "./sidebar-nav-counts";
 

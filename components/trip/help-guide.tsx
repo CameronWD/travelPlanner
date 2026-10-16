@@ -1501,7 +1501,7 @@ export function HelpGuide({
               by default: turn on{" "}
               <strong className="font-semibold">What-if plans</strong> in the
               trip&rsquo;s Settings first. Then, up in the trip header, next
-              to the member avatars and the notification bell, there&rsquo;s
+              to the Traveller avatars and the notification bell, there&rsquo;s
               a dropdown for this. Open it and tap{" "}
               <strong className="font-semibold">New what-if plan</strong> to
               get one of each to look at side by side instead of arguing in

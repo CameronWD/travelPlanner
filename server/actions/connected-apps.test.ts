@@ -27,7 +27,7 @@ vi.mock("@/lib/db", () => ({
     oauthAccessToken: { groupBy: accessTokenGroupByMock },
   },
 }));
-vi.mock("@/lib/auth", () => ({ authServer: { api: { disconnectMcpClient: disconnectMock } } }));
+vi.mock("@/lib/auth/auth", () => ({ authServer: { api: { disconnectMcpClient: disconnectMock } } }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/revalidate", () => ({ revalidateAccountPage: revalidateAccountPageMock }));
 

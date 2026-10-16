@@ -10,6 +10,7 @@ const CASES = [
   { title: "Ok", date: "" },
   { title: "Ok", date: "5 Dec" },
   { title: "", date: "" },
+  { title: "Ok", date: "2026-02-30" },
 ];
 
 describe("checkReminderInput (spec 2026-10-06 §R)", () => {
@@ -19,5 +20,12 @@ describe("checkReminderInput (spec 2026-10-06 §R)", () => {
     expect(plain.success).toBe(zod.success);
     if (plain.success && zod.success) expect(plain.data).toEqual(zod.data);
     if (!plain.success && !zod.success) expect(plain.errors).toEqual(flattenZodErrors(zod.error));
+  });
+
+  it("refuses an impossible date with the schema's message", () => {
+    expect(checkReminderInput({ title: "Ok", date: "2026-02-30" })).toEqual({
+      success: false,
+      errors: { date: ["Reminder date must be a real date"] },
+    });
   });
 });

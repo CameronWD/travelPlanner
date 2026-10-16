@@ -1,27 +1,28 @@
 /**
- * Day view loader (spec 2026-09-27 §C "Data").
+ * Day view loader (spec 2026-09-27 §C "Data"; card 3.M, NAV-05).
  *
- * `getDay` reads the Trip once per request through the `cache()`d
- * `loadDayTripData` (spec 2026-10-06 §B), reads the day's Journal rows, and
- * hands both to the pure `projectDay`. `getDayWeatherView` is separate so the
- * page can await it inside a Suspense boundary (DAY_VIEW §4) — weather never
- * blocks the day's plan.
+ * `getDays` reads the carousel window — the day shown and its neighbours —
+ * once: the shared rows through `readDayRows` (lib/day-reads.ts), plus this
+ * view's own Costs (the edit dialogs pre-fill from them) and every
+ * Traveller's Journal for the window's dates, in the same wave. Each date is
+ * assembled by `buildDayModel` (lib/day-view-model.ts, shared with the
+ * Travelling Home) and dressed for the page by `projectDayView`.
+ * `getDayWeatherView` is separate so the page can await it inside a Suspense
+ * boundary (DAY_VIEW §4) — weather never blocks the day's plan.
  *
  * Policy (not a BND-2 spelling exemption): the dated Day view always shows the
  * real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
  */
 
-import { cache } from "react";
 import { db } from "@/lib/db";
-import { addDays, dayNumberInTrip, daysBetween, formatDayLabel } from "@/lib/dates";
-import { titlesByDate } from "@/lib/day-titles";
+import { addDays, daysBetween, formatDayLabel } from "@/lib/dates";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
-import { buildItinerary, orderDayEntries, isFreeFormDay, dayHasEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
-import { nearbyWishlistItems, dayIdeasWishlist, type NearbyResult } from "@/lib/nearby";
+import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
+import type { DayMapModel, ItemDirections } from "@/lib/day-map";
+import type { NearbyResult } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
-import { daylight, utcHmToZone } from "@/lib/daylight";
+import { daylight, utcHmToZone, type DaylightView } from "@/lib/daylight";
 import { getDayWeather, type DayWeather } from "@/lib/weather";
 import { getWeatherTheme, type WeatherTheme } from "@/lib/weather/theme";
 import { zoneLabel } from "@/lib/time-display";
@@ -29,9 +30,9 @@ import { computeTripPhase, type TripPhase } from "@/lib/trip-phase";
 import { canWriteJournal } from "@/lib/journal-window";
 import { groupJournalDayByAuthor } from "@/lib/journal-authors";
 import { itemPhotoUrl } from "@/lib/item-photo";
-import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
-import { chapterForDate } from "@/lib/chapters";
+import { readDayRows, type DayReadContext } from "@/lib/day-reads";
 import {
+  buildDayModel,
   dayHeading,
   dayEyebrow,
   daySubLine,
@@ -40,17 +41,17 @@ import {
   stopLine,
   dayIdeasRows,
   forecastOpensOn as forecastOpensOnFor,
+  type DayModel,
+  type DayRows,
   type StopLine,
   type SubLineInput,
 } from "@/lib/day-view-model";
-import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import type { TransportMode } from "@/lib/enum-values";
-import type { DayEntryEditor } from "@/components/trip/day-entry-link";
-import type { AttachmentView } from "@/components/trip/attachment-list";
-import type { ItemDirections } from "@/components/trip/timeline";
-import type { DaylightView } from "@/components/weather/daylight-bar";
-import type { CostRow } from "@/server/actions/costs";
+import type { DayEntryEditor } from "@/lib/plan-entity-views";
+import type { AttachmentView } from "@/lib/attachment-view";
+import type { CostRow } from "@/lib/money/cost-row";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
 const BUFFER_DAYS = 2;
@@ -129,367 +130,102 @@ export interface DayViewData {
   weatherInput: { lat: number; lng: number; timezone: string } | null;
 }
 
-/**
- * Every trip-wide read the Day view needs, memoised per request (spec
- * 2026-10-06 §B): the Day page asks getDay for three dates (the day shown and
- * both neighbours) and all three share this one set of reads. Real plan only
- * (policy above). Accommodations are read for the whole Trip and filtered per
- * date in projectDay. Read as `viewerId` (CONTEXT.md "Surprise"): the cache
- * is per request, and the viewer is constant within one.
- */
-async function loadDayTripDataUncached(tripId: string, viewerId: string) {
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { startDate: true, endDate: true, name: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, roundTrip: true },
-  });
-  // The caller has already checked access; a missing row is treated as a bad link.
-  if (!trip) return "invalid" as const;
-  if (!trip.startDate || !trip.endDate) return "dateless" as const;
-  const startDate = trip.startDate;
-  const endDate = trip.endDate;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+type DayResult = DayViewData | "invalid" | "out-of-range" | "dateless";
 
-  // Surprise (ADR 0051): known before the wave so every query below leaves
-  // what this viewer may not see inside in the database.
-  const v = await loadSurpriseVisibility(tripId, viewerId);
-
-  const [stopRows, itemRows, transports, accommodations, wishlist, allAttachments, costs, chapters, countRows, dayTitleRows, thingsToDoAll] =
-    await Promise.all([
-      db.stop.findMany({
-        // Rough (date-less) stops don't appear on a dated day view.
-        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          name: true,
-          country: true,
-          countryCode: true,
-          timezone: true,
-          arriveDate: true,
-          departDate: true,
-          sortOrder: true,
-          lat: true,
-          lng: true,
-        },
-      }),
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
-        orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          sortOrder: true,
-          stopId: true,
-          lat: true,
-          lng: true,
-          address: true,
-          link: true,
-          booking: true,
-          notes: true,
-          hiddenFromShares: true,
-          photoAttachmentId: true,
-        },
-      }),
-      db.transport.findMany({
-        where: { tripId, ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          mode: true,
-          fromStopId: true,
-          toStopId: true,
-          depPlace: true,
-          arrPlace: true,
-          depAt: true,
-          arrAt: true,
-          depLat: true,
-          depLng: true,
-          arrLat: true,
-          arrLng: true,
-          reference: true,
-          notes: true,
-          sortOrder: true,
-          anchorStopId: true,
-          depIsHome: true,
-          arrIsHome: true,
-        },
-      }),
-      // Whole Trip; projectDay keeps the stays that touch the day.
-      db.accommodation.findMany({
-        where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-        orderBy: { checkIn: "asc" },
-        select: {
-          id: true, stopId: true, name: true, address: true, checkIn: true, checkOut: true,
-          checkInTime: true, checkOutTime: true, confirmation: true, notes: true, lat: true, lng: true,
-        },
-      }),
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE, ...v.where.item },
-        select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
-      }),
-      db.attachment.findMany({
-        where: { tripId, ...v.where.attachment },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          filename: true,
-          title: true,
-          mime: true,
-          size: true,
-          url: true,
-          uploadedById: true,
-          createdAt: true,
-          targetId: true,
-        },
-      }),
-      // Costs on the day's editable entities — the edit dialogs pre-fill from them.
-      db.cost.findMany({
-        where: { tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null }, ...v.where.cost },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          costMinor: true,
-          paidMinor: true,
-          currency: true,
-          rateToHome: true,
-          paidAt: true,
-          dueDate: true,
-          ownerType: true,
-          ownerId: true,
-          label: true,
-          category: true,
-          settlement: true,
-        },
-      }),
-      // The eyebrow names the day's Chapter only when Chapters are on.
-      trip.chaptersEnabled
-        ? db.chapter.findMany({
-            where: { tripId, ...REAL_PLAN },
-            select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
-          })
-        : Promise.resolve([]),
-      // The strip's per-day dot counts.
-      db.item.groupBy({
-        by: ["date"],
-        where: { tripId, ...REAL_PLAN, date: { gte: startDate, lte: endDate }, ...v.where.item },
-        _count: { _all: true },
-      }),
-      // Day titles for the Trip's Stops, selected through the Stop (spec
-      // 2026-10-06 §B) so they join this wave instead of waiting for `stops`.
-      db.dayTitle.findMany({
-        where: { stop: { tripId, ...REAL_PLAN }, ...v.where.dayTitle },
-        select: { stopId: true, dayIndex: true, title: true },
-      }),
-      // Every Stop's things to do (ADR 0022); projectDay picks the day's Stop.
-      db.item.findMany({
-        where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, ...v.where.item },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, title: true, category: true, startTime: true, stopId: true },
-      }),
-    ]);
-
-  // Hidden Stops keep their shell; every Stop and dated Item carries its
-  // Surprise view for the badge, and a hidden real-plan Item shows as a
-  // placeholder titled "Surprise" on its date and time.
-  const stops = maskSurpriseStops(stopRows, v, v.views.stops);
-  const placeholders = v.placeholderItems.filter((p) => p.forkId === null && p.date !== null);
-  const items = [
-    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
-    ...placeholders.map((p) => ({
-      id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-      sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, address: p.address, link: p.link,
-      booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
-      surprise: p.surprise,
-    })),
-  ];
-  // The strip's dots count what the day shows, placeholders included.
-  const counts = [...countRows];
-  for (const p of placeholders) {
-    if (p.date! < startDate || p.date! > endDate) continue;
-    const i = counts.findIndex((c) => c.date === p.date);
-    if (i >= 0) counts[i] = { ...counts[i], _count: { _all: counts[i]._count._all + 1 } };
-    else counts.push({ date: p.date, _count: { _all: 1 } });
-  }
-
-  const dayTitles = titlesByDate(
-    stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
-    dayTitleRows,
-  );
-
-  return {
-    tripId,
-    trip,
-    startDate,
-    endDate,
-    windowDates: tripDays(startDate, endDate),
-    stops,
-    items,
-    transports,
-    accommodations,
-    wishlist,
-    allAttachments,
-    costs,
-    chapters,
-    counts,
-    dayTitles,
-    thingsToDoAll,
-  };
+/** A well-formed date clamped into the Trip, or "out-of-range" beyond the buffer. */
+function clampDate(date: string, startDate: string, endDate: string): string | "out-of-range" {
+  if (date < addDays(startDate, -BUFFER_DAYS) || date > addDays(endDate, BUFFER_DAYS)) return "out-of-range";
+  return date < startDate ? startDate : date > endDate ? endDate : date;
 }
 
-const loadDayTripData = cache(loadDayTripDataUncached);
-type DayTripData = Exclude<Awaited<ReturnType<typeof loadDayTripDataUncached>>, "invalid" | "dateless">;
-
-/** The per-date reads: every Traveller's Journal entry and photos for one day (ARCH-DAT-6). */
-async function loadDayDateData(tripId: string, date: string) {
-  const [journalEntries, journalPhotos] = await Promise.all([
-    // Every Traveller's entry for this date (ARCH-DAT-6) — split into
-    // "mine" (editable) and "others" (read-only) below.
-    db.journalEntry.findMany({
-      where: { tripId, date: date },
+/**
+ * This view's own reads, in readDayRows's wave: the Costs on the day's
+ * editable entities (the edit dialogs pre-fill from them) and every
+ * Traveller's Journal entry and photos for the window's dates (ARCH-DAT-6),
+ * one `in` list each. Null when the Trip has no end: the Day view needs both.
+ */
+async function readWindowExtras(ctx: DayReadContext, dates: readonly string[]) {
+  if (ctx.trip.endDate === null) return null;
+  const shown = [
+    ...new Set(
+      dates
+        .filter((d) => ISO_DATE.test(d))
+        .map((d) => clampDate(d, ctx.startDate, ctx.endDate))
+        .filter((d) => d !== "out-of-range"),
+    ),
+  ];
+  const [costs, journalEntries, journalPhotos] = await Promise.all([
+    db.cost.findMany({
+      where: { tripId: ctx.tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null }, ...ctx.visibility.where.cost },
       orderBy: { createdAt: "asc" },
       select: {
-        id: true,
-        body: true,
-        authorId: true,
-        updatedAt: true,
-        hiddenFromShares: true,
-        author: { select: TRAVELLER_SELECT },
+        id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, paidAt: true, dueDate: true,
+        ownerType: true, ownerId: true, label: true, category: true, settlement: true,
       },
     }),
+    db.journalEntry.findMany({
+      where: { tripId: ctx.tripId, date: { in: shown } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, body: true, date: true, authorId: true, updatedAt: true, hiddenFromShares: true, author: { select: TRAVELLER_SELECT } },
+    }),
     db.attachment.findMany({
-      where: { tripId, targetType: "JOURNAL", targetId: date },
+      where: { tripId: ctx.tripId, targetType: "JOURNAL", targetId: { in: shown } },
       orderBy: { createdAt: "asc" },
       select: {
-        id: true,
-        filename: true,
-        title: true,
-        mime: true,
-        size: true,
-        url: true,
-        uploadedById: true,
-        createdAt: true,
+        id: true, filename: true, title: true, mime: true, size: true, url: true, uploadedById: true, createdAt: true, targetId: true,
         // Attributes a photo-only co-Traveller (no JournalEntry row).
         uploadedBy: { select: TRAVELLER_SELECT },
       },
     }),
   ]);
-  return { journalEntries, journalPhotos };
+  return { costs, journalEntries, journalPhotos };
 }
-type DayDateData = Awaited<ReturnType<typeof loadDayDateData>>;
+type WindowExtras = NonNullable<Awaited<ReturnType<typeof readWindowExtras>>>;
 
-export async function getDay(
-  tripId: string,
-  dateParam: string,
-  viewerId: string,
-): Promise<DayViewData | "invalid" | "out-of-range" | "dateless"> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return "invalid";
+/**
+ * The Day view for each of `dates`, in order (NAV-05): the carousel's day
+ * shown and its neighbours from one read. A malformed date is "invalid", one
+ * beyond the 2-day buffer "out-of-range"; a date just outside the Trip clamps
+ * to its end (the page drops a neighbour that clamped onto the day shown).
+ */
+export async function getDays(tripId: string, dates: readonly string[], viewerId: string): Promise<DayResult[]> {
+  const wellFormed = (d: string) => ISO_DATE.test(d);
+  if (!dates.some(wellFormed)) return dates.map(() => "invalid" as const);
 
-  const data = await loadDayTripData(tripId, viewerId);
-  if (data === "invalid" || data === "dateless") return data;
-  const { startDate, endDate } = data;
+  const read = await readDayRows(tripId, viewerId, (ctx) => readWindowExtras(ctx, dates));
+  if (read === "missing") return dates.map(() => "invalid" as const);
+  if (read === "dateless" || read.alongside === null) return dates.map((d) => (wellFormed(d) ? ("dateless" as const) : ("invalid" as const)));
 
-  if (dateParam < addDays(startDate, -BUFFER_DAYS) || dateParam > addDays(endDate, BUFFER_DAYS)) return "out-of-range";
-  const effectiveDate = dateParam < startDate ? startDate : dateParam > endDate ? endDate : dateParam;
-
-  const dateData = await loadDayDateData(tripId, effectiveDate);
-  return projectDay(data, { date: effectiveDate, viewerId, ...dateData });
-}
-
-/** Pure: the Day view for one date, from the Trip's shared reads plus that day's Journal rows. */
-function projectDay(
-  data: DayTripData,
-  day: { date: string; viewerId: string } & DayDateData,
-): DayViewData | "out-of-range" {
-  const { tripId, trip, startDate, endDate, windowDates, stops, items, transports, wishlist, allAttachments, costs, chapters, counts, dayTitles, thingsToDoAll } = data;
-  const { date: effectiveDate, viewerId, journalEntries, journalPhotos } = day;
-  // The stays that touch this day (the old per-date `checkIn <= date <= checkOut` read).
-  const accommodations = data.accommodations.filter((a) => a.checkIn <= effectiveDate && a.checkOut >= effectiveDate);
-
-  // CONTEXT.md "Item photo" — keyed by the Attachment's own id.
-  const attachmentsById = new Map(allAttachments.map((a) => [a.id, { url: a.url }]));
-
-  const dayTitleEntry = dayTitles.get(effectiveDate) ?? null;
-  const dayTitleText = dayTitleEntry?.title ?? null;
-
-  const itinerary = buildItinerary({
-    startDate,
-    endDate,
-    // Non-null at runtime: the query filters rough (date-less) stops out.
-    stops: stops.map((s) => ({
-      id: s.id,
-      name: s.name,
-      country: s.country,
-      timezone: s.timezone ?? "UTC",
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-      sortOrder: s.sortOrder,
-    })),
-    items: items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      category: item.category,
-      date: item.date,
-      startTime: item.startTime,
-      endTime: item.endTime,
-      stopId: item.stopId,
-      address: item.address,
-      link: item.link,
-      booking: item.booking,
-      notes: item.notes,
-      hiddenFromShares: item.hiddenFromShares,
-      photoUrl: itemPhotoUrl(item, attachmentsById),
-      surprise: item.surprise,
-    })),
-    transports: transports.map((t) => ({
-      id: t.id,
-      mode: t.mode as TransportMode,
-      fromStopId: t.fromStopId,
-      toStopId: t.toStopId,
-      depPlace: t.depPlace,
-      arrPlace: t.arrPlace,
-      depAt: t.depAt,
-      arrAt: t.arrAt,
-      reference: t.reference,
-      notes: t.notes,
-      depIsHome: t.depIsHome,
-      arrIsHome: t.arrIsHome,
-    })),
-    accommodations: accommodations.map((a) => ({
-      id: a.id,
-      stopId: a.stopId,
-      name: a.name,
-      address: a.address,
-      checkIn: a.checkIn,
-      checkOut: a.checkOut,
-      checkInTime: a.checkInTime,
-      checkOutTime: a.checkOutTime,
-      confirmation: a.confirmation,
-      notes: a.notes,
-    })),
-    homeTimezone: trip.homeTimezone,
+  const { rows, alongside } = read;
+  const shared = shareAcrossDays(tripId, rows, alongside.costs);
+  return dates.map((d): DayResult => {
+    if (!wellFormed(d)) return "invalid";
+    const date = clampDate(d, rows.startDate, rows.endDate);
+    if (date === "out-of-range") return date;
+    const model = buildDayModel(rows, date);
+    // Unreachable after the clamp; kept so a projection change can't crash the page.
+    if (!model.dayPlan) return "out-of-range";
+    return projectDayView(rows, { ...model, dayPlan: model.dayPlan }, shared, {
+      viewerId,
+      journalEntries: alongside.journalEntries.filter((e) => e.date === date),
+      journalPhotos: alongside.journalPhotos.filter((p) => p.targetId === date),
+    });
   });
+}
 
-  const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
-  // Unreachable after the clamp; kept so a projection change can't crash the page.
-  if (!dayPlan) return "out-of-range";
-
-  const stopOptions = stops.map((s) => ({
-    id: s.id,
-    name: s.name,
-    arriveDate: s.arriveDate,
-    departDate: s.departDate,
-    timezone: s.timezone,
-    sortOrder: s.sortOrder,
-  }));
-
-  // ── Edit context for the plan rows (click a title → its edit dialog) ──
+/** What every day of one window shares — built once per getDays call. */
+function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[]) {
+  const { trip, stops, items, transports } = rows;
   const stopById = new Map(stops.map((s) => [s.id, s]));
   const costsByOwner: Record<string, CostRow[]> = {};
   for (const c of costs) if (c.ownerId) (costsByOwner[c.ownerId] ??= []).push(c);
-  const editor: DayEntryEditor = {
+  // The strip's dots count what the day shows: the dated Items already read, placeholders included.
+  const itemsByDate = new Map<string, number>();
+  for (const it of items) if (it.date) itemsByDate.set(it.date, (itemsByDate.get(it.date) ?? 0) + 1);
+  const windowDates = tripDays(rows.startDate, rows.endDate);
+  const attachmentsById = new Map(rows.attachments.map((a) => [a.id, { url: a.url }]));
+  const editorBase: Omit<DayEntryEditor, "accommodations"> = {
     tripId,
     stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
     homeCurrency: trip.homeCurrency,
@@ -509,106 +245,67 @@ function projectDay(
         },
       ]),
     ),
+    costsByOwner,
+  };
+  return {
+    today: tripTodayISO(stops),
+    stopById,
+    itemsByDate,
+    windowDates,
+    editorBase,
+    stopOptions: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate, timezone: s.timezone, sortOrder: s.sortOrder })),
+    line: stopLine({
+      days: windowDates,
+      stops: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),
+      transports: transports.map((t) => ({
+        fromStopId: t.fromStopId, toStopId: t.toStopId, depPlace: t.depPlace, arrPlace: t.arrPlace,
+        depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, mode: t.mode as TransportMode,
+      })),
+      homeName: trip.homeName,
+      roundTrip: trip.roundTrip ?? true,
+    }),
+  };
+}
+type SharedDays = ReturnType<typeof shareAcrossDays>;
+
+/** Pure: the Day view for one date, from its model, the window's shared parts and its Journal rows. */
+function projectDayView(
+  rows: DayRows,
+  model: DayModel & { dayPlan: DayPlan },
+  shared: SharedDays,
+  day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"] },
+): DayViewData {
+  const { trip, startDate, endDate, items, transports } = rows;
+  const { date, dayPlan, dayStop, freeForm, hasEntries, accommodations, tonight: bed } = model;
+  const { stopById, today } = shared;
+
+  const editor: DayEntryEditor = {
+    ...shared.editorBase,
     accommodations: Object.fromEntries(
       accommodations.map((a) => {
         const st = stopById.get(a.stopId);
-        return [
-          a.id,
-          {
-            accommodation: a,
-            stopDateRange: { arriveDate: st?.arriveDate ?? a.checkIn, departDate: st?.departDate ?? a.checkOut },
-          },
-        ];
+        return [a.id, { accommodation: a, stopDateRange: { arriveDate: st?.arriveDate ?? a.checkIn, departDate: st?.departDate ?? a.checkOut } }];
       }),
     ),
-    costsByOwner,
   };
 
-  // ── Attachments by target id (entity ids are globally-unique cuids) ──
-  const attachmentsByTarget = allAttachments.reduce<Record<string, typeof allAttachments>>((acc, att) => {
-    if (att.targetId) (acc[att.targetId] ??= []).push(att);
-    return acc;
-  }, {});
-
-  // ── Day-map model ──
-  const dayItems = items
-    .filter((item) => item.date === effectiveDate)
-    .map((item) => ({
-      id: item.id,
-      title: item.title,
-      lat: item.lat,
-      lng: item.lng,
-      address: item.address,
-      startTime: item.startTime,
-      sortOrder: item.sortOrder,
-    }));
-
-  // Tonight's accommodation: checkIn <= effectiveDate < checkOut
-  const tonightRaw = accommodations.find((a) => a.checkIn <= effectiveDate && a.checkOut > effectiveDate) ?? null;
-  const dayAccommodation = tonightRaw
-    ? { id: tonightRaw.id, name: tonightRaw.name, lat: tonightRaw.lat, lng: tonightRaw.lng, address: tonightRaw.address }
-    : null;
-  const tonightNight = tonightRaw ? nightOfStay(effectiveDate, tonightRaw.checkIn, tonightRaw.checkOut) : null;
+  const tonightNight = bed ? nightOfStay(date, bed.checkIn, bed.checkOut) : null;
   const tonight =
-    tonightRaw && tonightNight
+    bed && tonightNight
       ? {
-          id: tonightRaw.id,
-          name: tonightRaw.name,
-          nightOf: tonightNight,
-          checkOut: tonightRaw.checkOut,
-          address: tonightRaw.address,
-          confirmation: tonightRaw.confirmation,
-          checkInTime: tonightRaw.checkInTime,
-          checkOutTime: tonightRaw.checkOutTime,
-          notes: tonightRaw.notes,
-          lat: tonightRaw.lat,
-          lng: tonightRaw.lng,
+          id: bed.id, name: bed.name, nightOf: tonightNight, checkOut: bed.checkOut, address: bed.address,
+          confirmation: bed.confirmation, checkInTime: bed.checkInTime, checkOutTime: bed.checkOutTime,
+          notes: bed.notes, lat: bed.lat, lng: bed.lng,
         }
       : null;
 
-  const dayTransportIds = new Set(dayPlan.transportEntries.map((e) => e.transport.id));
-  const dayTransports = transports
-    .filter((t) => dayTransportIds.has(t.id))
-    .map((t) => ({
-      id: t.id,
-      depPlace: t.depPlace,
-      arrPlace: t.arrPlace,
-      depLat: t.depLat,
-      depLng: t.depLng,
-      arrLat: t.arrLat,
-      arrLng: t.arrLng,
-    }));
-
-  const dayMapModel = buildDayMapModel({
-    date: effectiveDate,
-    items: dayItems,
-    accommodation: dayAccommodation,
-    transports: dayTransports,
-  });
-  const itemDirections = buildItemDirections(dayMapModel);
-
-  // ── Nearby Wishlist rail (planned days): located items + tonight's bed ──
-  const nearbyAnchors = [
-    ...dayItems.filter((i) => i.lat != null && i.lng != null).map((i) => ({ lat: i.lat!, lng: i.lng! })),
-    ...(dayAccommodation?.lat != null && dayAccommodation?.lng != null
-      ? [{ lat: dayAccommodation.lat, lng: dayAccommodation.lng }]
-      : []),
-  ];
-  const nearby = nearbyWishlistItems({
-    anchors: nearbyAnchors,
-    candidates: wishlist
-      .filter((i) => i.lat != null && i.lng != null)
-      .map((i) => ({ id: i.id, title: i.title, category: i.category, lat: i.lat!, lng: i.lng! })),
-  });
-
-  // ── Phase, today and the Journal window ──
-  const today = tripTodayISO(stops);
+  // ── Phase and the Journal window ──
   const phase = computeTripPhase({ startDate, endDate, today });
-  const journalOpen = canWriteJournal({ startDate, endDate, today, date: effectiveDate });
+  const journalOpen = canWriteJournal({ startDate, endDate, today, date });
   const journalSlots = groupJournalDayByAuthor({
-    entries: journalEntries,
-    photos: journalPhotos,
-    viewerId,
+    entries: day.journalEntries,
+    photos: day.journalPhotos,
+    viewerId: day.viewerId,
     includeViewerSlot: journalOpen,
   });
   // The viewer's slot feeds the editor only when the day is writable; on a
@@ -639,38 +336,19 @@ function projectDay(
 
   // ── The day's shape ──
   const ordered = orderDayEntries(dayPlan);
-  const freeForm = isFreeFormDay(dayPlan);
-  const hasEntries = dayHasEntries(dayPlan);
-  const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
   const travelDay = dayPlan.transportEntries.length > 0;
 
-  // ── Day ideas — every phase now (ADR 0044 amendment) ──
-  const thingsToDo =
-    freeForm && dayStop
-      ? thingsToDoAll
-          .filter((t) => t.stopId === dayStop.id)
-          .map(({ id, title, category, startTime }) => ({ id, title, category, startTime }))
-      : [];
+  // ── Day ideas — every phase (ADR 0044 amendment) ──
   const ideas =
     freeForm && dayStop
-      ? dayIdeasRows({
-          stopName: dayStop.name,
-          thingsToDo,
-          wishlist: dayIdeasWishlist({
-            stop: { lat: dayStop.lat, lng: dayStop.lng, countryCode: dayStop.countryCode },
-            candidates: wishlist,
-          }),
-        })
+      ? dayIdeasRows({ stopName: dayStop.name, thingsToDo: model.thingsToDo, wishlist: model.ideasWishlist })
       : { rows: [], all: [], more: 0, eyebrow: null };
 
   // ── Header: heading, eyebrow, sub line ──
-  const dayNumber = dayNumberInTrip(effectiveDate, startDate);
-  const totalDays = daysBetween(startDate, endDate) + 1;
-  const chapter = chapters.length ? chapterForDate(effectiveDate, chapters) : null;
   const eyebrow = dayEyebrow({
-    dayNumber,
-    totalDays,
-    chapterName: chapter?.name ?? null,
+    dayNumber: model.dayNumber,
+    totalDays: model.totalDays,
+    chapterName: model.chapter?.name ?? null,
     country: dayStop?.country ?? null,
     travelDay,
   });
@@ -685,9 +363,9 @@ function projectDay(
         // has no toStop and so no known zone — no "→ UTC".
         toZone:
           dep.transport.arrIsHome && trip.homeTimezone
-            ? zoneLabel(trip.homeTimezone, effectiveDate)
+            ? zoneLabel(trip.homeTimezone, date)
             : dep.transport.toStopId
-              ? zoneLabel(stopById.get(dep.transport.toStopId)?.timezone, effectiveDate)
+              ? zoneLabel(stopById.get(dep.transport.toStopId)?.timezone, date)
               : null,
       }
     : null;
@@ -695,120 +373,87 @@ function projectDay(
     stopName: dayStop?.name ?? null,
     country: dayStop?.country ?? null,
     // Only a Stop with a zone set shows one (as the old page did).
-    zone: dayStop?.timezone ? zoneLabel(dayStop.timezone, effectiveDate) : null,
+    zone: dayStop?.timezone ? zoneLabel(dayStop.timezone, date) : null,
     nightOf: tonight?.nightOf ?? null,
     travel,
   };
 
   // ── Strip: every day of the Trip (spec 2026-09-28 D1) ──
-  // Dots count what the day's plan card counts ("3 things"): the grouped Item
-  // counts plus the day's Transport legs and check-ins/outs from the
-  // itinerary projection (already built for the whole trip).
-  const countByDate = new Map(counts.map((c) => [c.date as string, c._count._all]));
-  const itineraryByDate = new Map(itinerary.map((d) => [d.dateISO, d]));
+  // Dots count what the day's plan card counts ("3 things"): the day's Items
+  // plus its Transport legs and check-ins/outs from the whole-Trip itinerary.
+  const itineraryByDate = new Map(model.itinerary.map((d) => [d.dateISO, d]));
   const nonItemCount = (iso: string) => {
     const d = itineraryByDate.get(iso);
     return d ? d.transportEntries.length + d.accommodationEntries.length : 0;
   };
   const strip: DayViewData["strip"] = {
-    dates: windowDates.map((iso) => ({
+    dates: shared.windowDates.map((iso) => ({
       iso,
-      count: (countByDate.get(iso) ?? 0) + nonItemCount(iso),
-      isCurrent: iso === effectiveDate,
+      count: (shared.itemsByDate.get(iso) ?? 0) + nonItemCount(iso),
+      isCurrent: iso === date,
       isToday: iso === today,
     })),
-    line: stopLine({
-      days: windowDates,
-      stops: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),
-      transports: transports.map((t) => ({
-        fromStopId: t.fromStopId,
-        toStopId: t.toStopId,
-        depPlace: t.depPlace,
-        arrPlace: t.arrPlace,
-        depIsHome: t.depIsHome,
-        arrIsHome: t.arrIsHome,
-        mode: t.mode as TransportMode,
-      })),
-      homeName: trip.homeName,
-      roundTrip: trip.roundTrip ?? true,
-    }),
+    line: shared.line,
   };
 
   const feasibility = flagTightConnections(
     items
-      .filter((it) => it.date === effectiveDate)
-      .map((it) => ({
-        id: it.id,
-        stopId: it.stopId,
-        date: it.date,
-        startTime: it.startTime,
-        endTime: it.endTime,
-        lat: it.lat,
-        lng: it.lng,
-      })),
+      .filter((it) => it.date === date)
+      .map((it) => ({ id: it.id, stopId: it.stopId, date: it.date, startTime: it.startTime, endTime: it.endTime, lat: it.lat, lng: it.lng })),
     transports.map((t) => ({ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, mode: t.mode })),
     { windingFactor: 1.5, avgSpeedKph: 80 },
   ).map((f) => ({ severity: f.severity, message: f.message }));
 
   const stopTimezone = dayStop?.timezone ?? "UTC";
-  const isFirst = effectiveDate === startDate;
-  const isLast = effectiveDate === endDate;
+  const isFirst = date === startDate;
+  const isLast = date === endDate;
 
   return {
-    tripId,
-    viewerId,
+    tripId: shared.editorBase.tripId,
+    viewerId: day.viewerId,
     trip: { name: trip.name, startDate, endDate, homeCurrency: trip.homeCurrency, homeName: trip.homeName, homeTimezone: trip.homeTimezone },
-    date: effectiveDate,
+    date,
     today,
-    isToday: today === effectiveDate,
+    isToday: today === date,
     phase,
-    dayNumber,
-    totalDays,
-    heading: dayHeading(effectiveDate, startDate, endDate),
+    dayNumber: model.dayNumber,
+    totalDays: model.totalDays,
+    heading: dayHeading(date, startDate, endDate),
     eyebrow,
     subLine: daySubLine({ ...subLineBase, compact: false }),
     subLineCompact: daySubLine({ ...subLineBase, compact: true }),
     isFirst,
     isLast,
-    prevDate: isFirst ? null : addDays(effectiveDate, -1),
-    nextDate: isLast ? null : addDays(effectiveDate, 1),
+    prevDate: isFirst ? null : addDays(date, -1),
+    nextDate: isLast ? null : addDays(date, 1),
     stop: dayStop
       ? {
-          id: dayStop.id,
-          name: dayStop.name,
-          country: dayStop.country,
-          countryCode: dayStop.countryCode,
-          timezone: stopTimezone,
-          lat: dayStop.lat,
-          lng: dayStop.lng,
-          // Stop rows here are pre-filtered to dated Stops (query above: "Rough (date-less) stops don't appear on a dated day view").
-          arriveDate: dayStop.arriveDate!,
-          departDate: dayStop.departDate!,
+          id: dayStop.id, name: dayStop.name, country: dayStop.country, countryCode: dayStop.countryCode,
+          timezone: stopTimezone, lat: dayStop.lat, lng: dayStop.lng,
+          // The read keeps dated Stops only (lib/day-reads.ts).
+          arriveDate: dayStop.arriveDate!, departDate: dayStop.departDate!,
         }
       : null,
     travelDay,
-    dayTitle: dayTitleText,
-    dayTitleStopId: dayTitleEntry?.stopId ?? dayStop?.id ?? null,
+    dayTitle: model.dayTitle?.title ?? null,
+    dayTitleStopId: model.dayTitle?.stopId ?? dayStop?.id ?? null,
     plan: dayPlan,
     ordered,
     hasEntries,
     freeForm,
     planCount: ordered.entries.length + ordered.anytime.length,
     editor,
-    itemDirections,
-    dayMap: dayMapModel,
-    attachmentsByTarget,
-    stopOptions,
+    itemDirections: model.itemDirections,
+    dayMap: model.dayMap,
+    attachmentsByTarget: model.attachmentsByTarget,
+    stopOptions: shared.stopOptions,
     ideas,
-    nearby,
+    nearby: model.nearby,
     tonight,
     strip,
     journal,
     feasibility,
-    weatherInput:
-      dayStop?.lat != null && dayStop?.lng != null
-        ? { lat: dayStop.lat, lng: dayStop.lng, timezone: stopTimezone }
-        : null,
+    weatherInput: dayStop?.lat != null && dayStop?.lng != null ? { lat: dayStop.lat, lng: dayStop.lng, timezone: stopTimezone } : null,
   };
 }
 

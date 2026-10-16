@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 
 // ── Module mocks (must be declared before any imports of the mocked modules) ──
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/auth", () => ({
   auth: vi.fn(),
 }));
 
@@ -63,7 +63,7 @@ vi.mock("next/navigation", () => ({
   useSelectedLayoutSegment: vi.fn(() => null),
 }));
 
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/client", () => ({
   authClient: { signOut: vi.fn() },
 }));
 
@@ -112,7 +112,7 @@ vi.mock("@/components/welcome/name-dialog", () => ({
 
 // ── Imports (after mocks) ──
 
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/auth";
 import AppLayout from "./layout";
 
 // The phone header, the Dock (768–1279px) and the sidebar (≥1280px) each

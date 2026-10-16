@@ -19,7 +19,7 @@
 import "./load-env";
 
 import { db } from "../lib/db";
-import { parseAcceptArgs } from "../lib/feedback-accept-args";
+import { parseAcceptArgs } from "../lib/feedback/cli/accept-args";
 
 /**
  * The host of DATABASE_URL and nothing else — never the user, password or

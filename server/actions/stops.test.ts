@@ -187,7 +187,7 @@ vi.mock("@/lib/guards", async () => {
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 const paceNominatimMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock, paceNominatim: paceNominatimMock }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -287,13 +287,12 @@ import {
   makeStopRough,
   setStopNotes,
   setStopNights,
-  getTripProjection,
 } from "./stops";
 import { recomputeChapterSpans, shiftStopPayloadTx, scheduleLoneStopTx } from "./stop-flow";
 import type { Prisma } from "@prisma/client";
 import { planTripFirmUp } from "@/lib/firm-up";
 import { chapterSpan } from "@/lib/chapter-span";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
   mode: "scheduled" as const,
@@ -1099,6 +1098,43 @@ describe("updateStop", () => {
       where: { id: "stop-1" },
       data: expect.objectContaining({ lat: 35.01, lng: 135.77, countryCode: "jp" }),
     });
+  });
+});
+
+describe("updateStop (PATCH, ADR 0075)", () => {
+  const held = { id: "s1", tripId: "trip-1", forkId: null, sortOrder: 0, pinned: false, name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: "old notes", nights: 2, arriveDate: null, departDate: null, timezone: null, chapterId: "chap-1" };
+  it("a notes-only patch on a rough Stop keeps the chapter and the point, with no geocode", async () => {
+    stopFindUniqueMock.mockResolvedValue(held);
+    chapterFindUniqueMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { notes: "new notes" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ notes: "new notes", chapterId: "chap-1", lat: 41.9, lng: 12.5, countryCode: "it", nights: 2 }) });
+  });
+  it("an edit that sends UTC takes the geocoded country's zone, as create does", async () => {
+    stopFindUniqueMock.mockResolvedValue({ ...held, nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "UTC", chapterId: null });
+    geocodePlaceDetailedMock.mockResolvedValue({ lat: 35.01, lng: 135.77, countryCode: "jp" });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { mode: "scheduled", name: "Kyoto", country: "Japan", timezone: "UTC", arriveDate: "2026-07-01", departDate: "2026-07-05" });
+    expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ timezone: "Asia/Tokyo", countryCode: "jp" }) }));
+  });
+  it("a sent countryCode on a rough Stop wins over the geocoder's, and survives a geocode miss", async () => {
+    stopFindUniqueMock.mockResolvedValue(held);
+    chapterFindUniqueMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
+    stopUpdateMock.mockResolvedValue({});
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 41.9, lng: 12.5, countryCode: "it" });
+    await updateStop("s1", { countryCode: "fr" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ countryCode: "fr" }) }));
+    geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+    await updateStop("s1", { countryCode: "fr" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ countryCode: "fr" }) }));
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
+  });
+  it("a lone date on a rough Stop is refused before anything is written", async () => {
+    stopFindUniqueMock.mockResolvedValue(held);
+    const r = await updateStop("s1", { arriveDate: "2026-06-01" });
+    expect(r).toEqual({ success: false, errors: { arriveDate: ["Pass both arriveDate and departDate to schedule a Stop."] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -2060,94 +2096,6 @@ describe("setStopNights", () => {
     const updatedIds = stopUpdateMock.mock.calls.map((c) => c[0].where.id);
     expect(updatedIds).not.toContain("b");
     if (r.success) expect(r.changed).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getTripProjection
-// ---------------------------------------------------------------------------
-
-describe("getTripProjection", () => {
-  it("returns the projected end and hard end date", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: "2026-07-10" });
-    stopFindManyMock.mockResolvedValue([
-      { id: "a", arriveDate: null, departDate: null, nights: 3, pinned: false, sortOrder: 0 },
-      { id: "b", arriveDate: null, departDate: null, nights: 4, pinned: false, sortOrder: 1 },
-    ]);
-    const r = await getTripProjection("trip-1");
-    expect(r.projectedEnd).toBe("2026-07-08");
-    expect(r.hardEndDate).toBe("2026-07-10");
-  });
-
-  it("passes through a null hardEndDate", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: null });
-    stopFindManyMock.mockResolvedValue([{ id: "a", arriveDate: null, departDate: null, nights: 2, pinned: false, sortOrder: 0 }]);
-    const r = await getTripProjection("trip-1");
-    expect(r.hardEndDate).toBeNull();
-    expect(r.projectedEnd).toBe("2026-07-03");
-  });
-
-  it("returns a null projectedEnd when there is no anchor", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: "2026-07-10" });
-    stopFindManyMock.mockResolvedValue([{ id: "a", arriveDate: null, departDate: null, nights: 3, pinned: false, sortOrder: 0 }]);
-    const r = await getTripProjection("trip-1");
-    expect(r.projectedEnd).toBeNull();
-    expect(r.hardEndDate).toBe("2026-07-10");
-  });
-
-  it("returns nulls without throwing when the trip is not found", async () => {
-    tripFindUniqueMock.mockResolvedValue(null);
-    stopFindManyMock.mockResolvedValue([]);
-    const r = await getTripProjection("trip-1");
-    expect(r).toEqual({ projectedEnd: null, hardEndDate: null, deadline: null });
-  });
-
-  it("scopes stop query to forkId: null (real plan) when no forkId is provided", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
-    stopFindManyMock.mockResolvedValue([]);
-    await getTripProjection("trip-1");
-    expect(stopFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
-    );
-  });
-
-  it("scopes stop query to the given forkId when one is supplied", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
-    stopFindManyMock.mockResolvedValue([]);
-    await getTripProjection("trip-1", "fork-9");
-    expect(stopFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-9" }) }),
-    );
-  });
-
-  it("resolves the deadline: a dated return leg from the last Stop beats the hard end date (ADR 0068)", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: "2026-07-20" });
-    stopFindManyMock.mockResolvedValue([
-      { id: "a", arriveDate: null, departDate: null, nights: 3, pinned: false, sortOrder: 0, timezone: null },
-      { id: "b", arriveDate: null, departDate: null, nights: 4, pinned: false, sortOrder: 1, timezone: "Europe/Rome" },
-    ]);
-    transportFindManyMock.mockResolvedValueOnce([
-      { mode: "FLIGHT", fromStopId: "b", toStopId: null, depAt: new Date("2026-07-08T09:00:00Z"), arrIsHome: true },
-    ]);
-    const r = await getTripProjection("trip-1");
-    expect(r.hardEndDate).toBe("2026-07-20");
-    expect(r.deadline).toEqual({ kind: "return-leg", date: "2026-07-08", mode: "FLIGHT", homeward: true });
-  });
-
-  it("falls back to the hard end date when the return leg has no date", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: "2026-07-20" });
-    stopFindManyMock.mockResolvedValue([{ id: "b", arriveDate: null, departDate: null, nights: 4, pinned: false, sortOrder: 0, timezone: null }]);
-    transportFindManyMock.mockResolvedValueOnce([{ mode: "FLIGHT", fromStopId: "b", toStopId: null, depAt: null, arrIsHome: true }]);
-    expect((await getTripProjection("trip-1")).deadline).toEqual({ kind: "hard-end", date: "2026-07-20" });
-  });
-
-  it("reads a Fork's own transports", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
-    stopFindManyMock.mockResolvedValue([]);
-    await getTripProjection("trip-1", "fork-9");
-    expect(transportFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
-    );
   });
 });
 

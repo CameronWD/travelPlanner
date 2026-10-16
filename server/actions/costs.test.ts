@@ -4,7 +4,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for costs server actions.
  *
- * Mocks: lib/db, lib/guards, lib/fx, lib/revalidate, next/navigation
+ * Mocks: lib/db, lib/guards, lib/money/fx, lib/revalidate, next/navigation
  */
 
 const {
@@ -63,7 +63,7 @@ const {
 
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("NOT_FOUND"); }) }));
-vi.mock("@/lib/fx", () => ({
+vi.mock("@/lib/money/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
 }));
@@ -90,7 +90,7 @@ vi.mock("@/lib/db", () => ({
     $transaction: transactionMock,
   },
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
@@ -125,7 +125,7 @@ vi.mock("@/lib/guards", () => ({
 }));
 
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "./costs";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -580,19 +580,19 @@ describe("updateCost", () => {
     expect(call.data).not.toHaveProperty("paidMinor");
   });
 
-  it("writes dueDate: null when the input omits it (e.g. ticking Paid clears a stored due date)", async () => {
+  it("writes dueDate: null when the patch clears it (e.g. ticking Paid clears a stored due date)", async () => {
     // CONTEXT.md "Due date" only applies to unpaid costs — unlike paidMinor,
     // there is no "preserve as history" rule for it. cost-editor.tsx /
-    // other-cost-editor.tsx omit `dueDate` from the payload whenever the Paid
-    // box is ticked, and that omission must clear any previously stored due
-    // date rather than leaving it stale.
-    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD" });
+    // other-cost-editor.tsx send `dueDate: null` (toPatch) whenever the Paid
+    // box is ticked, and that must clear any previously stored due date
+    // rather than leaving it stale (PATCH, ADR 0075: omitting it would keep it).
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD", dueDate: "2026-11-20" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
     resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
     costUpdateMock.mockResolvedValue({});
 
-    const result = await updateCost("cost-1", VALID_TRANSPORT_INPUT);
+    const result = await updateCost("cost-1", { ...VALID_TRANSPORT_INPUT, dueDate: null });
 
     expect(result.success).toBe(true);
     const call = costUpdateMock.mock.calls[0][0];
@@ -647,6 +647,40 @@ describe("updateCost", () => {
       where: { id: "cost-1" },
       data: expect.objectContaining({ rateToHome: 1 }),
     });
+  });
+});
+
+describe("updateCost (PATCH, ADR 0075)", () => {
+  const paidRow = { id: "c1", tripId: "trip-1", forkId: null, costMinor: 12000, currency: "EUR", paidMinor: 12000, paidAt: new Date("2026-04-01T00:00:00Z"), dueDate: null, ownerType: "OTHER", ownerId: null, label: "Museum pass", category: "Activities", settlement: "BEFORE" };
+
+  function seedWriteMocks() {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1.6, persist: null });
+    costUpdateMock.mockResolvedValue({});
+  }
+
+  it("a category-only patch writes the row's paid pair back and keeps it paid", async () => {
+    costFindUniqueMock.mockResolvedValue(paidRow);
+    seedWriteMocks();
+    await updateCost("c1", { category: "Tours" });
+    expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ category: "Tours", label: "Museum pass", paidMinor: 12000, paidAt: new Date("2026-04-01T00:00:00Z") }),
+    }));
+  });
+
+  it("a due date on a paid Cost is refused before any write", async () => {
+    costFindUniqueMock.mockResolvedValue(paidRow);
+    seedWriteMocks();
+    const result = await updateCost("c1", { dueDate: "2026-04-10" });
+    expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("P3-3 still clears a history paid amount when an unpaid Cost changes currency", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: null, costMinor: 12000, currency: "EUR", paidMinor: 9000, paidAt: null, dueDate: null, ownerType: "OTHER", ownerId: null, label: "Pass", category: null, settlement: "BEFORE" });
+    seedWriteMocks();
+    await updateCost("c1", { currency: "GBP" });
+    expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ currency: "GBP", paidMinor: null }) }));
   });
 });
 

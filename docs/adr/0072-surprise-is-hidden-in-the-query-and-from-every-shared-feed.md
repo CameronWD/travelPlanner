@@ -41,12 +41,15 @@ rather than trying to ask "surprised to whom".
    imports it rather than re-deriving the rule. `lib/surprise-guard.ts` does
    the equivalent check for Attachment bytes (a file's content is reached by
    id, not by a list query, so it is guarded at the point of fetch rather
-   than filtered out of a `findMany`). `lib/surprise-readers.guard.test.ts`
-   asserts, by import, that the full reader list still goes through one or
-   the other — in the style of `lib/trip-shell-reads.test.ts`'s layout
-   guard — and walks every trip page by name so a new page that calls
-   `db.item.findMany` or `db.accommodation.findMany` directly fails the
-   guard instead of silently shipping a leak.
+   than filtered out of a `findMany`). The import check in
+   `eslint.config.mjs` (`SURPRISE_VISIBILITY_READERS`,
+   `SURPRISE_GUARD_READERS`) asserts, by import, that every listed reader
+   still goes through one or the other: a listed file that drops the import
+   fails lint instead of silently shipping a leak. It checks the listed
+   files only, so a new reader that does not go through `readPlan` joins the
+   list (amended 2026-10-16: a lint rule since spec 2026-10-14 card 3.N; the
+   walk over every trip page by name went with the 2026-10-15 amendment,
+   when Plan pages moved onto `readPlan`'s required viewer).
 
 2. **The Calendar feed and Share links hide the inside from everyone until
    reveal, rather than becoming per-Traveller.** Neither carries a viewer to
@@ -107,9 +110,11 @@ rather than trying to ask "surprised to whom".
   viewer is a required argument, so it cannot forget the Surprise rules. A
   reader that does not route through `readPlan` must import
   `lib/surprise-visibility.ts` (or, for Attachment bytes,
-  `lib/surprise-guard.ts`) or it fails the slim
-  `lib/surprise-readers.guard.test.ts` before it ships; that list shrinks as
-  readers move onto `readPlan` (amended 2026-10-15).
+  `lib/surprise-guard.ts`) or it fails lint before it ships:
+  `eslint.config.mjs` lists those readers (`SURPRISE_VISIBILITY_READERS`,
+  `SURPRISE_GUARD_READERS`) and errors on a listed file that does not import
+  the helper; that list shrinks as readers move onto `readPlan` (amended
+  2026-10-15; a lint rule since 2026-10-16, spec 2026-10-14 card 3.N).
 - Once revealed, a stamped Activity row shows in the feed in its place,
   alongside one new line naming who revealed it; none of the rows that were
   hidden while the Surprise was live are counted as unread on reveal, since

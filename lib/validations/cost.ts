@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { COST_SETTLEMENTS, costOwnerTypeSchema } from "@/lib/enums";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
+import { isoDateWith } from "@/lib/validations/primitives";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -14,52 +15,35 @@ export const MAX_AMOUNT_MINOR = 2_147_483_647;
 // ---------------------------------------------------------------------------
 
 /**
- * True if `s` (already known to match YYYY-MM-DD) is a real calendar date —
- * rejects overflow like 2026-02-30, which `Date`'s constructor would
- * otherwise silently roll forward into March.
- */
-const isRealCalendarDate = (s: string): boolean => {
-  const [y, m, d] = s.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-};
-
-/**
  * Accepts either an ISO datetime (with offset) or a plain YYYY-MM-DD date
  * string. Shared by `costSchema`'s `paidAt` field and the standalone
  * `markCostPaid` action (the Budget checklist sends a raw date-input string
  * that never passes through `costSchema`, so it needs the same shape check).
+ * The plain-date half is `isoDateWith`, so an overflow date like 2026-02-30
+ * is refused the same way everywhere.
  */
 export const paidAtStringSchema = z
   .string()
   .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
-  .or(
-    z.string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime")
-      .refine(isRealCalendarDate, "paidAt must be a real calendar date"),
-  );
+  .or(isoDateWith("paidAt must be YYYY-MM-DD or ISO datetime", "paidAt must be a real calendar date"));
 
 /**
  * A date-only `paidAt`, for the inline cost fields on the Transport, Item and
  * Accommodation schemas — those send a plain `YYYY-MM-DD` from a date input
  * and never an ISO datetime, so they want the narrower shape, but they want
  * the same real-calendar-date refinement `costSchema` gets. Defined here so
- * the three of them cannot drift from it (AB-04).
+ * the three of them cannot drift from it (AB-04). `isoDateWith` owns the
+ * calendar check.
  */
-export const paidAtDateOnlySchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")
-  .refine(isRealCalendarDate, "paidAt must be a real calendar date");
+export const paidAtDateOnlySchema = isoDateWith("paidAt must be YYYY-MM-DD", "paidAt must be a real calendar date");
 
 /**
  * An optional calendar date on an UNPAID cost — money committed but not yet
  * taken (CONTEXT.md "Due date"). Plain YYYY-MM-DD (the repo's calendar-date
- * convention), not an ISO datetime like `paidAt`.
+ * convention), not an ISO datetime like `paidAt`. `isoDateWith` owns the
+ * calendar check.
  */
-const dueDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be YYYY-MM-DD")
-  .refine(isRealCalendarDate, "Due date must be a real calendar date");
+const dueDateSchema = isoDateWith("Due date must be YYYY-MM-DD", "Due date must be a real calendar date");
 
 /**
  * Zod schema for creating or updating a Cost.

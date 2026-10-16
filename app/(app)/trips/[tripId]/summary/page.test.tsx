@@ -43,8 +43,8 @@ vi.mock("@/lib/guards", async () => {
     isTripOwnerOrAdmin,
   };
 });
-vi.mock("@/lib/money", () => ({ formatMoney: vi.fn((minor: number, currency: string) => `${minor}${currency}`) }));
-vi.mock("@/lib/budget", () => ({
+vi.mock("@/lib/money/money", () => ({ formatMoney: vi.fn((minor: number, currency: string) => `${minor}${currency}`) }));
+vi.mock("@/lib/money/budget", () => ({
   buildBudget: vi.fn(() => ({
     grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 },
     byCategory: [],
@@ -58,8 +58,9 @@ vi.mock("@/lib/budget", () => ({
 vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(() => null) }));
 vi.mock("@/lib/route-map", () => ({ homeMapPoint: vi.fn(() => null) }));
-vi.mock("@/server/actions/stops", () => ({
-  getTripProjection: vi.fn(async () => ({ projectedEnd: null, hardEndDate: null })),
+vi.mock("@/server/actions/stops", () => ({}));
+vi.mock("@/lib/trip-projection-reads", () => ({
+  getTripProjection: vi.fn(async () => ({ projectedEnd: null, hardEndDate: null, deadline: null })),
 }));
 // `@/lib/chapters` and the `@/lib/dates` it depends on internally (isDateWithin)
 // are left REAL — pure, deterministic functions — so chapter grouping actually
@@ -76,7 +77,7 @@ vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-tes
 
 const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
-const { buildBudget } = await import("@/lib/budget");
+const { buildBudget } = await import("@/lib/money/budget");
 const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
 const { trip, stop, chapter, transport, stay } = await import("@/test/builders");
 const { planRows } = await import("@/test/builders/plan-rows");

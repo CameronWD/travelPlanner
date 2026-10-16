@@ -46,7 +46,7 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 
 import { setVote, clearVote } from "./votes";
 

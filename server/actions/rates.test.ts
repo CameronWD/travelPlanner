@@ -4,7 +4,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 /**
  * Tests for rates server actions.
  *
- * Mocks: lib/db, lib/guards, lib/fx, lib/revalidate
+ * Mocks: lib/db, lib/guards, lib/money/fx, lib/revalidate
  */
 
 const {
@@ -39,7 +39,7 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-vi.mock("@/lib/fx", () => ({ getRateForTrip: getRateForTripMock }));
+vi.mock("@/lib/money/fx", () => ({ getRateForTrip: getRateForTripMock }));
 
 import { setManualRate, clearManualRate, refreshRates } from "./rates";
 

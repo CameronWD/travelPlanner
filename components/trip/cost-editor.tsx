@@ -25,6 +25,7 @@ import {
 import { todayLocalISO } from "@/lib/dates";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { cn } from "@/lib/cn";
+import { toPatch } from "@/lib/patch";
 import { isOnTrip, type CostOwnerType } from "@/lib/enum-values";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
@@ -182,6 +183,9 @@ function CostDialogForm({
   );
 }
 
+/** An edit's empties are clears (ADR 0075): un-ticked Paid, a removed Due date. */
+const OWNED_CLEARABLE = ["paidAt", "dueDate"] as const;
+
 /**
  * Validate + map form state to the server action's input shape, or the
  * field errors to show instead. A blank or unparseable cost is "Enter the
@@ -235,7 +239,7 @@ export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormD
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await updateCost(cost.id, parsed.input);
+      const result = await updateCost(cost.id, toPatch(parsed.input, OWNED_CLEARABLE));
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
     } finally {
@@ -325,7 +329,7 @@ export function CostEditor({
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await updateCost(editingCost.id, parsed.input);
+      const result = await updateCost(editingCost.id, toPatch(parsed.input, OWNED_CLEARABLE));
       if (result.success) {
         setEditingCost(null);
       } else {

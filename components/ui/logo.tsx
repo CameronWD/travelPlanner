@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import { WORDMARK_VIEWBOX, WORDMARK_ASPECT, WORDMARK_TRANSFORM, WORDMARK_WORD_D, WORDMARK_DOT_D } from "./logo-paths";
+import { WORDMARK_VIEWBOX, WORDMARK_ASPECT, WORDMARK_TRANSFORM, WORDMARK_WORD_D, WORDMARK_DOT_D } from "@/lib/wordmark";
 
 /** Server Component. Tent-pin mark + lowercase wordmark. The tent fill is the fixed brand
  *  coral; the outline and doorway take the surface's ink (`text-foreground`, like the wordmark)

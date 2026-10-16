@@ -374,24 +374,34 @@ ledger (`.superpowers/sdd/2026-09-21-close-the-open-backlog/progress.md`) and
 have not been independently re-derived here** — treat each as a lead to check,
 not as a verified finding. Fold them into whatever next touches the file.
 
-- **`server/actions/invites.test.ts`** — the admin-bypass test asserts only
-  `success === true`, not the created Invite's shape.
-- **`components/account/push-subscribe.ts`** — the client-side conflict retry
+- ~~**`server/actions/invites.test.ts`** — the admin-bypass test asserts only
+  `success === true`, not the created Invite's shape.~~ **Fixed 2026-10-16**
+  (tidy-up batch 3): the admin case asserts the returned `inviteId` and the
+  whole `upsert` call — `tripId`, normalised `email`, `role: "member"`, a
+  token and an expiry.
+- ~~**`components/account/push-subscribe.ts`** — the client-side conflict retry
   that ADR 0053 depends on has no automated coverage; no test file exists for
   that module. This is the half of `CD-02`'s fix a future refactor breaks
-  silently.
-- **`lib/digest-dispatch.test.ts`** — nothing asserts the cooldown
+  silently.~~ **Already covered** — `components/account/push-subscribe.test.ts`
+  ("on a conflict, drops the endpoint and retries with a FRESH one", `:93`)
+  pins the retry; struck 2026-10-16 (tidy-up batch 3), nothing rebuilt.
+- ~~**`lib/digest-dispatch.test.ts`** — nothing asserts the cooldown
   `findFirst`'s `where` **shape**, i.e. that it is keyed on `slot` *without*
   `localDate`, which is the whole point of ADR 0054. Correctness currently
-  rests on reading the implementation.
+  rests on reading the implementation.~~ **Already covered** —
+  `lib/digest-dispatch.test.ts:284-291` asserts the cooldown `where` equals
+  `{ userId, tripId, slot, createdAt }` and has no `localDate`; struck
+  2026-10-16 (tidy-up batch 3).
 - **The cooldown `findFirst` has no covering index** (the existing unique
   constrains `localDate`, which this query does not use). Not functional at two
   Travellers' row counts; adding one needs a migration.
 - **`CONTEXT.md` now hardcodes "two"** in the Digest prose, coupling the
   glossary to `DIGEST_MAX_CHECKLIST_LINES`.
-- **ADR 0055's re-file also fires for Items dated *before* the Stop's arrive
+- ~~**ADR 0055's re-file also fires for Items dated *before* the Stop's arrive
   date** (`offset < 0`) — inside the letter of the ADR, outside its narrated
-  case, and untested.
+  case, and untested.~~ **Tested 2026-10-16** (tidy-up batch 3):
+  `lib/payload-shift.test.ts` pins the re-file onto the covering Stop, and the
+  un-slot when none covers the day.
 - **The "pass the re-dated Stop with its NEW dates" safety is not pinned** —
   the test passes with the `.map()` override deleted, because the tiebreak
   picks the other Stop either way.
@@ -437,24 +447,28 @@ dynamic parts stream in behind `"use cache"` boundaries.
   `travellers`, `trip`); only `trip` and `travellers` stay layout-wide — the
   rest name the pages they actually touch. See ADR 0064's 2026-10-15
   amendment.
-- **NAV-03 · Let a day change run only `getDay`.** On a client navigation Next
+- **NAV-03 · Let a day change run only `getDays`.** On a client navigation Next
   re-renders only the segment that changed, so the trip layout does not run on
   day → day — but the Day page still reads its header's bell count, recent
   activity and members itself (the `cache()` dedupe in
   `lib/trip-shell-reads.ts` only helps a cold load or `router.refresh()`, when
   layout and page render in one request). Move the Day header's bell count,
   recent activity and members into data the trip layout already holds
-  (context), so a day change runs only `getDay`.
+  (context), so a day change runs only `getDays`.
 - **NAV-04 · Widen the navigation audit.** Extend `npm run audit:nav`
   (`scripts/nav-audit.ts`) with hold checks for the trip switcher, browser
   back, Calendar, Wishlist, More, Help and What's new — the switches the beta
   checklist names that the audit does not yet drive.
-- **NAV-05 · A range loader for the Day view.** The Day page loads three days (the day
-  before, shown, after) with three parallel `getDay` calls so the carousel has something to
-  drag into view (ADR 0065). Each call repeats the trip, stops and items reads. Replace with
-  one `getDays(tripId, dates, viewerId)` that reads the window once and projects each day.
-  Also, if rapid swiping feels stuck on the phone (a second swipe before the first lands
-  meets the end of the scroller): render two neighbours each side.
+- **~~NAV-05 · A range loader for the Day view.~~** The Day page loaded three days (the
+  day before, shown, after) with three parallel `getDay` calls (ADR 0065).
+  **Closed 2026-10-16, card 3.M:** one `getDays(tripId, dates, viewerId)`
+  (`lib/day-view-loader.ts`) reads the window once through `readDayRows`
+  (`lib/day-reads.ts`) and assembles each day with `buildDayModel`
+  (`lib/day-view-model.ts`), which the Travelling Home now uses too, so Day and Today
+  agree by construction. Also fixed on the way: TB-10 (strip dots missed check-ins
+  and check-outs on days the shown day's stay did not touch). **Still open (watch
+  item):** if rapid swiping feels stuck on the phone (a second swipe before the first
+  lands meets the end of the scroller), render two neighbours each side.
 
 ### Priority key
 
@@ -480,15 +494,16 @@ naming, doc drift.
 | `SW-` | **no source doc** — found during the 2026-09-21 sweep (`SW-01`–`SW-03`) or the final whole-branch review that corrected this document (`SW-04`–`SW-05`) |
 | `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
 | `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
+| `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; ledger `.superpowers/sdd/2026-10-16-tidy-up-3-shape-hygiene/progress.md`) |
 
-`SW-`, `CB-` and `RG-` are the prefixes with nothing to follow the citation
+`SW-`, `CB-`, `RG-` and `TU-` are the prefixes with nothing to follow the citation
 back to. Those entries are self-contained: the evidence in them is all the
 evidence there is.
 
 ---
 # Open items
 
-**4 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**6 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), `TU-01` and `TU-02` (added 2026-10-16).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -542,7 +557,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   moving, the full suite each time.
 - **Source:** the 2026-10-14 tidy-up grilling (Q11,
   `docs/specs/2026-10-14-tidy-up-pass.md`). That pass takes minor and patch
-  bumps only, and `@types/node` to 22 to match `engines`.
+  bumps only, and `@types/node` to 22 to match `engines`. Done 2026-10-16
+  on `chore/tidy-up-3-shape-hygiene` (tasks 3.P.20–3.P.21): every package is
+  at its newest release within its current major, and `@types/node` is on 22.
 - **Owed:** `motion` 12 → 14 (touches the `LazyMotion` setup from the
   2026-10-06 batch); ESLint 9 → 10 (the boundary rules from card N sit on
   the flat-config API, so do this after batch 3 lands);
@@ -551,7 +568,53 @@ ADR 0056) is written and unapplied — see the trust statement above.
   `@anthropic-ai/sdk` 0.105 → latest (under the Booking import's
   structured-outputs path; bump when the import is next touched);
   `dotenv` 17 → 18; `@babel/core` 7 → 8 (only if the React Compiler preset
-  needs it). Re-run `npm outdated` first; this list is a snapshot.
+  needs it); `typescript` 5 → 7 (the compiler rewrite — its own branch);
+  `vitest` 4 → 5 (with `@vitejs/plugin-react` and the React Compiler preset
+  in `vitest.config.ts`); `prisma` / `@prisma/client` / `@prisma/adapter-pg`
+  7 → 8 (8.0 was a release candidate on 2026-10-16 — wait for stable).
+  `@types/node` stays on 22 while `engines` says Node 22; it moves with the
+  runtime, not on its own. Nothing was pinned back in 3.P.20 or 3.P.21. The
+  `better-auth` family (`better-auth` and `@better-auth/*`) must move
+  together: their exact `better-call` peer pin makes a lone bump, or a bare
+  `npm update --save`, fail with `ERESOLVE`. Re-run `npm outdated` first;
+  this list is a snapshot of 2026-10-16.
+
+### TU-01 · The Chapter form's "Set dates now" switched off on an edit keeps the dates
+
+- **Priority: P1** · **Effort: S** — one form, one test.
+- **Source:** none — found while drafting card 3.L (PATCH-shaped updates) of
+  the 2026-10-14 tidy-up pass, 2026-10-16 (`docs/specs/2026-10-14-tidy-up-pass.md`,
+  *Batch 3 drift*, as-built notes). Not fixed there: it predates the card.
+- **What:** editing a dated Chapter and switching "Set dates now" off, then
+  saving, leaves the Chapter's dates in place. A Traveller who wanted the
+  Chapter rough again sees nothing change.
+- **Where:** `components/trip/chapter-form-dialog.tsx`, the `submit` in
+  `useEntityForm`: with the switch off it sends `{ name, colour }`. Under the
+  PATCH contract (ADR 0075, undefined keeps, null clears) that means "leave
+  the dates", which is also what it meant before the card. `updateChapter`
+  (`server/actions/chapters.ts`) already writes an explicit `null` as a clear.
+- **Fix:** on an edit with the switch off, send `startDate: null,
+  endDate: null`. Write the failing form test first (switch off on a dated
+  Chapter → the update carries both nulls), plus a `patch-updates`
+  integration case that the dates clear.
+
+### TU-02 · Relocating a scheduled Stop through a patch keeps the Stop's old timezone
+
+- **Priority: P2** · **Effort: S** — one merge rule.
+- **Source:** none — the review of task 3.L.9 (tidy-up batch 3,
+  2026-10-16). The old `update_stop` merge did the same, so it is not a
+  regression.
+- **What:** `update_stop` (or any `updateStop` patch) that moves a scheduled
+  Stop to another country — `country`/`countryCode`/`lat`/`lng` — without a
+  `timezone` keeps the row's stored zone. A Stop moved from Tokyo to Paris
+  keeps `Asia/Tokyo`, so anything read in the Stop's zone (a Surprise's
+  reveal day, ADR 0072) follows the old place. The app's own form always sends a zone, so this is reached through
+  Claude only.
+- **Where:** `lib/stop-patch.ts` `mergeStopPatch`, the scheduled branch:
+  `patch.timezone ?? current.timezone ?? stopTimezone(...)`.
+- **Fix to decide:** when the patch says where (`saysWhere`) and sends no
+  zone, take `stopTimezone` from the new point rather than the row's zone.
+  Pin it with a pure case in `lib/stop-patch.test.ts` and an integration case.
 
 ### RG-01 · The production database dumps were downloadable by anyone while the repository was public
 
@@ -1374,7 +1437,7 @@ applied, so production has the columns too.
 - **Evidence:** `components/feedback/feedback-launcher.tsx:445-446` —
   `setPending(removeFromQueue(note.clientKey)); setSent((prev) => [...prev, result.note]);`.
   `setSent` is pushed unconditionally on a successful send. But
-  `removeFromQueue` goes through `lib/feedback-queue.ts`'s `write()`, which
+  `removeFromQueue` goes through `lib/feedback/queue.ts`'s `write()`, which
   swallows a `localStorage.setItem` failure (quota, private mode) and returns the
   *unchanged* queue — so `setPending` is handed a queue that still contains the
   note while `setSent` adds the same note to the sent list.
@@ -1395,7 +1458,7 @@ applied, so production has the columns too.
   `isQueued` helper already defined a few lines above for the offline-enqueue
   path — no new predicate.
 - **The regression test exercises the real swallowed write, not a mock of the
-  fix's own condition.** This test file does not mock `lib/feedback-queue.ts`
+  fix's own condition.** This test file does not mock `lib/feedback/queue.ts`
   at all; it runs the real module against jsdom's `localStorage`. The test
   spies on `window.Storage.prototype.setItem`, lets the initial `enqueue`
   through, and makes every call after it throw `QuotaExceededError`. `4b33884`
@@ -1440,7 +1503,7 @@ applied, so production has the columns too.
 - **Evidence, as it stood:** `phase-travelling.tsx:508` was confusable, not
   merely inconsistent. It sat in the same flex row as a real `MapLink` at
   `:519` — the same side-by-side pattern `HG-02` was written to fix. Worse,
-  that `MapLink` was given an always-present `label`, and `lib/maps.ts:31`
+  that `MapLink` was given an always-present `label`, and `lib/map/maps.ts:31`
   falls back to `label` when there is no address, so it rendered a pin for
   every stop regardless of whether coordinates existed — exactly the failure
   mode `stop-card.tsx:337-345` was changed to gate against
@@ -1467,7 +1530,7 @@ applied, so production has the columns too.
 
 - **Source:** none — found during the final whole-branch review of this
   document, while checking the sweep's claims. No source doc records it.
-- **Evidence:** `lib/feedback-inbox.ts:24` exports `FeedbackNoteRow` (the
+- **Evidence:** `lib/feedback/inbox.ts:24` exports `FeedbackNoteRow` (the
   Prisma selection `scripts/feedback-pull.ts` reads). `server/actions/feedback.ts:36`
   separately declares a private `type FeedbackNoteRow` with a different shape
   (it carries `authorId` and `author: { name }`; the exported one does not).
@@ -1487,7 +1550,7 @@ applied, so production has the columns too.
 - **What shipped:** the rename this entry proposed, in the direction it
   proposed. The private type in `server/actions/feedback.ts` is now
   `FeedbackNoteQueryRow` (4 references); the exported `FeedbackNoteRow` in
-  `lib/feedback-inbox.ts:24` is untouched.
+  `lib/feedback/inbox.ts:24` is untouched.
 - **One grep discrepancy resolved while doing it:** `scripts/feedback-pull.ts`
   never names either type textually — it passes its raw `select` result to
   `toInboxNote()`, whose *parameter* carries the annotation. So the exported
@@ -1978,10 +2041,10 @@ on an operator decision. That decision was taken on 2026-09-21: it was
 ### FN-07 · A failed `removeFromQueue` write leaves a "discarded" Feedback note re-appearing forever
 
 - **Source:** `FN` (`:49-51`)
-- **Evidence:** `lib/feedback-queue.ts:61-67` — `write()` catches a
+- **Evidence:** `lib/feedback/queue.ts:61-67` — `write()` catches a
   `localStorage.setItem` failure (quota, private mode) and silently returns
   `readQueue()`, i.e. the write did not happen, with no signal to the caller.
-  `lib/feedback-queue.ts:134` — `flushQueue` calls
+  `lib/feedback/queue.ts:134` — `flushQueue` calls
   `removeFromQueue(note.clientKey)` and ignores its return value entirely;
   line 135 unconditionally pushes to `discarded` on a `rejected` outcome
   regardless of whether the removal persisted.
@@ -2204,7 +2267,7 @@ on an operator decision. That decision was taken on 2026-09-21: it was
 - **Evidence:** `scripts/feedback-pull.ts:62-75` — the `rows.map((row) => ({...}))`
   mapping is written inline in the script, not extracted. No test file exists for
   it.
-- **Fix:** extract the row→`InboxNote` shape function into `lib/feedback-inbox.ts`
+- **Fix:** extract the row→`InboxNote` shape function into `lib/feedback/inbox.ts`
   (which already exists and holds `renderInbox`) and add a field-mapping unit
   test.
 - **Category:** test-coverage · **Effort:** S
@@ -2379,7 +2442,7 @@ on an operator decision. That decision was taken on 2026-09-21: it was
   `<MapPin aria-hidden="true">` and `:519` renders a real `MapLink` **in the
   same flex row** — the identical side-by-side confusability this entry claims
   to have closed. It is worse than the three fixed cards: that `MapLink` is
-  given an always-present `label`, and `lib/maps.ts:31` falls back to `label`
+  given an always-present `label`, and `lib/map/maps.ts:31` falls back to `label`
   when there is no address, so it renders a pin for *every* stop regardless of
   whether `lat`/`lng` exist — the second half of the `stop-card.tsx` fix
   (`stop-card.tsx:337-345` gates `MapLink` on `stop.lat != null && stop.lng !=
@@ -2628,7 +2691,7 @@ being closed by a different shape of fix than the one suggested is still closed.
 ## 2026-10-01 · Landing fan, Help, sign-in links, offline, Welcome (spec 2026-10-01-landing-shuffle-help-offline)
 
 - **LS-01 · Email sign-in via magic links (Resend).** Expands LK-02. Auth.js's built-in Resend
-  provider beside Google in `lib/auth.ts`, gated on `AUTH_RESEND_KEY` like Google is on its
+  provider beside Google in `lib/auth/auth.ts`, gated on `AUTH_RESEND_KEY` like Google is on its
   credentials; the adapter and `VerificationToken` table it needs already exist. Gate the
   allowlist **before** sending: the `signIn` callback runs for the email provider before the
   mail goes out, so a refused address gets no token and no email. The panel's copy stays
@@ -2671,7 +2734,7 @@ being closed by a different shape of fix than the one suggested is still closed.
   `PopoverContent`, `SelectContent`, `DialogContent` all portal to `<body>`,
   outside the page's light root) — the Stops menu
   (`day-by-day-client.tsx` `StopPicker`) carries its own lock for this reason.
-- **SL-02 · Restyle the Sign-in link email.** `lib/sign-in-email.ts` is the
+- **SL-02 · Restyle the Sign-in link email.** `lib/auth/sign-in-email.ts` is the
   minimal branded version (one line, one button, raw link, footer). Cam
   wants it to pop more; the design-kit `emails/magic-link` template in
   `design_handoff/` is the reference. Keep `renderSignInEmail`'s signature
@@ -2826,12 +2889,13 @@ being closed by a different shape of fix than the one suggested is still closed.
   batch still have `coverSmallKey` null, so
   `app/api/trips/[tripId]/cover/route.ts` serves them the large copy for
   every `?w=` (correct, just heavier on the trips page and the blurred
-  backdrop). **The backfill script exists**: `npm run backfill:cover-small
-  [-- --dry-run]` (`scripts/backfill-cover-small.ts`, shaped like
-  `scripts/backfill-cover-aspect.ts`; its loop is `scripts/
-  backfill-cover-small-run.ts`, unit-tested against a fake db/storage). It
+  backdrop). **The backfill script exists**: `npx tsx --conditions=react-server
+  scripts/archive/backfill-cover-small.ts [--dry-run]` (archived 2026-10-16;
+  shaped like `scripts/archive/backfill-cover-aspect.ts`; its loop is
+  `scripts/archive/backfill-cover-small-run.ts`, unit-tested against a fake
+  db/storage). It
   reads each Trip with `coverImageKey` set and `coverSmallKey` null, makes a
-  ~480w WebP with `lib/cover-small-image.ts`'s `makeCoverSmall` (sharp
+  ~480w WebP with `scripts/archive/cover-small-image.ts`'s `makeCoverSmall` (sharp
   0.35.4 — the server-side twin of the browser's `compressCoverSmall`,
   since that compression is otherwise browser-only), saves it at
   `coverSmallKeyFor(coverImageKey)`, and sets `coverSmallKey` (plus
@@ -2979,8 +3043,9 @@ being closed by a different shape of fix than the one suggested is still closed.
   (`lib/surprise-visibility.ts`) and one guard (`lib/surprise-guard.ts`)
   back every one of the roughly thirty readers, held to that by
   `readPlan`'s required viewer argument (lib/plan-reads.ts) for Plan pages and
-  by the slim `lib/surprise-readers.guard.test.ts` for the rest (ADR 0072,
-  amended 2026-10-15).
+  by the reader lists in `eslint.config.mjs` (`SURPRISE_VISIBILITY_READERS`,
+  `SURPRISE_GUARD_READERS`, a lint rule since 2026-10-16) for the rest
+  (ADR 0072, amended 2026-10-15 and 2026-10-16).
 - **TC-13 · Drop the Auth.js tables (Account, Session, VerificationToken)
   and the migration's Google-link copy once main has run on Better Auth for
   a release (and the now unused `User.emailVerified` timestamp); also gate /oauth2/create-client and update-client behind the

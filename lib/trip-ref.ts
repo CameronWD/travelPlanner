@@ -17,7 +17,7 @@ export async function resolveTripRef(ref: string): Promise<ResolvedTripRef | nul
   return db.trip.findUnique({ where: { id: ref }, select: { id: true, slug: true } });
 }
 
-/** Better Auth's signing secret, with the same fallback lib/auth.ts uses. */
+/** Better Auth's signing secret, with the same fallback lib/auth/auth.ts uses. */
 function authSecret(): string | undefined {
   return process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET;
 }
@@ -54,7 +54,7 @@ async function verifiedSessionToken(value: string, secret: string): Promise<stri
  * looked up as an AuthSession row that has not expired. No auth config
  * import, which keeps the proxy bundle small.
  *
- * `secret` falls back the same way lib/auth.ts does: `BETTER_AUTH_SECRET`,
+ * `secret` falls back the same way lib/auth/auth.ts does: `BETTER_AUTH_SECRET`,
  * then `AUTH_SECRET` (today's Vercel var keeps working).
  */
 export async function viewerIdFromRequest(req: NextRequest): Promise<string | null> {

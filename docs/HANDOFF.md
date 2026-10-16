@@ -143,7 +143,7 @@ never reuse the dev value.
 
 ### How the dev-login bypass is gated
 
-In `lib/auth.ts`, the dev-login provider is only registered when
+In `lib/auth/auth.ts`, the dev-login provider is only registered when
 `ALLOW_DEV_LOGIN === "true"` and `NODE_ENV !== "production"`. Set
 `ALLOW_DEV_LOGIN="false"` (or omit it) in production and the bypass is
 completely absent from the auth stack.
@@ -156,7 +156,7 @@ A trip owner invites a partner by email on the trip's Settings page. This create
 2. Creates a `TripMember` row for each matching trip the user is not already a member of.
 3. Marks the invite as accepted.
 
-The relevant files are `lib/invites.ts` (pure acceptance logic) and `lib/auth.ts` (where the sign-in hook calls it). No manual step is required, the partner just signs in and is auto-added.
+The relevant files are `lib/invites.ts` (pure acceptance logic) and `lib/auth/auth.ts` (where the sign-in hook calls it). No manual step is required, the partner just signs in and is auto-added.
 
 ### Migrating from the previous auth stack
 
@@ -216,7 +216,7 @@ The attachment serve route (`app/api/attachments/[id]/route.ts`) streams bytes f
 
 ## 4. FX Rates
 
-Powered by the [Frankfurter API](https://frankfurter.dev/) (`https://api.frankfurter.dev`). No API key is required. Rate lookups are cached in the `ExchangeRate` table per trip.
+Powered by the [Frankfurter API](https://frankfurter.dev/) (`https://api.frankfurter.dev/v1`). No API key is required. Rate lookups are cached in the `ExchangeRate` table per trip.
 
 Users can manually override any rate on the Budget page — the manual flag is stored alongside the rate and prevents automatic refresh for that currency pair.
 
@@ -449,7 +449,7 @@ fast-follow pass then closed the remaining items:
   email can have at most one invite row per trip.
 - **FX staleness threshold is unified.** Both the `/api/fx` route and the budget
   page use the single `FX_STALE_AFTER_MS` (24h) / `isRateStale` helper in
-  `lib/fx.ts` — there is no longer a per-view discrepancy.
+  `lib/money/fx.ts` — there is no longer a per-view discrepancy.
 
 ---
 

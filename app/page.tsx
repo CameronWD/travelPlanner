@@ -1,7 +1,7 @@
 import type { Route } from "next";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { auth, authServer } from "@/lib/auth";
+import { auth, authServer } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { Landing } from "./landing/landing";
 import { isAccessDenied, isLinkExpired } from "./landing/access-denied";
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
  * loop.
  *
  * A refused Google sign-in comes back here as "/?error=AccessDenied"
- * (lib/auth.ts pages.error) — open the Landing's panel straight into denied
+ * (lib/auth/auth.ts pages.error) — open the Landing's panel straight into denied
  * mode rather than making the visitor click Sign in again. A spent or
  * expired Sign-in link comes back as "/?error=Verification" and opens it in
  * link-expired mode.

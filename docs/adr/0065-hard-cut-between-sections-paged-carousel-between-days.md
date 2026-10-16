@@ -48,8 +48,9 @@ is why the page loads three days.
 
 ## Consequences
 
-- Three `getDay` loads per Day page, in parallel. A range loader is a listed follow-up
-  (spec 2026-09-30 §F).
+- ~~Three `getDay` loads per Day page, in parallel.~~ *Amended 2026-10-16 (card 3.M,
+  NAV-05):* one `getDays(tripId, [shown, before, after], viewer)` reads the window once
+  (`lib/day-reads.ts`) and assembles each day with `buildDayModel`.
 - Neighbour panels are `inert` and `aria-hidden`; nothing in them may take focus or
   register a keyboard handler, and their dialogs must not double the shown day's.
 - A second swipe while the first is still landing meets the end of the scroller until the

@@ -10,10 +10,10 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import { convertCostToHome, effectiveCategory, type BudgetCost } from "@/lib/budget";
-import { formatMinor } from "@/lib/money";
+import { convertCostToHome, effectiveCategory, type BudgetCost } from "@/lib/money/budget";
+import { formatMinor } from "@/lib/money/money";
 import { isOnTrip } from "@/lib/enum-values";
-import { daysBetween } from "@/lib/dates";
+import { daysBetween, formatISODate } from "@/lib/dates";
 import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { loadOwners, ownerKey, REMOVED_LABEL, type OwnerKind } from "./owners";
@@ -90,7 +90,7 @@ export async function loadCostsForMcp(
   const homeCurrency = trip?.homeCurrency ?? "AUD";
   const today = todayISOInZone(currentTripTimezone(stops));
   // Raw rateToHome only, no ExchangeRate-table fallback — matches the Budget
-  // page and get_budget (lib/budget-loader.ts loadBudget → buildBudgetFromRows).
+  // page and get_budget (lib/money/budget-loader.ts loadBudget → buildBudgetFromRows).
   const budgetCosts = rawCosts as unknown as BudgetCost[];
 
   const { owners } = await loadOwners(
@@ -108,7 +108,7 @@ export async function loadCostsForMcp(
 
     const paidAt = raw.paidAt;
     const isPaid = paidAt != null;
-    const paidOn = isPaid ? (paidAt instanceof Date ? paidAt.toISOString().slice(0, 10) : String(paidAt).slice(0, 10)) : null;
+    const paidOn = isPaid ? (paidAt instanceof Date ? formatISODate(paidAt) : String(paidAt).slice(0, 10)) : null;
 
     const dueDate = raw.dueDate ?? null;
     const daysUntilDue = !isPaid && dueDate ? daysBetween(today, dueDate) : null;

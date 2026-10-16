@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const { findShareLink, loadShareStops } = vi.hoisted(() => ({ findShareLink: vi.fn(), loadShareStops: vi.fn() }));
-vi.mock("@/lib/share-lookup", () => ({ findShareLink, loadShareStops }));
+vi.mock("@/lib/share/lookup", () => ({ findShareLink, loadShareStops }));
 
 import { routeStopsFromShare, sharedRouteName } from "./copy-route-from-share";
 

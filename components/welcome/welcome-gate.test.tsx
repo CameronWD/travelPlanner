@@ -1,18 +1,18 @@
 import type { ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/db", () => ({ db: { user: { findUnique: vi.fn() } } }));
+vi.mock("@/lib/traveller-reads", () => ({ readWelcomeState: vi.fn() }));
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn() }));
 vi.mock("./welcome-dialog", () => ({
   WelcomeDialog: () => "welcome-dialog",
 }));
 
-import { db } from "@/lib/db";
+import { readWelcomeState } from "@/lib/traveller-reads";
 import { requireUser } from "@/lib/guards";
 import { WelcomeDialog } from "./welcome-dialog";
 import { WelcomeGate } from "./welcome-gate";
 
-const mockFindUnique = db.user.findUnique as unknown as ReturnType<typeof vi.fn>;
+const mockFindUnique = readWelcomeState as unknown as ReturnType<typeof vi.fn>;
 const mockRequireUser = requireUser as unknown as ReturnType<typeof vi.fn>;
 
 const SEEN = new Date("2026-10-01T00:00:00Z");
@@ -26,10 +26,7 @@ describe("WelcomeGate (spec 2026-10-01 §G; waits for a name, spec 2026-10-04 §
   it("reads the Welcome stamp and both names in one query", async () => {
     mockFindUnique.mockResolvedValue({ welcomeSeenAt: null, name: "Cam", displayName: null });
     await WelcomeGate();
-    expect(mockFindUnique).toHaveBeenCalledWith({
-      where: { id: "u1" },
-      select: { welcomeSeenAt: true, name: true, displayName: true },
-    });
+    expect(mockFindUnique).toHaveBeenCalledWith("u1");
   });
 
   it("a named Traveller who hasn't seen the Welcome gets it", async () => {

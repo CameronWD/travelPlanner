@@ -1,4 +1,4 @@
-import type { MarkerView } from "@/components/globe/types";
+import type { MarkerView } from "@/lib/globe-views";
 
 /** The Wishlist-Item field values derived from a Globe Marker (ADR 0025). */
 export interface WishlistItemSeed {

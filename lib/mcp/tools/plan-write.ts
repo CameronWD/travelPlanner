@@ -12,24 +12,16 @@
  * Real plan only: none of `createItem`/`scheduleItem`/`placeIdeaAtStop`/
  * `createChapter`'s optional `forkId` is ever supplied (constraints.md), and
  * every Item/Stop/Chapter id a tool takes is checked against the real plan
- * first (`../real-plan.ts`, or the PATCH loaders' own `forkId: null`), since
- * the actions look rows up by id alone and would act on a Fork's row.
+ * first (`../real-plan.ts`), since the actions look rows up by id alone and
+ * would act on a Fork's row.
  *
- * `update_thing_to_do` and `update_chapter` are PATCH, not replace (same
- * ruling as Task 11's `update_trip`/`update_stop`): `updateItem` writes every
- * `ItemInput` field it's given, including absent ones, as the new value
- * (`hiddenFromShares: data.hiddenFromShares ?? false`, for instance, so a
- * patch that only touches `notes` would silently un-hide a hidden Item from
- * shared links), and `updateChapter` requires `name`/`colour` on every call
- * even though this tool only means to change one field. So both load the
- * current row, merge only the fields the caller actually supplied over it,
- * and send the action a complete, merged input instead.
+ * `update_thing_to_do` and `update_chapter` pass only the fields the caller
+ * supplied: the actions take a PATCH (ADR 0075) and merge onto the row they
+ * hold — `hiddenFromShares` included, which an earlier replace-shaped
+ * `updateItem` reset.
  */
 import { z } from "zod";
-import { notFound } from "next/navigation";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
 import {
   createItem,
   updateItem,
@@ -48,21 +40,14 @@ import { voteLevelSchema, targetTypeSchema } from "@/lib/enums";
 import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { VOTE_LEVELS } from "@/lib/enum-values";
-import type { ItemInput } from "@/lib/validations/item";
-import type { ChapterInput } from "@/lib/validations/chapter";
 import { runTool } from "../run-tool";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
+import { isoDate, hhmm } from "@/lib/validations/primitives";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
-const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format");
 const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
 const describedCategory = categorySchema.describe(describeValues("The thing's Category.", CATEGORY_MEANING, CATEGORY_VALUES));
 const describedVoteLevel = voteLevelSchema.describe(describeValues("How keen you are.", VOTE_LEVEL_MEANING, VOTE_LEVELS));
-
-/** The shape every field-error-shaped tool failure shares (ActionFailure). */
-type Failure = { success: false; errors: Record<string, string[]> };
-const isFailure = (v: object): v is Failure => "success" in v && (v as { success: unknown }).success === false;
 
 // ---------------------------------------------------------------------------
 // add_thing_to_do / update_thing_to_do shared field shapes
@@ -96,155 +81,6 @@ const itemPatchShape = {
   notes: z.string().optional(),
 };
 
-type ItemPatch = {
-  title?: string;
-  category?: string;
-  stopId?: string;
-  date?: string;
-  startTime?: string;
-  endTime?: string;
-  address?: string;
-  link?: string;
-  booking?: string;
-  notes?: string;
-};
-
-type ItemRow = {
-  tripId: string;
-  title: string;
-  category: string;
-  stopId: string | null;
-  date: string | null;
-  startTime: string | null;
-  endTime: string | null;
-  address: string | null;
-  link: string | null;
-  booking: string | null;
-  notes: string | null;
-  hiddenFromShares: boolean;
-};
-
-/**
- * Loads the current Item for a patch, trip-access-checked. A missing row
- * (or a Fork's: `forkId: null` scopes to the real plan) reads as
- * `notFound()` (mapped by `runTool` to the same "not found" text a
- * non-member's id gets), checked *before* the access check can even run —
- * membership is then verified before any of the row's values are used.
- */
-async function loadItemForPatch(itemId: string): Promise<ItemRow> {
-  const item = await db.item.findUnique({
-    where: { id: itemId, forkId: null },
-    select: {
-      tripId: true,
-      title: true,
-      category: true,
-      stopId: true,
-      date: true,
-      startTime: true,
-      endTime: true,
-      address: true,
-      link: true,
-      booking: true,
-      notes: true,
-      hiddenFromShares: true,
-    },
-  });
-  if (!item) notFound();
-  await requireTripAccess(item.tripId);
-  return item;
-}
-
-/**
- * Merges a patch onto the current Item row into a full `ItemInput`.
- *
- * No `lat`/`lng` here (fix round 1, Task 12 review): `createItem`/
- * `updateItem` both ignore any caller-supplied `lat`/`lng` outright — they
- * always derive coordinates from `address` via geocoding, or null them out
- * when there's no address — so accepting them on these tools would silently
- * drop that input (ruling 2). `address` is the only way to set location.
- *
- * `hiddenFromShares` is never part of this tool's input (there's no field
- * for it in the brief's table), yet `updateItem` writes it as `false` when
- * absent — so it's always carried forward from the current row, the same
- * way `update_stop` carries `chapterId` forward (fix round 1 pattern).
- */
-function mergeItemPatch(current: ItemRow, patch: ItemPatch): ItemInput {
-  return {
-    title: patch.title ?? current.title,
-    category: (patch.category ?? current.category) as ItemInput["category"],
-    stopId: patch.stopId ?? current.stopId ?? undefined,
-    date: patch.date ?? current.date ?? undefined,
-    startTime: patch.startTime ?? current.startTime ?? undefined,
-    endTime: patch.endTime ?? current.endTime ?? undefined,
-    address: patch.address ?? current.address ?? undefined,
-    link: patch.link ?? current.link ?? undefined,
-    booking: patch.booking ?? current.booking ?? undefined,
-    notes: patch.notes ?? current.notes ?? undefined,
-    hiddenFromShares: current.hiddenFromShares,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// update_chapter patch helpers
-// ---------------------------------------------------------------------------
-
-type ChapterRow = {
-  tripId: string;
-  name: string;
-  colour: string;
-  startDate: string | null;
-  endDate: string | null;
-};
-type ChapterPatch = { name?: string; colour?: string; startDate?: string; endDate?: string };
-
-const CHAPTER_DATE_PAIR_REQUIRED: Failure = {
-  success: false,
-  errors: { startDate: ["Pass both startDate and endDate, or neither, to a rough Chapter."] },
-};
-
-/** Loads the current Chapter for a patch; access-checked first, same as every other trip-scoped tool. */
-async function loadChapterForPatch(chapterId: string): Promise<ChapterRow> {
-  const chapter = await db.chapter.findUnique({
-    where: { id: chapterId, forkId: null },
-    select: { tripId: true, name: true, colour: true, startDate: true, endDate: true },
-  });
-  if (!chapter) notFound();
-  await requireTripAccess(chapter.tripId);
-  return chapter;
-}
-
-/**
- * Merges a patch onto the current Chapter row.
- *
- * `name` and `colour` are required on every `ChapterInput`, so a patch that
- * only means to change one of the other fields must still forward both from
- * the current row. The dates follow the same lone-date rule as
- * `update_stop`'s `arriveDate`/`departDate`: supplying both switches/keeps
- * the Chapter dated; supplying neither keeps whatever it currently is; a
- * lone date merges with the current counterpart when the Chapter is already
- * dated, and is a tool error (not a silent no-op) against a rough one, since
- * there's no current date to pair it with.
- */
-function mergeChapterPatch(current: ChapterRow, patch: ChapterPatch): ChapterInput | Failure {
-  const name = patch.name ?? current.name;
-  const colour = patch.colour ?? current.colour;
-
-  const hasStart = patch.startDate !== undefined;
-  const hasEnd = patch.endDate !== undefined;
-  const suppliesBoth = hasStart && hasEnd;
-  const suppliesNeither = !hasStart && !hasEnd;
-  const wasDated = current.startDate != null;
-
-  if (!suppliesBoth && !suppliesNeither && !wasDated) {
-    return CHAPTER_DATE_PAIR_REQUIRED;
-  }
-
-  const startDate = suppliesNeither ? current.startDate ?? undefined : patch.startDate ?? current.startDate ?? undefined;
-  const endDate = suppliesNeither ? current.endDate ?? undefined : patch.endDate ?? current.endDate ?? undefined;
-
-  return { name, colour, startDate, endDate } as ChapterInput;
-}
-
 export function registerPlanWriteTools(server: McpServer): void {
   server.registerTool(
     "add_thing_to_do",
@@ -271,9 +107,11 @@ export function registerPlanWriteTools(server: McpServer): void {
     },
     ({ itemId, ...patch }) =>
       runTool("update_thing_to_do", async () => {
-        const current = await loadItemForPatch(itemId);
-        await requireRealPlanRows([["stop", patch.stopId]]);
-        return updateItem(itemId, mergeItemPatch(current, patch));
+        await requireRealPlanRows([
+          ["item", itemId],
+          ["stop", patch.stopId],
+        ]);
+        return updateItem(itemId, patch);
       }),
   );
 
@@ -427,10 +265,8 @@ export function registerPlanWriteTools(server: McpServer): void {
     },
     ({ chapterId, ...patch }) =>
       runTool("update_chapter", async () => {
-        const current = await loadChapterForPatch(chapterId);
-        const merged = mergeChapterPatch(current, patch);
-        if (isFailure(merged)) return merged;
-        return updateChapter(chapterId, merged);
+        await requireRealPlanRow("chapter", chapterId);
+        return updateChapter(chapterId, patch);
       }),
   );
 }

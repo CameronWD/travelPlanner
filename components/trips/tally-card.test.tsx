@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import type { AtRule } from "postcss";
 import { TallyCard, TallyStrip } from "./tally-card";
 import type { TravelStats } from "@/lib/travel-stats";
+import { atRule, atRules, decls, findRules, rule } from "@/test/helpers/css";
 
 const pair = (done: number, planned: number) => ({ done, planned });
 const stats: TravelStats = {
@@ -67,26 +69,22 @@ describe("TallyCard's own-height compaction (app/globals.css, spec 2026-10-05 §
     expect(container.querySelectorAll(".tally-cell-row2")).toHaveLength(2);
   });
 
-  it("steps the headline down, then drops the second cell row, as the card's own box shrinks (Resolves-Feedback cmutai0m4000604l8mtbi92xt)", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const css = fs.readFileSync(path.resolve(__dirname, "../../app/globals.css"), "utf-8");
-    expect(css).toMatch(/\.tally-card\s*\{\s*container-type:\s*size;\s*\}/);
+  it("steps the headline down, then drops the second cell row, as the card's own box shrinks (Resolves-Feedback cmutai0m4000604l8mtbi92xt)", () => {
+    expect(decls(rule(".tally-card"))).toEqual({ "container-type": "size" });
 
-    const shrinkHeadline = css.match(/@container \(max-height: 260px\) \{([\s\S]*?)\n\}/)?.[1];
-    expect(shrinkHeadline).toBeTruthy();
-    expect(shrinkHeadline).toMatch(/\.tally-headline-num\s*\{\s*font-size:\s*32px;\s*\}/);
-    expect(shrinkHeadline).toMatch(/\.tally-headline-label\s*\{\s*font-size:\s*14px;\s*\}/);
+    const shrinkHeadline = atRule("container", "(max-height: 260px)");
+    expect(decls(rule(".tally-headline-num", shrinkHeadline))).toEqual({ "font-size": "32px" });
+    expect(decls(rule(".tally-headline-label", shrinkHeadline))).toEqual({ "font-size": "14px" });
 
-    const dropRow2 = css.match(/@container \(max-height: 217px\) \{([\s\S]*?)\n\}/)?.[1];
-    expect(dropRow2).toBeTruthy();
-    expect(dropRow2).toMatch(/\.tally-cell-row2\s*\{\s*display:\s*none;\s*\}/);
+    const dropRow2 = atRule("container", "(max-height: 217px)");
+    expect(decls(rule(".tally-cell-row2", dropRow2))).toEqual({ display: "none" });
 
     // The drop-row2 threshold must be below the shrink-headline one — it's a
     // second, deeper step down, not an alternative.
-    const blocks = [...css.matchAll(/@container \(max-height: (\d+)px\) \{([\s\S]*?)\n\}/g)];
-    const shrinkAt = Number(blocks.find((b) => b[2].includes("tally-headline-num"))?.[1]);
-    const dropAt = Number(blocks.find((b) => b[2].includes("tally-cell-row2"))?.[1]);
+    const maxHeight = (a: AtRule) => Number(/max-height: (\d+)px/.exec(a.params)?.[1]);
+    const steps = atRules("container").filter((a) => a.params.includes("max-height"));
+    const shrinkAt = maxHeight(steps.find((a) => findRules(".tally-headline-num", a).length > 0)!);
+    const dropAt = maxHeight(steps.find((a) => findRules(".tally-cell-row2", a).length > 0)!);
     expect(dropAt).toBeLessThan(shrinkAt);
   });
 });

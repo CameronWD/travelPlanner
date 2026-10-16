@@ -18,7 +18,7 @@ import { HUE_CLASSES } from "@/lib/hues";
 import { exactStopPlacement, storedAnchorFor } from "@/lib/plan/exact-stop-placement";
 import { addStopConsequence, routeCentroid } from "@/lib/plan/plan-model";
 import { stopHue } from "@/lib/stop-colours";
-import { guessTimezoneForCountry } from "@/lib/tz";
+import { stopTimezone } from "@/lib/tz";
 import type { StopInput } from "@/lib/validations/stop";
 import { isLoneOnDatedTrip } from "@/components/plan/lone-stop";
 
@@ -133,7 +133,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
     const input: StopInput =
       mode === "rough"
         ? { mode: "rough", ...place, nights, chapterId: roughChapterId }
-        : { mode: "scheduled", ...place, timezone: guessTimezoneForCountry(picked?.countryCode ?? country), arriveDate: range.start!, departDate: range.end! };
+        : { mode: "scheduled", ...place, timezone: stopTimezone({ countryCode: picked?.countryCode, country }), arriveDate: range.start!, departDate: range.end! };
     run(input);
   }
 

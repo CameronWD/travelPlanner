@@ -56,16 +56,16 @@ vi.mock("@/lib/dates", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/dates")>()),
   nightsBetween: vi.fn(),
 }));
-vi.mock("@/lib/money", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/money")>()),
+vi.mock("@/lib/money/money", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/money/money")>()),
   formatMoney: vi.fn(),
 }));
-vi.mock("@/lib/budget", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/budget")>()),
+vi.mock("@/lib/money/budget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/money/budget")>()),
   buildBudget: buildBudgetMock,
   applyFxRatesToCosts: vi.fn(),
 }));
-vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: buildSpendSoFarMock }));
+vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: buildSpendSoFarMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));
 vi.mock("@/lib/chapter-colours", () => ({ chapterColourSwatch: vi.fn() }));
 vi.mock("@/lib/cn", () => ({ cn: (...args: unknown[]) => args.filter(Boolean).join(" ") }));
@@ -366,7 +366,7 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
     });
     const dates = await import("@/lib/dates");
     vi.mocked(dates.nightsBetween).mockReturnValue(9);
-    const money = await import("@/lib/money");
+    const money = await import("@/lib/money/money");
     vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
   });
 
@@ -399,7 +399,6 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
   it("shows under/over as a status chip, not an accent", async () => {
     let div = await dom();
     const under = [...div.querySelectorAll("span")].filter((s) => /under$/.test(s.textContent ?? "")).pop()!;
-    // The status token itself — Badge variant="success" still resolves to bg-teal (a hue).
     expect(under.className).toMatch(/\bbg-success\b/);
     expect(under.className).toMatch(/\btext-success-foreground\b/);
     expect(under.className).not.toMatch(/\bbg-teal\b/);
@@ -424,9 +423,9 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
   });
 
   it("reads 'Trip cost' and 'of X cost' from one FX source — a foreign cost priced only by the rate table counts in both", async () => {
-    const actualBudget = await vi.importActual<typeof import("@/lib/budget")>("@/lib/budget");
-    const actualSpend = await vi.importActual<typeof import("@/lib/spend-so-far")>("@/lib/spend-so-far");
-    const budgetMod = await import("@/lib/budget");
+    const actualBudget = await vi.importActual<typeof import("@/lib/money/budget")>("@/lib/money/budget");
+    const actualSpend = await vi.importActual<typeof import("@/lib/money/spend-so-far")>("@/lib/money/spend-so-far");
+    const budgetMod = await import("@/lib/money/budget");
     buildBudgetMock.mockImplementation(actualBudget.buildBudget);
     vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(actualBudget.applyFxRatesToCosts);
     buildSpendSoFarMock.mockImplementation(actualSpend.buildSpendSoFar);
@@ -451,6 +450,17 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
     const empty = findElementByType(await render(), EmptyState);
     expect(empty).not.toBeNull();
     expect(empty!.props.title).toBe("No stops yet");
+  });
+
+  it("reads 99%, not 100%, while money is still owed (TB-09)", async () => {
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 100000, paidSoFarMinor: 99600, paidCostMinor: 99600,
+      varianceMinor: -400, costRemainingMinor: 400, tripElapsedPct: 100,
+    });
+    const div = await dom();
+    expect(div.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("99");
+    expect(div.textContent).toContain("99% of");
+    expect(div.textContent).not.toContain("100% of");
   });
 });
 
@@ -552,7 +562,7 @@ describe("PhasePast desktop layout (spec D)", () => {
     });
     const dates = await import("@/lib/dates");
     vi.mocked(dates.nightsBetween).mockReturnValue(9);
-    const money = await import("@/lib/money");
+    const money = await import("@/lib/money/money");
     vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
   });
 

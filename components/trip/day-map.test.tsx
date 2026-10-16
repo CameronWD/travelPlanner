@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
-import { cartoTiles } from "@/lib/map-tiles";
+import { cartoTiles } from "@/lib/map/tiles";
 import type { DayMapModel } from "@/lib/day-map";
 
 const hoisted = vi.hoisted(() => ({

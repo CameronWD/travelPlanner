@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTripSchema } from "./trip";
-import { CURRENCY_CODES } from "@/lib/currencies";
+import { CURRENCY_CODES } from "@/lib/money/currencies";
 
 const VALID_INPUT = {
   name: "Europe Summer 2026",
@@ -16,6 +16,10 @@ describe("createTripSchema", () => {
     if (result.success) {
       expect(result.data.name).toBe("Europe Summer 2026");
     }
+  });
+
+  it("refuses a start date that is not a real calendar date", () => {
+    expect(createTripSchema.safeParse({ ...VALID_INPUT, startDate: "2026-02-30" }).success).toBe(false);
   });
 
   it("trims the name", () => {

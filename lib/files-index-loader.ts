@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { tripPath } from "@/lib/trip-path";
 import { serializePlanHash } from "@/lib/plan/plan-hash";
 import type { TargetType } from "@/lib/enum-values";
-import type { FileOwner } from "@/components/trip/attachment-list";
+import type { FileOwner } from "@/lib/attachment-view";
 
 export interface OwnerRef {
   targetType: TargetType;

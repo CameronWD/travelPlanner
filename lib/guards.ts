@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { signInRedirect } from "@/lib/sign-in-redirect";
-import { auth } from "@/lib/auth";
+import { signInRedirect } from "@/lib/auth/sign-in-redirect";
+import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { findMembership } from "@/lib/access";
 import { isAdminEmail } from "@/lib/admin";
@@ -16,7 +16,7 @@ export { isTripOwnerOrAdmin } from "@/lib/access";
 
 /**
  * Require an authenticated user. Returns the session user, or redirects to
- * the Landing with the requested page as callbackUrl (lib/sign-in-redirect.ts;
+ * the Landing with the requested page as callbackUrl (lib/auth/sign-in-redirect.ts;
  * there is no sign-in page — ADR 0057, amended 2026-10-01). Use at the top
  * of server components / actions.
  *

@@ -3,30 +3,37 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import type { DayViewData } from "@/lib/day-view-loader";
 import { addDays } from "@/lib/dates";
 
-// The page is a thin Server Component over `getDay` (lib/day-view-loader.ts,
-// tested on its own). Here the loader and every client island are mocked, and
-// the page's composition is asserted. Both the phone and the desktop trees are
+// The page is a thin Server Component over `getDays` (lib/day-view-loader.ts,
+// tested on its own), which it asks once for the day shown and both
+// neighbours (NAV-05). Here the loader and every client island are mocked:
+// `getDays` answers each date through the per-day `getDayMock`, so each test
+// still says what one day looks like. Both the phone and the desktop trees are
 // rendered (one hidden by CSS), so most texts appear twice.
 
-const { getDayMock, requireTripAccessMock, tripFindUniqueMock, notFoundMock, redirectMock, dayWeatherMock } = vi.hoisted(() => ({
-  getDayMock: vi.fn(),
-  requireTripAccessMock: vi.fn(),
-  tripFindUniqueMock: vi.fn(),
-  notFoundMock: vi.fn(() => {
-    throw new Error("NEXT_NOT_FOUND");
-  }),
-  redirectMock: vi.fn((to: string) => {
-    throw new Error(`NEXT_REDIRECT ${to}`);
-  }),
-  dayWeatherMock: vi.fn(),
-}));
+const { getDayMock, getDaysMock, requireTripAccessMock, tripFindUniqueMock, notFoundMock, redirectMock, dayWeatherMock } = vi.hoisted(() => {
+  const getDayMock = vi.fn();
+  return {
+    getDayMock,
+    getDaysMock: vi.fn((tripId: string, dates: string[], viewerId: string) => Promise.all(dates.map((d) => getDayMock(tripId, d, viewerId)))),
+    requireTripAccessMock: vi.fn(),
+    tripFindUniqueMock: vi.fn(),
+    notFoundMock: vi.fn(() => {
+      throw new Error("NEXT_NOT_FOUND");
+    }),
+    redirectMock: vi.fn((to: string) => {
+      throw new Error(`NEXT_REDIRECT ${to}`);
+    }),
+    dayWeatherMock: vi.fn(),
+  };
+});
 
-vi.mock("@/lib/day-view-loader", () => ({ getDay: getDayMock, getDayWeatherView: vi.fn() }));
+vi.mock("@/lib/day-view-loader", () => ({ getDays: getDaysMock, getDayWeatherView: vi.fn() }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-reads", () => ({
   getUnreadActivityCount: vi.fn().mockResolvedValue(4),
   getRecentActivity: vi.fn().mockResolvedValue([]),
 }));
+vi.mock("@/server/actions/activity", () => ({}));
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: tripFindUniqueMock } } }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock, useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
@@ -142,7 +149,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
   };
 }
 
-// getDay is asked for the day before, the day shown and the day after (ADR
+// getDaysMock answers the day before, the day shown and the day after (ADR
 // 0065). Same content, dated; a date outside the fixture Trip is out of range.
 function dayFor(over: Partial<DayViewData> = {}) {
   return (_tripId: string, date: string) => {
@@ -342,6 +349,18 @@ describe("Day page", () => {
     getDayMock.mockImplementation((_t: string, date: string) => Promise.resolve(fixture({ date: date > "2026-12-12" ? "2026-12-12" : date, prevDate: "2026-12-11", nextDate: null })));
     const { container } = await renderPage();
     expect(Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]")).map((p) => p.dataset.dayPanel)).toEqual(["2026-12-11", "2026-12-12"]);
+  });
+
+  it("asks for the day shown and both neighbours in one getDays call (NAV-05)", async () => {
+    await renderPage();
+    expect(getDaysMock).toHaveBeenCalledTimes(1);
+    expect(getDaysMock).toHaveBeenCalledWith("t1", ["2026-12-12", "2026-12-11", "2026-12-13"], "u1");
+  });
+
+  it("a malformed date asks for that date alone", async () => {
+    getDayMock.mockResolvedValue("invalid");
+    await expect(renderPage("nope")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(getDaysMock).toHaveBeenCalledWith("t1", ["nope"], "u1");
   });
 
   it("calls notFound for 'invalid'/'out-of-range' and redirects a 'dateless' trip to the Plan", async () => {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { config, proxy as fullProxy } from "./proxy";
-import { REQUEST_PATH_HEADER } from "./lib/sign-in-href";
+import { REQUEST_PATH_HEADER } from "./lib/auth/sign-in-href";
 
 // The trip branch of `proxy` lazy-imports Prisma through lib/trip-ref; stub
 // it so this file keeps never loading a database. A null viewer is the

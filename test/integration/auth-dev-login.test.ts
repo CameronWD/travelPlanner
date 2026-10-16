@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Real Postgres (npm run test:integration): boots the REAL Better Auth
-// instance in lib/auth.ts against the migrated schema (ADR 0071), so a model
+// instance in lib/auth/auth.ts against the migrated schema (ADR 0071), so a model
 // or column the Prisma adapter can't find fails here, then signs a Traveller
 // in through the dev-login door and reads the session back with its cookie.
 const EMAIL = "it-better-auth-dev-login@example.test";
 const BASE = "http://localhost:3000";
 
-type AuthModule = typeof import("@/lib/auth");
+type AuthModule = typeof import("@/lib/auth/auth");
 type DbModule = typeof import("@/lib/db");
 
 describe.skipIf(process.env.INTEGRATION !== "1")("Better Auth dev login (real Postgres)", () => {
@@ -17,13 +17,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Better Auth dev login (real Po
   const prevEnv = { ...process.env };
 
   beforeAll(async () => {
-    // lib/auth.ts reads these at import time.
+    // lib/auth/auth.ts reads these at import time.
     process.env.ALLOW_DEV_LOGIN = "true";
     process.env.AUTH_SECRET ||= "integration-secret-integration-secret-0123";
     delete process.env.APP_URL;
     delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
     ({ db } = await import("@/lib/db"));
-    ({ authServer } = await import("@/lib/auth"));
+    ({ authServer } = await import("@/lib/auth/auth"));
     await db.user.deleteMany({ where: { email: EMAIL } });
     userId = (await db.user.create({ data: { email: EMAIL, name: "Dev Login IT", isEmailVerified: true } })).id;
   });

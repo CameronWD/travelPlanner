@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
@@ -7,7 +7,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
  * We mock:
  *   - lib/db → so we can assert Prisma call shapes without hitting the database
  *   - lib/guards → so requireUser/requireTripAccess return predictable values
- *   - next/navigation → so redirect() is interceptable (it throws in Next.js)
+ *   - next/navigation → so redirect()/notFound() are interceptable (they throw in Next.js)
  *   - lib/revalidate → so revalidateTrip/revalidateTripsList are spies
  */
 
@@ -15,6 +15,7 @@ const {
   requireUserMock,
   requireTripAccessMock,
   redirectMock,
+  notFoundMock,
   revalidateTripMock,
   revalidateTripsListMock,
   tripCreateMock,
@@ -105,6 +106,9 @@ const {
     }),
     redirectMock: vi.fn(() => {
       throw new Error("NEXT_REDIRECT");
+    }),
+    notFoundMock: vi.fn(() => {
+      throw new Error("NOT_FOUND");
     }),
     revalidateTripMock: vi.fn(),
     revalidateTripsListMock: vi.fn(),
@@ -201,12 +205,12 @@ vi.mock("@/lib/storage", () => ({
 }));
 vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/lib/storage-quota", () => ({ checkQuota: checkQuotaMock }));
-vi.mock("next/navigation", () => ({ redirect: redirectMock }));
+vi.mock("next/navigation", () => ({ redirect: redirectMock, notFound: notFoundMock }));
 vi.mock("@/lib/revalidate", () => ({
   revalidateTrip: revalidateTripMock,
   revalidateTripsList: revalidateTripsListMock,
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 // The lone-Stop rule (ADR 0073) is tested in stop-flow.test.ts; here it is a
 // spy so createTrip/updateTrip's calls are observable.
 const { scheduleLoneStopTxMock } = vi.hoisted(() => ({ scheduleLoneStopTxMock: vi.fn().mockResolvedValue(false) }));
@@ -779,6 +783,13 @@ describe("createTrip", () => {
 // ---------------------------------------------------------------------------
 
 describe("updateTrip", () => {
+  // The merge now reads the row first (`if (!before) notFound()`); an empty
+  // object is a truthy "found" row whose fields all read as undefined, the
+  // same as the old implicit default when a test left this mock unset.
+  beforeEach(() => {
+    tripFindUniqueMock.mockResolvedValue({});
+  });
+
   it("is access-checked — calls requireTripAccess with the tripId", async () => {
     tripUpdateMock.mockResolvedValue({});
 
@@ -1108,7 +1119,9 @@ describe("updateTrip", () => {
   it("updateTrip that clears the dates still runs the follow rule (a change is a change)", async () => {
     tripFindUniqueMock.mockResolvedValueOnce({ startDate: "2026-11-04", endDate: "2026-11-05", homeName: null });
     tripUpdateMock.mockResolvedValue({});
-    await updateTrip("trip1", { name: "Cairns Work", homeCurrency: "AUD" });
+    // Under PATCH an omitted date keeps it — clearing takes an explicit null
+    // (or "", the settings form's empty date input), same as any other field.
+    await updateTrip("trip1", { name: "Cairns Work", homeCurrency: "AUD", startDate: null, endDate: null });
     expect(scheduleLoneStopTxMock).toHaveBeenCalledWith(expect.anything(), "trip1", null, "follow");
   });
 
@@ -1132,6 +1145,51 @@ describe("updateTrip", () => {
     tripUpdateMock.mockResolvedValue({});
     await updateTrip(TRIP_ID, VALID_INPUT);
     expect(tripUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(assignTripSlugMock.mock.invocationCallOrder[0]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateTrip — PATCH merge (ADR 0075), moved here from the MCP tool
+// ---------------------------------------------------------------------------
+
+describe("updateTrip (PATCH, ADR 0075)", () => {
+  const row = {
+    name: "Old name", startDate: "2026-01-01", endDate: "2026-01-10", hardEndDate: "2026-01-15",
+    homeCurrency: "GBP", homeName: "Leeds", homeCountryCode: "gb", homeTimezone: "Europe/London",
+  };
+  beforeEach(() => tripFindUniqueMock.mockResolvedValue(row));
+
+  it("with only name keeps dates, the Hard end date and the currency, and leaves the home base untouched", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip-1", { name: "New name" });
+    const { data } = tripUpdateMock.mock.calls[0][0];
+    expect(data).toMatchObject({
+      name: "New name", startDate: "2026-01-01", endDate: "2026-01-10", hardEndDate: "2026-01-15", homeCurrency: "GBP",
+    });
+    expect(data).not.toHaveProperty("homeName");
+    expect(data).not.toHaveProperty("homeTimezone");
+    expect(data).not.toHaveProperty("roundTrip");
+  });
+
+  it("a name-only patch is not a date change (the lone-Stop rule does not run)", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip-1", { name: "New name" });
+    expect(scheduleLoneStopTxMock).not.toHaveBeenCalled();
+  });
+
+  it('explicit null (or the form\'s "") clears a date', async () => {
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip-1", { hardEndDate: null });
+    expect(tripUpdateMock.mock.calls[0][0].data).toMatchObject({ hardEndDate: null, startDate: "2026-01-01" });
+    tripUpdateMock.mockClear();
+    await updateTrip("trip-1", { hardEndDate: "" });
+    expect(tripUpdateMock.mock.calls[0][0].data).toMatchObject({ hardEndDate: null });
+  });
+
+  it("homeTimezone alone is written for an existing Home base", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    await updateTrip("trip-1", { homeTimezone: "Australia/Brisbane" });
+    expect(tripUpdateMock.mock.calls[0][0].data).toMatchObject({ homeTimezone: "Australia/Brisbane", name: "Old name" });
   });
 });
 

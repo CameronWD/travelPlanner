@@ -1,6 +1,13 @@
-import { addDays, daysBetween, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
+import { addDays, dayNumberInTrip, daysBetween, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
 import type { TransportMode } from "@/lib/enum-values";
 import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
+import { buildItinerary, pickDayPlan, isFreeFormDay, dayHasEntries, type DayPlan } from "@/lib/itinerary";
+import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
+import { nearbyWishlistItems, dayIdeasWishlist, type NearbyResult, type DayIdeaResult } from "@/lib/nearby";
+import { chapterForDate } from "@/lib/chapters";
+import { titlesByDate } from "@/lib/day-titles";
+import { itemPhotoUrl } from "@/lib/item-photo";
+import type { SurpriseView } from "@/lib/surprise";
 
 export function dayHeading(dateISO: string, tripStart: string, tripEnd: string): string {
   const spansYears = tripStart.slice(0, 4) !== tripEnd.slice(0, 4);
@@ -136,3 +143,210 @@ export function dayIdeasRows(i: { stopName: string; thingsToDo: Array<{ id: stri
 }
 
 export const forecastOpensOn = (dateISO: string) => formatDayLabel(addDays(dateISO, -15));
+
+// ── One day, assembled (card 3.M) ─────────────────────────────────────────
+// The Day view (lib/day-view-loader.ts) and the Travelling Home's today
+// (lib/travelling-home-loader.ts) both build their day here from the same
+// rows (lib/day-reads.ts), so Day and Today agree by construction. Pure and
+// client-safe: the Surprise masking is done in the read, once per read, so
+// every date of a window gets the same masked rows (CONTEXT.md "Surprise").
+
+interface DayTripRow {
+  name: string; startDate: string | null; endDate: string | null; homeCurrency: string;
+  homeName: string | null; homeTimezone: string | null; chaptersEnabled: boolean; roundTrip: boolean;
+}
+interface DayStopRow {
+  id: string; name: string; country: string | null; countryCode: string | null; timezone: string | null;
+  arriveDate: string | null; departDate: string | null; sortOrder: number; lat: number | null; lng: number | null;
+  surprise: SurpriseView | null;
+}
+interface DayItemRow {
+  id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
+  sortOrder: number; stopId: string | null; lat: number | null; lng: number | null; address: string | null;
+  link: string | null; booking: string | null; notes: string | null; hiddenFromShares: boolean;
+  photoAttachmentId: string | null; surprise: SurpriseView | null;
+}
+interface DayTransportRow {
+  id: string; mode: string; fromStopId: string | null; toStopId: string | null; depPlace: string | null; arrPlace: string | null;
+  depAt: Date | null; arrAt: Date | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
+  reference: string | null; notes: string | null; sortOrder: number; anchorStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
+}
+interface DayAccommodationRow {
+  id: string; stopId: string; name: string; address: string | null; checkIn: string; checkOut: string;
+  checkInTime: string | null; checkOutTime: string | null; confirmation: string | null; notes: string | null;
+  lat: number | null; lng: number | null;
+}
+interface DayWishlistRow { id: string; title: string; category: string; lat: number | null; lng: number | null; countryCode: string | null }
+interface DayAttachmentRow {
+  id: string; filename: string; title: string | null; mime: string; size: number; url: string;
+  uploadedById: string; createdAt: Date; targetId: string | null;
+}
+interface DayChapterRow { id: string; name: string; colour: string; startDate: string | null; endDate: string | null; sortOrder: number }
+interface DayTitleRow { stopId: string; dayIndex: number; title: string }
+interface DayThingToDoRow { id: string; title: string; category: string; startTime: string | null; endTime: string | null; stopId: string | null }
+
+export interface DayRows {
+  trip: DayTripRow;
+  /** `trip.startDate`. */
+  startDate: string;
+  /** `trip.endDate`, or the start when the Trip has none. */
+  endDate: string;
+  stops: DayStopRow[];
+  items: DayItemRow[];
+  transports: DayTransportRow[];
+  accommodations: DayAccommodationRow[];
+  wishlist: DayWishlistRow[];
+  attachments: DayAttachmentRow[];
+  chapters: DayChapterRow[];
+  dayTitles: DayTitleRow[];
+  thingsToDo: DayThingToDoRow[];
+}
+
+export interface DayModel {
+  date: string;
+  /** The whole Trip, built from every stay — the strip's dots and the next departure read it. */
+  itinerary: DayPlan[];
+  /** Null only for a date outside the Trip. */
+  dayPlan: DayPlan | null;
+  hasEntries: boolean;
+  freeForm: boolean;
+  /** The Stop row behind `dayPlan.stop` (the arriving one on a Changeover day); null on a gap day. */
+  dayStop: DayStopRow | null;
+  dayTitle: { title: string; stopId: string } | null;
+  chapter: DayChapterRow | null;
+  dayNumber: number;
+  totalDays: number;
+  /** The stays that touch the day (checkIn ≤ date ≤ checkOut). */
+  accommodations: DayAccommodationRow[];
+  /** Tonight's bed (checkIn ≤ date < checkOut). */
+  tonight: DayAccommodationRow | null;
+  attachmentsById: Map<string, { url: string }>;
+  attachmentsByTarget: Record<string, DayAttachmentRow[]>;
+  dayMap: DayMapModel;
+  itemDirections: Record<string, { google: string | null; apple: string | null }>;
+  /** Wishlist ideas near the day's located Items and tonight's bed. */
+  nearby: NearbyResult[];
+  /** The day's Stop's things to do — a free-form day with a Stop only (CONTEXT.md "Day ideas"). */
+  thingsToDo: Array<{ id: string; title: string; category: string; startTime: string | null; endTime: string | null }>;
+  /** Wishlist ideas for the day's Stop (near it, or in its country); [] on a gap day. */
+  ideasWishlist: DayIdeaResult[];
+}
+
+interface TripDerived {
+  itinerary: DayPlan[];
+  attachmentsById: Map<string, { url: string }>;
+  attachmentsByTarget: Record<string, DayAttachmentRow[]>;
+  titles: Map<string, { title: string; stopId: string }>;
+}
+const derivedByRows = new WeakMap<DayRows, TripDerived>();
+
+/** The Trip-wide projections every day of one read shares — built once per `rows`. */
+function deriveTrip(rows: DayRows): TripDerived {
+  const hit = derivedByRows.get(rows);
+  if (hit) return hit;
+  // CONTEXT.md "Item photo" — keyed by the Attachment's own id.
+  const attachmentsById = new Map(rows.attachments.map((a) => [a.id, { url: a.url }]));
+  const attachmentsByTarget: Record<string, DayAttachmentRow[]> = {};
+  for (const a of rows.attachments) if (a.targetId) (attachmentsByTarget[a.targetId] ??= []).push(a);
+  const derived: TripDerived = {
+    attachmentsById,
+    attachmentsByTarget,
+    titles: titlesByDate(
+      rows.stops.map((s) => ({ id: s.id, arriveDate: s.arriveDate, departDate: s.departDate })),
+      rows.dayTitles,
+    ),
+    itinerary: buildItinerary({
+      startDate: rows.startDate,
+      endDate: rows.endDate,
+      // Non-null at runtime: the read keeps dated Stops only.
+      stops: rows.stops.map((s) => ({
+        id: s.id, name: s.name, country: s.country, timezone: s.timezone ?? "UTC",
+        arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder,
+      })),
+      items: rows.items.map((i) => ({
+        id: i.id, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime,
+        stopId: i.stopId, address: i.address, link: i.link, booking: i.booking, notes: i.notes,
+        hiddenFromShares: i.hiddenFromShares, photoUrl: itemPhotoUrl(i, attachmentsById), surprise: i.surprise,
+      })),
+      transports: rows.transports.map((t) => ({
+        id: t.id, mode: t.mode as TransportMode, fromStopId: t.fromStopId, toStopId: t.toStopId,
+        depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
+        reference: t.reference, notes: t.notes, depIsHome: t.depIsHome, arrIsHome: t.arrIsHome,
+      })),
+      // Every stay (TB-10): a day's check-in/out entries never depend on which day was asked for.
+      accommodations: rows.accommodations.map((a) => ({
+        id: a.id, stopId: a.stopId, name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut,
+        checkInTime: a.checkInTime, checkOutTime: a.checkOutTime, confirmation: a.confirmation, notes: a.notes,
+      })),
+      homeTimezone: rows.trip.homeTimezone,
+    }),
+  };
+  derivedByRows.set(rows, derived);
+  return derived;
+}
+
+/** One dated day, from the rows `lib/day-reads.ts` read — the Day view's and Today's shared core. */
+export function buildDayModel(rows: DayRows, date: string): DayModel {
+  const trip = deriveTrip(rows);
+  const dayPlan = pickDayPlan(trip.itinerary, date);
+  const dayStop = rows.stops.find((s) => s.id === dayPlan?.stop?.id) ?? null;
+  const freeForm = dayPlan ? isFreeFormDay(dayPlan) : false;
+
+  const accommodations = rows.accommodations.filter((a) => a.checkIn <= date && a.checkOut >= date);
+  const tonight = accommodations.find((a) => a.checkOut > date) ?? null;
+  const bed = tonight ? { id: tonight.id, name: tonight.name, lat: tonight.lat, lng: tonight.lng, address: tonight.address } : null;
+
+  const dayItems = rows.items
+    .filter((i) => i.date === date)
+    .map((i) => ({ id: i.id, title: i.title, lat: i.lat, lng: i.lng, address: i.address, startTime: i.startTime, sortOrder: i.sortOrder }));
+  const legIds = new Set((dayPlan?.transportEntries ?? []).map((e) => e.transport.id));
+  const dayMap = buildDayMapModel({
+    date,
+    items: dayItems,
+    accommodation: bed,
+    transports: rows.transports
+      .filter((t) => legIds.has(t.id))
+      .map((t) => ({ id: t.id, depPlace: t.depPlace, arrPlace: t.arrPlace, depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng })),
+  });
+
+  // Nearby Wishlist rail: the day's located Items + tonight's bed.
+  const anchors = [
+    ...dayItems.filter((i) => i.lat != null && i.lng != null).map((i) => ({ lat: i.lat!, lng: i.lng! })),
+    ...(bed?.lat != null && bed?.lng != null ? [{ lat: bed.lat, lng: bed.lng }] : []),
+  ];
+  const nearby = nearbyWishlistItems({
+    anchors,
+    candidates: rows.wishlist
+      .filter((w) => w.lat != null && w.lng != null)
+      .map((w) => ({ id: w.id, title: w.title, category: w.category, lat: w.lat!, lng: w.lng! })),
+  });
+
+  return {
+    date,
+    itinerary: trip.itinerary,
+    dayPlan,
+    hasEntries: dayPlan != null && dayHasEntries(dayPlan),
+    freeForm,
+    dayStop,
+    dayTitle: trip.titles.get(date) ?? null,
+    chapter: chapterForDate(date, rows.chapters),
+    dayNumber: dayNumberInTrip(date, rows.startDate),
+    totalDays: dayNumberInTrip(rows.endDate, rows.startDate),
+    accommodations,
+    tonight,
+    attachmentsById: trip.attachmentsById,
+    attachmentsByTarget: trip.attachmentsByTarget,
+    dayMap,
+    itemDirections: buildItemDirections(dayMap),
+    nearby,
+    thingsToDo:
+      freeForm && dayStop
+        ? rows.thingsToDo
+            .filter((t) => t.stopId === dayStop.id)
+            .map(({ id, title, category, startTime, endTime }) => ({ id, title, category, startTime, endTime }))
+        : [],
+    ideasWishlist: dayStop
+      ? dayIdeasWishlist({ stop: { lat: dayStop.lat, lng: dayStop.lng, countryCode: dayStop.countryCode }, candidates: rows.wishlist })
+      : [],
+  };
+}

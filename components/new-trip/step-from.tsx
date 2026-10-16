@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { PlaceCombobox } from "@/components/ui/place-combobox";
 import { CurrencyRow } from "@/components/ui/currency-row";
-import { currencyForCountry } from "@/lib/currency-for-country";
+import { currencyForCountry } from "@/lib/money/currency-for-country";
 import { StepActions, ContinueButton } from "./step-actions";
 import type { StepProps } from "./step-props";
 

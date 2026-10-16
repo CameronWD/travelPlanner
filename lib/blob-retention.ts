@@ -14,7 +14,7 @@ type BlobDeletionClient = Pick<typeof db, "deletedBlob"> | Prisma.TransactionCli
  *
  * 35, not 30: the blob must outlive the OLDEST dump that still references it,
  * with a few days' margin. Sweep with `npm run sweep:blobs` (dry-run by
- * default, --execute to apply), following scripts/sweep-orphaned-costs.ts.
+ * default, --execute to apply), following scripts/archive/sweep-orphaned-costs.ts.
  *
  * `client` defaults to the global `db` but accepts a Prisma transaction
  * handle instead (fix round 1, I3). Pass one when the row this blob's
