@@ -2,8 +2,8 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
-import { getUnreadActivityCount, getRecentActivity } from "@/server/actions/activity";
-import { listForks } from "@/server/actions/forks";
+import { getUnreadActivityCount, getRecentActivity } from "@/lib/activity-reads";
+import { listForks } from "@/lib/fork-reads";
 
 /**
  * Per-request memoised reads shared by the trip layout and the pages under
@@ -15,9 +15,6 @@ import { listForks } from "@/server/actions/forks";
  * the page's own reads — the Day view's header bell count, recent activity
  * and members (DAY_VIEW §3.1), Home's own header — are paid in full. Moving
  * those into data the layout already holds is follow-up NAV-03.
- *
- * server/actions/activity.ts is a "use server" module, whose exports must be
- * plain async functions, so the cache() wrappers live here rather than there.
  */
 export const readUnreadActivityCount = cache((tripId: string) => getUnreadActivityCount(tripId));
 export const readRecentActivity = cache((tripId: string, limit: number) => getRecentActivity(tripId, limit));

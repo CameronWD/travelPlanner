@@ -23,10 +23,11 @@ const { getDayMock, requireTripAccessMock, tripFindUniqueMock, notFoundMock, red
 
 vi.mock("@/lib/day-view-loader", () => ({ getDay: getDayMock, getDayWeatherView: vi.fn() }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-reads", () => ({
   getUnreadActivityCount: vi.fn().mockResolvedValue(4),
   getRecentActivity: vi.fn().mockResolvedValue([]),
 }));
+vi.mock("@/server/actions/activity", () => ({}));
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: tripFindUniqueMock } } }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock, useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));

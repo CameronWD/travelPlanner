@@ -48,13 +48,15 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
   return { ...actual, loadSurpriseVisibility: vi.fn(async () => actual.NO_SURPRISES) };
 });
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-reads", () => ({
   getUnreadActivityCount: vi.fn(async () => 0),
   getRecentActivity: vi.fn(async () => []),
 }));
-vi.mock("@/server/actions/forks", () => ({
+vi.mock("@/server/actions/activity", () => ({}));
+vi.mock("@/lib/fork-reads", () => ({
   listForks: vi.fn(async () => []),
 }));
+vi.mock("@/server/actions/forks", () => ({}));
 vi.mock("@/server/actions/reminders", () => ({
   listRemindersForTrip: vi.fn(async () => []),
 }));

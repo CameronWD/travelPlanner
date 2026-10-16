@@ -84,13 +84,15 @@ vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
 }));
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-reads", () => ({
   getUnreadActivityCount: vi.fn(async () => 0),
   getRecentActivity: vi.fn(async () => []),
 }));
-vi.mock("@/server/actions/forks", () => ({
+vi.mock("@/server/actions/activity", () => ({}));
+vi.mock("@/lib/fork-reads", () => ({
   listForks: vi.fn(async () => []),
 }));
+vi.mock("@/server/actions/forks", () => ({}));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => null }));
 vi.mock("@/components/trip/share-chooser", () => ({ ShareChooserMount: () => null, ShareTripButton: () => null }));

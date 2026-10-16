@@ -20,29 +20,6 @@ import { revalidateTrip } from "@/lib/revalidate";
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
 
-// ---------------------------------------------------------------------------
-// listForks
-// ---------------------------------------------------------------------------
-
-export interface ForkListItem {
-  id: string;
-  name: string;
-  sortOrder: number;
-}
-
-/**
- * List all forks for a trip in sortOrder.
- * Used by the trip layout to populate the ForkSwitcher.
- */
-export async function listForks(tripId: string): Promise<ForkListItem[]> {
-  await requireTripAccess(tripId);
-  return db.fork.findMany({
-    where: { tripId },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true, sortOrder: true },
-  });
-}
-
 export type CreateForkResult = ActionResult<{ forkId: string }>;
 
 /**
