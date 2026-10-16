@@ -31,7 +31,7 @@ vi.mock("@/lib/guards", () => ({
   })),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn() }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn() }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodeMock, geocodePlaceDetailed: geocodeMock, paceNominatim: paceMock }));
 vi.mock("@/lib/db", () => ({
   db: {

@@ -71,7 +71,7 @@ const {
   };
 });
 
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 // requireChecklistItemAccess is now a thin adapter over requireRowAccess

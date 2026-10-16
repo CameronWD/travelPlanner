@@ -17,7 +17,7 @@ const MODULE = "lib/mcp/acting-traveller.ts";
 
 const IMPORTER_ALLOWLIST = [
   "lib/guards.ts",
-  "server/actions/activity.ts",
+  "lib/activity-record.ts",
   "lib/mcp/run-tool.ts",
   "app/api/mcp/route.ts",
 ];

@@ -187,7 +187,7 @@ vi.mock("@/lib/guards", async () => {
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 const paceNominatimMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock, paceNominatim: paceNominatimMock }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -293,7 +293,7 @@ import { recomputeChapterSpans, shiftStopPayloadTx, scheduleLoneStopTx } from ".
 import type { Prisma } from "@prisma/client";
 import { planTripFirmUp } from "@/lib/firm-up";
 import { chapterSpan } from "@/lib/chapter-span";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
   mode: "scheduled" as const,

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  *   - lib/guards       → requireTripAccess, assertForkingAllowed
  *   - lib/trip-phase   → computeTripPhase
  *   - lib/dates        → todayISO
- *   - server/actions/activity → recordActivity
+ *   - lib/activity-record → recordActivity
  *   - lib/revalidate   → revalidateTrip
  */
 
@@ -255,7 +255,7 @@ vi.mock("@/lib/tz", () => ({
   currentTripTimezone: currentTripTimezoneMock,
 }));
 
-vi.mock("@/server/actions/activity", () => ({
+vi.mock("@/lib/activity-record", () => ({
   recordActivity: recordActivityMock,
 }));
 

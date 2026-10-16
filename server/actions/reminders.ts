@@ -9,7 +9,7 @@ import {
   fail,
   validationResult,
 } from "@/lib/action-result";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import { recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";

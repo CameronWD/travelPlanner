@@ -37,7 +37,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: surpriseRootForMock,

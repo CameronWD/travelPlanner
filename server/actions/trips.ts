@@ -16,7 +16,7 @@ import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { todayISO } from "@/lib/dates";
 import { roughStopRows, type RoughStopSeed } from "@/lib/new-trip/rough-stops";
 import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import { revealSurprisesPlannedBy } from "@/lib/surprise-sweep";
 import { recomputeChapterSpans, scheduleLoneStopTx } from "@/server/actions/stop-flow";
 import {

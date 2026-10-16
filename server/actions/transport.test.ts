@@ -137,7 +137,7 @@ vi.mock("@/lib/geocode", () => ({
   geocodePlace: geocodePlaceMock,
   searchPlacesWithStatus: searchPlacesWithStatusMock,
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
   persistRate: persistRateMock,
@@ -185,7 +185,7 @@ import {
   searchPlacesAction,
   reorderTransports,
 } from "./transport";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
   mode: "FLIGHT" as const,

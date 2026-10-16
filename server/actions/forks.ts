@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/money";
 import { requireTripAccess, requireForkAccess, assertForkingAllowed, isTripOwnerOrAdmin } from "@/lib/guards";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";

@@ -90,7 +90,7 @@ vi.mock("@/lib/db", () => ({
     $transaction: transactionMock,
   },
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
@@ -125,7 +125,7 @@ vi.mock("@/lib/guards", () => ({
 }));
 
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "./costs";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 // ---------------------------------------------------------------------------
 // Test fixtures

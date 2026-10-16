@@ -38,7 +38,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "revokeAllowedEmail",
   ],
   "accommodation.ts": ["createAccommodation", "deleteAccommodation", "updateAccommodation"],
-  "activity.ts": ["getRecentActivity", "getUnreadActivityCount", "markAllRead", "recordActivity"],
+  "activity.ts": ["getRecentActivity", "getUnreadActivityCount", "markAllRead"],
   "ai.ts": ["aiDraftPackingList", "aiSuggestActivities"],
   "attachments.ts": ["deleteAttachment", "linkAttachmentToItem", "setAttachmentTitle", "uploadAttachment"],
   "booking-import.ts": ["confirmProposal", "importBooking"],

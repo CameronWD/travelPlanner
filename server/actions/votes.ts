@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { voteLevelSchema, type VoteLevel } from "@/lib/enums";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import { entityLabel, voteSummary } from "@/lib/activity";
 import type { ActionResult } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";

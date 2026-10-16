@@ -7,11 +7,9 @@
  * fork actions directly and are NOT routed through this helper.
  */
 
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity, type RecordActivityInput } from "@/lib/activity-record";
 import { describeChanges, entityLabel, type ActivityEntityType } from "@/lib/activity";
 import type { PlanId } from "@/lib/plan-scope";
-
-type RecordActivityInput = Parameters<typeof recordActivity>[0];
 
 /**
  * Call recordActivity only when forkId is null (real plan).

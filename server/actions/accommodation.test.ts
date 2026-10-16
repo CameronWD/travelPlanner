@@ -127,7 +127,7 @@ vi.mock("@/lib/guards", () => ({
 }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -176,7 +176,7 @@ import {
   updateAccommodation,
   deleteAccommodation,
 } from "./accommodation";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
   stopId: "stop-1",

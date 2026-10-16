@@ -77,7 +77,7 @@ docs/superpowers/plans/  one plan per shipped feature
 
 ## 6. Testing conventions
 
-- DB/auth/cache-touching tests mock `@/lib/db`, `@/lib/guards`, `next/cache` (and `@/server/actions/activity` for activity recording). Follow the patterns already in `server/actions/*.test.ts`.
+- DB/auth/cache-touching tests mock `@/lib/db`, `@/lib/guards`, `next/cache` (and `@/lib/activity-record` for activity recording). Follow the patterns already in `server/actions/*.test.ts`.
 - Pure `lib/` modules get straight unit tests.
 - The full `npx vitest run` occasionally hits a **worker-pool timeout in the sandbox** — not a real failure; re-run, or run targeted files + rely on `tsc`/`build`. Current suite: **~2432 tests, all green.**
 

@@ -6,7 +6,7 @@ const { recordActivityMock } = vi.hoisted(() => ({
   recordActivityMock: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 
 import { auditedUpdate, recordPlanActivity, recordUpdate, type AuditedDelegate } from "./activity-guard";
 

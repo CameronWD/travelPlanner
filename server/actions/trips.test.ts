@@ -206,7 +206,7 @@ vi.mock("@/lib/revalidate", () => ({
   revalidateTrip: revalidateTripMock,
   revalidateTripsList: revalidateTripsListMock,
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 // The lone-Stop rule (ADR 0073) is tested in stop-flow.test.ts; here it is a
 // spy so createTrip/updateTrip's calls are observable.
 const { scheduleLoneStopTxMock } = vi.hoisted(() => ({ scheduleLoneStopTxMock: vi.fn().mockResolvedValue(false) }));

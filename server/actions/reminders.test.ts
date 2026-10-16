@@ -56,7 +56,7 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,

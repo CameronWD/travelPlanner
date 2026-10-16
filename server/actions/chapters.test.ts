@@ -113,10 +113,10 @@ vi.mock("@/lib/db", () => ({
     $transaction: dbTransactionMock,
   },
 }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
 import { createChapter, updateChapter, deleteChapter, suggestChaptersFromCountries, reorderChapters, assignStopToChapter } from "./chapters";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 import type { ChapterInput } from "@/lib/validations/chapter";
 
 const VALID: ChapterInput = { name: "Italy", colour: "rose", startDate: "2026-07-10", endDate: "2026-07-18" };

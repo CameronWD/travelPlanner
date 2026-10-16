@@ -138,7 +138,7 @@ vi.mock("@/lib/guards", () => ({
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
   surpriseRootFor: vi.fn().mockResolvedValue(null),
@@ -211,7 +211,7 @@ import {
   addMarkerToWishlist,
   placeIdeaAtStop,
 } from "./items";
-import { recordActivity } from "@/server/actions/activity";
+import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
   title: "Visit the Museum",
