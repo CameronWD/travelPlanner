@@ -19,6 +19,9 @@ const {
   costFindMany,
   stopFindUnique,
   itemFindUnique,
+  loadAccommodationForMcp,
+  loadTransportForMcp,
+  loadCostForMcp,
 } = vi.hoisted(() => ({
   createAccommodation: vi.fn(),
   updateAccommodation: vi.fn(),
@@ -38,11 +41,16 @@ const {
   costFindMany: vi.fn(),
   stopFindUnique: vi.fn(),
   itemFindUnique: vi.fn(),
+  loadAccommodationForMcp: vi.fn(),
+  loadTransportForMcp: vi.fn(),
+  loadCostForMcp: vi.fn(),
 }));
 
 vi.mock("@/server/actions/accommodation", () => ({ createAccommodation, updateAccommodation, deleteAccommodation }));
 vi.mock("@/server/actions/transport", () => ({ createTransport, updateTransport, deleteTransport }));
 vi.mock("@/server/actions/costs", () => ({ createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid }));
+vi.mock("../reads/entities", () => ({ loadAccommodationForMcp, loadTransportForMcp }));
+vi.mock("../reads/costs", () => ({ loadCostForMcp }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -170,6 +178,9 @@ describe("bookings write tools", () => {
     transportFindUnique.mockResolvedValue(transportRow());
     costFindUnique.mockResolvedValue(costRow());
     itemFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+    loadAccommodationForMcp.mockImplementation(async (id: string) => ({ id }));
+    loadTransportForMcp.mockImplementation(async (id: string) => ({ id }));
+    loadCostForMcp.mockImplementation(async (id: string) => ({ id }));
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -712,6 +723,63 @@ describe("bookings write tools", () => {
       expect(accommodationFindUnique).not.toHaveBeenCalled();
       expect(itemFindUnique).not.toHaveBeenCalled();
       expect(updateCost).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("writes return the row (F6)", () => {
+    const body = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
+
+    beforeEach(() => {
+      transportFindUnique.mockResolvedValue({ tripId: "trip-1" });
+      accommodationFindUnique.mockResolvedValue({ tripId: "trip-1" });
+      costFindUnique.mockResolvedValue({ tripId: "trip-1" });
+    });
+
+    it("add_transport returns the new leg through get_transport", async () => {
+      createTransport.mockResolvedValue({ success: true, id: "tr-new" });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "add_transport", arguments: { tripId: "trip-1", mode: "TRAIN", depAt: "2027-06-04T09:00", arrAt: "2027-06-04T12:00" } });
+      expect(body(r)).toEqual({ transport: { id: "tr-new" } });
+    });
+
+    it("add_cost returns the new Cost in list_costs' shape", async () => {
+      createCost.mockResolvedValue({ success: true, cost: { id: "cost-new" } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "add_cost", arguments: { tripId: "trip-1", costMinor: 1000, currency: "AUD", ownerType: "OTHER", label: "Insurance" } });
+      expect(body(r)).toEqual({ cost: { id: "cost-new" } });
+    });
+
+    it("a refusal before the action reads nothing back", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "add_transport", arguments: { tripId: "trip-1", mode: "TRAIN", depIsHome: true, depPlace: "Central", depAt: "2027-06-04T09:00", arrAt: "2027-06-04T12:00" } });
+      expect(r.isError).toBe(true);
+      expect(loadTransportForMcp).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["add_accommodation", { stopId: "stop-1", name: "Hotel", checkIn: "2027-06-01", checkOut: "2027-06-03" }, () => createAccommodation.mockResolvedValue({ success: true, id: "acc-new" }), { accommodation: { id: "acc-new" } }],
+      ["update_accommodation", { accommodationId: "acc-1", name: "Hotel" }, () => updateAccommodation.mockResolvedValue({ success: true }), { accommodation: { id: "acc-1" } }],
+      ["delete_accommodation", { accommodationId: "acc-1" }, () => deleteAccommodation.mockResolvedValue({ success: true }), { deleted: "acc-1" }],
+      ["update_transport", { transportId: "tr-1", reference: "Q1" }, () => updateTransport.mockResolvedValue({ success: true }), { transport: { id: "tr-1" } }],
+      ["delete_transport", { transportId: "tr-1" }, () => deleteTransport.mockResolvedValue({ success: true }), { deleted: "tr-1" }],
+      ["update_cost", { costId: "cost-1", label: "Cover" }, () => updateCost.mockResolvedValue({ success: true }), { cost: { id: "cost-1" } }],
+      ["delete_cost", { costId: "cost-1" }, () => deleteCost.mockResolvedValue({ success: true }), { deleted: "cost-1" }],
+      ["mark_cost_paid", { costId: "cost-1", paidMinor: 1000, paidAt: "2027-06-01" }, () => markCostPaid.mockResolvedValue({ success: true }), { cost: { id: "cost-1" } }],
+      ["mark_cost_unpaid", { costId: "cost-1" }, () => markCostUnpaid.mockResolvedValue({ success: true }), { cost: { id: "cost-1" } }],
+    ] as const)("%s returns the row as it now stands", async (name, args, prime, expected) => {
+      prime();
+      const c = await connectTestClient();
+      const r = await c.callTool({ name, arguments: args });
+      expect(body(r)).toEqual(expected);
+    });
+
+    it("update_accommodation's more-than-one-Cost refusal reads nothing back", async () => {
+      const { MORE_THAN_ONE_COST } = await import("@/lib/money/cost-patch");
+      updateAccommodation.mockResolvedValue(MORE_THAN_ONE_COST);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: "acc-1", costMinor: 500 } });
+      expect(r.isError).toBe(true);
+      expect(loadAccommodationForMcp).not.toHaveBeenCalled();
     });
   });
 });
