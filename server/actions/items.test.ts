@@ -16,6 +16,7 @@ const {
   itemFindFirstMock,
   itemCreateMock,
   itemUpdateMock,
+  itemUpdateManyMock,
   itemDeleteMock,
   stopFindUniqueMock,
   stopFindManyMock,
@@ -48,10 +49,16 @@ const {
   // scheduleBlobDeletion(keys, tx) — the fake tx needs deletedBlob.createMany
   // so that call has somewhere real to land instead of silently erroring.
   const deletedBlobCreateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  // setOpeningHours (CONTEXT.md "Opening hours") writes the edited row and
+  // shares the family inside one $transaction — the fake tx's `item` shares
+  // the same update/updateMany spies as the top-level db.item mock, so
+  // either call site is observable the same way.
+  const itemUpdateMock = vi.fn();
+  const itemUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
-        item: { delete: itemDeleteMock },
+        item: { delete: itemDeleteMock, update: itemUpdateMock, updateMany: itemUpdateManyMock },
         cost: {
           findMany: costFindManyMock,
           create: costCreateMock,
@@ -86,7 +93,8 @@ const {
     itemFindUniqueMock: vi.fn(),
     itemFindFirstMock: vi.fn(),
     itemCreateMock: vi.fn(),
-    itemUpdateMock: vi.fn(),
+    itemUpdateMock,
+    itemUpdateManyMock,
     itemDeleteMock,
     stopFindUniqueMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
@@ -155,6 +163,7 @@ vi.mock("@/lib/db", () => ({
       findFirst: itemFindFirstMock,
       create: itemCreateMock,
       update: itemUpdateMock,
+      updateMany: itemUpdateManyMock,
       delete: itemDeleteMock,
     },
     stop: {
@@ -210,7 +219,9 @@ import {
   rescheduleItem,
   addMarkerToWishlist,
   placeIdeaAtStop,
+  setOpeningHours,
 } from "./items";
+import { serializeOpeningHours } from "@/lib/validations/opening-hours";
 import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
@@ -2440,5 +2451,84 @@ describe("Slot time with an end time and no start (R3, fix round 1)", () => {
       success: false, errors: { startTime: ["Start time is required when an end time is set"] },
     });
     expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+// Adapted from task-D.3-brief.md to Section S's actual shape (d-as-built.md):
+// the brief assumed a Json column (raw objects in Prisma calls, Prisma.DbNull
+// to clear); S stores Item.openingHours as a JSON string, so the Prisma data
+// carries serializeOpeningHours(...)'s string (or plain `null` to clear, a
+// SQL NULL on a String? column — no Prisma.DbNull needed). setOpeningHours
+// also writes inside one $transaction (ruling), so itemUpdateMock/
+// itemUpdateManyMock are wired into the fake tx too (see the hoisted mocks).
+describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and its placed copies)", () => {
+  const span = [["10:00", "18:00"]] as [string, string][];
+  // Key order matches weekHoursSchema's own field order (sun first): zod's
+  // strictObject output is reordered to the schema's declared key order, so
+  // this must match production's parsed value for the JSON strings to be
+  // byte-identical.
+  const HOURS = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [] };
+  const STORED_HOURS = serializeOpeningHours(HOURS);
+  const row = {
+    id: "copy-1", tripId: "trip-1", forkId: null, stopId: "stop-1", sourceItemId: "idea-1", title: "Lello", category: "SIGHTSEEING",
+    date: "2027-06-02", startTime: null, endTime: null, address: null, link: null, booking: null, notes: null,
+    hiddenFromShares: false, openingHours: null,
+  };
+
+  beforeEach(() => {
+    itemFindUniqueMock.mockResolvedValue(row);
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    itemUpdateMock.mockResolvedValue(row);
+  });
+
+  it("updateItem with hours writes the row and every other row of the family", async () => {
+    expect(await updateItem("copy-1", { openingHours: HOURS })).toMatchObject({ success: true });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", OR: [{ id: "idea-1" }, { sourceItemId: "idea-1" }], id: { not: "copy-1" } },
+      data: { openingHours: STORED_HOURS },
+    });
+  });
+
+  it("updateItem that names no hours keeps them and leaves the family alone", async () => {
+    itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
+    await updateItem("copy-1", { notes: "book ahead" });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem with null clears them for the family, as SQL NULL", async () => {
+    itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
+    await updateItem("copy-1", { openingHours: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: null }) });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({ data: { openingHours: null } }));
+  });
+
+  it("refuses hours with three spans in a day and writes nothing", async () => {
+    const bad = { ...HOURS, week: { ...HOURS.week, mon: [["08:00", "09:00"], ["10:00", "11:00"], ["12:00", "13:00"]] } };
+    const result = await setOpeningHours("copy-1", bad as never);
+    expect(result).toMatchObject({ success: false, errors: { openingHours: expect.any(Array) } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("setOpeningHours writes only the hours, shares them, and revalidates the plan", async () => {
+    expect(await setOpeningHours("copy-1", HOURS)).toEqual({ success: true });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { openingHours: STORED_HOURS } });
+    expect(itemUpdateManyMock).toHaveBeenCalledTimes(1);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+  });
+
+  it("setOpeningHours checks access before writing", async () => {
+    await setOpeningHours("copy-1", HOURS);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+  });
+
+  it("createItem stores hours given on create", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "new-1", title: "Lello" });
+    await createItem("trip-1", { ...VALID_INPUT, title: "Lello", openingHours: HOURS });
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ openingHours: STORED_HOURS }) });
   });
 });

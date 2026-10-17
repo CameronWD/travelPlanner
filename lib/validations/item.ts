@@ -7,6 +7,7 @@ import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate } from "@/lib/validations/primitives";
 import { startFromSlot } from "@/lib/slot-time";
 import { arriveByMinutesSchema, bookBySchema, checkSlotFields, refundableSchema, slotTimeSchema } from "@/lib/validations/planning";
+import { openingHoursSchema } from "@/lib/validations/opening-hours";
 
 /**
  * Zod schema for creating or updating an Item.
@@ -85,6 +86,8 @@ export const itemSchema = z
      * Omitted = leave the Surprise alone; non-empty = set it; empty on a live Surprise = reveal it.
      */
     surpriseForIds: z.array(z.string()).optional(),
+    /** CONTEXT.md "Opening hours" — the place's weekly hours, seasons and closed dates. Omitted = keep; a PATCH null clears. */
+    openingHours: openingHoursSchema.optional(),
 
     // --- Inline cost fields (all optional) ---
 

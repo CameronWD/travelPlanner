@@ -28,6 +28,8 @@ import { isoDate, hhmm } from "@/lib/validations/primitives";
 import { ARRIVE_BY_NEEDS_SLOT_MESSAGE, arriveByMinutesSchema, slotTimeSchema } from "@/lib/validations/planning";
 import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
 import { startFromSlot } from "@/lib/slot-time";
+import { openingHoursSchema, parseOpeningHours, serializeOpeningHours } from "@/lib/validations/opening-hours";
+import { openingHoursFamilyRoot, openingHoursFamilyWhere, type OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -208,6 +210,8 @@ export async function createItem(
       slotTime: data.slotTime ?? null,
       arriveByMinutes: data.arriveByMinutes ?? null,
       refundable: data.refundable ?? null,
+      // CONTEXT.md "Opening hours" (R4): a create has no family yet, so nothing is shared.
+      openingHours: serializeOpeningHours(data.openingHours),
       ...booking,
     },
   });
@@ -371,6 +375,7 @@ export async function updateItem(
         startTime: before.startTime, endTime: before.endTime, address: before.address, link: before.link,
         booking: before.booking, notes: before.notes, hiddenFromShares: before.hiddenFromShares,
         slotTime: before.slotTime, arriveByMinutes: before.arriveByMinutes, refundable: before.refundable,
+        openingHours: parseOpeningHours(before.openingHours),
       },
       patch,
     ),
@@ -438,8 +443,19 @@ export async function updateItem(
     slotTime: data.slotTime ?? null,
     arriveByMinutes: data.arriveByMinutes ?? null,
     refundable: data.refundable ?? null,
+    // CONTEXT.md "Opening hours" (R4): undefined above (patch named no hours
+    // and before had none) serialises as null, same as an explicit clear.
+    openingHours: serializeOpeningHours(data.openingHours),
     ...booking,
   }, item.forkId ?? null, { before });
+
+  // CONTEXT.md "Opening hours": they belong to the place, so a change
+  // reaches the Wishlist idea and every copy placed from it. Only when the
+  // patch actually named them — an edit that doesn't touch them never wipes
+  // or re-touches the rest of the family.
+  if (patch.openingHours !== undefined) {
+    await shareOpeningHours(before, data.openingHours ?? null);
+  }
 
   // Inline cost management (mirrors transport cost logic):
   // 0 existing costs + amount provided → create
@@ -505,6 +521,54 @@ export async function updateItem(
 
   revalidateTrip(item.tripId, "plan", "money");
   return applySurpriseFor(itemId, data.surpriseForIds, before);
+}
+
+/** Every other Item of `item`'s family takes `hours` (CONTEXT.md "Opening hours"). Silent: the edited row's own write carries the Activity. */
+async function shareOpeningHours(
+  item: { id: string; tripId: string; sourceItemId: string | null },
+  hours: OpeningHours | null,
+): Promise<void> {
+  const root = openingHoursFamilyRoot(item);
+  await db.item.updateMany({
+    where: { ...openingHoursFamilyWhere(item.tripId, root), id: { not: item.id } },
+    data: { openingHours: serializeOpeningHours(hours) },
+  });
+}
+
+/**
+ * Set (or, with null, clear) a thing's opening hours (CONTEXT.md "Opening
+ * hours"), for it and every Item sharing its place: the Wishlist idea and
+ * each copy placed from it, in any Plan. Writes only the hours. Unlike a
+ * full `updateItem`, it never re-geocodes the address. The MCP tool
+ * `set_opening_hours` calls this.
+ *
+ * The edited row's own write is audited (it gets the Activity entry); the
+ * updateMany that shares the value with the rest of the family is silent.
+ * Both writes happen in one transaction, so the family can never be left
+ * half-updated.
+ */
+export async function setOpeningHours(itemId: string, hours: OpeningHours | null): Promise<ItemActionResult> {
+  const item = await requireItemAccess(itemId);
+  const parsed = z.object({ openingHours: openingHoursSchema.nullable() }).safeParse({ openingHours: hours });
+  if (!parsed.success) return validationResult(parsed.error);
+  const before = await db.item.findUnique({ where: { id: itemId } });
+  if (!before) notFound();
+  const next = parsed.data.openingHours;
+  const stored = serializeOpeningHours(next);
+  const root = openingHoursFamilyRoot(before);
+
+  const after = await db.$transaction(async (tx) => {
+    const updated = await tx.item.update({ where: { id: itemId }, data: { openingHours: stored } });
+    await tx.item.updateMany({
+      where: { ...openingHoursFamilyWhere(before.tripId, root), id: { not: itemId } },
+      data: { openingHours: stored },
+    });
+    return updated;
+  });
+  await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+
+  revalidateTrip(item.tripId, "plan");
+  return { success: true };
 }
 
 /**
