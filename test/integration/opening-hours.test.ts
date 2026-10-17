@@ -152,6 +152,34 @@ describe.skipIf(process.env.INTEGRATION !== "1")("opening hours are shared by an
       expect(await hoursOf(HIDDEN_COPY)).toEqual(HOURS);
       for (const id of [IDEA, COPY, FORK_COPY, OTHER]) expect(await hoursOf(id)).toBeNull();
     });
+
+    // Fix round 2 (controller ruling): the Surprise can be the Item's own
+    // (HIDDEN_COPY, above) OR inherited from its Stop — surpriseRootFor
+    // resolves both the same way (lib/surprise-guard.ts itemRoot), but
+    // nothing so far exercised the Stop-inheritance path specifically. This
+    // copy's own surprisePlannerId is null; only its Stop is a live Surprise.
+    it("a copy placed in a Surprise Stop doesn't receive the family write (inherited, not its own)", async () => {
+      const SURPRISE_STOP = "it-oh-surprise-stop";
+      const STOP_SURPRISE_COPY = "it-oh-stop-surprise-copy";
+      await db.stop.create({
+        data: {
+          id: SURPRISE_STOP, tripId: TRIP_ID, name: "IT Surprise Stop", timezone: "Europe/Lisbon",
+          arriveDate: "2027-06-05", departDate: "2027-06-06", nights: 1, sortOrder: 1,
+          surprisePlannerId: USER, surpriseForIds: JSON.stringify(["it-oh-surprised-traveller"]), surpriseRevealedAt: null,
+        },
+      });
+      await db.item.create({
+        data: {
+          id: STOP_SURPRISE_COPY, tripId: TRIP_ID, stopId: SURPRISE_STOP, sourceItemId: IDEA,
+          title: "IT Livraria Lello", category: "SIGHTSEEING", date: "2027-06-05", sortOrder: 5,
+          // No surprisePlannerId of its own — the Stop is what makes it hidden.
+        },
+      });
+
+      expect(await setOpeningHours(COPY, HOURS)).toEqual({ success: true });
+      for (const id of [IDEA, COPY, FORK_COPY]) expect(await hoursOf(id)).toEqual(HOURS);
+      expect(await hoursOf(STOP_SURPRISE_COPY)).toBeNull();
+    });
   });
 
   // Fix round 1: a Fork-created copy (buildForkPlan sets sourceItemId: null)

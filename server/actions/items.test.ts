@@ -2583,6 +2583,18 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
     );
   });
 
+  // Fix round 2 (controller ruling): recordActivity writes through the
+  // global db, not tx (lib/activity-record.ts) — recording must wait until
+  // the transaction actually commits, or a family write that fails leaves a
+  // phantom UPDATED entry for a row change that never landed.
+  it("updateItem: when the family updateMany throws, no Activity is recorded and nothing downstream runs", async () => {
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]);
+    itemUpdateManyMock.mockRejectedValueOnce(new Error("boom"));
+    await expect(updateItem("copy-1", { openingHours: HOURS })).rejects.toThrow("boom");
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
+  });
+
   // Fix round 1 (controller ruling): the hours family never crosses a
   // Surprise (CONTEXT.md "Surprise"; ADR 0072) — one test per direction.
   describe("the family never crosses a Surprise", () => {

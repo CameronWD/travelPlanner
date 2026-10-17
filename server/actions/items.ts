@@ -434,40 +434,58 @@ export async function updateItem(
   const openingHoursStored = patch.openingHours !== undefined ? serializeOpeningHours(data.openingHours) : undefined;
   const openingHoursRecipients = patch.openingHours !== undefined ? await openingHoursFamilyRecipients(before) : [];
 
-  // The Item row's update is recorded as soon as it lands; the inline Cost
-  // write below is a separate row and records nothing of its own here. The
-  // family's updateMany (fix round 1) runs in the same transaction as this
-  // row's own write, so the two can never land half-done.
-  await db.$transaction(async (tx) => {
-    await auditedUpdate("ITEM", tx.item, itemId, {
-      stopId: data.stopId ?? null,
-      title: data.title,
-      category: data.category,
-      date: data.date ?? null,
-      startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
-      endTime: data.endTime ?? null,
-      address: data.address ?? null,
-      link: data.link ?? null,
-      booking: data.booking ?? null,
-      notes: data.notes ?? null,
-      lat,
-      lng,
-      countryCode,
-      hiddenFromShares: data.hiddenFromShares ?? false,
-      // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
-      slotTime: data.slotTime ?? null,
-      arriveByMinutes: data.arriveByMinutes ?? null,
-      refundable: data.refundable ?? null,
-      // Omitted entirely when the patch didn't name the hours (fix round 1) —
-      // never present to re-serialise `before`'s value back onto the row.
-      ...(openingHoursStored !== undefined ? { openingHours: openingHoursStored } : {}),
-      ...booking,
-    }, item.forkId ?? null, { before });
+  const itemData = {
+    stopId: data.stopId ?? null,
+    title: data.title,
+    category: data.category,
+    date: data.date ?? null,
+    startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
+    endTime: data.endTime ?? null,
+    address: data.address ?? null,
+    link: data.link ?? null,
+    booking: data.booking ?? null,
+    notes: data.notes ?? null,
+    lat,
+    lng,
+    countryCode,
+    hiddenFromShares: data.hiddenFromShares ?? false,
+    // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
+    slotTime: data.slotTime ?? null,
+    arriveByMinutes: data.arriveByMinutes ?? null,
+    refundable: data.refundable ?? null,
+    // Omitted entirely when the patch didn't name the hours (fix round 1) —
+    // never present to re-serialise `before`'s value back onto the row.
+    ...(openingHoursStored !== undefined ? { openingHours: openingHoursStored } : {}),
+    ...booking,
+  };
 
-    if (openingHoursRecipients.length > 0) {
-      await tx.item.updateMany({ where: { id: { in: openingHoursRecipients } }, data: { openingHours: openingHoursStored } });
-    }
-  });
+  // The Item row's update is recorded as soon as it lands; the inline Cost
+  // write below is a separate row and records nothing of its own here.
+  //
+  // Fix round 2: `recordActivity` writes through the global `db`, not `tx`
+  // (lib/activity-record.ts), so it must never run from inside a
+  // transaction whose other write could still roll back — that would leave
+  // a phantom UPDATED entry for a family write that never actually landed
+  // (lib/activity-guard.ts: "Activity is recorded only after the update
+  // succeeds"). So only the path that actually names the hours opens a
+  // transaction (for its own row write plus the family's, atomically, per
+  // fix round 1), and records the Activity itself, with `recordUpdate`,
+  // only once that transaction has committed — exactly as `setOpeningHours`
+  // already does. The plain path (patch doesn't touch openingHours) needs
+  // no transaction and keeps using `auditedUpdate` as before: Fork silence
+  // and the before/after comparison are `recordUpdate`'s, shared by both.
+  if (patch.openingHours !== undefined) {
+    const after = await db.$transaction(async (tx) => {
+      const updated = await tx.item.update({ where: { id: itemId }, data: itemData });
+      if (openingHoursRecipients.length > 0) {
+        await tx.item.updateMany({ where: { id: { in: openingHoursRecipients } }, data: { openingHours: openingHoursStored } });
+      }
+      return updated;
+    });
+    await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+  } else {
+    await auditedUpdate("ITEM", db.item, itemId, itemData, item.forkId ?? null, { before });
+  }
 
   // Inline cost management (mirrors transport cost logic):
   // 0 existing costs + amount provided → create
