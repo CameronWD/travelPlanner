@@ -15,7 +15,7 @@ import { fail, type ActionFailure } from "@/lib/action-result";
 import { toMcpDayItem, toMcpSurprise, type McpDayItem, type McpSurprise } from "./plan-shapes";
 
 /** One entry of a day's timeline, in the Day view's order (`orderDayEntries`). */
-export type McpDayEntry =
+type McpDayEntry =
   | { kind: "item"; item: McpDayItem }
   | {
       kind: "departure"; transportId: string; mode: string;
