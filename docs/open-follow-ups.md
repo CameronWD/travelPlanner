@@ -495,15 +495,16 @@ naming, doc drift.
 | `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
 | `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
 | `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; the build ledger was scratch and is gone — the as-built notes in `docs/specs/2026-10-14-tidy-up-pass.md` are the record) |
+| `CF-` | **no source doc** — found while building the Claude connection fixes on branch `feat/feedback-tz-enddate-review`, 2026-10-16/17 (`CF-01`–`CF-05`; the as-built notes in `docs/specs/2026-10-16-claude-connection-fixes.md` are the record) |
 
-`SW-`, `CB-`, `RG-` and `TU-` are the prefixes with nothing to follow the citation
+`SW-`, `CB-`, `RG-`, `TU-` and `CF-` are the prefixes with nothing to follow the citation
 back to. Those entries are self-contained: the evidence in them is all the
 evidence there is.
 
 ---
 # Open items
 
-**5 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), ~~`TU-01`~~ (fixed 2026-10-16) and `TU-02` (added 2026-10-16).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**9 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-05` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16 on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -599,8 +600,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   Chapter → the update carries both nulls), plus a `patch-updates`
   integration case that the dates clear.
 
-### TU-02 · Relocating a scheduled Stop through a patch keeps the Stop's old timezone
+### ~~TU-02 · Relocating a scheduled Stop through a patch keeps the Stop's old timezone~~
 
+- **Fixed 2026-10-16** on `feat/feedback-tz-enddate-review` (tasks A.4–A.6, spec 2026-10-16 F3/F9): a patch that says where and sends no zone sends `UNCHOSEN_TIMEZONE`, and `updateStop` resolves the zone from the final point (`resolveStopTimezone`). A Tokyo Stop re-located to Paris gets `Europe/Paris`; a zone sent with the patch still wins.
 - **Priority: P2** · **Effort: S** — one merge rule.
 - **Source:** none — the review of task 3.L.9 (tidy-up batch 3,
   2026-10-16). The old `update_stop` merge did the same, so it is not a
@@ -616,6 +618,85 @@ ADR 0056) is written and unapplied — see the trust statement above.
 - **Fix to decide:** when the patch says where (`saysWhere`) and sends no
   zone, take `stopTimezone` from the new point rather than the row's zone.
   Pin it with a pure case in `lib/stop-patch.test.ts` and an integration case.
+
+### CF-01 · The rough-segment firm-up and `firmUpTrip` date rough Stops in the first Stop's zone
+
+- **Priority: P2** · **Effort: S** — two call sites, one rule.
+- **Source:** none — section A of the Claude connection fixes (notes,
+  decision 7), 2026-10-16. Pre-existing; F3 did not change it.
+- **What:** firming up rough Stops writes each one's zone as
+  `s.timezone ?? tripTz`, where `tripTz` is the first scheduled Stop's zone,
+  not the zone of the rough Stop's own place. A rough Perth Stop firmed on a
+  Trip that starts in Sydney gets `Australia/Sydney`.
+- **Where:** `server/actions/stops.ts`, `firmUpSegment` (`const timezone =
+  s.timezone ?? tripTz`, ~:952) and `firmUpTrip` (`timezone: s.timezone ??
+  tripTz`, ~:1081).
+- **Fix to decide:** resolve through `resolveStopTimezone` from the Stop's
+  own point/country (which both paths geocode already), keeping `tripTz`
+  only as the last fallback. Pin with an integration case.
+
+### CF-02 · The Booking import proposes the country's zone, and confirming it makes that a choice
+
+- **Priority: P2** · **Effort: M** — the proposal has no point today.
+- **Source:** none — section A of the Claude connection fixes (notes,
+  decision 7), 2026-10-16.
+- **What:** a proposed Stop gets `stopTimezone({ countryCode, country })`,
+  the country's zone. Confirming sends it as a chosen zone, so it beats the
+  point lookup: an imported Brisbane hotel's Stop gets `Australia/Sydney`.
+- **Where:** `lib/booking-import/build.ts` ~:318 (proposal), confirmed
+  through `lib/booking-import/confirm.ts` → `createStop`.
+- **Fix to decide:** send `UNCHOSEN_TIMEZONE` from the confirm unless the
+  Traveller changed the proposed zone, so the server resolves from the
+  geocoded point; or geocode in the proposal and preview the point zone.
+
+### CF-03 · `createStop`'s rough append path drops a picked lat/lng
+
+- **Priority: P3** · **Effort: S** — one branch.
+- **Source:** none — section A of the Claude connection fixes (notes,
+  decision 7), 2026-10-16.
+- **What:** adding a rough Stop at the end of the plan always geocodes
+  `name, country` and writes the geocoder's coordinates, discarding the
+  `lat`/`lng` the Traveller picked. The insert path keeps them.
+- **Where:** `server/actions/stops.ts`, the ROUGH APPEND PATH (~:306-334,
+  `appendRoughCoords`).
+- **Fix:** use the input's `lat`/`lng` when both are present and geocode only
+  otherwise, as the insert and scheduled paths do. Test-first in
+  `server/actions/stops.test.ts`.
+
+### CF-04 · A save that moves the Home zone and pulls the end date in gets the end grown back
+
+- **Priority: P2** · **Effort: S** — one condition.
+- **Source:** none — the review of task C.4 of the Claude connection fixes,
+  2026-10-16. Ruling recorded then: skip the grow when the patch sends
+  `endDate`.
+- **What:** `updateTrip` calls `growTripEndTx(tx, tripId, null)` after
+  re-filing Home ends whenever the Home zone moves. If the same save also
+  sets `endDate` earlier than the return leg's landing, the grow undoes the
+  Traveller's own end date — and pulling the end in is the Traveller's call
+  (CONTEXT.md **Hard end date**, spec F4 decision 9).
+- **Where:** `server/actions/trips.ts`, `updateTrip`'s transaction:
+  `if (zoneMove) await growTripEndTx(tx, tripId, null);`.
+- **Fix:** grow only when the patch does not send `endDate`
+  (`if (zoneMove && input.endDate === undefined)`). Test-first in
+  `server/actions/trips.test.ts`, plus a case in
+  `test/integration/home-timezone-refile.test.ts`.
+
+### CF-05 · Claude-facing text names a Fork two ways
+
+- **Priority: P3** · **Effort: S** — wording only.
+- **Source:** none — the review of task C.5 of the Claude connection fixes,
+  2026-10-16.
+- **What:** the MCP server instructions say "What-if plan"
+  (`lib/mcp/server.ts`, "never a What-if plan") and `update_trip`'s
+  description says "every what-if plan", while the domain and code term is
+  **Fork** (CONTEXT.md: "What-if plan" is the on-screen label). Claude should
+  see one name, consistently cased.
+- **Where:** `lib/mcp/server.ts` (instructions), `lib/mcp/tools/trips-stops-write.ts`
+  (`update_trip`), and any other tool description that mentions Plans.
+- **Fix to decide:** pick one term for Claude-facing text ("What-if plan",
+  matching what Travellers see, is the likely pick) and use it everywhere
+  Claude reads, with `lib/mcp/vocab.test.ts` pinning
+  it.
 
 ### RG-01 · The production database dumps were downloadable by anyone while the repository was public
 
