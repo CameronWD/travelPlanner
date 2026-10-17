@@ -803,14 +803,14 @@ model Item {
   refundable      Boolean? // null = not known
   // CONTEXT.md "Opening hours" (R4): JSON as String (schema convention),
   // validated by lib/validations/opening-hours.ts. Copied onto a placed copy
-  // (ideaCopyData) and written to the whole family (lib/opening-hours.ts
-  // openingHoursFamilyWhere), so reads never join through sourceItemId.
+  // (ideaCopyData) and written to the whole family (lib/item-family.ts), so
+  // reads never join through sourceItemId.
   openingHours    String?
   // CONTEXT.md "Try list" (spec 2026-10-17 R6): JSON as String (schema
   // convention), validated by lib/validations/try-list.ts; an empty list is
   // stored as null. Shared like openingHours: copied onto a placed copy
-  // (ideaCopyData) and written to the whole family, so reads never join
-  // through sourceItemId.
+  // (ideaCopyData) and written to the whole family (lib/item-family.ts), so
+  // reads never join through sourceItemId.
   tryList         String?
   sortOrder      Int     @default(0)
   sourceItemId   String?

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  hoursOn, isClosedDate, isEmptyOpeningHours, openingHoursFamilyRoot, openingHoursFamilyWhere,
+  hoursOn, isClosedDate, isEmptyOpeningHours,
   seasonCovers, seasonOn, type OpeningHours, type OpeningSeason, type WeekHours,
 } from "./opening-hours";
 
@@ -124,15 +124,5 @@ describe("isEmptyOpeningHours", () => {
     expect(isEmptyOpeningHours({ week: { mon: [] }, seasons: [], closed: [] })).toBe(false);
     expect(isEmptyOpeningHours({ week: {}, seasons: [WINTER], closed: [] })).toBe(false);
     expect(isEmptyOpeningHours({ week: {}, seasons: [], closed: ["12-25"] })).toBe(false);
-  });
-});
-
-describe("the opening-hours family (a thing to do and its placed copies share them)", () => {
-  it("the root is the source idea for a placed copy, else the Item itself", () => {
-    expect(openingHoursFamilyRoot({ id: "copy-1", sourceItemId: "idea-1" })).toBe("idea-1");
-    expect(openingHoursFamilyRoot({ id: "idea-1", sourceItemId: null })).toBe("idea-1");
-  });
-  it("selects the root and every copy placed from it, in the Trip", () => {
-    expect(openingHoursFamilyWhere("trip-1", "idea-1")).toEqual({ tripId: "trip-1", OR: [{ id: "idea-1" }, { sourceItemId: "idea-1" }] });
   });
 });

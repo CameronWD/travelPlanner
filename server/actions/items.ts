@@ -8,7 +8,7 @@ import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
-import { requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
@@ -29,7 +29,8 @@ import { ARRIVE_BY_NEEDS_SLOT_MESSAGE, arriveByMinutesSchema, slotTimeSchema } f
 import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
 import { startFromSlot } from "@/lib/slot-time";
 import { openingHoursSchema, parseOpeningHours, serializeOpeningHours } from "@/lib/validations/opening-hours";
-import { openingHoursFamilyRoot, openingHoursFamilyWhere, type OpeningHours } from "@/lib/opening-hours";
+import type { OpeningHours } from "@/lib/opening-hours";
+import { itemFamilyRecipients, writeItemFamily, type ItemFamilyData } from "@/lib/item-family";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -422,17 +423,17 @@ export async function updateItem(
     countryCode = candidate?.countryCode?.toLowerCase() ?? null;
   }
 
-  // CONTEXT.md "Opening hours": computed before the write (a plain read, like
-  // the FX-rate resolve above — ADR 0007 keeps network/extra reads outside a
-  // transaction) only when the patch actually names the hours, so a patch
-  // that doesn't touch them never re-serialises `before.openingHours` (which
+  // The Item family's shared columns (lib/item-family.ts: CONTEXT.md "Opening
+  // hours"; T adds the Try list here). Computed before the write — a plain
+  // read, like the FX-rate resolve above (ADR 0007 keeps extra reads outside a
+  // transaction) — and only for the columns the patch actually names, so a
+  // patch that doesn't touch them never re-serialises `before`'s value (which
   // may not even parse — fix round 1) back onto the row, and never re-touches
-  // the family. The family boundary never crosses a Surprise (fix round 1,
-  // CONTEXT.md "Surprise"; ADR 0072): openingHoursFamilyRecipients returns no
-  // one when the edited row is itself a live Surprise, and otherwise leaves
-  // out every row that is.
-  const openingHoursStored = patch.openingHours !== undefined ? serializeOpeningHours(data.openingHours) : undefined;
-  const openingHoursRecipients = patch.openingHours !== undefined ? await openingHoursFamilyRecipients(before) : [];
+  // the family. itemFamilyRecipients never crosses a Surprise (ADR 0072).
+  const familyData: ItemFamilyData = {};
+  if (patch.openingHours !== undefined) familyData.openingHours = serializeOpeningHours(data.openingHours);
+  const sharesWithFamily = Object.keys(familyData).length > 0;
+  const familyRecipients = sharesWithFamily ? await itemFamilyRecipients(before) : [];
 
   const itemData = {
     stopId: data.stopId ?? null,
@@ -453,9 +454,9 @@ export async function updateItem(
     slotTime: data.slotTime ?? null,
     arriveByMinutes: data.arriveByMinutes ?? null,
     refundable: data.refundable ?? null,
-    // Omitted entirely when the patch didn't name the hours (fix round 1) —
-    // never present to re-serialise `before`'s value back onto the row.
-    ...(openingHoursStored !== undefined ? { openingHours: openingHoursStored } : {}),
+    // Only the family columns the patch named (fix round 1) — never present
+    // to re-serialise `before`'s value back onto the row.
+    ...familyData,
     ...booking,
   };
 
@@ -467,19 +468,17 @@ export async function updateItem(
   // transaction whose other write could still roll back — that would leave
   // a phantom UPDATED entry for a family write that never actually landed
   // (lib/activity-guard.ts: "Activity is recorded only after the update
-  // succeeds"). So only the path that actually names the hours opens a
+  // succeeds"). So only the path that names a family column opens a
   // transaction (for its own row write plus the family's, atomically, per
   // fix round 1), and records the Activity itself, with `recordUpdate`,
   // only once that transaction has committed — exactly as `setOpeningHours`
   // already does. The plain path (patch doesn't touch openingHours) needs
   // no transaction and keeps using `auditedUpdate` as before: Fork silence
   // and the before/after comparison are `recordUpdate`'s, shared by both.
-  if (patch.openingHours !== undefined) {
+  if (sharesWithFamily) {
     const after = await db.$transaction(async (tx) => {
       const updated = await tx.item.update({ where: { id: itemId }, data: itemData });
-      if (openingHoursRecipients.length > 0) {
-        await tx.item.updateMany({ where: { id: { in: openingHoursRecipients } }, data: { openingHours: openingHoursStored } });
-      }
+      await writeItemFamily(tx, familyRecipients, familyData);
       return updated;
     });
     await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
@@ -554,42 +553,11 @@ export async function updateItem(
 }
 
 /**
- * The ids of `item`'s opening-hours family (CONTEXT.md "Opening hours") that
- * may actually receive a shared write: every other row sharing its place,
- * minus `item` itself, minus anything the family boundary must never cross.
- *
- * Fix round 1 (controller ruling): the hours family never crosses a
- * Surprise (CONTEXT.md "Surprise"; ADR 0072). If `item` is itself, right
- * now, inside a live Surprise — its own, or inherited from its Stop — the
- * write must reach only that row, so this returns no one at all (the
- * family is skipped). Otherwise every candidate that is itself inside a
- * live Surprise is left out of the list, so a visible edit never reaches a
- * hidden copy and a hidden copy's edit never reaches a visible row. Used by
- * both `updateItem` and `setOpeningHours`.
- */
-async function openingHoursFamilyRecipients(
-  item: { id: string; tripId: string; sourceItemId: string | null },
-): Promise<string[]> {
-  if (await surpriseRootFor({ itemId: item.id })) return [];
-  const root = openingHoursFamilyRoot(item);
-  const candidates = await db.item.findMany({
-    where: { ...openingHoursFamilyWhere(item.tripId, root), id: { not: item.id } },
-    select: { id: true },
-  });
-  const recipients: string[] = [];
-  for (const c of candidates) {
-    if (!(await surpriseRootFor({ itemId: c.id }))) recipients.push(c.id);
-  }
-  return recipients;
-}
-
-/**
  * Set (or, with null, clear) a thing's opening hours (CONTEXT.md "Opening
  * hours"), for it and every Item sharing its place: the Wishlist idea and
  * each copy placed from it, in any Plan — except across a Surprise boundary
- * (fix round 1; see `openingHoursFamilyRecipients`). Writes only the hours.
- * Unlike a full `updateItem`, it never re-geocodes the address. The MCP tool
- * `set_opening_hours` calls this.
+ * (lib/item-family.ts). Writes only the hours. Unlike a full `updateItem`, it
+ * never re-geocodes the address. The MCP tool `set_opening_hours` calls this.
  *
  * The edited row's own write is audited (it gets the Activity entry); the
  * updateMany that shares the value with the rest of the family is silent.
@@ -604,13 +572,11 @@ export async function setOpeningHours(itemId: string, hours: OpeningHours | null
   if (!before) notFound();
   const next = parsed.data.openingHours;
   const stored = serializeOpeningHours(next);
-  const recipients = await openingHoursFamilyRecipients(before);
+  const recipients = await itemFamilyRecipients(before);
 
   const after = await db.$transaction(async (tx) => {
     const updated = await tx.item.update({ where: { id: itemId }, data: { openingHours: stored } });
-    if (recipients.length > 0) {
-      await tx.item.updateMany({ where: { id: { in: recipients } }, data: { openingHours: stored } });
-    }
+    await writeItemFamily(tx, recipients, { openingHours: stored });
     return updated;
   });
   await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
@@ -719,7 +685,7 @@ async function finishPlacedCopy({
  * idea — source link, title/category, coordinates, address, link, notes, the
  * share-hidden flag and the place's Opening hours (spec 2026-10-17 R4: shared
  * by the family — each row holds a copy and writes go to all of them,
- * lib/opening-hours.ts openingHoursFamilyWhere). The idea's CHOSEN Booking
+ * lib/item-family.ts). The idea's CHOSEN Booking
  * state carries over, with its book-by date while To book; an un-chosen
  * idea's copy re-derives without the reference (never copied), so it needs
  * no booking (lib/booking-state-patch.ts copiedBookingFields). The ticket's

@@ -3273,7 +3273,7 @@ each is a one-file follow-up.
   changing the season count produces the same before/after Activity text.
 - **PM-02 · The opening-hours family recipients are read before the write's
   transaction.** `setOpeningHours` (`server/actions/items.ts` ~607) calls
-  `openingHoursFamilyRecipients(before)` ahead of `db.$transaction`, so a row
+  `itemFamilyRecipients(before)` (`lib/item-family.ts`) ahead of `db.$transaction`, so a row
   that joins or leaves the family between that read and the commit is
   harmless today (the set is small and stable) but not strictly correct.
 - **PM-03 · An overdue book-by shows the same as a future one.**

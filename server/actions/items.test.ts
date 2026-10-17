@@ -2477,7 +2477,7 @@ describe("Slot time with an end time and no start (R3, fix round 1)", () => {
 // itemUpdateManyMock are wired into the fake tx too (see the hoisted mocks).
 //
 // Fix round 1 (controller ruling): the family write now goes through
-// openingHoursFamilyRecipients, which reads the candidate ids via
+// itemFamilyRecipients (lib/item-family.ts), which reads the candidate ids via
 // db.item.findMany (itemFindManyMock) before excluding anything inside a
 // live Surprise, so the family updateMany targets `{ id: { in: [...] } }`
 // rather than the raw family `where` — itemFindManyMock stands in for the
@@ -2501,7 +2501,7 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     itemUpdateMock.mockResolvedValue(row);
     // The family's only other member, as db.item.findMany would return it
-    // (id only — openingHoursFamilyRecipients selects nothing else).
+    // (id only — itemFamilyRecipients (lib/item-family.ts) selects nothing else).
     itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]);
   });
 
