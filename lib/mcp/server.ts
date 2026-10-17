@@ -9,6 +9,7 @@ import { registerReadTools } from "./tools/reads";
 import { registerTripStopWriteTools } from "./tools/trips-stops-write";
 import { registerPlanWriteTools } from "./tools/plan-write";
 import { registerBookingsWriteTools } from "./tools/bookings-write";
+import { registerBookingStateTools } from "./tools/booking-state-write";
 import { registerListWriteTools } from "./tools/lists-write";
 import { registerMakeItFitTools } from "./tools/make-it-fit";
 import { registerPrompts } from "./prompts";
@@ -39,6 +40,7 @@ export function buildMcpServer(): McpServer {
   registerTripStopWriteTools(server);
   registerPlanWriteTools(server);
   registerBookingsWriteTools(server);
+  registerBookingStateTools(server);
   registerListWriteTools(server);
   registerMakeItFitTools(server);
   registerPrompts(server);
