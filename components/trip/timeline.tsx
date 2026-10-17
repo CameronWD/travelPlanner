@@ -37,6 +37,7 @@ import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { SlotFacts } from "@/components/trip/slot-facts";
+import { OpeningHoursLine } from "@/components/trip/opening-hours-line";
 import type { ItemDirections } from "@/lib/day-map";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
@@ -88,6 +89,8 @@ export interface TimelineProps {
    * which stay read-only.
    */
   editor?: DayEntryEditor;
+  /** The trip's today (Stop-local). A row on that date says "Open … today". */
+  todayISO?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,9 +108,11 @@ export function Timeline({
   attachmentsByTarget,
   showUnschedule,
   editor,
+  todayISO,
 }: TimelineProps) {
   const isDay = variant === "day";
   const large = size === "large";
+  const today = todayISO !== undefined && todayISO === day.dateISO;
 
   if (!dayHasEntries(day)) {
     // Day variant: the kit empty treatment. Agenda (one card per day on the
@@ -176,6 +181,7 @@ export function Timeline({
                 attachments={attachmentsByTarget?.[entry.item.id] ?? []}
                 showUnschedule={unschedule}
                 editor={editor}
+                today={today}
               />
             );
           default:
@@ -201,6 +207,7 @@ export function Timeline({
                   attachments={attachmentsByTarget?.[it.id] ?? []}
                   showUnschedule={unschedule}
                   editor={editor}
+                  today={today}
                 />
               ))}
             </div>
@@ -430,6 +437,7 @@ function TimedItemRow({
   attachments,
   showUnschedule,
   editor,
+  today,
 }: {
   entry: ItemEntry;
   large?: boolean;
@@ -437,6 +445,7 @@ function TimedItemRow({
   attachments: AttachmentView[];
   showUnschedule?: boolean;
   editor?: DayEntryEditor;
+  today?: boolean;
 }) {
   const { item } = entry;
   const timeLabel = item.endTime
@@ -452,6 +461,7 @@ function TimedItemRow({
         attachments={attachments}
         showUnschedule={showUnschedule}
         editor={editor}
+        today={today}
       />
     </DayRow>
   );
@@ -464,6 +474,7 @@ function UntimedItemRow({
   attachments,
   showUnschedule,
   editor,
+  today,
 }: {
   entry: ItemEntry;
   large?: boolean;
@@ -471,6 +482,7 @@ function UntimedItemRow({
   attachments: AttachmentView[];
   showUnschedule?: boolean;
   editor?: DayEntryEditor;
+  today?: boolean;
 }) {
   const { item } = entry;
 
@@ -483,6 +495,7 @@ function UntimedItemRow({
         attachments={attachments}
         showUnschedule={showUnschedule}
         editor={editor}
+        today={today}
       />
     </DayRow>
   );
@@ -565,6 +578,7 @@ function DayItemBody({
   attachments,
   showUnschedule,
   editor,
+  today,
 }: {
   item: ItemEntry["item"];
   timeLabel: string | null | undefined;
@@ -572,6 +586,7 @@ function DayItemBody({
   attachments: AttachmentView[];
   showUnschedule?: boolean;
   editor?: DayEntryEditor;
+  today?: boolean;
 }) {
   // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to open or move.
   const placeholder = item.surprise?.youAreSurprised ?? false;
@@ -606,6 +621,7 @@ function DayItemBody({
         {timeLabel && <span className="tabular-nums">{timeLabel}</span>}
         <SlotFacts item={item} />
         {item.address && <span className="min-w-0 break-words">{item.address}</span>}
+        <OpeningHoursLine hours={item.openingHours} dateISO={item.date} today={today} />
         {item.hiddenFromShares && (
           <span role="img" aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0">
             <EyeOff className="size-3.5" aria-hidden="true" />

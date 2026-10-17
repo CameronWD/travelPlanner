@@ -328,3 +328,22 @@ describe("ItemCard Slot time (spec 2026-10-17 R3)", () => {
     expect(screen.getByText("Non-refundable")).toBeInTheDocument();
   });
 });
+
+describe("ItemCard Opening hours", () => {
+  const span = [["10:00", "18:00"]] as [string, string][];
+  const HOURS = { week: { mon: [] as [string, string][], tue: span, wed: span, thu: span, fri: span, sat: span, sun: span }, seasons: [], closed: [] };
+
+  it("shows the day's hours (scheduled mode)", () => {
+    render(
+      <ItemCard mode="scheduled" item={{ id: "i1", title: "Lello", category: "SIGHTSEEING", date: "2027-05-31", openingHours: HOURS }} />,
+    );
+    expect(screen.getByText("Closed on Mondays")).toBeInTheDocument();
+  });
+
+  it("shows the line in wishlist mode only once a date is set", () => {
+    const { rerender } = render(<ItemCard mode="wishlist" item={{ ...baseItem, openingHours: HOURS }} />);
+    expect(screen.queryByTestId("opening-hours-line")).not.toBeInTheDocument();
+    rerender(<ItemCard mode="wishlist" item={{ ...baseItem, date: "2027-05-31", openingHours: HOURS }} />);
+    expect(screen.getByText("Closed on Mondays")).toBeInTheDocument();
+  });
+});

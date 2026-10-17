@@ -27,6 +27,7 @@ import { highlightAttrs } from "./card-highlight";
 import { ItemPhotoThumb } from "./item-photo-thumb";
 import { BookingStateBadge } from "./booking-state-badge";
 import { SlotFacts } from "./slot-facts";
+import { OpeningHoursLine } from "./opening-hours-line";
 import type { ItemCardItem } from "@/lib/plan-entity-views";
 
 export type { ItemCardItem };
@@ -243,6 +244,7 @@ export function ItemCard({
             </span>
           )}
           <SlotFacts item={item} highlight={highlight} />
+          <OpeningHoursLine hours={item.openingHours} dateISO={item.date} />
           <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} />
         </div>
       )}
@@ -287,6 +289,8 @@ export function ItemCard({
           <p className={cn(expanded ? "whitespace-pre-wrap" : "line-clamp-2")}>{item.notes}</p>
         </div>
       )}
+
+      {wishlist && item.date && <OpeningHoursLine hours={item.openingHours} dateISO={item.date} />}
 
       {/* Vote control (wishlist mode only) — inline, no border-t */}
       {mode === "wishlist" && votes !== undefined && tripId && currentUserId && (

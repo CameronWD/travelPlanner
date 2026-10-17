@@ -1259,3 +1259,25 @@ describe("Slot time on the Timeline (spec 2026-10-17 R3)", () => {
     expect(screen.getByText("Non-refundable")).toBeInTheDocument();
   });
 });
+
+describe("Opening hours on the Timeline", () => {
+  const span = [["10:00", "18:00"]] as [string, string][];
+  const HOURS = { week: { mon: span, tue: span, wed: span, thu: span, fri: span, sat: span, sun: span }, seasons: [], closed: [] };
+
+  it("says 'today' only when todayISO matches the day", () => {
+    const day: DayPlan = {
+      ...dayPlan,
+      dateISO: "2027-06-02",
+      timedItems: [
+        {
+          kind: "item",
+          item: { ...dayPlan.timedItems[0]!.item, date: "2027-06-02", openingHours: HOURS },
+        },
+      ],
+    };
+    const { rerender } = render(<Timeline day={day} variant="day" todayISO="2027-06-02" />);
+    expect(screen.getByText("Open 10:00–18:00 today")).toBeInTheDocument();
+    rerender(<Timeline day={day} variant="day" todayISO="2027-06-01" />);
+    expect(screen.getByText("Open 10:00–18:00")).toBeInTheDocument();
+  });
+});
