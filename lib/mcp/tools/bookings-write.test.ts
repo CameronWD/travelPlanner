@@ -397,6 +397,26 @@ describe("bookings write tools", () => {
       expect(updateTransport).toHaveBeenCalledWith(TRANSPORT_ID, { bookingState: "TO_BOOK", bookBy: null });
     });
 
+    it("update_transport and update_accommodation take bookBy null as the clear, and say so", async () => {
+      updateTransport.mockResolvedValue({ success: true });
+      loadTransportForMcp.mockResolvedValue({ id: TRANSPORT_ID });
+      transportFindUnique.mockResolvedValue(transportRow());
+      accommodationFindUnique.mockResolvedValue(accommodationRow());
+      updateAccommodation.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const leg = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, bookBy: null } });
+      expect(leg.isError).toBeFalsy();
+      expect(updateTransport).toHaveBeenCalledWith(TRANSPORT_ID, { bookBy: null });
+      const stay = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, bookBy: null } });
+      expect(stay.isError).toBeFalsy();
+      expect(updateAccommodation).toHaveBeenCalledWith(ACCOMMODATION_ID, { bookBy: null });
+      const { tools } = await c.listTools();
+      for (const name of ["update_transport", "update_accommodation"]) {
+        const bookBy = (tools.find((t) => t.name === name)!.inputSchema.properties as Record<string, { description?: string }>).bookBy;
+        expect(bookBy.description).toMatch(/null clears it/);
+      }
+    });
+
     it("update_accommodation takes bookingState null as back to automatic", async () => {
       accommodationFindUnique.mockResolvedValue(accommodationRow());
       updateAccommodation.mockResolvedValue({ success: true });

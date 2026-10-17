@@ -39,12 +39,13 @@ export const bookingPatchShape = {
     ),
   bookBy: z
     .union([isoDate, z.literal("")])
+    .nullable()
     .optional()
-    .describe('YYYY-MM-DD: the day it should be booked by, only while TO_BOOK. "" clears it.'),
+    .describe('YYYY-MM-DD: the day it should be booked by, only while TO_BOOK. null clears it ("" does too).'),
 };
 
-/** An update tool's `bookBy: ""` is the PATCH clear (ADR 0075 `null`). */
-export function bookingPatchFrom<T extends { bookBy?: string }>(patch: T): Omit<T, "bookBy"> & { bookBy?: string | null } {
+/** An update tool's `bookBy: null` is the PATCH clear (ADR 0075); `""` is an alias for it. */
+export function bookingPatchFrom<T extends { bookBy?: string | null }>(patch: T): Omit<T, "bookBy"> & { bookBy?: string | null } {
   if (patch.bookBy !== "") return patch;
   return { ...patch, bookBy: null };
 }

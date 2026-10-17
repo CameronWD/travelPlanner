@@ -226,6 +226,14 @@ describe("plan write tools", () => {
       expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { bookingState: "TO_BOOK", bookBy: null });
     });
 
+    it("update_thing_to_do takes bookBy null as the clear", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, bookBy: null } });
+      expect(r.isError).toBeFalsy();
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, expect.objectContaining({ bookBy: null }));
+    });
+
     it("add_thing_to_do forwards bookingState and bookBy", async () => {
       createItem.mockResolvedValue({ success: true, id: "item-new" });
       const c = await connectTestClient();
