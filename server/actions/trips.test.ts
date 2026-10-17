@@ -1180,6 +1180,26 @@ describe("updateTrip", () => {
       expect(refileHomeEndsTxMock.mock.invocationCallOrder[0]).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
     });
 
+    it("CF-04: a zone move with the end date re-sent unchanged may grow the soft end", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ ...home, startDate: "2026-12-01", endDate: "2026-12-10" });
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane", startDate: "2026-12-01", endDate: "2026-12-10" });
+
+      expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null);
+    });
+
+    it("CF-04: a zone move in the same save that pulls the end date in does not re-grow it", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ ...home, startDate: "2026-12-01", endDate: "2026-12-10" });
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane", startDate: "2026-12-01", endDate: "2026-12-08" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ endDate: "2026-12-08" }) }));
+      expect(refileHomeEndsTxMock).toHaveBeenCalled();
+      expect(growTripEndTxMock).not.toHaveBeenCalled();
+    });
+
     it("records one Activity line that says the times were kept", async () => {
       tripFindUniqueMock.mockResolvedValueOnce(home);
       tripUpdateMock.mockResolvedValue({});

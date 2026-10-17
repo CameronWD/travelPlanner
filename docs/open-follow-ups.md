@@ -504,7 +504,7 @@ evidence there is.
 ---
 # Open items
 
-**9 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-05` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16 on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**8 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-03` and `CF-05` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -663,8 +663,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   otherwise, as the insert and scheduled paths do. Test-first in
   `server/actions/stops.test.ts`.
 
-### CF-04 · A save that moves the Home zone and pulls the end date in gets the end grown back
+### ~~CF-04 · A save that moves the Home zone and pulls the end date in gets the end grown back~~
 
+- **Fixed 2026-10-17** on `feat/feedback-tz-enddate-review` (final review of the Claude connection fixes): `updateTrip` grows the soft end after a Home zone move only when the save leaves `endDate` unchanged — `(endDate ?? null) === (before.endDate ?? null)`. "Not sent" was the wrong test, since the Settings form re-sends `endDate` on every save. Pinned in `server/actions/trips.test.ts` and `test/integration/home-timezone-refile.test.ts`.
 - **Priority: P2** · **Effort: S** — one condition.
 - **Source:** none — the review of task C.4 of the Claude connection fixes,
   2026-10-16. Ruling recorded then: skip the grow when the patch sends

@@ -91,4 +91,14 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Home timezone change keeps H
     const after = await db.transport.findMany({ where: { tripId: TRIP_ID }, orderBy: { id: "asc" } });
     expect(after.map((t) => [t.id, t.depAt, t.arrAt])).toEqual(before.map((t) => [t.id, t.depAt, t.arrAt]));
   });
+
+  it("CF-04: a zone move that pulls the end date in keeps the Traveller's end, not the return landing", async () => {
+    // The return leg lands 2026-12-25 at Home; this save moves the zone back
+    // and sets the end a day earlier — the grow must not undo it.
+    expect(await updateTrip(TRIP_ID, { homeTimezone: SYD, endDate: "2026-12-24" })).toMatchObject({ success: true });
+    expect((await db.trip.findUnique({ where: { id: TRIP_ID }, select: { endDate: true, homeTimezone: true } }))).toEqual({
+      endDate: "2026-12-24",
+      homeTimezone: SYD,
+    });
+  });
 });

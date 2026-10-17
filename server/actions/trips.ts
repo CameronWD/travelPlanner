@@ -406,8 +406,11 @@ export async function updateTrip(
           await scheduleLoneStopTx(tx, tripId, forkId, "follow");
         }
       }
-      // F4: the return leg's landing, read in the new Home zone, may grow the soft end.
-      if (zoneMove) await growTripEndTx(tx, tripId, null);
+      // F4: the return leg's landing, read in the new Home zone, may grow the
+      // soft end — unless this save set the end date itself (CF-04). The
+      // Settings form re-sends endDate on every save, so the test is
+      // "unchanged", not "not sent": an end the Traveller just pulled in stays.
+      if (zoneMove && (endDate ?? null) === (before.endDate ?? null)) await growTripEndTx(tx, tripId, null);
     });
   } else {
     await db.trip.update(update);
