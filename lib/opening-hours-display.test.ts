@@ -75,4 +75,24 @@ describe("summaries", () => {
       "Mon 10:00–18:00 · Tue closed · Wed–Fri 10:00–18:00 · Sat 09:00–12:00, 14:00–18:00 · Sun closed · 1 season · 1 closed date",
     );
   });
+
+  // Fix round 1 (controller ruling): an empty week (nothing entered) must
+  // not say "Hours not set" when there's a season or a closed date to lead
+  // with instead — only a fully empty set says "Hours not set" alone.
+  it("openingHoursSummary drops 'Hours not set' when seasons or closed dates exist", () => {
+    expect(openingHoursSummary({ week: {}, seasons: [{ from: "11-01", to: "03-31", week: {} }], closed: [] })).toBe("1 season");
+    expect(openingHoursSummary({ week: {}, seasons: [], closed: ["12-25"] })).toBe("1 closed date");
+    expect(openingHoursSummary({
+      week: {},
+      seasons: [{ from: "11-01", to: "03-31", week: {} }, { from: "06-01", to: "08-31", week: {} }],
+      closed: ["12-25"],
+    })).toBe("2 seasons · 1 closed date");
+    expect(openingHoursSummary({ week: {}, seasons: [], closed: [] })).toBe("Hours not set");
+    // An explicitly all-closed week is a real fact, not "not set" — still said alongside seasons.
+    expect(openingHoursSummary({
+      week: { sun: [], mon: [], tue: [], wed: [], thu: [], fri: [], sat: [] },
+      seasons: [{ from: "11-01", to: "03-31", week: HOURS.week }],
+      closed: [],
+    })).toBe("Closed every day · 1 season");
+  });
 });

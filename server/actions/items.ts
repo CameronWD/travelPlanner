@@ -8,7 +8,7 @@ import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
-import { requireOutsideSurprise } from "@/lib/surprise-guard";
+import { requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
@@ -422,40 +422,52 @@ export async function updateItem(
     countryCode = candidate?.countryCode?.toLowerCase() ?? null;
   }
 
-  // The Item row's update is recorded as soon as it lands; the inline Cost
-  // write below is a separate row and records nothing of its own here.
-  await auditedUpdate("ITEM", db.item, itemId, {
-    stopId: data.stopId ?? null,
-    title: data.title,
-    category: data.category,
-    date: data.date ?? null,
-    startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
-    endTime: data.endTime ?? null,
-    address: data.address ?? null,
-    link: data.link ?? null,
-    booking: data.booking ?? null,
-    notes: data.notes ?? null,
-    lat,
-    lng,
-    countryCode,
-    hiddenFromShares: data.hiddenFromShares ?? false,
-    // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
-    slotTime: data.slotTime ?? null,
-    arriveByMinutes: data.arriveByMinutes ?? null,
-    refundable: data.refundable ?? null,
-    // CONTEXT.md "Opening hours" (R4): undefined above (patch named no hours
-    // and before had none) serialises as null, same as an explicit clear.
-    openingHours: serializeOpeningHours(data.openingHours),
-    ...booking,
-  }, item.forkId ?? null, { before });
+  // CONTEXT.md "Opening hours": computed before the write (a plain read, like
+  // the FX-rate resolve above — ADR 0007 keeps network/extra reads outside a
+  // transaction) only when the patch actually names the hours, so a patch
+  // that doesn't touch them never re-serialises `before.openingHours` (which
+  // may not even parse — fix round 1) back onto the row, and never re-touches
+  // the family. The family boundary never crosses a Surprise (fix round 1,
+  // CONTEXT.md "Surprise"; ADR 0072): openingHoursFamilyRecipients returns no
+  // one when the edited row is itself a live Surprise, and otherwise leaves
+  // out every row that is.
+  const openingHoursStored = patch.openingHours !== undefined ? serializeOpeningHours(data.openingHours) : undefined;
+  const openingHoursRecipients = patch.openingHours !== undefined ? await openingHoursFamilyRecipients(before) : [];
 
-  // CONTEXT.md "Opening hours": they belong to the place, so a change
-  // reaches the Wishlist idea and every copy placed from it. Only when the
-  // patch actually named them — an edit that doesn't touch them never wipes
-  // or re-touches the rest of the family.
-  if (patch.openingHours !== undefined) {
-    await shareOpeningHours(before, data.openingHours ?? null);
-  }
+  // The Item row's update is recorded as soon as it lands; the inline Cost
+  // write below is a separate row and records nothing of its own here. The
+  // family's updateMany (fix round 1) runs in the same transaction as this
+  // row's own write, so the two can never land half-done.
+  await db.$transaction(async (tx) => {
+    await auditedUpdate("ITEM", tx.item, itemId, {
+      stopId: data.stopId ?? null,
+      title: data.title,
+      category: data.category,
+      date: data.date ?? null,
+      startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
+      endTime: data.endTime ?? null,
+      address: data.address ?? null,
+      link: data.link ?? null,
+      booking: data.booking ?? null,
+      notes: data.notes ?? null,
+      lat,
+      lng,
+      countryCode,
+      hiddenFromShares: data.hiddenFromShares ?? false,
+      // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
+      slotTime: data.slotTime ?? null,
+      arriveByMinutes: data.arriveByMinutes ?? null,
+      refundable: data.refundable ?? null,
+      // Omitted entirely when the patch didn't name the hours (fix round 1) —
+      // never present to re-serialise `before`'s value back onto the row.
+      ...(openingHoursStored !== undefined ? { openingHours: openingHoursStored } : {}),
+      ...booking,
+    }, item.forkId ?? null, { before });
+
+    if (openingHoursRecipients.length > 0) {
+      await tx.item.updateMany({ where: { id: { in: openingHoursRecipients } }, data: { openingHours: openingHoursStored } });
+    }
+  });
 
   // Inline cost management (mirrors transport cost logic):
   // 0 existing costs + amount provided → create
@@ -523,23 +535,42 @@ export async function updateItem(
   return applySurpriseFor(itemId, data.surpriseForIds, before);
 }
 
-/** Every other Item of `item`'s family takes `hours` (CONTEXT.md "Opening hours"). Silent: the edited row's own write carries the Activity. */
-async function shareOpeningHours(
+/**
+ * The ids of `item`'s opening-hours family (CONTEXT.md "Opening hours") that
+ * may actually receive a shared write: every other row sharing its place,
+ * minus `item` itself, minus anything the family boundary must never cross.
+ *
+ * Fix round 1 (controller ruling): the hours family never crosses a
+ * Surprise (CONTEXT.md "Surprise"; ADR 0072). If `item` is itself, right
+ * now, inside a live Surprise — its own, or inherited from its Stop — the
+ * write must reach only that row, so this returns no one at all (the
+ * family is skipped). Otherwise every candidate that is itself inside a
+ * live Surprise is left out of the list, so a visible edit never reaches a
+ * hidden copy and a hidden copy's edit never reaches a visible row. Used by
+ * both `updateItem` and `setOpeningHours`.
+ */
+async function openingHoursFamilyRecipients(
   item: { id: string; tripId: string; sourceItemId: string | null },
-  hours: OpeningHours | null,
-): Promise<void> {
+): Promise<string[]> {
+  if (await surpriseRootFor({ itemId: item.id })) return [];
   const root = openingHoursFamilyRoot(item);
-  await db.item.updateMany({
+  const candidates = await db.item.findMany({
     where: { ...openingHoursFamilyWhere(item.tripId, root), id: { not: item.id } },
-    data: { openingHours: serializeOpeningHours(hours) },
+    select: { id: true },
   });
+  const recipients: string[] = [];
+  for (const c of candidates) {
+    if (!(await surpriseRootFor({ itemId: c.id }))) recipients.push(c.id);
+  }
+  return recipients;
 }
 
 /**
  * Set (or, with null, clear) a thing's opening hours (CONTEXT.md "Opening
  * hours"), for it and every Item sharing its place: the Wishlist idea and
- * each copy placed from it, in any Plan. Writes only the hours. Unlike a
- * full `updateItem`, it never re-geocodes the address. The MCP tool
+ * each copy placed from it, in any Plan — except across a Surprise boundary
+ * (fix round 1; see `openingHoursFamilyRecipients`). Writes only the hours.
+ * Unlike a full `updateItem`, it never re-geocodes the address. The MCP tool
  * `set_opening_hours` calls this.
  *
  * The edited row's own write is audited (it gets the Activity entry); the
@@ -555,14 +586,13 @@ export async function setOpeningHours(itemId: string, hours: OpeningHours | null
   if (!before) notFound();
   const next = parsed.data.openingHours;
   const stored = serializeOpeningHours(next);
-  const root = openingHoursFamilyRoot(before);
+  const recipients = await openingHoursFamilyRecipients(before);
 
   const after = await db.$transaction(async (tx) => {
     const updated = await tx.item.update({ where: { id: itemId }, data: { openingHours: stored } });
-    await tx.item.updateMany({
-      where: { ...openingHoursFamilyWhere(before.tripId, root), id: { not: itemId } },
-      data: { openingHours: stored },
-    });
+    if (recipients.length > 0) {
+      await tx.item.updateMany({ where: { id: { in: recipients } }, data: { openingHours: stored } });
+    }
     return updated;
   });
   await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });

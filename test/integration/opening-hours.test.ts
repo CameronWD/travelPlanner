@@ -11,18 +11,29 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null) }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
-vi.mock("@/lib/guards", () => ({
-  requireUser: vi.fn(async () => ({ id: "it-oh-user" })),
-  requireTripAccess: vi.fn(async () => ({ user: { id: "it-oh-user" }, membership: { role: "owner" } })),
-  requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-oh-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
-  requireRowAccess: vi.fn(async (kind: string, id: string) => {
-    const { db } = await import("@/lib/db");
-    const delegate = (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind];
-    const row = await delegate.findUnique({ where: { id } });
-    if (!row) throw new Error("NOT_FOUND");
-    return { row, user: { id: "it-oh-user" }, membership: { role: "owner" }, surpriseOf: null };
-  }),
-}));
+vi.mock("@/lib/guards", async () => {
+  // Fix round 1: the Fork-copy integration case below calls createFork,
+  // which also needs assertForkingAllowed/isTripOwnerOrAdmin/
+  // requireForkAccess — spread the real module rather than hand-rolling
+  // every export lib/guards.ts happens to have.
+  const actual = await vi.importActual<typeof import("@/lib/guards")>("@/lib/guards");
+  return {
+    ...actual,
+    requireUser: vi.fn(async () => ({ id: "it-oh-user" })),
+    requireTripAccess: vi.fn(async () => ({ user: { id: "it-oh-user" }, membership: { role: "owner" } })),
+    requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-oh-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
+    requireRowAccess: vi.fn(async (kind: string, id: string) => {
+      const { db } = await import("@/lib/db");
+      const delegate = (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind];
+      const row = await delegate.findUnique({ where: { id } });
+      if (!row) throw new Error("NOT_FOUND");
+      return { row, user: { id: "it-oh-user" }, membership: { role: "owner" }, surpriseOf: null };
+    }),
+  };
+});
+// surpriseRootFor is left as the REAL implementation (only
+// requireOutsideSurprise, the route-guard half, is faked): the hours
+// family's Surprise boundary (fix round 1) runs the real query here.
 vi.mock("@/lib/surprise-guard", async () => ({
   ...(await vi.importActual<object>("@/lib/surprise-guard")),
   requireOutsideSurprise: vi.fn(async () => null),
@@ -30,6 +41,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 
 import { db } from "@/lib/db";
 import { scheduleItem, setOpeningHours, updateItem } from "@/server/actions/items";
+import { createFork } from "@/server/actions/forks";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
 
 const USER = "it-oh-user";
@@ -111,5 +123,54 @@ describe.skipIf(process.env.INTEGRATION !== "1")("opening hours are shared by an
     expect(await hoursOf(placed.placedItemId)).toEqual(HOURS);
     await setOpeningHours(COPY, null);
     expect(await hoursOf(placed.placedItemId)).toBeNull();
+  });
+
+  // Fix round 1 (controller ruling): the hours family never crosses a
+  // Surprise (CONTEXT.md "Surprise"; ADR 0072) — one test per direction,
+  // against the real surpriseRootFor query.
+  describe("the family never crosses a Surprise", () => {
+    const HIDDEN_COPY = "it-oh-hidden-copy"; // another placement of IDEA, live and unrevealed
+
+    beforeEach(async () => {
+      await db.item.create({
+        data: {
+          id: HIDDEN_COPY, tripId: TRIP_ID, stopId: PORTO, sourceItemId: IDEA, title: "IT Livraria Lello",
+          category: "SIGHTSEEING", date: "2027-06-04", sortOrder: 4,
+          surprisePlannerId: USER, surpriseForIds: JSON.stringify(["it-oh-surprised-traveller"]), surpriseRevealedAt: null,
+        },
+      });
+    });
+
+    it("a visible idea edit leaves the hidden copy untouched", async () => {
+      expect(await setOpeningHours(COPY, HOURS)).toEqual({ success: true });
+      for (const id of [IDEA, COPY, FORK_COPY]) expect(await hoursOf(id)).toEqual(HOURS);
+      expect(await hoursOf(HIDDEN_COPY)).toBeNull();
+    });
+
+    it("a hidden copy edit leaves the visible idea and its visible siblings untouched", async () => {
+      expect(await setOpeningHours(HIDDEN_COPY, HOURS)).toEqual({ success: true });
+      expect(await hoursOf(HIDDEN_COPY)).toEqual(HOURS);
+      for (const id of [IDEA, COPY, FORK_COPY, OTHER]) expect(await hoursOf(id)).toBeNull();
+    });
+  });
+
+  // Fix round 1: a Fork-created copy (buildForkPlan sets sourceItemId: null)
+  // takes a snapshot at fork time and leaves the family — a later family
+  // write must never reach it.
+  it("a Fork-created copy (sourceItemId null) is left alone by a family write", async () => {
+    await setOpeningHours(COPY, HOURS);
+    const forked = await createFork(TRIP_ID, "IT Snapshot");
+    expect(forked.success).toBe(true);
+    if (!forked.success) throw new Error("expected createFork to succeed");
+
+    const forkedCopy = await db.item.findFirst({
+      where: { tripId: TRIP_ID, forkId: forked.forkId, title: "IT Livraria Lello", date: "2027-06-02" },
+    });
+    expect(forkedCopy).not.toBeNull();
+    expect(forkedCopy!.sourceItemId).toBeNull(); // left the family (lib/fork-plan.ts)
+    expect(await hoursOf(forkedCopy!.id)).toEqual(HOURS); // snapshot carried the hours at fork time
+
+    await setOpeningHours(IDEA, null);
+    expect(await hoursOf(forkedCopy!.id)).toEqual(HOURS); // unaffected by the family's later clear
   });
 });

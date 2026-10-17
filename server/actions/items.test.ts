@@ -14,6 +14,7 @@ const {
   geocodePlaceDetailedMock,
   itemFindUniqueMock,
   itemFindFirstMock,
+  itemFindManyMock,
   itemCreateMock,
   itemUpdateMock,
   itemUpdateManyMock,
@@ -92,6 +93,9 @@ const {
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
     itemFindFirstMock: vi.fn(),
+    // Opening hours (CONTEXT.md "Opening hours"; fix round 1): the family-
+    // recipients lookup, before the Surprise boundary check narrows it.
+    itemFindManyMock: vi.fn().mockResolvedValue([]),
     itemCreateMock: vi.fn(),
     itemUpdateMock,
     itemUpdateManyMock,
@@ -117,6 +121,10 @@ const {
 });
 
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// Opening hours (CONTEXT.md "Opening hours"; fix round 1): the family write
+// never crosses a Surprise. Defaults to "not a Surprise" (null); tests that
+// exercise the boundary resolve it per item id.
+const surpriseRootForMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 // requireItemAccess is now a thin adapter over requireRowAccess (Task 4) —
 // forward to the same itemFindUniqueMock/requireTripAccessMock/
 // requireOutsideSurpriseMock every test already seeds, so existing
@@ -149,7 +157,7 @@ vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
-  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootFor: surpriseRootForMock,
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/lib/money/fx", () => ({
@@ -161,6 +169,7 @@ vi.mock("@/lib/db", () => ({
     item: {
       findUnique: itemFindUniqueMock,
       findFirst: itemFindFirstMock,
+      findMany: itemFindManyMock,
       create: itemCreateMock,
       update: itemUpdateMock,
       updateMany: itemUpdateManyMock,
@@ -237,6 +246,8 @@ beforeEach(() => {
   });
   getUserGlobeMock.mockResolvedValue({ id: "g1" });
   requireOutsideSurpriseMock.mockResolvedValue(null);
+  surpriseRootForMock.mockResolvedValue(null);
+  itemFindManyMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -1970,7 +1981,10 @@ describe("updateItem: inline cost update/create", () => {
 
     await updateItem("iu-4", VALID_INPUT);
 
-    expect(transactionMock).not.toHaveBeenCalled();
+    // Fix round 1: updateItem now wraps its own row write in a transaction
+    // (so the Opening hours family write can share it), so transactionMock
+    // itself is called regardless — the Cost-specific mocks are what this
+    // test is actually about.
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
@@ -2461,6 +2475,13 @@ describe("Slot time with an end time and no start (R3, fix round 1)", () => {
 // SQL NULL on a String? column — no Prisma.DbNull needed). setOpeningHours
 // also writes inside one $transaction (ruling), so itemUpdateMock/
 // itemUpdateManyMock are wired into the fake tx too (see the hoisted mocks).
+//
+// Fix round 1 (controller ruling): the family write now goes through
+// openingHoursFamilyRecipients, which reads the candidate ids via
+// db.item.findMany (itemFindManyMock) before excluding anything inside a
+// live Surprise, so the family updateMany targets `{ id: { in: [...] } }`
+// rather than the raw family `where` — itemFindManyMock stands in for the
+// real family membership query throughout this block.
 describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and its placed copies)", () => {
   const span = [["10:00", "18:00"]] as [string, string][];
   // Key order matches weekHoursSchema's own field order (sun first): zod's
@@ -2479,21 +2500,41 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
     itemFindUniqueMock.mockResolvedValue(row);
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     itemUpdateMock.mockResolvedValue(row);
+    // The family's only other member, as db.item.findMany would return it
+    // (id only — openingHoursFamilyRecipients selects nothing else).
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]);
   });
 
   it("updateItem with hours writes the row and every other row of the family", async () => {
     expect(await updateItem("copy-1", { openingHours: HOURS })).toMatchObject({ success: true });
     expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: STORED_HOURS }) });
-    expect(itemUpdateManyMock).toHaveBeenCalledWith({
+    expect(itemFindManyMock).toHaveBeenCalledWith({
       where: { tripId: "trip-1", OR: [{ id: "idea-1" }, { sourceItemId: "idea-1" }], id: { not: "copy-1" } },
-      data: { openingHours: STORED_HOURS },
+      select: { id: true },
     });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: STORED_HOURS } });
   });
 
   it("updateItem that names no hours keeps them and leaves the family alone", async () => {
     itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
     await updateItem("copy-1", { notes: "book ahead" });
-    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+    const call = itemUpdateMock.mock.calls[0][0] as { where: unknown; data: Record<string, unknown> };
+    expect(call).toMatchObject({ where: { id: "copy-1" }, data: { notes: "book ahead" } });
+    // Fix round 1: the patch never named the hours, so the key is entirely
+    // absent from the write — not re-included with the same value.
+    expect(call.data).not.toHaveProperty("openingHours");
+    expect(itemFindManyMock).not.toHaveBeenCalled(); // never even looks up the family
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a notes-only edit never re-serialises (and so never wipes) corrupt stored hours", async () => {
+    // Fix round 1: before.openingHours doesn't parse (parseOpeningHours → null),
+    // so if the write ever re-serialised it, the corrupt value would be wiped
+    // to SQL NULL even though the patch never named openingHours.
+    itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: "not valid json" });
+    await updateItem("copy-1", { notes: "book ahead" });
+    const call = itemUpdateMock.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty("openingHours");
     expect(itemUpdateManyMock).not.toHaveBeenCalled();
   });
 
@@ -2501,7 +2542,7 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
     itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
     await updateItem("copy-1", { openingHours: null });
     expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: null }) });
-    expect(itemUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({ data: { openingHours: null } }));
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: null } });
   });
 
   it("refuses hours with three spans in a day and writes nothing", async () => {
@@ -2515,6 +2556,7 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
   it("setOpeningHours writes only the hours, shares them, and revalidates the plan", async () => {
     expect(await setOpeningHours("copy-1", HOURS)).toEqual({ success: true });
     expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { openingHours: STORED_HOURS } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: STORED_HOURS } });
     expect(itemUpdateManyMock).toHaveBeenCalledTimes(1);
     expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
@@ -2523,6 +2565,48 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
   it("setOpeningHours checks access before writing", async () => {
     await setOpeningHours("copy-1", HOURS);
     expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+  });
+
+  it("setOpeningHours records an Activity entry", async () => {
+    // The mock's `update` doesn't simulate a real write, so hand it back the
+    // row as it would actually look afterwards — recordUpdate diffs
+    // before/after, and `before` (row) still carries openingHours: null.
+    itemUpdateMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
+    await setOpeningHours("copy-1", HOURS);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "ITEM",
+        entityId: "copy-1",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "openingHours" })]),
+      }),
+    );
+  });
+
+  // Fix round 1 (controller ruling): the hours family never crosses a
+  // Surprise (CONTEXT.md "Surprise"; ADR 0072) — one test per direction.
+  describe("the family never crosses a Surprise", () => {
+    it("a visible idea edit leaves a hidden copy untouched", async () => {
+      itemFindManyMock.mockResolvedValue([{ id: "idea-1" }, { id: "hidden-copy" }]);
+      surpriseRootForMock.mockImplementation(async (ref: { itemId?: string }) =>
+        ref.itemId === "hidden-copy" ? { type: "ITEM", id: "hidden-copy" } : null,
+      );
+      await updateItem("copy-1", { openingHours: HOURS });
+      expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: STORED_HOURS } });
+    });
+
+    it("a hidden copy edit leaves the visible idea and its visible siblings untouched", async () => {
+      itemFindManyMock.mockResolvedValue([{ id: "idea-1" }, { id: "other-copy" }]);
+      surpriseRootForMock.mockImplementation(async (ref: { itemId?: string }) =>
+        ref.itemId === "copy-1" ? { type: "ITEM", id: "copy-1" } : null,
+      );
+      await updateItem("copy-1", { openingHours: HOURS });
+      // The edited row is itself a Surprise: the write reaches only it, and
+      // never even looks up the rest of the family.
+      expect(itemFindManyMock).not.toHaveBeenCalled();
+      expect(itemUpdateManyMock).not.toHaveBeenCalled();
+      expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+    });
   });
 
   it("createItem stores hours given on create", async () => {

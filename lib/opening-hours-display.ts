@@ -93,9 +93,19 @@ export function weeklySummary(week: WeekHours): string {
     .join(" · ");
 }
 
-/** One line for the whole set: the usual week, then how many seasons and closed dates. */
+/**
+ * One line for the whole set: the usual week, then how many seasons and
+ * closed dates. Fix round 1 (controller ruling): nothing entered for the
+ * week ("not known") is only worth saying when there is nothing else to
+ * say — a seasons-only or closed-dates-only set leads with those instead of
+ * reading "Hours not set · 1 season".
+ */
 export function openingHoursSummary(hours: OpeningHours): string {
-  const parts = [weeklySummary(hours.week)];
+  const weekKnown = Object.keys(hours.week).length > 0;
+  const parts: string[] = [];
+  if (weekKnown || (hours.seasons.length === 0 && hours.closed.length === 0)) {
+    parts.push(weeklySummary(hours.week));
+  }
   const n = (count: number, one: string, many: string) => (count === 1 ? `1 ${one}` : `${count} ${many}`);
   if (hours.seasons.length > 0) parts.push(n(hours.seasons.length, "season", "seasons"));
   if (hours.closed.length > 0) parts.push(n(hours.closed.length, "closed date", "closed dates"));
