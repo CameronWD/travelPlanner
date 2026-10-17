@@ -16,7 +16,8 @@ const stop = (o: Partial<McpStopRow> = {}): McpStopRow => ({
 });
 const item = (o: Partial<McpItemRow> = {}): McpItemRow => ({
   id: "i1", title: "Tour", category: "ACTIVITY", date: null, startTime: null, endTime: null,
-  address: null, link: null, booking: null, notes: null, stopId: null, bookingState: "NONE", bookBy: null, ...o,
+  address: null, link: null, booking: null, notes: null, stopId: null, bookingState: "NONE", bookBy: null,
+  openingHours: null, ...o,
 });
 const surpriseView = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true } as never;
 
@@ -77,12 +78,41 @@ describe("withPlaceholders", () => {
   });
 });
 
+// Task D.11 (CONTEXT.md "Opening hours"). The brief's fixture used the
+// Section D brief's assumed shape (weekly/closedDates, numeric weekday keys);
+// d-as-built.md is authoritative, so this uses S's actual vocabulary instead:
+// `week` keyed sun..sat (absent = not known, [] = closed) and `closed`.
+describe("opening hours (CONTEXT.md Opening hours)", () => {
+  const span = [["10:00", "18:00"]];
+  const hours = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [] };
+
+  it("a thing to do and a day item read the stored hours; a bad stored value reads as none", () => {
+    const { stops } = buildMcpStops({
+      stops: [stop()],
+      thingsToDo: [item({ id: "t1", stopId: "s1", openingHours: hours })],
+      datedItems: [{ ...item({ id: "d1", date: "2027-06-02", openingHours: { week: "?" } }), surprise: null }],
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+    });
+    expect(stops[0].thingsToDo[0].openingHours).toEqual(hours);
+    expect(stops[0].days.find((d) => d.date === "2027-06-02")!.items[0].openingHours).toBeNull();
+  });
+
+  it("a hidden Surprise's placeholder never carries hours", () => {
+    const out = withPlaceholders([], {
+      placeholderItems: [placeholder()],
+      views: { stops: new Map(), items: new Map() },
+    });
+    expect(out[0].openingHours).toBeNull();
+  });
+});
+
 describe("toMcpItem / toMcpTransport", () => {
   it("toMcpItem carries the date and owning Stop alongside the day-item fields", () => {
     expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1" }), surprise: null }, noFiles)).toEqual({
       id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
       bookingState: "NONE", bookBy: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN",
+      openingHours: null,
     });
   });
 

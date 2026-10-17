@@ -9,6 +9,8 @@ import { runAsTraveller } from "@/lib/mcp/acting-traveller";
 import { loadTripPlanForMcp } from "@/lib/mcp/reads/trip-plan";
 import { loadAccommodationForMcp, loadItemForMcp, loadStopForMcp, loadTransportForMcp, readMcpStops } from "@/lib/mcp/reads/entities";
 import { loadDayForMcp } from "@/lib/mcp/reads/day";
+import { serializeOpeningHours } from "@/lib/validations/opening-hours";
+import type { HoursSpan } from "@/lib/opening-hours";
 
 const OWNER = "it-narrow-owner";
 const MEMBER = "it-narrow-member";
@@ -160,6 +162,31 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect(memberDay.timeline).toContainEqual(expect.objectContaining({ kind: "item", item: expect.objectContaining({ id: GIFT, title: "Surprise", slotTime: null, refundable: "UNKNOWN" }) }));
     const plan = await as(MEMBER)(() => loadTripPlanForMcp(TRIP_ID));
     expect(JSON.stringify(plan)).not.toContain("19:15");
+  });
+
+  // Task D.11 (CONTEXT.md "Opening hours"). The brief's fixture assumed the
+  // D brief's shape (weekly/closedDates, sourceUrl); d-as-built.md is
+  // authoritative, so this stores S's real `week`/`seasons`/`closed`/`source`
+  // shape, serialized to the stored JSON string column.
+  it("get_item, get_trip_plan and get_day read a thing's opening hours; a hidden Surprise's never leave", async () => {
+    const span: HoursSpan[] = [["10:00", "18:00"]];
+    const hours = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [] };
+    await db.item.update({ where: { id: TOUR }, data: { openingHours: serializeOpeningHours(hours) } });
+    await db.item.update({ where: { id: TASTING }, data: { openingHours: serializeOpeningHours(hours) } });
+    await db.item.update({ where: { id: GIFT }, data: { openingHours: serializeOpeningHours({ ...hours, source: "https://it-gift-dinner.example" }) } });
+
+    const plan = await as(OWNER)(() => loadTripPlanForMcp(TRIP_ID));
+    const porto = plan.stops.find((s) => s.id === PORTO)!;
+    expect(porto.days.find((d) => d.date === "2027-06-02")!.items.find((i) => i.id === TOUR)!.openingHours).toEqual(hours);
+    expect(porto.thingsToDo.find((t) => t.id === TASTING)!.openingHours).toEqual(hours);
+    expect((await as(OWNER)(() => loadItemForMcp(TOUR))).openingHours).toEqual(hours);
+    const day = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-02"));
+    if ("success" in day) throw new Error("expected a day");
+    expect(day.timeline).toContainEqual(expect.objectContaining({ kind: "item", item: expect.objectContaining({ id: TOUR, openingHours: hours }) }));
+
+    const memberPlan = await as(MEMBER)(() => loadTripPlanForMcp(TRIP_ID));
+    const memberDay = await as(MEMBER)(() => loadDayForMcp(TRIP_ID, "2027-06-03"));
+    expect(JSON.stringify([memberPlan, memberDay])).not.toContain("it-gift-dinner");
   });
 
   it("get_day on a Trip with a start date but no end date is the no-dates tool error, not a one-day Trip", async () => {

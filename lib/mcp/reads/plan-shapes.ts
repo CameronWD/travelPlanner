@@ -9,6 +9,8 @@
 import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/lib/stop-days";
 import { transportTimeDisplay } from "@/lib/time-display";
 import type { BookingState } from "@/lib/enum-values";
+import type { OpeningHours } from "@/lib/opening-hours";
+import { readStoredOpeningHours } from "@/lib/opening-hours-stored";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
 import type { McpFileRef } from "./attachments";
@@ -66,6 +68,8 @@ interface McpThingToDo {
   arriveByMinutes: number | null;
   /** YES, NO or UNKNOWN (not known). */
   refundable: McpRefundable;
+  /** CONTEXT.md "Opening hours": week (sun..sat), seasons and closed dates, in the Stop's local time; null = not known. */
+  openingHours: OpeningHours | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -90,6 +94,8 @@ export interface McpDayItem {
   arriveByMinutes: number | null;
   /** YES, NO or UNKNOWN (not known). */
   refundable: McpRefundable;
+  /** CONTEXT.md "Opening hours": week (sun..sat), seasons and closed dates, in the Stop's local time; null = not known. */
+  openingHours: OpeningHours | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -221,6 +227,7 @@ export const MCP_THING_TO_DO_SELECT = {
   id: true, title: true, category: true, startTime: true, endTime: true,
   address: true, link: true, booking: true, notes: true, stopId: true,
   bookingState: true, bookBy: true, slotTime: true, arriveByMinutes: true, refundable: true,
+  openingHours: true,
 } as const;
 
 export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } as const;
@@ -262,6 +269,8 @@ export interface McpItemRow {
   address: string | null; link: string | null; booking: string | null; notes: string | null; stopId: string | null;
   bookingState: string; bookBy: string | null;
   slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null;
+  /** The stored column (a JSON string), or already-parsed (get_day's rows) — see `readStoredOpeningHours`. */
+  openingHours?: unknown;
 }
 
 export interface McpTransportRow {
@@ -299,6 +308,7 @@ function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: S
   return {
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
     notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, ...mcpSlot(i),
+    openingHours: readStoredOpeningHours(i.openingHours),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
   };
 }
@@ -310,12 +320,17 @@ export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor): McpDayItem {
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
     bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
+    openingHours: readStoredOpeningHours(i.openingHours ?? null),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
 }
 
 export function toMcpItem(i: McpItemRow & { surprise: SurpriseView | null }, filesFor: FilesFor): McpItem {
-  return { ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState }, filesFor), date: i.date, stopId: i.stopId };
+  return {
+    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState } as unknown as StopDayItem, filesFor),
+    date: i.date,
+    stopId: i.stopId,
+  };
 }
 
 type DatedItem = McpItemRow & { surprise: SurpriseView | null };
@@ -338,6 +353,7 @@ export function withPlaceholders(
         address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId,
         bookingState: p.bookingState, bookBy: p.bookBy,
         slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable,
+        openingHours: p.openingHours,
         surprise: p.surprise,
       })),
   ].sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0));
