@@ -4,6 +4,8 @@ import * as React from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { LegLabel } from "@/lib/plan/leg-label";
+import { BookingStateBadge } from "@/components/trip/booking-state-badge";
+import type { BookingState } from "@/lib/enum-values";
 
 export interface LegRowProps {
   kind: "legs" | "missing" | "line";
@@ -76,10 +78,12 @@ export interface LegPillProps {
   label: LegLabel;
   onClick(): void;
   compact?: boolean;
+  bookingState?: BookingState | null;
+  bookBy?: string | null;
 }
 
 /** A single leg on the strip: a real transport, or the dashed "missing" prompt (PLAN.md §2). */
-export function LegPill({ label, onClick, compact }: LegPillProps) {
+export function LegPill({ label, onClick, compact, bookingState, bookBy }: LegPillProps) {
   const Icon = label.icon;
   return (
     <button
@@ -110,6 +114,7 @@ export function LegPill({ label, onClick, compact }: LegPillProps) {
           {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
           <span className="min-w-0 truncate">{label.label}</span>
           {label.sub ? <span className="shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
+          <BookingStateBadge state={bookingState} bookBy={bookBy} compact />
         </>
       )}
     </button>

@@ -20,6 +20,7 @@ import { PresenceDiv } from "./presence";
 import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
 import { IdeaPickerMenu } from "./idea-picker-menu";
 import { SurpriseBadge } from "./surprise-badge";
+import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import type { ThingToDo } from "./types";
 
 /** dnd-kit draggable id prefix for a scheduled Item row (the plan page's drag handler reads the row's `data`, never its id). */
@@ -82,10 +83,12 @@ function shortDayLabel(dateISO: string): string {
 }
 
 function daySummary(items: StopDayItem[], costsById: Map<string, CostRow[]> | undefined, homeCurrency: string | undefined): string {
-  const booked = items.filter((i) => i.booking).length;
+  const booked = items.filter((i) => i.bookingState === "BOOKED").length;
+  const toBook = items.filter((i) => i.bookingState === "TO_BOOK").length;
   const costs = items.flatMap((i) => costsById?.get(i.id) ?? []);
   const parts = [plural(items.length, "plan")];
   if (booked > 0) parts.push(`${booked} booked`);
+  if (toBook > 0) parts.push(`${toBook} to book`);
   if (costs.length > 0 && homeCurrency) {
     const total = sumMinorToHome(
       costs.map((c) => ({ amountMinor: c.costMinor, currency: c.currency })),
@@ -258,11 +261,12 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
       )}
       <div className="flex shrink-0 items-center gap-1.5">
         {item.surprise && <SurpriseBadge view={item.surprise} size="sm" className="shrink-0 whitespace-nowrap" />}
-        {item.booking && (
+        {item.bookingState === "BOOKED" && (
           <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-teal/15 px-2 text-xs font-bold">
             Booked <Check className="size-3" />
           </span>
         )}
+        <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} compact />
         {rowCost && <span className="shrink-0 whitespace-nowrap text-xs font-bold tabular-nums">{rowCost}</span>}
         {item.photoUrl && <ItemPhotoThumb src={item.photoUrl} alt={item.title} />}
         {item.hiddenFromShares && (

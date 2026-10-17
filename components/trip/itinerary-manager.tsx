@@ -1318,6 +1318,8 @@ export function ItineraryManager({
         key={t.id}
         compact={compact}
         label={legLabel(t, stops, homeBaseName, homeTimezone)}
+        bookingState={t.bookingState}
+        bookBy={t.bookBy}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);

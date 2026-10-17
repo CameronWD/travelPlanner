@@ -26,7 +26,7 @@ const money = (minor: number, currency: string) => formatMoney(minor, currency).
 
 const ITEMS = [
   { id: "a", title: "Café Kitsuné", category: "FOOD", date: "2026-12-11", startTime: "09:00", address: "Palais Royal" },
-  { id: "b", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", booking: "LVR-123", notes: "Richelieu entrance" },
+  { id: "b", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", booking: "LVR-123", bookingState: "BOOKED" as const, notes: "Richelieu entrance" },
   { id: "c", title: "Picnic", category: "FOOD", date: "2026-12-11", hiddenFromShares: true },
 ];
 const IDEAS = [
@@ -386,5 +386,17 @@ describe("DaySection, Surprise Items (CONTEXT.md Surprise)", () => {
     expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Edit Surprise/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Drag Surprise/ })).toBeNull();
+  });
+});
+
+describe("DaySection Booking state (spec 2026-10-17 R2)", () => {
+  it("Booked follows the Booking state, not the reference; To book shows on the row and in the summary", () => {
+    renderDay({ items: [
+      { ...ITEMS[0], booking: "BK-1", bookingState: "TO_BOOK" as const },
+      { ...ITEMS[2], booking: null, bookingState: "BOOKED" as const },
+    ] });
+    expect(screen.getAllByText(/^Booked/)).toHaveLength(1);
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText(/1 booked · 1 to book/)).toBeInTheDocument();
   });
 });

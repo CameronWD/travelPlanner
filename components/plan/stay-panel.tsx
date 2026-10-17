@@ -5,6 +5,7 @@ import { BedDouble, Check, Hash, Paperclip, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { MapLink } from "@/components/trip/map-link";
+import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { nightsBetween } from "@/lib/dates";
 import {
   costPaidState,
@@ -83,6 +84,11 @@ function StayBlock({
         <p className="flex items-center gap-1 font-mono">
           <Hash className="size-3 shrink-0" aria-hidden="true" />
           {a.confirmation}
+        </p>
+      )}
+      {a.bookingState === "TO_BOOK" && (
+        <p className="flex items-center gap-1.5">
+          <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
         </p>
       )}
       {cost && (

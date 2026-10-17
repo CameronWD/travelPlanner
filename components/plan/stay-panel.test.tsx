@@ -148,4 +148,14 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
     expect(screen.getByRole("button", { name: "Hôtel Grands Boulevards" }).className).toContain("truncate");
     expect(screen.getByText("17 Bd Poissonnière, Paris").className).toContain("truncate");
   });
+
+  it("a stay still to book says To book beside its cost line", () => {
+    render(<StayPanel {...props({ accommodations: [{ ...HOTEL, bookingState: "TO_BOOK" }] })} />);
+    expect(within(screen.getByTestId("stay-block")).getByText("To book")).toBeInTheDocument();
+  });
+
+  it("a Booked stay shows no To book badge", () => {
+    render(<StayPanel {...props({ accommodations: [{ ...HOTEL, bookingState: "BOOKED" }] })} />);
+    expect(within(screen.getByTestId("stay-block")).queryByText("To book")).not.toBeInTheDocument();
+  });
 });
