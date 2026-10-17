@@ -8,6 +8,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
 import { recordActivity } from "@/lib/activity-record";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
@@ -493,6 +494,10 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
     homeTimezone: shell.homeTimezone,
   };
 
+  // Spec 2026-10-17 R7: every plan's book-by Flags count from the Trip's own
+  // today, the real plan's (planData[0]), so the columns compare like with like.
+  const today = tripTodayISO(planData[0].stops);
+
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {
     const { stops, transports, accommodations, items, costs, exchangeRates } = planData[i];
 
@@ -518,6 +523,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
       costs,
       trip: tripFields,
       exchangeRates,
+      today,
     });
     return { forkId, name, metrics };
   });

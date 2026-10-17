@@ -262,6 +262,9 @@ vi.mock("@/lib/tz", () => ({
   currentTripTimezone: currentTripTimezoneMock,
 }));
 
+const tripTodayISOMock = vi.hoisted(() => vi.fn(() => "2026-09-20"));
+vi.mock("@/lib/trip-today", () => ({ tripTodayISO: tripTodayISOMock }));
+
 vi.mock("@/lib/activity-record", () => ({
   recordActivity: recordActivityMock,
 }));
@@ -1355,6 +1358,15 @@ describe("getComparison", () => {
 
       expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     });
+  });
+
+  it("measures every plan against the real plan's today (spec 2026-10-17 R7)", async () => {
+    forkFindManyMock.mockResolvedValue([{ id: "fork-a", name: "Fork A" }]);
+    stopsByPlan = { real: [{ id: "s-real", name: "Real", timezone: "Europe/Rome", arriveDate: "2026-10-01", departDate: "2026-10-04", sortOrder: 0, nights: null, pinned: false, country: null, lat: null, lng: null }] };
+    await getComparison("trip-1");
+    expect(tripTodayISOMock).toHaveBeenCalledWith([expect.objectContaining({ id: "s-real" })]);
+    expect(computePlanMetricsMock).toHaveBeenCalledTimes(2);
+    for (const call of computePlanMetricsMock.mock.calls) expect(call[0]).toEqual(expect.objectContaining({ today: "2026-09-20" }));
   });
 });
 

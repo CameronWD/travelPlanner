@@ -26,6 +26,7 @@ import {
   type BudgetTransport,
 } from "@/lib/money/budget";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
+import type { OpeningHours } from "@/lib/opening-hours";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
@@ -56,6 +57,8 @@ interface CompareTransport {
   depAt: string | null;
   arrAt: string | null;
   arrIsHome?: boolean | null;
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 interface CompareAccommodation {
@@ -64,6 +67,8 @@ interface CompareAccommodation {
   name: string;
   checkIn: string;
   checkOut: string;
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 interface CompareItem {
@@ -75,6 +80,13 @@ interface CompareItem {
   lat: number | null;
   lng: number | null;
   category: string;
+  /** Spec 2026-10-17 R7: what the planning Flags read (Plan rows carry them; lib/plan-reads.ts). */
+  title?: string | null;
+  openingHours?: OpeningHours | null;
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 interface CompareTrip {
@@ -102,6 +114,12 @@ export interface PlanMetricsInput {
   costs: RawCostInput[];
   trip: CompareTrip;
   exchangeRates: ExchangeRateInput[];
+  /**
+   * The Trip's own today, the real plan's (lib/trip-today.ts), for every
+   * plan alike, so a Fork's book-by Flags count like the real plan's.
+   * Omitted: those Flags stay silent.
+   */
+  today?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +164,7 @@ export interface MetricDeltas {
  * — no logic is duplicated here.
  */
 export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
-  const { stops, transports, accommodations, items, costs, trip, exchangeRates } = input;
+  const { stops, transports, accommodations, items, costs, trip, exchangeRates, today } = input;
 
   // Sort stops by sortOrder for all ordered operations
   const sortedStops = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -299,6 +317,8 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     depAt: t.depAt,
     arrAt: t.arrAt,
     arrIsHome: t.arrIsHome ?? false,
+    bookingState: t.bookingState ?? null,
+    bookBy: t.bookBy ?? null,
   }));
 
   const flagAccoms: FlagAccommodation[] = accommodations.map((a) => ({
@@ -307,6 +327,8 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     name: a.name,
     checkIn: a.checkIn,
     checkOut: a.checkOut,
+    bookingState: a.bookingState ?? null,
+    bookBy: a.bookBy ?? null,
   }));
 
   const flagItems: FlagItem[] = items.map((i) => ({
@@ -317,6 +339,12 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     endTime: i.endTime,
     lat: i.lat,
     lng: i.lng,
+    title: i.title ?? null,
+    openingHours: i.openingHours ?? null,
+    slotTime: i.slotTime ?? null,
+    arriveByMinutes: i.arriveByMinutes ?? null,
+    bookingState: i.bookingState ?? null,
+    bookBy: i.bookBy ?? null,
   }));
 
   // Determine tripStart and tripEnd for flag detection from scheduled stops.
@@ -372,6 +400,8 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       roundTrip: trip.roundTrip ?? undefined,
       homeFirstStop,
       homeLastStop,
+      today,
+      stopNames: new Map(stops.map((s) => [s.id, s.name])),
     });
 
     for (const f of flags) {
