@@ -36,7 +36,7 @@ export interface McpAccommodation {
   files: McpFileRef[];
 }
 
-export interface McpThingToDo {
+interface McpThingToDo {
   id: string;
   title: string;
   category: string;
@@ -62,7 +62,7 @@ export interface McpDayItem {
   surprise: McpSurprise | null;
 }
 
-export interface McpStopDay {
+interface McpStopDay {
   /** YYYY-MM-DD */
   date: string;
   dayTitle: string | null;
@@ -90,10 +90,10 @@ export interface McpStop {
   surprise: McpSurprise | null;
 }
 
-export type McpTransportEndpoint = { home: true } | { stopId: string; name: string } | null;
+type McpTransportEndpoint = { home: true } | { stopId: string; name: string } | null;
 
 /** One end of a Transport leg, in that end's own zone (the app's rule — see `resolveEndpointZones`). */
-export interface McpLocalTime {
+interface McpLocalTime {
   /** ISO instant, same value as the matching `depAt`/`arrAt`. */
   at: string;
   /** HH:MM, 24-hour, in `zone`. */
@@ -234,7 +234,7 @@ export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor): Mcp
   return { ...a, files: filesFor("ACCOMMODATION", a.id) };
 }
 
-export function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined): McpThingToDo {
+function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined): McpThingToDo {
   return {
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
     notes: i.notes, files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
