@@ -66,7 +66,7 @@ const describedVoteLevel = voteLevelSchema.describe(describeValues("How keen you
 // ---------------------------------------------------------------------------
 
 const ITEM_NOTES_DESCRIPTION =
-  "The Item's own notes: its description, part of the Item, edited here. Not a Note — a Note is a comment a Traveller leaves on it, added with add_note.";
+  "The Item's own notes: its description, part of the Item, edited here. Not a Note: a Note is a comment a Traveller leaves on it, added with add_note.";
 
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
