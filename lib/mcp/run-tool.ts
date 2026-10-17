@@ -51,8 +51,10 @@ const isFailed = (v: unknown): v is { success: false } =>
  * success return the row as it now stands, re-read through the narrow reads
  * (lib/mcp/reads/entities.ts and friends), instead of the action's
  * `ActionResult` (ADR 0074 keeps that contract for the app). Deletes reread
- * to `{ deleted: id }`. A failure, notFound() or throw maps exactly as
- * `runTool` maps it, and nothing is re-read.
+ * to `{ deleted: id }`. A failure, notFound() or throw from the write maps
+ * exactly as `runTool` maps it, and nothing is re-read. A throw from the
+ * reread (the write already committed) is reported and returned as a success
+ * saying the read-back failed, with the write result's scalars (its new id).
  */
 export function runWrite<R>(
   name: string,
@@ -62,8 +64,27 @@ export function runWrite<R>(
   return runTool(name, async () => {
     const result = await write();
     if (isFailed(result)) return result;
-    return reread(result as Succeeded<R>);
+    try {
+      return await reread(result as Succeeded<R>);
+    } catch (err) {
+      // The write is committed. Reporting it as failed would have Claude retry
+      // it, duplicating a create, so a failed read-back is still a success.
+      await reportError(err, { route: `/api/mcp#${name}`, source: "server", userId: getActingTraveller()?.id });
+      return { saved: true, readBack: READ_BACK_FAILED_TEXT, ...scalarFields(result) };
+    }
   });
+}
+
+export const READ_BACK_FAILED_TEXT = "The change was saved, but reading it back failed. Read it with the matching get_ tool.";
+
+/** A write result's top-level scalars (a new id, say), minus `success`. */
+function scalarFields(result: unknown): Record<string, unknown> {
+  if (typeof result !== "object" || result === null) return {};
+  return Object.fromEntries(
+    Object.entries(result).filter(
+      ([k, v]) => k !== "success" && (v === null || ["string", "number", "boolean"].includes(typeof v)),
+    ),
+  );
 }
 
 /** Like runTool, but fn builds the content itself (images). Same error mapping. */

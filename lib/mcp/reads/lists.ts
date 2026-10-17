@@ -53,9 +53,12 @@ export async function loadChecklistOfItemForMcp(itemId: string): Promise<{ kind:
 // Wishlist ideas and Votes
 // ---------------------------------------------------------------------------
 
+/** A Vote as get_wishlist shows it, oldest first, so every Vote read lists them in one order. */
+const VOTE_SELECT = { orderBy: { createdAt: "asc" }, select: { level: true, user: { select: TRAVELLER_SELECT } } } as const;
+
 export const WISHLIST_IDEA_SELECT = {
   id: true, title: true, category: true, notes: true, link: true,
-  votes: { select: { level: true, user: { select: TRAVELLER_SELECT } } },
+  votes: VOTE_SELECT,
 } as const;
 
 /** One Wishlist idea as get_wishlist lists it. */
@@ -87,10 +90,6 @@ export async function loadWishlistIdeaForMcp(itemId: string): Promise<McpIdea> {
 /** The Votes on one real-plan Item (set_vote / clear_vote's read-back): get_wishlist's `votes`. */
 export async function loadVotesForMcp(itemId: string): Promise<{ itemId: string; votes: McpIdea["votes"] }> {
   await requireRealPlanRow("item", itemId);
-  const votes = await db.vote.findMany({
-    where: { itemId },
-    orderBy: { createdAt: "asc" },
-    select: { level: true, user: { select: TRAVELLER_SELECT } },
-  });
+  const votes = await db.vote.findMany({ where: { itemId }, ...VOTE_SELECT });
   return { itemId, votes: toVotes(votes) };
 }

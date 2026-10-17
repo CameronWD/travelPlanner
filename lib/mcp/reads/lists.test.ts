@@ -69,3 +69,13 @@ describe("Wishlist readers", () => {
     expect(m.requireRealPlanRow).toHaveBeenCalledWith("item", "i1");
   });
 });
+
+describe("Vote order", () => {
+  it("get_wishlist's select and loadVotesForMcp both read Votes oldest first", async () => {
+    const { WISHLIST_IDEA_SELECT } = await import("./lists");
+    expect(WISHLIST_IDEA_SELECT.votes.orderBy).toEqual({ createdAt: "asc" });
+    m.voteFindMany.mockResolvedValue([]);
+    await loadVotesForMcp("i1");
+    expect(m.voteFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { itemId: "i1" }, orderBy: { createdAt: "asc" } }));
+  });
+});
