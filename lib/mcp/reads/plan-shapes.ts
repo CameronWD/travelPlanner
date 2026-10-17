@@ -53,6 +53,12 @@ interface McpThingToDo {
   bookingState: BookingState;
   /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
   bookBy: string | null;
+  /** CONTEXT.md "Slot time": the ticket's time (HH:MM, the Stop's local time), or null. The start time is the plan; it defaults to slot less arriveByMinutes. */
+  slotTime: string | null;
+  /** How many minutes before the slot to be there, or null. */
+  arriveByMinutes: number | null;
+  /** YES, NO or UNKNOWN (not known). */
+  refundable: string;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -71,6 +77,12 @@ export interface McpDayItem {
   bookingState: BookingState;
   /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
   bookBy: string | null;
+  /** CONTEXT.md "Slot time": the ticket's time (HH:MM, the Stop's local time), or null. The start time is the plan; it defaults to slot less arriveByMinutes. */
+  slotTime: string | null;
+  /** How many minutes before the slot to be there, or null. */
+  arriveByMinutes: number | null;
+  /** YES, NO or UNKNOWN (not known). */
+  refundable: string;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -201,7 +213,7 @@ export const mcpStopSelect = (accommodationWhere: object) => ({
 export const MCP_THING_TO_DO_SELECT = {
   id: true, title: true, category: true, startTime: true, endTime: true,
   address: true, link: true, booking: true, notes: true, stopId: true,
-  bookingState: true, bookBy: true,
+  bookingState: true, bookBy: true, slotTime: true, arriveByMinutes: true, refundable: true,
 } as const;
 
 export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } as const;
@@ -242,6 +254,7 @@ export interface McpItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
   address: string | null; link: string | null; booking: string | null; notes: string | null; stopId: string | null;
   bookingState: string; bookBy: string | null;
+  slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null;
 }
 
 export interface McpTransportRow {
@@ -258,6 +271,15 @@ export function toMcpSurprise(view: SurpriseView | null | undefined): McpSurpris
   return view ? { plannedBy: view.plannerName, for: view.forNames, youAreSurprised: view.youAreSurprised } : null;
 }
 
+/** The Slot time fields as Claude reads them; a row without them reads as none / UNKNOWN. */
+function mcpSlot(i: { slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null }) {
+  return {
+    slotTime: i.slotTime ?? null,
+    arriveByMinutes: i.arriveByMinutes ?? null,
+    refundable: i.refundable === true ? "YES" : i.refundable === false ? "NO" : "UNKNOWN",
+  };
+}
+
 export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor): McpAccommodation {
   return { ...a, bookingState: a.bookingState as BookingState, files: filesFor("ACCOMMODATION", a.id) };
 }
@@ -265,7 +287,7 @@ export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor): Mcp
 function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined): McpThingToDo {
   return {
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
-    notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy,
+    notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, ...mcpSlot(i),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
   };
 }
@@ -276,7 +298,7 @@ export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor): McpDayItem {
     id: i.id, title: i.title, category: i.category,
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
-    bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null,
+    bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
 }
@@ -303,7 +325,9 @@ export function withPlaceholders(
       .map((p) => ({
         id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
         address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId,
-        bookingState: p.bookingState, bookBy: p.bookBy, surprise: p.surprise,
+        bookingState: p.bookingState, bookBy: p.bookBy,
+        slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable,
+        surprise: p.surprise,
       })),
   ].sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0));
 }

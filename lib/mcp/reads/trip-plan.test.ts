@@ -218,7 +218,7 @@ describe("loadTripPlanForMcp", () => {
     const plan = await loadTripPlanForMcp(TRIP_ID);
     const stopA = plan.stops[0]!;
     expect(stopA.thingsToDo).toEqual([
-      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null, files: [], surprise: null },
+      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", files: [], surprise: null },
     ]);
   });
 
@@ -242,6 +242,9 @@ describe("loadTripPlanForMcp", () => {
           notes: null,
           bookingState: "NONE",
           bookBy: null,
+          slotTime: null,
+          arriveByMinutes: null,
+          refundable: "UNKNOWN",
           files: [],
           surprise: null,
         },
@@ -764,7 +767,8 @@ describe("loadTripPlanForMcp", () => {
       expect(day.items).toEqual([
         {
           id: "item-a-dinner", title: "Surprise", category: "OTHER", startTime: "19:00", endTime: null,
-          address: null, link: null, booking: null, notes: null, bookingState: "NONE", bookBy: null, files: [],
+          address: null, link: null, booking: null, notes: null, bookingState: "NONE", bookBy: null,
+          slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", files: [],
           surprise: { plannedBy: "Cam", for: ["Sam"], youAreSurprised: true },
         },
       ]);

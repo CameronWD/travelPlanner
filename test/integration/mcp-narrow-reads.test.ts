@@ -55,11 +55,11 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     });
     await db.item.createMany({
       data: [
-        { id: TOUR, tripId: TRIP_ID, stopId: PORTO, title: "IT Lodge tour", category: "ACTIVITY", date: "2027-06-02", startTime: "10:00", notes: "Be early", sortOrder: 0, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" },
+        { id: TOUR, tripId: TRIP_ID, stopId: PORTO, title: "IT Lodge tour", category: "ACTIVITY", date: "2027-06-02", startTime: "10:00", notes: "Be early", sortOrder: 0, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20", slotTime: "10:15", arriveByMinutes: 15, refundable: false },
         { id: MARKET, tripId: TRIP_ID, stopId: PORTO, title: "IT Market", category: "FOOD", date: "2027-06-02", sortOrder: 1 },
         { id: TRAIN, tripId: TRIP_ID, title: "IT Train", category: "GETTING_AROUND", date: "2027-06-04", startTime: "09:00", sortOrder: 2 },
         { id: TASTING, tripId: TRIP_ID, stopId: PORTO, title: "IT Tasting", category: "FOOD", sortOrder: 3 },
-        { id: GIFT, tripId: TRIP_ID, stopId: PORTO, title: "IT Gift dinner", category: "FOOD", date: "2027-06-03", startTime: "19:00", sortOrder: 4, surprisePlannerId: OWNER, surpriseForIds: future },
+        { id: GIFT, tripId: TRIP_ID, stopId: PORTO, title: "IT Gift dinner", category: "FOOD", date: "2027-06-03", startTime: "19:00", sortOrder: 4, surprisePlannerId: OWNER, surpriseForIds: future, slotTime: "19:15", refundable: false },
         { id: FORK_ITEM, tripId: TRIP_ID, forkId: FORK_ID, title: "IT Fork thing", category: "OTHER", date: "2027-06-02", sortOrder: 0 },
       ],
     });
@@ -103,6 +103,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     const item = await as(OWNER)(() => loadItemForMcp(TOUR));
     const { date, stopId, costs, notesOnItem, ...daySlice } = item;
     expect(daySlice).toEqual(tourOnDay);
+    expect(item).toMatchObject({ slotTime: "10:15", arriveByMinutes: 15, refundable: "NO" });
     expect({ date, stopId }).toEqual({ date: "2027-06-02", stopId: PORTO });
     expect(costs.map((c) => c.amount.minor)).toEqual([3000]);
     expect(notesOnItem.map((n) => n.body)).toEqual(["IT Bring the voucher"]);
@@ -148,6 +149,17 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     const tour = day.timeline.find((e) => e.kind === "item" && e.item.id === TOUR);
     expect(tour).toMatchObject({ item: { bookingState: "TO_BOOK", bookBy: "2027-05-20" } });
     expect(day.timeline.some((e) => e.kind === "item" && e.item.id === FORK_ITEM)).toBe(false);
+  });
+
+  it("get_day agrees on the slot, and the surprised member's placeholder hides it (R3)", async () => {
+    const day = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-02"));
+    if ("success" in day) throw new Error("expected a day");
+    expect(day.timeline).toContainEqual(expect.objectContaining({ kind: "item", item: expect.objectContaining({ id: TOUR, slotTime: "10:15", arriveByMinutes: 15, refundable: "NO" }) }));
+    const memberDay = await as(MEMBER)(() => loadDayForMcp(TRIP_ID, "2027-06-03"));
+    if ("success" in memberDay) throw new Error("expected a day");
+    expect(memberDay.timeline).toContainEqual(expect.objectContaining({ kind: "item", item: expect.objectContaining({ id: GIFT, title: "Surprise", slotTime: null, refundable: "UNKNOWN" }) }));
+    const plan = await as(MEMBER)(() => loadTripPlanForMcp(TRIP_ID));
+    expect(JSON.stringify(plan)).not.toContain("19:15");
   });
 
   it("get_day on a Trip with a start date but no end date is the no-dates tool error, not a one-day Trip", async () => {

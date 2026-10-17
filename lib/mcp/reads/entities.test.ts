@@ -72,6 +72,7 @@ describe("loadItemForMcp", () => {
     expect(out).toEqual({
       id: "i1", title: "Castle", category: "SIGHTSEEING", startTime: "10:00", endTime: null, address: "Sintra",
       link: null, booking: "#448", notes: "Be there 15 min early", bookingState: "BOOKED", bookBy: null,
+      slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN",
       files: [file], surprise: null, date: "2027-06-02", stopId: "s1", costs: [cost], notesOnItem: [note],
     });
   });

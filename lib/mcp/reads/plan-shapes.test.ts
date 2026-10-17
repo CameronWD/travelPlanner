@@ -82,7 +82,7 @@ describe("toMcpItem / toMcpTransport", () => {
     expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1" }), surprise: null }, noFiles)).toEqual({
       id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
-      bookingState: "NONE", bookBy: null,
+      bookingState: "NONE", bookBy: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN",
     });
   });
 
@@ -107,5 +107,20 @@ describe("toMcpItem / toMcpTransport", () => {
     expect(t.departs).toMatchObject({ localTime: "08:00", localDate: "2027-06-01" });
     expect(t.arrives).toMatchObject({ localTime: "11:00", localDate: "2027-06-01" });
     expect(t).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-01" });
+  });
+});
+
+describe("Slot time in the Claude reads (R3)", () => {
+  it("a thing to do and a day item read the slot, the margin and refundability", () => {
+    const row = { ...item({ id: "i1", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }), surprise: null };
+    expect(toMcpItem(row, noFiles)).toMatchObject({ startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" });
+    const { stops } = buildMcpStops({
+      stops: [stop()], thingsToDo: [item({ id: "t1", stopId: "s1", slotTime: "19:30", refundable: true })], datedItems: [],
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+    });
+    expect(stops[0].thingsToDo[0]).toMatchObject({ slotTime: "19:30", arriveByMinutes: null, refundable: "YES" });
+  });
+  it("a row read without the columns says none / UNKNOWN", () => {
+    expect(toMcpItem({ ...item(), surprise: null }, noFiles)).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
   });
 });
