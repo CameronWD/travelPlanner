@@ -59,6 +59,14 @@
  * The other sort of Shopping row — a Packing item marked "Need to buy" —
  * is not created here at all: it is an existing Packing item plus
  * `set_need_to_buy`, never a new row (CONTEXT.md "Shopping list").
+ *
+ * Every write except `leave_feedback` goes through `runWrite` and returns its
+ * row as it now stands (spec 2026-10-16 F6): `{ reminder }` (get_reminders'
+ * shape), `{ checklistItem }`, `{ kind, items }` (the whole list, in its new
+ * order) for a move, `{ template }` (get_checklists' templates entry),
+ * `{ added }` (the Packing rows a template created) and `{ deleted }` for a
+ * delete. `apply_packing_template` checks Trip access itself before it reads
+ * the Packing list it compares against.
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -76,9 +84,12 @@ import {
   reorderChecklistItem,
   saveAsTemplate,
   applyTemplate,
+  listTemplates,
 } from "@/server/actions/checklists";
 import { buyStateSchema } from "@/lib/enums";
-import { runTool } from "../run-tool";
+import { runTool, runWrite } from "../run-tool";
+import { readReminderItem } from "@/lib/reminder-reads";
+import { loadChecklistItemForMcp, loadChecklistOfItemForMcp, readChecklist } from "../reads/lists";
 import { requireRealPlanRows, type RealPlanKind } from "../real-plan";
 import { CHECKLIST_KIND_MEANING, describeValues } from "../vocab";
 import { isoDate } from "@/lib/validations/primitives";
@@ -124,11 +135,15 @@ export function registerListWriteTools(server: McpServer): void {
       },
     },
     ({ tripId, ...rest }) =>
-      runTool("add_reminder", async () => {
-        if (aboutCount(rest) > 1) return ONE_ABOUT;
-        await requireRealPlanRows(aboutRefs(rest));
-        return addReminder(tripId, rest);
-      }),
+      runWrite(
+        "add_reminder",
+        async () => {
+          if (aboutCount(rest) > 1) return ONE_ABOUT;
+          await requireRealPlanRows(aboutRefs(rest));
+          return addReminder(tripId, rest);
+        },
+        async (done) => ({ reminder: await readReminderItem(done.id!) }),
+      ),
   );
 
   server.registerTool(
@@ -148,11 +163,15 @@ export function registerListWriteTools(server: McpServer): void {
       },
     },
     ({ reminderId, ...patch }) =>
-      runTool("update_reminder", async () => {
-        if (aboutCount(patch) > 1) return ONE_ABOUT;
-        await requireRealPlanRows(aboutRefs(patch));
-        return updateReminder(reminderId, patch);
-      }),
+      runWrite(
+        "update_reminder",
+        async () => {
+          if (aboutCount(patch) > 1) return ONE_ABOUT;
+          await requireRealPlanRows(aboutRefs(patch));
+          return updateReminder(reminderId, patch);
+        },
+        async () => ({ reminder: await readReminderItem(reminderId) }),
+      ),
   );
 
   server.registerTool(
@@ -163,7 +182,12 @@ export function registerListWriteTools(server: McpServer): void {
       inputSchema: { reminderId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ reminderId }) => runTool("delete_reminder", () => deleteReminder(reminderId)),
+    ({ reminderId }) =>
+      runWrite(
+        "delete_reminder",
+        () => deleteReminder(reminderId),
+        async () => ({ deleted: reminderId }),
+      ),
   );
 
   // ---------------------------------------------------------------------
@@ -183,7 +207,12 @@ export function registerListWriteTools(server: McpServer): void {
         dueDate: isoDate.optional(),
       },
     },
-    ({ tripId, ...rest }) => runTool("add_checklist_item", () => addChecklistItem(tripId, rest)),
+    ({ tripId, ...rest }) =>
+      runWrite(
+        "add_checklist_item",
+        () => addChecklistItem(tripId, rest),
+        async (done) => ({ checklistItem: await loadChecklistItemForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -194,7 +223,12 @@ export function registerListWriteTools(server: McpServer): void {
         "Adds a standalone entry to a trip's Shopping list: something to buy that isn't also a Packing item, like flight snacks or a gift. To shop for a Packing item instead, use set_need_to_buy on it.",
       inputSchema: { tripId: z.string(), text: z.string().trim().min(1) },
     },
-    ({ tripId, text }) => runTool("add_shopping_item", () => addChecklistItem(tripId, { kind: "SHOPPING", text })),
+    ({ tripId, text }) =>
+      runWrite(
+        "add_shopping_item",
+        () => addChecklistItem(tripId, { kind: "SHOPPING", text }),
+        async (done) => ({ checklistItem: await loadChecklistItemForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -210,11 +244,14 @@ export function registerListWriteTools(server: McpServer): void {
       },
     },
     ({ itemId, text, dueDate }) =>
-      runTool("update_checklist_item", () =>
-        updateChecklistItem(itemId, {
-          ...(text !== undefined ? { text } : {}),
-          ...(dueDate !== undefined ? { dueDate: dueDate ?? "" } : {}),
-        }),
+      runWrite(
+        "update_checklist_item",
+        () =>
+          updateChecklistItem(itemId, {
+            ...(text !== undefined ? { text } : {}),
+            ...(dueDate !== undefined ? { dueDate: dueDate ?? "" } : {}),
+          }),
+        async () => ({ checklistItem: await loadChecklistItemForMcp(itemId) }),
       ),
   );
 
@@ -225,7 +262,12 @@ export function registerListWriteTools(server: McpServer): void {
       description: "Marks a checklist item done or not done.",
       inputSchema: { itemId: z.string(), done: z.boolean() },
     },
-    ({ itemId, done }) => runTool("tick_checklist_item", () => toggleChecklistItem(itemId, done)),
+    ({ itemId, done }) =>
+      runWrite(
+        "tick_checklist_item",
+        () => toggleChecklistItem(itemId, done),
+        async () => ({ checklistItem: await loadChecklistItemForMcp(itemId) }),
+      ),
   );
 
   server.registerTool(
@@ -236,7 +278,12 @@ export function registerListWriteTools(server: McpServer): void {
         "Sets a Packing item's shopping state (CONTEXT.md 'Shopping list'): NEEDED puts it on the Shopping list unticked, BOUGHT ticks it there, null clears it. The Packing item itself is untouched either way. Only a Packing item can carry this.",
       inputSchema: { itemId: z.string(), buy: buyStateSchema.nullable() },
     },
-    ({ itemId, buy }) => runTool("set_need_to_buy", () => setBuyState(itemId, buy)),
+    ({ itemId, buy }) =>
+      runWrite(
+        "set_need_to_buy",
+        () => setBuyState(itemId, buy),
+        async () => ({ checklistItem: await loadChecklistItemForMcp(itemId) }),
+      ),
   );
 
   server.registerTool(
@@ -246,7 +293,12 @@ export function registerListWriteTools(server: McpServer): void {
       description: "Moves a checklist item one place up or down within its own list, swapping it with its neighbour. A no-op at either end.",
       inputSchema: { itemId: z.string(), direction: z.enum(["up", "down"]) },
     },
-    ({ itemId, direction }) => runTool("move_checklist_item", () => reorderChecklistItem(itemId, direction)),
+    ({ itemId, direction }) =>
+      runWrite(
+        "move_checklist_item",
+        () => reorderChecklistItem(itemId, direction),
+        () => loadChecklistOfItemForMcp(itemId),
+      ),
   );
 
   server.registerTool(
@@ -257,7 +309,12 @@ export function registerListWriteTools(server: McpServer): void {
       inputSchema: { itemId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ itemId }) => runTool("delete_checklist_item", () => deleteChecklistItem(itemId)),
+    ({ itemId }) =>
+      runWrite(
+        "delete_checklist_item",
+        () => deleteChecklistItem(itemId),
+        async () => ({ deleted: itemId }),
+      ),
   );
 
   // ---------------------------------------------------------------------
@@ -271,7 +328,14 @@ export function registerListWriteTools(server: McpServer): void {
       description: "Saves the trip's current Packing list as a reusable template, owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), name: z.string().trim().min(1) },
     },
-    ({ tripId, name }) => runTool("save_packing_template", () => saveAsTemplate(tripId, name)),
+    ({ tripId, name }) =>
+      runWrite(
+        "save_packing_template",
+        () => saveAsTemplate(tripId, name),
+        async (done) => ({
+          template: (await listTemplates()).find((t) => t.id === done.templateId) ?? { id: done.templateId, name },
+        }),
+      ),
   );
 
   server.registerTool(
@@ -282,7 +346,18 @@ export function registerListWriteTools(server: McpServer): void {
         "Adds a saved Packing template's items to the trip's Packing list. Items already on the list (by text, case-insensitive) are skipped. The template must be owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), templateId: z.string() },
     },
-    ({ tripId, templateId }) => runTool("apply_packing_template", () => applyTemplate(tripId, templateId)),
+    ({ tripId, templateId }) => {
+      let before = new Set<string>();
+      return runWrite(
+        "apply_packing_template",
+        async () => {
+          await requireTripAccess(tripId);
+          before = new Set((await readChecklist(tripId, "PACKING")).map((i) => i.id));
+          return applyTemplate(tripId, templateId);
+        },
+        async () => ({ added: (await readChecklist(tripId, "PACKING")).filter((i) => !before.has(i.id)) }),
+      );
+    },
   );
 
   // ---------------------------------------------------------------------

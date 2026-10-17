@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireTripAccess, stopFindMany, tripFindUnique, getTripProjection, setStopNights, deleteStop } = vi.hoisted(
+const { requireTripAccess, stopFindMany, tripFindUnique, getTripProjection, setStopNights, deleteStop, trackerStart, trackerChanged } = vi.hoisted(
   () => ({
+    trackerStart: vi.fn(async () => {}),
+    trackerChanged: vi.fn(),
     requireTripAccess: vi.fn(),
     stopFindMany: vi.fn(),
     tripFindUnique: vi.fn(),
@@ -15,6 +17,9 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess }));
 vi.mock("@/lib/db", () => ({ db: { stop: { findMany: stopFindMany }, trip: { findUnique: tripFindUnique } } }));
 vi.mock("@/server/actions/stops", () => ({ setStopNights, deleteStop }));
 vi.mock("@/lib/trip-projection-reads", () => ({ getTripProjection }));
+vi.mock("../reads/stop-changes", () => ({
+  stopTracker: () => ({ start: trackerStart, stopAndShifted: vi.fn(), changed: trackerChanged }),
+}));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 
 import { connectTestClient } from "../test-client";
@@ -268,6 +273,37 @@ describe("make-it-fit tools", () => {
       });
       expect(r.isError).toBeFalsy();
       expect(setStopNights).toHaveBeenCalledWith("stop-1", 0);
+    });
+
+    it("trims return every Stop they changed; a drop returns { deleted }", async () => {
+      stopFindMany.mockResolvedValue([fitStop({ id: "stop-1" })]);
+      setStopNights.mockResolvedValue({ success: true });
+      deleteStop.mockResolvedValue({ success: true });
+      trackerChanged.mockResolvedValue([{ id: "stop-1", nights: 2 }]);
+      const c = await connectTestClient();
+      const trim = await c.callTool({ name: "make_it_fit_apply", arguments: { tripId: TRIP_ID, trims: [{ stopId: "stop-1", nights: 2 }] } });
+      expect(JSON.parse((trim.content as { text: string }[])[0].text)).toEqual({ stops: [{ id: "stop-1", nights: 2 }] });
+      const drop = await c.callTool({ name: "make_it_fit_apply", arguments: { tripId: TRIP_ID, dropStopId: "stop-1" } });
+      expect(JSON.parse((drop.content as { text: string }[])[0].text)).toEqual({ deleted: "stop-1" });
+    });
+
+    it("snapshots the plan only after the Trip access check, and before any trim", async () => {
+      stopFindMany.mockResolvedValue([fitStop({ id: "stop-1" })]);
+      setStopNights.mockResolvedValue({ success: true });
+      trackerChanged.mockResolvedValue([]);
+      const c = await connectTestClient();
+      await c.callTool({ name: "make_it_fit_apply", arguments: { tripId: TRIP_ID, trims: [{ stopId: "stop-1", nights: 2 }] } });
+      expect(trackerStart).toHaveBeenCalledWith(TRIP_ID);
+      expect(requireTripAccess.mock.invocationCallOrder[0]).toBeLessThan(trackerStart.mock.invocationCallOrder[0]);
+      expect(trackerStart.mock.invocationCallOrder[0]).toBeLessThan(setStopNights.mock.invocationCallOrder[0]);
+    });
+
+    it("a non-member's Trip takes no snapshot", async () => {
+      requireTripAccess.mockRejectedValue(notFoundErr());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "make_it_fit_apply", arguments: { tripId: TRIP_ID, dropStopId: "stop-1" } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(trackerStart).not.toHaveBeenCalled();
     });
 
     it("rejects a negative trim as a schema error", async () => {
