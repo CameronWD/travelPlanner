@@ -64,7 +64,7 @@ import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
-import type { TransportMode } from "@/lib/enum-values";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { TravellerLike } from "@/lib/traveller";
@@ -138,6 +138,12 @@ export interface ItineraryTransport {
   depAt?: Date | null;
   arrAt?: Date | null;
   reference?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
+  bookingStateSet?: boolean | null;
+  /** YYYY-MM-DD the thing should be booked by; only while To book. */
+  bookBy?: string | null;
   notes?: string | null;
   sortOrder: number;
   /** Costs attached to this transport */

@@ -12,6 +12,8 @@
  *   - Transport.depAt/arrAt are `DateTime?`, not `string | null`.
  *   - Cost.paidAt is `DateTime?`, not `string | null`.
  */
+import type { BookingState } from "@/lib/enum-values";
+
 export type TripRow = {
   id: string; name: string; slug: string | null; startDate: string | null; endDate: string | null;
   hardEndDate: string | null; homeCurrency: string; homeName: string | null; homeLat: number | null;
@@ -31,17 +33,20 @@ export type TransportRow = {
   id: string; tripId: string; forkId: string | null; mode: string; fromStopId: string | null; toStopId: string | null;
   anchorStopId: string | null; depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null;
   depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; depIsHome: boolean;
-  arrIsHome: boolean; reference: string | null; notes: string | null; sortOrder: number; createdAt: Date; updatedAt: Date;
+  arrIsHome: boolean; reference: string | null; bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
+  notes: string | null; sortOrder: number; createdAt: Date; updatedAt: Date;
 };
 export type StayRow = {
   id: string; tripId: string; forkId: string | null; stopId: string; name: string; address: string | null;
   checkIn: string; checkOut: string; checkInTime: string | null; checkOutTime: string | null; confirmation: string | null;
+  bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
   notes: string | null; lat: number | null; lng: number | null; createdAt: Date; updatedAt: Date;
 };
 export type ItemRow = {
   id: string; tripId: string; forkId: string | null; stopId: string | null; date: string | null; title: string;
   category: string; startTime: string | null; endTime: string | null; address: string | null; link: string | null;
-  booking: string | null; notes: string | null; lat: number | null; lng: number | null; countryCode: string | null;
+  booking: string | null; bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
+  notes: string | null; lat: number | null; lng: number | null; countryCode: string | null;
   hiddenFromShares: boolean; sortOrder: number; photoAttachmentId: string | null; sourceItemId: string | null;
   surprisePlannerId: string | null; surpriseRevealedAt: Date | null; createdAt: Date; updatedAt: Date;
 };
@@ -83,21 +88,23 @@ export function transport(o: Partial<TransportRow> = {}): TransportRow {
     id: "tr-1", tripId: "trip-1", forkId: null, mode: "TRAIN", fromStopId: "stop-1", toStopId: "stop-2", anchorStopId: "stop-1",
     depPlace: null, arrPlace: null, depAt: new Date("2026-11-04T09:00:00Z"), arrAt: new Date("2026-11-04T12:30:00Z"),
     depLat: null, depLng: null, arrLat: null, arrLng: null, depIsHome: false, arrIsHome: false, reference: null,
-    notes: null, sortOrder: 0, createdAt: NOW, updatedAt: NOW, ...o,
+    bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null, notes: null, sortOrder: 0, createdAt: NOW, updatedAt: NOW, ...o,
   };
 }
 export function stay(o: Partial<StayRow> = {}): StayRow {
   return {
     id: "acc-1", tripId: "trip-1", forkId: null, stopId: "stop-1", name: "Hotel Avenida", address: null,
     checkIn: "2026-11-01", checkOut: "2026-11-04", checkInTime: null, checkOutTime: null, confirmation: null,
-    notes: null, lat: null, lng: null, createdAt: NOW, updatedAt: NOW, ...o,
+    bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null, notes: null, lat: null, lng: null,
+    createdAt: NOW, updatedAt: NOW, ...o,
   };
 }
 export function item(o: Partial<ItemRow> = {}): ItemRow {
   return {
     id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", date: "2026-11-02", title: "Belém Tower",
-    category: "SIGHTSEEING", startTime: "10:00", endTime: "11:30", address: null, link: null, booking: null, notes: null,
-    lat: null, lng: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
+    category: "SIGHTSEEING", startTime: "10:00", endTime: "11:30", address: null, link: null, booking: null,
+    bookingState: "NONE", bookingStateSet: false, bookBy: null, notes: null, lat: null, lng: null, countryCode: null,
+    hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
     sourceItemId: null, surprisePlannerId: null, surpriseRevealedAt: null, createdAt: NOW, updatedAt: NOW, ...o,
   };
 }

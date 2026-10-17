@@ -12,6 +12,9 @@ const FORK_ID = "it-plan-fork";
 const STOP_A = "it-plan-porto";
 const STOP_B = "it-plan-secret";
 const FORK_STOP = "it-plan-fork-seville";
+const LEG_ID = "it-plan-leg";
+const STAY_ID = "it-plan-stay";
+const TOUR_ID = "it-plan-tour";
 
 describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () => {
   beforeAll(async () => {
@@ -47,6 +50,25 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () 
         },
       ],
     });
+    // Booking state (spec 2026-10-17 R2): one of each kind, all three columns written.
+    await db.transport.create({
+      data: {
+        id: LEG_ID, tripId: TRIP_ID, mode: "TRAIN", fromStopId: STOP_A, toStopId: STOP_B, sortOrder: 0,
+        bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01",
+      },
+    });
+    await db.accommodation.create({
+      data: {
+        id: STAY_ID, tripId: TRIP_ID, stopId: STOP_A, name: "IT Lodge", checkIn: "2027-06-01", checkOut: "2027-06-04",
+        bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null,
+      },
+    });
+    await db.item.create({
+      data: {
+        id: TOUR_ID, tripId: TRIP_ID, stopId: STOP_A, title: "IT Lodge tour", category: "ACTIVITY", date: "2027-06-02",
+        booking: "BK-1", bookingState: "BOOKED", bookingStateSet: false, bookBy: null,
+      },
+    });
   });
 
   afterAll(async () => {
@@ -75,5 +97,12 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () 
     expect(rows.plan).toBe(FORK_ID);
     expect(rows.fork).toEqual({ id: FORK_ID, name: "IT Plan B" });
     expect(rows.stops.map((s) => s.id)).toEqual([FORK_STOP]);
+  });
+
+  it("carries Booking state on Transport, Accommodation and Items (spec R2)", async () => {
+    const plan = await readPlan(TRIP_ID, OWNER, null);
+    expect(plan.transports.find((t) => t.id === LEG_ID)).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01" });
+    expect(plan.accommodations.find((a) => a.id === STAY_ID)).toMatchObject({ bookingState: "TO_BOOK", bookBy: null });
+    expect(plan.items.find((i) => i.id === TOUR_ID)).toMatchObject({ bookingState: "BOOKED" });
   });
 });

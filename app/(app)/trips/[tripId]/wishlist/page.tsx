@@ -13,6 +13,7 @@ import { getUserGlobe } from "@/lib/globe";
 import { suggestMarkersForTrip } from "@/lib/globe-suggestions";
 import type { MarkerView } from "@/components/globe/types";
 import type { ItemCardItem } from "@/components/trip/item-card";
+import type { BookingState } from "@/lib/enum-values";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { VoteView } from "@/components/trip/vote-control";
@@ -87,6 +88,9 @@ export default async function WishlistPage({
             address: true,
             link: true,
             booking: true,
+            bookingState: true,
+            bookingStateSet: true,
+            bookBy: true,
             notes: true,
             stopId: true,
             lat: true,
@@ -304,6 +308,9 @@ export default async function WishlistPage({
     address: item.address,
     link: item.link,
     booking: item.booking,
+    bookingState: item.bookingState as BookingState, // a stored BOOKING_STATES value (lib/booking-state.ts)
+    bookingStateSet: item.bookingStateSet,
+    bookBy: item.bookBy,
     notes: item.notes,
     stopId: item.stopId,
     stopName: item.stop?.name ?? null,

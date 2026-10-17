@@ -13,6 +13,7 @@ import {
   type SurpriseVisibility,
 } from "@/lib/surprise-visibility";
 import type { SurpriseView } from "@/lib/surprise";
+import type { BookingState } from "@/lib/enum-values";
 
 /**
  * The Plan reader (spec 2026-10-14 card A, Q2): everything a page needs to
@@ -66,6 +67,9 @@ const PLAN_TRANSPORT_SELECT = {
   arrLat: true,
   arrLng: true,
   reference: true,
+  bookingState: true,
+  bookingStateSet: true,
+  bookBy: true,
   notes: true,
   sortOrder: true,
 } as const;
@@ -82,6 +86,9 @@ export const PLAN_ACCOMMODATION_SELECT = {
   checkInTime: true,
   checkOutTime: true,
   confirmation: true,
+  bookingState: true,
+  bookingStateSet: true,
+  bookBy: true,
   notes: true,
   lat: true,
   lng: true,
@@ -99,6 +106,9 @@ const PLAN_ITEM_SELECT = {
   address: true,
   link: true,
   booking: true,
+  bookingState: true,
+  bookingStateSet: true,
+  bookBy: true,
   notes: true,
   stopId: true,
   lat: true,
@@ -135,9 +145,17 @@ const BUDGET_ITEM_SELECT = { id: true, stopId: true, category: true, date: true,
 const BUDGET_ACCOMMODATION_SELECT = { id: true, stopId: true, checkIn: true, checkOut: true, name: true } as const;
 
 type PlanStopRow = Prisma.StopGetPayload<{ select: typeof PLAN_STOP_SELECT }> & { surprise: SurpriseView | null };
-type PlanTransportRow = Prisma.TransportGetPayload<{ select: typeof PLAN_TRANSPORT_SELECT }>;
-type PlanAccommodationRow = Prisma.AccommodationGetPayload<{ select: typeof PLAN_ACCOMMODATION_SELECT }>;
-type PlanItemRow = (Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }> | PlaceholderItem) & { surprise: SurpriseView | null };
+/**
+ * The `bookingState` column is a plain String holding one of BOOKING_STATES:
+ * every writer stores lib/booking-state.ts `bookingStateWrite`'s result, so
+ * the rows name it as the union the cards and dialogs take.
+ */
+type WithBookingState<T> = Omit<T, "bookingState"> & { bookingState: BookingState };
+type PlanTransportRow = WithBookingState<Prisma.TransportGetPayload<{ select: typeof PLAN_TRANSPORT_SELECT }>>;
+type PlanAccommodationRow = WithBookingState<Prisma.AccommodationGetPayload<{ select: typeof PLAN_ACCOMMODATION_SELECT }>>;
+type PlanItemRow = (WithBookingState<Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }>> | PlaceholderItem) & {
+  surprise: SurpriseView | null;
+};
 type PlanCostRow = Prisma.CostGetPayload<{ select: typeof COST_SELECT }>;
 type PlanChapterRow = Prisma.ChapterGetPayload<{ select: typeof PLAN_CHAPTER_SELECT }>;
 
@@ -277,9 +295,9 @@ export const readPlan: (tripId: string, viewer: PlanViewer, plan: PlanId) => Pro
       fork,
       visibility: v,
       stops: orderPlanStops(maskPlanStops(stopRows, v)),
-      transports,
-      accommodations,
-      items: mergePlanItems(itemRows, v, plan),
+      transports: transports as PlanTransportRow[],
+      accommodations: accommodations as PlanAccommodationRow[],
+      items: mergePlanItems(itemRows as WithBookingState<(typeof itemRows)[number]>[], v, plan),
       costs,
       exchangeRates,
       chapters,
