@@ -37,6 +37,8 @@ import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
+import { OpeningHoursEditor } from "@/components/trip/opening-hours-editor";
+import type { OpeningHours } from "@/lib/opening-hours";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { refundLabel, slotLabel, startFromSlot } from "@/lib/slot-time";
 import type { ProposedItemInput } from "@/lib/booking-import/types";
@@ -542,6 +544,11 @@ function ItemForm({
   const bookingField = useBookingStateField("ITEM", item ?? seedFromProposal(proposed), booking);
   const [notes, setNotes] = React.useState(item?.notes ?? proposed?.notes ?? "");
   const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
+  // CONTEXT.md "Opening hours" — sent only when changed, like the Surprise:
+  // an edit that never loaded them can't wipe the place's hours.
+  const [openingHours, setOpeningHours] = React.useState<OpeningHours | null>(item?.openingHours ?? null);
+  const [initialOpeningHours] = React.useState(() => JSON.stringify(item?.openingHours ?? null));
+  const openingHoursChanged = JSON.stringify(openingHours) !== initialOpeningHours;
   // CONTEXT.md Surprise: who this Item is a surprise for. Kept sorted so a tick and untick is no change.
   const surpriseOthers = members && currentUserId ? members.filter((m) => m.id !== currentUserId) : null;
   const [initialSurpriseForIds] = React.useState(() => [...(item?.surprise?.forIds ?? [])].sort());
@@ -553,7 +560,7 @@ function ItemForm({
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, surpriseForIds, cost: cost.dirtyValues });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, openingHours, surpriseForIds, cost: cost.dirtyValues });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -598,8 +605,8 @@ function ItemForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && item
-        ? updateItem(item.id, toPatch(input, ITEM_CLEARABLE))
-        : createItem(tripId, input, forkId ?? undefined);
+        ? updateItem(item.id, { ...toPatch(input, ITEM_CLEARABLE), ...(openingHoursChanged && { openingHours }) })
+        : createItem(tripId, { ...input, ...(openingHours && { openingHours }) }, forkId ?? undefined);
     },
     onClose,
     onSaved,
@@ -879,6 +886,11 @@ function ItemForm({
           disabled={isPending}
         />
       </Field>
+
+      {/* Opening hours (CONTEXT.md "Opening hours") */}
+      <div className="sm:col-span-2">
+        <OpeningHoursEditor value={openingHours} onChange={setOpeningHours} disabled={isPending} error={errors.openingHours?.[0]} />
+      </div>
 
       {/* Hide from shared links (CONTEXT.md "Share link") — the Item stays
           fully visible to every Traveller; this only affects what a share
