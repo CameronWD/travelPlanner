@@ -3260,3 +3260,35 @@ being closed by a different shape of fix than the one suggested is still closed.
 - **HT-05 · Dead form buttons.** `EditTransportButton` / `AddTransportButton`
   in `components/trip/transport-form-dialog.tsx` (~238-300) are unused and
   don't pass `homeBaseName`/`homeTimezone`. Delete them or wire them up.
+
+## 2026-10-17 · Planning model (Branch 1) follow-ups (spec 2026-10-17-planning-model-and-review)
+
+Parked at Task Z's gate rather than fixed there — none block the branch;
+each is a one-file follow-up.
+
+- **PM-01 · The opening-hours Activity summary reads identically when only a
+  season's content changes.** `openingHoursSummary` (`lib/opening-hours-display.ts`
+  ~103-113), used by `lib/activity.ts`'s `openingHoursFormat` (~148-151),
+  only counts seasons ("2 seasons"); editing a season's weekly hours without
+  changing the season count produces the same before/after Activity text.
+- **PM-02 · The opening-hours family recipients are read before the write's
+  transaction.** `setOpeningHours` (`server/actions/items.ts` ~607) calls
+  `openingHoursFamilyRecipients(before)` ahead of `db.$transaction`, so a row
+  that joins or leaves the family between that read and the commit is
+  harmless today (the set is small and stable) but not strictly correct.
+- **PM-03 · An overdue book-by shows the same as a future one.**
+  `BookingStateBadge` (`components/trip/booking-state-badge.tsx`) always
+  renders the `warning` variant for a To-book thing, whatever its `bookBy`
+  date. Branch 2's "Book by soon / overdue" Flag (spec R7) is expected to
+  cover the distinction; this badge itself doesn't.
+- **PM-04 · `/plan?stop=` is not read by the Plan page.** Home's Still to
+  book (`lib/still-to-book.ts` `hrefFor`) and other callers link an
+  undated thing to `/plan?stop=<id>`, but
+  `app/(app)/trips/[tripId]/plan/page.tsx` (~67-73) only reads the `plan`
+  search param — `stop` lands on the Plan page without scrolling to or
+  opening that Stop.
+- **PM-05 · Null-clear is tested only on `update_accommodation`.**
+  `lib/mcp/tools/bookings-write.test.ts` (~400-405) covers
+  `bookingState: null` ("back to automatic") on `update_accommodation`;
+  `update_item` and `update_transport` take the same PATCH but have no
+  equivalent test.
