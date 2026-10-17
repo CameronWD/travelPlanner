@@ -839,6 +839,7 @@ describe("createChapter — origin stop linking", () => {
     const r = await createChapter("trip-1", { name: "France", colour: COLOUR }, "stop-1");
 
     expect(r.success).toBe(true);
+    expect(r).toEqual({ success: true, id: "ch-new" });
     expect(stopUpdateMock).toHaveBeenCalledWith({
       where: { id: "stop-1" },
       data: { chapterId: "ch-new", chapterSortOrder: 0 },

@@ -85,7 +85,7 @@ async function requireChecklistItemAccess(itemId: string): Promise<ChecklistItem
 export async function addChecklistItem(
   tripId: string,
   input: ChecklistItemInput,
-): Promise<ChecklistActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   const { user } = await requireTripAccess(tripId);
   void user; // used implicitly by the guard
 
@@ -143,7 +143,7 @@ export async function addChecklistItem(
   });
 
   revalidateTrip(tripId, "lists");
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**

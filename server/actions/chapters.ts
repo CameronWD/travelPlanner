@@ -67,7 +67,7 @@ export async function createChapter(
   input: ChapterInput,
   originStopId?: string,
   forkId?: PlanId,
-): Promise<ChapterActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   const { plan } = await requirePlanAccess(tripId, forkId);
 
   const parsed = chapterSchema.safeParse(input);
@@ -100,7 +100,7 @@ export async function createChapter(
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created) });
   revalidateTrip(tripId, "plan");
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**
