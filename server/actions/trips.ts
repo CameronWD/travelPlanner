@@ -222,7 +222,12 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
 // updateTrip
 // ---------------------------------------------------------------------------
 
-export type UpdateTripResult = ActionResult<{ slug?: string }>;
+/**
+ * `homeTimezone` (updateTrip only): the Home zone the Trip now has, so a
+ * form can show a zone the save re-derived (a rename re-locates the Home
+ * base, F3) rather than the one it sent.
+ */
+export type UpdateTripResult = ActionResult<{ slug?: string; homeTimezone?: string | null }>;
 
 /**
  * Update a Trip (PATCH, ADR 0075): name, dates, Hard end date and home
@@ -439,7 +444,8 @@ export async function updateTrip(
 
   revalidateTrip(tripId, "trip");
 
-  return { success: true, slug };
+  const homeTimezone = timezoneUpdate !== KEEP_TIMEZONE ? timezoneUpdate : (before.homeTimezone ?? null);
+  return { success: true, slug, homeTimezone };
 }
 
 // ---------------------------------------------------------------------------

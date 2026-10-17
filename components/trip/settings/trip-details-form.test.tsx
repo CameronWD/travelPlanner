@@ -283,4 +283,29 @@ describe("Home base timezone picker", () => {
     const lastCall = updateMock.mock.calls.at(-1)!;
     expect(lastCall).toEqual(["t1", expect.objectContaining({ homeName: "Vienna", homeTimezone: "" })]);
   });
+
+  it("after a rename re-derives the zone on the server, the picker shows the saved zone", async () => {
+    updateMock.mockResolvedValue({ success: true, homeTimezone: "Europe/Vienna" });
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{
+          name: "Trip",
+          startDate: "",
+          endDate: "",
+          hardEndDate: "",
+          homeCurrency: "AUD",
+          homeName: "Gold Coast",
+          homeTimezone: "Australia/Brisbane",
+        }}
+      />,
+    );
+    const homeBaseInput = screen.getByLabelText(/^home base$/i);
+    await userEvent.clear(homeBaseInput);
+    await userEvent.type(homeBaseInput, "Vienna");
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    await screen.findByText(/saved!/i);
+    expect(screen.getByRole("combobox", { name: /home base timezone/i })).toHaveTextContent(/Vienna/i);
+  });
 });
+

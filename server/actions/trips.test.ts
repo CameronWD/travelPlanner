@@ -1024,6 +1024,18 @@ describe("updateTrip", () => {
       }));
     });
 
+    it("returns the Home zone the Trip now has: the re-derived one after a rename, the kept one otherwise", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Paris", homeCountryCode: "fr", homeTimezone: "Europe/Paris" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+      expect(await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" })).toMatchObject({ success: true, homeTimezone: "Australia/Sydney" });
+
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Paris", homeCountryCode: "fr", homeTimezone: "Europe/Paris" });
+      expect(await updateTrip("t1", { name: "T2", homeCurrency: "AUD" })).toMatchObject({ success: true, homeTimezone: "Europe/Paris" });
+    });
+
     it("name changed, same country, but before.homeTimezone was null → guesses anyway", async () => {
       tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Gold Coast", homeCountryCode: "au", homeTimezone: null });
       geocodePlaceDetailedMock.mockResolvedValueOnce({
@@ -1296,7 +1308,7 @@ describe("updateTrip", () => {
     assignTripSlugMock.mockResolvedValueOnce("new-name");
     const res = await updateTrip(TRIP_ID, { ...VALID_INPUT, name: "New name" });
     expect(assignTripSlugMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, "New name");
-    expect(res).toEqual({ success: true, slug: "new-name" });
+    expect(res).toMatchObject({ success: true, slug: "new-name" });
   });
 
   it("updateTrip with changed dates follows for the real plan and every Fork, in one transaction (ADR 0073)", async () => {
