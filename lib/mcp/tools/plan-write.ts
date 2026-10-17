@@ -56,6 +56,7 @@ import { loadNoteForMcp } from "../reads/notes";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
 const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
 const describedCategory = categorySchema.describe(describeValues("The thing's Category.", CATEGORY_MEANING, CATEGORY_VALUES));
@@ -80,6 +81,7 @@ const itemCreateShape = {
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
+  ...bookingCreateShape,
 };
 
 /** update_thing_to_do: every field optional — a patch merges onto the current row. */
@@ -94,6 +96,7 @@ const itemPatchShape = {
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
+  ...bookingPatchShape,
 };
 
 export function registerPlanWriteTools(server: McpServer): void {
@@ -133,7 +136,7 @@ export function registerPlanWriteTools(server: McpServer): void {
             ["item", itemId],
             ["stop", patch.stopId],
           ]);
-          return updateItem(itemId, patch);
+          return updateItem(itemId, bookingPatchFrom(patch));
         },
         async () => ({ item: await loadItemForMcp(itemId) }),
       ),

@@ -214,6 +214,25 @@ describe("plan write tools", () => {
     expect(call[1]).toEqual(expect.objectContaining({ title: "Colosseum", category: "SIGHTSEEING" }));
   });
 
+  describe("Booking state (spec 2026-10-17 R2, R13)", () => {
+    it("update_thing_to_do passes bookingState through and turns bookBy \"\" into a clear (null)", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, bookingState: "TO_BOOK", bookBy: "" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { bookingState: "TO_BOOK", bookBy: null });
+    });
+
+    it("add_thing_to_do forwards bookingState and bookBy", async () => {
+      createItem.mockResolvedValue({ success: true, id: "item-new" });
+      const c = await connectTestClient();
+      await c.callTool({
+        name: "add_thing_to_do",
+        arguments: { tripId: TRIP_ID, title: "Alhambra", category: "SIGHTSEEING", bookingState: "TO_BOOK", bookBy: "2027-05-01" },
+      });
+      expect(createItem).toHaveBeenCalledWith(TRIP_ID, expect.objectContaining({ bookingState: "TO_BOOK", bookBy: "2027-05-01" }));
+    });
+  });
+
   describe("update_thing_to_do (PATCH)", () => {
     it("checks the item and any new Stop are real-plan, then forwards only the fields passed", async () => {
       updateItem.mockResolvedValue({ success: true });

@@ -1,5 +1,5 @@
 import type { Category } from "@/lib/categories";
-import type { TransportMode, CostSettlement, ChecklistKind, VoteLevel } from "@/lib/enum-values";
+import type { TransportMode, CostSettlement, ChecklistKind, VoteLevel, BookingState } from "@/lib/enum-values";
 
 /** Spec Part G — one source for the style rule, used by MCP_INSTRUCTIONS (Task 7) and the day prompts. */
 export const WRITING_STYLE =
@@ -56,6 +56,13 @@ export const VOTE_LEVEL_MEANING: Record<VoteLevel, string> = {
   MUST: "must-do: we shouldn't miss it",
   KEEN: "keen: would like to",
   MEH: "meh: only if it fits",
+};
+
+/** What each Booking state means (CONTEXT.md), for set_booking_state and the add_/update_ tools. */
+export const BOOKING_STATE_MEANING: Record<BookingState, string> = {
+  NONE: "no booking needed: walk in, free entry, or a stay with friends",
+  TO_BOOK: "still to book. A leg you haven't bought yet, with placeholder times, is a TO_BOOK Transport",
+  BOOKED: "booked: reserved or ticketed. Booked is not paid; payment is the Cost's business",
 };
 
 /**
