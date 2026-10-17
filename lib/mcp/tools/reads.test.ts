@@ -177,8 +177,21 @@ describe("read tools", () => {
     const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
     expect(r.isError).toBeFalsy();
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
-      { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1" },
-      { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null },
+      { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1", itemId: null },
+      { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null, itemId: null },
+    ]);
+  });
+
+  it("get_flags names the Item an item Flag is about, so Claude can open or fix it (spec 2026-10-17 R7)", async () => {
+    loadFlags.mockResolvedValue([
+      { id: "item-closed-i1", severity: "warning", message: "Memorium Nuremberg Trials is closed on Tuesdays.", targetType: "ITEM", targetId: "i1", date: "2026-12-08", stopId: "s1" },
+      { id: "still-to-book-t1", severity: "info", message: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", targetType: "TRANSPORT", targetId: "t1", stopId: "s1" },
+    ]);
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
+      { severity: "warning", title: "item", detail: "Memorium Nuremberg Trials is closed on Tuesdays.", stopId: "s1", itemId: "i1" },
+      { severity: "info", title: "transport", detail: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", stopId: "s1", itemId: null },
     ]);
   });
 
