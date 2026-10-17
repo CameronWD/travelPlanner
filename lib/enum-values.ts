@@ -73,6 +73,15 @@ export const TARGET_TYPES = [
 ] as const;
 export type TargetType = (typeof TARGET_TYPES)[number];
 
+/**
+ * `Item.bookingState` / `Transport.bookingState` / `Accommodation.bookingState`
+ * — CONTEXT.md "Booking state" (spec 2026-10-17 R2): NONE = "No booking
+ * needed", TO_BOOK = "To book", BOOKED = "Booked". The rule that derives it
+ * from a booking reference is lib/booking-state.ts.
+ */
+export const BOOKING_STATES = ["NONE", "TO_BOOK", "BOOKED"] as const;
+export type BookingState = (typeof BOOKING_STATES)[number];
+
 /** `FeedbackNote.status` — the lifecycle of a Feedback note (ADR 0040, amended 2026-09-29: NEEDS_REVIEW). */
 export const FEEDBACK_STATUSES = ["NEEDS_REVIEW", "OPEN", "DONE", "WONTFIX"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
