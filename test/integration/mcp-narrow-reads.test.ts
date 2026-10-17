@@ -150,4 +150,14 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
       errors: { date: ["This trip has no dates yet, so it has no days. Read it with get_trip_plan."] },
     });
   });
+
+  it("stopTracker names the Surprise Stop a date push moved, as the surprised member's shell", async () => {
+    const { stopTracker } = await import("@/lib/mcp/reads/stop-changes");
+    const t = stopTracker();
+    await as(MEMBER)(() => t.start(TRIP_ID));
+    await db.stop.update({ where: { id: SECRET }, data: { arriveDate: "2027-06-05", departDate: "2027-06-08" } });
+    const out = await as(MEMBER)(() => t.stopAndShifted(PORTO));
+    expect(out.stop.id).toBe(PORTO);
+    expect(out.shifted).toEqual([expect.objectContaining({ id: SECRET, arriveDate: "2027-06-05", notes: null, days: [] })]);
+  });
 });
