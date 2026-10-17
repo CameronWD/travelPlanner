@@ -5,6 +5,7 @@ import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate } from "@/lib/validations/primitives";
+import { startFromSlot } from "@/lib/slot-time";
 import { arriveByMinutesSchema, bookBySchema, checkSlotFields, refundableSchema, slotTimeSchema } from "@/lib/validations/planning";
 
 /**
@@ -15,6 +16,7 @@ import { arriveByMinutesSchema, bookBySchema, checkSlotFields, refundableSchema,
  *
  * Refinements:
  *  - arriveByMinutes needs a slotTime (checkSlotFields).
+ *  - A dated Item with a slot and no start starts at slot − arrive-by (startFromSlot).
  *  - If endTime is set, startTime must also be set.
  *  - endTime must be >= startTime (lexicographic comparison is valid for HH:MM).
  */
@@ -120,12 +122,14 @@ export const itemSchema = z
   })
   // An arrive-by margin needs a slot time (lib/validations/planning.ts).
   .superRefine(checkSlotFields)
-  // Drop times when no date is set (the slot is the ticket's fact and stays)
+  // Drop times when no date is set (the slot is the ticket's fact and stays).
+  // With a date and no start, a slot sets it: slot − arrive-by (R3,
+  // startFromSlot), here so the end-time refines below see that start.
   .transform((data) => {
     if (!data.date) {
       return { ...data, startTime: undefined, endTime: undefined };
     }
-    return data;
+    return { ...data, startTime: startFromSlot(data) ?? undefined };
   })
   .refine(
     (data) => {

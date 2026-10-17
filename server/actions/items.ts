@@ -25,7 +25,7 @@ import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { validateSurpriseFor } from "@/lib/surprise";
 import { revalidateTrip } from "@/lib/revalidate";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
-import { arriveByMinutesSchema, slotTimeSchema } from "@/lib/validations/planning";
+import { ARRIVE_BY_NEEDS_SLOT_MESSAGE, arriveByMinutesSchema, slotTimeSchema } from "@/lib/validations/planning";
 import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
 import { startFromSlot } from "@/lib/slot-time";
 
@@ -193,7 +193,7 @@ export async function createItem(
       title: data.title,
       category: data.category,
       date: data.date ?? null,
-      startTime: startFromSlot(data),
+      startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
       endTime: data.endTime ?? null,
       address: data.address ?? null,
       link: data.link ?? null,
@@ -204,7 +204,7 @@ export async function createItem(
       countryCode,
       sortOrder,
       hiddenFromShares: data.hiddenFromShares ?? false,
-      // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it.
+      // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
       slotTime: data.slotTime ?? null,
       arriveByMinutes: data.arriveByMinutes ?? null,
       refundable: data.refundable ?? null,
@@ -345,7 +345,8 @@ export async function addMarkerToWishlist(
  * - Access-checked via requireItemAccess → requireTripAccess.
  * - If stopId changed, validates it still belongs to the same trip.
  * - Slot time (R3): an empty start on a dated Item with a slot defaults to
- *   slot − arrive-by (startFromSlot); an existing start is never moved.
+ *   slot − arrive-by (startFromSlot, in itemSchema's transform); an existing
+ *   start is never moved.
  */
 export async function updateItem(
   itemId: string,
@@ -423,7 +424,7 @@ export async function updateItem(
     title: data.title,
     category: data.category,
     date: data.date ?? null,
-    startTime: startFromSlot(data),
+    startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
     endTime: data.endTime ?? null,
     address: data.address ?? null,
     link: data.link ?? null,
@@ -433,7 +434,7 @@ export async function updateItem(
     lng,
     countryCode,
     hiddenFromShares: data.hiddenFromShares ?? false,
-    // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it.
+    // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
     slotTime: data.slotTime ?? null,
     arriveByMinutes: data.arriveByMinutes ?? null,
     refundable: data.refundable ?? null,
@@ -544,28 +545,9 @@ const scheduleDateSchema = z
     // CONTEXT.md "Slot time" (R3): scheduling a ticket may name its slot.
     slotTime: slotTimeSchema.optional(),
     arriveByMinutes: arriveByMinutesSchema.optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.endTime && !data.startTime) return false;
-      return true;
-    },
-    {
-      message: "Start time is required when an end time is set",
-      path: ["startTime"],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.startTime && data.endTime && data.endTime < data.startTime)
-        return false;
-      return true;
-    },
-    {
-      message: "End time must be on or after start time",
-      path: ["endTime"],
-    },
-  );
+  });
+// The end-needs-start and end ≥ start checks run in scheduleItem, after the
+// slot merge, against the start the slot may default (R3).
 
 export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 
@@ -715,7 +697,15 @@ export async function scheduleItem(
   // The call's slot wins over the row's (R3); a margin still needs a slot.
   const slot = { slotTime: slotTime ?? fullItem.slotTime, arriveByMinutes: arriveByMinutes ?? fullItem.arriveByMinutes };
   if (slot.arriveByMinutes != null && !slot.slotTime) {
-    return { success: false, errors: { arriveByMinutes: ["Set the slot time to use an arrive-by margin"] } };
+    return { success: false, errors: { arriveByMinutes: [ARRIVE_BY_NEEDS_SLOT_MESSAGE] } };
+  }
+  // With no start, a slot sets it; the end checks see that start.
+  const start = startFromSlot({ date, startTime, ...slot });
+  if (endTime && !start) {
+    return { success: false, errors: { startTime: ["Start time is required when an end time is set"] } };
+  }
+  if (start && endTime && endTime < start) {
+    return { success: false, errors: { endTime: ["End time must be on or after start time"] } };
   }
 
   const isWishlistIdea =
@@ -752,7 +742,7 @@ export async function scheduleItem(
         ...ideaCopyData(fullItem),
         stopId: placedStopId,
         date,
-        startTime: startFromSlot({ date, startTime, ...slot }),
+        startTime: start,
         slotTime: slot.slotTime ?? null,
         arriveByMinutes: slot.arriveByMinutes ?? null,
         endTime: endTime ?? null,
@@ -782,7 +772,7 @@ export async function scheduleItem(
     data: {
       date,
       stopId: owningStopId,
-      startTime: startFromSlot({ date, startTime, ...slot }),
+      startTime: start,
       endTime: endTime ?? null,
       ...(slotTime !== undefined && { slotTime }),
       ...(arriveByMinutes !== undefined && { arriveByMinutes }),

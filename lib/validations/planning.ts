@@ -26,12 +26,15 @@ export const arriveByMinutesSchema = z
 /** true = refundable, false = not; the caller's `.nullable()` carries "not known". */
 export const refundableSchema = z.boolean();
 
+/** The refusal for an arrive-by margin with no slot time (checkSlotFields, scheduleItem). */
+export const ARRIVE_BY_NEEDS_SLOT_MESSAGE = "Set the slot time to use an arrive-by margin";
+
 /** superRefine callback: an arrive-by margin only means something against a slot time. */
 export function checkSlotFields(
   data: { slotTime?: string | null; arriveByMinutes?: number | null },
   ctx: z.RefinementCtx,
 ): void {
   if (data.arriveByMinutes != null && !data.slotTime) {
-    ctx.addIssue({ code: "custom", message: "Set the slot time to use an arrive-by margin", path: ["arriveByMinutes"] });
+    ctx.addIssue({ code: "custom", message: ARRIVE_BY_NEEDS_SLOT_MESSAGE, path: ["arriveByMinutes"] });
   }
 }

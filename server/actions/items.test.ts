@@ -2392,3 +2392,53 @@ describe("scheduleItem: Slot time (R3)", () => {
     expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: null, slotTime: "20:00", arriveByMinutes: 10, refundable: false }) });
   });
 });
+
+describe("Slot time with an end time and no start (R3, fix round 1)", () => {
+  it("createItem: the defaulted start satisfies the end-needs-start rule", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1", title: "Tour" });
+    const r = await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, endTime: "14:00" });
+    expect(r.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "11:45", endTime: "14:00" }) });
+  });
+  it("createItem: an end earlier than the defaulted start is still refused", async () => {
+    const r = await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, endTime: "11:30" });
+    expect(r).toMatchObject({ success: false, errors: { endTime: ["End time must be on or after start time"] } });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+  it("updateItem: clearing the start on a row with an end re-defaults it", async () => {
+    const row = {
+      id: "item-1", tripId: "trip-1", forkId: null, stopId: null, title: "Tour", category: "ACTIVITY", date: "2027-06-02",
+      startTime: "11:00", endTime: "14:00", address: null, link: null, booking: null, notes: null, hiddenFromShares: false,
+      slotTime: "12:00", arriveByMinutes: 15, refundable: null,
+    };
+    itemFindUniqueMock.mockResolvedValue(row);
+    itemUpdateMock.mockResolvedValue(row);
+    expect(await updateItem("item-1", { startTime: null })).toEqual({ success: true });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ startTime: "11:45", endTime: "14:00" }) }));
+  });
+  const idea = {
+    id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Tour", category: "ACTIVITY",
+    slotTime: "12:00", arriveByMinutes: 15, refundable: null, photoAttachmentId: null,
+  };
+  it("scheduleItem: an end with the idea's slot and no start places at 11:45", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    const r = await scheduleItem("item-1", { date: "2027-06-02", endTime: "14:00" }, null);
+    expect(r.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "11:45", endTime: "14:00" }) });
+  });
+  it("scheduleItem: an end earlier than the defaulted start, or an end with no start and no slot, is refused", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    expect(await scheduleItem("item-1", { date: "2027-06-02", endTime: "11:30" }, null)).toEqual({
+      success: false, errors: { endTime: ["End time must be on or after start time"] },
+    });
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ ...idea, slotTime: null, arriveByMinutes: null });
+    expect(await scheduleItem("item-1", { date: "2027-06-02", endTime: "14:00" }, null)).toEqual({
+      success: false, errors: { startTime: ["Start time is required when an end time is set"] },
+    });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});

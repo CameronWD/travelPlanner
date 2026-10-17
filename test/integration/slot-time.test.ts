@@ -53,6 +53,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Slot time: start defaults to s
     expect(await row(r.id)).toEqual({ date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: null });
   });
 
+  it("create: a slot and an end with no start saves with the defaulted start", async () => {
+    const r = await createItem(TRIP_ID, { title: "Boat trip", category: "ACTIVITY", date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, endTime: "14:00" });
+    if (!r.success) throw new Error(JSON.stringify(r.errors));
+    expect(await row(r.id)).toMatchObject({ startTime: "11:45", slotTime: "12:00" });
+    expect((await db.item.findUniqueOrThrow({ where: { id: r.id }, select: { endTime: true } })).endTime).toBe("14:00");
+  });
+
   it("create: the default clamps at 00:00, never the day before", async () => {
     const r = await createItem(TRIP_ID, { title: "Midnight mass", category: "ACTIVITY", date: "2027-06-02", slotTime: "00:10", arriveByMinutes: 30 });
     if (!r.success) throw new Error(JSON.stringify(r.errors));

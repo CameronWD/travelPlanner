@@ -63,3 +63,10 @@ describe("slotLabel / refundLabel", () => {
     expect(refundLabel(undefined)).toBeNull();
   });
 });
+
+describe("slotLabel: a malformed slot", () => {
+  it("prints nothing rather than 'be there null'", () => {
+    expect(slotLabel({ slotTime: "25:00", arriveByMinutes: 15 })).toBeNull();
+    expect(slotLabel({ slotTime: "9:00", arriveByMinutes: 0 })).toBeNull();
+  });
+});

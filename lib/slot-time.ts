@@ -40,11 +40,12 @@ export function startFromSlot(v: {
   return defaultStartFromSlot(v.slotTime, v.arriveByMinutes);
 }
 
-/** "Slot 12:00 · be there 11:45", or "Slot 12:00" with no margin; null with no slot. */
+/** "Slot 12:00 · be there 11:45", or "Slot 12:00" with no margin; null with no (or a malformed) slot. */
 export function slotLabel(v: { slotTime?: string | null; arriveByMinutes?: number | null }): string | null {
-  if (!v.slotTime) return null;
+  const beThere = defaultStartFromSlot(v.slotTime, v.arriveByMinutes);
+  if (!v.slotTime || !beThere) return null; // no slot, or not an "HH:mm" one
   if (!v.arriveByMinutes) return `Slot ${v.slotTime}`;
-  return `Slot ${v.slotTime} · be there ${defaultStartFromSlot(v.slotTime, v.arriveByMinutes)}`;
+  return `Slot ${v.slotTime} · be there ${beThere}`;
 }
 
 /** Only a non-refundable ticket is worth a line; refundable (true) and not known (null) stay quiet. */
