@@ -78,6 +78,21 @@ all green (task-Z-report.md has the exact run).
 - Every existing leg and stay with no booking reference now reads **To
   book** (S's migration backfill), so Home's "Still to book" card fills up
   for most Trips the day this ships, not just new ones.
+- Day one: past legs and stays read **Booked**. The backfill marks a leg
+  that has already departed (`depAt < now()`) and a stay already checked
+  into (`checkIn <= today`, so tonight's hotel counts) Booked and held
+  (`bookingStateSet = true`), so the past does not fill "Still to book".
+  **Deploy note:** once the new build is live, re-run the backfill once,
+  because rows written by the old build during the deploy window miss it.
+  It is idempotent (it only touches rows with `bookingStateSet = false`):
+
+  ```sql
+  UPDATE "Transport" SET "bookingState" = 'BOOKED' WHERE "bookingStateSet" = false AND NULLIF(btrim("reference"), '') IS NOT NULL;
+  UPDATE "Accommodation" SET "bookingState" = 'BOOKED' WHERE "bookingStateSet" = false AND NULLIF(btrim("confirmation"), '') IS NOT NULL;
+  UPDATE "Item" SET "bookingState" = 'BOOKED' WHERE "bookingStateSet" = false AND NULLIF(btrim("booking"), '') IS NOT NULL;
+  UPDATE "Transport" SET "bookingState" = 'BOOKED', "bookingStateSet" = true WHERE "bookingStateSet" = false AND "depAt" < now();
+  UPDATE "Accommodation" SET "bookingState" = 'BOOKED', "bookingStateSet" = true WHERE "bookingStateSet" = false AND "checkIn" <= to_char(current_date, 'YYYY-MM-DD');
+  ```
 - The Plan's day row's "Booked ✓" pill now follows the `bookingState`
   column, not merely whether a reference is present — a leg a Traveller
   marked To book despite having a reference shows "To book", not "Booked".

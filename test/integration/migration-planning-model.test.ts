@@ -7,7 +7,8 @@ import { db } from "@/lib/db";
 // separately: (1) a row inserted WITHOUT the new columns (as every existing
 // row is, at migrate time) takes the column defaults; (2) the migration's own
 // hand-written backfill, run here narrowed to this test's Trip, marks rows
-// with a reference Booked and leaves everything else alone.
+// with a reference Booked, marks the past (a departed leg, a stay already
+// checked into) Booked and held, and leaves everything else alone.
 const TRIP_ID = "it-trip-planning-model";
 const MIGRATION = "prisma/migrations/20261017120000_planning_model/migration.sql";
 
@@ -51,14 +52,23 @@ describe.skipIf(process.env.INTEGRATION !== "1")("planning model migration (spec
       ('it-pm-leg-ref', ${TRIP_ID}, 'TRAIN', 'FR9521', now()),
       ('it-pm-leg-empty', ${TRIP_ID}, 'TRAIN', '', now()),
       ('it-pm-leg-none', ${TRIP_ID}, 'BUS', NULL, now())`;
+    // Day one: a leg that has already departed reads Booked even with no
+    // reference; one still to come stays To book.
+    await db.$executeRaw`INSERT INTO "Transport" ("id", "tripId", "mode", "reference", "depAt", "updatedAt") VALUES
+      ('it-pm-leg-past', ${TRIP_ID}, 'FLIGHT', NULL, '2000-01-01T10:00:00Z', now()),
+      ('it-pm-leg-future', ${TRIP_ID}, 'FLIGHT', NULL, '2999-01-01T10:00:00Z', now())`;
     await db.$executeRaw`INSERT INTO "Accommodation" ("id", "tripId", "stopId", "name", "checkIn", "checkOut", "confirmation", "updatedAt") VALUES
-      ('it-pm-acc-ref', ${TRIP_ID}, 'it-pm-stop', 'Hotel', '2026-07-01', '2026-07-04', 'ABC123', now()),
-      ('it-pm-acc-none', ${TRIP_ID}, 'it-pm-stop', 'Flat', '2026-07-04', '2026-07-06', NULL, now())`;
+      ('it-pm-acc-ref', ${TRIP_ID}, 'it-pm-stop', 'Hotel', '2999-07-01', '2999-07-04', 'ABC123', now()),
+      ('it-pm-acc-none', ${TRIP_ID}, 'it-pm-stop', 'Flat', '2999-07-04', '2999-07-06', NULL, now()),
+      ('it-pm-acc-past', ${TRIP_ID}, 'it-pm-stop', 'Inn', '2000-07-01', '2000-07-04', NULL, now())`;
+    // Tonight's hotel: checked in today (the database's today), so Booked.
+    await db.$executeRaw`INSERT INTO "Accommodation" ("id", "tripId", "stopId", "name", "checkIn", "checkOut", "confirmation", "updatedAt") VALUES
+      ('it-pm-acc-tonight', ${TRIP_ID}, 'it-pm-stop', 'Tonight', to_char(current_date, 'YYYY-MM-DD'), '2999-01-01', NULL, now())`;
     // Rows a Traveller has already set (written after deploy): the backfill must never touch them.
     await db.$executeRaw`INSERT INTO "Item" ("id", "tripId", "title", "category", "booking", "bookingState", "bookingStateSet", "updatedAt") VALUES
       ('it-pm-item-set', ${TRIP_ID}, 'Opera', 'OTHER', 'X-9', 'TO_BOOK', true, now())`;
     await db.$executeRaw`INSERT INTO "Accommodation" ("id", "tripId", "stopId", "name", "checkIn", "checkOut", "confirmation", "bookingState", "bookingStateSet", "updatedAt") VALUES
-      ('it-pm-acc-set', ${TRIP_ID}, 'it-pm-stop', 'Friend', '2026-07-06', '2026-07-07', 'Z', 'NONE', true, now())`;
+      ('it-pm-acc-set', ${TRIP_ID}, 'it-pm-stop', 'Friend', '2000-07-06', '2000-07-07', 'Z', 'NONE', true, now())`;
   });
 
   afterAll(async () => {
@@ -93,21 +103,25 @@ describe.skipIf(process.env.INTEGRATION !== "1")("planning model migration (spec
       "it-pm-item-ref": ["NONE", false], "it-pm-item-blank": ["NONE", false], "it-pm-item-none": ["NONE", false],
       "it-pm-item-set": ["TO_BOOK", true],
       "it-pm-leg-ref": ["TO_BOOK", false], "it-pm-leg-empty": ["TO_BOOK", false], "it-pm-leg-none": ["TO_BOOK", false],
+      "it-pm-leg-past": ["TO_BOOK", false], "it-pm-leg-future": ["TO_BOOK", false],
       "it-pm-acc-ref": ["TO_BOOK", false], "it-pm-acc-none": ["TO_BOOK", false], "it-pm-acc-set": ["NONE", true],
+      "it-pm-acc-past": ["TO_BOOK", false], "it-pm-acc-tonight": ["TO_BOOK", false],
     });
     const item = await db.item.findUniqueOrThrow({ where: { id: "it-pm-item-ref" } });
     expect(item).toMatchObject({ bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null });
   });
 
-  it("the backfill marks a row with a reference Booked and leaves blank references and Traveller-set rows alone", async () => {
+  it("the backfill marks a row with a reference Booked, the past Booked and held, and leaves the rest and Traveller-set rows alone", async () => {
     const statements = backfillStatements();
-    expect(statements).toHaveLength(3);
+    expect(statements).toHaveLength(5);
     await db.$transaction(statements.map((s) => db.$executeRawUnsafe(s)));
     const expected = {
       "it-pm-item-ref": ["BOOKED", false], "it-pm-item-blank": ["NONE", false], "it-pm-item-none": ["NONE", false],
       "it-pm-item-set": ["TO_BOOK", true],
       "it-pm-leg-ref": ["BOOKED", false], "it-pm-leg-empty": ["TO_BOOK", false], "it-pm-leg-none": ["TO_BOOK", false],
+      "it-pm-leg-past": ["BOOKED", true], "it-pm-leg-future": ["TO_BOOK", false],
       "it-pm-acc-ref": ["BOOKED", false], "it-pm-acc-none": ["TO_BOOK", false], "it-pm-acc-set": ["NONE", true],
+      "it-pm-acc-past": ["BOOKED", true], "it-pm-acc-tonight": ["BOOKED", true],
     };
     expect(await states()).toEqual(expected);
 
