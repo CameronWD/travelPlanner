@@ -226,11 +226,13 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "dueDate", label: "Due date", format: (v) => dateFormat(v) },
     { key: "assignedToName", label: "Assigned to" },
   ],
-  // stopName, likewise, is the "about" Stop's name, resolved by the caller.
+  // about, likewise, is what the Reminder is about by name (a Stop's name,
+  // an Item's title or a leg's label), resolved by the caller (spec F8).
   REMINDER: [
     { key: "title", label: "Reminder" },
     { key: "date", label: "Date", format: (v) => dateFormat(v) },
-    { key: "stopName", label: "About" },
+    { key: "notes", label: "Notes" },
+    { key: "about", label: "About" },
   ],
   // VOTE is always a { summary } line — nothing to diff
   VOTE: [],

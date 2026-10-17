@@ -508,14 +508,14 @@ describe("TC-07 entity types", () => {
     ]);
   });
 
-  it("diffs a Reminder's title, date and Stop name", () => {
+  it("diffs a Reminder's title, date, notes and what it is about (spec F8)", () => {
     expect(
       describeChanges(
         "REMINDER",
-        { title: "Print docs", date: "2026-11-26", stopName: null },
-        { title: "Print docs", date: "2026-11-28", stopName: "Lisbon" },
+        { title: "Print docs", date: "2026-11-26", notes: null, about: null },
+        { title: "Print docs", date: "2026-11-28", notes: "Two copies", about: "Lisbon" },
       ).map((c) => c.label),
-    ).toEqual(["Date", "About"]);
+    ).toEqual(["Date", "Notes", "About"]);
   });
 
   it("labels the new entity types from their text", () => {

@@ -11,6 +11,7 @@ import type { PlanId } from "@/lib/plan-scope";
 import { requireOutsideSurprise, type SurpriseRef, type SurpriseRoot } from "@/lib/surprise-guard";
 import { CHECKLIST_ITEM_ACTIVITY_SELECT } from "@/lib/checklists";
 import type { TravellerLike } from "@/lib/traveller";
+import { REMINDER_TRANSPORT_SELECT, type ReminderTransportRow } from "@/lib/reminder-about";
 
 export { isTripOwnerOrAdmin } from "@/lib/access";
 
@@ -218,9 +219,13 @@ type ReminderRow = {
   tripId: string;
   title: string;
   date: string;
+  notes: string | null;
   stopId: string | null;
   itemId: string | null;
+  transportId: string | null;
   stop: { name: string } | null;
+  item: { title: string } | null;
+  transport: ReminderTransportRow | null;
 };
 type ChecklistItemRow = {
   id: string;
@@ -258,7 +263,19 @@ const ROW_SELECT = {
   cost: { id: true, tripId: true, forkId: true, currency: true, ownerType: true, ownerId: true },
   chapter: { id: true, tripId: true, forkId: true },
   note: { id: true, tripId: true, authorId: true, targetType: true, targetId: true },
-  reminder: { id: true, tripId: true, title: true, date: true, stopId: true, itemId: true, stop: { select: { name: true } } },
+  reminder: {
+    id: true,
+    tripId: true,
+    title: true,
+    date: true,
+    notes: true,
+    stopId: true,
+    itemId: true,
+    transportId: true,
+    stop: { select: { name: true } },
+    item: { select: { title: true } },
+    transport: { select: REMINDER_TRANSPORT_SELECT },
+  },
   checklistItem: CHECKLIST_ITEM_ACTIVITY_SELECT,
 } as const;
 

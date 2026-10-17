@@ -14,21 +14,24 @@ vi.mock("@/lib/money/fx", () => ({
   persistRate: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
-vi.mock("@/lib/guards", async () => ({
-  isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
-  requireUser: vi.fn(async () => ({ id: "it-user" })),
-  requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
-  requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
-  // The actions only read id/tripId/forkId (+ the reminder's own fields) off the guard's row.
-  requireRowAccess: vi.fn(async (kind: string, id: string) => {
-    const { db } = await import("@/lib/db");
-    const { notFound } = await import("next/navigation");
-    const delegate = (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind];
-    const row = await delegate.findUnique({ where: { id }, ...(kind === "reminder" ? { include: { stop: { select: { name: true } } } } : {}) });
-    if (!row) notFound();
-    return { row, user: { id: "it-user" }, membership: { role: "owner" }, surpriseOf: null };
-  }),
-}));
+vi.mock("@/lib/guards", async () => {
+  const { REMINDER_TRANSPORT_SELECT } = await import("@/lib/reminder-about");
+  return {
+    isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
+    requireUser: vi.fn(async () => ({ id: "it-user" })),
+    requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
+    requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
+    // The actions only read id/tripId/forkId (+ the reminder's own fields) off the guard's row.
+    requireRowAccess: vi.fn(async (kind: string, id: string) => {
+      const { db } = await import("@/lib/db");
+      const { notFound } = await import("next/navigation");
+      const delegate = (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind];
+      const row = await delegate.findUnique({ where: { id }, ...(kind === "reminder" ? { include: { stop: { select: { name: true } }, item: { select: { title: true } }, transport: { select: REMINDER_TRANSPORT_SELECT } } } : {}) });
+      if (!row) notFound();
+      return { row, user: { id: "it-user" }, membership: { role: "owner" }, surpriseOf: null };
+    }),
+  };
+});
 vi.mock("@/lib/surprise-guard", async () => ({
   ...(await vi.importActual<object>("@/lib/surprise-guard")),
   requireOutsideSurprise: vi.fn(async () => null),
@@ -66,6 +69,24 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Old", date: "2026-05-02", stopId: stop.id } });
       expect(await updateReminder(r.id, { title: "New" })).toEqual({ success: true });
       expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ title: "New", date: "2026-05-02", stopId: stop.id });
+    });
+
+    it("moving a Reminder from a Stop to an Item clears the Stop (the CHECK never trips); notes clear with null", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Lyon", sortOrder: 40 } });
+      const item = await db.item.create({ data: { tripId: TRIP_ID, title: "Bouchon", category: "OTHER" } });
+      const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Book table", date: "2026-05-03", stopId: stop.id, notes: "window" } });
+      expect(await updateReminder(r.id, { itemId: item.id })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ stopId: null, itemId: item.id, notes: "window" });
+      expect(await updateReminder(r.id, { notes: null })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ notes: null, itemId: item.id });
+    });
+
+    // E.2 review: an empty about id must never be written (it would fail the FK).
+    it("stopId \"\" clears the about instead of writing \"\"", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Arles", sortOrder: 41 } });
+      const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Pack", date: "2026-05-04", stopId: stop.id } });
+      expect(await updateReminder(r.id, { stopId: "" })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ stopId: null, itemId: null, transportId: null });
     });
   });
 

@@ -17,6 +17,8 @@ const {
   reminderUpdateMock,
   reminderDeleteMock,
   stopFindFirstMock,
+  itemFindFirstMock,
+  transportFindFirstMock,
   recordActivityMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
@@ -35,6 +37,9 @@ const {
   // Task 7 fix: addReminder/updateReminder look this up to verify a given
   // stopId actually belongs to the trip being written to.
   stopFindFirstMock: vi.fn(),
+  // Spec F8: and an itemId / transportId, real plan only.
+  itemFindFirstMock: vi.fn(),
+  transportFindFirstMock: vi.fn(),
   recordActivityMock: vi.fn(),
 }));
 
@@ -51,6 +56,8 @@ vi.mock("@/lib/db", () => ({
     stop: {
       findFirst: stopFindFirstMock,
     },
+    item: { findFirst: itemFindFirstMock },
+    transport: { findFirst: transportFindFirstMock },
   },
 }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
@@ -90,6 +97,7 @@ import {
   updateReminder,
   deleteReminder,
 } from "@/server/actions/reminders";
+import { REMINDER_ONE_THING } from "@/lib/validations/reminder";
 
 const TRIP_ID = "trip-1";
 const REMINDER_ID = "rem-1";
@@ -334,12 +342,16 @@ describe("updateReminder", () => {
     });
     expect(reminderUpdateMock).toHaveBeenCalledWith({
       where: { id: REMINDER_ID },
+      // Naming an about key replaces the whole about (spec F8): the other
+      // two are cleared. The select is pinned by the Activity cases.
       data: {
         title: VALID_INPUT.title,
         date: VALID_INPUT.date,
         stopId: "cst0p00000000000000000000",
+        itemId: null,
+        transportId: null,
       },
-      select: { title: true, date: true, stop: { select: { name: true } } },
+      select: expect.any(Object),
     });
     expect(result).toEqual({ success: true });
   });
@@ -394,7 +406,7 @@ describe("updateReminder (PATCH, ADR 0075)", () => {
     reminderUpdateMock.mockResolvedValue({ title: "Reconfirm the tour", date: "2026-07-02", stop: null });
     await updateReminder("r1", { stopId: NEW_STOP_ID });
     expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
-      data: { title: "Reconfirm the tour", date: "2026-07-02", stopId: NEW_STOP_ID },
+      data: { title: "Reconfirm the tour", date: "2026-07-02", stopId: NEW_STOP_ID, itemId: null, transportId: null },
     }));
   });
 
@@ -472,7 +484,7 @@ describe("Activity", () => {
     });
   });
 
-  it("editing records field diffs with the Stop by name", async () => {
+  it("editing records field diffs with the Stop by name (key about, spec F8)", async () => {
     reminderFindUniqueMock.mockResolvedValue({
       id: "r-1", tripId: "trip-1", title: "Print docs", date: "2026-11-26", stop: null,
     });
@@ -486,7 +498,7 @@ describe("Activity", () => {
     expect(call).toMatchObject({ verb: "UPDATED", entityType: "REMINDER", entityId: "r-1", entityLabel: "Print docs" });
     expect(call.changes).toEqual([
       { field: "date", label: "Date", from: "Thu 26 Nov 2026", to: "Sat 28 Nov 2026" },
-      { field: "stopName", label: "About", from: "", to: "Lisbon" },
+      { field: "about", label: "About", from: "", to: "Lisbon" },
     ]);
   });
 
@@ -548,5 +560,154 @@ describe("Surprise write guard", () => {
     expect(recordActivityMock).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "REMINDER", surpriseOf: { type: "STOP", id: "stop-1" } }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec F8 — notes, and about an Item or a Transport leg
+// ---------------------------------------------------------------------------
+
+describe("notes and about (F8)", () => {
+  const ITEM_ID = "cit3m00000000000000000001";
+  const LEG_ID = "ctr4n00000000000000000001";
+  const STOP_ID = "cst0p00000000000000000001";
+  const ROW = { id: "r1", tripId: TRIP_ID, title: "Book table", date: "2026-07-02", notes: null, stopId: STOP_ID, itemId: null, transportId: null, stop: { name: "Lyon" }, item: null, transport: null };
+
+  it("addReminder writes notes and the Item, after checking it is a real-plan Item on this trip and the caller isn't surprised by it", async () => {
+    itemFindFirstMock.mockResolvedValue({ id: ITEM_ID });
+    reminderCreateMock.mockResolvedValue({ id: "r9" });
+    const r = await addReminder(TRIP_ID, { title: "Book table", date: "2026-07-02", notes: "  window  ", itemId: ITEM_ID });
+    expect(r).toEqual({ success: true, id: "r9" });
+    expect(itemFindFirstMock).toHaveBeenCalledWith({ where: { id: ITEM_ID, tripId: TRIP_ID, forkId: null }, select: { id: true } });
+    expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { itemId: ITEM_ID });
+    expect(reminderCreateMock).toHaveBeenCalledWith({
+      data: { tripId: TRIP_ID, title: "Book table", date: "2026-07-02", notes: "window", itemId: ITEM_ID },
+      select: { id: true },
+    });
+  });
+
+  it("addReminder writes a real-plan leg on this trip", async () => {
+    transportFindFirstMock.mockResolvedValue({ id: LEG_ID });
+    reminderCreateMock.mockResolvedValue({ id: "r9" });
+    await addReminder(TRIP_ID, { title: "Seats", date: "2026-07-02", transportId: LEG_ID });
+    expect(transportFindFirstMock).toHaveBeenCalledWith({ where: { id: LEG_ID, tripId: TRIP_ID, forkId: null }, select: { id: true } });
+    expect(reminderCreateMock).toHaveBeenCalledWith({
+      data: { tripId: TRIP_ID, title: "Seats", date: "2026-07-02", transportId: LEG_ID },
+      select: { id: true },
+    });
+  });
+
+  it("addReminder refuses a leg that isn't this trip's real plan's, and writes nothing", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    const r = await addReminder(TRIP_ID, { title: "Seats", date: "2026-07-02", transportId: LEG_ID });
+    expect(r).toEqual({ success: false, errors: { transportId: ["That Transport leg isn't on this trip"] } });
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("addReminder refuses an Item that isn't this trip's real plan's, and writes nothing", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    const r = await addReminder(TRIP_ID, { title: "Book", date: "2026-07-02", itemId: ITEM_ID });
+    expect(r).toEqual({ success: false, errors: { itemId: ["That thing to do isn't on this trip"] } });
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("addReminder refuses a Reminder about two things before any lookup", async () => {
+    const r = await addReminder(TRIP_ID, { title: "T", date: "2026-07-02", stopId: STOP_ID, itemId: ITEM_ID });
+    expect(r).toEqual({ success: false, errors: { _: [REMINDER_ONE_THING] } });
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+    expect(itemFindFirstMock).not.toHaveBeenCalled();
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  // An empty about id is unset, never a value: writing stopId "" would fail
+  // the foreign key (E.2 review: replaceAbout names "", aboutCount doesn't).
+  it("addReminder with stopId \"\" writes no stopId and succeeds", async () => {
+    reminderCreateMock.mockResolvedValue({ id: "r9" });
+    const r = await addReminder(TRIP_ID, { title: "T", date: "2026-07-02", stopId: "" });
+    expect(r).toEqual({ success: true, id: "r9" });
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+    expect(reminderCreateMock).toHaveBeenCalledWith({ data: { tripId: TRIP_ID, title: "T", date: "2026-07-02" }, select: { id: true } });
+  });
+
+  it("updateReminder with stopId \"\" clears the about (never writes \"\") and succeeds", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ ...ROW, stop: null });
+    const r = await updateReminder("r1", { stopId: "" });
+    expect(r).toEqual({ success: true });
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+    expect(reminderUpdateMock.mock.calls[0][0].data).toEqual({ title: "Book table", date: "2026-07-02", stopId: null, itemId: null, transportId: null });
+  });
+
+  it("updateReminder naming two things is refused before any lookup, nothing written", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    const r = await updateReminder("r1", { stopId: STOP_ID, itemId: ITEM_ID });
+    expect(r).toEqual({ success: false, errors: { _: [REMINDER_ONE_THING] } });
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+    expect(itemFindFirstMock).not.toHaveBeenCalled();
+    expect(reminderUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("updateReminder moving a Reminder from a Stop to an Item clears the Stop", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    itemFindFirstMock.mockResolvedValue({ id: ITEM_ID });
+    reminderUpdateMock.mockResolvedValue({ ...ROW, stop: null, item: { title: "Bouchon" } });
+    await updateReminder("r1", { itemId: ITEM_ID });
+    expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: { title: "Book table", date: "2026-07-02", stopId: null, itemId: ITEM_ID, transportId: null },
+    }));
+    expect(stopFindFirstMock).not.toHaveBeenCalled();
+    expect(requireOutsideSurpriseMock).toHaveBeenLastCalledWith("user-1", { itemId: ITEM_ID });
+  });
+
+  it("updateReminder with a null about makes it about the Trip as a whole", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ ...ROW, stop: null });
+    await updateReminder("r1", { stopId: null });
+    expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: { title: "Book table", date: "2026-07-02", stopId: null, itemId: null, transportId: null },
+    }));
+  });
+
+  it("updateReminder writes notes only when the patch names them; null or empty clears", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ ...ROW, notes: "old" });
+    reminderUpdateMock.mockResolvedValue(ROW);
+    await updateReminder("r1", { title: "New" });
+    expect(reminderUpdateMock.mock.calls[0][0].data).toEqual({ title: "New", date: "2026-07-02" });
+    await updateReminder("r1", { notes: null });
+    expect(reminderUpdateMock.mock.calls[1][0].data).toEqual({ title: "Book table", date: "2026-07-02", notes: null });
+    await updateReminder("r1", { notes: "  " });
+    expect(reminderUpdateMock.mock.calls[2][0].data).toEqual({ title: "Book table", date: "2026-07-02", notes: null });
+  });
+
+  it("Activity names what the Reminder is about, and diffs its notes", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    itemFindFirstMock.mockResolvedValue({ id: ITEM_ID });
+    reminderUpdateMock.mockResolvedValue({ title: "Book table", date: "2026-07-02", notes: "8pm", stop: null, item: { title: "Bouchon" }, transport: null });
+    await updateReminder("r1", { itemId: ITEM_ID, notes: "8pm" });
+    expect(reminderUpdateMock.mock.calls[0][0].select).toEqual({
+      title: true,
+      date: true,
+      notes: true,
+      stop: { select: { name: true } },
+      item: { select: { title: true } },
+      transport: { select: expect.objectContaining({ mode: true }) },
+    });
+    expect(recordActivityMock.mock.calls[0][0].changes).toEqual([
+      { field: "notes", label: "Notes", from: "", to: "8pm" },
+      { field: "about", label: "About", from: "Lyon", to: "Bouchon" },
+    ]);
+  });
+
+  it("Activity names a leg by its label", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    transportFindFirstMock.mockResolvedValue({ id: LEG_ID });
+    reminderUpdateMock.mockResolvedValue({
+      title: "Book table", date: "2026-07-02", notes: null, stop: null, item: null,
+      transport: { mode: "TRAIN", depPlace: null, arrPlace: null, depIsHome: false, arrIsHome: false, fromStop: { name: "Paris" }, toStop: { name: "Lyon" }, trip: { homeName: null } },
+    });
+    await updateReminder("r1", { transportId: LEG_ID });
+    expect(recordActivityMock.mock.calls[0][0].changes).toEqual([
+      { field: "about", label: "About", from: "Lyon", to: "Train Paris → Lyon" },
+    ]);
   });
 });
