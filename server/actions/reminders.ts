@@ -174,10 +174,11 @@ export async function addReminder(
 
 /**
  * Update a Reminder (PATCH, ADR 0075): title, date and notes merge onto the
- * held row (null or "" clears the notes). A patch naming any of stopId /
- * itemId / transportId replaces the whole about (lib/reminder-about.ts
+ * held row (null or "" clears the notes). A patch setting one of stopId /
+ * itemId / transportId to an id replaces the whole about (lib/reminder-about.ts
  * replaceAbout) — the others are cleared, so the one-thing CHECK never
- * trips; null (or "") on all of them makes it about the Trip as a whole. A
+ * trips. Nulls (or "") alone clear only the keys they name: null on the one
+ * it holds makes it about the Trip as a whole, null on another keeps it. A
  * patch naming none leaves the about as it is.
  *
  * - Access-checked via requireReminderAccess → requireRowAccess.
@@ -187,7 +188,9 @@ export async function updateReminder(
   patch: Patch<ReminderInput>,
 ): Promise<ReminderActionResult> {
   const reminder = await requireReminderAccess(id);
-  const aboutNamed = ABOUT_KEYS.some((k) => patch[k] !== undefined);
+  // Only a named id moves the Reminder; nulls alone clear what they name and
+  // the row keeps the rest (replaceAbout), so nothing new needs checking.
+  const aboutSet = ABOUT_KEYS.some((k) => patch[k] != null && patch[k] !== "");
 
   const parsed = reminderSchema.safeParse(
     applyPatch<ReminderInput>(
@@ -201,7 +204,7 @@ export async function updateReminder(
 
   const { title, date, notes, stopId, itemId, transportId } = parsed.data;
 
-  if (aboutNamed) {
+  if (aboutSet) {
     const aboutError = await assertAboutOnTrip({ stopId, itemId, transportId }, reminder.tripId);
     if (aboutError) {
       return fail(aboutError);
@@ -215,7 +218,10 @@ export async function updateReminder(
       title,
       date,
       ...(patch.notes !== undefined ? { notes: notes ? notes : null } : {}),
-      ...(aboutNamed ? { stopId: stopId ?? null, itemId: itemId ?? null, transportId: transportId ?? null } : {}),
+      // An id names the whole about; nulls alone write only the keys they name.
+      ...(aboutSet
+        ? { stopId: stopId ?? null, itemId: itemId ?? null, transportId: transportId ?? null }
+        : Object.fromEntries(ABOUT_KEYS.filter((k) => patch[k] !== undefined).map((k) => [k, null]))),
     },
     select: ACTIVITY_SELECT,
   });

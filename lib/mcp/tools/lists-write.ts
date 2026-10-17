@@ -27,11 +27,13 @@
  * would return (`aboutCount`, `lib/reminder-about.ts`).
  *
  * `update_reminder` passes only the fields the caller supplied: `updateReminder`
- * takes a PATCH (ADR 0075) and merges onto the row it holds. Naming any one
- * of `stopId`/`itemId`/`transportId` replaces the whole about — the other
- * two are cleared along with it (`replaceAbout`) — and `null` on the one the
- * Reminder holds makes it about the Trip as a whole. A patch that names none
- * of them leaves the about as it is. This is the way to clear an existing
+ * takes a PATCH (ADR 0075) and merges onto the row it holds. Setting one
+ * of `stopId`/`itemId`/`transportId` to an id replaces the whole about — the
+ * other two are cleared along with it (`replaceAbout`). `null` alone clears
+ * only the keys it names: `null` on the one the Reminder holds makes it about
+ * the Trip as a whole, and `null` on another key changes nothing, so a caller
+ * echoing `stopId: null, itemId: null` beside a title edit no longer wipes an
+ * about it didn't mean to touch. A patch that names none leaves it as it is. This is the way to clear an existing
  * `stopId`; the old comment saying there's no way to do so no longer holds.
  *
  * `update_checklist_item` needs no such merge: `checklistItemUpdateSchema`
@@ -151,7 +153,7 @@ export function registerListWriteTools(server: McpServer): void {
     {
       title: "Update reminder",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. notes: null clears them. Passing one of stopId, itemId or transportId makes the Reminder about that thing instead (the other two are cleared); null on the one it holds makes it about the Trip as a whole. Never pass more than one.",
+        "Changes only the fields you pass; fields you omit keep their current value. notes: null clears them. Passing an id for one of stopId, itemId or transportId makes the Reminder about that thing instead (the other two are cleared). null clears only the key it names: null on the one it holds makes it about the Trip as a whole; null on the others changes nothing. Never pass more than one id.",
       inputSchema: {
         reminderId: z.string(),
         title: z.string().trim().min(1).optional(),

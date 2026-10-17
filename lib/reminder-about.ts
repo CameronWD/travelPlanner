@@ -93,10 +93,15 @@ export function aboutCount(r: Partial<Record<AboutKey, string | null | undefined
 }
 
 /**
- * The update rule (ADR 0075 PATCH, spec F8): a patch that names ANY about key
- * replaces the whole about — the keys it leaves out are cleared — so a
+ * The update rule (ADR 0075 PATCH, spec F8): a patch that sets one about key
+ * to an id replaces the whole about — the other two are cleared — so a
  * Reminder moved from a Stop to an Item never holds both (the CHECK would
- * refuse the write). A patch naming none keeps the about as it is.
+ * refuse the write). A patch that names about keys only as null (or "")
+ * clears just those keys, so `stopId: null, itemId: null, transportId: null`
+ * sent alongside a title edit wipes the about only because it names all
+ * three — and `stopId: null` on a Reminder about an Item leaves the Item. The
+ * caller merges the result onto the row's current about (applyPatch: an
+ * absent key keeps its value). A patch naming none keeps the about as it is.
  */
 // `P extends object` with the about keys intersected on the parameter, not
 // `P extends Partial<Record<AboutKey, …>>`: that constraint is a "weak type",
@@ -104,7 +109,14 @@ export function aboutCount(r: Partial<Record<AboutKey, string | null | undefined
 export function replaceAbout<P extends object>(patch: P & Partial<Record<AboutKey, string | null | undefined>>): P {
   if (ABOUT_KEYS.every((k) => patch[k] === undefined)) return patch;
   const out: Record<string, unknown> = { ...patch };
-  for (const k of ABOUT_KEYS) if (out[k] === undefined) out[k] = null;
+  const sets = ABOUT_KEYS.some((k) => patch[k] != null && patch[k] !== "");
+  for (const k of ABOUT_KEYS) {
+    if (sets) {
+      if (out[k] == null || out[k] === "") out[k] = null;
+    } else if (out[k] !== undefined) {
+      out[k] = null;
+    }
+  }
   return out as P;
 }
 

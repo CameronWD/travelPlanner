@@ -660,7 +660,8 @@ describe("notes and about (F8)", () => {
     const r = await updateReminder("r1", { stopId: "" });
     expect(r).toEqual({ success: true });
     expect(stopFindFirstMock).not.toHaveBeenCalled();
-    expect(reminderUpdateMock.mock.calls[0][0].data).toEqual({ title: "Book table", date: "2026-07-02", stopId: null, itemId: null, transportId: null });
+    // Clears the key it names (the one this Reminder holds); the others are already null.
+    expect(reminderUpdateMock.mock.calls[0][0].data).toEqual({ title: "Book table", date: "2026-07-02", stopId: null });
   });
 
   it("updateReminder naming two things is refused before any lookup, nothing written", async () => {
@@ -689,8 +690,34 @@ describe("notes and about (F8)", () => {
     reminderUpdateMock.mockResolvedValue({ ...ROW, stop: null });
     await updateReminder("r1", { stopId: null });
     expect(reminderUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
-      data: { title: "Book table", date: "2026-07-02", stopId: null, itemId: null, transportId: null },
+      data: { title: "Book table", date: "2026-07-02", stopId: null },
     }));
+  });
+
+  it("a title edit sent with null on all three about keys clears the about (it names all three)", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ ...ROW, stop: null });
+    await updateReminder("r1", { title: "New", stopId: null, itemId: null, transportId: null });
+    expect(reminderUpdateMock.mock.calls[0][0].data).toEqual({ title: "New", date: "2026-07-02", stopId: null, itemId: null, transportId: null });
+  });
+
+  it("null on a key the Reminder doesn't hold keeps what it is about", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ ...ROW, stopId: null, stop: null, itemId: ITEM_ID, item: { title: "Bouchon" } });
+    reminderUpdateMock.mockResolvedValue({ ...ROW, stop: null, item: { title: "Bouchon" } });
+    const r = await updateReminder("r1", { title: "New", stopId: null, transportId: null });
+    expect(r).toEqual({ success: true });
+    // Only the named keys are written: the Item stays.
+    expect(reminderUpdateMock.mock.calls[0][0].data).toEqual({ title: "New", date: "2026-07-02", stopId: null, transportId: null });
+    // Clearing looks nothing up: the kept Item is the row's own.
+    expect(itemFindFirstMock).not.toHaveBeenCalled();
+  });
+
+  it("an id sent with nulls on the other keys moves the Reminder to it", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    itemFindFirstMock.mockResolvedValue({ id: ITEM_ID });
+    reminderUpdateMock.mockResolvedValue({ ...ROW, stop: null, item: { title: "Bouchon" } });
+    await updateReminder("r1", { stopId: null, itemId: ITEM_ID, transportId: null });
+    expect(reminderUpdateMock.mock.calls[0][0].data).toEqual({ title: "Book table", date: "2026-07-02", stopId: null, itemId: ITEM_ID, transportId: null });
   });
 
   it("updateReminder writes notes only when the patch names them; null or empty clears", async () => {

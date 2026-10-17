@@ -7,7 +7,7 @@ export const REMINDER_ONE_THING = "A Reminder is about one thing at most: a Stop
  * One about id. "" is read as unset (as lib/reminder-about.ts aboutCount
  * reads it), never a value: writing "" would fail the foreign key, and it
  * must not count toward the one-thing rule. On an update a patch naming
- * "" still names the key, so replaceAbout clears the whole about.
+ * "" still names the key, so replaceAbout clears that key, as null would.
  */
 const aboutId = z.preprocess((v) => (v === "" ? undefined : v), z.string().cuid().optional());
 

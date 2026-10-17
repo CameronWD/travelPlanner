@@ -26,8 +26,13 @@ describe("replaceAbout", () => {
   it("naming one about key clears the other two", () => {
     expect(replaceAbout({ title: "x", itemId: "i1" })).toEqual({ title: "x", itemId: "i1", stopId: null, transportId: null });
   });
-  it("a null on one key clears all three (about the Trip as a whole)", () => {
-    expect(replaceAbout({ stopId: null })).toEqual({ stopId: null, itemId: null, transportId: null });
+  it("naming one id clears the others even when they are sent as null or \"\"", () => {
+    expect(replaceAbout({ stopId: "s1", itemId: null, transportId: "" })).toEqual({ stopId: "s1", itemId: null, transportId: null });
+  });
+  it("nulls (or \"\") alone clear only the keys they name; the rest are left for the row to keep", () => {
+    expect(replaceAbout({ stopId: null })).toEqual({ stopId: null });
+    expect(replaceAbout({ title: "x", stopId: "" })).toEqual({ title: "x", stopId: null });
+    expect(replaceAbout({ title: "x", stopId: null, itemId: null, transportId: null })).toEqual({ title: "x", stopId: null, itemId: null, transportId: null });
   });
 });
 

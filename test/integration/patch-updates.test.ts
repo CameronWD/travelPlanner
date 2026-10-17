@@ -88,6 +88,15 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await updateReminder(r.id, { stopId: "" })).toEqual({ success: true });
       expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ stopId: null, itemId: null, transportId: null });
     });
+
+    it("nulls alone clear only the keys they name: a title edit with stopId/transportId null keeps the Item", async () => {
+      const item = await db.item.create({ data: { tripId: TRIP_ID, title: "Ring box", category: "OTHER" } });
+      const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Collect", date: "2026-05-05", itemId: item.id } });
+      expect(await updateReminder(r.id, { title: "Collect it", stopId: null, transportId: null })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ title: "Collect it", itemId: item.id, stopId: null, transportId: null });
+      expect(await updateReminder(r.id, { stopId: null, itemId: null, transportId: null })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ itemId: null, stopId: null, transportId: null });
+    });
   });
 
   describe("Chapter", () => {
