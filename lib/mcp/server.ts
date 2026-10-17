@@ -17,6 +17,7 @@ import { WRITING_STYLE, CHECK_FACTS } from "./vocab";
 export const MCP_INSTRUCTIONS = [
   "You are working on the user's TEEPEE trips, as them. Changes are real and visible to their travel partner, marked 'via Claude'.",
   "Every tool works on the real plan (never a What-if plan). Read the plan before changing it, and say what you changed.",
+  "Every write returns the thing as it now stands (a delete returns { deleted: id }; a date change also lists the other Stops it moved, in shifted), so confirm from that rather than reading the whole plan again; to re-check one thing, use get_stop, get_item, get_transport, get_accommodation or get_day.",
   "Vocabulary: file things as the right kind.",
   "A Stop is a place they stay for a stretch. Rough means a place and a rough number of nights with no dates yet. Scheduled means it has arrive and depart dates. Pinned means those dates are fixed by a real booking or a fixed-date event, so firming up or re-planning never moves it.",
   "A Transport moves them from one Stop to the next, or from or to Home: a flight, train, coach, drive or ferry, and it drives the dates. A day trip out and back, or local buses, trains, metro or taxis that don't change where they're staying, is NOT a Transport. Add it as a thing to do with Category GETTING_AROUND instead.",
