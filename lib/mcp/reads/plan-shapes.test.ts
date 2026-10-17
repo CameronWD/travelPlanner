@@ -16,7 +16,7 @@ const stop = (o: Partial<McpStopRow> = {}): McpStopRow => ({
 });
 const item = (o: Partial<McpItemRow> = {}): McpItemRow => ({
   id: "i1", title: "Tour", category: "ACTIVITY", date: null, startTime: null, endTime: null,
-  address: null, link: null, booking: null, notes: null, stopId: null, ...o,
+  address: null, link: null, booking: null, notes: null, stopId: null, bookingState: "NONE", bookBy: null, ...o,
 });
 const surpriseView = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true } as never;
 
@@ -58,18 +58,19 @@ describe("buildMcpStops", () => {
   });
 });
 
+const placeholder = (o: { id?: string; forkId?: string | null } = {}) => ({
+  id: "p1", tripId: "t", forkId: null, stopId: "s1", date: "2027-06-01", startTime: "19:00", endTime: null,
+  title: "Surprise" as const, category: "OTHER" as const, address: null, link: null, booking: null, notes: null,
+  lat: null, lng: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
+  sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null,
+  slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, surprise: surpriseView,
+  ...o,
+});
+
 describe("withPlaceholders", () => {
   it("adds a hidden real-plan Item as a 'Surprise' placeholder on its date, sorted by date", () => {
-    const placeholder = {
-      id: "p1", tripId: "t", forkId: null, stopId: "s1", date: "2027-06-01", startTime: "19:00", endTime: null,
-      title: "Surprise" as const, category: "OTHER" as const, address: null, link: null, booking: null, notes: null,
-      lat: null, lng: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
-      sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null,
-      slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, surprise: surpriseView,
-    };
-    const forkPlaceholder = { ...placeholder, id: "p2", forkId: "f1" };
     const out = withPlaceholders([item({ id: "i2", date: "2027-06-02" })], {
-      placeholderItems: [placeholder, forkPlaceholder],
+      placeholderItems: [placeholder(), placeholder({ id: "p2", forkId: "f1" })],
       views: { stops: new Map(), items: new Map() },
     });
     expect(out.map((i) => [i.id, i.title])).toEqual([["p1", "Surprise"], ["i2", "Tour"]]);
@@ -81,7 +82,15 @@ describe("toMcpItem / toMcpTransport", () => {
     expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1" }), surprise: null }, noFiles)).toEqual({
       id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
+      bookingState: "NONE", bookBy: null,
     });
+  });
+
+  it("every shape carries Booking state; a placeholder is never To book", () => {
+    expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }), surprise: null }, noFiles))
+      .toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-01" });
+    const [p] = withPlaceholders([], { views: { stops: new Map(), items: new Map() }, placeholderItems: [placeholder({ id: "p1" })] });
+    expect(p).toMatchObject({ bookingState: "NONE", bookBy: null });
   });
 
   it("toMcpTransport reads a Home end in the Home timezone and a Stop end in the Stop's", () => {
@@ -89,7 +98,7 @@ describe("toMcpItem / toMcpTransport", () => {
       {
         id: "t1", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, arrIsHome: false,
         depPlace: null, arrPlace: null, depAt: new Date("2027-05-31T22:00:00Z"), arrAt: new Date("2027-06-01T10:00:00Z"),
-        reference: "QF1", notes: null,
+        reference: "QF1", notes: null, bookingState: "TO_BOOK", bookBy: "2027-05-01",
       },
       { stopNameById: new Map([["s1", "Porto"]]), tzById: new Map([["s1", "Europe/Lisbon"]]), homeTimezone: "Australia/Sydney", filesFor: noFiles },
     );
@@ -97,5 +106,6 @@ describe("toMcpItem / toMcpTransport", () => {
     expect(t.to).toEqual({ stopId: "s1", name: "Porto" });
     expect(t.departs).toMatchObject({ localTime: "08:00", localDate: "2027-06-01" });
     expect(t.arrives).toMatchObject({ localTime: "11:00", localDate: "2027-06-01" });
+    expect(t).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-01" });
   });
 });

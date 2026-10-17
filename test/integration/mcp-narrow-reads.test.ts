@@ -55,7 +55,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     });
     await db.item.createMany({
       data: [
-        { id: TOUR, tripId: TRIP_ID, stopId: PORTO, title: "IT Lodge tour", category: "ACTIVITY", date: "2027-06-02", startTime: "10:00", notes: "Be early", sortOrder: 0 },
+        { id: TOUR, tripId: TRIP_ID, stopId: PORTO, title: "IT Lodge tour", category: "ACTIVITY", date: "2027-06-02", startTime: "10:00", notes: "Be early", sortOrder: 0, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" },
         { id: MARKET, tripId: TRIP_ID, stopId: PORTO, title: "IT Market", category: "FOOD", date: "2027-06-02", sortOrder: 1 },
         { id: TRAIN, tripId: TRIP_ID, title: "IT Train", category: "GETTING_AROUND", date: "2027-06-04", startTime: "09:00", sortOrder: 2 },
         { id: TASTING, tripId: TRIP_ID, stopId: PORTO, title: "IT Tasting", category: "FOOD", sortOrder: 3 },
@@ -65,9 +65,9 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     });
     // The Changeover day's only Day title belongs to the arriving Stop.
     await db.dayTitle.createMany({ data: [{ stopId: PORTO, dayIndex: 1, title: "IT Ribeira day" }, { stopId: SECRET, dayIndex: 0, title: "IT Secret arrival" }] });
-    await db.accommodation.create({ data: { id: CASA, tripId: TRIP_ID, stopId: PORTO, name: "IT Casa", checkIn: "2027-06-01", checkOut: "2027-06-04", checkInTime: "15:00" } });
+    await db.accommodation.create({ data: { id: CASA, tripId: TRIP_ID, stopId: PORTO, name: "IT Casa", checkIn: "2027-06-01", checkOut: "2027-06-04", checkInTime: "15:00", bookingState: "TO_BOOK" } });
     await db.transport.create({
-      data: { id: FLIGHT, tripId: TRIP_ID, mode: "FLIGHT", depIsHome: true, toStopId: PORTO, depAt: new Date("2027-05-31T22:00:00Z"), arrAt: new Date("2027-06-01T10:00:00Z"), reference: "IT QF1" },
+      data: { id: FLIGHT, tripId: TRIP_ID, mode: "FLIGHT", depIsHome: true, toStopId: PORTO, depAt: new Date("2027-05-31T22:00:00Z"), arrAt: new Date("2027-06-01T10:00:00Z"), reference: "IT QF1", bookingState: "BOOKED" },
     });
     await db.cost.createMany({
       data: [
@@ -116,6 +116,10 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect(stay).toEqual(porto.accommodations[0]);
     expect(stayStop).toBe(PORTO);
     expect(stayCosts.map((c) => c.amount.minor)).toEqual([45000]);
+
+    expect(tourOnDay).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-20" });
+    expect(leg).toMatchObject({ bookingState: "BOOKED", bookBy: null });
+    expect(stay).toMatchObject({ bookingState: "TO_BOOK", bookBy: null });
   });
 
   it("a Fork's row, and a Surprise hidden from the caller, read as not found", async () => {
@@ -140,6 +144,9 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect(day).toMatchObject({ dayTitle: "IT Ribeira day", stop: { id: PORTO }, tonight: { id: CASA, nightOf: { night: 2, of: 3 } } });
     expect(day.timeline.map((e) => (e.kind === "item" ? e.item.id : e.kind))).toEqual([TOUR]);
     expect(day.anytime.map((i) => i.id)).toEqual([MARKET]);
+    // Same as get_trip_plan's day: both go through toMcpDayItem.
+    const tour = day.timeline.find((e) => e.kind === "item" && e.item.id === TOUR);
+    expect(tour).toMatchObject({ item: { bookingState: "TO_BOOK", bookBy: "2027-05-20" } });
     expect(day.timeline.some((e) => e.kind === "item" && e.item.id === FORK_ITEM)).toBe(false);
   });
 

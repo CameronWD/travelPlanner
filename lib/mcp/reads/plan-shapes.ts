@@ -8,6 +8,7 @@
  */
 import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/lib/stop-days";
 import { transportTimeDisplay } from "@/lib/time-display";
+import type { BookingState } from "@/lib/enum-values";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
 import type { McpFileRef } from "./attachments";
@@ -33,6 +34,10 @@ export interface McpAccommodation {
   checkOut: string;
   confirmation: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
   files: McpFileRef[];
 }
 
@@ -44,6 +49,10 @@ interface McpThingToDo {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -58,6 +67,10 @@ export interface McpDayItem {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -122,6 +135,10 @@ export interface McpTransport {
   dayDelta: number;
   reference: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
   files: McpFileRef[];
 }
 
@@ -167,6 +184,7 @@ export interface McpTripSummary {
 
 export const MCP_ACCOMMODATION_SELECT = {
   id: true, name: true, address: true, checkIn: true, checkOut: true, confirmation: true, notes: true,
+  bookingState: true, bookBy: true,
 } as const;
 
 const MCP_STOP_FIELDS = {
@@ -183,6 +201,7 @@ export const mcpStopSelect = (accommodationWhere: object) => ({
 export const MCP_THING_TO_DO_SELECT = {
   id: true, title: true, category: true, startTime: true, endTime: true,
   address: true, link: true, booking: true, notes: true, stopId: true,
+  bookingState: true, bookBy: true,
 } as const;
 
 export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } as const;
@@ -190,6 +209,7 @@ export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } a
 export const MCP_TRANSPORT_SELECT = {
   id: true, mode: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true,
   depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true, notes: true,
+  bookingState: true, bookBy: true,
 } as const;
 
 export const MCP_CHAPTER_SELECT = { id: true, name: true, startDate: true, endDate: true } as const;
@@ -201,7 +221,13 @@ export const MCP_TRIP_SELECT = {
 
 // ── Row types (what the selects above return) ────────────────────────────
 
-type AccommodationRow = Omit<McpAccommodation, "files">;
+/*
+ * `bookingState` is a plain String column holding one of BOOKING_STATES
+ * (every writer stores lib/booking-state.ts `bookingStateWrite`'s result), so
+ * the rows take the string and the shapes below name it as the union, as
+ * lib/plan-reads.ts does.
+ */
+type AccommodationRow = Omit<McpAccommodation, "files" | "bookingState"> & { bookingState: string };
 
 export interface McpStopRow {
   id: string; name: string; countryCode: string | null; timezone: string | null;
@@ -215,11 +241,13 @@ export interface McpStopRow {
 export interface McpItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
   address: string | null; link: string | null; booking: string | null; notes: string | null; stopId: string | null;
+  bookingState: string; bookBy: string | null;
 }
 
 export interface McpTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
   depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null; notes: string | null;
+  bookingState: string; bookBy: string | null;
 }
 
 export type FilesFor = (kind: "STOP" | "ACCOMMODATION" | "TRANSPORT" | "ITEM", id: string) => McpFileRef[];
@@ -231,13 +259,14 @@ export function toMcpSurprise(view: SurpriseView | null | undefined): McpSurpris
 }
 
 export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor): McpAccommodation {
-  return { ...a, files: filesFor("ACCOMMODATION", a.id) };
+  return { ...a, bookingState: a.bookingState as BookingState, files: filesFor("ACCOMMODATION", a.id) };
 }
 
 function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined): McpThingToDo {
   return {
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
-    notes: i.notes, files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
+    notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy,
+    files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
   };
 }
 
@@ -247,12 +276,13 @@ export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor): McpDayItem {
     id: i.id, title: i.title, category: i.category,
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
+    bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null,
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
 }
 
 export function toMcpItem(i: McpItemRow & { surprise: SurpriseView | null }, filesFor: FilesFor): McpItem {
-  return { ...toMcpDayItem(i, filesFor), date: i.date, stopId: i.stopId };
+  return { ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState }, filesFor), date: i.date, stopId: i.stopId };
 }
 
 type DatedItem = McpItemRow & { surprise: SurpriseView | null };
@@ -272,7 +302,8 @@ export function withPlaceholders(
       .filter((p) => p.forkId === null && p.date !== null)
       .map((p) => ({
         id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-        address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId, surprise: p.surprise,
+        address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId,
+        bookingState: p.bookingState, bookBy: p.bookBy, surprise: p.surprise,
       })),
   ].sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0));
 }
@@ -355,7 +386,9 @@ export function toMcpTransport(
     depPlace: t.depPlace, arrPlace: t.arrPlace,
     depAt: t.depAt ? t.depAt.toISOString() : null, arrAt: t.arrAt ? t.arrAt.toISOString() : null,
     departs: local(t.depAt, shown.dep), arrives: local(t.arrAt, shown.arr), dayDelta: shown.dayDelta,
-    reference: t.reference, notes: t.notes, files: ctx.filesFor("TRANSPORT", t.id),
+    reference: t.reference, notes: t.notes,
+    bookingState: t.bookingState as BookingState, bookBy: t.bookBy,
+    files: ctx.filesFor("TRANSPORT", t.id),
   };
 }
 

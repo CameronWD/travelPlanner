@@ -61,6 +61,7 @@ describe("loadItemForMcp", () => {
     m.itemFindFirst.mockResolvedValue({
       id: "i1", title: "Castle", category: "SIGHTSEEING", date: "2027-06-02", startTime: "10:00", endTime: null,
       address: "Sintra", link: null, booking: "#448", notes: "Be there 15 min early", stopId: "s1",
+      bookingState: "BOOKED", bookBy: null,
     });
     m.loadTripAttachments.mockResolvedValue({ attachments: [], byOwner: new Map([["ITEM:i1", [file]]]) });
     const out = await loadItemForMcp("i1");
@@ -70,8 +71,8 @@ describe("loadItemForMcp", () => {
     expect(m.readMcpNotes).toHaveBeenCalledWith("trip-1", NO_SURPRISES, { targetType: "ITEM", targetId: "i1" });
     expect(out).toEqual({
       id: "i1", title: "Castle", category: "SIGHTSEEING", startTime: "10:00", endTime: null, address: "Sintra",
-      link: null, booking: "#448", notes: "Be there 15 min early", files: [file], surprise: null,
-      date: "2027-06-02", stopId: "s1", costs: [cost], notesOnItem: [note],
+      link: null, booking: "#448", notes: "Be there 15 min early", bookingState: "BOOKED", bookBy: null,
+      files: [file], surprise: null, date: "2027-06-02", stopId: "s1", costs: [cost], notesOnItem: [note],
     });
   });
 
