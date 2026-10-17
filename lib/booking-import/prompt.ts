@@ -18,6 +18,8 @@ export const EXTRACTION_SYSTEM_PROMPT = [
   "  - transport: one per journey (each flight, train, bus, ferry or car hire). A return flight is two proposals. A connecting itinerary is one proposal per flight.",
   "  - accommodation: one per stay (hotel, apartment, hostel, campsite).",
   "  - item: one per ticketed or booked activity, tour, show, museum entry, restaurant reservation or similar.",
+  "  - For an item, slotTime is the time the ticket or reservation is for (the entry, tour, show or table time). arriveByMinutes is how many minutes early the document asks you to arrive, as a whole number (\"arrive 15 minutes before\" is 15). refundable is \"yes\" when it says refundable or free cancellation, \"no\" when it says non-refundable or no refunds, otherwise null.",
+  "  - Set item.startTime only when the document prints a separate start or meeting time. If the only time printed is the ticket's time, give it as slotTime and leave startTime null.",
   "- Car hire is a transport with mode CAR: the pickup is dep, the drop-off is arr, and the hire company is the carrier.",
   `- mode is one of: ${TRANSPORT_MODES.join(", ")}.`,
   '- serviceNumber is the flight or train number (for example "QF1" or "9512"). reference is the booking reference or PNR for the whole booking.',

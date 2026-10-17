@@ -53,7 +53,7 @@ export function ProposalPreview({ proposal, stops, homeName, homeTimezone }: Pre
       {i.date && <p {...highlightAttrs(proposal.highlight, "date", "text-xs font-semibold text-muted-foreground")}>{formatDayLabel(i.date)}</p>}
       <ItemCard
         mode="scheduled"
-        item={{ id: proposal.clientId, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime, address: i.address, booking: i.booking, notes: i.notes, stopId: i.stopId, stopName: i.stopId ? (stops.get(i.stopId)?.name ?? null) : null }}
+        item={{ id: proposal.clientId, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime, address: i.address, booking: i.booking, notes: i.notes, stopId: i.stopId, stopName: i.stopId ? (stops.get(i.stopId)?.name ?? null) : null, slotTime: i.slotTime, arriveByMinutes: i.arriveByMinutes, refundable: i.refundable }}
         highlight={proposal.highlight}
       />
     </div>

@@ -8,6 +8,7 @@ import { countryName } from "@/lib/countries";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { formatDayLabel } from "@/lib/dates";
 import { decimalsFor, parseAmountToMinor } from "@/lib/money/money";
+import { MAX_ARRIVE_BY_MINUTES } from "@/lib/slot-time";
 import { stopTimezone, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
 import { countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
@@ -69,6 +70,9 @@ const UNCERTAIN_TO_HIGHLIGHT: Record<string, string> = {
   endTime: "startTime",
   booking: "booking",
   cost: "cost",
+  slotTime: "slotTime",
+  arriveBy: "slotTime",
+  refundable: "refundable",
 };
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -479,14 +483,24 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     const address = [venue, trimmed(i.address)].filter(Boolean).join(", ") || undefined;
     if (!d.date) b.missing.push("Date");
     const booking = trimmed(i.booking);
+    // CONTEXT.md "Slot time" (R3): Claude reports, code decides. A start that
+    // is only the slot reported twice is dropped, so the save defaults it to
+    // slot − arrive-by (server/actions/items.ts startFromSlot).
+    const slotTime = normTime(i.slotTime);
+    const arriveByMinutes = i.arriveByMinutes != null && Number.isInteger(i.arriveByMinutes) && i.arriveByMinutes >= 1 && i.arriveByMinutes <= MAX_ARRIVE_BY_MINUTES ? i.arriveByMinutes : undefined;
+    const refundable = i.refundable === "yes" ? true : i.refundable === "no" ? false : undefined;
+    const plannedStart = startTime && startTime !== slotTime ? startTime : null;
     const input = compact<ProposedItemInput>({
       title: d.title,
       category,
       stopId: placed.stopId,
       date: d.date ?? undefined,
-      startTime: startTime ?? undefined,
-      endTime: endTime ?? undefined,
+      startTime: plannedStart ?? undefined,
+      endTime: plannedStart ? (endTime ?? undefined) : undefined, // an end needs a start (itemSchema)
       address,
+      slotTime: slotTime ?? undefined,
+      arriveByMinutes,
+      refundable,
       booking,
       bookingState: "BOOKED",
       ...costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck),

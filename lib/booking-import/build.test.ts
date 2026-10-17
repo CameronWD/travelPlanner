@@ -25,7 +25,7 @@ const item = (over: Partial<NonNullable<ExtractedProposal["item"]>>, cost: Extra
   uncertainFields: [],
   transport: null,
   accommodation: null,
-  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", country: "Portugal", booking: null, ...over },
+  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", country: "Portugal", booking: null, slotTime: null, arriveByMinutes: null, refundable: null, ...over },
   cost,
 });
 
@@ -311,6 +311,29 @@ describe("buildProposals: things to do, car hire, gaps", () => {
     const { proposals, dropped } = buildProposals(report(OUTBOUND, backwards, untitled, nowhere), CTX);
     expect(proposals).toHaveLength(1);
     expect(dropped).toBe(3);
+  });
+
+  it("reports the ticket's slot, margin and refundability; a start that is just the slot again is dropped so it defaults on save (R3)", () => {
+    const p = byId(
+      buildProposals(report(item({ title: "Lodge tour", startTime: "10:00", slotTime: "10:00", arriveByMinutes: 15, refundable: "no", booking: "LT-9" })), CTX).proposals,
+      "p1",
+    );
+    expect(p.input).toEqual({ title: "Lodge tour", category: "SIGHTSEEING", stopId: "s-lis", date: "2026-12-04", slotTime: "10:00", arriveByMinutes: 15, refundable: false, booking: "LT-9", bookingState: "BOOKED" });
+  });
+
+  it("keeps a separate meeting time, reads 'yes' as refundable, and drops a margin outside 1–240 or an unreadable slot", () => {
+    const meet = byId(buildProposals(report(item({ startTime: "9:40", slotTime: "10:00", arriveByMinutes: 0, refundable: "yes" })), CTX).proposals, "p1");
+    expect(meet.input).toMatchObject({ startTime: "09:40", slotTime: "10:00", refundable: true });
+    expect(meet.input).not.toHaveProperty("arriveByMinutes");
+    const odd = byId(buildProposals(report(item({ slotTime: "25:00", arriveByMinutes: 999, refundable: null })), CTX).proposals, "p1");
+    expect(odd.input).not.toHaveProperty("slotTime");
+    expect(odd.input).not.toHaveProperty("arriveByMinutes");
+    expect(odd.input).not.toHaveProperty("refundable");
+  });
+
+  it("an uncertain slot highlights the slot on the card", () => {
+    const p = byId(buildProposals(report({ ...item({ slotTime: "10:00" }), uncertainFields: ["slotTime", "refundable"] }), CTX).proposals, "p1");
+    expect(p.highlight).toEqual(expect.arrayContaining(["slotTime", "refundable"]));
   });
 });
 

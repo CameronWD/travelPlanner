@@ -52,6 +52,9 @@ const ItemSchema = z.object({
   city: text,
   country: text,
   booking: text,
+  slotTime: text, // "HH:mm": the time the ticket or reservation is for
+  arriveByMinutes: z.number().int().nullable(), // how many minutes early the document asks you to arrive
+  refundable: z.enum(["yes", "no"]).nullable(), // only when the document says so
 });
 
 const CostSchema = z.object({
@@ -66,6 +69,7 @@ export const UNCERTAIN_FIELD_NAMES = [
   "mode", "carrier", "serviceNumber", "reference", "depPlace", "depTime", "arrPlace", "arrTime", "seat", "travelClass",
   "name", "address", "checkIn", "checkOut", "checkInTime", "checkOutTime", "confirmation",
   "title", "category", "date", "startTime", "endTime", "booking", "cost",
+  "slotTime", "arriveBy", "refundable",
 ] as const;
 
 const ExtractedProposalSchema = z.object({

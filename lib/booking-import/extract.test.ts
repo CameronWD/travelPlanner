@@ -30,6 +30,7 @@ vi.mock("@anthropic-ai/sdk/helpers/zod", () => ({
 
 import { buildContent, extractBooking, EXTRACTION_MAX_TOKENS } from "./extract";
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_USER_INSTRUCTION } from "./prompt";
+import { BookingExtractionSchema, UNCERTAIN_FIELD_NAMES } from "./schema";
 
 type SdkErrors = {
   APIError: new (status: number | undefined, message: string) => Error;
@@ -147,5 +148,23 @@ describe("extractBooking outcomes", () => {
     const outcome = await extractBooking([{ type: "text", text: "x" }]);
     expect(outcome.kind).toBe("unreadable");
     if (outcome.kind === "unreadable") expect(outcome.report.message).not.toContain("Casa do Rio");
+  });
+});
+
+describe("the extraction asks for Slot time (R3)", () => {
+  it("the prompt explains slotTime, arriveByMinutes and refundable, and lists them as uncertain-able", () => {
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/slotTime/);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/arriveByMinutes/);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/refundable/);
+    expect(UNCERTAIN_FIELD_NAMES).toEqual(expect.arrayContaining(["slotTime", "arriveBy", "refundable"]));
+  });
+  it("the schema accepts a reported ticket and rejects a made-up refundability", () => {
+    const base = { isBooking: true, notBookingReason: null, bookedOn: null };
+    const proposal = (refundable: unknown) => ({
+      kind: "item", confidence: "high", doubleCheck: [], uncertainFields: [], transport: null, accommodation: null, cost: null,
+      item: { title: "Tour", category: null, date: null, startTime: null, endTime: null, place: null, address: null, city: null, country: null, booking: null, slotTime: "10:00", arriveByMinutes: 15, refundable },
+    });
+    expect(BookingExtractionSchema.safeParse({ ...base, proposals: [proposal("no")] }).success).toBe(true);
+    expect(BookingExtractionSchema.safeParse({ ...base, proposals: [proposal("maybe")] }).success).toBe(false);
   });
 });
