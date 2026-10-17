@@ -78,7 +78,7 @@ describe("buildDuplicatePlan", () => {
       date: null, startTime: null, endTime: null, booking: null,
       lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", notes: "n",
       sortOrder: 0, hiddenFromShares: true,
-      openingHours: null,
+      openingHours: null, tryList: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
     });
   });
@@ -94,6 +94,22 @@ describe("buildDuplicatePlan", () => {
       expect(plan.items[0].data).not.toHaveProperty(key);
     }
     expect(plan.transports[0].data).not.toHaveProperty("bookingState");
+  });
+
+  // Spec 2026-10-17 R6: the Try list belongs to the thing to do, so a Duplicate
+  // keeps its entries — but a fresh Trip has tried nothing yet.
+  it("keeps an Item's Try list with every tick reset to untried", () => {
+    const list = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: true }, { id: "bbbb2222", text: "Lebkuchen", tried: false }]);
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: list }] }, "x");
+    expect(JSON.parse(plan.items[0].data.tryList!)).toEqual([
+      { id: "aaaa1111", text: "Drei im Weggla", tried: false },
+      { id: "bbbb2222", text: "Lebkuchen", tried: false },
+    ]);
+  });
+
+  it("an unreadable Try list is not copied", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: "not json" }] }, "x");
+    expect(plan.items[0].data.tryList).toBeNull();
   });
 
   it("carries a null countryCode through when the source item has none", () => {

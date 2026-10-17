@@ -6,12 +6,14 @@
  *
  * Rules: keep the skeleton (stops as rough, chapters as rough, items as
  * unscheduled wishlist, transport connections stripped, checklist text);
- * Opening hours kept; reset every date (Booking state, book-by and Slot time
+ * Opening hours kept; the Try list kept with every tick reset; reset every date (Booking state, book-by and Slot time
  * fall to the column defaults with the references and dates); drop accommodations, costs, FX rates, and all history
  * (handled by simply not reading them into the source snapshot).
  */
 
 import { creationAnchor } from "@/lib/transport-anchor";
+import { untickAll } from "@/lib/try-list";
+import { parseTryList, serializeTryList } from "@/lib/validations/try-list";
 
 interface DuplicateSourceChapter {
   id: string;
@@ -58,6 +60,8 @@ interface DuplicateSourceItem {
   notes: string | null;
   /** CONTEXT.md "Opening hours" — the place's, so kept like the address (spec 2026-10-17 R4). */
   openingHours?: string | null;
+  /** CONTEXT.md "Try list" (R6) — kept with the thing to do, every tick reset (a fresh Trip has tried nothing). */
+  tryList?: string | null;
   /** CONTEXT.md "Share link" — carried into the copy so a hidden Item stays hidden. */
   hiddenFromShares?: boolean;
   surprisePlannerId?: string | null;
@@ -119,6 +123,7 @@ export interface DuplicatePlan {
       title: string; category: string; date: null; startTime: null; endTime: null; booking: null;
       lat: number | null; lng: number | null; countryCode: string | null; address: string | null; link: string | null; notes: string | null; sortOrder: number;
       openingHours: string | null;
+      tryList: string | null;
       hiddenFromShares: boolean;
       surprisePlannerId: string | null; surpriseForIds: string | null; surpriseRevealedAt: Date | null;
     };
@@ -196,6 +201,7 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         link: it.link,
         notes: it.notes,
         openingHours: it.openingHours ?? null,
+        tryList: serializeTryList(untickAll(parseTryList(it.tryList))),
         sortOrder: idx,
         hiddenFromShares: it.hiddenFromShares ?? false,
         surprisePlannerId: it.surprisePlannerId ?? null,

@@ -132,3 +132,11 @@ it("a source row without the new columns copies the derived state and nulls", ()
   expect(bare.transports[0].data.bookingState).toBe("TO_BOOK");
   expect(bare.items[0].data.bookingState).toBe("NONE");
 });
+
+// Spec 2026-10-17 R6: a Fork is a faithful copy, so the Try list carries into
+// the variant as it stands — ticks included.
+it("carries the Try list, ticks and all, into the variant; none copies as null", () => {
+  const list = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: true }, { id: "bbbb2222", text: "Lebkuchen", tried: false }]);
+  expect(buildForkPlan({ ...source, items: [{ ...source.items[0], tryList: list }] }).items[0].data.tryList).toBe(list);
+  expect(buildForkPlan(source).items[0].data.tryList).toBeNull();
+});

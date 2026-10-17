@@ -2,12 +2,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 // Task Z addendum item 1: `createFork` and `duplicateTrip` copy or reset the
 // new planning columns (bookingState, bookingStateSet, bookBy, slotTime,
-// arriveByMinutes, refundable, openingHours) per S.7/S.8's as-built rules
-// (notes-S.md decision 8):
+// arriveByMinutes, refundable, openingHours, tryList) per S.7/S.8's as-built
+// rules (notes-S.md decision 8):
 //   - Fork is a faithful copy: it carries every new column.
 //   - Duplicate drops references, dates and times: it carries only
 //     `openingHours` (it belongs to the place, like `address`); the rest
 //     fall to the column defaults.
+// Fork copies the Try list with its ticks; Duplicate keeps it with every tick
+// reset.
 // This exists because object spreads aren't excess-property-checked — a
 // builder that silently dropped a field, or a Prisma `data` object that
 // silently carried one it shouldn't, would type-check fine.
@@ -32,6 +34,8 @@ const USER = "it-fdc-user";
 const TRIP_ID = "it-fdc-trip";
 const PORTO = "it-fdc-porto";
 const HOURS = JSON.stringify({ week: { sun: [], mon: [["10:00", "18:00"]], tue: [], wed: [], thu: [], fri: [], sat: [] }, seasons: [], closed: [], source: null });
+const TRY = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: true }, { id: "bbbb2222", text: "Lebkuchen", tried: false }]);
+const TRY_UNTICKED = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: false }, { id: "bbbb2222", text: "Lebkuchen", tried: false }]);
 
 // A To-book leg, a Traveller-chosen To-book stay, and a thing to do carrying
 // every new column, none of them defaults — so a column that got dropped (or
@@ -40,7 +44,7 @@ const TRANSPORT_FIELDS = { bookingState: "TO_BOOK" as const, bookingStateSet: tr
 const ACCOMMODATION_FIELDS = { bookingState: "TO_BOOK" as const, bookingStateSet: true, bookBy: "2027-05-02" };
 const ITEM_FIELDS = {
   bookingState: "BOOKED" as const, bookingStateSet: true, bookBy: null,
-  slotTime: "12:00", arriveByMinutes: 15, refundable: false, openingHours: HOURS,
+  slotTime: "12:00", arriveByMinutes: 15, refundable: false, openingHours: HOURS, tryList: TRY,
 };
 
 describe.skipIf(process.env.INTEGRATION !== "1")("createFork and duplicateTrip carry/reset the planning columns (real Postgres)", () => {
@@ -74,7 +78,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("createFork and duplicateTrip c
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
   });
 
-  it("a Fork carries bookingState, bookingStateSet, bookBy, slotTime, arriveByMinutes, refundable and openingHours", async () => {
+  it("a Fork carries bookingState, bookingStateSet, bookBy, slotTime, arriveByMinutes, refundable, openingHours and tryList (ticks included)", async () => {
     const result = await createFork(TRIP_ID, "IT Plan B");
     if (!result.success) throw new Error("expected createFork to succeed");
     const forkId = result.forkId;
@@ -89,7 +93,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("createFork and duplicateTrip c
     expect(item).toMatchObject(ITEM_FIELDS);
   });
 
-  it("Duplicate trip keeps only openingHours and resets the rest to their column defaults", async () => {
+  it("Duplicate trip keeps openingHours and the Try list (unticked) and resets the rest to their column defaults", async () => {
     const result = await duplicateTrip(TRIP_ID, "IT Copy");
     if (!result.success) throw new Error("expected duplicateTrip to succeed");
     const copyTripId = result.tripId;
@@ -105,7 +109,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("createFork and duplicateTrip c
     expect(item).toMatchObject({
       bookingState: "NONE", bookingStateSet: false, bookBy: null,
       slotTime: null, arriveByMinutes: null, refundable: null,
-      openingHours: HOURS,
+      openingHours: HOURS, tryList: TRY_UNTICKED,
     });
   });
 });
