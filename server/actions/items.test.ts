@@ -891,6 +891,22 @@ describe("scheduleItem", () => {
     });
   });
 
+  it("carries the idea's Opening hours onto the placed copy (spec 2026-10-17 R4)", async () => {
+    const hours = '{"week":{"mon":[]},"seasons":[],"closed":[]}';
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({
+        id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Uffizi", category: "SIGHTSEEING", openingHours: hours,
+      });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("item-1", { date: "2026-08-10" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ openingHours: hours }) });
+  });
+
   it("rescheduling an already-placed item (date non-null) keeps in-place update", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" })
@@ -1450,6 +1466,24 @@ describe("placeIdeaAtStop", () => {
       expect.objectContaining({ targetItemId: "placed-1" }),
     );
     expect(result).toMatchObject({ success: true, placedItemId: "placed-1" });
+  });
+
+  it("carries the idea's Opening hours onto the thing to do; none copies as null", async () => {
+    const hours = '{"week":{"tue":[["10:00","18:00"]]},"seasons":[],"closed":[]}';
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ ...IDEA, openingHours: hours });
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ openingHours: hours }) });
+
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA); // no openingHours on the row
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ openingHours: null }) });
   });
 
   it("refuses a Stop from another trip (no create)", async () => {

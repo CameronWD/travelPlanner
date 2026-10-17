@@ -590,8 +590,12 @@ async function finishPlacedCopy({
 
 /**
  * The fields a copy-in placement always inherits from its source Wishlist
- * idea — source link, title/category, coordinates, address, link, notes and
- * the share-hidden flag. Shared by `scheduleItem`'s copy-in branch (which
+ * idea — source link, title/category, coordinates, address, link, notes, the
+ * share-hidden flag and the place's Opening hours (spec 2026-10-17 R4: shared
+ * by the family — each row holds a copy and writes go to all of them,
+ * lib/opening-hours.ts openingHoursFamilyWhere). Booking state, book-by and
+ * Slot time are NOT copied: the ticket belongs to the placed Item, so the
+ * copy takes the column defaults. Shared by `scheduleItem`'s copy-in branch (which
  * also sets a date/time and resolves an owning Stop from the date) and
  * `placeIdeaAtStop` (which sets a Stop directly and no date), so the two
  * copies can't drift apart (Task 15 brief).
@@ -607,6 +611,7 @@ function ideaCopyData(fullItem: {
   link: string | null;
   notes: string | null;
   hiddenFromShares: boolean | null;
+  openingHours?: string | null;
 }) {
   return {
     sourceItemId: fullItem.id,
@@ -622,6 +627,7 @@ function ideaCopyData(fullItem: {
     // placed — the placed copy is what the share page actually reads
     // (review fix, Task 9).
     hiddenFromShares: fullItem.hiddenFromShares ?? false,
+    openingHours: fullItem.openingHours ?? null,
   };
 }
 
