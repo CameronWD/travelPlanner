@@ -10,6 +10,7 @@ import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
+import { BookingStateBadge } from "./booking-state-badge";
 import type { TransportCardTransport } from "@/lib/plan-entity-views";
 
 export type { TransportCardTransport };
@@ -130,6 +131,7 @@ export function TransportCard({
                   </span>
                 </>
               )}
+              <BookingStateBadge state={t.bookingState} bookBy={t.bookBy} />
             </div>
           </div>
         </div>

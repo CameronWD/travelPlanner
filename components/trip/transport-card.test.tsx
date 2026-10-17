@@ -316,3 +316,15 @@ describe("TransportCard highlight (Booking import)", () => {
     expect(screen.queryByRole("button")).toBeNull(); // no controls without handlers
   });
 });
+
+describe("TransportCard Booking state (spec 2026-10-17 R2)", () => {
+  it("shows To book and its book-by date (spec R2)", () => {
+    render(<TransportCard transport={{ ...base, bookingState: "TO_BOOK", bookBy: "2026-11-20" }} />);
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText("Book by 20 Nov")).toBeInTheDocument();
+  });
+  it("a Booked thing shows no badge", () => {
+    render(<TransportCard transport={{ ...base, bookingState: "BOOKED" }} />);
+    expect(screen.queryByText("To book")).not.toBeInTheDocument();
+  });
+});

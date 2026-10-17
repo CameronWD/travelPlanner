@@ -199,3 +199,20 @@ describe("AccommodationCard highlight (Booking import)", () => {
     expect(marked.sort()).toEqual(["checkInTime", "confirmation", "name"]);
   });
 });
+
+describe("AccommodationCard Booking state (spec 2026-10-17 R2)", () => {
+  it("shows To book and its book-by date (spec R2)", () => {
+    render(
+      <AccommodationCard
+        accommodation={{ ...baseAcc, bookingState: "TO_BOOK", bookBy: "2026-11-20" }}
+        stop={baseStop}
+      />,
+    );
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText("Book by 20 Nov")).toBeInTheDocument();
+  });
+  it("a Booked thing shows no badge", () => {
+    render(<AccommodationCard accommodation={{ ...baseAcc, bookingState: "BOOKED" }} stop={baseStop} />);
+    expect(screen.queryByText("To book")).not.toBeInTheDocument();
+  });
+});

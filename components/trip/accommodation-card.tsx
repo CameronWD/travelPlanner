@@ -11,6 +11,7 @@ import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
+import { BookingStateBadge } from "./booking-state-badge";
 import type { AccommodationCardAccommodation } from "@/lib/plan-entity-views";
 
 export type { AccommodationCardAccommodation };
@@ -145,6 +146,7 @@ export function AccommodationCard({
             <span {...highlightAttrs(highlight, ["checkInTime", "checkOutTime"])}>{times}</span>
           </div>
         )}
+        <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
       </div>
 
       {/* Confirmation */}

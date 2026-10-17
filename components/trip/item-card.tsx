@@ -25,6 +25,7 @@ import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
 import { ItemPhotoThumb } from "./item-photo-thumb";
+import { BookingStateBadge } from "./booking-state-badge";
 import type { ItemCardItem } from "@/lib/plan-entity-views";
 
 export type { ItemCardItem };
@@ -135,6 +136,7 @@ export function ItemCard({
                 in this plan
               </span>
             )}
+            <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} />
           </div>
         ) : (
           <div className="min-w-0 flex-1">
@@ -234,6 +236,7 @@ export function ItemCard({
               {timeLabel}
             </span>
           )}
+          <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} />
         </div>
       )}
 

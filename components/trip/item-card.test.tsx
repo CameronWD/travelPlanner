@@ -290,3 +290,24 @@ describe("ItemCard highlight (Booking import)", () => {
     expect(marked.sort()).toEqual(["address", "booking", "category", "startTime", "title"]);
   });
 });
+
+describe("ItemCard Booking state (spec 2026-10-17 R2)", () => {
+  it("shows To book and its book-by date (scheduled mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "TO_BOOK", bookBy: "2026-11-20" }} mode="scheduled" />);
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText("Book by 20 Nov")).toBeInTheDocument();
+  });
+  it("a Booked thing shows no badge (scheduled mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "BOOKED" }} mode="scheduled" />);
+    expect(screen.queryByText("To book")).not.toBeInTheDocument();
+  });
+  it("shows To book and its book-by date (wishlist mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "TO_BOOK", bookBy: "2026-11-20" }} mode="wishlist" />);
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText("Book by 20 Nov")).toBeInTheDocument();
+  });
+  it("a Booked thing shows no badge (wishlist mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "BOOKED" }} mode="wishlist" />);
+    expect(screen.queryByText("To book")).not.toBeInTheDocument();
+  });
+});
