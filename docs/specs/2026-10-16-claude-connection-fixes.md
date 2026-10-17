@@ -63,8 +63,8 @@ Digest.
 
 Built as tasks A.1–F.18 plus the batch gate (Z), 2026-10-16/17. One line per
 decision taken where this spec was silent, and every deviation an implementer
-reported. Follow-ups found on the way are `CF-01`–`CF-05` in
-`docs/open-follow-ups.md`.
+reported. Follow-ups found on the way are `CF-01`–`CF-11` in
+`docs/open-follow-ups.md` (`CF-04` and `CF-05` fixed in the final review).
 
 ### What a Traveller sees
 
@@ -164,7 +164,7 @@ reported. Follow-ups found on the way are `CF-01`–`CF-05` in
 - A DST-gap local time lands where `zonedWallTimeToInstant` puts it (02:30 → 03:30).
 - One trip-level Activity line (`UPDATED`, `TRANSPORT`, label "Home timezone"); the "Home-end times kept as local times" clause only when at least one end moved.
 - Re-sending the same zone does nothing; re-file fires exactly when `timezoneUpdate !== KEEP_TIMEZONE`.
-- After the re-file the same transaction calls `growTripEndTx(tx, tripId, null)` (the landing may read differently in the new zone); the case where the same save also pulls `endDate` in is `CF-04`.
+- After the re-file the same transaction calls `growTripEndTx(tx, tripId, null)` (the landing may read differently in the new zone); the grow is skipped when the same save changes `endDate` (`CF-04`, fixed in the final review).
 - CONTEXT.md **Home base** gains a clause; ADR 0030 gains a second 2026-10-16 amendment.
 
 **D — F9 TU-01**
@@ -174,7 +174,7 @@ reported. Follow-ups found on the way are `CF-01`–`CF-05` in
 
 **E — F8 Reminders**
 - At most one about id, enforced by a Postgres CHECK (`Reminder_about_one_thing_check`), `reminderSchema.refine` and the MCP tools.
-- An update naming any about key replaces the whole about (`replaceAbout`); `null` on the held key makes it about the Trip.
+- An update setting an about key to an id replaces the whole about (`replaceAbout`); nulls alone clear only the keys they name, so `null` on the held key makes it about the Trip and `null` on another changes nothing (final review).
 - Surprise hides Reminders about Stops and Items only; Transport is outside every Surprise.
 - Item and Transport about-rows must be real-plan (`forkId: null`); the Stop check is unchanged.
 - Notes: up to 2000 characters, trimmed, empty clears; folded in a native `<details>` with a chevron (E.6 ruling) everywhere a Reminder renders.
@@ -216,3 +216,13 @@ reported. Follow-ups found on the way are `CF-01`–`CF-05` in
 - Em-dashes in Traveller- and Claude-facing copy caught by `test/copy-style.test.ts`: the Home timezone Activity line (C.3), two Reminder strings in `lists-write.ts` (E.15), the Item notes description (F.17), and the pre-batch `MORE_THAN_ONE_COST` refusal (`46d19856`, already failing on `main`).
 - Unused exports flagged by knip made file-local: `CHAPTER_DATES_OFF_WARNING` (D.2), five `plan-shapes.ts` names (F.1), `McpDayEntry` (F.6), `snapshotPlanStops` (F.10).
 - Build check: the tz-lookup table is in exactly one client chunk, loaded only by a dynamic `import()`, and in no route's first-load JS.
+
+### Final review fixes
+
+- **A Reminder moved off a Surprise stays hidden in Activity**: `recordUpdate` takes an optional `surpriseOf`, and `updateReminder` passes the BEFORE state's root, so moving a Reminder off a Surprise Item (or an Item in a Surprise Stop) onto something outside it no longer writes an unstamped "About: Ring box at Tiffany → Paris" line the surprised Traveller would see.
+- **`CF-04`**: a Home zone move grows the soft end only when the same save leaves `endDate` unchanged; an end the Traveller pulls in stays.
+- **"Add a reminder" no longer loses unsaved edits**: in the plan editor's Item and Transport edit dialogs it opens on top of the dialog instead of closing it. `FormDialog`'s dirty guard now listens for pointer-down-outside rather than interact-outside, so focus moving into the stacked dialog does not ask "Discard changes?".
+- **Reminder about nulls clear only what they name**: `stopId: null, itemId: null` sent beside a title edit no longer wipes an about it doesn't name; an id still replaces the whole about. `update_reminder`'s description says so.
+- **`CF-05`**: Claude-facing text says "What-if plan" one way (`update_trip`), pinned by `lib/mcp/vocab.test.ts`.
+- **Settings shows the re-derived Home zone**: `updateTrip` returns `homeTimezone` (the zone the Trip now has) and the Settings form re-syncs its picker after a save, so a rename that re-derived the zone shows the new one.
+- Filed: `CF-06`–`CF-11`.

@@ -495,7 +495,7 @@ naming, doc drift.
 | `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
 | `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
 | `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; the build ledger was scratch and is gone — the as-built notes in `docs/specs/2026-10-14-tidy-up-pass.md` are the record) |
-| `CF-` | **no source doc** — found while building the Claude connection fixes on branch `feat/feedback-tz-enddate-review`, 2026-10-16/17 (`CF-01`–`CF-05`; the as-built notes in `docs/specs/2026-10-16-claude-connection-fixes.md` are the record) |
+| `CF-` | **no source doc** — found while building the Claude connection fixes on branch `feat/feedback-tz-enddate-review`, 2026-10-16/17 (`CF-01`–`CF-11`; the as-built notes in `docs/specs/2026-10-16-claude-connection-fixes.md` are the record) |
 
 `SW-`, `CB-`, `RG-`, `TU-` and `CF-` are the prefixes with nothing to follow the citation
 back to. Those entries are self-contained: the evidence in them is all the
@@ -504,7 +504,7 @@ evidence there is.
 ---
 # Open items
 
-**7 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-03` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ and ~~`CF-05`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**13 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-03` and `CF-06`–`CF-11` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ and ~~`CF-05`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -699,6 +699,96 @@ ADR 0056) is written and unapplied — see the trust statement above.
   matching what Travellers see, is the likely pick) and use it everywhere
   Claude reads, with `lib/mcp/vocab.test.ts` pinning
   it.
+
+### CF-06 · Deleting a Surprise Item leaves its Reminders about nothing, and visible
+
+- **Priority: P2** · **Effort: S** — one delete path.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** a Reminder about an Item is hidden from the Traveller a Surprise
+  is kept from. Deleting the Item sets the Reminder's `itemId` to null
+  (`onDelete: SetNull`), so it is now "about the Trip as a whole" and shows
+  up for the surprised Traveller on Home, the Checklists page, the Digest and
+  through Claude. Its title can give the Surprise away ("Ring box at
+  Tiffany"). The same goes for a Surprise Stop and the Reminders on its Items.
+- **Where:** `prisma/schema.prisma` (the Reminder's `item` / `stop`
+  relations), `server/actions/items.ts` and `server/actions/stops.ts` delete
+  paths.
+- **Fix to decide:** delete the Reminders with a Surprise thing, or keep them
+  stamped with the Surprise they came from until the reveal. Pin with an
+  integration case.
+
+### CF-07 · Two Home-zone saves at once can re-file Home ends twice
+
+- **Priority: P3** · **Effort: S** — move one read.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** `updateTrip` reads `before.homeTimezone` before its transaction,
+  then re-files Home-end times from that zone to the new one. Two saves that
+  overlap (two tabs, or the app and Claude) both read the old zone, so the
+  second re-files times the first already moved, and Home-end times shift by
+  the zones' difference.
+- **Where:** `server/actions/trips.ts` `updateTrip` (the `before` read, then
+  `refileHomeEndsTx(tx, tripId, zoneMove.from, zoneMove.to)`).
+- **Fix to decide:** re-read `homeTimezone` inside the transaction with a row
+  lock (`SELECT … FOR UPDATE`) and derive `from` from that.
+
+### CF-08 · `add_note` and `delete_note` don't check the Note's target is in the real plan
+
+- **Priority: P3** · **Effort: S** — one guard per tool.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** every other Claude write refuses a What-if plan's row
+  (`requireRealPlanRows`, "Every tool works on the real plan"). `add_note`
+  passes `targetType`/`targetId` straight to `addNote`, and `delete_note`
+  deletes by Note id, so Claude can add or delete a Note on a Fork's Stop,
+  Item, leg or stay.
+- **Where:** `lib/mcp/tools/plan-write.ts` (`add_note`, `delete_note`),
+  `lib/mcp/real-plan.ts`.
+- **Fix:** run the target through `requireRealPlanRows` (and, for
+  `delete_note`, the Note's own target) before the write. Test-first in
+  `lib/mcp/tools/plan-write.test.ts`.
+
+### CF-09 · The Reminder About picker shows two things with the same name the same way
+
+- **Priority: P3** · **Effort: S** — label only.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** the Checklists page's About picker lists Items by bare title. Two
+  "Dinner" Items (or two Stops called "Paris") read the same, so the
+  Traveller can't tell which one the Reminder will be about.
+- **Where:** `lib/reminder-reads.ts` `readReminderAboutOptions` and the picker
+  in `components/trip/reminders-card.tsx`.
+- **Fix to decide:** add the Stop name or day to an Item's label (and the
+  dates to a Stop's) when a title repeats.
+
+### CF-10 · Claude's Reminder notes limit counts whitespace the app trims
+
+- **Priority: P3** · **Effort: S** — one schema.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** `add_reminder` and `update_reminder` check `notes` with
+  `z.string().max(2000)` before anything trims it, so 2000 characters plus a
+  trailing newline are refused as a schema error, while `reminderSchema`
+  (`.trim().max(2000)`) would accept them.
+- **Where:** `lib/mcp/tools/lists-write.ts` (both tools' `notes`).
+- **Fix:** `z.string().trim().max(2000)` in the tool schemas, matching
+  `lib/validations/reminder.ts`.
+
+### CF-11 · A Stop form saved before the zone lookup loads sends the country's zone
+
+- **Priority: P3** · **Effort: S** — one flag.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** the Stop form shows the country's zone at once and swaps in the
+  point's zone when `lib/tz-point` has loaded. A save in between sends the
+  country's zone as a chosen zone, so it wins over the server's point lookup:
+  a Brisbane Stop saved quickly gets `Australia/Sydney`.
+- **Where:** `components/trip/stop-form-dialog.tsx` (the `import("@/lib/tz-point")`
+  effect, ~:283-300).
+- **Fix:** while the point lookup hasn't landed and the Traveller hasn't
+  touched the zone, send `UNCHOSEN_TIMEZONE` so the server resolves from the
+  point. Pin in `components/trip/stop-form-dialog.test.tsx`.
 
 ### RG-01 · The production database dumps were downloadable by anyone while the repository was public
 
