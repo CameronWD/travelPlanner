@@ -24,6 +24,10 @@ export interface ItemCardItem {
   bookingStateSet?: boolean | null;
   /** YYYY-MM-DD the thing should be booked by; only while To book. */
   bookBy?: string | null;
+  /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
   notes?: string | null;
   stopId?: string | null;
   stopName?: string | null; // resolved from stop relation

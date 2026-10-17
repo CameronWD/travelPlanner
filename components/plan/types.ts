@@ -50,6 +50,10 @@ export interface ThingToDo {
   bookingStateSet?: boolean | null;
   /** YYYY-MM-DD the thing should be booked by; only while To book. */
   bookBy?: string | null;
+  /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
   notes?: string | null;
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
@@ -75,6 +79,9 @@ export function toItemCardItem(it: StopDayItem | ThingToDo): ItemCardItem {
     bookingState: it.bookingState ?? null,
     bookingStateSet: it.bookingStateSet ?? null,
     bookBy: it.bookBy ?? null,
+    slotTime: it.slotTime ?? null,
+    arriveByMinutes: it.arriveByMinutes ?? null,
+    refundable: it.refundable ?? null,
     notes: it.notes ?? null,
     stopId: it.stopId ?? null,
     hiddenFromShares: it.hiddenFromShares ?? false,
