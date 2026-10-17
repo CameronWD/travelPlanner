@@ -1445,3 +1445,46 @@ describe("ItemFormDialog: Booking state (spec 2026-10-17 R2)", () => {
     expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ bookingState: "BOOKED" }));
   });
 });
+
+describe("Ticket (Slot time, R3)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("is collapsed for a new Item and sends the slot, the margin and refundability", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} defaultUnscheduled={false} tripStartDate="2027-06-02" />);
+    const ticket = screen.getByText("Ticket").closest("details")!;
+    expect(ticket).not.toHaveAttribute("open");
+    await user.type(screen.getByPlaceholderText(/visit the night market/i), "Lodge tour");
+    await user.click(screen.getByText("Ticket"));
+    await user.type(screen.getByLabelText(/slot time/i), "12:00");
+    await user.type(screen.getByLabelText(/be there early/i), "15");
+    await user.click(screen.getByRole("radio", { name: "No" }));
+    // The empty start says what it will default to.
+    expect(screen.getByText(/starts at 11:45 if left empty/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ date: "2027-06-02", startTime: undefined, slotTime: "12:00", arriveByMinutes: 15, refundable: false }),
+      undefined,
+    );
+  });
+
+  it("opens with the saved ticket, and an unrelated edit sends it back unchanged", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }} />);
+    expect(screen.getByText("Ticket").closest("details")).toHaveAttribute("open");
+    expect(screen.getByLabelText(/slot time/i)).toHaveValue("12:00");
+    await user.type(screen.getByLabelText(/^notes$/i), "Bring ID");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith("item-99", expect.objectContaining({ slotTime: "12:00", arriveByMinutes: 15, refundable: false, startTime: "11:45" }));
+  });
+
+  it("emptying the slot and the margin clears them (PATCH)", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, slotTime: "12:00", arriveByMinutes: 15 }} />);
+    await user.clear(screen.getByLabelText(/slot time/i));
+    await user.clear(screen.getByLabelText(/be there early/i));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith("item-99", expect.objectContaining({ slotTime: null, arriveByMinutes: null, refundable: null }));
+  });
+});

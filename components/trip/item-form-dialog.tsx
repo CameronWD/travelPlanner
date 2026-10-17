@@ -37,6 +37,8 @@ import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { refundLabel, slotLabel, startFromSlot } from "@/lib/slot-time";
 import type { ProposedItemInput } from "@/lib/booking-import/types";
 import type { ItemInput } from "@/lib/validations/item";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
@@ -318,7 +320,7 @@ function ItemPhotoField({
 
 /** An edit's empty fields are clears (ADR 0075). Not surpriseForIds (omitted = leave the Surprise alone). */
 // `bookingState` is deliberately absent: a null would hand a choice back to automatic; an un-chosen state is simply not sent.
-const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "address", "link", "booking", "notes", "paidAt", "bookBy"] as const;
+const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "slotTime", "arriveByMinutes", "refundable", "address", "link", "booking", "notes", "paidAt", "bookBy"] as const;
 
 // ---------------------------------------------------------------------------
 // Dialog wrapper
@@ -525,6 +527,15 @@ function ItemForm({
   const [dateTouched, setDateTouched] = React.useState(Boolean(item?.date ?? proposed?.date ?? defaultDate));
   const [startTime, setStartTime] = React.useState(item?.startTime ?? proposed?.startTime ?? "");
   const [endTime, setEndTime] = React.useState(item?.endTime ?? proposed?.endTime ?? "");
+  // CONTEXT.md "Slot time" (R3): the ticket's facts, under the "Ticket" disclosure.
+  // refundable is boolean | null (Section S's column: null = not known).
+  const [slotTime, setSlotTime] = React.useState(item?.slotTime ?? proposed?.slotTime ?? "");
+  const [arriveBy, setArriveBy] = React.useState(() => {
+    const v = item?.arriveByMinutes ?? proposed?.arriveByMinutes;
+    return v == null ? "" : String(v);
+  });
+  const [refundable, setRefundable] = React.useState<boolean | null>(item?.refundable ?? proposed?.refundable ?? null);
+  const [ticketOpenAtStart] = React.useState(() => Boolean(slotTime || arriveBy || refundable !== null));
   const [address, setAddress] = React.useState(item?.address ?? proposed?.address ?? "");
   const [link, setLink] = React.useState(item?.link ?? "");
   const [booking, setBooking] = React.useState(item?.booking ?? proposed?.booking ?? "");
@@ -542,7 +553,7 @@ function ItemForm({
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, surpriseForIds, cost: cost.dirtyValues });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, surpriseForIds, cost: cost.dirtyValues });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -559,6 +570,11 @@ function ItemForm({
       // Clear times if no date (defensive belt-and-braces, schema also drops them)
       startTime: date && startTime ? startTime : undefined,
       endTime: date && endTime ? endTime : undefined,
+      slotTime: slotTime || undefined,
+      arriveByMinutes: arriveBy.trim() === "" ? undefined : Number(arriveBy),
+      // null ("not known") is sent as undefined; ITEM_CLEARABLE's toPatch then
+      // turns the absent field into a clearing null on update (lib/patch.ts).
+      refundable: refundable === null ? undefined : refundable,
       address: address.trim() || undefined,
       link: link.trim() || undefined,
       booking: booking.trim() || undefined,
@@ -739,7 +755,13 @@ function ItemForm({
         <Field
           label="Start time"
           error={errors.startTime?.[0]}
-          description={timesDisabled ? "Set a date first" : undefined}
+          description={
+            timesDisabled
+              ? "Set a date first"
+              : !startTime && slotTime
+                ? `Starts at ${startFromSlot({ date, slotTime, arriveByMinutes: arriveBy ? Number(arriveBy) : null })} if left empty`
+                : undefined
+          }
         >
           <Input
             type="time"
@@ -761,6 +783,57 @@ function ItemForm({
           />
         </Field>
       </div>
+
+      {/* Ticket (CONTEXT.md "Slot time", R3) — collapsed unless the Item already has one. */}
+      <details
+        className="sm:col-span-2"
+        open={ticketOpenAtStart || Boolean(errors.slotTime || errors.arriveByMinutes || errors.refundable) || undefined}
+      >
+        <summary className="tap-target cursor-pointer text-[13px] font-semibold text-muted-foreground">
+          Ticket
+          {(slotLabel({ slotTime, arriveByMinutes: arriveBy ? Number(arriveBy) : null }) || refundLabel(refundable)) && (
+            <span className="ml-2 font-medium">
+              {[slotLabel({ slotTime, arriveByMinutes: arriveBy ? Number(arriveBy) : null }), refundLabel(refundable)].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </summary>
+        <div className="mt-2 grid gap-4 sm:grid-cols-2">
+          <Field label="Slot time" description="The time on the ticket" error={errors.slotTime?.[0]}>
+            <Input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)} disabled={isPending} />
+          </Field>
+          <Field label="Be there early" description="Minutes before the slot" error={errors.arriveByMinutes?.[0]}>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
+              value={arriveBy}
+              onChange={(e) => setArriveBy(e.target.value)}
+              placeholder="15"
+              disabled={isPending}
+            />
+          </Field>
+          <div className="sm:col-span-2">
+            <p id="refundable-label" className="mb-1.5 text-sm font-semibold">Refundable</p>
+            <Segmented
+              type="single"
+              tone="ink"
+              aria-labelledby="refundable-label"
+              value={refundable === true ? "YES" : refundable === false ? "NO" : "UNKNOWN"}
+              onValueChange={(v) => {
+                if (!v) return; // Radix deselect on the already-chosen pill: keep it.
+                setRefundable(v === "YES" ? true : v === "NO" ? false : null);
+              }}
+              disabled={isPending}
+            >
+              <SegmentedItem value="UNKNOWN">Not known</SegmentedItem>
+              <SegmentedItem value="YES">Yes</SegmentedItem>
+              <SegmentedItem value="NO">No</SegmentedItem>
+            </Segmented>
+            {errors.refundable?.[0] && <p className="mt-1.5 text-sm font-medium text-destructive">{errors.refundable[0]}</p>}
+          </div>
+        </div>
+      </details>
 
       {/* Address — full width; a street address reads best on one line. */}
       <Field label="Address" error={errors.address?.[0]} className="sm:col-span-2">

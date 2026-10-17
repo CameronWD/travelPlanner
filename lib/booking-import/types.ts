@@ -96,6 +96,10 @@ export interface ProposedItemInput extends ProposalCostFields {
   /** CONTEXT.md "Booking state": an imported booking is Booked (set as a choice, so it stays Booked with no reference printed). */
   bookingState?: BookingState;
   bookBy?: string;
+  /** CONTEXT.md "Slot time" (R3): the ticket's time, how early to be there, and whether it can be refunded (Section S: boolean, null/absent = not known). */
+  slotTime?: string;
+  arriveByMinutes?: number;
+  refundable?: boolean;
   notes?: string;
 }
 
