@@ -63,7 +63,7 @@ async function requireNoteAccess(noteId: string) {
 export async function addNote(
   tripId: string,
   input: AddNoteInput,
-): Promise<NoteActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   const { user } = await requireTripAccess(tripId);
 
   const parsed = addNoteSchema.safeParse(input);
@@ -91,7 +91,7 @@ export async function addNote(
 
   await recordActivity({ tripId, verb: "NOTED", entityType: "NOTE", entityId: created.id, entityLabel: entityLabel("NOTE", created), changes: { excerpt: body.slice(0, 80) } });
   revalidateTrip(tripId, "plan");
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**

@@ -20,9 +20,11 @@
  * hold — `hiddenFromShares` included, which an earlier replace-shaped
  * `updateItem` reset.
  *
- * Every write except `add_note` goes through `runWrite` and returns its row
- * as it now stands (spec 2026-10-16 F6): `{ item }` (get_item's shape; a
- * schedule or place returns the placed copy), `{ idea }`, `{ chapter }`,
+ * Notes: add (returns the Note) and delete; never edited (CONTEXT.md Note).
+ *
+ * Every write goes through `runWrite` and returns its row as it now stands
+ * (spec 2026-10-16 F6): `{ item }` (get_item's shape; a schedule or place
+ * returns the placed copy), `{ idea }`, `{ chapter }`, `{ note }`,
  * `{ itemId, votes }` for a Vote, `{ stopId, day }` for a Day title, and
  * `{ deleted }` for a delete (with `ideaId` when an unschedule removed a
  * placed copy).
@@ -40,16 +42,17 @@ import {
 } from "@/server/actions/items";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { setDayTitle } from "@/server/actions/day-titles";
-import { addNote } from "@/server/actions/notes";
+import { addNote, deleteNote } from "@/server/actions/notes";
 import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { categorySchema } from "@/lib/validations/category";
 import { voteLevelSchema, targetTypeSchema } from "@/lib/enums";
 import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { VOTE_LEVELS } from "@/lib/enum-values";
-import { runTool, runWrite } from "../run-tool";
+import { runWrite } from "../run-tool";
 import { loadItemForMcp, loadStopForMcp, loadChapterForMcp } from "../reads/entities";
 import { loadWishlistIdeaForMcp, loadVotesForMcp } from "../reads/lists";
+import { loadNoteForMcp } from "../reads/notes";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
@@ -62,6 +65,9 @@ const describedVoteLevel = voteLevelSchema.describe(describeValues("How keen you
 // add_thing_to_do / update_thing_to_do shared field shapes
 // ---------------------------------------------------------------------------
 
+const ITEM_NOTES_DESCRIPTION =
+  "The Item's own notes: its description, part of the Item, edited here. Not a Note — a Note is a comment a Traveller leaves on it, added with add_note.";
+
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
   title: z.string().trim().min(1),
@@ -73,7 +79,7 @@ const itemCreateShape = {
   address: z.string().optional(),
   link: z.string().optional(),
   booking: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
 };
 
 /** update_thing_to_do: every field optional — a patch merges onto the current row. */
@@ -87,7 +93,7 @@ const itemPatchShape = {
   address: z.string().optional(),
   link: z.string().optional(),
   booking: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
 };
 
 export function registerPlanWriteTools(server: McpServer): void {
@@ -115,7 +121,8 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Update thing to do",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. Location comes from address, not from lat/lng.",
+        "Changes only the fields you pass; fields you omit keep their current value. Location comes from address, not from lat/lng. " +
+        "notes is the Item's own notes, its description, and is edited here. That is not a Note: a Note is a separate comment a Traveller left on the Item (see get_item's notesOnItem or get_notes). A Note is never edited. Remove it with delete_note and, if it still needs saying, add it again with add_note.",
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
     ({ itemId, ...patch }) =>
@@ -286,10 +293,28 @@ export function registerPlanWriteTools(server: McpServer): void {
     "add_note",
     {
       title: "Add note",
-      description: "Adds a Note to a Trip, Stop, thing to do, or other trip entity.",
+      description:
+        "Adds a Note: a short comment to the other Traveller on the Trip, a Stop, a thing to do, a Transport leg or an Accommodation. A Note is said, not drafted. It is never edited. To change one, delete it with delete_note and add it again. Returns the new Note with its id. Not for changing what a thing to do says about itself: that is the Item's own notes, its description, edited with update_thing_to_do.",
       inputSchema: { tripId: z.string(), targetType: targetTypeSchema, targetId: z.string(), body: z.string() },
     },
-    ({ tripId, targetType, targetId, body }) => runTool("add_note", () => addNote(tripId, { targetType, targetId, body })),
+    ({ tripId, targetType, targetId, body }) =>
+      runWrite(
+        "add_note",
+        () => addNote(tripId, { targetType, targetId, body }),
+        async (done) => ({ note: await loadNoteForMcp(done.id) }),
+      ),
+  );
+
+  server.registerTool(
+    "delete_note",
+    {
+      title: "Delete note",
+      description:
+        "Permanently deletes a Note (a comment between the Travellers, from get_notes or get_item's notesOnItem). Any Traveller on the Trip may delete any Note. A Note is never edited: to correct one, delete it and add the corrected one with add_note. An Item's own notes are its description, edited with update_thing_to_do, not deleted here. This cannot be undone. Confirm with the person before calling this.",
+      inputSchema: { noteId: z.string() },
+      annotations: { destructiveHint: true },
+    },
+    ({ noteId }) => runWrite("delete_note", () => deleteNote(noteId), async () => ({ deleted: noteId })),
   );
 
   server.registerTool(

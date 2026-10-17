@@ -286,7 +286,8 @@ export function registerReadTools(server: McpServer): void {
     "get_notes",
     {
       title: "Get notes",
-      description: "Reads notes left on this trip's Stops, Transport, Accommodation, and Items.",
+      description:
+        "Reads the Notes on this trip: comments the Travellers left on the Trip, its Stops, things to do, Transport and Accommodation, each with its id, what it is on (targetType, targetId), who wrote it and when. A Note is never edited: remove one with delete_note and add it again with add_note. A thing to do's own notes (its description) are not Notes. They are read with get_item or get_trip_plan and changed with update_thing_to_do.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
