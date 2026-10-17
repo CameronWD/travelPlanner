@@ -504,7 +504,7 @@ evidence there is.
 ---
 # Open items
 
-**8 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-03` and `CF-05` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**7 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-03` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ and ~~`CF-05`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -682,8 +682,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   `server/actions/trips.test.ts`, plus a case in
   `test/integration/home-timezone-refile.test.ts`.
 
-### CF-05 · Claude-facing text names a Fork two ways
+### ~~CF-05 · Claude-facing text names a Fork two ways~~
 
+- **Fixed 2026-10-17** on `feat/feedback-tz-enddate-review` (final review of the Claude connection fixes): Claude-facing text says "What-if plan", the on-screen label, cased one way — `update_trip`'s "every what-if plan" now reads "every What-if plan", matching `lib/mcp/server.ts`'s instructions. `lib/mcp/vocab.test.ts` pins it over the instructions and every tool's description and input schema, and that none says "Fork".
 - **Priority: P3** · **Effort: S** — wording only.
 - **Source:** none — the review of task C.5 of the Claude connection fixes,
   2026-10-16.
