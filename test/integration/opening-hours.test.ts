@@ -29,7 +29,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 }));
 
 import { db } from "@/lib/db";
-import { setOpeningHours, updateItem } from "@/server/actions/items";
+import { scheduleItem, setOpeningHours, updateItem } from "@/server/actions/items";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
 
 const USER = "it-oh-user";
@@ -98,5 +98,18 @@ describe.skipIf(process.env.INTEGRATION !== "1")("opening hours are shared by an
     const bad = { ...HOURS, week: { ...HOURS.week, mon: [["08:00", "09:00"], ["10:00", "11:00"], ["12:00", "13:00"]] } };
     expect(await setOpeningHours(COPY, bad as never)).toMatchObject({ success: false });
     expect(await hoursOf(IDEA)).toBeNull();
+  });
+
+  // Task D.5: scheduleItem's copy-in branch (ideaCopyData) starts a newly
+  // placed copy with the idea's hours, and the copy stays in the family
+  // (sourceItemId = IDEA), so a later setOpeningHours on any family member
+  // still reaches it.
+  it("a copy placed after the hours were set starts with them, and later edits reach it", async () => {
+    await setOpeningHours(IDEA, HOURS);
+    const placed = await scheduleItem(IDEA, { date: "2027-06-05" });
+    if (!placed.success || !placed.placedItemId) throw new Error("expected a placed copy");
+    expect(await hoursOf(placed.placedItemId)).toEqual(HOURS);
+    await setOpeningHours(COPY, null);
+    expect(await hoursOf(placed.placedItemId)).toBeNull();
   });
 });
