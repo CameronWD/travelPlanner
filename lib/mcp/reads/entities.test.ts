@@ -13,15 +13,18 @@ const m = vi.hoisted(() => ({
   stopFindMany: vi.fn(),
   accommodationFindFirst: vi.fn(),
   chapterFindUnique: vi.fn(),
+  itemFindMany: vi.fn(),
+  loadDayTitles: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess }));
 vi.mock("../real-plan", () => ({ requireRealPlanRow: m.requireRealPlanRow }));
 vi.mock("./attachments", () => ({ loadTripAttachments: m.loadTripAttachments }));
 vi.mock("./costs", () => ({ readMcpCosts: m.readMcpCosts }));
 vi.mock("./notes", () => ({ readMcpNotes: m.readMcpNotes }));
+vi.mock("@/lib/day-titles-loader", () => ({ loadDayTitles: m.loadDayTitles }));
 vi.mock("@/lib/db", () => ({
   db: {
-    item: { findFirst: m.itemFindFirst },
+    item: { findFirst: m.itemFindFirst, findMany: m.itemFindMany },
     transport: { findUnique: m.transportFindUnique },
     trip: { findUnique: m.tripFindUnique },
     stop: { findMany: m.stopFindMany },
@@ -35,7 +38,9 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 });
 
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
-import { loadAccommodationForMcp, loadChapterForMcp, loadItemForMcp, loadTransportForMcp, loadTripSummaryForMcp } from "./entities";
+import {
+  loadAccommodationForMcp, loadChapterForMcp, loadItemForMcp, loadStopForMcp, loadTransportForMcp, loadTripSummaryForMcp, readMcpStops,
+} from "./entities";
 
 const nf = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
 const file = { id: "f1", title: "Ticket.pdf" };
@@ -137,5 +142,64 @@ describe("loadChapterForMcp / loadTripSummaryForMcp", () => {
       id: "trip-1", name: "Europe", startDate: "2027-06-01", endDate: "2027-06-07", hardEndDate: null, homeCurrency: "AUD",
       homeBase: "Brisbane", homeTimezone: "Australia/Brisbane", roundTrip: true, files: [file],
     });
+  });
+});
+
+describe("readMcpStops / loadStopForMcp", () => {
+  const porto = {
+    id: "s1", name: "Porto", countryCode: "pt", timezone: "Europe/Lisbon", arriveDate: "2027-06-01", departDate: "2027-06-04",
+    nights: null, pinned: false, chapterId: null, notes: "Port lodges", sortOrder: 0,
+    accommodations: [{ id: "a1", name: "Casa", address: null, checkIn: "2027-06-01", checkOut: "2027-06-04", confirmation: null, notes: null }],
+  };
+  beforeEach(() => {
+    // stop.findMany: the Stops asked for (selects accommodations) vs the neighbours that title their days.
+    m.stopFindMany.mockImplementation(async (args: { select: Record<string, unknown> }) =>
+      "accommodations" in args.select ? [porto] : [{ id: "s1", arriveDate: "2027-06-01", departDate: "2027-06-04" }, { id: "s2", arriveDate: "2027-06-04", departDate: "2027-06-06" }],
+    );
+    // item.findMany: things to do (date null) vs the dated Items in the Stops' ranges.
+    m.itemFindMany.mockImplementation(async (args: { where: { date?: unknown } }) =>
+      args.where.date === null
+        ? [{ id: "t1", title: "Port tasting", category: "FOOD", startTime: null, endTime: null, address: null, link: null, booking: null, notes: null, stopId: "s1" }]
+        : [{ id: "c1", title: "Train", category: "GETTING_AROUND", date: "2027-06-04", startTime: "09:00", endTime: null, address: null, link: null, booking: null, notes: null, stopId: null }],
+    );
+    m.loadDayTitles.mockResolvedValue(new Map([["2027-06-04", { title: "Changeover", stopId: "s2" }]]));
+    m.loadTripAttachments.mockResolvedValue({ attachments: [], byOwner: new Map() });
+  });
+
+  it("builds the Stop with its Accommodation, things to do and days, titles resolved across overlapping neighbours", async () => {
+    const stop = await loadStopForMcp("s1");
+    expect(m.requireRealPlanRow).toHaveBeenCalledWith("stop", "s1");
+    expect(m.loadDayTitles).toHaveBeenCalledWith([
+      { id: "s1", arriveDate: "2027-06-01", departDate: "2027-06-04" },
+      { id: "s2", arriveDate: "2027-06-04", departDate: "2027-06-06" },
+    ]);
+    expect(stop).toMatchObject({
+      id: "s1", rough: false, notes: "Port lodges",
+      accommodations: [expect.objectContaining({ id: "a1", files: [] })],
+      thingsToDo: [expect.objectContaining({ id: "t1" })],
+    });
+    expect(stop.days.map((d) => d.date)).toEqual(["2027-06-01", "2027-06-02", "2027-06-03", "2027-06-04"]);
+    expect(stop.days[3]).toMatchObject({ dayTitle: "Changeover", items: [expect.objectContaining({ id: "c1" })] });
+  });
+
+  it("readMcpStops shows a hidden Surprise Stop as its shell — no days, notes blanked — without refusing", async () => {
+    m.loadSurpriseVisibility.mockResolvedValue({
+      ...NO_SURPRISES, isEmpty: false, hiddenStopIds: ["s1"],
+      views: { stops: new Map([["s1", { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true }]]), items: new Map() },
+    });
+    const [shell] = await readMcpStops("trip-1", ["s1"]);
+    expect(shell).toMatchObject({ id: "s1", arriveDate: "2027-06-01", notes: null, days: [], surprise: { youAreSurprised: true } });
+    expect(m.requireRealPlanRow).not.toHaveBeenCalled();
+  });
+
+  it("readMcpStops of no ids reads nothing", async () => {
+    expect(await readMcpStops("trip-1", [])).toEqual([]);
+    expect(m.stopFindMany).not.toHaveBeenCalled();
+  });
+
+  it("loadStopForMcp on a refused id is notFound before any read", async () => {
+    m.requireRealPlanRow.mockRejectedValue(nf());
+    await expect(loadStopForMcp("s1")).rejects.toMatchObject({ digest: expect.stringContaining("404") });
+    expect(m.stopFindMany).not.toHaveBeenCalled();
   });
 });

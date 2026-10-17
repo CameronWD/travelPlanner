@@ -14,17 +14,19 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { REAL_PLAN } from "@/lib/plan-scope";
-import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
+import { loadDayTitles } from "@/lib/day-titles-loader";
+import { orderPlanStops } from "@/lib/plan-order";
+import { REAL_PLAN, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
+import { loadSurpriseVisibility, maskSurpriseStops, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import { requireRealPlanRow } from "../real-plan";
 import { loadTripAttachments, type TripAttachmentsResult } from "./attachments";
 import { readMcpCosts, type McpCost } from "./costs";
 import { readMcpNotes, type McpNote } from "./notes";
 import { ownerKey } from "./owners";
 import {
-  MCP_ACCOMMODATION_SELECT, MCP_CHAPTER_SELECT, MCP_DATED_ITEM_SELECT, MCP_TRANSPORT_SELECT, MCP_TRIP_SELECT,
-  toMcpAccommodation, toMcpItem, toMcpTransport, toMcpTrip,
-  type FilesFor, type McpAccommodation, type McpChapter, type McpItem, type McpTransport, type McpTripSummary,
+  buildMcpStops, MCP_ACCOMMODATION_SELECT, MCP_CHAPTER_SELECT, MCP_DATED_ITEM_SELECT, MCP_THING_TO_DO_SELECT, MCP_TRANSPORT_SELECT,
+  MCP_TRIP_SELECT, mcpStopSelect, toMcpAccommodation, toMcpItem, toMcpTransport, toMcpTrip, withPlaceholders,
+  type FilesFor, type McpAccommodation, type McpChapter, type McpItem, type McpStop, type McpTransport, type McpTripSummary,
 } from "./plan-shapes";
 
 export interface McpItemDetail extends McpItem {
@@ -111,4 +113,77 @@ export async function loadTripSummaryForMcp(tripId: string): Promise<McpTripSumm
     loadTripAttachments(tripId, v, { tripFiles: true }),
   ]);
   return toMcpTrip(tripId, trip, byOwner.get(ownerKey("TRIP", tripId)) ?? []);
+}
+
+/**
+ * Stops as get_trip_plan shows them (the same `buildMcpStops`), in plan
+ * order. A hidden Surprise Stop comes back as its shell. Day titles are
+ * resolved over every open Stop whose stay overlaps one asked for, so a
+ * Changeover day's title is the one get_trip_plan shows (`titlesByDate`
+ * only ever compares Stops that cover the date). No Surprise refusal here:
+ * `loadStopForMcp` refuses, and a write's ripple list (F6) must name a
+ * Surprise Stop it moved.
+ */
+export async function readMcpStops(tripId: string, stopIds: readonly string[]): Promise<McpStop[]> {
+  if (stopIds.length === 0) return [];
+  const v = await visibilityFor(tripId);
+  const rows = await db.stop.findMany({
+    where: { tripId, ...REAL_PLAN, id: { in: [...stopIds] } },
+    orderBy: { sortOrder: "asc" },
+    select: mcpStopSelect(v.where.accommodation),
+  });
+  const stops = maskSurpriseStops(orderPlanStops(rows), v, v.views.stops);
+  const hidden = new Set(v.hiddenStopIds);
+  const open = stops.filter((s) => !hidden.has(s.id) && s.arriveDate && s.departDate);
+
+  const [thingsToDo, scheduled, neighbours] = await Promise.all([
+    db.item.findMany({
+      where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: { in: stops.map((s) => s.id) }, ...v.where.item },
+      orderBy: { sortOrder: "asc" },
+      select: MCP_THING_TO_DO_SELECT,
+    }),
+    open.length === 0
+      ? Promise.resolve([])
+      : db.item.findMany({
+          // Date coverage, not stopId (ADR 0049): a dated Item with no Stop lands on whichever Stop covers it.
+          where: { tripId, ...REAL_PLAN, OR: open.map((s) => ({ date: { gte: s.arriveDate!, lte: s.departDate! } })), ...v.where.item },
+          orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+          select: MCP_DATED_ITEM_SELECT,
+        }),
+    open.length === 0
+      ? Promise.resolve([])
+      : db.stop.findMany({
+          where: {
+            tripId, ...REAL_PLAN, id: { notIn: v.hiddenStopIds },
+            OR: open.map((s) => ({ arriveDate: { lte: s.departDate! }, departDate: { gte: s.arriveDate! } })),
+          },
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, arriveDate: true, departDate: true },
+        }),
+  ]);
+
+  const datedItems = withPlaceholders(scheduled, v);
+  const [dayTitles, files] = await Promise.all([
+    loadDayTitles(neighbours),
+    loadTripAttachments(tripId, v, {
+      targetIds: [
+        ...stops.map((s) => s.id),
+        ...stops.flatMap((s) => s.accommodations.map((a) => a.id)),
+        ...thingsToDo.map((i) => i.id),
+        ...datedItems.map((i) => i.id),
+      ],
+    }),
+  ]);
+
+  return buildMcpStops({
+    stops, thingsToDo, datedItems, dayTitles, hiddenStopIds: hidden,
+    itemView: (id) => v.views.items.get(id) ?? null, filesFor: filesFrom(files),
+  }).stops;
+}
+
+export async function loadStopForMcp(stopId: string): Promise<McpStop> {
+  const { tripId } = await requireRealPlanRow("stop", stopId);
+  const [stop] = await readMcpStops(tripId, [stopId]);
+  if (!stop) notFound();
+  return stop;
 }
