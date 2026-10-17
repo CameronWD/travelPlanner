@@ -16,6 +16,8 @@ const {
   requireTripAccess,
   reminderFindUnique,
   stopFindUnique,
+  itemFindUnique,
+  transportFindUnique,
   tripFindUnique,
   createFeedbackNote,
 } = vi.hoisted(() => ({
@@ -33,6 +35,8 @@ const {
   requireTripAccess: vi.fn(),
   reminderFindUnique: vi.fn(),
   stopFindUnique: vi.fn(),
+  itemFindUnique: vi.fn(),
+  transportFindUnique: vi.fn(),
   tripFindUnique: vi.fn(),
   createFeedbackNote: vi.fn(),
 }));
@@ -54,6 +58,8 @@ vi.mock("@/lib/db", () => ({
   db: {
     reminder: { findUnique: reminderFindUnique },
     stop: { findUnique: stopFindUnique },
+    item: { findUnique: itemFindUnique },
+    transport: { findUnique: transportFindUnique },
     trip: { findUnique: tripFindUnique },
   },
 }));
@@ -72,7 +78,8 @@ vi.mock("@/lib/db", () => ({
 const requireRowAccessMock = vi.hoisted(() =>
   vi.fn(async (kind: string, id: string) => {
     const args = { where: { id, forkId: null }, select: { tripId: true } };
-    const row = kind === "stop" ? await stopFindUnique(args) : null;
+    const finder = ({ stop: stopFindUnique, item: itemFindUnique, transport: transportFindUnique } as Record<string, typeof stopFindUnique>)[kind];
+    const row = finder ? await finder(args) : null;
     if (!row) {
       const { notFound } = await import("next/navigation");
       notFound();
@@ -114,8 +121,10 @@ describe("reminder and checklist write tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
-    // Real-plan pre-check default: every stop id names a real-plan Stop on TRIP_ID.
+    // Real-plan pre-check default: every stop/item/transport id names a real-plan row on TRIP_ID.
     stopFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+    itemFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+    transportFindUnique.mockResolvedValue({ tripId: TRIP_ID });
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -198,6 +207,51 @@ describe("reminder and checklist write tools", () => {
     expect(tool.description?.toLowerCase()).toContain("permanent");
     expect(tool.description?.toLowerCase()).toContain("confirm");
     expect(tool.annotations?.destructiveHint).toBe(true);
+  });
+
+  describe("notes and about (F8)", () => {
+    it("add_reminder forwards notes and an itemId after a real-plan check on the Item", async () => {
+      addReminder.mockResolvedValue({ success: true, id: "r1" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_reminder", arguments: { tripId: TRIP_ID, title: "Book table", date: "2026-07-02", notes: "window", itemId: ITEM_ID } });
+      expect(itemFindUnique).toHaveBeenCalledWith({ where: { id: ITEM_ID, forkId: null }, select: { tripId: true } });
+      expect(addReminder).toHaveBeenCalledWith(TRIP_ID, { title: "Book table", date: "2026-07-02", notes: "window", itemId: ITEM_ID });
+    });
+
+    it("add_reminder with a Fork's transportId is NOT_FOUND_TEXT and adds nothing", async () => {
+      transportFindUnique.mockImplementation(({ where }: { where: { forkId?: unknown } }) => Promise.resolve(where.forkId === null ? null : { tripId: TRIP_ID }));
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "add_reminder", arguments: { tripId: TRIP_ID, title: "Seats", date: "2026-07-02", transportId: "fork-leg" } });
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(addReminder).not.toHaveBeenCalled();
+    });
+
+    it.each(["add_reminder", "update_reminder"] as const)("%s refuses more than one about id, before any lookup", async (name) => {
+      const c = await connectTestClient();
+      const base = name === "add_reminder" ? { tripId: TRIP_ID, title: "T", date: "2026-07-02" } : { reminderId: REMINDER_ID };
+      const r = await c.callTool({ name, arguments: { ...base, stopId: STOP_ID, itemId: ITEM_ID } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("Pass at most one of stopId, itemId or transportId");
+      expect(stopFindUnique).not.toHaveBeenCalled();
+      expect(itemFindUnique).not.toHaveBeenCalled();
+      expect(addReminder).not.toHaveBeenCalled();
+      expect(updateReminder).not.toHaveBeenCalled();
+    });
+
+    it("update_reminder forwards nulls: no notes, about the Trip as a whole", async () => {
+      updateReminder.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, notes: null, stopId: null } });
+      expect(updateReminder).toHaveBeenCalledWith(REMINDER_ID, { notes: null, stopId: null });
+    });
+
+    it("update_reminder moves a Reminder to a leg, checking the leg is the real plan's", async () => {
+      updateReminder.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, transportId: "leg-1" } });
+      expect(transportFindUnique).toHaveBeenCalledWith({ where: { id: "leg-1", forkId: null }, select: { tripId: true } });
+      expect(updateReminder).toHaveBeenCalledWith(REMINDER_ID, { transportId: "leg-1" });
+    });
   });
 
   // -------------------------------------------------------------------------

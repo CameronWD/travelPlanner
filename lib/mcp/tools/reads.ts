@@ -279,7 +279,8 @@ export function registerReadTools(server: McpServer): void {
     "get_reminders",
     {
       title: "Get reminders",
-      description: "Reads this trip's Reminders dated on or after a date (today by default), soonest first.",
+      description:
+        "Reads this trip's Reminders dated on or after a date (today by default), soonest first. Each carries its notes and what it is about: stopId/stopName, itemId/itemTitle or transportId/transportLabel (all null when it is about the Trip as a whole).",
       inputSchema: { tripId: z.string(), fromDate: isoDate.optional() },
       annotations: { readOnlyHint: true },
     },
