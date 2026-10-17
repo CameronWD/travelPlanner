@@ -604,3 +604,18 @@ describe("homeTimezoneSummary (ADR 0030 amendment 2026-10-16)", () => {
       .toBe("changed the Home timezone to Australia/Brisbane; Home-end times kept as local times");
   });
 });
+
+describe("describeChanges booking state (spec 2026-10-17 R2)", () => {
+  it.each(["ITEM", "TRANSPORT", "ACCOMMODATION"] as const)("%s: names the state and the book-by date in words", (kind) => {
+    const changes = describeChanges(kind, { bookingState: "TO_BOOK", bookBy: "2026-11-20" }, { bookingState: "BOOKED", bookBy: null });
+    expect(changes).toEqual(
+      expect.arrayContaining([
+        { field: "bookingState", label: "Booking", from: "To book", to: "Booked" },
+        expect.objectContaining({ field: "bookBy", label: "Book by", to: "" }),
+      ]),
+    );
+  });
+  it("an unchanged state is no change", () => {
+    expect(describeChanges("TRANSPORT", { bookingState: "TO_BOOK" }, { bookingState: "TO_BOOK" })).toEqual([]);
+  });
+});

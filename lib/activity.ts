@@ -12,6 +12,7 @@ import { formatMoney } from "@/lib/money/money";
 import { formatLongDate, formatDayLabel, formatISODate } from "@/lib/dates";
 import { categoryLabel, type Category } from "@/lib/categories";
 import type { VoteLevel } from "@/lib/enum-values";
+import { BOOKING_STATE_LABELS } from "@/lib/booking-state-copy";
 
 // ---------------------------------------------------------------------------
 // Vocab
@@ -127,6 +128,11 @@ function pinnedFormat(value: unknown): string {
   return value ? "Pinned" : "Not pinned";
 }
 
+function bookingStateFormat(value: unknown): string {
+  if (isEmpty(value)) return "";
+  return BOOKING_STATE_LABELS[value as keyof typeof BOOKING_STATE_LABELS] ?? String(value);
+}
+
 /**
  * Format a Date (or ISO string) as a readable UTC date-time like "3 Jul 2025, 14:00".
  * Null / undefined / "" → "—".
@@ -176,6 +182,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "startTime", label: "Start time" },
     { key: "endTime", label: "End time" },
     { key: "address", label: "Address" },
+    { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
+    { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
   ],
   TRANSPORT: [
     {
@@ -188,6 +196,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "depAt", label: "Departure time", format: (v) => dateTimeFormat(v) },
     { key: "arrAt", label: "Arrival time", format: (v) => dateTimeFormat(v) },
     { key: "reference", label: "Reference" },
+    { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
+    { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
   ],
   ACCOMMODATION: [
     { key: "name", label: "Name" },
@@ -197,6 +207,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "checkInTime", label: "Check-in time" },
     { key: "checkOutTime", label: "Check-out time" },
     { key: "confirmation", label: "Confirmation" },
+    { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
+    { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
   ],
   CHAPTER: [
     { key: "name", label: "Name" },
