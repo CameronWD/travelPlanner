@@ -1188,7 +1188,7 @@ describe("updateTransport (PATCH, ADR 0075)", () => {
     id: "t1", tripId: "trip-1", forkId: null,
     mode: "TRAIN", fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-a", depIsHome: false, arrIsHome: false,
     depPlace: "Roma Termini", arrPlace: null, depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"),
-    reference: "FR 9512", notes: null,
+    reference: "FR 9512", notes: null, bookingState: "BOOKED", bookingStateSet: false, bookBy: null,
   };
   beforeEach(() => {
     transportFindUniqueMock.mockResolvedValue(row); // guard row, then the held row
@@ -1224,6 +1224,18 @@ describe("updateTransport (PATCH, ADR 0075)", () => {
     expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({
       costMinor: 21000, currency: "GBP", paidMinor: 20000, paidAt: new Date("2026-03-01"),
     }) }));
+  });
+
+  it("refuses a book-by date on a leg set to No booking needed, and writes nothing (spec R2)", async () => {
+    const r = await updateTransport("t1", { bookingState: "NONE", bookBy: "2027-05-01" });
+    expect(r).toEqual({ success: false, errors: { bookBy: ["A book-by date is only for something still to book."] } });
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("a malformed book-by date is refused by the schema", async () => {
+    const r = await updateTransport("t1", { bookingState: "TO_BOOK", bookBy: "May 1" });
+    expect(r).toMatchObject({ success: false, errors: { bookBy: [expect.any(String)] } });
+    expect(transportUpdateMock).not.toHaveBeenCalled();
   });
 
   it("an endpoint refusal writes nothing", async () => {

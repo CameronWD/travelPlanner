@@ -29,6 +29,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 
 import { db } from "@/lib/db";
 import { createItem, updateItem, scheduleItem } from "@/server/actions/items";
+import { createTransport, updateTransport } from "@/server/actions/transport";
 
 const TRIP_ID = "it-trip-booking-state";
 const BOOKING = { bookingState: true, bookingStateSet: true, bookBy: true } as const;
@@ -79,6 +80,32 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking state on write (spec R
       expect(placed.success).toBe(true);
       const copyId = (placed as { placedItemId: string }).placedItemId;
       expect(await db.item.findUnique({ where: { id: copyId }, select: BOOKING })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-15" });
+    });
+  });
+
+  describe("Transport", () => {
+    const leg = { mode: "TRAIN" as const, depPlace: "Strasbourg", arrPlace: "Frankfurt", depAt: "2027-06-04T09:00", arrAt: "2027-06-04T11:00" };
+
+    it("a leg with no reference is To book; one with a reference is Booked", async () => {
+      const tentative = (await createTransport(TRIP_ID, leg)) as { id: string };
+      const booked = (await createTransport(TRIP_ID, { ...leg, reference: "ICE 512" })) as { id: string };
+      expect(await db.transport.findUnique({ where: { id: tentative.id }, select: BOOKING })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null });
+      expect(await db.transport.findUnique({ where: { id: booked.id }, select: BOOKING })).toEqual({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
+    });
+
+    it("an un-chosen To book leg with a book-by date becomes Booked when its reference arrives, and drops the date", async () => {
+      const r = (await createTransport(TRIP_ID, { ...leg, bookBy: "2027-05-01" })) as { id: string };
+      expect(await db.transport.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01" });
+      expect(await updateTransport(r.id, { reference: "ICE 9" })).toEqual({ success: true });
+      expect(await db.transport.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
+    });
+
+    it("a leg the Traveller set to To book stays To book with a reference; choosing Booked clears its date", async () => {
+      const r = (await createTransport(TRIP_ID, { ...leg, bookingState: "TO_BOOK", bookBy: "2027-05-02" })) as { id: string };
+      await updateTransport(r.id, { reference: "ICE 10" });
+      expect(await db.transport.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-02" });
+      await updateTransport(r.id, { bookingState: "BOOKED", bookBy: null });
+      expect(await db.transport.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "BOOKED", bookingStateSet: true, bookBy: null });
     });
   });
 });
