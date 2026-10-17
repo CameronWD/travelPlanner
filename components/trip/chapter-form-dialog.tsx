@@ -56,7 +56,7 @@ export interface ChapterFormDialogProps {
  * setState-in-effect lint errors.
  */
 /** TU-01: shown on an edit of a dated Chapter while "Set dates now" is off. */
-export const CHAPTER_DATES_OFF_WARNING = "This Chapter will no longer group its dated stops.";
+const CHAPTER_DATES_OFF_WARNING = "This Chapter will no longer group its dated stops.";
 
 export function ChapterFormDialog({
   tripId,
