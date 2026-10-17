@@ -30,6 +30,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 import { db } from "@/lib/db";
 import { createItem, updateItem, scheduleItem } from "@/server/actions/items";
 import { createTransport, updateTransport } from "@/server/actions/transport";
+import { createAccommodation, updateAccommodation } from "@/server/actions/accommodation";
 
 const TRIP_ID = "it-trip-booking-state";
 const BOOKING = { bookingState: true, bookingStateSet: true, bookBy: true } as const;
@@ -106,6 +107,26 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking state on write (spec R
       expect(await db.transport.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-02" });
       await updateTransport(r.id, { bookingState: "BOOKED", bookBy: null });
       expect(await db.transport.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "BOOKED", bookingStateSet: true, bookBy: null });
+    });
+  });
+
+  describe("Accommodation", () => {
+    it("is To book without a confirmation, Booked with one, and a notes-only edit keeps the state", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Porto", timezone: "Europe/Lisbon", arriveDate: "2027-06-01", departDate: "2027-06-04", nights: 3, sortOrder: 0 } });
+      const open = (await createAccommodation({ stopId: stop.id, name: "Casa", checkIn: "2027-06-01", checkOut: "2027-06-04", bookBy: "2027-04-30" })) as { id: string };
+      const done = (await createAccommodation({ stopId: stop.id, name: "Hotel", checkIn: "2027-06-01", checkOut: "2027-06-04", confirmation: "HX-1" })) as { id: string };
+      expect(await db.accommodation.findUnique({ where: { id: open.id }, select: BOOKING })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-04-30" });
+      expect(await db.accommodation.findUnique({ where: { id: done.id }, select: BOOKING })).toEqual({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
+      expect(await updateAccommodation(open.id, { notes: "Late check-in" })).toEqual({ success: true });
+      expect(await db.accommodation.findUnique({ where: { id: open.id }, select: BOOKING })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-04-30" });
+    });
+
+    it("a stay with friends can be No booking needed, and stays so", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Aghalee", timezone: "Europe/London", arriveDate: "2027-06-05", departDate: "2027-06-07", nights: 2, sortOrder: 1 } });
+      const r = (await createAccommodation({ stopId: stop.id, name: "Aunt's house", checkIn: "2027-06-05", checkOut: "2027-06-07", bookingState: "NONE" })) as { id: string };
+      expect(await db.accommodation.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "NONE", bookingStateSet: true, bookBy: null });
+      expect(await updateAccommodation(r.id, { confirmation: "none needed" })).toEqual({ success: true });
+      expect(await db.accommodation.findUnique({ where: { id: r.id }, select: BOOKING })).toEqual({ bookingState: "NONE", bookingStateSet: true, bookBy: null });
     });
   });
 });

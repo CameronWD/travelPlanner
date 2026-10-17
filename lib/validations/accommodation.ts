@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
-import { costSettlementSchema } from "@/lib/enums";
+import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate } from "@/lib/validations/primitives";
+import { bookBySchema } from "@/lib/validations/planning";
 
 /**
  * Zod schema for creating or updating an Accommodation.
@@ -26,6 +27,10 @@ export const accommodationSchema = z
     checkInTime: hhmm.optional(),
     checkOutTime: hhmm.optional(),
     confirmation: z.string().trim().optional(),
+    /** CONTEXT.md "Booking state". Omitted = derived from `confirmation` (create) or kept (update). */
+    bookingState: bookingStateSchema.optional(),
+    /** The day it should be booked by; only while To book (lib/booking-state-patch.ts refuses it otherwise). */
+    bookBy: bookBySchema.optional(),
     notes: z.string().trim().optional(),
     lat: z.number().optional(),
     lng: z.number().optional(),
