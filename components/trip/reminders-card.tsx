@@ -5,12 +5,15 @@ import { Bell, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { daysBetween, formatDayLabel } from "@/lib/dates";
 import {
   addReminder,
   deleteReminder,
   type ReminderItem,
 } from "@/server/actions/reminders";
+import { aboutFromPick, aboutPickValue, reminderAboutLabel, type ReminderAboutOptions } from "@/lib/reminder-about";
+import { ReminderNotes } from "@/components/trip/reminder-notes";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 
 // ---------------------------------------------------------------------------
@@ -28,12 +31,12 @@ interface RemindersCardProps {
    */
   today: string;
   /**
-   * The trip's Stops, for an optional Stop select in the add form (Task 7).
-   * Omitted (or empty) hides the picker and keeps the add form's contract
-   * exactly as it was — a Reminder created here is then about the Trip as a
-   * whole, same as before this Stop could be named.
+   * What a new Reminder can be about (spec F8): the real plan's Stops, things
+   * to do and Transport legs the viewer can see (readReminderAboutOptions).
+   * Omitted hides the picker — a Reminder created here is then about the Trip
+   * as a whole (Home's card).
    */
-  stops?: { id: string; name: string }[];
+  about?: ReminderAboutOptions;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,26 +94,32 @@ function formatWhen(
 // Add form (inline)
 // ---------------------------------------------------------------------------
 
+function hasAbout(a: ReminderAboutOptions | undefined): a is ReminderAboutOptions {
+  return !!a && a.stops.length + a.items.length + a.transports.length > 0;
+}
+
 function AddReminderForm({
   tripId,
-  stops,
+  about,
   onAdded,
 }: {
   tripId: string;
-  stops?: { id: string; name: string }[];
+  about?: ReminderAboutOptions;
   onAdded: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
-  const [stopId, setStopId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [pick, setPick] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function reset() {
     setTitle("");
     setDate("");
-    setStopId("");
+    setNotes("");
+    setPick("");
     setError(null);
     setOpen(false);
   }
@@ -123,7 +132,8 @@ function AddReminderForm({
       const result = await addReminder(tripId, {
         title,
         date,
-        ...(stopId ? { stopId } : {}),
+        ...(notes.trim() ? { notes } : {}),
+        ...aboutFromPick(pick),
       });
       if (result.success) {
         reset();
@@ -167,19 +177,36 @@ function AddReminderForm({
         required
         aria-label="Reminder date"
       />
-      {stops && stops.length > 0 && (
+      <Textarea
+        placeholder="Notes (optional)"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        aria-label="Reminder notes"
+        rows={2}
+      />
+      {hasAbout(about) && (
         <select
-          value={stopId}
-          onChange={(e) => setStopId(e.target.value)}
-          aria-label="Stop"
+          value={pick}
+          onChange={(e) => setPick(e.target.value)}
+          aria-label="About"
           className="flex h-12 w-full rounded-md border-2 border-input bg-card px-4 text-base font-semibold text-foreground sm:text-[15px]"
         >
-          <option value="">General (not about a Stop)</option>
-          {stops.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
+          <option value="">The whole trip</option>
+          {about.stops.length > 0 && (
+            <optgroup label="Stops">
+              {about.stops.map((s) => <option key={s.id} value={aboutPickValue({ stopId: s.id })}>{s.name}</option>)}
+            </optgroup>
+          )}
+          {about.items.length > 0 && (
+            <optgroup label="Things to do">
+              {about.items.map((i) => <option key={i.id} value={aboutPickValue({ itemId: i.id })}>{i.title}</option>)}
+            </optgroup>
+          )}
+          {about.transports.length > 0 && (
+            <optgroup label="Transport">
+              {about.transports.map((t) => <option key={t.id} value={aboutPickValue({ transportId: t.id })}>{t.label}</option>)}
+            </optgroup>
+          )}
         </select>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
@@ -214,6 +241,7 @@ function ReminderRow({
 }) {
   const [isPending, startTransition] = useTransition();
   const { relative, absolute } = formatWhen(reminder.date, today);
+  const about = reminderAboutLabel(reminder);
 
   function handleDelete() {
     startTransition(async () => {
@@ -233,9 +261,9 @@ function ReminderRow({
           <p className="break-words text-sm font-medium text-foreground">
             {reminder.title}
           </p>
-          {reminder.stopName && (
+          {about && (
             <span className="inline-flex items-center rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold text-muted-foreground">
-              {reminder.stopName}
+              {about}
             </span>
           )}
         </div>
@@ -248,6 +276,7 @@ function ReminderRow({
           )}
           <span>{absolute}</span>
         </p>
+        {reminder.notes && <ReminderNotes notes={reminder.notes} />}
       </div>
       <Button
         variant="ghost"
@@ -275,7 +304,7 @@ function ReminderRow({
  * The Digest opt-in is not here — that lives on the Trip's Settings page.
  * Server data (including `today`) is passed in via props from the page.
  */
-export function RemindersCard({ tripId, reminders, today, stops }: RemindersCardProps) {
+export function RemindersCard({ tripId, reminders, today, about }: RemindersCardProps) {
   // No "passed" drawer, deliberately: a Reminder is said once, on its day, and
   // is not something you complete (CONTEXT.md "Reminder"). A drawer of missed
   // notes would quietly turn Reminders into tasks and duplicate what a
@@ -307,7 +336,7 @@ export function RemindersCard({ tripId, reminders, today, stops }: RemindersCard
       )}
 
       {/* Add form */}
-      <AddReminderForm tripId={tripId} stops={stops} onAdded={() => {}} />
+      <AddReminderForm tripId={tripId} about={about} onAdded={() => {}} />
     </Card>
   );
 }
