@@ -10,7 +10,8 @@ import { loadDayForMcp } from "./day";
 const surprised = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true } as never;
 const itemRow = (o: Partial<DayRows["items"][number]>): DayRows["items"][number] => ({
   id: "i", title: "T", category: "SIGHTSEEING", date: "2027-06-02", startTime: null, endTime: null, sortOrder: 0, stopId: "s1",
-  lat: null, lng: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null, ...o,
+  lat: null, lng: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null,
+  bookingState: "NONE", bookingStateSet: false, bookBy: null, ...o,
 });
 const rows: DayRows = {
   trip: { name: "Porto", startDate: "2027-06-01", endDate: "2027-06-04", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane", chaptersEnabled: false, roundTrip: true },
@@ -23,7 +24,7 @@ const rows: DayRows = {
     itemRow({ id: "p1", title: "Surprise", category: "OTHER", startTime: "19:00", surprise: surprised }),
   ],
   transports: [],
-  accommodations: [{ id: "a1", stopId: "s1", name: "Casa", address: null, checkIn: "2027-06-01", checkOut: "2027-06-04", checkInTime: "15:00", checkOutTime: null, confirmation: "X1", notes: null, lat: null, lng: null }],
+  accommodations: [{ id: "a1", stopId: "s1", name: "Casa", address: null, checkIn: "2027-06-01", checkOut: "2027-06-04", checkInTime: "15:00", checkOutTime: null, confirmation: "X1", notes: null, lat: null, lng: null, bookingState: "BOOKED", bookingStateSet: false, bookBy: null }],
   wishlist: [],
   attachments: [{ id: "f1", filename: "tour.pdf", title: null, mime: "application/pdf", size: 1, url: "u", uploadedById: "u1", createdAt: new Date(), targetId: "tour" }],
   chapters: [],

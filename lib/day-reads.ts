@@ -23,6 +23,7 @@ import { db } from "@/lib/db";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import { loadSurpriseVisibility, maskSurpriseStops, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import type { DayRows } from "@/lib/day-view-model";
+import type { BookingState } from "@/lib/enum-values";
 
 export interface DayReadContext {
   tripId: string;
@@ -71,6 +72,7 @@ export async function readDayRows<X>(
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
         lat: true, lng: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
+        bookingState: true, bookingStateSet: true, bookBy: true,
       },
     }),
     db.transport.findMany({
@@ -79,7 +81,7 @@ export async function readDayRows<X>(
       select: {
         id: true, mode: true, fromStopId: true, toStopId: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true,
         depLat: true, depLng: true, arrLat: true, arrLng: true, reference: true, notes: true, sortOrder: true,
-        anchorStopId: true, depIsHome: true, arrIsHome: true,
+        anchorStopId: true, depIsHome: true, arrIsHome: true, bookingState: true, bookingStateSet: true, bookBy: true,
       },
     }),
     // Every stay of the Trip; buildDayModel keeps the ones that touch a day.
@@ -89,6 +91,7 @@ export async function readDayRows<X>(
       select: {
         id: true, stopId: true, name: true, address: true, checkIn: true, checkOut: true,
         checkInTime: true, checkOutTime: true, confirmation: true, notes: true, lat: true, lng: true,
+        bookingState: true, bookingStateSet: true, bookBy: true,
       },
     }),
     // Wishlist ideas (trip-wide, unscheduled — ADR 0022), located or not: the nearby rail and Day ideas.
@@ -125,11 +128,12 @@ export async function readDayRows<X>(
 
   const placeholders = v.placeholderItems.filter((p) => p.forkId === null && p.date !== null);
   const items: DayRows["items"] = [
-    ...itemRows.map((it) => ({ ...it, surprise: v.views.items.get(it.id) ?? null })),
+    ...itemRows.map((it) => ({ ...it, bookingState: it.bookingState as BookingState, surprise: v.views.items.get(it.id) ?? null })),
     ...placeholders.map((p) => ({
       id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
       sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, address: p.address, link: p.link,
       booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
+      bookingState: p.bookingState, bookingStateSet: p.bookingStateSet, bookBy: p.bookBy,
       surprise: p.surprise,
     })),
   ];
@@ -138,7 +142,11 @@ export async function readDayRows<X>(
     rows: {
       trip, startDate, endDate,
       stops: maskSurpriseStops(stops, v, v.views.stops),
-      items, transports, accommodations, wishlist, attachments, chapters, dayTitles, thingsToDo,
+      items,
+      // The String column holds a BOOKING_STATES value (every writer stores lib/booking-state.ts bookingStateWrite's result).
+      transports: transports as DayRows["transports"],
+      accommodations: accommodations as DayRows["accommodations"],
+      wishlist, attachments, chapters, dayTitles, thingsToDo,
     },
     visibility: v,
     alongside: extra,

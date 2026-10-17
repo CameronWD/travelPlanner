@@ -9,6 +9,7 @@
 import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import type { SurpriseView } from "@/lib/surprise";
+import type { BookingState } from "@/lib/enum-values";
 
 // ---------------------------------------------------------------------------
 // Minimal input shapes
@@ -37,6 +38,9 @@ export interface ItineraryItem {
   address?: string | null;
   link?: string | null;
   booking?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
+  bookingState?: BookingState | null;
+  bookBy?: string | null;
   notes?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
@@ -56,6 +60,9 @@ export interface ItineraryTransport {
   depAt?: Date | string | null; // DateTime instant
   arrAt?: Date | string | null; // DateTime instant
   reference?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
+  bookingState?: BookingState | null;
+  bookBy?: string | null;
   notes?: string | null;
   /** This end is the Trip's Home base, not a Stop — its zone is the Trip's `homeTimezone`. */
   depIsHome?: boolean | null;
@@ -72,6 +79,9 @@ export interface ItineraryAccommodation {
   checkOutTime?: string | null; // HH:MM
   address?: string | null;
   confirmation?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
+  bookingState?: BookingState | null;
+  bookBy?: string | null;
   notes?: string | null;
 }
 

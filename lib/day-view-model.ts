@@ -1,5 +1,5 @@
 import { addDays, dayNumberInTrip, daysBetween, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
-import type { TransportMode } from "@/lib/enum-values";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
 import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { buildItinerary, pickDayPlan, isFreeFormDay, dayHasEntries, type DayPlan } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
@@ -165,16 +165,20 @@ interface DayItemRow {
   sortOrder: number; stopId: string | null; lat: number | null; lng: number | null; address: string | null;
   link: string | null; booking: string | null; notes: string | null; hiddenFromShares: boolean;
   photoAttachmentId: string | null; surprise: SurpriseView | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state). */
+  bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
 }
 interface DayTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depPlace: string | null; arrPlace: string | null;
   depAt: Date | null; arrAt: Date | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
   reference: string | null; notes: string | null; sortOrder: number; anchorStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
+  bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
 }
 interface DayAccommodationRow {
   id: string; stopId: string; name: string; address: string | null; checkIn: string; checkOut: string;
   checkInTime: string | null; checkOutTime: string | null; confirmation: string | null; notes: string | null;
   lat: number | null; lng: number | null;
+  bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
 }
 interface DayWishlistRow { id: string; title: string; category: string; lat: number | null; lng: number | null; countryCode: string | null }
 interface DayAttachmentRow {
@@ -267,16 +271,19 @@ function deriveTrip(rows: DayRows): TripDerived {
         id: i.id, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime,
         stopId: i.stopId, address: i.address, link: i.link, booking: i.booking, notes: i.notes,
         hiddenFromShares: i.hiddenFromShares, photoUrl: itemPhotoUrl(i, attachmentsById), surprise: i.surprise,
+        bookingState: i.bookingState, bookBy: i.bookBy,
       })),
       transports: rows.transports.map((t) => ({
         id: t.id, mode: t.mode as TransportMode, fromStopId: t.fromStopId, toStopId: t.toStopId,
         depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         reference: t.reference, notes: t.notes, depIsHome: t.depIsHome, arrIsHome: t.arrIsHome,
+        bookingState: t.bookingState, bookBy: t.bookBy,
       })),
       // Every stay (TB-10): a day's check-in/out entries never depend on which day was asked for.
       accommodations: rows.accommodations.map((a) => ({
         id: a.id, stopId: a.stopId, name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut,
         checkInTime: a.checkInTime, checkOutTime: a.checkOutTime, confirmation: a.confirmation, notes: a.notes,
+        bookingState: a.bookingState, bookBy: a.bookBy,
       })),
       homeTimezone: rows.trip.homeTimezone,
     }),
