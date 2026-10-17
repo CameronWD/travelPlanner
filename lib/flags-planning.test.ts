@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectFlags, flagClosedOnDay, flagOutsideOpeningHours, type FlagItem, type FlagStop } from "./flags";
+import { detectFlags, flagClosedOnDay, flagLateForSlot, flagOutsideOpeningHours, type FlagItem, type FlagStop } from "./flags";
 import type { OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
@@ -133,5 +133,39 @@ describe("flagOutsideOpeningHours (Before opening / After closing, warnings)", (
     expect(run({ openingHours: hours({ week: { mon: [["10:00", "18:00"]] } }), startTime: "09:00" })).toEqual([]); // Tuesday not known
     expect(run({ openingHours: hours({ week: everyDay([]) }), startTime: "09:00" })).toEqual([]);
     expect(run({ openingHours: late, startTime: "23:00", endTime: "01:00" })).toEqual([]); // ends the next day
+  });
+});
+
+describe("flagLateForSlot (Late for the slot, warning)", () => {
+  const run = (o: Partial<FlagItem>) =>
+    flagLateForSlot([item({ id: "i1", title: "Neues Museum tour", slotTime: "12:00", arriveByMinutes: 15, ...o })]).map((f) => [f.id, f.message, f.targetType]);
+
+  it("a start after slot − arrive-by", () => {
+    expect(run({ startTime: "11:50" })).toEqual([["item-late-slot-i1", "Neues Museum tour starts 11:50, but the 12:00 slot needs you there by 11:45.", "ITEM"]]);
+  });
+
+  it("with no arrive-by, a start after the slot itself", () => {
+    expect(run({ arriveByMinutes: null, startTime: "12:10" })).toEqual([["item-late-slot-i1", "Neues Museum tour starts 12:10, after its 12:00 slot.", "ITEM"]]);
+    expect(run({ arriveByMinutes: 0, startTime: "12:00" })).toEqual([]);
+  });
+
+  it("on time or early, no Flag", () => {
+    expect(run({ startTime: "11:45" })).toEqual([]);
+    expect(run({ startTime: "11:00" })).toEqual([]);
+  });
+
+  it("silent with no slot or no start", () => {
+    expect(run({ slotTime: null, startTime: "11:50" })).toEqual([]);
+    expect(run({ startTime: null })).toEqual([]);
+  });
+
+  it("detectFlags leaves out an Item hidden by a Surprise", () => {
+    const nbg = stop({ id: "nbg", arriveDate: "2026-12-06", departDate: "2026-12-09" });
+    const items = [item({ id: "gift", slotTime: "12:00", arriveByMinutes: 15, startTime: "11:50" })];
+    const ids = (hiddenItemIds?: string[]) =>
+      detectFlags({ stops: [nbg], transports: [], accommodations: [], items, tripStart: "2026-12-06", tripEnd: "2026-12-09", hiddenItemIds })
+        .map((f) => f.id).filter((id) => id.startsWith("item-late-slot-"));
+    expect(ids()).toEqual(["item-late-slot-gift"]);
+    expect(ids(["gift"])).toEqual([]);
   });
 });

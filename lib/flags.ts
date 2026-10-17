@@ -15,6 +15,7 @@ import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
+import { defaultStartFromSlot } from "@/lib/slot-time";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -90,6 +91,9 @@ export interface FlagItem {
   title?: string | null;
   /** CONTEXT.md "Opening hours", already parsed (lib/opening-hours-stored.ts withOpeningHours); read in the Stop's local time, like startTime. */
   openingHours?: OpeningHours | null;
+  /** CONTEXT.md "Slot time": the ticket's time ("HH:mm") and how early to be there (minutes). */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
 }
 
 export interface DetectFlagsInput {
@@ -1022,6 +1026,30 @@ export function flagOutsideOpeningHours(items: FlagItem[]): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rule 20: Late for the slot (warning)
+//
+// The Item starts after its slot less the arrive-by margin (the same
+// "be there" time the Item form defaults the start to, clamped at 00:00).
+// Covers a start the Traveller moved, or a slot changed after the start was
+// defaulted (spec 2026-10-17, Branch 1 as built, C.2).
+// ---------------------------------------------------------------------------
+
+export function flagLateForSlot(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.startTime || !item.slotTime) continue;
+    const beThere = defaultStartFromSlot(item.slotTime, item.arriveByMinutes);
+    if (!beThere || hhmmToMin(item.startTime) <= hhmmToMin(beThere)) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    const message = item.arriveByMinutes
+      ? `${name} starts ${item.startTime}, but the ${item.slotTime} slot needs you there by ${beThere}.`
+      : `${name} starts ${item.startTime}, after its ${item.slotTime} slot.`;
+    flags.push(itemFlag(item, `item-late-slot-${item.id}`, "warning", message));
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -1044,6 +1072,7 @@ export function flagOutsideOpeningHours(items: FlagItem[]): Flag[] {
  *   13. Missing connection between consecutive stops (info)
  *   17. Closed that day (warning)
  *   18–19. Before opening / After closing (warning)
+ *   20. Late for the slot (warning)
  */
 export function detectFlags({
   stops,
@@ -1111,5 +1140,6 @@ export function detectFlags({
     // Spec 2026-10-17 R7: the planning Flags, on what the viewer can see.
     ...flagClosedOnDay(planning.items),
     ...flagOutsideOpeningHours(planning.items),
+    ...flagLateForSlot(planning.items),
   ];
 }
