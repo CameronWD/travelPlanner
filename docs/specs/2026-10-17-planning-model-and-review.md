@@ -90,8 +90,8 @@ all green (task-Z-report.md has the exact run).
   UPDATE "Transport" SET "bookingState" = 'BOOKED' WHERE "bookingStateSet" = false AND NULLIF(btrim("reference"), '') IS NOT NULL;
   UPDATE "Accommodation" SET "bookingState" = 'BOOKED' WHERE "bookingStateSet" = false AND NULLIF(btrim("confirmation"), '') IS NOT NULL;
   UPDATE "Item" SET "bookingState" = 'BOOKED' WHERE "bookingStateSet" = false AND NULLIF(btrim("booking"), '') IS NOT NULL;
-  UPDATE "Transport" SET "bookingState" = 'BOOKED', "bookingStateSet" = true WHERE "bookingStateSet" = false AND "depAt" < now();
-  UPDATE "Accommodation" SET "bookingState" = 'BOOKED', "bookingStateSet" = true WHERE "bookingStateSet" = false AND "checkIn" <= to_char(current_date, 'YYYY-MM-DD');
+  UPDATE "Transport" SET "bookingState" = 'BOOKED', "bookingStateSet" = true WHERE "bookingStateSet" = false AND "depAt" < (now() AT TIME ZONE 'UTC');
+  UPDATE "Accommodation" SET "bookingState" = 'BOOKED', "bookingStateSet" = true WHERE "bookingStateSet" = false AND "checkIn" <= to_char((now() AT TIME ZONE 'UTC') + interval '14 hours', 'YYYY-MM-DD');
   ```
 - The Plan's day row's "Booked ✓" pill now follows the `bookingState`
   column, not merely whether a reference is present — a leg a Traveller
