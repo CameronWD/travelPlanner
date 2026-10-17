@@ -130,7 +130,7 @@ departure to 05:10. For a ticket, the local time is the fact.
    no time. A local time that doesn't exist in the new zone (a daylight-saving
    gap) lands on the next valid time, e.g. 02:30 → 03:30.
 4. **One Activity line** records the change, "changed the Home timezone to
-   Australia/Brisbane — Home-end times kept as local times", and the legs
+   Australia/Brisbane; Home-end times kept as local times", and the legs
    record nothing of their own. `update_trip`'s description says the same,
    so Claude fixes a zone instead of retyping times.
 

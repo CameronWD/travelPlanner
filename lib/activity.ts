@@ -514,7 +514,7 @@ export function surpriseSummary(input: {
  */
 export function homeTimezoneSummary(to: string | null, keptLocalTimes: boolean): ActivitySummary {
   const head = to === null ? "cleared the Home timezone" : `changed the Home timezone to ${to}`;
-  return { summary: keptLocalTimes ? `${head} — Home-end times kept as local times` : head };
+  return { summary: keptLocalTimes ? `${head}; Home-end times kept as local times` : head };
 }
 
 // ---------------------------------------------------------------------------

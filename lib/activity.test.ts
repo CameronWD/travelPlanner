@@ -590,17 +590,17 @@ describe("surpriseSummary", () => {
 describe("homeTimezoneSummary (ADR 0030 amendment 2026-10-16)", () => {
   it("names the new zone and says the Home-end times kept their local time", () => {
     expect(homeTimezoneSummary("Australia/Brisbane", true)).toEqual({
-      summary: "changed the Home timezone to Australia/Brisbane — Home-end times kept as local times",
+      summary: "changed the Home timezone to Australia/Brisbane; Home-end times kept as local times",
     });
   });
   it("leaves the clause off when no Home-end time had to move", () => {
     expect(homeTimezoneSummary("Australia/Brisbane", false)).toEqual({ summary: "changed the Home timezone to Australia/Brisbane" });
   });
   it("a cleared zone reads as cleared", () => {
-    expect(homeTimezoneSummary(null, true)).toEqual({ summary: "cleared the Home timezone — Home-end times kept as local times" });
+    expect(homeTimezoneSummary(null, true)).toEqual({ summary: "cleared the Home timezone; Home-end times kept as local times" });
   });
   it("is the line activityLine shows", () => {
     expect(activityLine({ verb: "UPDATED", entityType: "TRANSPORT", entityLabel: "Home timezone", changes: homeTimezoneSummary("Australia/Brisbane", true) }))
-      .toBe("changed the Home timezone to Australia/Brisbane — Home-end times kept as local times");
+      .toBe("changed the Home timezone to Australia/Brisbane; Home-end times kept as local times");
   });
 });

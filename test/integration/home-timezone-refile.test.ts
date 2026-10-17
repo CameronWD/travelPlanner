@@ -81,7 +81,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Home timezone change keeps H
     expect((await db.trip.findUnique({ where: { id: TRIP_ID }, select: { homeTimezone: true } }))!.homeTimezone).toBe(BNE);
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
       tripId: TRIP_ID,
-      changes: { summary: "changed the Home timezone to Australia/Brisbane — Home-end times kept as local times" },
+      changes: { summary: "changed the Home timezone to Australia/Brisbane; Home-end times kept as local times" },
     }));
   });
 

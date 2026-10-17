@@ -1194,7 +1194,7 @@ describe("updateTrip", () => {
         entityType: "TRANSPORT",
         entityId: null,
         entityLabel: "Home timezone",
-        changes: { summary: "changed the Home timezone to Australia/Brisbane — Home-end times kept as local times" },
+        changes: { summary: "changed the Home timezone to Australia/Brisbane; Home-end times kept as local times" },
         surpriseOf: null,
       });
     });
@@ -1232,7 +1232,7 @@ describe("updateTrip", () => {
 
       expect(refileHomeEndsTxMock).toHaveBeenCalledWith(expect.anything(), "t1", "Australia/Sydney", null);
       expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
-        changes: { summary: "cleared the Home timezone — Home-end times kept as local times" },
+        changes: { summary: "cleared the Home timezone; Home-end times kept as local times" },
       }));
     });
 
