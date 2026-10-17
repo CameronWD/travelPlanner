@@ -45,6 +45,8 @@ const BASE_ROWS = {
   accommodations: [],
   items: [],
   hiddenStopIds: [] as readonly string[],
+  hiddenItemIds: [] as readonly string[],
+  today: "2026-06-01",
 };
 
 beforeEach(() => {
@@ -99,5 +101,22 @@ describe("loadNextSteps — Surprise (ADR 0051)", () => {
   it("outside planning / final prep, loadFlagRows is not asked either", async () => {
     await loadNextSteps("trip-1", "2027-01-01", "u-viewer");
     expect(loadFlagRowsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadNextSteps: the planning Flags (spec 2026-10-17 R7)", () => {
+  it("counts book-by dates from the today it was given, and leaves out hidden Items", async () => {
+    loadFlagRowsMock.mockResolvedValue({
+      ...BASE_ROWS,
+      items: [
+        { id: "i-pass", stopId: "s1", date: null, title: "Museum pass", bookingState: "TO_BOOK", bookBy: "2026-06-03" },
+        { id: "i-gift", stopId: "s1", date: null, title: "Surprise", bookingState: "TO_BOOK", bookBy: "2026-06-03" },
+      ],
+      hiddenItemIds: ["i-gift"],
+    });
+    db.checklistItem.count.mockResolvedValue(1);
+    const ids = (await loadNextSteps("trip-1", "2026-06-01", "u1")).map((s) => s.id);
+    expect(ids).toContain("book-by-soon-i-pass");
+    expect(ids).not.toContain("book-by-soon-i-gift");
   });
 });

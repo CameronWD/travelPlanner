@@ -114,5 +114,8 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
     hasPackingList: packingCount > 0,
     hasPretripList: pretripCount > 0,
     hiddenStopIds: rows.hiddenStopIds,
+    hiddenItemIds: rows.hiddenItemIds,
+    // The caller's today, the same one the phase gate above used.
+    today,
   });
 }

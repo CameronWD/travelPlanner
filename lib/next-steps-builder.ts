@@ -53,6 +53,10 @@ export interface BuildTripNextStepsInput {
   hasPretripList: boolean;
   /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts); omitted → none. */
   hiddenStopIds?: readonly string[];
+  /** Items hidden from the viewer by a Surprise (placeholders included): no planning Flag names them; omitted → none. */
+  hiddenItemIds?: readonly string[];
+  /** The Trip's own today (lib/trip-today.ts): the book-by and still-to-book Flags count from it (spec 2026-10-17 R7). */
+  today: string;
   /** The viewer's own Surprises whose day has come (lib/next-steps.ts); omitted → none. */
   surprisesToReveal?: SurpriseToReveal[];
   /** Cap on the ranked list (buildNextSteps defaults to 4); pass Infinity for all. */
@@ -87,6 +91,9 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     homeFirstStop: firstStop,
     homeLastStop: lastStop,
     hiddenStopIds: input.hiddenStopIds,
+    hiddenItemIds: input.hiddenItemIds,
+    today: input.today,
+    stopNames: new Map(input.allStops.map((s) => [s.id, s.name])),
   });
 
   return buildNextSteps({

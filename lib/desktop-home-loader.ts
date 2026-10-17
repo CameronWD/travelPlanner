@@ -30,6 +30,7 @@ import { tripPath } from "@/lib/trip-path";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { FlagTransport, FlagAccommodation, FlagItem } from "@/lib/flags";
+import { withOpeningHours } from "@/lib/opening-hours-stored";
 import {
   buildBudget,
   applyFxRatesToCosts,
@@ -203,6 +204,9 @@ async function load(
         lng: true,
         bookingState: true,
         bookBy: true,
+        openingHours: true,
+        slotTime: true,
+        arriveByMinutes: true,
       },
     }),
     db.cost.findMany({
@@ -234,7 +238,7 @@ async function load(
   // A hidden real-plan Item still holds its slot: a placeholder titled
   // "Surprise", with its date and times only.
   const items = [
-    ...itemRows,
+    ...itemRows.map(withOpeningHours),
     ...v.placeholderItems
       .filter((p) => p.forkId === null && p.date !== null)
       .map((p) => ({
@@ -370,6 +374,8 @@ async function load(
       hasPackingList: packingCount > 0,
       hasPretripList: pretripCount > 0,
       hiddenStopIds: v.hiddenStopIds,
+      hiddenItemIds: v.hiddenItemIds,
+      today,
       surprisesToReveal: surprisesToReveal({ views: v.views, viewerId, today, stops: allStopsRaw, items: itemRows }),
       limit: Number.POSITIVE_INFINITY,
     });
