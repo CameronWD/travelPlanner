@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
@@ -12,6 +13,7 @@ import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { addReminder } from "@/server/actions/reminders";
 import { checkReminderInput } from "@/lib/reminder-input";
+import type { ReminderAbout } from "@/lib/reminder-about";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,12 +24,11 @@ export interface AddReminderDialogProps {
   /** The trip this reminder belongs to. */
   tripId: string;
   /**
-   * The Stop this reminder is about. Opened from a Stop's own overflow menu
-   * (Task 6/7), so the Stop is already known — carried through as a fixed,
-   * hidden value rather than offered as a picker (that's the Home Reminders
-   * card's job, for a Traveller who hasn't picked a Stop yet).
+   * What this Reminder is about — the Stop, thing to do or Transport leg whose
+   * card opened the dialog (spec F8). Fixed and hidden, never a picker: the
+   * Reminders card's add form is where a Traveller picks.
    */
-  stopId: string;
+  about: ReminderAbout;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
@@ -38,13 +39,14 @@ export interface AddReminderDialogProps {
 // ---------------------------------------------------------------------------
 
 /**
- * "Add a reminder", opened from a Stop card's overflow menu. A thin
+ * "Add a reminder", opened from a Stop card's overflow menu or an Item's or
+ * Transport leg's edit dialog. A thin
  * FormDialog wrapper, matching the shape of every other entity dialog
  * (AccommodationFormDialog, TransportFormDialog, ItemFormDialog).
  */
 export function AddReminderDialog({
   tripId,
-  stopId,
+  about,
   open,
   onOpenChange,
   onSaved,
@@ -53,7 +55,7 @@ export function AddReminderDialog({
     <FormDialog open={open} onOpenChange={onOpenChange} title="Add a Reminder">
       <AddReminderForm
         tripId={tripId}
-        stopId={stopId}
+        about={about}
         onClose={() => onOpenChange(false)}
         onSaved={onSaved}
       />
@@ -67,17 +69,18 @@ export function AddReminderDialog({
 
 function AddReminderForm({
   tripId,
-  stopId,
+  about,
   onClose,
   onSaved,
 }: {
   tripId: string;
-  stopId: string;
+  about: ReminderAbout;
   onClose: () => void;
   onSaved?: () => void;
 }) {
   const [title, setTitle] = React.useState("");
   const [date, setDate] = React.useState("");
+  const [notes, setNotes] = React.useState("");
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: async () => {
@@ -87,12 +90,13 @@ function AddReminderForm({
       // checkReminderInput mirrors reminderSchema's rules and messages
       // (lib/reminder-input.test.ts)).
       //
-      // `stopId` is deliberately left out of this check: it's the fixed value
-      // this dialog was opened with (the Stop's own id), never user input, so
-      // it isn't re-validated here — it's merged straight into the call.
-      const checked = checkReminderInput({ title, date });
+      // `about` is the fixed value this dialog was opened with (the Stop's,
+      // thing to do's or leg's own id), never user input, so it isn't
+      // re-validated here — it's merged straight into the call. Blank notes
+      // are left out rather than sent empty.
+      const checked = checkReminderInput({ title, date, ...(notes.trim() ? { notes } : {}) });
       if (!checked.success) return checked;
-      return addReminder(tripId, { ...checked.data, stopId });
+      return addReminder(tripId, { ...checked.data, ...about });
     },
     onClose,
     onSaved,
@@ -118,6 +122,15 @@ function AddReminderForm({
         error={errors.date?.[0]}
         disabled={isPending}
       />
+
+      <Field label="Notes" error={errors.notes?.[0]}>
+        <Textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Anything to remember with it (optional)"
+          disabled={isPending}
+        />
+      </Field>
 
       <FormError>{formError(errors)}</FormError>
 

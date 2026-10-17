@@ -11,7 +11,7 @@ import { AddReminderDialog } from "./add-reminder-dialog";
 
 const baseProps = {
   tripId: "trip-1",
-  stopId: "s1",
+  about: { stopId: "s1" } as const,
   open: true,
   onOpenChange: vi.fn(),
 };
@@ -69,5 +69,32 @@ describe("AddReminderDialog", () => {
     await user.click(screen.getByRole("button", { name: /add reminder/i }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+  it("about an Item or a leg, it submits that id (F8)", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<AddReminderDialog {...baseProps} about={{ itemId: "i1" }} />);
+    await user.type(screen.getByLabelText(/reminder title/i), "Book table");
+    fireEvent.change(screen.getByLabelText(/date/i), { target: { value: "2026-12-05" } });
+    await user.click(screen.getByRole("button", { name: /add reminder/i }));
+    await waitFor(() => expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Book table", date: "2026-12-05", itemId: "i1" }));
+    unmount();
+    vi.mocked(addReminder).mockClear();
+    render(<AddReminderDialog {...baseProps} about={{ transportId: "t1" }} />);
+    await user.type(screen.getByLabelText(/reminder title/i), "Seats");
+    fireEvent.change(screen.getByLabelText(/date/i), { target: { value: "2026-12-05" } });
+    await user.click(screen.getByRole("button", { name: /add reminder/i }));
+    await waitFor(() => expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Seats", date: "2026-12-05", transportId: "t1" }));
+  });
+
+  it("sends notes when given (F8)", async () => {
+    const user = userEvent.setup();
+    render(<AddReminderDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/reminder title/i), "Reconfirm the tour");
+    fireEvent.change(screen.getByLabelText(/date/i), { target: { value: "2026-12-05" } });
+    await user.type(screen.getByLabelText(/^notes/i), "Ask for Wayan");
+    await user.click(screen.getByRole("button", { name: /add reminder/i }));
+    await waitFor(() =>
+      expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Reconfirm the tour", date: "2026-12-05", notes: "Ask for Wayan", stopId: "s1" }),
+    );
   });
 });

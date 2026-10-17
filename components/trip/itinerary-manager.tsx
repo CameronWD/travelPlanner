@@ -40,6 +40,7 @@ import { type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationRow } from "./accommodation-row";
 import type { ItemCardItem } from "./item-card";
 import type { ReminderItem } from "@/server/actions/reminders";
+import type { ReminderAbout } from "@/lib/reminder-about";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { DateField } from "@/components/ui/date-field";
@@ -603,8 +604,8 @@ export function ItineraryManager({
     React.useState<string | null>(null);
 
   // ── Add reminder dialog state (Task 7) ──
-  const [addReminderStop, setAddReminderStop] =
-    React.useState<ItineraryStop | null>(null);
+  const [addReminderAbout, setAddReminderAbout] =
+    React.useState<ReminderAbout | null>(null);
 
   // ── Chapter dialog state ──
   const [chapterDialogOpen, setChapterDialogOpen] = React.useState(false);
@@ -1421,7 +1422,7 @@ export function ItineraryManager({
         onMoveDown: () => handleMoveStop(stop.id, "down"),
         onStartChapter: () => handleStartChapterHere(stop),
         onAssignChapter: () => setAssigningStop(stop),
-        onAddReminder: () => setAddReminderStop(stop),
+        onAddReminder: () => setAddReminderAbout({ stopId: stop.id }),
         onNotes: () => setExtras({ stopId: stop.id, kind: "notes" }),
         onFiles: () => setExtras({ stopId: stop.id, kind: "files" }),
         onDelete: () => handleDeleteStop(stop.id),
@@ -2097,14 +2098,14 @@ export function ItineraryManager({
         />
       )}
 
-      {/* Add a reminder (Task 7) — the Stop is preset, hidden. */}
-      {addReminderStop && (
+      {/* Add a reminder (Task 7, spec F8) — what it is about is preset, hidden. */}
+      {addReminderAbout && (
         <AddReminderDialog
           tripId={tripId}
-          stopId={addReminderStop.id}
+          about={addReminderAbout}
           open={true}
           onOpenChange={(open) => {
-            if (!open) setAddReminderStop(null);
+            if (!open) setAddReminderAbout(null);
           }}
         />
       )}
@@ -2250,7 +2251,7 @@ export function ItineraryManager({
               ? undefined
               : () => {
                   setExtras(null);
-                  setAddReminderStop(extrasStop);
+                  setAddReminderAbout({ stopId: extrasStop.id });
                 }
           }
         />
