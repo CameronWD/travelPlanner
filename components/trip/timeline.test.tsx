@@ -1160,3 +1160,81 @@ describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
     expect(screen.queryByText("Paris · Paris Gare du Nord")).toBeNull();
   });
 });
+
+describe("Booking state on the Timeline (spec 2026-10-17 R2)", () => {
+  it("a To book leg, Item and stay each say so; a Booked one doesn't", () => {
+    const day: DayPlan = {
+      dateISO: "2025-07-05",
+      stop: {
+        id: "stop-2",
+        name: "Osaka",
+        timezone: "Asia/Tokyo",
+        arriveDate: "2025-07-05",
+        departDate: "2025-07-08",
+        sortOrder: 1,
+      },
+      timedItems: [
+        {
+          kind: "item",
+          item: {
+            id: "item-tour",
+            title: "Osaka Castle tour",
+            category: "SIGHTSEEING",
+            date: "2025-07-05",
+            startTime: "11:00",
+            bookingState: "TO_BOOK",
+            bookBy: null,
+          },
+        },
+        {
+          kind: "item",
+          item: {
+            id: "item-ramen",
+            title: "Ichiran Ramen",
+            category: "FOOD",
+            date: "2025-07-05",
+            startTime: "19:00",
+            bookingState: "BOOKED",
+          },
+        },
+      ],
+      untimedItems: [],
+      transportEntries: [
+        {
+          kind: "transport-arrival",
+          transport: {
+            id: "tr-1",
+            mode: "TRAIN",
+            depPlace: "Tokyo",
+            arrPlace: "Osaka",
+            bookingState: "TO_BOOK",
+            bookBy: "2027-05-01",
+          },
+          arrTimeLabel: "09:30",
+        },
+      ],
+      accommodationEntries: [
+        {
+          kind: "accommodation-checkin",
+          accommodation: {
+            id: "acc-2",
+            stopId: "stop-2",
+            name: "Osaka Hotel",
+            checkIn: "2025-07-05",
+            checkOut: "2025-07-08",
+            checkInTime: null,
+            bookingState: "TO_BOOK",
+            bookBy: null,
+          },
+        },
+      ],
+    };
+    render(<Timeline day={day} variant="day" />);
+    // Compact badges: a book-by date shown in place of "To book" when set
+    // (the tour and the stay have none, so each says "To book"; the leg's
+    // date stands in for it). The Booked ramen booking shows no badge.
+    expect(screen.getAllByText("To book")).toHaveLength(2);
+    expect(screen.getByText("Book by 1 May")).toBeInTheDocument();
+    expect(screen.getByText("Ichiran Ramen")).toBeInTheDocument();
+  });
+});

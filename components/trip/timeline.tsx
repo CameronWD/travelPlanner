@@ -35,6 +35,7 @@ import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";
 import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/components/trip/day-entry-link";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
+import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import type { ItemDirections } from "@/lib/day-map";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
@@ -399,6 +400,7 @@ function TransportRow({
             {t.reference}
           </span>
         )}
+        <BookingStateBadge state={t.bookingState} bookBy={t.bookBy} compact />
         {sameDayLabels && (
           <span className="text-xs font-medium tabular-nums text-muted-foreground">
             {sameDayLabels.dep} → {sameDayLabels.arr}
@@ -516,6 +518,9 @@ function AccomCheckinRow({
           {a.confirmation}
         </p>
       )}
+      {a.bookingState === "TO_BOOK" && (
+        <p className="mt-0.5"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
+      )}
       <AttachmentLinks attachments={attachments} />
     </DayRow>
   );
@@ -605,6 +610,7 @@ function DayItemBody({
           </span>
         )}
         {item.surprise && <SurpriseBadge view={item.surprise} size="sm" className="shrink-0 text-foreground" />}
+        <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} compact />
       </div>
       {item.photoUrl && (
         <div className="mt-1.5">
