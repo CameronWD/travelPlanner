@@ -79,7 +79,12 @@ export function bookingStateWrite(
   return { bookingState: derivedBookingState(subject, reference), bookingStateSet: false };
 }
 
-/** The book-by date that counts: kept on the row in any state, but only read while To book. */
+/**
+ * The book-by date that counts: a date only makes sense while To book, so
+ * callers (`resolveBookingWrite`, `copiedBookingFields`) store this result,
+ * not the raw patch value — a date is dropped from the row the moment the
+ * state leaves To book, not merely hidden from readers while it stays there.
+ */
 export function activeBookBy(state: string | null | undefined, bookBy: string | null | undefined): string | null {
   return state === "TO_BOOK" && bookBy ? bookBy : null;
 }
