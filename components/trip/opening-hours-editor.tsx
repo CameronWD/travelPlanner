@@ -212,6 +212,7 @@ export function OpeningHoursEditor({
         ) : (
           <>
             <WeeklyGrid label="Usual hours" week={value.week} disabled={disabled} onChange={(week) => onChange({ ...value, week })} />
+            <p className="text-xs text-muted-foreground">Open past midnight? Use 18:00–24:00, then 00:00–02:00 on the next day.</p>
 
             <section className="flex flex-col gap-2">
               <h4 className="text-[13px] font-bold">Seasons</h4>

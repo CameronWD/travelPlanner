@@ -60,6 +60,15 @@ describe("OpeningHoursEditor", () => {
     expect(spy.mock.lastCall![0].week.mon).toEqual([["10:00", "24:00"]]);
   });
 
+  it("says how to enter hours past midnight, once the hours are added", async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={null} spy={vi.fn()} />);
+    await user.click(screen.getByText("Opening hours"));
+    expect(screen.queryByText(/open past midnight/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add opening hours" }));
+    expect(screen.getByText("Open past midnight? Use 18:00\u201324:00, then 00:00\u201302:00 on the next day.")).toBeInTheDocument();
+  });
+
   it("displays a stored 24:00 close", () => {
     const midnight: OpeningHours = { week: { ...HOURS.week, mon: [["10:00", "24:00"]] }, seasons: [], closed: [] };
     render(<OpeningHoursEditor value={midnight} onChange={vi.fn()} />);
