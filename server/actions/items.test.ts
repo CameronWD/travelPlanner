@@ -2253,3 +2253,72 @@ describe("createItem / updateItem with surpriseForIds", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Slot time (spec 2026-10-17 R3): written by create/update; start defaults
+// ---------------------------------------------------------------------------
+
+describe("createItem: Slot time (R3)", () => {
+  beforeEach(() => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1", title: "Lodge tour" });
+  });
+  it("persists the slot fields; refundable defaults to not known (null)", async () => {
+    await createItem("trip-1", { ...VALID_INPUT, slotTime: "12:00", arriveByMinutes: 15 });
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ slotTime: "12:00", arriveByMinutes: 15, refundable: null, startTime: null }),
+    });
+  });
+  it("a dated Item with a slot and no start starts at slot − arrive-by", async () => {
+    await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, refundable: false });
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ date: "2027-06-02", startTime: "11:45", slotTime: "12:00", refundable: false }),
+    });
+  });
+  it("never overwrites an explicit start", async () => {
+    await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", startTime: "11:00", slotTime: "12:00", arriveByMinutes: 15 });
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "11:00" }) });
+  });
+  it("refuses an arrive-by margin without a slot", async () => {
+    const r = await createItem("trip-1", { ...VALID_INPUT, arriveByMinutes: 15 });
+    expect(r.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateItem: Slot time (R3, PATCH)", () => {
+  const row = {
+    id: "item-1", tripId: "trip-1", forkId: null, stopId: null, title: "Lodge tour", category: "ACTIVITY", date: "2027-06-02",
+    startTime: "11:00", endTime: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false,
+    slotTime: "12:00", arriveByMinutes: 15, refundable: false,
+  };
+  beforeEach(() => {
+    itemFindUniqueMock.mockResolvedValue(row);
+    itemUpdateMock.mockResolvedValue(row);
+  });
+  it("a notes-only patch keeps the slot fields", async () => {
+    await updateItem("item-1", { notes: "x" });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "item-1" }, data: expect.objectContaining({
+      slotTime: "12:00", arriveByMinutes: 15, refundable: false, startTime: "11:00",
+    }) });
+  });
+  it("moving the slot keeps an existing start", async () => {
+    await updateItem("item-1", { slotTime: "14:00" });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ slotTime: "14:00", startTime: "11:00" }) }));
+  });
+  it("clearing the start with a slot set re-defaults it", async () => {
+    await updateItem("item-1", { startTime: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ startTime: "11:45" }) }));
+  });
+  it("null clears the slot and the margin; null refundable goes back to not known", async () => {
+    await updateItem("item-1", { slotTime: null, arriveByMinutes: null, refundable: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      slotTime: null, arriveByMinutes: null, refundable: null, startTime: "11:00",
+    }) }));
+  });
+  it("clearing only the slot leaves a margin without one: refused", async () => {
+    const r = await updateItem("item-1", { slotTime: null });
+    expect(r.success).toBe(false);
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+});

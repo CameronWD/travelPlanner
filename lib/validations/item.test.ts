@@ -297,3 +297,20 @@ describe("isScheduled", () => {
     expect(isScheduled({ date: "" })).toBe(false);
   });
 });
+
+describe("itemSchema: Slot time (R3)", () => {
+  it("keeps the slot without a date (a Wishlist idea may hold a ticket) but drops the start", () => {
+    const r = itemSchema.parse({ title: "Fado", category: "NIGHTLIFE", startTime: "20:00", slotTime: "21:00", arriveByMinutes: 30, refundable: false });
+    expect(r).toMatchObject({ slotTime: "21:00", arriveByMinutes: 30, refundable: false, startTime: undefined });
+  });
+  it("an empty slot is none", () => {
+    expect(itemSchema.parse({ title: "Fado", category: "NIGHTLIFE", slotTime: "" }).slotTime).toBeUndefined();
+  });
+  it("refuses a malformed slot, an out-of-range margin, and a margin without a slot", () => {
+    expect(itemSchema.safeParse({ title: "T", category: "NIGHTLIFE", slotTime: "25:00" }).success).toBe(false);
+    expect(itemSchema.safeParse({ title: "T", category: "NIGHTLIFE", slotTime: "12:00", arriveByMinutes: 721 }).success).toBe(false);
+    const r = itemSchema.safeParse({ title: "T", category: "NIGHTLIFE", arriveByMinutes: 15 });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].path).toEqual(["arriveByMinutes"]);
+  });
+});

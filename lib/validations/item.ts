@@ -5,7 +5,7 @@ import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate } from "@/lib/validations/primitives";
-import { bookBySchema } from "@/lib/validations/planning";
+import { arriveByMinutesSchema, bookBySchema, checkSlotFields, refundableSchema, slotTimeSchema } from "@/lib/validations/planning";
 
 /**
  * Zod schema for creating or updating an Item.
@@ -14,6 +14,7 @@ import { bookBySchema } from "@/lib/validations/planning";
  * dropped (transformed to undefined). Times are only meaningful when scheduled.
  *
  * Refinements:
+ *  - arriveByMinutes needs a slotTime (checkSlotFields).
  *  - If endTime is set, startTime must also be set.
  *  - endTime must be >= startTime (lexicographic comparison is valid for HH:MM).
  */
@@ -61,6 +62,17 @@ export const itemSchema = z
     bookingState: bookingStateSchema.optional(),
     /** The day it should be booked by; only while To book (lib/booking-state-patch.ts refuses it otherwise). */
     bookBy: bookBySchema.optional(),
+    /**
+     * CONTEXT.md "Slot time" (R3): the ticket's time ("" = none, like startTime),
+     * how early to be there, and whether the ticket is refundable (omitted /
+     * cleared = not known). Kept without a date: a Wishlist idea may hold a ticket.
+     */
+    slotTime: z
+      .union([slotTimeSchema, z.literal("")])
+      .optional()
+      .transform((v) => (v === "" || v === undefined ? undefined : v)),
+    arriveByMinutes: arriveByMinutesSchema.optional(),
+    refundable: refundableSchema.optional(),
     notes: z.string().trim().optional(),
     lat: z.number().optional(),
     lng: z.number().optional(),
@@ -106,7 +118,9 @@ export const itemSchema = z
     /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
     settlement: costSettlementSchema.optional(),
   })
-  // Drop times when no date is set
+  // An arrive-by margin needs a slot time (lib/validations/planning.ts).
+  .superRefine(checkSlotFields)
+  // Drop times when no date is set (the slot is the ticket's fact and stays)
   .transform((data) => {
     if (!data.date) {
       return { ...data, startTime: undefined, endTime: undefined };

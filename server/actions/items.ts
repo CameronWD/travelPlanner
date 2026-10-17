@@ -26,6 +26,7 @@ import { validateSurpriseFor } from "@/lib/surprise";
 import { revalidateTrip } from "@/lib/revalidate";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
 import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
+import { startFromSlot } from "@/lib/slot-time";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -191,7 +192,7 @@ export async function createItem(
       title: data.title,
       category: data.category,
       date: data.date ?? null,
-      startTime: data.startTime ?? null,
+      startTime: startFromSlot(data),
       endTime: data.endTime ?? null,
       address: data.address ?? null,
       link: data.link ?? null,
@@ -202,6 +203,10 @@ export async function createItem(
       countryCode,
       sortOrder,
       hiddenFromShares: data.hiddenFromShares ?? false,
+      // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it.
+      slotTime: data.slotTime ?? null,
+      arriveByMinutes: data.arriveByMinutes ?? null,
+      refundable: data.refundable ?? null,
       ...booking,
     },
   });
@@ -338,6 +343,8 @@ export async function addMarkerToWishlist(
  *
  * - Access-checked via requireItemAccess → requireTripAccess.
  * - If stopId changed, validates it still belongs to the same trip.
+ * - Slot time (R3): an empty start on a dated Item with a slot defaults to
+ *   slot − arrive-by (startFromSlot); an existing start is never moved.
  */
 export async function updateItem(
   itemId: string,
@@ -361,6 +368,7 @@ export async function updateItem(
         title: before.title, category: before.category as ItemInput["category"], stopId: before.stopId, date: before.date,
         startTime: before.startTime, endTime: before.endTime, address: before.address, link: before.link,
         booking: before.booking, notes: before.notes, hiddenFromShares: before.hiddenFromShares,
+        slotTime: before.slotTime, arriveByMinutes: before.arriveByMinutes, refundable: before.refundable,
       },
       patch,
     ),
@@ -414,7 +422,7 @@ export async function updateItem(
     title: data.title,
     category: data.category,
     date: data.date ?? null,
-    startTime: data.startTime ?? null,
+    startTime: startFromSlot(data),
     endTime: data.endTime ?? null,
     address: data.address ?? null,
     link: data.link ?? null,
@@ -424,6 +432,10 @@ export async function updateItem(
     lng,
     countryCode,
     hiddenFromShares: data.hiddenFromShares ?? false,
+    // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it.
+    slotTime: data.slotTime ?? null,
+    arriveByMinutes: data.arriveByMinutes ?? null,
+    refundable: data.refundable ?? null,
     ...booking,
   }, item.forkId ?? null, { before });
 
