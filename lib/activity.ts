@@ -182,6 +182,10 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "startTime", label: "Start time" },
     { key: "endTime", label: "End time" },
     { key: "address", label: "Address" },
+    // CONTEXT.md "Slot time" (R3); refundable is Boolean? (null = not known)
+    { key: "slotTime", label: "Slot time" },
+    { key: "arriveByMinutes", label: "Be there early", format: (v) => (isEmpty(v) ? "" : `${v} min`) },
+    { key: "refundable", label: "Refundable", format: (v) => (v === true ? "Yes" : v === false ? "No" : "Not known") },
     { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
     { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
   ],

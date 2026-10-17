@@ -619,3 +619,28 @@ describe("describeChanges booking state (spec 2026-10-17 R2)", () => {
     expect(describeChanges("TRANSPORT", { bookingState: "TO_BOOK" }, { bookingState: "TO_BOOK" })).toEqual([]);
   });
 });
+
+describe("describeChanges ITEM: Slot time (R3)", () => {
+  it("names the slot, the margin and refundability in plain words", () => {
+    expect(
+      describeChanges(
+        "ITEM",
+        { title: "Tour", slotTime: null, arriveByMinutes: null, refundable: null },
+        { title: "Tour", slotTime: "12:00", arriveByMinutes: 15, refundable: false },
+      ).map((c) => [c.label, c.from, c.to]),
+    ).toEqual([
+      ["Slot time", "", "12:00"],
+      ["Be there early", "", "15 min"],
+      ["Refundable", "Not known", "No"],
+    ]);
+  });
+  it("refundable Yes back to not known", () => {
+    expect(
+      describeChanges("ITEM", { refundable: true }, { refundable: null }).map((c) => [c.label, c.from, c.to]),
+    ).toEqual([["Refundable", "Yes", "Not known"]]);
+  });
+  it("an unchanged slot is no change", () => {
+    expect(describeChanges("ITEM", { slotTime: "12:00", refundable: true }, { slotTime: "12:00", refundable: true })).toEqual([]);
+    expect(describeChanges("ITEM", { refundable: null }, { refundable: null })).toEqual([]);
+  });
+});
