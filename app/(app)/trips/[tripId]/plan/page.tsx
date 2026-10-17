@@ -412,6 +412,8 @@ export default async function TripPlanPage({
               dayItemsByStopId={dayItemsByStopId}
               dayTitles={dayTitles}
               remindersByStopId={remindersAbout.byStopId}
+              remindersByItemId={remindersAbout.byItemId}
+              remindersByTransportId={remindersAbout.byTransportId}
               thingsToDoItemCostsById={thingsToDoItemCostsById}
               initialStops={ordered.map((stop) => ({
                 ...stop,

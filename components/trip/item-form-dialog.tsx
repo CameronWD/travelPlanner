@@ -41,6 +41,8 @@ import type { ItemInput } from "@/lib/validations/item";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
+import { ReminderList } from "@/components/trip/reminder-list";
+import type { ReminderItem } from "@/lib/reminder-about";
 import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
 import { travellerFirstName, type TravellerLike } from "@/lib/traveller";
@@ -85,6 +87,10 @@ export interface ItemFormDialogProps {
   defaultDate?: string;
   /** Existing attachments for this item (edit mode only). */
   attachments?: AttachmentView[];
+  /** Reminders about this thing to do (edit mode, real plan only — spec F8). */
+  reminders?: ReminderItem[];
+  /** Opens Add a Reminder about this thing to do; omitted on a Fork's Item. */
+  onAddReminder?: () => void;
   /** The Trip's Travellers. With `currentUserId`, shows "Surprise for…" (CONTEXT.md Surprise). */
   members?: TravellerLike[];
   currentUserId?: string;
@@ -331,6 +337,8 @@ export function ItemFormDialog({
   defaultStopId,
   defaultDate,
   attachments,
+  reminders,
+  onAddReminder,
   members,
   currentUserId,
   initialValues,
@@ -360,6 +368,8 @@ export function ItemFormDialog({
         defaultStopId={item ? undefined : defaultStopId}
         defaultDate={item ? undefined : defaultDate}
         attachments={attachments}
+        reminders={reminders}
+        onAddReminder={onAddReminder}
         members={members}
         currentUserId={currentUserId}
         initialValues={initialValues}
@@ -447,6 +457,10 @@ interface ItemFormProps {
   /** Pre-fill the date field on create (ignored in edit mode). */
   defaultDate?: string;
   attachments?: AttachmentView[];
+  /** Reminders about this thing to do (edit mode, real plan only — spec F8). */
+  reminders?: ReminderItem[];
+  /** Opens Add a Reminder about this thing to do; omitted on a Fork's Item. */
+  onAddReminder?: () => void;
   members?: TravellerLike[];
   currentUserId?: string;
   initialValues?: Partial<ProposedItemInput>;
@@ -469,6 +483,8 @@ function ItemForm({
   defaultStopId,
   defaultDate,
   attachments,
+  reminders,
+  onAddReminder,
   members,
   currentUserId,
   initialValues,
@@ -842,6 +858,12 @@ function ItemForm({
           </p>
         )}
       </Field>
+
+      {isEdit && item && (reminders || onAddReminder) && (
+        <Field label="Reminders" className="sm:col-span-2">
+          <ReminderList reminders={reminders ?? []} onAdd={onAddReminder} />
+        </Field>
+      )}
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
       <div className="sm:col-span-2 flex flex-col gap-4">

@@ -218,6 +218,9 @@ interface ItineraryManagerProps {
   dayItemsByStopId?: Map<string, StopDayItem[]>;
   /** Reminders keyed by stopId (Task 7) — drives the open body's reminders link. */
   remindersByStopId?: Map<string, ReminderItem[]>;
+  /** Reminders keyed by itemId / transportId (spec F8) — listed in the edit dialogs. */
+  remindersByItemId?: Map<string, ReminderItem[]>;
+  remindersByTransportId?: Map<string, ReminderItem[]>;
   /**
    * Day titles (CONTEXT.md "Day title", Task 5) keyed by dateISO across the
    * whole plan — `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain
@@ -485,6 +488,8 @@ export function ItineraryManager({
   dayItemsByStopId,
   dayTitles,
   remindersByStopId,
+  remindersByItemId,
+  remindersByTransportId,
   homeBaseName,
   homeTimezone,
   roundTrip,
@@ -2053,6 +2058,17 @@ export function ItineraryManager({
           }}
           notes={notesByTransportId?.get(editingTransport.id) ?? []}
           currentUserId={currentUserId}
+          reminders={forkId ? undefined : (remindersByTransportId?.get(editingTransport.id) ?? [])}
+          onAddReminder={
+            forkId
+              ? undefined
+              : () => {
+                  const id = editingTransport.id;
+                  setEditingTransport(null);
+                  setEditingTransportCosts(undefined);
+                  setAddReminderAbout({ transportId: id });
+                }
+          }
         />
       )}
 
@@ -2145,6 +2161,16 @@ export function ItineraryManager({
           attachments={attachmentsByItemId?.get(itemForm.item.id) ?? []}
           members={members}
           currentUserId={currentUserId}
+          reminders={forkId ? undefined : (remindersByItemId?.get(itemForm.item.id) ?? [])}
+          onAddReminder={
+            forkId
+              ? undefined
+              : () => {
+                  const id = itemForm.item.id;
+                  setItemForm(null);
+                  setAddReminderAbout({ itemId: id });
+                }
+          }
         />
       )}
 

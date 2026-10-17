@@ -42,6 +42,8 @@ import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 import { NoteThread, type NoteView } from "@/components/trip/note-thread";
+import { ReminderList } from "@/components/trip/reminder-list";
+import type { ReminderItem } from "@/lib/reminder-about";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
 import { formatDayLabel } from "@/lib/dates";
@@ -97,6 +99,10 @@ export interface TransportFormDialogProps {
   homeTimezone?: string | null;
   /** Existing attachments for this transport (edit mode only). */
   attachments?: AttachmentView[];
+  /** Reminders about this leg (edit mode, real plan only — spec F8). */
+  reminders?: ReminderItem[];
+  /** Opens Add a Reminder about this leg; omitted on a Fork's leg. */
+  onAddReminder?: () => void;
   /** Edit mode only: shows a "Delete leg" button in the footer that calls this. */
   onDelete?: () => void;
   /**
@@ -168,6 +174,8 @@ export function TransportFormDialog({
   homeBaseName,
   homeTimezone,
   attachments,
+  reminders,
+  onAddReminder,
   onDelete,
   bookend,
   notes,
@@ -217,6 +225,8 @@ export function TransportFormDialog({
         homeBaseName={homeBaseName}
         homeTimezone={homeTimezone}
         attachments={attachments}
+        reminders={reminders}
+        onAddReminder={onAddReminder}
         onDelete={onDelete}
         bookend={bookend}
         notes={notes}
@@ -251,6 +261,10 @@ interface TransportFormProps {
   homeBaseName?: string | null;
   homeTimezone?: string | null;
   attachments?: AttachmentView[];
+  /** Reminders about this leg (edit mode, real plan only — spec F8). */
+  reminders?: ReminderItem[];
+  /** Opens Add a Reminder about this leg; omitted on a Fork's leg. */
+  onAddReminder?: () => void;
   onDelete?: () => void;
   bookend?: boolean;
   notes?: NoteView[];
@@ -283,6 +297,8 @@ function TransportForm({
   homeBaseName,
   homeTimezone,
   attachments,
+  reminders,
+  onAddReminder,
   onDelete,
   bookend,
   notes,
@@ -872,6 +888,12 @@ function TransportForm({
             </p>
           )}
         </Field>
+
+        {isEdit && transport && (reminders || onAddReminder) && (
+          <Field label="Reminders">
+            <ReminderList reminders={reminders ?? []} onAdd={onAddReminder} />
+          </Field>
+        )}
 
         <FormError>{formError(errors)}</FormError>
       </form>

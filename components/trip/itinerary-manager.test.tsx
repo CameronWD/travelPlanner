@@ -2277,6 +2277,27 @@ describe("day-aware plan editor wiring", () => {
 // ---------------------------------------------------------------------------
 
 describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
+  // The leg fixture the "optimistic transport delete" describe uses — its
+  // pill is "Flight from Sydney to Paris…" and its id "tr-opt-1".
+  function makeTransportBetweenStops(fromStopId: string, toStopId: string): ItineraryTransport {
+    return {
+      id: "tr-opt-1",
+      mode: "FLIGHT",
+      fromStopId,
+      toStopId,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: "Sydney",
+      arrPlace: "Paris",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+  }
+
   it("opens AddReminderDialog with the stop preset, and submits it with that stopId", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s1", name: "Denpasar" });
@@ -2335,6 +2356,40 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     await user.click(desktop().getByRole("button", { name: "1 reminder" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Reconfirm the tour")).toBeInTheDocument();
+  });
+
+  it("a leg's edit sheet lists its Reminders, and Add a reminder opens the dialog about that leg (F8)", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[makeTransportBetweenStops("s-a", "s-b")]}
+        remindersByTransportId={new Map([["tr-opt-1", [reminderItem({ id: "rem-9", title: "Reconfirm seats", date: "2026-08-01", transportId: "tr-opt-1" })]]])}
+      />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    expect(await screen.findByText("Reconfirm seats")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/reminder title/i), "Print boarding passes");
+    await user.type(screen.getByLabelText(/^date/i), "2026-08-02");
+    await user.click(screen.getByRole("button", { name: /^add reminder$/i }));
+    await waitFor(() =>
+      expect(addReminder).toHaveBeenCalledWith(TRIP_ID, { title: "Print boarding passes", date: "2026-08-02", transportId: "tr-opt-1" }),
+    );
+  });
+
+  it("a Fork's leg offers no Add a reminder", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} forkId={FORK_ID} initialStops={[stopA, stopB]} initialTransports={[makeTransportBetweenStops("s-a", "s-b")]} />);
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
   });
 });
 

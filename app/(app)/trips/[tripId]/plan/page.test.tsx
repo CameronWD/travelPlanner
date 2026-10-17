@@ -377,6 +377,8 @@ describe("Plan page with stops (LA-038)", () => {
     expect(remindersByStopId.get("s1")).toEqual([
       reminderItem({ id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1", stopName: "Rome" }),
     ]);
+    expect(itineraryManagerCapture.props?.remindersByItemId).toBeInstanceOf(Map);
+    expect(itineraryManagerCapture.props?.remindersByTransportId).toBeInstanceOf(Map);
   });
 
   // Task 5 (CONTEXT.md "Day title", spec §H): the loader resolves DayTitle

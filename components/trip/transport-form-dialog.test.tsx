@@ -27,6 +27,7 @@ import { TransportFormDialog, HOME_ENDPOINT } from "./transport-form-dialog";
 import type { TransportCardTransport } from "./transport-card";
 import { MotionProvider } from "@/components/ui/motion-provider";
 import { tripPath } from "@/lib/trip-path";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -1896,5 +1897,24 @@ describe("TransportFormDialog: Proposal mode (Booking import)", () => {
     expect(screen.getByDisplayValue("SAVED")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("ABC")).toBeNull();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+});
+
+describe("TransportFormDialog: Reminders (F8)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("lists the leg's Reminders and offers Add a reminder without saving the leg (F8)", async () => {
+    const user = userEvent.setup();
+    const onAddReminder = vi.fn();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} reminders={[reminderItem({ id: "r1", title: "Reconfirm seats", date: "2026-08-01", transportId: existingTransport.id })]} onAddReminder={onAddReminder} />);
+    expect(screen.getByText("Reconfirm seats")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(onAddReminder).toHaveBeenCalledTimes(1);
+    expect(updateTransport).not.toHaveBeenCalled();
+  });
+
+  it("shows no Reminders field when creating a leg", () => {
+    render(<TransportFormDialog {...baseProps} onAddReminder={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
   });
 });
