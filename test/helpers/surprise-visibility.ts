@@ -46,6 +46,13 @@ export function placeholderItem(o: Partial<PlaceholderItem> & { id: string }): P
     sortOrder: 0,
     photoAttachmentId: null,
     sourceItemId: null,
+    bookingState: "NONE",
+    bookingStateSet: false,
+    bookBy: null,
+    slotTime: null,
+    arriveByMinutes: null,
+    refundable: null,
+    openingHours: null,
     surprise: SURPRISED_VIEW,
     ...o,
   };

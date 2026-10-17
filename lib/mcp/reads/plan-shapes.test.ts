@@ -64,7 +64,8 @@ describe("withPlaceholders", () => {
       id: "p1", tripId: "t", forkId: null, stopId: "s1", date: "2027-06-01", startTime: "19:00", endTime: null,
       title: "Surprise" as const, category: "OTHER" as const, address: null, link: null, booking: null, notes: null,
       lat: null, lng: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
-      sourceItemId: null, surprise: surpriseView,
+      sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null,
+      slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, surprise: surpriseView,
     };
     const forkPlaceholder = { ...placeholder, id: "p2", forkId: "f1" };
     const out = withPlaceholders([item({ id: "i2", date: "2027-06-02" })], {
