@@ -66,6 +66,22 @@ export const BOOKING_STATE_MEANING: Record<BookingState, string> = {
 };
 
 /**
+ * CONTEXT.md "Slot time": Section S stores refundable as a plain true/false/
+ * not-known column, not an enum, but reads and writes speak the same tri-state
+ * vocabulary (get_item/get_trip_plan/get_day show YES/NO/UNKNOWN), so the
+ * add_/update_thing_to_do tools take it too — mapped to true/false/null in
+ * the handler (lib/mcp/tools/plan-write.ts), never a zod `.transform`.
+ */
+export const REFUNDABLE_VALUES = ["YES", "NO", "UNKNOWN"] as const;
+export type RefundableLabel = (typeof REFUNDABLE_VALUES)[number];
+
+export const REFUNDABLE_MEANING: Record<RefundableLabel, string> = {
+  YES: "the ticket can be refunded or cancelled for free",
+  NO: "non-refundable",
+  UNKNOWN: "not known (the default)",
+};
+
+/**
  * Builds a field's `.describe()` text from a meaning table, limited to the
  * values that field actually accepts (e.g. add_checklist_item's kind never
  * offers SHOPPING, so it is called with only ["PRETRIP", "PACKING"]).

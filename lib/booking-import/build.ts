@@ -487,16 +487,22 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     // is only the slot reported twice is dropped, so the save defaults it to
     // slot − arrive-by (server/actions/items.ts startFromSlot).
     const slotTime = normTime(i.slotTime);
-    const arriveByMinutes = i.arriveByMinutes != null && Number.isInteger(i.arriveByMinutes) && i.arriveByMinutes >= 1 && i.arriveByMinutes <= MAX_ARRIVE_BY_MINUTES ? i.arriveByMinutes : undefined;
+    // An arrive-by margin only means something against a slot (checkSlotFields):
+    // with no readable slot, drop it too, rather than hand confirm a margin
+    // that fails validation and sinks the whole item.
+    const arriveByMinutes = slotTime && i.arriveByMinutes != null && Number.isInteger(i.arriveByMinutes) && i.arriveByMinutes >= 1 && i.arriveByMinutes <= MAX_ARRIVE_BY_MINUTES ? i.arriveByMinutes : undefined;
     const refundable = i.refundable === "yes" ? true : i.refundable === "no" ? false : undefined;
     const plannedStart = startTime && startTime !== slotTime ? startTime : null;
+    // itemSchema fills an empty start from the slot in its own transform,
+    // before the end-needs-start check runs, so a kept end time is safe even
+    // when the printed start was dropped as a repeat of the slot.
     const input = compact<ProposedItemInput>({
       title: d.title,
       category,
       stopId: placed.stopId,
       date: d.date ?? undefined,
       startTime: plannedStart ?? undefined,
-      endTime: plannedStart ? (endTime ?? undefined) : undefined, // an end needs a start (itemSchema)
+      endTime: endTime ?? undefined,
       address,
       slotTime: slotTime ?? undefined,
       arriveByMinutes,

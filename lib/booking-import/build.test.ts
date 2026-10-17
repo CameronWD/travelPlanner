@@ -321,7 +321,7 @@ describe("buildProposals: things to do, car hire, gaps", () => {
     expect(p.input).toEqual({ title: "Lodge tour", category: "SIGHTSEEING", stopId: "s-lis", date: "2026-12-04", slotTime: "10:00", arriveByMinutes: 15, refundable: false, booking: "LT-9", bookingState: "BOOKED" });
   });
 
-  it("keeps a separate meeting time, reads 'yes' as refundable, and drops a margin outside 1–240 or an unreadable slot", () => {
+  it("keeps a separate meeting time, reads 'yes' as refundable, and drops a margin outside 1–720 or an unreadable slot", () => {
     const meet = byId(buildProposals(report(item({ startTime: "9:40", slotTime: "10:00", arriveByMinutes: 0, refundable: "yes" })), CTX).proposals, "p1");
     expect(meet.input).toMatchObject({ startTime: "09:40", slotTime: "10:00", refundable: true });
     expect(meet.input).not.toHaveProperty("arriveByMinutes");
@@ -329,6 +329,22 @@ describe("buildProposals: things to do, car hire, gaps", () => {
     expect(odd.input).not.toHaveProperty("slotTime");
     expect(odd.input).not.toHaveProperty("arriveByMinutes");
     expect(odd.input).not.toHaveProperty("refundable");
+    const atMax = byId(buildProposals(report(item({ slotTime: "10:00", arriveByMinutes: 720 })), CTX).proposals, "p1");
+    expect(atMax.input).toMatchObject({ arriveByMinutes: 720 });
+    const overMax = byId(buildProposals(report(item({ slotTime: "10:00", arriveByMinutes: 721 })), CTX).proposals, "p1");
+    expect(overMax.input).not.toHaveProperty("arriveByMinutes");
+  });
+
+  it("drops an arrive-by margin with no readable slot, so the item isn't rejected at confirm (fix round 1 #1)", () => {
+    const noSlot = byId(buildProposals(report(item({ slotTime: null, arriveByMinutes: 15 })), CTX).proposals, "p1");
+    expect(noSlot.input).not.toHaveProperty("slotTime");
+    expect(noSlot.input).not.toHaveProperty("arriveByMinutes");
+  });
+
+  it("a start that only repeats the slot is dropped, but the ticket's printed end time is kept (fix round 1 #5)", () => {
+    const p = byId(buildProposals(report(item({ startTime: "10:00", endTime: "12:00", slotTime: "10:00" })), CTX).proposals, "p1");
+    expect(p.input).not.toHaveProperty("startTime");
+    expect(p.input).toMatchObject({ endTime: "12:00", slotTime: "10:00" });
   });
 
   it("an uncertain slot highlights the slot on the card", () => {

@@ -26,7 +26,7 @@ vi.mock("@/lib/geocode", async (orig) => ({
 import { db } from "@/lib/db";
 import { confirmProposal } from "@/server/actions/booking-import";
 import { transportPreview } from "@/lib/booking-import/preview";
-import type { ProposalBase, StopProposal, TransportProposal } from "@/lib/booking-import/types";
+import type { ItemProposal, ProposalBase, StopProposal, TransportProposal } from "@/lib/booking-import/types";
 
 const TRIP_ID = "it-trip-booking-import";
 const BASE: Omit<ProposalBase, "clientId"> = { confidence: "high", doubleCheck: [], warnings: [], highlight: [], missing: [], duplicateOf: null, blocked: null };
@@ -147,5 +147,21 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
 
     const saved = await db.transport.findUniqueOrThrow({ where: { id: result.createdId } });
     expect(saved).toMatchObject({ reference: null, bookingState: "BOOKED", bookingStateSet: true, bookBy: null });
+  });
+
+  it("a ticket whose printed start just repeats the slot keeps its end time and defaults the start from the slot (fix round 1, #5)", async () => {
+    const item: ItemProposal = {
+      ...BASE,
+      clientId: "p5",
+      kind: "item",
+      input: { title: "Lodge tour", category: "ACTIVITY", stopId: "it-stop-bne", date: "2026-12-04", endTime: "12:00", slotTime: "10:00", bookingState: "BOOKED" },
+    };
+
+    const result = await confirmProposal(TRIP_ID, { proposal: item, proposedStops: [], resolvedStops: {} });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const saved = await db.item.findUniqueOrThrow({ where: { id: result.createdId } });
+    expect(saved).toMatchObject({ startTime: "10:00", endTime: "12:00", slotTime: "10:00" });
   });
 });

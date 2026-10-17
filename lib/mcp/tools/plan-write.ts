@@ -54,9 +54,9 @@ import { loadItemForMcp, loadStopForMcp, loadChapterForMcp } from "../reads/enti
 import { loadWishlistIdeaForMcp, loadVotesForMcp } from "../reads/lists";
 import { loadNoteForMcp } from "../reads/notes";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
-import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
+import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, REFUNDABLE_MEANING, REFUNDABLE_VALUES, describeValues, type RefundableLabel } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
-import { arriveByMinutesSchema, refundableSchema } from "@/lib/validations/planning";
+import { arriveByMinutesSchema } from "@/lib/validations/planning";
 import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
 const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
@@ -72,15 +72,28 @@ const ITEM_NOTES_DESCRIPTION =
 
 /**
  * CONTEXT.md "Slot time" (R3): the ticket's own time, separate from startTime
- * (the Traveller's plan). Section S stores refundable as a plain true/false/
- * not-known column (not an enum), so the field here takes a boolean or null,
- * matching get_item/get_trip_plan's read, which shows null as "UNKNOWN".
+ * (the Traveller's plan).
  */
 const SLOT_TIME_DESCRIPTION =
   "The ticket's time, HH:MM in the Stop's local time: the 12:00 tour, the 19:30 sitting. Not the start time. startTime is when the Travellers plan to be there. With a date and no startTime, the start is set to slotTime less arriveByMinutes.";
 const ARRIVE_BY_DESCRIPTION = "How many minutes before the slot to be there, as the ticket asks. 15 means be there 15 minutes early.";
-const REFUNDABLE_DESCRIPTION =
-  "Whether the ticket can be refunded: true (refundable or free cancellation), false (non-refundable) or null (not known, the default). Reads show this as YES, NO or UNKNOWN.";
+
+/**
+ * Section S stores refundable as a plain true/false/not-known column, not an
+ * enum, but reads (get_item/get_trip_plan/get_day) and writes speak the same
+ * YES/NO/UNKNOWN vocabulary, so the tool field matches the read shape; the
+ * handler maps it to true/false/null before calling createItem/updateItem
+ * (never a zod `.transform`, so the mapping stays visible and testable here).
+ */
+const describedRefundable = z
+  .enum(REFUNDABLE_VALUES)
+  .describe(describeValues("Whether the ticket can be refunded.", REFUNDABLE_MEANING, REFUNDABLE_VALUES));
+
+/** YES/NO/UNKNOWN → true/false/null; omitted (undefined) stays omitted. */
+function refundableFromMcp(v: RefundableLabel | undefined): boolean | null | undefined {
+  if (v === undefined) return undefined;
+  return v === "YES" ? true : v === "NO" ? false : null;
+}
 
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
@@ -96,7 +109,7 @@ const itemCreateShape = {
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
   slotTime: hhmm.optional().describe(SLOT_TIME_DESCRIPTION),
   arriveByMinutes: arriveByMinutesSchema.optional().describe(ARRIVE_BY_DESCRIPTION),
-  refundable: refundableSchema.optional().describe(REFUNDABLE_DESCRIPTION),
+  refundable: describedRefundable.optional(),
   ...bookingCreateShape,
 };
 
@@ -106,7 +119,7 @@ const itemPatchShape = {
   category: describedCategory.optional(),
   stopId: z.string().optional(),
   date: isoDate.optional(),
-  startTime: hhmm.optional(),
+  startTime: hhmm.nullable().optional().describe("Clear it (null) to let a slot time, if set, default it again."),
   endTime: hhmm.optional(),
   address: z.string().optional(),
   link: z.string().optional(),
@@ -114,7 +127,8 @@ const itemPatchShape = {
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
   slotTime: hhmm.nullable().optional().describe(`${SLOT_TIME_DESCRIPTION} null clears it.`),
   arriveByMinutes: arriveByMinutesSchema.nullable().optional().describe(`${ARRIVE_BY_DESCRIPTION} null clears it.`),
-  refundable: refundableSchema.nullable().optional().describe(`${REFUNDABLE_DESCRIPTION} null clears it, back to not known.`),
+  // Not nullable: UNKNOWN (mapped to null in the handler) is how a patch clears it, back to not known.
+  refundable: describedRefundable.optional(),
   ...bookingPatchShape,
 };
 
@@ -127,12 +141,14 @@ export function registerPlanWriteTools(server: McpServer): void {
         "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea, one of the ideas not yet placed. When you give a date, pass stopId too (the Stop whose stay covers that day) so it files under that Stop. Location comes from address, not from lat/lng.",
       inputSchema: { tripId: z.string(), ...itemCreateShape },
     },
-    ({ tripId, ...rest }) =>
+    ({ tripId, refundable, ...rest }) =>
       runWrite(
         "add_thing_to_do",
         async () => {
           await requireRealPlanRows([["stop", rest.stopId]]);
-          return createItem(tripId, rest);
+          // UNKNOWN maps to null, but there's nothing to clear on a create: that's
+          // just not setting it, same as omitting the field (?? undefined).
+          return createItem(tripId, { ...rest, refundable: refundableFromMcp(refundable) ?? undefined });
         },
         async (done) => ({ item: await loadItemForMcp(done.id) }),
       ),
@@ -145,10 +161,11 @@ export function registerPlanWriteTools(server: McpServer): void {
       description:
         "Changes only the fields you pass; fields you omit keep their current value. Location comes from address, not from lat/lng. " +
         "notes is the Item's own notes, its description, and is edited here. That is not a Note: a Note is a separate comment a Traveller left on the Item (see get_item's notesOnItem or get_notes). A Note is never edited. Remove it with delete_note and, if it still needs saying, add it again with add_note. " +
-        "A null slotTime or arriveByMinutes clears it. Moving the slot never moves a start time that is already set.",
+        "A null slotTime or arriveByMinutes clears it; an arrive-by margin with no slot is refused. To clear the slot, pass null for both slotTime and arriveByMinutes. " +
+        "A null startTime clears it too, letting a slot (if set) default it again. Moving the slot never moves a start time that is already set.",
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
-    ({ itemId, ...patch }) =>
+    ({ itemId, refundable, ...patch }) =>
       runWrite(
         "update_thing_to_do",
         async () => {
@@ -156,7 +173,7 @@ export function registerPlanWriteTools(server: McpServer): void {
             ["item", itemId],
             ["stop", patch.stopId],
           ]);
-          return updateItem(itemId, bookingPatchFrom(patch));
+          return updateItem(itemId, bookingPatchFrom({ ...patch, refundable: refundableFromMcp(refundable) }));
         },
         async () => ({ item: await loadItemForMcp(itemId) }),
       ),

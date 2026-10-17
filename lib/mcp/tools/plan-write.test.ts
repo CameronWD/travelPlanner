@@ -589,11 +589,17 @@ describe("plan write tools", () => {
   });
 
   describe("Slot time on the thing-to-do tools (R3)", () => {
-    it("add_thing_to_do forwards slotTime, arriveByMinutes and refundable to createItem", async () => {
+    it("add_thing_to_do forwards slotTime, arriveByMinutes and refundable to createItem, mapped to a boolean", async () => {
       createItem.mockResolvedValue({ success: true, id: "new-1" });
       const c = await connectTestClient();
-      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "Lodge tour", category: "ACTIVITY", date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, refundable: false } });
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "Lodge tour", category: "ACTIVITY", date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" } });
       expect(createItem.mock.calls[0][1]).toEqual(expect.objectContaining({ slotTime: "12:00", arriveByMinutes: 15, refundable: false }));
+    });
+    it("add_thing_to_do's refundable UNKNOWN is the same as not setting it (nothing to clear on a create)", async () => {
+      createItem.mockResolvedValue({ success: true, id: "new-2" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "x", category: "ACTIVITY", refundable: "UNKNOWN" } });
+      expect(createItem.mock.calls[0][1].refundable).toBeUndefined();
     });
     it("update_thing_to_do passes null through to clear the slot, and refuses a made-up refundability", async () => {
       updateItem.mockResolvedValue({ success: true });
@@ -602,6 +608,30 @@ describe("plan write tools", () => {
       expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { slotTime: null, arriveByMinutes: null });
       const bad = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, refundable: "MAYBE" } });
       expect(bad.isError).toBe(true);
+    });
+    it("update_thing_to_do maps YES/NO/UNKNOWN to true/false/null, UNKNOWN clearing it back to not known", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, refundable: "YES" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { refundable: true });
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, refundable: "UNKNOWN" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { refundable: null });
+    });
+    it("clearing slotTime alone while a margin remains is refused with the arrive-by message (checkSlotFields, via the action) (fix round 1 #3)", async () => {
+      const { ARRIVE_BY_NEEDS_SLOT_MESSAGE } = await import("@/lib/validations/planning");
+      updateItem.mockResolvedValue({ success: false, errors: { arriveByMinutes: [ARRIVE_BY_NEEDS_SLOT_MESSAGE] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, slotTime: null } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain(ARRIVE_BY_NEEDS_SLOT_MESSAGE);
+    });
+    it("update_thing_to_do's startTime takes null, to let a slot default it again (fix round 1 #6)", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, startTime: null } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { startTime: null });
+      const tool = (await c.listTools()).tools.find((t) => t.name === "update_thing_to_do")!;
+      expect(tool.description).toMatch(/null startTime/i);
     });
     it("schedule_thing_to_do forwards a slot; its description says start defaults from it", async () => {
       scheduleItem.mockResolvedValue({ success: true });
@@ -617,6 +647,11 @@ describe("plan write tools", () => {
       const props = (add.inputSchema as { properties: Record<string, { description?: string }> }).properties;
       expect(props.slotTime.description).toMatch(/ticket/i);
       expect(props.refundable.description).toMatch(/UNKNOWN/);
+    });
+    it("update_thing_to_do's description says passing null for both slotTime and arriveByMinutes clears the slot", async () => {
+      const c = await connectTestClient();
+      const tool = (await c.listTools()).tools.find((t) => t.name === "update_thing_to_do")!;
+      expect(tool.description).toMatch(/pass null for both slottime and arrivebyminutes/i);
     });
   });
 });

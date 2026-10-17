@@ -16,6 +16,13 @@ import type { McpFileRef } from "./attachments";
 // ── Types ─────────────────────────────────────────────────────────────────
 
 /**
+ * CONTEXT.md "Slot time": Section S stores refundable as a plain
+ * true/false/not-known column, not an enum, but Claude's reads (here) and
+ * writes (lib/mcp/tools/plan-write.ts) speak the same tri-state vocabulary.
+ */
+export type McpRefundable = "YES" | "NO" | "UNKNOWN";
+
+/**
  * A live Surprise as Claude sees it. `youAreSurprised` true means the acting
  * Traveller may not see inside; false means they are the planner or a helper,
  * and `for` names who must not see it.
@@ -58,7 +65,7 @@ interface McpThingToDo {
   /** How many minutes before the slot to be there, or null. */
   arriveByMinutes: number | null;
   /** YES, NO or UNKNOWN (not known). */
-  refundable: string;
+  refundable: McpRefundable;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -82,7 +89,7 @@ export interface McpDayItem {
   /** How many minutes before the slot to be there, or null. */
   arriveByMinutes: number | null;
   /** YES, NO or UNKNOWN (not known). */
-  refundable: string;
+  refundable: McpRefundable;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -272,7 +279,11 @@ export function toMcpSurprise(view: SurpriseView | null | undefined): McpSurpris
 }
 
 /** The Slot time fields as Claude reads them; a row without them reads as none / UNKNOWN. */
-function mcpSlot(i: { slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null }) {
+function mcpSlot(i: {
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
+}): { slotTime: string | null; arriveByMinutes: number | null; refundable: McpRefundable } {
   return {
     slotTime: i.slotTime ?? null,
     arriveByMinutes: i.arriveByMinutes ?? null,
