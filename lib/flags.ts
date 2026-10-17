@@ -972,6 +972,56 @@ export function flagClosedOnDay(items: FlagItem[]): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rules 18–19: Before opening / After closing (warnings)
+//
+// Read in the Stop's local time on the Item's day. The governing span is the
+// first that has not closed by the Item's start:
+//   - start before it opens            → Before opening ("opens"/"reopens at")
+//   - no span left (start ≥ last close) → After closing ("this starts …")
+//   - an end after its close            → After closing ("this ends …")
+//   - no end, start within CLOSING_SOON_MIN of its close → After closing
+// An end at or before the start runs into the next day: no end check.
+// A closed day is Closed that day's job; an unknown day stays silent.
+// ---------------------------------------------------------------------------
+
+export const CLOSING_SOON_MIN = 30;
+
+const clock = (hhmm: string) => (hhmm === "24:00" ? "midnight" : hhmm);
+
+export function flagOutsideOpeningHours(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.date || !item.startTime) continue;
+    const day = hoursOn(item.openingHours, item.date);
+    if (!day || day.closed || day.spans.length === 0) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    const start = hhmmToMin(item.startTime);
+    const end = item.endTime ? hhmmToMin(item.endTime) : null;
+    const spans = day.spans.map(([open, close]) => ({ open, close, openMin: hhmmToMin(open), closeMin: hhmmToMin(close) }));
+    const at = spans.findIndex((s) => s.closeMin > start);
+    if (at === -1) {
+      const last = spans[spans.length - 1];
+      flags.push(itemFlag(item, `item-after-close-${item.id}`, "warning", `${name} closes at ${clock(last.close)}; this starts ${item.startTime}.`));
+      continue;
+    }
+    const span = spans[at];
+    if (start < span.openMin) {
+      const verb = at === 0 ? "opens" : "reopens";
+      flags.push(itemFlag(item, `item-before-open-${item.id}`, "warning", `${name} ${verb} at ${span.open}; this starts ${item.startTime}.`));
+    }
+    if (end !== null) {
+      if (end > start && end > span.closeMin) {
+        flags.push(itemFlag(item, `item-after-close-${item.id}`, "warning", `${name} closes at ${clock(span.close)}; this ends ${item.endTime}.`));
+      }
+    } else if (start >= span.openMin && span.closeMin - start <= CLOSING_SOON_MIN) {
+      const left = span.closeMin - start;
+      flags.push(itemFlag(item, `item-after-close-${item.id}`, "warning", `${name} closes at ${clock(span.close)}, ${left} minute${left === 1 ? "" : "s"} after this starts.`));
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -993,6 +1043,7 @@ export function flagClosedOnDay(items: FlagItem[]): Flag[] {
  *   12. Tight / impossible connections (warning/info)
  *   13. Missing connection between consecutive stops (info)
  *   17. Closed that day (warning)
+ *   18–19. Before opening / After closing (warning)
  */
 export function detectFlags({
   stops,
@@ -1059,5 +1110,6 @@ export function detectFlags({
     ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId, homeTimezone)),
     // Spec 2026-10-17 R7: the planning Flags, on what the viewer can see.
     ...flagClosedOnDay(planning.items),
+    ...flagOutsideOpeningHours(planning.items),
   ];
 }

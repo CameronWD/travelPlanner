@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectFlags, flagClosedOnDay, type FlagItem, type FlagStop } from "./flags";
+import { detectFlags, flagClosedOnDay, flagOutsideOpeningHours, type FlagItem, type FlagStop } from "./flags";
 import type { OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
@@ -78,5 +78,60 @@ describe("detectFlags: the planning Flags are Surprise-aware and plan-only (R7)"
   it("an Item of a visible Stop on the Changeover day it shares with a hidden Stop still flags", () => {
     const items = [item({ id: "visible", stopId: "nbg", date: "2026-12-08", openingHours: closedTue })];
     expect(closedIds(detectFlags({ ...base, items, hiddenStopIds: ["secret"] }))).toEqual(["item-closed-visible"]);
+  });
+});
+
+describe("flagOutsideOpeningHours (Before opening / After closing, warnings)", () => {
+  const day = hours({ week: everyDay([["10:00", "18:00"]]) });
+  const lunch = hours({ week: everyDay([["10:00", "12:00"], ["14:00", "18:00"]]) });
+  const late = hours({ week: everyDay([["20:00", "24:00"]]) });
+  const run = (o: Partial<FlagItem>) =>
+    flagOutsideOpeningHours([item({ id: "i1", title: "Documentation Centre", openingHours: day, ...o })]).map((f) => [f.id, f.message]);
+
+  it("a start before the first span opens says when it opens", () => {
+    expect(run({ startTime: "09:45" })).toEqual([["item-before-open-i1", "Documentation Centre opens at 10:00; this starts 09:45."]]);
+  });
+
+  it("a start in a gap between spans says when it next opens", () => {
+    expect(run({ openingHours: lunch, startTime: "13:15" })).toEqual([["item-before-open-i1", "Documentation Centre reopens at 14:00; this starts 13:15."]]);
+  });
+
+  it("an end after the governing span's close", () => {
+    expect(run({ startTime: "16:00", endTime: "18:30" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00; this ends 18:30."]]);
+    expect(run({ openingHours: lunch, startTime: "11:00", endTime: "15:00" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 12:00; this ends 15:00."]]);
+  });
+
+  it("with no end, a start within 30 minutes of closing (inclusive)", () => {
+    expect(run({ startTime: "17:40" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00, 20 minutes after this starts."]]);
+    expect(run({ startTime: "17:30" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00, 30 minutes after this starts."]]);
+    expect(run({ startTime: "17:59" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00, 1 minute after this starts."]]);
+    expect(run({ startTime: "17:29" })).toEqual([]);
+  });
+
+  it("a start at or after the last close is after closing, whatever the end", () => {
+    expect(run({ startTime: "18:30" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00; this starts 18:30."]]);
+    expect(run({ startTime: "18:00", endTime: "19:00" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00; this starts 18:00."]]);
+  });
+
+  it("starting before opening and ending after closing raises both", () => {
+    expect(run({ startTime: "09:00", endTime: "19:00" }).map(([id]) => id)).toEqual(["item-before-open-i1", "item-after-close-i1"]);
+  });
+
+  it("a 24:00 close reads as midnight", () => {
+    expect(run({ openingHours: late, startTime: "23:45" })).toEqual([["item-after-close-i1", "Documentation Centre closes at midnight, 15 minutes after this starts."]]);
+  });
+
+  it("inside the hours, no Flag; ending exactly at close, no Flag", () => {
+    expect(run({ startTime: "10:00" })).toEqual([]);
+    expect(run({ startTime: "16:00", endTime: "18:00" })).toEqual([]);
+  });
+
+  it("silent when the data is missing, closed (Closed that day's job) or overnight", () => {
+    expect(run({ startTime: null })).toEqual([]);
+    expect(run({ date: null, startTime: "09:00" })).toEqual([]);
+    expect(run({ openingHours: null, startTime: "09:00" })).toEqual([]);
+    expect(run({ openingHours: hours({ week: { mon: [["10:00", "18:00"]] } }), startTime: "09:00" })).toEqual([]); // Tuesday not known
+    expect(run({ openingHours: hours({ week: everyDay([]) }), startTime: "09:00" })).toEqual([]);
+    expect(run({ openingHours: late, startTime: "23:00", endTime: "01:00" })).toEqual([]); // ends the next day
   });
 });
