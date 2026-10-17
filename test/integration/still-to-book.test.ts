@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { loadHomePlanningData, type HomeTripInput } from "@/lib/desktop-home-loader";
+import { formatDayLabel } from "@/lib/dates";
 
 // Real Postgres: Home's Still to book reads the real plan only, leaves out
 // Wishlist ideas and a Fork's rows, and never lists a thing inside a Surprise
@@ -62,5 +63,27 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Home Still to book (real Postg
   it("the Traveller a Surprise is for never sees what's inside it", async () => {
     const { stillToBook } = await loadHomePlanningData(TRIP_ID, "2027-04-20", "planning", TRIP, MEMBER);
     expect(stillToBook.map((r) => r.id)).toEqual(["it-stb-casa", "it-stb-leg", "it-stb-tour"]);
+  });
+
+  // Task Z addendum item 2: a leg departing 23:30Z from Lisbon is already past
+  // midnight local (Europe/Lisbon is WEST, UTC+1, in June) — "when it
+  // happens" (lib/desktop-home-loader.ts) must use the leg's own zone, not
+  // the UTC instant's date, or the row sorts and links against the wrong day.
+  it("a leg departing 23:30Z from Lisbon sorts and links by its local day, not the UTC day", async () => {
+    await db.transport.create({
+      data: {
+        id: "it-stb-midnight-leg", tripId: TRIP_ID, mode: "TRAIN",
+        fromStopId: "it-stb-porto", toStopId: "it-stb-secret",
+        depAt: new Date("2027-06-05T23:30:00Z"), sortOrder: 2,
+        bookingState: "TO_BOOK", bookingStateSet: false,
+      },
+    });
+    const { stillToBook } = await loadHomePlanningData(TRIP_ID, "2027-04-20", "planning", TRIP, OWNER);
+    const row = stillToBook.find((r) => r.id === "it-stb-midnight-leg");
+    expect(row).toBeDefined();
+    // UTC date is 2027-06-05; Lisbon local date is already 2027-06-06.
+    expect(row!.href).toContain("/day/2027-06-06");
+    expect(row!.href).not.toContain("/day/2027-06-05");
+    expect(row!.subtitle).toBe(`Leaves ${formatDayLabel("2027-06-06")}`);
   });
 });
