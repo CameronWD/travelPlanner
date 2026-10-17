@@ -19,7 +19,7 @@ function dayState(spans: HoursSpan[] | undefined): DayState {
 }
 
 /** Every day 09:00–17:00: a starting point to edit, not a guess at the place. */
-export function defaultWeekly(): WeekHours {
+function defaultWeekly(): WeekHours {
   return Object.fromEntries(MONDAY_FIRST.map((d) => [d, [[...FIRST_SPAN]]])) as unknown as WeekHours;
 }
 

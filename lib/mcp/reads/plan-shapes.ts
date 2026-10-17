@@ -23,7 +23,7 @@ import type { McpFileRef } from "./attachments";
  * true/false/not-known column, not an enum, but Claude's reads (here) and
  * writes (lib/mcp/tools/plan-write.ts) speak the same tri-state vocabulary.
  */
-export type McpRefundable = "YES" | "NO" | "UNKNOWN";
+type McpRefundable = "YES" | "NO" | "UNKNOWN";
 
 /**
  * A live Surprise as Claude sees it. `youAreSurprised` true means the acting
