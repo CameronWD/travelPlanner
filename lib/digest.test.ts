@@ -19,6 +19,11 @@ describe("buildDigest", () => {
     expect(buildDigest(input())).toBeNull();
   });
 
+  it("a Reminder line is its title alone (spec F8: notes are never read out)", () => {
+    const d = buildDigest(input({ slot: "EVENING", reminders: [{ id: "r", title: "Ring the landlord" }] }));
+    expect(d?.body).toBe("Ring the landlord");
+  });
+
   it("titles a pre-trip evening digest 'Coming up'", () => {
     const d = buildDigest(
       input({ payments: [{ id: "c1", label: "Airbnb", amountLabel: "£240", daysUntil: 3 }] }),
