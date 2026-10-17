@@ -151,6 +151,30 @@ function CategoryGroup({ category, onSelect, disabled }: CategoryGroupProps) {
   );
 }
 
+/** The Ticket's Refundable choice (null = not known), wired to its surrounding Field like CategoryGroup. */
+function RefundableSegmented({ value, onChange, disabled }: { value: boolean | null; onChange(v: boolean | null): void; disabled?: boolean }) {
+  const fieldControl = useFieldControl();
+  return (
+    <Segmented
+      type="single"
+      tone="ink"
+      aria-label="Refundable"
+      {...fieldControl}
+      value={value === true ? "YES" : value === false ? "NO" : "UNKNOWN"}
+      onValueChange={(v) => {
+        if (!v) return; // Radix deselect on the already-chosen pill: keep it.
+        onChange(v === "YES" ? true : v === "NO" ? false : null);
+      }}
+      disabled={disabled}
+      className="self-start"
+    >
+      <SegmentedItem value="UNKNOWN">Not known</SegmentedItem>
+      <SegmentedItem value="YES">Yes</SegmentedItem>
+      <SegmentedItem value="NO">No</SegmentedItem>
+    </Segmented>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Photo field (CONTEXT.md "Item photo", spec §I)
 // ---------------------------------------------------------------------------
@@ -820,25 +844,9 @@ function ItemForm({
               disabled={isPending}
             />
           </Field>
-          <div className="sm:col-span-2">
-            <p id="refundable-label" className="mb-1.5 text-sm font-semibold">Refundable</p>
-            <Segmented
-              type="single"
-              tone="ink"
-              aria-labelledby="refundable-label"
-              value={refundable === true ? "YES" : refundable === false ? "NO" : "UNKNOWN"}
-              onValueChange={(v) => {
-                if (!v) return; // Radix deselect on the already-chosen pill: keep it.
-                setRefundable(v === "YES" ? true : v === "NO" ? false : null);
-              }}
-              disabled={isPending}
-            >
-              <SegmentedItem value="UNKNOWN">Not known</SegmentedItem>
-              <SegmentedItem value="YES">Yes</SegmentedItem>
-              <SegmentedItem value="NO">No</SegmentedItem>
-            </Segmented>
-            {errors.refundable?.[0] && <p className="mt-1.5 text-sm font-medium text-destructive">{errors.refundable[0]}</p>}
-          </div>
+          <Field label="Refundable" error={errors.refundable?.[0]} className="sm:col-span-2">
+            <RefundableSegmented value={refundable} onChange={setRefundable} disabled={isPending} />
+          </Field>
         </div>
       </details>
 

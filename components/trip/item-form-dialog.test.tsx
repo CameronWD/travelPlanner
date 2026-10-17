@@ -1501,6 +1501,19 @@ describe("Ticket (Slot time, R3)", () => {
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(updateItem).toHaveBeenCalledWith("item-99", expect.objectContaining({ slotTime: null, arriveByMinutes: null, refundable: null }));
   });
+
+  it("the Refundable control is a labelled Field, and a server error is announced on it", async () => {
+    (updateItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ success: false, errors: { refundable: ["Pick yes, no or not known"] } });
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, refundable: true }} />);
+    const group = screen.getByRole("radiogroup", { name: "Refundable" });
+    expect(group).not.toHaveAttribute("aria-invalid");
+    expect(document.getElementById("refundable-label")).toBeNull(); // no fixed id: two dialogs could share it
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    const invalid = await screen.findByRole("radiogroup", { name: "Refundable" });
+    await waitFor(() => expect(invalid).toHaveAttribute("aria-invalid", "true"));
+    expect(invalid).toHaveAccessibleDescription("Pick yes, no or not known");
+  });
 });
 
 describe("Opening hours (R4)", () => {
