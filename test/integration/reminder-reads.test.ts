@@ -3,10 +3,21 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 const viewer = vi.hoisted(() => ({ id: "it-rem-owner" }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn(async () => ({ user: { id: viewer.id }, membership: { role: "owner" } })),
+  // The Reminder guard's own steps (lib/guards.ts requireRowAccess), with the
+  // real Surprise check: load the row, then refuse a surprised viewer.
+  requireRowAccess: vi.fn(async (_kind: "reminder", id: string) => {
+    const { db } = await import("@/lib/db");
+    const { requireOutsideSurprise } = await import("@/lib/surprise-guard");
+    const { notFound } = await import("next/navigation");
+    const row = await db.reminder.findUnique({ where: { id }, select: { id: true, tripId: true, stopId: true, itemId: true } });
+    if (!row) return notFound();
+    await requireOutsideSurprise(viewer.id, row.itemId ? { itemId: row.itemId } : { stopId: row.stopId });
+    return { row, user: { id: viewer.id } };
+  }),
 }));
 
 import { db } from "@/lib/db";
-import { listRemindersForTrip, readReminderAboutOptions, readRemindersAbout } from "@/lib/reminder-reads";
+import { listRemindersForTrip, readReminderAboutOptions, readReminderItem, readRemindersAbout } from "@/lib/reminder-reads";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 
 // Real Postgres (npm run test:integration): the Reminders read moved out of
@@ -99,5 +110,14 @@ describe.skipIf(process.env.INTEGRATION !== "1")("listRemindersForTrip (real Pos
     const forMember = await readReminderAboutOptions(TRIP_ID);
     expect(forMember.stops.map((s) => s.id)).toEqual(["it-rem-porto"]);
     expect(forMember.items.map((i) => i.id)).toEqual(["it-rem-tram"]);
+  });
+
+  it("readReminderItem reads one Reminder; one about a hidden Surprise Stop is notFound to the surprised member", async () => {
+    const porto = await db.reminder.findFirstOrThrow({ where: { tripId: TRIP_ID, title: "IT Port tour" } });
+    const secret = await db.reminder.findFirstOrThrow({ where: { tripId: TRIP_ID, title: "IT Secret dinner" } });
+    expect(await readReminderItem(porto.id)).toMatchObject({ id: porto.id, stopName: "IT Porto" });
+    expect(await readReminderItem(secret.id)).toMatchObject({ id: secret.id, stopName: "IT Secret" });
+    viewer.id = MEMBER;
+    await expect(readReminderItem(secret.id)).rejects.toMatchObject({ digest: expect.stringContaining("404") });
   });
 });

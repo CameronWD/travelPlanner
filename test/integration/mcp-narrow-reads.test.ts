@@ -160,4 +160,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect(out.stop.id).toBe(PORTO);
     expect(out.shifted).toEqual([expect.objectContaining({ id: SECRET, arriveDate: "2027-06-05", notes: null, days: [] })]);
   });
+
+  it("the list readers read real rows", async () => {
+    const { loadChecklistOfItemForMcp, loadVotesForMcp } = await import("@/lib/mcp/reads/lists");
+    const a = await db.checklistItem.create({ data: { tripId: TRIP_ID, kind: "PACKING", text: "IT Adapter", sortOrder: 1 } });
+    await db.checklistItem.create({ data: { tripId: TRIP_ID, kind: "PACKING", text: "IT Hat", sortOrder: 0 } });
+    await db.vote.create({ data: { tripId: TRIP_ID, itemId: TOUR, userId: MEMBER, level: "MUST" } });
+    expect((await as(OWNER)(() => loadChecklistOfItemForMcp(a.id))).items.map((i) => i.text)).toEqual(["IT Hat", "IT Adapter"]);
+    expect(await as(OWNER)(() => loadVotesForMcp(TOUR))).toEqual({ itemId: TOUR, votes: [{ traveller: expect.any(String), level: "MUST" }] });
+  });
 });

@@ -39,6 +39,7 @@ import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadAttachmentContentForMcp } from "../reads/attachment-content";
 import { loadAccommodationForMcp, loadItemForMcp, loadStopForMcp, loadTransportForMcp } from "../reads/entities";
 import { loadDayForMcp } from "../reads/day";
+import { CHECKLIST_VIEW_SELECT, toChecklistView, toMcpIdea, WISHLIST_IDEA_SELECT } from "../reads/lists";
 import { loadBudget } from "@/lib/money/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
@@ -53,25 +54,9 @@ async function loadWishlist(tripId: string) {
   const items = await db.item.findMany({
     where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE },
     orderBy: { sortOrder: "asc" },
-    select: {
-      id: true,
-      title: true,
-      category: true,
-      notes: true,
-      link: true,
-      votes: { select: { level: true, user: { select: TRAVELLER_SELECT } } },
-    },
+    select: WISHLIST_IDEA_SELECT,
   });
-  return {
-    ideas: items.map((i) => ({
-      id: i.id,
-      title: i.title,
-      category: i.category,
-      notes: i.notes,
-      link: i.link,
-      votes: i.votes.map((v) => ({ traveller: travellerName(v.user), level: v.level })),
-    })),
-  };
+  return { ideas: items.map(toMcpIdea) };
 }
 
 // ---------------------------------------------------------------------------
@@ -84,12 +69,12 @@ async function loadChecklists(tripId: string) {
     db.checklistItem.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, kind: true, text: true, done: true, dueDate: true, sortOrder: true, buy: true },
+      select: CHECKLIST_VIEW_SELECT,
     }),
     listTemplates(),
   ]);
 
-  const view = (i: (typeof rawItems)[number]) => ({ id: i.id, text: i.text, done: i.done, dueDate: i.dueDate, buyState: i.buy });
+  const view = toChecklistView;
 
   return {
     pretrip: sortChecklist(rawItems.filter((i) => i.kind === "PRETRIP")).map(view),

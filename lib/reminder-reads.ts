@@ -1,5 +1,6 @@
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireRowAccess, requireTripAccess } from "@/lib/guards";
 import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import {
@@ -33,6 +34,23 @@ export async function listRemindersForTrip(tripId: string, fromDate: string): Pr
     select: REMINDER_ITEM_SELECT,
   });
   return rows.map(toReminderItem);
+}
+
+/**
+ * One Reminder in get_reminders' shape: add_reminder / update_reminder's
+ * read-back (spec 2026-10-16 F6). The Reminder guard checks access and the
+ * Surprise around the row; the Surprise fragment then filters a Reminder
+ * about a hidden Item or Stop, as every other Reminder read does.
+ */
+export async function readReminderItem(reminderId: string): Promise<ReminderItem> {
+  const { row, user } = await requireRowAccess("reminder", reminderId);
+  const v = await loadSurpriseVisibility(row.tripId, user.id);
+  const r = await db.reminder.findFirst({
+    where: { id: reminderId, tripId: row.tripId, ...v.where.reminder },
+    select: REMINDER_ITEM_SELECT,
+  });
+  if (!r) notFound();
+  return toReminderItem(r);
 }
 
 /** Every Reminder about a Stop, Item or Transport leg, grouped by the thing (spec F8: the thing's card lists it). */

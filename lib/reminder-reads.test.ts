@@ -6,7 +6,10 @@ import { reminderItem } from "@/test/helpers/reminder-item";
 
 const {
   requireTripAccessMock, reminderFindManyMock, loadSurpriseVisibilityMock, stopFindManyMock, itemFindManyMock, transportFindManyMock,
+  requireRowAccess, reminderFindFirst,
 } = vi.hoisted(() => ({
+  requireRowAccess: vi.fn(),
+  reminderFindFirst: vi.fn(),
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "user-1" }, membership: { role: "owner" } }),
   reminderFindManyMock: vi.fn(),
   loadSurpriseVisibilityMock: vi.fn(),
@@ -14,10 +17,10 @@ const {
   itemFindManyMock: vi.fn(),
   transportFindManyMock: vi.fn(),
 }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock, requireRowAccess }));
 vi.mock("@/lib/db", () => ({
   db: {
-    reminder: { findMany: reminderFindManyMock },
+    reminder: { findMany: reminderFindManyMock, findFirst: reminderFindFirst },
     stop: { findMany: stopFindManyMock },
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
@@ -29,7 +32,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
 
-import { listRemindersForTrip, readReminderAboutOptions, readRemindersAbout } from "./reminder-reads";
+import { listRemindersForTrip, readReminderAboutOptions, readReminderItem, readRemindersAbout } from "./reminder-reads";
 
 const TRIP_ID = "trip-1";
 beforeEach(() => vi.clearAllMocks());
@@ -164,5 +167,29 @@ describe("readReminderAboutOptions", () => {
       items: [{ id: "i1", title: "Bouchon" }],
       transports: [{ id: "t1", label: "Train Paris → Lyon" }],
     });
+  });
+});
+
+describe("readReminderItem", () => {
+  it("reads one Reminder through the Reminder guard, in get_reminders' shape (notes and about-links included)", async () => {
+    requireRowAccess.mockResolvedValue({ row: { id: "r1", tripId: "trip-1" }, user: { id: "u1" } });
+    reminderFindFirst.mockResolvedValue({
+      id: "r1", title: "Print tickets", date: "2027-05-30", notes: "Both legs", stopId: null, stop: null, itemId: null, item: null,
+      transportId: "t1",
+      transport: { mode: "TRAIN", depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, fromStop: { name: "Paris" }, toStop: { name: "Lyon" }, trip: { homeName: null } },
+    });
+    const r = await readReminderItem("r1");
+    expect(requireRowAccess).toHaveBeenCalledWith("reminder", "r1");
+    expect(reminderFindFirst.mock.calls[0][0].where).toMatchObject({ id: "r1", tripId: "trip-1" });
+    expect(reminderFindFirst.mock.calls[0][0].select).toBe(REMINDER_ITEM_SELECT);
+    expect(r).toMatchObject({ id: "r1", title: "Print tickets", stopId: null, stopName: null, notes: "Both legs", itemId: null, transportId: "t1", transportLabel: "Train Paris → Lyon" });
+  });
+
+  it("carries the Surprise fragment, and is notFound when it filters the Reminder out", async () => {
+    requireRowAccess.mockResolvedValue({ row: { id: "r1", tripId: "trip-1" }, user: { id: "u1" } });
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ hiddenStopIds: ["s-secret"] }));
+    reminderFindFirst.mockResolvedValue(null);
+    await expect(readReminderItem("r1")).rejects.toMatchObject({ digest: expect.stringContaining("404") });
+    expect(reminderFindFirst.mock.calls[0][0].where).toMatchObject({ id: "r1", tripId: "trip-1", ...MARKER_WHERE.reminder });
   });
 });
