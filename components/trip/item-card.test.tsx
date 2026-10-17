@@ -44,7 +44,7 @@ import { ItemCard, type ItemCardItem } from "./item-card";
 // ---------------------------------------------------------------------------
 
 const baseItem: ItemCardItem = {
-  id: "item-1",
+  id: "item-1", bookingStateSet: false,
   title: "Eiffel Tower",
   category: "SIGHTSEEING",
 };
@@ -282,7 +282,7 @@ describe("ItemCard highlight (Booking import)", () => {
     const { container } = render(
       <ItemCard
         mode="scheduled"
-        item={{ id: "p4", title: "Pena Palace entry", category: "OTHER", date: "2026-12-04", startTime: "09:30", address: "Pena Palace", booking: "PENA-1" }}
+        item={{ id: "p4", bookingStateSet: false, title: "Pena Palace entry", category: "OTHER", date: "2026-12-04", startTime: "09:30", address: "Pena Palace", booking: "PENA-1" }}
         highlight={["title", "category", "startTime", "address", "booking"]}
       />,
     );
@@ -317,7 +317,7 @@ describe("ItemCard Slot time (spec 2026-10-17 R3)", () => {
     render(
       <ItemCard
         mode="scheduled"
-        item={{ id: "i1", title: "Tour", category: "ACTIVITY", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }}
+        item={{ id: "i1", bookingStateSet: false, title: "Tour", category: "ACTIVITY", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }}
       />,
     );
     expect(screen.getByText("Slot 12:00 · be there 11:45")).toBeInTheDocument();
@@ -335,7 +335,7 @@ describe("ItemCard Opening hours", () => {
 
   it("shows the day's hours (scheduled mode)", () => {
     render(
-      <ItemCard mode="scheduled" item={{ id: "i1", title: "Lello", category: "SIGHTSEEING", date: "2027-05-31", openingHours: HOURS }} />,
+      <ItemCard mode="scheduled" item={{ id: "i1", bookingStateSet: false, title: "Lello", category: "SIGHTSEEING", date: "2027-05-31", openingHours: HOURS }} />,
     );
     expect(screen.getByText("Closed on Mondays")).toBeInTheDocument();
   });

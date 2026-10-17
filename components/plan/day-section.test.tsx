@@ -25,13 +25,13 @@ import { resolveItemDrop, type ItemDrop } from "./plan-dnd";
 const money = (minor: number, currency: string) => formatMoney(minor, currency).replace(/\s+/g, " ");
 
 const ITEMS = [
-  { id: "a", title: "Café Kitsuné", category: "FOOD", date: "2026-12-11", startTime: "09:00", address: "Palais Royal" },
-  { id: "b", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", booking: "LVR-123", bookingState: "BOOKED" as const, notes: "Richelieu entrance" },
-  { id: "c", title: "Picnic", category: "FOOD", date: "2026-12-11", hiddenFromShares: true },
+  { id: "a", bookingStateSet: false, title: "Café Kitsuné", category: "FOOD", date: "2026-12-11", startTime: "09:00", address: "Palais Royal" },
+  { id: "b", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", booking: "LVR-123", bookingState: "BOOKED" as const, notes: "Richelieu entrance" },
+  { id: "c", bookingStateSet: false, title: "Picnic", category: "FOOD", date: "2026-12-11", hiddenFromShares: true },
 ];
 const IDEAS = [
-  { id: "i1", title: "Orsay", category: "SIGHTSEEING" },
-  { id: "i2", title: "Sainte-Chapelle", category: "SIGHTSEEING" },
+  { id: "i1", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING" },
+  { id: "i2", bookingStateSet: false, title: "Sainte-Chapelle", category: "SIGHTSEEING" },
 ];
 const COSTS = new Map([["b", [{ id: "k", costMinor: 2200, paidMinor: null, currency: "EUR", rateToHome: 1.65, paidAt: null, dueDate: null, ownerType: "ITEM", ownerId: "b", label: null, category: null, settlement: "BEFORE" }]]]);
 
@@ -228,7 +228,7 @@ describe("DaySection on a Changeover day (one plan under two open Stops)", () =>
     scrollTo.mockRestore();
   });
 
-  const TRAIN = { id: "x", title: "Train to Lyon", category: "TRANSPORT", date: "2026-12-14", startTime: "09:00" };
+  const TRAIN = { id: "x", bookingStateSet: false, title: "Train to Lyon", category: "TRANSPORT", date: "2026-12-14", startTime: "09:00" };
 
   /**
    * Paris (13th, 14th) and Lyon (14th) open on one board, the plan on the
@@ -284,7 +284,7 @@ describe("DaySection on a Changeover day (one plan under two open Stops)", () =>
 });
 
 describe("DaySection hover-open (a plan held over a folded day of its own Stop)", () => {
-  const PLAN = { id: "p", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" };
+  const PLAN = { id: "p", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" };
 
   /** Lifts Paris's plan with the keyboard and holds it over `target` (collisions pinned there; jsdom has no layout). */
   function hold(target: { stopId: string; dateISO: string }) {
@@ -380,7 +380,7 @@ describe("DaySection, Surprise Items (CONTEXT.md Surprise)", () => {
   });
 
   it("a placeholder reads Surprise with its badge, no edit and no drag", () => {
-    const placeholder = { id: "s", title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: { ...VIEW, youAreSurprised: true } };
+    const placeholder = { id: "s", bookingStateSet: false, title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: { ...VIEW, youAreSurprised: true } };
     renderDay({ items: [placeholder] });
     expect(screen.getByText("Surprise")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();

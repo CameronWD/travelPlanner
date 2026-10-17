@@ -20,7 +20,7 @@ vi.mock("@/server/actions/attachments", () => ({
 import { AccommodationCard } from "./accommodation-card";
 
 const baseAcc = {
-  id: "a1",
+  id: "a1", bookingStateSet: false,
   stopId: "s1",
   name: "The Grand Hotel",
   checkIn: "2026-07-10",
@@ -190,7 +190,7 @@ describe("AccommodationCard highlight (Booking import)", () => {
   it("marks name, times and confirmation", () => {
     const { container } = render(
       <AccommodationCard
-        accommodation={{ id: "p3", stopId: "s-lis", name: "Casa do Rio Lisboa", checkIn: "2026-12-02", checkOut: "2026-12-08", checkInTime: "15:00", confirmation: "CDR-55821" }}
+        accommodation={{ id: "p3", bookingStateSet: false, stopId: "s-lis", name: "Casa do Rio Lisboa", checkIn: "2026-12-02", checkOut: "2026-12-08", checkInTime: "15:00", confirmation: "CDR-55821" }}
         stop={{ arriveDate: "2026-12-02", departDate: "2026-12-08" }}
         highlight={["name", "checkInTime", "confirmation"]}
       />,

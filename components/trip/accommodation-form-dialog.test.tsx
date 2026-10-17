@@ -33,7 +33,7 @@ const baseProps = {
 };
 
 const existingAccommodation: AccommodationCardAccommodation = {
-  id: "acc-1",
+  id: "acc-1", bookingStateSet: false,
   stopId: "stop-1",
   name: "Hilton Garden Inn",
   address: "123 Main St",

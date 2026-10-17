@@ -41,6 +41,8 @@ export interface ItineraryItem {
   booking?: string | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
   bookingState?: BookingState | null;
+  /** True when the Traveller chose the state; absent on rows that don't read it (the Share page). */
+  bookingStateSet?: boolean;
   bookBy?: string | null;
   /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
   slotTime?: string | null;
@@ -69,6 +71,8 @@ export interface ItineraryTransport {
   reference?: string | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
   bookingState?: BookingState | null;
+  /** True when the Traveller chose the state; absent on rows that don't read it (the Share page). */
+  bookingStateSet?: boolean;
   bookBy?: string | null;
   notes?: string | null;
   /** This end is the Trip's Home base, not a Stop — its zone is the Trip's `homeTimezone`. */
@@ -88,6 +92,8 @@ export interface ItineraryAccommodation {
   confirmation?: string | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
   bookingState?: BookingState | null;
+  /** True when the Traveller chose the state; absent on rows that don't read it (the Share page). */
+  bookingStateSet?: boolean;
   bookBy?: string | null;
   notes?: string | null;
 }

@@ -30,7 +30,7 @@ const PARIS = {
   id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-14",
   nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null,
 };
-const ITEMS = [{ id: "a", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
+const ITEMS = [{ id: "a", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
 
 describe("reduced motion (MOTION.md)", () => {
   it("useMotionTiming swaps any spec for an 80ms fade, and exits for instant", () => {
@@ -66,7 +66,7 @@ describe("reduced motion (MOTION.md)", () => {
   });
 
   it("P7: a scheduled idea's chip goes at once", async () => {
-    const idea = (id: string, title: string) => ({ id, title, category: "SIGHTSEEING" });
+    const idea = (id: string, title: string) => ({ id, bookingStateSet: false, title, category: "SIGHTSEEING" });
     const ideas = [idea("i1", "Orsay"), idea("i2", "Sainte-Chapelle")];
     const { rerender } = render(<IdeasBox ideas={ideas} onOpen={vi.fn()} onAdd={vi.fn()} />, { wrapper: MotionProvider });
     rerender(<IdeasBox ideas={[ideas[1]]} onOpen={vi.fn()} onAdd={vi.fn()} />);

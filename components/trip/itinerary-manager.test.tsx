@@ -1667,7 +1667,7 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
 
 function makeTransport(overrides: Partial<import("./itinerary-manager").ItineraryTransport> = {}): import("./itinerary-manager").ItineraryTransport {
   return {
-    id: "tr-1",
+    id: "tr-1", bookingStateSet: false,
     mode: "FLIGHT",
     fromStopId: null,
     toStopId: null,
@@ -1829,7 +1829,7 @@ describe("optimistic transport delete", () => {
     overrides: Partial<ItineraryTransport> = {},
   ): ItineraryTransport {
     return {
-      id: "tr-opt-1",
+      id: "tr-opt-1", bookingStateSet: false,
       mode: "FLIGHT",
       fromStopId,
       toStopId,
@@ -1929,7 +1929,7 @@ describe("Task 8: anchor-slot transport rendering", () => {
     const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
     // Leg: departs from A, arrives at free place "Hakone", anchorStopId = A
     const freeLeg: ItineraryTransport = {
-      id: "tr-free",
+      id: "tr-free", bookingStateSet: false,
       mode: "TRAIN",
       fromStopId: "s-a",
       toStopId: null,
@@ -1972,7 +1972,7 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
     //   - arrPlace is used as the displayed destination label (no stop name to override it)
     const firstStop = makeStop({ id: "s-first", name: "London", sortOrder: 0, chapterId: "ch-1" });
     const headLeg: ItineraryTransport = {
-      id: "tr-head",
+      id: "tr-head", bookingStateSet: false,
       mode: "FLIGHT",
       fromStopId: null,
       toStopId: null,
@@ -2014,7 +2014,7 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
   it("still renders a HEAD_SLOT leg in the no-chapters path (existing behaviour)", async () => {
     const firstStop = makeStop({ id: "s-first", name: "Berlin", sortOrder: 0 });
     const headLeg: ItineraryTransport = {
-      id: "tr-head-nc",
+      id: "tr-head-nc", bookingStateSet: false,
       mode: "TRAIN",
       fromStopId: null,
       toStopId: null,
@@ -2165,7 +2165,7 @@ describe("day-aware plan editor wiring", () => {
               "s1",
               [
                 {
-                  id: "d1",
+                  id: "d1", bookingStateSet: false,
                   title: "Colosseum",
                   category: "SIGHTSEEING",
                   date: "2026-07-11",
@@ -2192,7 +2192,7 @@ describe("day-aware plan editor wiring", () => {
       departDate: "2026-07-13",
       accommodations: [
         {
-          id: "acc-1",
+          id: "acc-1", bookingStateSet: false,
           stopId: "s1",
           name: "Hotel Roma",
           checkIn: "2026-07-10",
@@ -2244,8 +2244,8 @@ describe("day-aware plan editor wiring", () => {
       arriveDate: "2026-07-10",
       departDate: "2026-07-13",
       accommodations: [
-        { id: "acc-1", stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-12", costs: [] },
-        { id: "acc-2", stopId: "s1", name: "Villa Sole", checkIn: "2026-07-12", checkOut: "2026-07-13", costs: [] },
+        { id: "acc-1", bookingStateSet: false, stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-12", costs: [] },
+        { id: "acc-2", bookingStateSet: false, stopId: "s1", name: "Villa Sole", checkIn: "2026-07-12", checkOut: "2026-07-13", costs: [] },
       ],
     });
     renderPlan(<ItineraryManager {...baseProps} initialStops={[stop]} />);
@@ -2281,7 +2281,7 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
   // pill is "Flight from Sydney to Paris…" and its id "tr-opt-1".
   function makeTransportBetweenStops(fromStopId: string, toStopId: string): ItineraryTransport {
     return {
-      id: "tr-opt-1",
+      id: "tr-opt-1", bookingStateSet: false,
       mode: "FLIGHT",
       fromStopId,
       toStopId,
@@ -2410,7 +2410,7 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     const paris = makeStop({ id: "par", name: "Paris", sortOrder: 0, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5 });
     // A #open= hash left by an earlier test would fold Paris shut.
     window.history.replaceState(null, "", window.location.pathname);
-    const louvre = { id: "it1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
+    const louvre = { id: "it1", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
     renderPlan(
       <ItineraryManager {...baseProps} initialStops={[paris]} dayItemsByStopId={new Map([["par", [louvre]]])} remindersByItemId={new Map([["it1", []]])} />,
       ["par"],
@@ -2479,7 +2479,7 @@ describe("?add=stop (final review #3)", () => {
 
 describe("desktop list (PLAN.md §1.3–§4)", () => {
   const MUNICH = makeStop({ id: "mun", name: "Munich", sortOrder: 2 });
-  const ITEM = { id: "it1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
+  const ITEM = { id: "it1", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
 
   it("numbers the stops in plan order", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME, MUNICH]} />);
@@ -2613,7 +2613,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
   it("picking a day for an idea schedules it through scheduleItem, keeping its times", async () => {
     const user = userEvent.setup();
     const { scheduleItem } = await import("@/server/actions/items");
-    const idea = { id: "idea-1", title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
+    const idea = { id: "idea-1", bookingStateSet: false, title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [idea]]])} />, ["par"]);
     await user.click(desktop().getByRole("button", { name: "Open Opera" }));
     await user.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
@@ -2637,7 +2637,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
 
   it("§I: an empty day's or pick an idea schedules the chosen idea onto that day", async () => {
     const { scheduleItem } = await import("@/server/actions/items");
-    const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+    const ideas = new Map([["par", [{ id: "i1", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={ideas} />, ["par"]);
     await userEvent.click(within(desktop().getByRole("region", { name: "SAT 12 DEC" })).getByRole("button", { name: "or pick an idea" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Orsay" }));
@@ -2678,7 +2678,7 @@ describe("mobile sheets (PLAN.md §7.2, §7.3, §7.6)", () => {
   // (see "?stop= by breakpoint" below).
   beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
 
-  const OPERA = { id: "idea-1", title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
+  const OPERA = { id: "idea-1", bookingStateSet: false, title: "Opera", category: "SIGHTSEEING", date: null, startTime: "19:00", endTime: "22:00", stopId: "par" };
 
   it("?stop=<id> opens the full-screen stop sheet", () => {
     navState.search = "stop=par";
@@ -2866,7 +2866,7 @@ describe("Plan motion", () => {
 
   it("P7: scheduling an idea flashes the day it landed on", async () => {
     const { scheduleItem } = await import("@/server/actions/items");
-    const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+    const ideas = new Map([["par", [{ id: "i1", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
     render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
     await userEvent.click(desktop().getByRole("button", { name: "Open Orsay" }));
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
@@ -2879,7 +2879,7 @@ describe("Plan motion", () => {
   it("P7: a thrown schedule is reported, and nothing flashes", async () => {
     const { scheduleItem } = await import("@/server/actions/items");
     vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("offline"));
-    const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+    const ideas = new Map([["par", [{ id: "i1", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
     render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
     await userEvent.click(desktop().getByRole("button", { name: "Open Orsay" }));
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
@@ -2897,7 +2897,7 @@ describe("Plan motion", () => {
     setDayCollapsed("trip-1", "par", "2026-12-12", true);
     try {
       const { scheduleItem } = await import("@/server/actions/items");
-      const ideas = new Map([["par", [{ id: "i1", title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
+      const ideas = new Map([["par", [{ id: "i1", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING", stopId: "par" }]]]);
       render(plan([PARIS, ROME], { thingsToDoByStopId: ideas }));
       const sat = () => desktop().getByRole("region", { name: "SAT 12 DEC" });
       expect(within(sat()).getByRole("button", { name: "SAT 12 DEC" })).toHaveAttribute("aria-expanded", "false");
@@ -3036,7 +3036,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
 });
 
 describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => {
-  const DINNER = { id: "d1", title: "Dinner", category: "FOOD", date: "2026-12-15", startTime: "19:00", endTime: null, stopId: "rom" };
+  const DINNER = { id: "d1", bookingStateSet: false, title: "Dinner", category: "FOOD", date: "2026-12-15", startTime: "19:00", endTime: null, stopId: "rom" };
   // The plan page groups by date coverage, so the Changeover day's plan is handed to both cards.
   const items = new Map([["par", [DINNER]], ["rom", [DINNER]]]);
 
@@ -3057,8 +3057,8 @@ describe("ADR 0049 rule 3: the owning-Stop marker (spec 2026-10-04 §I)", () => 
 });
 
 describe("metro-line legs (spec 2026-10-05 §F)", () => {
-  const legA = makeTransport({ id: "leg-a", mode: "TRAIN", fromStopId: "par", anchorStopId: "par", arrPlace: "Milano Centrale", sortOrder: 0 });
-  const legB = makeTransport({ id: "leg-b", mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
+  const legA = makeTransport({ id: "leg-a", bookingStateSet: false, mode: "TRAIN", fromStopId: "par", anchorStopId: "par", arrPlace: "Milano Centrale", sortOrder: 0 });
+  const legB = makeTransport({ id: "leg-b", bookingStateSet: false, mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
 
   it.each([["plan-desktop-list", true], ["plan-mobile-list", false]] as const)(
     "%s: legs stack in travel order, a dot each, the change-over by the second",
@@ -3125,7 +3125,7 @@ describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {
 describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
   const ROME_STAY = makeStop({
     id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13",
-    accommodations: [{ id: "acc-1", stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-13", checkInTime: "14:00", costs: [] }],
+    accommodations: [{ id: "acc-1", bookingStateSet: false, stopId: "s1", name: "Hotel Roma", checkIn: "2026-07-10", checkOut: "2026-07-13", checkInTime: "14:00", costs: [] }],
   });
 
   it("toasts the server's reason when deleteChapter refuses", async () => {

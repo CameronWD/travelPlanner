@@ -11,7 +11,7 @@ vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), dele
 vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
 
 const IDEA: ItemCardItem = {
-  id: "i1",
+  id: "i1", bookingStateSet: false,
   title: "Musée d'Orsay",
   category: "SIGHTSEEING",
   date: null,

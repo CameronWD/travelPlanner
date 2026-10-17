@@ -124,7 +124,7 @@ import type { ItemCardItem } from "./item-card";
 
 function makeItem(overrides: Partial<ItemCardItem> = {}): ItemCardItem {
   return {
-    id: "item-1",
+    id: "item-1", bookingStateSet: false,
     title: "Eiffel Tower",
     category: "SIGHTSEEING",
     date: "2026-07-10",
@@ -218,8 +218,8 @@ describe("WishlistBoard — List/Map toggle", () => {
         tripId="t1"
         stops={[]}
         items={[
-          { id: "i1", title: "Colosseum", category: "SIGHTSEEING", lat: 41.89, lng: 12.49 },
-          { id: "i2", title: "No location", category: "FOOD" },
+          { id: "i1", bookingStateSet: false, title: "Colosseum", category: "SIGHTSEEING", lat: 41.89, lng: 12.49 },
+          { id: "i2", bookingStateSet: false, title: "No location", category: "FOOD" },
         ]}
       />,
     );
@@ -309,8 +309,8 @@ describe("WishlistBoard — placed idea marker", () => {
   });
 
   it("shows marker only for placed ideas when multiple items present", async () => {
-    const placed = makeItem({ id: "item-40", title: "Placed Idea", date: null, startTime: null, endTime: null });
-    const unplaced = makeItem({ id: "item-41", title: "Unplaced Idea", date: null, startTime: null, endTime: null, stopId: "stop-1", stopName: "Paris" });
+    const placed = makeItem({ id: "item-40", bookingStateSet: false, title: "Placed Idea", date: null, startTime: null, endTime: null });
+    const unplaced = makeItem({ id: "item-41", bookingStateSet: false, title: "Unplaced Idea", date: null, startTime: null, endTime: null, stopId: "stop-1", stopName: "Paris" });
     render(
       <WishlistBoard
         tripId={TRIP_ID}
@@ -565,9 +565,9 @@ describe("WishlistBoard — Schedule offers that place's days (spec 2026-10-05 �
   const REAL_ROME = { id: "real-rome", name: "Rome", arriveDate: "2026-09-01", departDate: "2026-09-02" };
   const FORK_ROME = { id: "fork-rome", name: "Rome", lat: 41.9, lng: 12.5, arriveDate: "2026-09-19", departDate: "2026-09-21" };
   const FLORENCE_ROUGH = { id: "flo", name: "Florence", lat: 43.77, lng: 11.25, arriveDate: null, departDate: null };
-  const COLOSSEUM = makeItem({ id: "idea-col", title: "Colosseum", date: null, startTime: null, endTime: null, stopId: null, stopName: null, lat: 41.89, lng: 12.49 });
+  const COLOSSEUM = makeItem({ id: "idea-col", bookingStateSet: false, title: "Colosseum", date: null, startTime: null, endTime: null, stopId: null, stopName: null, lat: 41.89, lng: 12.49 });
   const UFFIZI = makeItem({
-    id: "idea-uff", title: "Uffizi", date: null, startTime: null, endTime: null, stopId: null, stopName: null,
+    id: "idea-uff", title: "Uffizi", date: null, startTime: null, endTime: null, stopId: null, stopName: null, bookingStateSet: false,
     lat: 43.768, lng: 11.255, address: "Piazzale degli Uffizi", link: "https://uffizi.it", notes: "Book ahead",
   });
 

@@ -24,7 +24,7 @@ describe("DayEntryLink", () => {
   it("is a button that opens the Item dialog for an item", async () => {
     const user = userEvent.setup();
     render(
-      <DayEntryLink editor={editor} attachments={[]} target={{ kind: "item", item: { id: "i1", title: "Tower", category: "SIGHTSEEING" } }}>
+      <DayEntryLink editor={editor} attachments={[]} target={{ kind: "item", item: { id: "i1", bookingStateSet: false, title: "Tower", category: "SIGHTSEEING" } }}>
         Tower
       </DayEntryLink>,
     );
@@ -36,7 +36,7 @@ describe("DayEntryLink", () => {
   it("opens the Transport dialog for a transport", async () => {
     const user = userEvent.setup();
     render(
-      <DayEntryLink editor={editor} attachments={[]} target={{ kind: "transport", transport: { id: "tr1", mode: "TRAIN", sortOrder: 0 } }}>
+      <DayEntryLink editor={editor} attachments={[]} target={{ kind: "transport", transport: { id: "tr1", bookingStateSet: false, mode: "TRAIN", sortOrder: 0 } }}>
         Departs — Train
       </DayEntryLink>,
     );
@@ -52,7 +52,7 @@ describe("DayEntryLink", () => {
         attachments={[]}
         target={{
           kind: "accommodation",
-          accommodation: { id: "a1", stopId: "s1", name: "Hotel", checkIn: "2026-12-08", checkOut: "2026-12-10" },
+          accommodation: { id: "a1", bookingStateSet: false, stopId: "s1", name: "Hotel", checkIn: "2026-12-08", checkOut: "2026-12-10" },
           stopDateRange: { arriveDate: "2026-12-08", departDate: "2026-12-10" },
         }}
       >

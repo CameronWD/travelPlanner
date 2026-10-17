@@ -37,6 +37,8 @@ export interface TransportPreview {
   depAt: Date | null;
   arrAt: Date | null;
   reference: string | null;
+  /** A Proposal's Booking state is a choice when it has one (components/trip/booking-state-field.tsx seedFromProposal). */
+  bookingStateSet: boolean;
   notes: string | null;
   sortOrder: number;
   fromStopName: string | null;
@@ -70,6 +72,7 @@ export function transportPreview(
       depAt: wallTimeToInstant(input.depAt, depTz),
       arrAt: wallTimeToInstant(input.arrAt, arrTz),
       reference: input.reference ?? null,
+      bookingStateSet: input.bookingState !== undefined,
       notes: input.notes ?? null,
       sortOrder: 0,
       fromStopName: from?.name ?? null,

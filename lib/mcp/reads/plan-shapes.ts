@@ -341,7 +341,7 @@ function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: S
 }
 
 /** A dated thing to do on a day (get_trip_plan's `days[].items`, get_day's timeline). Its `openingHours` has already been parsed at the row edge (`StopDayItem.openingHours` is the model, never the stored string). */
-export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpDayItem {
+export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpDayItem {
   return {
     id: i.id, title: i.title, category: i.category,
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,

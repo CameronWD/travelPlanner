@@ -5,8 +5,8 @@ import { StopSheet, pickTopDay } from "./stop-sheet";
 import { daySlots } from "@/lib/plan/day-density";
 
 const PARIS = { id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null };
-const ITEMS = [{ id: "a", title: "Check in", category: "OTHER", date: "2026-12-10", startTime: "15:00" }, { id: "b", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
-const IDEAS = [{ id: "i1", title: "Musée d'Orsay", category: "SIGHTSEEING" }];
+const ITEMS = [{ id: "a", bookingStateSet: false, title: "Check in", category: "OTHER", date: "2026-12-10", startTime: "15:00" }, { id: "b", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
+const IDEAS = [{ id: "i1", bookingStateSet: false, title: "Musée d'Orsay", category: "SIGHTSEEING" }];
 const COVERED = { kind: "covered" as const, name: "Grands Boulevards", totalNights: 2, coveredNights: 2, extra: 0, checkInTime: null };
 function renderSheet(p = {}) {
   const props = { open: true, onClose: vi.fn(), stop: PARIS, number: 2, slots: daySlots(PARIS, ITEMS), dayItems: ITEMS, ideas: IDEAS, stay: COVERED,
@@ -154,7 +154,7 @@ describe("StopSheet, a Surprise (CONTEXT.md Surprise)", () => {
   });
 
   it("a surprised Item is a plain row titled Surprise with its badge, not a button", () => {
-    const placeholder = { id: "s1", title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: VIEW };
+    const placeholder = { id: "s1", bookingStateSet: false, title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: VIEW };
     const { props } = renderSheet({ dayItems: [placeholder] });
     const fri = screen.getByTestId("sheet-day-2026-12-11");
     expect(within(fri).getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();

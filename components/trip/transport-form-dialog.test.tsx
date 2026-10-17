@@ -44,7 +44,7 @@ const baseProps = {
 };
 
 const existingTransport: TransportCardTransport = {
-  id: "transport-99",
+  id: "transport-99", bookingStateSet: false,
   mode: "TRAIN",
   fromStopId: "stop-a",
   toStopId: "stop-b",
@@ -920,7 +920,7 @@ describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   const transportWithAnchor: TransportCardTransport = {
-    id: "transport-99",
+    id: "transport-99", bookingStateSet: false,
     mode: "TRAIN",
     fromStopId: "stop-a",
     toStopId: "stop-b",
@@ -1028,7 +1028,7 @@ describe("TransportFormDialog: homeBaseName", () => {
       <TransportFormDialog
         open
         tripId="t1"
-        transport={{ id: "tr1", mode: "FLIGHT", sortOrder: 0 }}
+        transport={{ id: "tr1", bookingStateSet: false, mode: "FLIGHT", sortOrder: 0 }}
         attachments={[]}
         stops={[]}
         onOpenChange={() => {}}
@@ -1081,7 +1081,7 @@ describe("TransportFormDialog: homeBaseName", () => {
 
 describe("TransportFormDialog: homeTimezone (Task 7)", () => {
   const homeLeg: TransportCardTransport = {
-    id: "transport-home",
+    id: "transport-home", bookingStateSet: false,
     mode: "FLIGHT",
     depIsHome: true,
     toStopId: "dps",
@@ -1299,7 +1299,7 @@ describe("transport sheet (PLAN.md §7.5)", () => {
   it("edit: Train to Florence, Save, Delete leg", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
-    render(<TransportFormDialog tripId="t" stops={STOPS} transport={{ id: "tr1", mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }} open onOpenChange={vi.fn()} onDelete={onDelete} />);
+    render(<TransportFormDialog tripId="t" stops={STOPS} transport={{ id: "tr1", bookingStateSet: false, mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }} open onOpenChange={vi.fn()} onDelete={onDelete} />);
     expect(screen.getByRole("dialog", { name: "Train to Florence" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete leg" }));
@@ -1329,7 +1329,7 @@ describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", ()
         tripId="t"
         stops={STOPS}
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "CAR",
           fromStopId: "rom",
           toStopId: "flo",
@@ -1359,7 +1359,7 @@ describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", ()
         tripId="t"
         stops={STOPS}
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "CAR",
           fromStopId: "rom",
           toStopId: "flo",
@@ -1417,7 +1417,7 @@ describe("transport sheet (PLAN.md §7.5): collapsed cost submit and existing-co
       <TransportFormDialog
         tripId="t"
         stops={STOPS}
-        transport={{ id: "tr1", mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }}
+        transport={{ id: "tr1", bookingStateSet: false, mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }}
         costs={[
           {
             id: "c1",
@@ -1514,7 +1514,7 @@ describe("TransportFormDialog: position picker shows the resolved slot (spec 202
     { id: "stop-c", name: "Rome" },
   ];
   const leg = (o: Partial<TransportCardTransport>): TransportCardTransport => ({
-    id: "transport-99",
+    id: "transport-99", bookingStateSet: false,
     mode: "TRAIN",
     fromStopId: null,
     toStopId: null,
@@ -1749,7 +1749,7 @@ describe("TransportFormDialog: a Stop end keeps its departure/arrival point (Tas
   ];
 
   const legWithPoints: TransportCardTransport = {
-    id: "t-points",
+    id: "t-points", bookingStateSet: false,
     mode: "TRAIN",
     fromStopId: "paris",
     toStopId: "london",
@@ -1890,7 +1890,7 @@ describe("TransportFormDialog: Proposal mode (Booking import)", () => {
     render(
       <TransportFormDialog
         tripId="t" stops={STOPS} open onOpenChange={vi.fn()}
-        transport={{ id: "tr-1", mode: "FLIGHT", fromStopId: "rom", toStopId: "flo", depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: "SAVED", notes: null, sortOrder: 0, anchorStopId: "rom" } as unknown as TransportCardTransport}
+        transport={{ id: "tr-1", bookingStateSet: false, mode: "FLIGHT", fromStopId: "rom", toStopId: "flo", depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: "SAVED", notes: null, sortOrder: 0, anchorStopId: "rom" } as unknown as TransportCardTransport}
         initialValues={{ mode: "TRAIN", reference: "ABC" }}
       />,
     );

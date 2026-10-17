@@ -9,14 +9,14 @@ describe("toItemCardItem", () => {
   });
 
   it("an idea that never read it carries nulls", () => {
-    expect(toItemCardItem({ id: "i", title: "T", category: "FOOD" })).toMatchObject({ bookingState: null, bookingStateSet: null, bookBy: null });
+    expect(toItemCardItem({ id: "i", title: "T", category: "FOOD", bookingStateSet: false })).toMatchObject({ bookingState: null, bookingStateSet: false, bookBy: null });
   });
 
   it("hands the edit dialog the Item's Slot time, so saving another field never clears it (R3)", () => {
     expect(
-      toItemCardItem({ id: "i1", title: "Tour", category: "ACTIVITY", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }),
+      toItemCardItem({ id: "i1", bookingStateSet: false, title: "Tour", category: "ACTIVITY", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }),
     ).toMatchObject({ slotTime: "12:00", arriveByMinutes: 15, refundable: false });
-    expect(toItemCardItem({ id: "i2", title: "Walk", category: "OTHER" })).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: null });
+    expect(toItemCardItem({ id: "i2", bookingStateSet: false, title: "Walk", category: "OTHER" })).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: null });
   });
 
   it("carries the opening hours to the edit dialog", () => {
@@ -25,7 +25,7 @@ describe("toItemCardItem", () => {
       seasons: [],
       closed: [],
     };
-    expect(toItemCardItem({ id: "i1", title: "Market", category: "FOOD", openingHours: hours }).openingHours).toEqual(hours);
-    expect(toItemCardItem({ id: "i2", title: "Walk", category: "OTHER" }).openingHours).toBeNull();
+    expect(toItemCardItem({ id: "i1", bookingStateSet: false, title: "Market", category: "FOOD", openingHours: hours }).openingHours).toEqual(hours);
+    expect(toItemCardItem({ id: "i2", bookingStateSet: false, title: "Walk", category: "OTHER" }).openingHours).toBeNull();
   });
 });

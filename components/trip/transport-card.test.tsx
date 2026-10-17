@@ -24,14 +24,14 @@ vi.mock("@/server/actions/attachments", () => ({
 
 import { TransportCard } from "./transport-card";
 
-const base = { id: "t1", mode: "CAR" as const, sortOrder: 0 };
+const base = { id: "t1", bookingStateSet: false, mode: "CAR" as const, sortOrder: 0 };
 
 describe("TransportCard timezone labels + cross-zone marker", () => {
   it("labels dep/arr with their zone and a +1 day marker for overnight cross-zone flights", () => {
     render(
       <TransportCard
         transport={{
-          id: "t1", mode: "FLIGHT" as const, sortOrder: 0,
+          id: "t1", mode: "FLIGHT" as const, sortOrder: 0, bookingStateSet: false,
           depAt: new Date("2026-08-05T18:00:00Z"), arrAt: new Date("2026-08-06T07:30:00Z"),
           fromStopTimezone: "Europe/Rome", toStopTimezone: "Asia/Tokyo",
         }}
@@ -73,7 +73,7 @@ describe("TransportCard home-base labels", () => {
     render(
       <TransportCard
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "FLIGHT" as const,
           depIsHome: true,
           toStopId: "s1",
@@ -93,7 +93,7 @@ describe("TransportCard Stop + point label (Task 11)", () => {
     render(
       <TransportCard
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "FLIGHT" as const,
           sortOrder: 0,
           fromStopId: "s1",
@@ -112,7 +112,7 @@ describe("TransportCard Stop + point label (Task 11)", () => {
     render(
       <TransportCard
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "FLIGHT" as const,
           sortOrder: 0,
           depPlace: "Milan Malpensa (MXP)",
@@ -131,7 +131,7 @@ describe("TransportCard home-base timezone (Task 7)", () => {
     render(
       <TransportCard
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "FLIGHT" as const,
           depIsHome: true,
           toStopId: "s1",
@@ -151,7 +151,7 @@ describe("TransportCard home-base timezone (Task 7)", () => {
     render(
       <TransportCard
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "FLIGHT" as const,
           depIsHome: true,
           toStopId: "s1",
@@ -171,7 +171,7 @@ describe("TransportCard NoteThread", () => {
   it("renders a note thread trigger for a transport", () => {
     render(
       <TransportCard
-        transport={{ id: "tr1", mode: "FLIGHT" as const, sortOrder: 0 }}
+        transport={{ id: "tr1", bookingStateSet: false, mode: "FLIGHT" as const, sortOrder: 0 }}
         tripId="t1"
         currentUserId="u1"
         notes={[]}
@@ -183,7 +183,7 @@ describe("TransportCard NoteThread", () => {
   it("does not render note thread trigger when notes prop is absent", () => {
     render(
       <TransportCard
-        transport={{ id: "tr1", mode: "FLIGHT" as const, sortOrder: 0 }}
+        transport={{ id: "tr1", bookingStateSet: false, mode: "FLIGHT" as const, sortOrder: 0 }}
         tripId="t1"
         currentUserId="u1"
       />,
@@ -197,7 +197,7 @@ describe("TransportCard placeless leg — no duplicate mode label", () => {
     render(
       <TransportCard
         transport={{
-          id: "t1",
+          id: "t1", bookingStateSet: false,
           mode: "TRAIN" as const,
           sortOrder: 0,
           // no depPlace, arrPlace, depIsHome, arrIsHome, fromStopName, toStopName
@@ -213,7 +213,7 @@ describe("TransportCard placeless leg — no duplicate mode label", () => {
     render(
       <TransportCard
         transport={{
-          id: "t1",
+          id: "t1", bookingStateSet: false,
           mode: "TRAIN" as const,
           sortOrder: 0,
           reference: "TK123",
@@ -242,7 +242,7 @@ describe("TransportCard Bold-Modular D3 visual spec", () => {
     render(
       <TransportCard
         transport={{
-          id: "t1",
+          id: "t1", bookingStateSet: false,
           mode: "TRAIN" as const,
           sortOrder: 0,
           depPlace: "Kyoto",
@@ -259,7 +259,7 @@ describe("TransportCard Bold-Modular D3 visual spec", () => {
     const { container } = render(
       <TransportCard
         transport={{
-          id: "t1",
+          id: "t1", bookingStateSet: false,
           mode: "TRAIN" as const,
           sortOrder: 0,
           depPlace: "Kyoto",
@@ -307,7 +307,7 @@ describe("TransportCard highlight (Booking import)", () => {
   it("marks the highlighted fields and nothing else", () => {
     const { container } = render(
       <TransportCard
-        transport={{ id: "p1", mode: "FLIGHT", sortOrder: 0, depPlace: "Brisbane (BNE)", arrPlace: "Lisbon (LIS)", reference: "QX7P2M", notes: "SK101", depAt: new Date("2026-12-01T00:00:00Z"), arrAt: new Date("2026-12-02T07:15:00Z"), fromStopTimezone: "Australia/Brisbane", toStopTimezone: "Europe/Lisbon" }}
+        transport={{ id: "p1", bookingStateSet: false, mode: "FLIGHT", sortOrder: 0, depPlace: "Brisbane (BNE)", arrPlace: "Lisbon (LIS)", reference: "QX7P2M", notes: "SK101", depAt: new Date("2026-12-01T00:00:00Z"), arrAt: new Date("2026-12-02T07:15:00Z"), fromStopTimezone: "Australia/Brisbane", toStopTimezone: "Europe/Lisbon" }}
         highlight={["depAt", "reference"]}
       />,
     );

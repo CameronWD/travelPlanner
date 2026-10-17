@@ -23,7 +23,7 @@ import { MotionProvider } from "@/components/ui/motion-provider";
 
 const PARIS = { id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-14", nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null };
 const MUNICH = { ...PARIS, id: "mun", name: "Munich", arriveDate: null, departDate: null, nights: 5, timezone: null };
-const ITEMS = [{ id: "a", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
+const ITEMS = [{ id: "a", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
 const baseProps = (over = {}) => ({
   tripId: "t1", stop: PARIS, slots: daySlots(PARIS, ITEMS), dayItems: ITEMS, ideas: [], accommodations: [],
   counts: { files: 2, notes: 3, reminders: 1 }, showDragHint: false,
@@ -96,14 +96,14 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
   });
 
   it("the drag hint shows once, under the first day with plans", () => {
-    const items = [...ITEMS, { id: "b", title: "Orsay", category: "SIGHTSEEING", date: "2026-12-13" }];
+    const items = [...ITEMS, { id: "b", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING", date: "2026-12-13" }];
     wrap(<StopOpenBody {...baseProps({ dayItems: items, slots: daySlots(PARIS, items), showDragHint: true })} />);
     expect(screen.getAllByText("Drag a plan onto another day to move it")).toHaveLength(1);
     expect(within(day("FRI 11 DEC")).getByText("Drag a plan onto another day to move it")).toBeInTheDocument();
   });
 
   it("the drag hint skips a folded day: it sits under the first open day with plans", () => {
-    const items = [...ITEMS, { id: "b", title: "Orsay", category: "SIGHTSEEING", date: "2026-12-13" }];
+    const items = [...ITEMS, { id: "b", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING", date: "2026-12-13" }];
     setDayCollapsed("t1", "par", "2026-12-11", true);
     wrap(<StopOpenBody {...baseProps({ dayItems: items, slots: daySlots(PARIS, items), showDragHint: true })} />);
     expect(screen.getAllByText("Drag a plan onto another day to move it")).toHaveLength(1);
@@ -148,7 +148,7 @@ describe("StopOpenBody (PLAN.md §4, §5; spec D2; spec 2026-10-04 §A)", () => 
   });
 
   it("an empty day's or pick an idea schedules the Stop's idea onto that day", async () => {
-    const props = baseProps({ ideas: [{ id: "i1", title: "Orsay", category: "SIGHTSEEING" }] });
+    const props = baseProps({ ideas: [{ id: "i1", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING" }] });
     wrap(<StopOpenBody {...props} />);
     await userEvent.click(within(day("SAT 12 DEC")).getByRole("button", { name: "or pick an idea" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Orsay" }));
@@ -247,7 +247,7 @@ describe("StopOpenBody folds after hydration (spec 2026-10-04 §A)", () => {
 });
 
 describe("StopOpenBody top row (spec 2026-10-04 §B)", () => {
-  const HOTEL = { id: "acc1", stopId: "par", name: "Hôtel Grands Boulevards", checkIn: "2026-12-10", checkOut: "2026-12-14", checkInTime: "15:00" };
+  const HOTEL = { id: "acc1", bookingStateSet: false, stopId: "par", name: "Hôtel Grands Boulevards", checkIn: "2026-12-10", checkOut: "2026-12-14", checkInTime: "15:00" };
 
   it("stay panel then ideas box: equal columns from a 640px-wide card, stacked (stay first) below — by container query", () => {
     wrap(<StopOpenBody {...baseProps()} />);
