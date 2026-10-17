@@ -76,9 +76,10 @@ const INFO_PRIORITY = 30;
 const addTransportHref = (base: string, from: string, to: string) =>
   tripSubPath(base, `/plan?add=transport&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 
-/** Where a Flag is fixed (spec 2026-10-06 §F): its day, its missing leg's form, or its Stop on the plan. */
+/** Where a Flag is fixed (spec 2026-10-06 §F): its day, its missing leg's form, or its Stop on the plan. An Item Flag opens the Item's day (spec 2026-10-17 R7); an undated thing to do, its Stop. */
 export function flagHref(flag: Flag, base: string): Route {
   if (flag.targetType === "DAY") return flag.date ? tripSubPath(base, `/day/${flag.date}`) : tripSubPath(base, "/calendar");
+  if (flag.targetType === "ITEM" && flag.date) return tripSubPath(base, `/day/${flag.date}`);
   if (flag.connection) return addTransportHref(base, flag.connection.from, flag.connection.to);
   const stopId = flag.targetType === "STOP" ? flag.targetId : flag.stopId;
   if (stopId && flag.targetType !== "TRIP") return tripSubPath(base, `/plan?stop=${encodeURIComponent(stopId)}`);

@@ -62,7 +62,8 @@ function buildLink(flag: Flag, basePath: Route): Route | null {
     case "STOP":
     case "TRANSPORT":
     case "ACCOMMODATION":
-      // Spec 2026-10-06 §F: land on the Stop (or the missing leg's form), not the Home.
+    case "ITEM":
+      // Spec 2026-10-06 §F: land on the Stop (or the missing leg's form), not the Home. An Item Flag opens its day (spec 2026-10-17 R7).
       return flagHref(flag, basePath);
     case "DAY":
       if (flag.date) {

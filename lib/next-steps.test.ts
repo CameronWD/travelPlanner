@@ -130,6 +130,14 @@ describe("flagHref (spec 2026-10-06 §F)", () => {
     expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRIP" }, base)).toBe("/trips/t/plan");
     expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "TRANSPORT" }, base)).toBe("/trips/t/plan");
   });
+  it("an ITEM Flag opens the Item's day; an undated thing to do opens its Stop (spec 2026-10-17 R7)", () => {
+    expect(flagHref({ id: "x", severity: "warning", message: "m", targetType: "ITEM", targetId: "i1", date: "2026-07-02", stopId: "s1" }, base))
+      .toBe("/trips/t/day/2026-07-02");
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "ITEM", targetId: "i1", stopId: "s1" }, base))
+      .toBe("/trips/t/plan?stop=s1");
+    expect(flagHref({ id: "x", severity: "info", message: "m", targetType: "ITEM", targetId: "i1" }, base))
+      .toBe("/trips/t/plan");
+  });
   it("outbound/return nudges open the Add-transport form when the Stop ids are known", () => {
     const steps = buildNextSteps({
       flags: [], phase: "planning", tripBasePath: base, limit: 10,

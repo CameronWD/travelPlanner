@@ -24,6 +24,7 @@ type FlagTargetType =
   | "STOP"
   | "TRANSPORT"
   | "ACCOMMODATION"
+  | "ITEM"
   | "DAY"
   | "TRIP";
 
@@ -34,7 +35,7 @@ export interface Flag {
   targetType: FlagTargetType;
   /** Id of the entity this flag points to, if applicable. */
   targetId?: string;
-  /** For DAY flags: the ISO date string. */
+  /** For DAY flags: the ISO date string. For ITEM flags: the Item's day, when it has one. */
   date?: string;
   /** The Stop the plan editor opens to fix this (spec 2026-10-06 §F) — set where targetId isn't a Stop. */
   stopId?: string;
