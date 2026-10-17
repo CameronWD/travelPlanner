@@ -1387,3 +1387,61 @@ describe("ItemFormDialog: Reminders (F8)", () => {
     expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
   });
 });
+
+describe("ItemFormDialog: Booking state (spec 2026-10-17 R2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a new thing to do needs no booking; choosing To book with a date sends both", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    expect(screen.getByRole("radio", { name: "No booking needed" })).toHaveAttribute("data-state", "on");
+    await user.type(screen.getByLabelText(/^title/i), "Lodge tour");
+    await user.click(screen.getByRole("radio", { name: "To book" }));
+    await user.type(screen.getByLabelText("Book by"), "2027-05-20");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1]).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-20" });
+  });
+
+  it("a booking reference on an un-chosen thing previews Booked and sends no state", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/^title/i), "Museum");
+    await user.type(screen.getByLabelText(/booking reference/i), "BK-1");
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1].bookingState).toBeUndefined();
+    expect(vi.mocked(createItem).mock.calls[0][1].bookBy).toBeUndefined();
+  });
+
+  it("an edit of a To book thing whose date is cleared sends bookBy null (PATCH)", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" }} />);
+    await user.clear(screen.getByLabelText("Book by"));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith(existingItem.id, expect.objectContaining({ bookingState: "TO_BOOK", bookBy: null }));
+  });
+
+  it("an edit of a To book thing with a date, marked Booked, sends bookBy null so the server does not refuse it", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" }} />);
+    await user.click(screen.getByRole("radio", { name: "Booked" }));
+    expect(screen.queryByLabelText("Book by")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith(existingItem.id, expect.objectContaining({ bookingState: "BOOKED", bookBy: null }));
+  });
+
+  it("a Proposal opens Booked and confirms Booked", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        initialValues={{ title: "Museum ticket", category: "SIGHTSEEING", bookingState: "BOOKED" }}
+        onSubmitOverride={onSubmitOverride}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ bookingState: "BOOKED" }));
+  });
+});

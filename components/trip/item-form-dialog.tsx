@@ -36,6 +36,7 @@ import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
 import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
+import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import type { ProposedItemInput } from "@/lib/booking-import/types";
 import type { ItemInput } from "@/lib/validations/item";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
@@ -316,7 +317,8 @@ function ItemPhotoField({
 }
 
 /** An edit's empty fields are clears (ADR 0075). Not surpriseForIds (omitted = leave the Surprise alone). */
-const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "address", "link", "booking", "notes", "paidAt"] as const;
+// `bookingState` is deliberately absent: a null would hand a choice back to automatic; an un-chosen state is simply not sent.
+const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "address", "link", "booking", "notes", "paidAt", "bookBy"] as const;
 
 // ---------------------------------------------------------------------------
 // Dialog wrapper
@@ -526,6 +528,7 @@ function ItemForm({
   const [address, setAddress] = React.useState(item?.address ?? proposed?.address ?? "");
   const [link, setLink] = React.useState(item?.link ?? "");
   const [booking, setBooking] = React.useState(item?.booking ?? proposed?.booking ?? "");
+  const bookingField = useBookingStateField("ITEM", item ?? seedFromProposal(proposed), booking);
   const [notes, setNotes] = React.useState(item?.notes ?? proposed?.notes ?? "");
   const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
   // CONTEXT.md Surprise: who this Item is a surprise for. Kept sorted so a tick and untick is no change.
@@ -539,7 +542,7 @@ function ItemForm({
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, surpriseForIds, cost: cost.dirtyValues });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, surpriseForIds, cost: cost.dirtyValues });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -559,6 +562,7 @@ function ItemForm({
       address: address.trim() || undefined,
       link: link.trim() || undefined,
       booking: booking.trim() || undefined,
+      ...bookingField.payload(),
       notes: notes.trim() || undefined,
       hiddenFromShares,
       // Only a change is sent: an unchanged set leaves the Surprise alone (and lets a helper edit the Item).
@@ -789,6 +793,9 @@ function ItemForm({
           />
         </Field>
       </div>
+
+      {/* Booking state (CONTEXT.md): a reference implies Booked until the Traveller picks. */}
+      <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
 
       {/* Notes */}
       <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">
