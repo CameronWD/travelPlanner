@@ -19,6 +19,13 @@
  * supplied: the actions take a PATCH (ADR 0075) and merge onto the row they
  * hold — `hiddenFromShares` included, which an earlier replace-shaped
  * `updateItem` reset.
+ *
+ * Every write except `add_note` goes through `runWrite` and returns its row
+ * as it now stands (spec 2026-10-16 F6): `{ item }` (get_item's shape; a
+ * schedule or place returns the placed copy), `{ idea }`, `{ chapter }`,
+ * `{ itemId, votes }` for a Vote, `{ stopId, day }` for a Day title, and
+ * `{ deleted }` for a delete (with `ideaId` when an unschedule removed a
+ * placed copy).
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -40,7 +47,9 @@ import { voteLevelSchema, targetTypeSchema } from "@/lib/enums";
 import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { VOTE_LEVELS } from "@/lib/enum-values";
-import { runTool } from "../run-tool";
+import { runTool, runWrite } from "../run-tool";
+import { loadItemForMcp, loadStopForMcp, loadChapterForMcp } from "../reads/entities";
+import { loadWishlistIdeaForMcp, loadVotesForMcp } from "../reads/lists";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
@@ -91,10 +100,14 @@ export function registerPlanWriteTools(server: McpServer): void {
       inputSchema: { tripId: z.string(), ...itemCreateShape },
     },
     ({ tripId, ...rest }) =>
-      runTool("add_thing_to_do", async () => {
-        await requireRealPlanRows([["stop", rest.stopId]]);
-        return createItem(tripId, rest);
-      }),
+      runWrite(
+        "add_thing_to_do",
+        async () => {
+          await requireRealPlanRows([["stop", rest.stopId]]);
+          return createItem(tripId, rest);
+        },
+        async (done) => ({ item: await loadItemForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -106,13 +119,17 @@ export function registerPlanWriteTools(server: McpServer): void {
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
     ({ itemId, ...patch }) =>
-      runTool("update_thing_to_do", async () => {
-        await requireRealPlanRows([
-          ["item", itemId],
-          ["stop", patch.stopId],
-        ]);
-        return updateItem(itemId, patch);
-      }),
+      runWrite(
+        "update_thing_to_do",
+        async () => {
+          await requireRealPlanRows([
+            ["item", itemId],
+            ["stop", patch.stopId],
+          ]);
+          return updateItem(itemId, patch);
+        },
+        async () => ({ item: await loadItemForMcp(itemId) }),
+      ),
   );
 
   server.registerTool(
@@ -123,10 +140,15 @@ export function registerPlanWriteTools(server: McpServer): void {
       inputSchema: { itemId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ itemId }) => runTool("delete_thing_to_do", async () => {
-        await requireRealPlanRow("item", itemId);
-        return deleteItem(itemId);
-      }),
+    ({ itemId }) =>
+      runWrite(
+        "delete_thing_to_do",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return deleteItem(itemId);
+        },
+        async () => ({ deleted: itemId }),
+      ),
   );
 
   server.registerTool(
@@ -138,10 +160,14 @@ export function registerPlanWriteTools(server: McpServer): void {
       inputSchema: { itemId: z.string(), date: isoDate, startTime: hhmm.optional(), endTime: hhmm.optional() },
     },
     ({ itemId, date, startTime, endTime }) =>
-      runTool("schedule_thing_to_do", async () => {
-        await requireRealPlanRow("item", itemId);
-        return scheduleItem(itemId, { date, startTime, endTime });
-      }),
+      runWrite(
+        "schedule_thing_to_do",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return scheduleItem(itemId, { date, startTime, endTime });
+        },
+        async (done) => ({ item: await loadItemForMcp(done.placedItemId ?? itemId) }),
+      ),
   );
 
   server.registerTool(
@@ -152,10 +178,18 @@ export function registerPlanWriteTools(server: McpServer): void {
         "Removes a thing to do from its date. A placed Wishlist idea's placement is removed (the idea survives in the Wishlist); a directly-added thing to do just loses its date.",
       inputSchema: { itemId: z.string() },
     },
-    ({ itemId }) => runTool("unschedule_thing_to_do", async () => {
-        await requireRealPlanRow("item", itemId);
-        return unscheduleItem(itemId);
-      }),
+    ({ itemId }) =>
+      runWrite(
+        "unschedule_thing_to_do",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return unscheduleItem(itemId);
+        },
+        async (done) =>
+          done.mode === "placement-removed"
+            ? { deleted: itemId, ideaId: done.sourceItemId ?? null }
+            : { item: await loadItemForMcp(itemId) },
+      ),
   );
 
   server.registerTool(
@@ -165,13 +199,18 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Copies a Wishlist idea onto a Stop's things to do, with no date. The idea stays in the Wishlist.",
       inputSchema: { itemId: z.string(), stopId: z.string() },
     },
-    ({ itemId, stopId }) => runTool("place_idea_at_stop", async () => {
-        await requireRealPlanRows([
-          ["item", itemId],
-          ["stop", stopId],
-        ]);
-        return placeIdeaAtStop(itemId, stopId);
-      }),
+    ({ itemId, stopId }) =>
+      runWrite(
+        "place_idea_at_stop",
+        async () => {
+          await requireRealPlanRows([
+            ["item", itemId],
+            ["stop", stopId],
+          ]);
+          return placeIdeaAtStop(itemId, stopId);
+        },
+        async (done) => ({ item: await loadItemForMcp(done.placedItemId ?? itemId) }),
+      ),
   );
 
   server.registerTool(
@@ -181,7 +220,12 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Copies a Globe Marker into the trip's Wishlist, the ideas not yet placed.",
       inputSchema: { markerId: z.string(), tripId: z.string() },
     },
-    ({ markerId, tripId }) => runTool("add_marker_to_wishlist", () => addMarkerToWishlist(markerId, tripId)),
+    ({ markerId, tripId }) =>
+      runWrite(
+        "add_marker_to_wishlist",
+        () => addMarkerToWishlist(markerId, tripId),
+        async (done) => ({ idea: await loadWishlistIdeaForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -191,10 +235,15 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Sets the acting Traveller's vote on a Wishlist idea.",
       inputSchema: { tripId: z.string(), itemId: z.string(), level: describedVoteLevel },
     },
-    ({ tripId, itemId, level }) => runTool("set_vote", async () => {
-        await requireRealPlanRow("item", itemId);
-        return setVote(tripId, itemId, level);
-      }),
+    ({ tripId, itemId, level }) =>
+      runWrite(
+        "set_vote",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return setVote(tripId, itemId, level);
+        },
+        () => loadVotesForMcp(itemId),
+      ),
   );
 
   server.registerTool(
@@ -204,10 +253,15 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Clears the acting Traveller's vote on a Wishlist idea.",
       inputSchema: { tripId: z.string(), itemId: z.string() },
     },
-    ({ tripId, itemId }) => runTool("clear_vote", async () => {
-        await requireRealPlanRow("item", itemId);
-        return clearVote(tripId, itemId);
-      }),
+    ({ tripId, itemId }) =>
+      runWrite(
+        "clear_vote",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return clearVote(tripId, itemId);
+        },
+        () => loadVotesForMcp(itemId),
+      ),
   );
 
   server.registerTool(
@@ -217,10 +271,15 @@ export function registerPlanWriteTools(server: McpServer): void {
       description: "Sets the Day title for one calendar day of a Stop's stay. An empty title clears it.",
       inputSchema: { stopId: z.string(), date: isoDate, title: z.string() },
     },
-    ({ stopId, date, title }) => runTool("set_day_title", async () => {
-        await requireRealPlanRow("stop", stopId);
-        return setDayTitle({ stopId, date, title });
-      }),
+    ({ stopId, date, title }) =>
+      runWrite(
+        "set_day_title",
+        async () => {
+          await requireRealPlanRow("stop", stopId);
+          return setDayTitle({ stopId, date, title });
+        },
+        async () => ({ stopId, day: (await loadStopForMcp(stopId)).days.find((d) => d.date === date) ?? null }),
+      ),
   );
 
   server.registerTool(
@@ -247,7 +306,12 @@ export function registerPlanWriteTools(server: McpServer): void {
         endDate: isoDate.optional(),
       },
     },
-    ({ tripId, ...rest }) => runTool("add_chapter", () => createChapter(tripId, rest)),
+    ({ tripId, ...rest }) =>
+      runWrite(
+        "add_chapter",
+        () => createChapter(tripId, rest),
+        async (done) => ({ chapter: await loadChapterForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -264,9 +328,13 @@ export function registerPlanWriteTools(server: McpServer): void {
       },
     },
     ({ chapterId, ...patch }) =>
-      runTool("update_chapter", async () => {
-        await requireRealPlanRow("chapter", chapterId);
-        return updateChapter(chapterId, patch);
-      }),
+      runWrite(
+        "update_chapter",
+        async () => {
+          await requireRealPlanRow("chapter", chapterId);
+          return updateChapter(chapterId, patch);
+        },
+        async () => ({ chapter: await loadChapterForMcp(chapterId) }),
+      ),
   );
 }
