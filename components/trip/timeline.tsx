@@ -36,6 +36,7 @@ import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/compon
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
+import { SlotFacts } from "@/components/trip/slot-facts";
 import type { ItemDirections } from "@/lib/day-map";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
@@ -603,6 +604,7 @@ function DayItemBody({
       <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-muted-foreground">
         <CategoryPill category={item.category as Category} size="sm" />
         {timeLabel && <span className="tabular-nums">{timeLabel}</span>}
+        <SlotFacts item={item} />
         {item.address && <span className="min-w-0 break-words">{item.address}</span>}
         {item.hiddenFromShares && (
           <span role="img" aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0">

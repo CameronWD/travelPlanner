@@ -12,6 +12,7 @@ import { useTripHref } from "@/components/trip/use-trip-href";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
+import { refundLabel, slotLabel } from "@/lib/slot-time";
 import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { formatDayLabel } from "@/lib/dates";
 import { plural } from "@/lib/plural";
@@ -256,7 +257,9 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
               · {owner}
             </span>
           )}
-          <span className="min-w-0 truncate text-xs text-muted-foreground">{item.address ?? item.notes?.split("\n")[0]}</span>
+          <span className="min-w-0 truncate text-xs text-muted-foreground">
+            {[slotLabel(item), item.address ?? item.notes?.split("\n")[0]].filter(Boolean).join(" · ")}
+          </span>
         </button>
       )}
       <div className="flex shrink-0 items-center gap-1.5">
@@ -266,6 +269,7 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
             Booked <Check className="size-3" />
           </span>
         )}
+        {refundLabel(item.refundable) && <span className="shrink-0 whitespace-nowrap text-xs font-bold">{refundLabel(item.refundable)}</span>}
         <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} compact />
         {rowCost && <span className="shrink-0 whitespace-nowrap text-xs font-bold tabular-nums">{rowCost}</span>}
         {item.photoUrl && <ItemPhotoThumb src={item.photoUrl} alt={item.title} />}

@@ -1238,3 +1238,24 @@ describe("Booking state on the Timeline (spec 2026-10-17 R2)", () => {
     expect(screen.getByText("Ichiran Ramen")).toBeInTheDocument();
   });
 });
+
+describe("Slot time on the Timeline (spec 2026-10-17 R3)", () => {
+  it("shows the slot and the margin, and Non-refundable; a Surprise placeholder shows neither", () => {
+    const day: DayPlan = {
+      ...dayPlan,
+      timedItems: [
+        {
+          kind: "item",
+          item: { ...dayPlan.timedItems[0]!.item, startTime: "11:45", endTime: null, slotTime: "12:00", arriveByMinutes: 15, refundable: false },
+        },
+        {
+          kind: "item",
+          item: { id: "item-secret", title: "Surprise", category: "OTHER", date: "2025-07-01", startTime: "19:00", surprise: { youAreSurprised: true, plannerId: "u1", plannerName: "Pat", forIds: ["u2"], forNames: ["Viv"] } },
+        },
+      ],
+    };
+    render(<Timeline day={day} variant="day" />);
+    expect(screen.getByText("Slot 12:00 · be there 11:45")).toBeInTheDocument();
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+  });
+});

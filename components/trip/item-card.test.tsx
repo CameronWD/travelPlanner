@@ -311,3 +311,20 @@ describe("ItemCard Booking state (spec 2026-10-17 R2)", () => {
     expect(screen.queryByText("To book")).not.toBeInTheDocument();
   });
 });
+
+describe("ItemCard Slot time (spec 2026-10-17 R3)", () => {
+  it("shows the slot, the margin and Non-refundable (scheduled mode)", () => {
+    render(
+      <ItemCard
+        mode="scheduled"
+        item={{ id: "i1", title: "Tour", category: "ACTIVITY", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }}
+      />,
+    );
+    expect(screen.getByText("Slot 12:00 · be there 11:45")).toBeInTheDocument();
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+  });
+  it("shows Non-refundable (wishlist mode)", () => {
+    render(<ItemCard item={{ ...baseItem, refundable: false }} mode="wishlist" />);
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+  });
+});

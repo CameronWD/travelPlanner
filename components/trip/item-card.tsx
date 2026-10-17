@@ -26,6 +26,7 @@ import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
 import { ItemPhotoThumb } from "./item-photo-thumb";
 import { BookingStateBadge } from "./booking-state-badge";
+import { SlotFacts } from "./slot-facts";
 import type { ItemCardItem } from "@/lib/plan-entity-views";
 
 export type { ItemCardItem };
@@ -219,6 +220,11 @@ export function ItemCard({
                 {item.stopName}
               </p>
             )}
+            {(item.slotTime || item.refundable === false) && (
+              <p className="mt-1 flex flex-wrap gap-x-2 text-xs font-semibold text-muted-foreground">
+                <SlotFacts item={item} highlight={highlight} />
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -236,6 +242,7 @@ export function ItemCard({
               {timeLabel}
             </span>
           )}
+          <SlotFacts item={item} highlight={highlight} />
           <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} />
         </div>
       )}

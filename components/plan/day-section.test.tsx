@@ -400,3 +400,11 @@ describe("DaySection Booking state (spec 2026-10-17 R2)", () => {
     expect(screen.getByText(/1 booked · 1 to book/)).toBeInTheDocument();
   });
 });
+
+describe("DaySection Slot time (spec 2026-10-17 R3)", () => {
+  it("a row with a ticket shows its slot in the sub line and Non-refundable beside Booked (R3)", () => {
+    renderDay({ items: [{ ...ITEMS[1], startTime: "09:45", slotTime: "10:00", arriveByMinutes: 15, refundable: false }] });
+    expect(screen.getByText("Slot 10:00 · be there 09:45 · Richelieu entrance")).toBeInTheDocument();
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+  });
+});
