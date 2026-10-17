@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { detectFlags, flagClosedOnDay, flagLateForSlot, flagOutsideOpeningHours, type FlagItem, type FlagStop } from "./flags";
+import {
+  detectFlags,
+  flagBookByDates,
+  flagClosedOnDay,
+  flagLateForSlot,
+  flagOutsideOpeningHours,
+  type FlagAccommodation,
+  type FlagItem,
+  type FlagStop,
+  type FlagTransport,
+} from "./flags";
 import type { OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
@@ -167,5 +177,73 @@ describe("flagLateForSlot (Late for the slot, warning)", () => {
         .map((f) => f.id).filter((id) => id.startsWith("item-late-slot-"));
     expect(ids()).toEqual(["item-late-slot-gift"]);
     expect(ids(["gift"])).toEqual([]);
+  });
+});
+
+describe("flagBookByDates (Book by soon, info / Overdue, warning)", () => {
+  const today = "2026-12-01";
+  const nbg = stop({ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-09", sortOrder: 0 });
+  const munich = stop({ id: "munich", name: "Munich", arriveDate: "2026-12-09", departDate: "2026-12-12", sortOrder: 1 });
+  const toBook = { bookingState: "TO_BOOK" };
+  const leg = (o: Partial<FlagTransport> & { id: string }): FlagTransport => ({ mode: "TRAIN", fromStopId: "nbg", toStopId: "munich", depAt: null, arrAt: null, ...o });
+  const stay = (o: Partial<FlagAccommodation> & { id: string }): FlagAccommodation => ({ stopId: "nbg", name: "Hotel Victoria", checkIn: "2026-12-06", checkOut: "2026-12-09", ...o });
+  const run = (o: { items?: FlagItem[]; transports?: FlagTransport[]; accommodations?: FlagAccommodation[]; home?: { name: string; lat: number; lng: number; countryCode: string | null } }) =>
+    flagBookByDates({ items: [], transports: [], accommodations: [], today, stops: [nbg, munich], ...o });
+
+  it("an Item To book within the next 7 days", () => {
+    const at = (bookBy: string) => run({ items: [item({ id: "i1", title: "Neues Museum tour", date: "2026-12-08", ...toBook, bookBy })] });
+    expect(at("2026-12-04")).toEqual([
+      { id: "book-by-soon-i1", severity: "info", message: "Book Neues Museum tour by Fri 4 Dec, in 3 days.", targetType: "ITEM", targetId: "i1", date: "2026-12-08", stopId: "nbg" },
+    ]);
+    expect(at("2026-12-01")[0].message).toBe("Book Neues Museum tour today: it's the book-by date.");
+    expect(at("2026-12-02")[0].message).toBe("Book Neues Museum tour by tomorrow (Wed 2 Dec).");
+    expect(at("2026-12-08")).toHaveLength(1); // 7 days: still soon
+    expect(at("2026-12-09")).toEqual([]); // 8 days: not yet
+  });
+
+  it("a book-by date already past is overdue", () => {
+    expect(run({ accommodations: [stay({ id: "a1", ...toBook, bookBy: "2026-11-30" })] })).toEqual([
+      { id: "book-by-overdue-a1", severity: "warning", message: "Book Hotel Victoria now: its book-by date (Mon 30 Nov) has passed.", targetType: "ACCOMMODATION", targetId: "a1", stopId: "nbg" },
+    ]);
+  });
+
+  it("a leg names its mode and ends; a Home end is the Home base", () => {
+    const [f] = run({ transports: [leg({ id: "t1", ...toBook, bookBy: "2026-12-03" })] });
+    expect(f).toEqual({ id: "book-by-soon-t1", severity: "info", message: "Book the train from Nuremberg to Munich by Thu 3 Dec, in 2 days.", targetType: "TRANSPORT", targetId: "t1", stopId: "nbg" });
+    const [g] = run({
+      transports: [leg({ id: "t2", mode: "FLIGHT", fromStopId: null, depIsHome: true, toStopId: "nbg", ...toBook, bookBy: "2026-11-28" })],
+      home: { name: "Sydney", lat: -33.9, lng: 151.2, countryCode: "AU" },
+    });
+    expect(g.message).toBe("Book the flight from Sydney to Nuremberg now: its book-by date (Sat 28 Nov) has passed.");
+    expect(g.stopId).toBe("nbg");
+  });
+
+  it("only while To book: a stale book-by on a Booked row says nothing", () => {
+    expect(run({ items: [item({ id: "i1", bookingState: "BOOKED", bookBy: "2026-11-28" })] })).toEqual([]);
+    expect(run({ items: [item({ id: "i2", bookingState: "TO_BOOK", bookBy: null })] })).toEqual([]);
+  });
+
+  it("nothing to book once the thing itself has happened", () => {
+    expect(run({ items: [item({ id: "i1", date: "2026-11-30", ...toBook, bookBy: "2026-11-25" })] })).toEqual([]);
+    expect(run({ transports: [leg({ id: "t1", depAt: "2026-11-30T08:00:00Z", ...toBook, bookBy: "2026-11-25" })] })).toEqual([]);
+  });
+
+  it("detectFlags: needs today; skips Wishlist ideas, hidden Items and stays in hidden Stops; names rough Stops", () => {
+    const base = { stops: [nbg, munich], tripStart: "2026-12-06", tripEnd: "2026-12-12" };
+    const items = [
+      item({ id: "idea", stopId: null, date: null, ...toBook, bookBy: "2026-11-28" }),
+      item({ id: "gift", ...toBook, bookBy: "2026-11-28" }),
+      item({ id: "pass", stopId: "nbg", date: null, title: "Tram pass", ...toBook, bookBy: "2026-12-03" }),
+    ];
+    const accommodations = [stay({ id: "a-secret", stopId: "munich", ...toBook, bookBy: "2026-11-28" })];
+    const transports = [leg({ id: "t-rough", toStopId: "rough", ...toBook, bookBy: "2026-12-03" })];
+    const bookIds = (flags: { id: string }[]) => flags.map((f) => f.id).filter((id) => id.startsWith("book-by-"));
+    expect(bookIds(detectFlags({ ...base, items, accommodations, transports }))).toEqual([]); // no today
+    const flags = detectFlags({
+      ...base, items, accommodations, transports, today,
+      hiddenItemIds: ["gift"], hiddenStopIds: ["munich"], stopNames: new Map([["nbg", "Nuremberg"], ["munich", "Munich"], ["rough", "Somewhere"]]),
+    });
+    expect(bookIds(flags)).toEqual(["book-by-soon-pass", "book-by-soon-t-rough"]);
+    expect(flags.find((f) => f.id === "book-by-soon-t-rough")?.message).toBe("Book the train from Nuremberg to Somewhere by Thu 3 Dec, in 2 days.");
   });
 });

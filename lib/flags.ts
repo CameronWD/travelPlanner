@@ -16,6 +16,7 @@ import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/li
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
 import { defaultStartFromSlot } from "@/lib/slot-time";
+import { activeBookBy } from "@/lib/booking-state";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -69,6 +70,9 @@ export interface FlagTransport {
   mode: string;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 export interface FlagAccommodation {
@@ -77,6 +81,9 @@ export interface FlagAccommodation {
   checkIn: string; // YYYY-MM-DD
   checkOut: string; // YYYY-MM-DD
   name: string;
+  /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 export interface FlagItem {
@@ -94,6 +101,9 @@ export interface FlagItem {
   /** CONTEXT.md "Slot time": the ticket's time ("HH:mm") and how early to be there (minutes). */
   slotTime?: string | null;
   arriveByMinutes?: number | null;
+  /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 export interface DetectFlagsInput {
@@ -150,6 +160,14 @@ export interface DetectFlagsInput {
    * (spec 2026-10-17 R7) never name them.
    */
   hiddenItemIds?: readonly string[];
+  /**
+   * The Trip's own today (lib/trip-today.ts tripTodayISO), "YYYY-MM-DD". The
+   * book-by and still-to-book Flags (spec 2026-10-17 R7) count from it;
+   * omitted, they stay silent.
+   */
+  today?: string | null;
+  /** Every Stop's name, rough ones included, so a leg to a rough Stop still names it. Omitted: the dated `stops`. */
+  stopNames?: ReadonlyMap<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1050,6 +1068,105 @@ export function flagLateForSlot(items: FlagItem[]): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rule 21: Book by soon (info) / Overdue (warning)
+//
+// An Item, leg or stay still To book with a book-by date: overdue once the
+// date has passed (Trip-local today), soon within BOOK_BY_SOON_DAYS.
+// Nothing once the thing itself has happened (its day is past).
+// ---------------------------------------------------------------------------
+
+export const BOOK_BY_SOON_DAYS = 7;
+
+export interface BookingContext {
+  today: string;
+  stops: FlagStop[];
+  stopNames?: ReadonlyMap<string, string>;
+  home?: HomeBase | null;
+  homeTimezone?: string | null;
+}
+
+interface BookingSubjectRow {
+  id: string;
+  /** Named mid-sentence: an Item's title, a stay's name, "the train from Paris to Rome". */
+  label: string;
+  bookingState?: string | null;
+  bookBy?: string | null;
+  /** When it happens: an Item's day, a leg's local departure day, a check-in. */
+  when: string | null;
+  target: Pick<Flag, "targetType" | "targetId" | "date" | "stopId">;
+}
+
+const MODE_NOUN: Record<string, string> = { FLIGHT: "flight", TRAIN: "train", BUS: "bus", CAR: "drive", FERRY: "ferry", OTHER: "transport" };
+
+function legLabel(t: FlagTransport, names: ReadonlyMap<string, string>, home: HomeBase | null | undefined): string {
+  const end = (isHome: boolean | null | undefined, stopId: string | null | undefined) =>
+    isHome ? (home?.name ?? null) : stopId ? (names.get(stopId) ?? null) : null;
+  const from = end(t.depIsHome, t.fromStopId);
+  const to = end(t.arrIsHome, t.toStopId);
+  return `the ${MODE_NOUN[t.mode] ?? "transport"}${from ? ` from ${from}` : ""}${to ? ` to ${to}` : ""}`;
+}
+
+/** A leg's departure day in its own zone: the Home base's for a Home end, else its Stop's (lib/desktop-home-loader.ts reads it the same way). */
+function legDepartureDay(t: FlagTransport, stopById: Map<string, FlagStop>, homeTimezone: string | null | undefined): string | null {
+  const dep = toDate(t.depAt);
+  if (!dep) return null;
+  const from = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
+  const to = t.toStopId ? stopById.get(t.toStopId) : undefined;
+  return instantToZonedDateISO(dep, (t.depIsHome && homeTimezone) || from?.timezone || to?.timezone || "UTC");
+}
+
+function bookingSubjects(
+  items: FlagItem[],
+  transports: FlagTransport[],
+  accommodations: FlagAccommodation[],
+  ctx: BookingContext,
+): BookingSubjectRow[] {
+  const stopById = new Map(ctx.stops.map((s) => [s.id, s]));
+  const names = ctx.stopNames ?? new Map(ctx.stops.map((s) => [s.id, s.name]));
+  return [
+    ...items.map((i) => ({
+      id: i.id, label: itemTitle(i) ?? "a thing to do", bookingState: i.bookingState, bookBy: i.bookBy,
+      when: i.date ?? null, target: itemTarget(i),
+    })),
+    ...transports.map((t) => {
+      const stopId = t.fromStopId ?? t.toStopId;
+      return {
+        id: t.id, label: legLabel(t, names, ctx.home), bookingState: t.bookingState, bookBy: t.bookBy,
+        when: legDepartureDay(t, stopById, ctx.homeTimezone),
+        target: { targetType: "TRANSPORT" as const, targetId: t.id, ...(stopId ? { stopId } : {}) },
+      };
+    }),
+    ...accommodations.map((a) => ({
+      id: a.id, label: a.name, bookingState: a.bookingState, bookBy: a.bookBy, when: a.checkIn,
+      target: { targetType: "ACCOMMODATION" as const, targetId: a.id, stopId: a.stopId },
+    })),
+  ];
+}
+
+export function flagBookByDates(
+  input: { items: FlagItem[]; transports: FlagTransport[]; accommodations: FlagAccommodation[] } & BookingContext,
+): Flag[] {
+  const flags: Flag[] = [];
+  for (const s of bookingSubjects(input.items, input.transports, input.accommodations, input)) {
+    const bookBy = activeBookBy(s.bookingState, s.bookBy);
+    if (!bookBy) continue;
+    if (s.when && s.when < input.today) continue; // it has happened: nothing left to book
+    const day = formatDayLabel(bookBy);
+    const n = daysBetween(input.today, bookBy);
+    if (n < 0) {
+      flags.push({ id: `book-by-overdue-${s.id}`, severity: "warning", message: `Book ${s.label} now: its book-by date (${day}) has passed.`, ...s.target });
+    } else if (n <= BOOK_BY_SOON_DAYS) {
+      const message =
+        n === 0
+          ? `Book ${s.label} today: it's the book-by date.`
+          : `Book ${s.label} by ${n === 1 ? `tomorrow (${day})` : `${day}, in ${n} days`}.`;
+      flags.push({ id: `book-by-soon-${s.id}`, severity: "info", message, ...s.target });
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -1073,6 +1190,7 @@ export function flagLateForSlot(items: FlagItem[]): Flag[] {
  *   17. Closed that day (warning)
  *   18–19. Before opening / After closing (warning)
  *   20. Late for the slot (warning)
+ *   21. Book by soon (info) / Overdue (warning)
  */
 export function detectFlags({
   stops,
@@ -1094,6 +1212,8 @@ export function detectFlags({
   homeLastStop,
   hiddenStopIds,
   hiddenItemIds,
+  today,
+  stopNames,
 }: DetectFlagsInput): Flag[] {
   const hidden = new Set(hiddenStopIds ?? []);
   const hiddenStops = stops.filter((s) => hidden.has(s.id));
@@ -1141,5 +1261,8 @@ export function detectFlags({
     ...flagClosedOnDay(planning.items),
     ...flagOutsideOpeningHours(planning.items),
     ...flagLateForSlot(planning.items),
+    ...(today
+      ? flagBookByDates({ items: planning.items, transports, accommodations: planning.accommodations, today, stops, stopNames, home, homeTimezone })
+      : []),
   ];
 }
