@@ -56,7 +56,7 @@ function compareCosts(a: McpCost, b: McpCost): number {
   return 0;
 }
 
-/** Every real-plan Cost matching `where`, in list_costs' shape, unsorted. Callers have checked access. */
+/** Every real-plan Cost matching `where`, in list_costs' shape and order (`compareCosts`). Callers have checked access. */
 export async function readMcpCosts(
   tripId: string,
   v: SurpriseVisibility,
@@ -135,7 +135,7 @@ export async function readMcpCosts(
     };
   });
 
-  return { homeCurrency, today, costs: mapped };
+  return { homeCurrency, today, costs: mapped.sort(compareCosts) };
 }
 
 export async function loadCostsForMcp(
@@ -156,7 +156,7 @@ export async function loadCostsForMcp(
         (c.paid === null && c.dueDate !== null && c.daysUntilDue !== null && c.daysUntilDue <= opts.dueWithinDays),
     );
 
-  return { homeCurrency, today, costs: filtered.sort(compareCosts) };
+  return { homeCurrency, today, costs: filtered };
 }
 
 /** One Cost in list_costs' shape (a Cost write's read-back, F6). A Fork's Cost, or one the caller is surprised by, is notFound. */

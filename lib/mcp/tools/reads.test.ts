@@ -18,6 +18,11 @@ const {
   loadBudget,
   loadFlags,
   loadSurpriseVisibility,
+  loadStopForMcp,
+  loadItemForMcp,
+  loadTransportForMcp,
+  loadAccommodationForMcp,
+  loadDayForMcp,
 } = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
   requireGlobeAccess: vi.fn(),
@@ -36,6 +41,11 @@ const {
   loadBudget: vi.fn(),
   loadFlags: vi.fn(),
   loadSurpriseVisibility: vi.fn(),
+  loadStopForMcp: vi.fn(),
+  loadItemForMcp: vi.fn(),
+  loadTransportForMcp: vi.fn(),
+  loadAccommodationForMcp: vi.fn(),
+  loadDayForMcp: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
@@ -56,6 +66,8 @@ vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
 vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp }));
 vi.mock("../reads/attachment-content", () => ({ loadAttachmentContentForMcp }));
+vi.mock("../reads/entities", () => ({ loadStopForMcp, loadItemForMcp, loadTransportForMcp, loadAccommodationForMcp }));
+vi.mock("../reads/day", () => ({ loadDayForMcp }));
 vi.mock("@/lib/money/budget-loader", () => ({ loadBudget }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlags }));
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
@@ -66,6 +78,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 
 import { connectTestClient } from "../test-client";
+import { NOT_FOUND_TEXT } from "../run-tool";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { reminderItem } from "@/test/helpers/reminder-item";
 
@@ -520,5 +533,72 @@ describe("read tools", () => {
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe("Not found, or you don't have access to it.");
     });
+  });
+});
+
+describe("narrow reads (F7)", () => {
+  const text = (r: unknown) => (r as { content: { text: string }[] }).content[0].text;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("registers the five narrow reads as read-only", async () => {
+    const c = await connectTestClient();
+    const { tools } = await c.listTools();
+    for (const name of ["get_stop", "get_item", "get_transport", "get_accommodation", "get_day"]) {
+      const t = tools.find((x) => x.name === name);
+      expect(t, name).toBeDefined();
+      expect(t!.annotations?.readOnlyHint).toBe(true);
+    }
+  });
+
+  it.each([
+    ["get_stop", { stopId: "s1" }, () => loadStopForMcp, ["s1"]],
+    ["get_item", { itemId: "i1" }, () => loadItemForMcp, ["i1"]],
+    ["get_transport", { transportId: "t1" }, () => loadTransportForMcp, ["t1"]],
+    ["get_accommodation", { accommodationId: "a1" }, () => loadAccommodationForMcp, ["a1"]],
+    ["get_day", { tripId: TRIP_ID, date: "2027-06-02" }, () => loadDayForMcp, [TRIP_ID, "2027-06-02"]],
+  ] as const)("%s reads through its loader and returns what it read", async (name, args, loader, call) => {
+    loader().mockResolvedValue({ id: "row" });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name, arguments: args });
+    expect(r.isError).toBeFalsy();
+    expect(loader()).toHaveBeenCalledWith(...call);
+    expect(JSON.parse(text(r))).toEqual({ id: "row" });
+  });
+
+  it("a refused id (Fork's, hidden Surprise, non-member's, made-up) is NOT_FOUND_TEXT", async () => {
+    loadItemForMcp.mockRejectedValue(notFoundErr());
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_item", arguments: { itemId: "fork-item" } });
+    expect(r.isError).toBe(true);
+    expect(text(r)).toBe(NOT_FOUND_TEXT);
+  });
+
+  it("get_day refuses a malformed date before reading, and passes a date-range refusal through", async () => {
+    const c = await connectTestClient();
+    expect((await c.callTool({ name: "get_day", arguments: { tripId: TRIP_ID, date: "2027-6-2" } })).isError).toBe(true);
+    expect((await c.callTool({ name: "get_day", arguments: { tripId: TRIP_ID, date: "2027-02-30" } })).isError).toBe(true);
+    expect(loadDayForMcp).not.toHaveBeenCalled();
+    loadDayForMcp.mockResolvedValue({ success: false, errors: { date: ["2027-06-09 is outside the trip, which runs 2027-06-01 to 2027-06-04."] } });
+    const r = await c.callTool({ name: "get_day", arguments: { tripId: TRIP_ID, date: "2027-06-09" } });
+    expect(r.isError).toBe(true);
+    expect(text(r)).toBe("Couldn't do that: date: 2027-06-09 is outside the trip, which runs 2027-06-01 to 2027-06-04.");
+  });
+
+  it("get_item's description tells an Item's own notes from the Notes on it", async () => {
+    const c = await connectTestClient();
+    const { tools } = await c.listTools();
+    const d = tools.find((t) => t.name === "get_item")!.description!;
+    expect(d).toMatch(/notesOnItem/);
+    expect(d).toMatch(/update_thing_to_do/);
+    expect(d).toMatch(/add_note/);
+  });
+
+  it("get_trip_plan's description points at the narrow reads", async () => {
+    const c = await connectTestClient();
+    const { tools } = await c.listTools();
+    expect(tools.find((t) => t.name === "get_trip_plan")!.description).toMatch(/get_stop, get_item, get_transport, get_accommodation or get_day/);
   });
 });

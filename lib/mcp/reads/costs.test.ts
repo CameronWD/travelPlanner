@@ -258,6 +258,16 @@ describe("readMcpCosts / loadCostForMcp", () => {
     );
   });
 
+  it("readMcpCosts returns list_costs' order: due-dated soonest first, then the rest in createdAt order", async () => {
+    costFindMany.mockResolvedValue([
+      baseCost({ id: "c-undated", currency: "AUD" }),
+      baseCost({ id: "c-due-later", currency: "AUD", dueDate: "2099-12-20" }),
+      baseCost({ id: "c-due-soon", currency: "AUD", dueDate: "2099-12-05" }),
+    ]);
+    const { costs } = await readMcpCosts(TRIP_ID, NO_SURPRISES, { ownerType: "ITEM", ownerId: "i1" });
+    expect(costs.map((c) => c.id)).toEqual(["c-due-soon", "c-due-later", "c-undated"]);
+  });
+
   it("loadCostForMcp checks the Cost is a real-plan row first, then reads it in list_costs' shape", async () => {
     requireRealPlanRow.mockResolvedValue({ tripId: TRIP_ID });
     costFindMany.mockResolvedValue([baseCost({ id: "c1" })]);

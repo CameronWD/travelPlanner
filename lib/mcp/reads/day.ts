@@ -54,7 +54,11 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
   const { user } = await requireTripAccess(tripId);
   const read = await readDayRows(tripId, user.id, async () => null);
   if (read === "missing") notFound();
-  if (read === "dateless") return fail({ date: ["This trip has no dates yet, so it has no days. Read it with get_trip_plan."] });
+  // A start with no end is still "no dates yet" for get_day: readDayRows
+  // reads it as a one-day Trip, which would offer Claude a day that isn't.
+  if (read === "dateless" || read.rows.trip.endDate === null) {
+    return fail({ date: ["This trip has no dates yet, so it has no days. Read it with get_trip_plan."] });
+  }
   const { rows } = read;
   if (date < rows.startDate || date > rows.endDate) {
     return fail({ date: [`${date} is outside the trip, which runs ${rows.startDate} to ${rows.endDate}.`] });

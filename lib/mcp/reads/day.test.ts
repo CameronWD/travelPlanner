@@ -71,6 +71,14 @@ describe("loadDayForMcp", () => {
     expect(await loadDayForMcp("trip-1", "2027-06-02")).toMatchObject({ success: false, errors: { date: [expect.stringMatching(/no dates yet/)] } });
   });
 
+  it("a trip with a start date but no end date is the same no-dates tool error, not a one-day trip", async () => {
+    readDayRows.mockResolvedValue({ rows: { ...rows, trip: { ...rows.trip, endDate: null }, endDate: rows.startDate }, visibility: {}, alongside: null });
+    expect(await loadDayForMcp("trip-1", "2027-06-01")).toEqual({
+      success: false,
+      errors: { date: ["This trip has no dates yet, so it has no days. Read it with get_trip_plan."] },
+    });
+  });
+
   it("a non-member's trip is notFound before any read", async () => {
     requireTripAccess.mockRejectedValue(Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" }));
     await expect(loadDayForMcp("trip-1", "2027-06-02")).rejects.toMatchObject({ digest: expect.stringContaining("404") });
