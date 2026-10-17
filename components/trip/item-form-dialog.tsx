@@ -887,10 +887,15 @@ function ItemForm({
         />
       </Field>
 
-      {/* Opening hours (CONTEXT.md "Opening hours") */}
-      <div className="sm:col-span-2">
-        <OpeningHoursEditor value={openingHours} onChange={setOpeningHours} disabled={isPending} error={errors.openingHours?.[0]} />
-      </div>
+      {/* Opening hours (CONTEXT.md "Opening hours"). Fix round 1 (controller
+          ruling): hidden in Proposal mode (onSubmitOverride) — buildInput()
+          never carries openingHours (a Proposal has nowhere to store them),
+          so showing the editor there would silently drop anything typed into it. */}
+      {!onSubmitOverride && (
+        <div className="sm:col-span-2">
+          <OpeningHoursEditor value={openingHours} onChange={setOpeningHours} disabled={isPending} error={errors.openingHours?.[0]} />
+        </div>
+      )}
 
       {/* Hide from shared links (CONTEXT.md "Share link") — the Item stays
           fully visible to every Traveller; this only affects what a share

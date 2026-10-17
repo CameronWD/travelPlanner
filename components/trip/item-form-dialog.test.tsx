@@ -1367,6 +1367,20 @@ describe("ItemFormDialog: Proposal mode (Booking import)", () => {
     expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", booking: "PENA-1" }));
     expect(createItem).not.toHaveBeenCalled();
   });
+
+  // Fix round 1 (controller ruling): buildInput() never carries openingHours
+  // (a Proposal has nowhere to store them), so showing the editor here would
+  // silently drop whatever the Traveller typed into it. Hide it instead.
+  it("has no Opening hours editor — buildInput() never carries it, so anything typed there would be silently dropped", () => {
+    render(
+      <ItemFormDialog
+        tripId="t" stops={[{ id: "s-lis", name: "Lisbon", arriveDate: "2026-12-02" }]} open onOpenChange={vi.fn()}
+        initialValues={{ title: "Pena Palace entry", category: "OTHER" }}
+        onSubmitOverride={vi.fn().mockResolvedValue({ success: true })}
+      />,
+    );
+    expect(screen.queryByText("Opening hours")).not.toBeInTheDocument();
+  });
 });
 
 describe("ItemFormDialog: Reminders (F8)", () => {
@@ -1512,7 +1526,7 @@ describe("Opening hours (R4)", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
     await user.click(screen.getByText("Opening hours"));
-    await user.click(screen.getByRole("checkbox", { name: "Tuesday closed" }));
+    await user.selectOptions(screen.getByLabelText("Tuesday"), "closed");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     await waitFor(() => expect(updateItem).toHaveBeenCalled());
     expect(vi.mocked(updateItem).mock.calls[0][1]).toMatchObject({ openingHours: { week: { tue: [] } } });
@@ -1528,7 +1542,7 @@ describe("Opening hours (R4)", () => {
     expect(vi.mocked(updateItem).mock.calls[0][1]).toHaveProperty("openingHours", null);
   });
 
-  it("a create with hours set sends them; without, sends none", async () => {
+  it("a create with hours set sends them", async () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} />);
     await user.type(screen.getByLabelText(/title/i), "Lello");
@@ -1539,6 +1553,18 @@ describe("Opening hours (R4)", () => {
     expect(vi.mocked(createItem).mock.calls[0][1]).toHaveProperty("openingHours.week");
   });
 
+  // Fix round 1 (controller ruling): the previous version of this test only
+  // ever exercised the "with hours" branch of buildInput's condition — it
+  // never actually created an Item with the editor left untouched.
+  it("a create with no hours sends no openingHours", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/title/i), "Lello");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect(vi.mocked(createItem).mock.calls[0][1]).not.toHaveProperty("openingHours");
+  });
+
   it("shows the server's opening-hours error in the editor", async () => {
     (updateItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
@@ -1547,8 +1573,23 @@ describe("Opening hours (R4)", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
     await user.click(screen.getByText("Opening hours"));
-    await user.click(screen.getByRole("checkbox", { name: "Tuesday closed" }));
+    await user.selectOptions(screen.getByLabelText("Tuesday"), "closed");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(await screen.findByText("A season must end on or after it starts")).toBeInTheDocument();
+  });
+
+  it("keeps the editor open once opened, even after a successful save clears the error", async () => {
+    (updateItem as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ success: false, errors: { openingHours: ["A season must end on or after it starts"] } })
+      .mockResolvedValueOnce({ success: true });
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
+    await user.click(screen.getByText("Opening hours"));
+    await user.selectOptions(screen.getByLabelText("Tuesday"), "closed");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByText("A season must end on or after it starts")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Opening hours").closest("details")).toHaveAttribute("open");
   });
 });

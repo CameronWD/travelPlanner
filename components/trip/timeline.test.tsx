@@ -1280,4 +1280,20 @@ describe("Opening hours on the Timeline", () => {
     rerender(<Timeline day={day} variant="day" todayISO="2027-06-01" />);
     expect(screen.getByText("Open 10:00–18:00")).toBeInTheDocument();
   });
+
+  it("says 'Closed today' for a row on a closed day that is today", () => {
+    const CLOSED_TUESDAY = { week: { ...HOURS.week, tue: [] as [string, string][] }, seasons: [], closed: [] };
+    const day: DayPlan = {
+      ...dayPlan,
+      dateISO: "2027-06-01", // a Tuesday
+      timedItems: [
+        {
+          kind: "item",
+          item: { ...dayPlan.timedItems[0]!.item, date: "2027-06-01", openingHours: CLOSED_TUESDAY },
+        },
+      ],
+    };
+    render(<Timeline day={day} variant="day" todayISO="2027-06-01" />);
+    expect(screen.getByText("Closed today")).toBeInTheDocument();
+  });
 });
