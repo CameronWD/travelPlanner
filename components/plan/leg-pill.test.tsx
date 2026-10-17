@@ -162,4 +162,19 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
     render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="BOOKED" />);
     expect(screen.getByRole("button")).not.toHaveTextContent("To book");
   });
+
+  it("the accessible name speaks To book, not just the visual badge (aria-label overrides name-from-content)", () => {
+    render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="TO_BOOK" />);
+    expect(screen.getByRole("button", { name: /To book/ })).toBeInTheDocument();
+  });
+
+  it("the accessible name speaks the book-by date when set", () => {
+    render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="TO_BOOK" bookBy="2027-05-01" />);
+    expect(screen.getByRole("button", { name: /Book by 1 May/ })).toBeInTheDocument();
+  });
+
+  it("a Booked leg's accessible name is unchanged", () => {
+    render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="BOOKED" />);
+    expect(screen.getByRole("button", { name: FLIGHT.accessibleName })).toBeInTheDocument();
+  });
 });

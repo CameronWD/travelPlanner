@@ -8,28 +8,34 @@ import { BOOKING_STATE_LABELS, bookByLabel } from "@/lib/booking-state-copy";
  * state", spec 2026-10-17 R2), with its book-by date. Nothing for Booked or
  * No booking needed: those need no attention. `compact` (pills and dense
  * rows) folds the two into one badge. Server Component (no hooks).
+ *
+ * `hidden`: pass `true` when the caller already speaks this text through its
+ * own accessible name (e.g. LegPill's `aria-label`, which overrides
+ * name-from-content) so the badge isn't announced twice.
  */
 export function BookingStateBadge({
   state,
   bookBy,
   compact = false,
   className,
+  hidden = false,
 }: {
   state?: BookingState | null;
   bookBy?: string | null;
   compact?: boolean;
   className?: string;
+  hidden?: boolean;
 }) {
   if (state !== "TO_BOOK") return null;
   if (compact) {
     return (
-      <Badge variant="warning" data-booking-state className={cn("shrink-0", className)}>
+      <Badge variant="warning" aria-hidden={hidden || undefined} className={cn("shrink-0", className)}>
         {bookBy ? bookByLabel(bookBy) : BOOKING_STATE_LABELS.TO_BOOK}
       </Badge>
     );
   }
   return (
-    <span data-booking-state className={cn("inline-flex shrink-0 items-center gap-1", className)}>
+    <span aria-hidden={hidden || undefined} className={cn("inline-flex shrink-0 items-center gap-1", className)}>
       <Badge variant="warning">{BOOKING_STATE_LABELS.TO_BOOK}</Badge>
       {bookBy ? <Badge variant="muted">{bookByLabel(bookBy)}</Badge> : null}
     </span>
