@@ -716,6 +716,14 @@ model Transport {
   notes      String?
   sortOrder  Int       @default(0)
 
+  // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — lib/enum-values.ts
+  // BOOKING_STATES. Always the EFFECTIVE state: every writer stores
+  // lib/booking-state.ts bookingStateWrite's result. bookingStateSet = the
+  // Traveller chose it; false = derived (a `reference` means BOOKED, else TO_BOOK).
+  bookingState    String  @default("TO_BOOK")
+  bookingStateSet Boolean @default(false)
+  bookBy          String? // "YYYY-MM-DD" — read only while To book (lib/booking-state.ts activeBookBy)
+
   anchorStopId String?
 
   trip       Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
@@ -749,6 +757,11 @@ model Accommodation {
   notes        String?
   lat          Float?
   lng          Float?
+  // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — as Transport; a
+  // `confirmation` means BOOKED, else TO_BOOK.
+  bookingState    String  @default("TO_BOOK")
+  bookingStateSet Boolean @default(false)
+  bookBy          String? // "YYYY-MM-DD" — read only while To book
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
@@ -779,6 +792,20 @@ model Item {
   link      String?
   booking   String?
   notes     String?
+  // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — as Transport; a
+  // `booking` reference means BOOKED, else NONE (No booking needed).
+  bookingState    String   @default("NONE")
+  bookingStateSet Boolean  @default(false)
+  bookBy          String?  // "YYYY-MM-DD" — read only while To book
+  // CONTEXT.md "Slot time" (R3): the ticket's time, in the Stop's local timezone.
+  slotTime        String?  // "HH:mm"
+  arriveByMinutes Int?     // be there this many minutes before slotTime (0–720)
+  refundable      Boolean? // null = not known
+  // CONTEXT.md "Opening hours" (R4): JSON as String (schema convention),
+  // validated by lib/validations/opening-hours.ts. Copied onto a placed copy
+  // (ideaCopyData) and written to the whole family (lib/opening-hours.ts
+  // openingHoursFamilyWhere), so reads never join through sourceItemId.
+  openingHours    String?
   sortOrder      Int     @default(0)
   sourceItemId   String?
   sourceMarkerId String?
