@@ -103,7 +103,7 @@ const addableChecklistKind = z
 /** Spec F8: a Reminder is about one thing at most — refused before any lookup. */
 const ONE_ABOUT = {
   success: false as const,
-  errors: { _: ["Pass at most one of stopId, itemId or transportId — a Reminder is about one thing."] },
+  errors: { _: ["Pass at most one of stopId, itemId or transportId: a Reminder is about one thing."] },
 };
 
 type AboutArgs = { stopId?: string | null; itemId?: string | null; transportId?: string | null };
@@ -123,7 +123,7 @@ export function registerListWriteTools(server: McpServer): void {
     {
       title: "Add reminder",
       description:
-        "Adds a dated note for the Traveller to see on Home and hear in the evening-before Digest. Carries a date, never a time. notes is optional detail shown in the app only — the Digest reads out the title alone. Pass at most one of stopId, itemId (a thing to do) or transportId (a Transport leg) to say what the note is about; it does not move the date.",
+        "Adds a dated note for the Traveller to see on Home and hear in the evening-before Digest. Carries a date, never a time. notes is optional detail shown in the app only; the Digest reads out the title alone. Pass at most one of stopId, itemId (a thing to do) or transportId (a Transport leg) to say what the note is about; it does not move the date.",
       inputSchema: {
         tripId: z.string(),
         title: z.string().trim().min(1),
