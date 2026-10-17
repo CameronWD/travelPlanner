@@ -100,3 +100,35 @@ it("gives each leg the slot it resolves to in the source's plan order (dates fir
   });
   expect(plan.transports.map((x) => x.sourceAnchorStopId)).toEqual(["s1", "s2", null, "s2"]);
 });
+
+// Spec 2026-10-17 R2–R4: a Fork is a faithful copy, so Booking state, book-by,
+// Slot time and Opening hours carry into the variant.
+it("carries Booking state, book-by, Slot time and Opening hours into the variant", () => {
+  const hours = '{"week":{"mon":[]},"seasons":[],"closed":[]}';
+  const plan = buildForkPlan({
+    ...source,
+    transports: [{ ...source.transports[0], bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2026-06-20" }],
+    accommodations: [{ ...source.accommodations[0], bookingState: "NONE", bookingStateSet: true, bookBy: null }],
+    items: [{ ...source.items[0], bookingState: "BOOKED", bookingStateSet: false, bookBy: null,
+              slotTime: "12:00", arriveByMinutes: 15, refundable: false, openingHours: hours }],
+  });
+  expect(plan.transports[0].data).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2026-06-20" });
+  expect(plan.accommodations[0].data).toMatchObject({ bookingState: "NONE", bookingStateSet: true, bookBy: null });
+  expect(plan.items[0].data).toMatchObject({
+    bookingState: "BOOKED", bookingStateSet: false, bookBy: null,
+    slotTime: "12:00", arriveByMinutes: 15, refundable: false, openingHours: hours,
+  });
+});
+
+it("a source row without the new columns copies the derived state and nulls", () => {
+  const plan = buildForkPlan(source); // every fixture row has a reference
+  expect(plan.transports[0].data).toMatchObject({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
+  expect(plan.accommodations[0].data).toMatchObject({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
+  expect(plan.items[0].data).toMatchObject({
+    bookingState: "BOOKED", bookingStateSet: false, bookBy: null,
+    slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null,
+  });
+  const bare = buildForkPlan({ ...source, transports: [{ ...source.transports[0], reference: null }], items: [{ ...source.items[0], booking: null }] });
+  expect(bare.transports[0].data.bookingState).toBe("TO_BOOK");
+  expect(bare.items[0].data.bookingState).toBe("NONE");
+});
