@@ -121,4 +121,24 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () 
     const rows = await readPlan(TRIP_ID, OWNER, null);
     expect(rows.items.find((i) => i.id === "it-plan-lello")!.openingHours).toEqual(hours);
   });
+
+  it("a Surprise placeholder carries none of its planning facts to the surprised Traveller (R2-R4)", async () => {
+    const span = [["10:00", "18:00"]];
+    const hours = { week: { mon: span }, seasons: [], closed: [] };
+    await db.item.create({
+      data: {
+        id: "it-plan-surprise", tripId: TRIP_ID, stopId: STOP_A, title: "IT Fado night", category: "NIGHTLIFE", date: "2027-06-03",
+        startTime: "19:45", slotTime: "20:00", arriveByMinutes: 15, refundable: false, openingHours: JSON.stringify(hours),
+        bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20", sortOrder: 0,
+        surprisePlannerId: OWNER, surpriseForIds: JSON.stringify([MEMBER]),
+      },
+    });
+    const surprised = (await readPlan(TRIP_ID, MEMBER, null)).items.find((i) => i.id === "it-plan-surprise")!;
+    expect(surprised.surprise?.youAreSurprised).toBe(true);
+    expect(surprised).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, bookingState: "NONE" });
+    expect(surprised.bookBy ?? null).toBeNull();
+    // The planner still reads every fact.
+    const planner = (await readPlan(TRIP_ID, OWNER, null)).items.find((i) => i.id === "it-plan-surprise")!;
+    expect(planner).toMatchObject({ slotTime: "20:00", arriveByMinutes: 15, refundable: false, openingHours: hours, bookBy: "2027-05-20" });
+  });
 });

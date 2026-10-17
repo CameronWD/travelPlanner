@@ -1257,6 +1257,10 @@ describe("Slot time on the Timeline (spec 2026-10-17 R3)", () => {
     render(<Timeline day={day} variant="day" />);
     expect(screen.getByText("Slot 12:00 · be there 11:45")).toBeInTheDocument();
     expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+    // The placeholder (masked by readPlan, so no slot facts) adds no slot line or refund fact: only the real row's.
+    expect(screen.queryAllByText(/^Slot /)).toHaveLength(1);
+    expect(screen.queryAllByText(/refundable/i)).toHaveLength(1);
+    expect(screen.getByText("Surprise")).toBeInTheDocument();
   });
 });
 
