@@ -29,6 +29,8 @@ import { getTripProjection } from "@/lib/trip-projection-reads";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import type { TripProjection } from "@/lib/trip-projection";
 import { tripHomeBase } from "@/lib/home-base";
+import { tripTodayISO } from "@/lib/trip-today";
+import { withOpeningHours } from "@/lib/opening-hours-stored";
 import {
   detectFlags,
   type Flag,
@@ -79,13 +81,22 @@ export interface FlagsAssemblyInput {
   projection: TripProjection;
   /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts). */
   hiddenStopIds?: readonly string[];
+  /** Items hidden from the viewer by a Surprise (placeholders included): no planning Flag names them (spec 2026-10-17 R7). */
+  hiddenItemIds?: readonly string[];
+  /**
+   * The Trip's own today (lib/trip-today.ts tripTodayISO): the book-by and
+   * still-to-book Flags count from it. Required, so no caller can forget it
+   * and silently drop those Flags (TB-01).
+   */
+  today: string;
 }
 
 /**
  * Assemble `detectFlags`'s input from raw (Prisma-shaped) rows and an
  * already-computed `TripProjection`, and run it. No I/O — callers that
  * already hold these rows (the Summary page) call this directly; `loadFlags`
- * below is for a caller that doesn't.
+ * below is for a caller that doesn't. It reads no clock: the caller passes
+ * the Trip's today.
  */
 export function flagsFromRows({
   trip,
@@ -97,6 +108,8 @@ export function flagsFromRows({
   tripEnd,
   projection,
   hiddenStopIds,
+  hiddenItemIds,
+  today,
 }: FlagsAssemblyInput): Flag[] {
   const stops = allStops.filter((s) => s.arriveDate !== null);
   const roughStops = allStops.filter((s) => s.arriveDate === null);
@@ -128,6 +141,9 @@ export function flagsFromRows({
     homeFirstStop,
     homeLastStop,
     hiddenStopIds,
+    hiddenItemIds,
+    today,
+    stopNames: new Map(allStops.map((s) => [s.id, s.name])),
   });
 }
 
@@ -171,6 +187,8 @@ const FLAG_TRANSPORT_SELECT = {
   mode: true,
   depIsHome: true,
   arrIsHome: true,
+  bookingState: true,
+  bookBy: true,
 } as const;
 
 const FLAG_ACCOMMODATION_SELECT = {
@@ -179,6 +197,8 @@ const FLAG_ACCOMMODATION_SELECT = {
   checkIn: true,
   checkOut: true,
   name: true,
+  bookingState: true,
+  bookBy: true,
 } as const;
 
 const FLAG_ITEM_SELECT = {
@@ -190,6 +210,12 @@ const FLAG_ITEM_SELECT = {
   endTime: true,
   lat: true,
   lng: true,
+  title: true,
+  openingHours: true,
+  slotTime: true,
+  arriveByMinutes: true,
+  bookingState: true,
+  bookBy: true,
 } as const;
 
 export type FlagRows = {
@@ -200,6 +226,10 @@ export type FlagRows = {
   items: FlagItem[];
   /** Surprise Stops hidden from the viewer: no Flag about their inside (lib/flags.ts). */
   hiddenStopIds: readonly string[];
+  /** Items hidden from the viewer by a Surprise (lib/surprise-visibility.ts hiddenItemIds). */
+  hiddenItemIds: readonly string[];
+  /** The Trip's own today, from its real-plan Stops (lib/trip-today.ts). */
+  today: string;
 };
 
 /**
@@ -262,8 +292,11 @@ export async function loadFlagRows(tripId: string, viewerId: string, plan?: Plan
     allStops,
     transports: transports as FlagTransport[],
     accommodations: accommodations as FlagAccommodation[],
-    items: [...items, ...placeholders] as FlagItem[],
+    // Opening hours are parsed once, here at the row edge (Branch 1 D.11).
+    items: [...items.map(withOpeningHours), ...placeholders] as FlagItem[],
     hiddenStopIds: v.hiddenStopIds,
+    hiddenItemIds: v.hiddenItemIds,
+    today: tripTodayISO(allStops),
   };
 }
 
@@ -279,6 +312,8 @@ export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[]
     tripEnd: rows.trip.endDate!,
     projection,
     hiddenStopIds: rows.hiddenStopIds,
+    hiddenItemIds: rows.hiddenItemIds,
+    today: rows.today,
   });
 }
 

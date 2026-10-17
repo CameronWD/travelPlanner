@@ -16,6 +16,7 @@ import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
+import { tripTodayISO } from "@/lib/trip-today";
 import { homeMapPoint } from "@/lib/route-map";
 import { computeProjection } from "@/lib/trip-projection";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
@@ -259,6 +260,9 @@ export default async function SummaryPage({
     tripEnd: endDate,
     projection,
     hiddenStopIds: v.hiddenStopIds,
+    hiddenItemIds: v.hiddenItemIds,
+    // The Trip's own today (every surface's, lib/trip-today.ts): the book-by Flags count from it.
+    today: tripTodayISO(allStops),
   });
 
   // ---------------------------------------------------------------------------

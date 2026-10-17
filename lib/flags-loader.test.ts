@@ -23,6 +23,8 @@ vi.mock("@/lib/flags", async (orig) => ({
   ...(await orig<typeof import("./flags")>()),
   detectFlags,
 }));
+const tripTodayISO = vi.hoisted(() => vi.fn(() => "2026-01-01"));
+vi.mock("@/lib/trip-today", () => ({ tripTodayISO }));
 
 import { loadFlags, flagsFromRows, loadFlagRows, flagsForRows } from "./flags-loader";
 import { mergePlanItems } from "@/lib/plan-reads";
@@ -162,6 +164,7 @@ describe("flagsFromRows", () => {
       tripStart: "2026-01-01",
       tripEnd: "2026-01-10",
       projection: PROJECTION,
+      today: "2026-01-01",
     });
     expect(db.trip.findUnique).not.toHaveBeenCalled();
     expect(requireTripAccess).not.toHaveBeenCalled();
@@ -190,6 +193,7 @@ describe("flagsFromRows", () => {
       tripStart: "2026-01-01",
       tripEnd: "2026-01-10",
       projection: PROJECTION,
+      today: "2026-01-01",
     });
     expect(detectFlags).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Australia/Brisbane" }));
   });
@@ -209,6 +213,8 @@ describe("flagsFromRows", () => {
       tripEnd: "2026-01-10",
       projection: PROJECTION,
       hiddenStopIds: [], // loadFlags passes the viewer's (none hidden here)
+      hiddenItemIds: [],
+      today: "2026-01-01",
     });
     expect(detectFlags.mock.calls[0][0]).toEqual(fromLoadFlags);
   });
@@ -247,7 +253,10 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
   const HIDDEN = placeholderItem({ id: "hid", stopId: "s1", date: "2026-01-03", startTime: "10:00", endTime: "12:00" });
   const OTHER_PLAN = placeholderItem({ id: "fork-hid", forkId: "fork-9", stopId: "s1", date: "2026-01-04", startTime: "10:00", endTime: "11:00" });
   const STOP = { id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0, nights: null, pinned: false };
-  const VISIBLE = { id: "vis", stopId: "s1", category: "FOOD", date: "2026-01-03", startTime: "11:00", endTime: "13:00", lat: null, lng: null };
+  const VISIBLE = {
+    id: "vis", stopId: "s1", title: "Lunch", category: "FOOD", date: "2026-01-03", startTime: "11:00", endTime: "13:00", lat: null, lng: null,
+    openingHours: null, slotTime: null, arriveByMinutes: null, bookingState: "NONE", bookBy: null,
+  };
 
   beforeEach(() => {
     loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ placeholders: [HIDDEN, OTHER_PLAN] }));
@@ -287,11 +296,68 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
       tripEnd: BASE_TRIP.endDate,
       projection,
       hiddenStopIds: v.hiddenStopIds,
+      today: "2026-01-01",
+      hiddenItemIds: v.hiddenItemIds,
     });
 
     expect(badge.map((f) => f.id).sort()).toEqual(summary.map((f) => f.id).sort());
     expect(badge.length).toBe(summary.length);
     // The placeholder's slot is counted: its overlap with the visible Item is raised.
     expect(badge.some((f) => f.id.includes("2026-01-03") && /overlap/i.test(f.id))).toBe(true);
+  });
+});
+
+describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 2026-10-17 R7)", () => {
+  const ROW_HOURS = JSON.stringify({ week: { tue: [] }, seasons: [], closed: [] });
+
+  it("selects the Branch 1 columns the six Flags read", async () => {
+    await loadFlagRows(TRIP_ID, "u1");
+    expect(db.item.findMany.mock.calls[0][0].select).toEqual(expect.objectContaining({
+      title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true,
+    }));
+    expect(db.transport.findMany.mock.calls[0][0].select).toEqual(expect.objectContaining({ bookingState: true, bookBy: true }));
+    expect(db.accommodation.findMany.mock.calls[0][0].select).toEqual(expect.objectContaining({ bookingState: true, bookBy: true }));
+  });
+
+  it("parses each Item's opening hours once, at the row edge", async () => {
+    db.item.findMany.mockResolvedValue([{ id: "i1", stopId: "s1", title: "Museum", date: "2026-01-06", openingHours: ROW_HOURS }]);
+    const rows = await loadFlagRows(TRIP_ID, "u1");
+    expect(rows?.items[0].openingHours).toEqual({ week: { tue: [] }, seasons: [], closed: [] });
+  });
+
+  it("carries the Trip's own today (from its Stops) and the viewer's hidden Items", async () => {
+    const stops = [{ id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0, nights: null, pinned: false }];
+    db.stop.findMany.mockResolvedValue(stops);
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ placeholders: [placeholderItem({ id: "hid" })] }));
+    tripTodayISO.mockReturnValueOnce("2026-01-04");
+    const rows = await loadFlagRows(TRIP_ID, "u1");
+    expect(tripTodayISO).toHaveBeenCalledWith(stops);
+    expect(rows?.today).toBe("2026-01-04");
+    expect(rows?.hiddenItemIds).toEqual(["hid"]);
+  });
+
+  it("flagsFromRows hands today, the hidden Items and every Stop's name (rough included) to detectFlags, reading no clock", () => {
+    flagsFromRows({
+      trip: BASE_TRIP,
+      allStops: [
+        { id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 },
+        { id: "s2", name: "Rough idea", lat: null, lng: null, timezone: null, arriveDate: null, departDate: null, sortOrder: 1 },
+      ],
+      transports: [], accommodations: [], items: [],
+      tripStart: "2026-01-01", tripEnd: "2026-01-10", projection: { projectedEnd: null, hardEndDate: null, deadline: null },
+      today: "2026-01-03", hiddenItemIds: ["hid"],
+    });
+    expect(tripTodayISO).not.toHaveBeenCalled();
+    expect(detectFlags).toHaveBeenCalledWith(expect.objectContaining({
+      today: "2026-01-03", hiddenItemIds: ["hid"], stopNames: new Map([["s1", "Rome"], ["s2", "Rough idea"]]),
+    }));
+  });
+
+  it("flagsForRows passes the rows' today and hidden Items", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ placeholders: [placeholderItem({ id: "hid" })] }));
+    const rows = await loadFlagRows(TRIP_ID, "u1");
+    detectFlags.mockClear();
+    flagsForRows(rows!, { projectedEnd: null, hardEndDate: null, deadline: null });
+    expect(detectFlags).toHaveBeenCalledWith(expect.objectContaining({ today: "2026-01-01", hiddenItemIds: ["hid"] }));
   });
 });
