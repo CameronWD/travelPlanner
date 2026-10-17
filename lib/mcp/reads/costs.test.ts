@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convertMinor } from "@/lib/money/money";
 
-const { requireTripAccess, tripFindUnique, costFindMany, exchangeRateFindMany, stopFindMany, itemFindMany, loadSurpriseVisibility } = vi.hoisted(
+const { requireTripAccess, requireRealPlanRow, tripFindUnique, costFindMany, exchangeRateFindMany, stopFindMany, itemFindMany, loadSurpriseVisibility } = vi.hoisted(
   () => ({
     loadSurpriseVisibility: vi.fn(),
     requireTripAccess: vi.fn(),
+    requireRealPlanRow: vi.fn(),
     tripFindUnique: vi.fn(),
     costFindMany: vi.fn(),
     exchangeRateFindMany: vi.fn(),
@@ -14,6 +15,7 @@ const { requireTripAccess, tripFindUnique, costFindMany, exchangeRateFindMany, s
 );
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
+vi.mock("../real-plan", () => ({ requireRealPlanRow }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: { findUnique: tripFindUnique },
@@ -31,7 +33,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
-import { loadCostsForMcp } from "./costs";
+import { loadCostForMcp, loadCostsForMcp, readMcpCosts } from "./costs";
 
 const TRIP_ID = "trip-1";
 
@@ -231,5 +233,44 @@ describe("loadCostsForMcp", () => {
     expect(stopFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ tripId: TRIP_ID, forkId: null }) }),
     );
+  });
+});
+
+describe("readMcpCosts / loadCostForMcp", () => {
+  beforeEach(() => {
+    requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    requireRealPlanRow.mockResolvedValue({ tripId: TRIP_ID });
+    loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
+    tripFindUnique.mockResolvedValue({ homeCurrency: "AUD" });
+    costFindMany.mockResolvedValue([]);
+    stopFindMany.mockResolvedValue([]);
+    itemFindMany.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("readMcpCosts narrows the query to one owner and keeps the Surprise fragment", async () => {
+    await readMcpCosts(TRIP_ID, NO_SURPRISES, { ownerType: "ITEM", ownerId: "i1" });
+    expect(costFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: TRIP_ID, forkId: null, ownerType: "ITEM", ownerId: "i1" }) }),
+    );
+  });
+
+  it("loadCostForMcp checks the Cost is a real-plan row first, then reads it in list_costs' shape", async () => {
+    requireRealPlanRow.mockResolvedValue({ tripId: TRIP_ID });
+    costFindMany.mockResolvedValue([baseCost({ id: "c1" })]);
+    const cost = await loadCostForMcp("c1");
+    expect(requireRealPlanRow).toHaveBeenCalledWith("cost", "c1");
+    expect(costFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "c1" }) }));
+    expect(cost.id).toBe("c1");
+    expect(cost.amount).toEqual(expect.objectContaining({ minor: expect.any(Number) }));
+  });
+
+  it("loadCostForMcp on a Fork's (or hidden) Cost is notFound before any read", async () => {
+    requireRealPlanRow.mockRejectedValue(Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" }));
+    await expect(loadCostForMcp("c1")).rejects.toMatchObject({ digest: expect.stringContaining("404") });
+    expect(costFindMany).not.toHaveBeenCalled();
   });
 });

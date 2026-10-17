@@ -61,13 +61,17 @@ const OTHER_TARGET_LABELS: Partial<Record<TargetType, string>> = {
 /**
  * Real-plan, trip-scoped attachments. Excludes Globe files and fork-owned owners; keeps removed owners as "(removed)".
  * `visibility` (Surprise, ADR 0051) keeps files inside a Surprise hidden from the viewer in the database.
+ * `opts` narrows the read to one owner's files: `tripFiles` to the Trip's own, `targetIds` to those owners'
+ * (a narrow read's `files`, spec 2026-10-16 F7). `byOwner` then holds only those owners.
  */
 export async function loadTripAttachments(
   tripId: string,
   visibility: SurpriseVisibility = NO_SURPRISES,
+  opts: { targetIds?: string[]; tripFiles?: boolean } = {},
 ): Promise<TripAttachmentsResult> {
+  const narrow = opts.tripFiles ? { targetType: "TRIP" } : opts.targetIds ? { targetId: { in: opts.targetIds } } : {};
   const rows = await db.attachment.findMany({
-    where: { tripId, ...visibility.where.attachment },
+    where: { tripId, ...narrow, ...visibility.where.attachment },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
