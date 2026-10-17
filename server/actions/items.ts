@@ -25,6 +25,7 @@ import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { validateSurpriseFor } from "@/lib/surprise";
 import { revalidateTrip } from "@/lib/revalidate";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -126,6 +127,9 @@ export async function createItem(
   }
 
   const data = parsed.data;
+  // CONTEXT.md "Booking state": stored as the effective state (a reference implies Booked).
+  const booking = resolveBookingWrite("ITEM", null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.booking);
+  if ("success" in booking) return booking;
 
   // Validate stopId belongs to this trip and the same plan
   let stopTimezone: string | null = null;
@@ -198,6 +202,7 @@ export async function createItem(
       countryCode,
       sortOrder,
       hiddenFromShares: data.hiddenFromShares ?? false,
+      ...booking,
     },
   });
 
@@ -310,6 +315,7 @@ export async function addMarkerToWishlist(
       link: seed.link,
       notes: seed.notes,
       sortOrder,
+      ...defaultBookingFields("ITEM"),
     },
   });
 
@@ -365,6 +371,15 @@ export async function updateItem(
   }
 
   const data = parsed.data;
+  // The current values above carry no booking fields, so the patch's own
+  // reach the schema (validated) and are merged here (lib/booking-state-patch.ts).
+  const booking = resolveBookingWrite(
+    "ITEM",
+    before,
+    { bookingState: patch.bookingState, bookBy: patch.bookBy },
+    data.booking,
+  );
+  if ("success" in booking) return booking;
 
   // Validate stopId belongs to this trip and to the item's own plan.
   if (data.stopId) {
@@ -409,6 +424,7 @@ export async function updateItem(
     lng,
     countryCode,
     hiddenFromShares: data.hiddenFromShares ?? false,
+    ...booking,
   }, item.forkId ?? null, { before });
 
   // Inline cost management (mirrors transport cost logic):
@@ -593,9 +609,11 @@ async function finishPlacedCopy({
  * idea — source link, title/category, coordinates, address, link, notes, the
  * share-hidden flag and the place's Opening hours (spec 2026-10-17 R4: shared
  * by the family — each row holds a copy and writes go to all of them,
- * lib/opening-hours.ts openingHoursFamilyWhere). Booking state, book-by and
- * Slot time are NOT copied: the ticket belongs to the placed Item, so the
- * copy takes the column defaults. Shared by `scheduleItem`'s copy-in branch (which
+ * lib/opening-hours.ts openingHoursFamilyWhere). The idea's CHOSEN Booking
+ * state carries over, with its book-by date while To book; an un-chosen
+ * idea's copy re-derives without the reference (never copied), so it needs
+ * no booking (lib/booking-state-patch.ts copiedBookingFields). Slot time is
+ * NOT copied: the ticket belongs to the placed Item. Shared by `scheduleItem`'s copy-in branch (which
  * also sets a date/time and resolves an owning Stop from the date) and
  * `placeIdeaAtStop` (which sets a Stop directly and no date), so the two
  * copies can't drift apart (Task 15 brief).
@@ -612,6 +630,9 @@ function ideaCopyData(fullItem: {
   notes: string | null;
   hiddenFromShares: boolean | null;
   openingHours?: string | null;
+  bookingState: string;
+  bookingStateSet: boolean;
+  bookBy: string | null;
 }) {
   return {
     sourceItemId: fullItem.id,
@@ -628,6 +649,7 @@ function ideaCopyData(fullItem: {
     // (review fix, Task 9).
     hiddenFromShares: fullItem.hiddenFromShares ?? false,
     openingHours: fullItem.openingHours ?? null,
+    ...copiedBookingFields(fullItem),
   };
 }
 

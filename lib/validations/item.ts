@@ -3,8 +3,9 @@ import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
-import { costSettlementSchema } from "@/lib/enums";
+import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate } from "@/lib/validations/primitives";
+import { bookBySchema } from "@/lib/validations/planning";
 
 /**
  * Zod schema for creating or updating an Item.
@@ -56,6 +57,10 @@ export const itemSchema = z
         message: "Link must be a valid web address (http/https)",
       }),
     booking: z.string().trim().optional(),
+    /** CONTEXT.md "Booking state". Omitted = derived from `booking` (create) or kept (update) — lib/booking-state-patch.ts. */
+    bookingState: bookingStateSchema.optional(),
+    /** The day it should be booked by; only while To book (lib/booking-state-patch.ts refuses it otherwise). */
+    bookBy: bookBySchema.optional(),
     notes: z.string().trim().optional(),
     lat: z.number().optional(),
     lng: z.number().optional(),

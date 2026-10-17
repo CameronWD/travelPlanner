@@ -723,7 +723,7 @@ describe("updateItem", () => {
 });
 
 describe("updateItem (PATCH, ADR 0075)", () => {
-  const row = { id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-05-02", startTime: "09:00", endTime: "11:00", address: "Rome, Italy", link: null, booking: null, notes: "old notes", hiddenFromShares: true };
+  const row = { id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-05-02", startTime: "09:00", endTime: "11:00", address: "Rome, Italy", link: null, booking: null, notes: "old notes", hiddenFromShares: true, bookingState: "NONE", bookingStateSet: false, bookBy: null };
   beforeEach(() => {
     itemFindUniqueMock.mockResolvedValue(row); // guard row, then the held row
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
@@ -743,6 +743,17 @@ describe("updateItem (PATCH, ADR 0075)", () => {
   it("an omitted surpriseForIds leaves the Surprise alone", async () => {
     await updateItem("item-1", { notes: "x" });
     expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+  it("refuses a book-by date on something it makes Booked, and writes nothing (spec R2)", async () => {
+    const result = await updateItem("item-1", { bookingState: "BOOKED", bookBy: "2027-05-01" });
+    expect(result).toEqual({ success: false, errors: { bookBy: ["A book-by date is only for something still to book."] } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+  it("writes the effective Booking state: a chosen To book with its book-by date", async () => {
+    await updateItem("item-1", { bookingState: "TO_BOOK", bookBy: "2027-05-01" });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-01" }),
+    }));
   });
 });
 
