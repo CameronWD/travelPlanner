@@ -364,7 +364,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     const b = baseOf(d.src);
     const mode = t.mode ?? "OTHER";
     if (!t.mode) b.highlight.push("mode");
-    const input: ProposedTransportInput = { mode };
+    const input: ProposedTransportInput = { mode, bookingState: "BOOKED" };
     const homeHint = ctx.home.timezone ? null : timezoneForCountryOrNull(ctx.home.countryCode);
     let homeNoted = false;
 
@@ -453,6 +453,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
       checkInTime: normTime(a.checkInTime) ?? undefined,
       checkOutTime: normTime(a.checkOutTime) ?? undefined,
       confirmation,
+      bookingState: "BOOKED",
       ...costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck),
     });
     b.duplicateOf = findDuplicate({ kind: "accommodation", confirmation }, ctx.existing);
@@ -487,6 +488,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
       endTime: endTime ?? undefined,
       address,
       booking,
+      bookingState: "BOOKED",
       ...costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck),
     });
     b.duplicateOf = findDuplicate({ kind: "item", booking }, ctx.existing);

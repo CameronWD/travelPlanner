@@ -3,7 +3,7 @@
  * server and the Booking import sheet share. Zod-free and server-free, so a
  * "use client" component can import it (lib/client-zod.guard.test.ts).
  */
-import type { TransportMode } from "@/lib/enum-values";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
 import type { Category } from "@/lib/categories";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -61,6 +61,9 @@ export interface ProposedTransportInput extends ProposalCostFields {
   depAt?: string;
   arrAt?: string;
   reference?: string;
+  /** CONTEXT.md "Booking state": an imported booking is Booked (set as a choice, so it stays Booked with no reference printed). */
+  bookingState?: BookingState;
+  bookBy?: string;
   notes?: string;
   depTimezone?: string;
   arrTimezone?: string;
@@ -75,6 +78,9 @@ export interface ProposedAccommodationInput extends ProposalCostFields {
   checkInTime?: string;
   checkOutTime?: string;
   confirmation?: string;
+  /** CONTEXT.md "Booking state": an imported booking is Booked (set as a choice, so it stays Booked with no reference printed). */
+  bookingState?: BookingState;
+  bookBy?: string;
   notes?: string;
 }
 
@@ -87,6 +93,9 @@ export interface ProposedItemInput extends ProposalCostFields {
   endTime?: string;
   address?: string;
   booking?: string;
+  /** CONTEXT.md "Booking state": an imported booking is Booked (set as a choice, so it stays Booked with no reference printed). */
+  bookingState?: BookingState;
+  bookBy?: string;
   notes?: string;
 }
 

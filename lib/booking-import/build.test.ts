@@ -63,6 +63,7 @@ describe("buildProposals: the sample booking", () => {
         arrAt: "2026-12-02T07:15",
         notes: "SK101 · Seat 32A · Economy",
         reference: "QX7P2M",
+        bookingState: "BOOKED",
         costMinor: 214_000,
         currency: "AUD",
         paidMinor: 214_000,
@@ -113,6 +114,7 @@ describe("buildProposals: the sample booking", () => {
       checkInTime: "15:00",
       checkOutTime: "11:00",
       confirmation: "CDR-55821",
+      bookingState: "BOOKED",
       costMinor: 81_240,
       currency: "EUR",
       paidMinor: 81_240,
@@ -262,13 +264,22 @@ describe("buildProposals: Costs", () => {
 });
 
 describe("buildProposals: things to do, car hire, gaps", () => {
+  it("every Proposal lands Booked as a choice, even a ticket that prints no reference (spec R2)", () => {
+    const { proposals } = buildProposals(report(item({ booking: null })), CTX);
+    expect(proposals[0].input).toMatchObject({ bookingState: "BOOKED" });
+    expect(proposals[0].input).not.toHaveProperty("booking");
+    const bookings = buildProposals(SAMPLE_EXTRACTION, CTX).proposals.filter((p) => p.kind !== "stop");
+    expect(bookings.length).toBeGreaterThan(0);
+    for (const p of bookings) expect(p.input).toMatchObject({ bookingState: "BOOKED" });
+  });
+
   it("a day-trip ticket joins the Stop covering its date; a missing category falls back to OTHER and is highlighted", () => {
     const p = byId(
       buildProposals(report(item({ title: "Pena Palace entry", category: null, startTime: "9:30", endTime: "11:00", place: "Pena Palace", address: "Estrada da Pena", city: "Sintra", booking: "PENA-1" })), CTX).proposals,
       "p1",
     );
     expect(p.highlight).toContain("category");
-    expect(p.input).toEqual({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", endTime: "11:00", address: "Pena Palace, Estrada da Pena", booking: "PENA-1" });
+    expect(p.input).toEqual({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", endTime: "11:00", address: "Pena Palace, Estrada da Pena", booking: "PENA-1", bookingState: "BOOKED" });
   });
 
   it("car hire is a CAR Transport from pickup to drop-off with the hire company in Notes", () => {

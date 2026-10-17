@@ -132,4 +132,20 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Booking import confirm end to 
     expect(preview.arrAt?.toISOString()).toBe(saved.arrAt?.toISOString());
     expect(preview.depAt?.toISOString()).toBe(saved.depAt?.toISOString());
   });
+
+  it("a confirmed booking with no reference printed lands Booked as a choice (spec 2026-10-17 R2)", async () => {
+    const leg: TransportProposal = {
+      ...BASE,
+      clientId: "p4",
+      kind: "transport",
+      input: { mode: "TRAIN", fromStopId: "it-stop-bne", toStopId: "it-stop-sin", bookingState: "BOOKED" },
+    };
+
+    const result = await confirmProposal(TRIP_ID, { proposal: leg, proposedStops: [], resolvedStops: {} });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const saved = await db.transport.findUniqueOrThrow({ where: { id: result.createdId } });
+    expect(saved).toMatchObject({ reference: null, bookingState: "BOOKED", bookingStateSet: true, bookBy: null });
+  });
 });
