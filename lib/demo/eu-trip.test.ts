@@ -34,7 +34,7 @@ describe("buildEuTrip", () => {
     for (const c of t.chapters) expect(validColours.has(c.colour)).toBe(true);
   });
   it("real plan is CLEAN — zero warning-severity flags", () => {
-    const flags = detectFlags(planFlagInput(realPlan, { tripStart: t.startDate!, tripEnd: t.endDate!, hardEndDate: t.hardEndDate, home: t.home, roundTrip: t.roundTrip }));
+    const flags = detectFlags(planFlagInput(realPlan, { tripStart: t.startDate!, tripEnd: t.endDate!, hardEndDate: t.hardEndDate, home: t.home, roundTrip: t.roundTrip, today: "2026-11-30" }));
     expect(flags.filter((f) => f.severity === "warning")).toEqual([]);
   });
   it("has >=2 pinned stops", () => {

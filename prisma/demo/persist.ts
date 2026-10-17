@@ -21,8 +21,9 @@ import { assignTripSlug } from "@/lib/trip-slug-store";
 import { getStorage, generateKey } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { DEMO_TRIP_NAMES } from "@/lib/demo";
-import { demoLegAnchorKeys, demoTripToggles, type DemoGlobe, type DemoTrip, type DemoPlan, type Who } from "@/lib/demo/types";
+import { demoLegAnchorKeys, demoTripToggles, demoBookingColumns, type DemoGlobe, type DemoTrip, type DemoPlan, type Who } from "@/lib/demo/types";
 import { gradientPng } from "@/lib/demo/cover-image";
+import { serializeOpeningHours } from "@/lib/validations/opening-hours";
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
 
@@ -463,6 +464,7 @@ export async function persistTrip(
           reference: t.reference ?? null,
           notes: t.notes ?? null,
           sortOrder: t.sortOrder,
+          ...demoBookingColumns("TRANSPORT", t, t.reference),
         },
       });
       id.set(t.key, dbT.id);
@@ -502,6 +504,7 @@ export async function persistTrip(
           notes: a.notes ?? null,
           lat: a.lat ?? null,
           lng: a.lng ?? null,
+          ...demoBookingColumns("ACCOMMODATION", a, a.confirmation),
         },
       });
       id.set(a.key, dbA.id);
@@ -560,6 +563,10 @@ export async function persistTrip(
           sortOrder: it.sortOrder ?? 0,
           sourceItemId: sourceItemId,
           sourceMarkerId,
+          ...demoBookingColumns("ITEM", it, it.booking),
+          slotTime: it.slotTime ?? null,
+          arriveByMinutes: it.arriveByMinutes ?? null,
+          openingHours: serializeOpeningHours(it.openingHours),
         },
       });
       id.set(it.key, dbItem.id);

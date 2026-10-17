@@ -212,6 +212,11 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
       booking: "SW-2291",
       cost: { costMinor: 7400, currency: "AUD" },
       sortOrder: 1,
+      openingHours: {
+        week: { sun: [["09:00", "17:00"]], mon: [["09:00", "17:00"]], tue: [["09:00", "17:00"]], wed: [["09:00", "17:00"]], thu: [["09:00", "17:00"]], fri: [["09:00", "17:00"]], sat: [["09:00", "17:00"]] },
+        seasons: [],
+        closed: [],
+      },
     },
     {
       key: "fp:item:grand-canyon-walk",
@@ -225,6 +230,21 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
       lng: 150.2868,
       notes: "Wear good shoes — creek crossings.",
       sortOrder: 2,
+    },
+    {
+      key: "fp:item:darleys",
+      title: "Dinner at Darleys",
+      category: "FOOD",
+      stopKey: "fp:stop:katoomba",
+      date: d.finalPrep.start,
+      startTime: "19:00",
+      endTime: "21:00",
+      lat: -33.7316,
+      lng: 150.3122,
+      notes: "Hatted restaurant at Lilianfels. Book ahead.",
+      bookingState: "TO_BOOK",
+      bookBy: addDays(today, 1),
+      sortOrder: 3,
     },
   ];
 
