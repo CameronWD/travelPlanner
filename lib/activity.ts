@@ -13,7 +13,7 @@ import { formatLongDate, formatDayLabel, formatISODate } from "@/lib/dates";
 import { categoryLabel, type Category } from "@/lib/categories";
 import type { VoteLevel } from "@/lib/enum-values";
 import { BOOKING_STATE_LABELS } from "@/lib/booking-state-copy";
-import { parseOpeningHours } from "@/lib/validations/opening-hours";
+import type { OpeningHours } from "@/lib/opening-hours";
 import { openingHoursSummary } from "@/lib/opening-hours-display";
 
 // ---------------------------------------------------------------------------
@@ -138,12 +138,20 @@ function bookingStateFormat(value: unknown): string {
 /**
  * CONTEXT.md "Opening hours" (R4). `Item.openingHours` is stored as a JSON
  * string (lib/validations/opening-hours.ts), so the before/after snapshot
- * values here are that stored string (or null) — parse before summarising.
+ * values here are that stored string (or null). Parsed with plain
+ * `JSON.parse`, not `parseOpeningHours` — that module imports zod, and
+ * lib/activity.ts is a client-safe module (notification-bell.tsx imports
+ * it), so it stays off the zod side of the boundary (lib/client-zod.guard.test.ts).
+ * The value was already validated by `openingHoursSchema` on write; this is
+ * display-only, so anything unreadable just falls back to "Set".
  */
 function openingHoursFormat(value: unknown): string {
   if (isEmpty(value)) return "Not set";
-  const hours = parseOpeningHours(value as string);
-  return hours ? openingHoursSummary(hours) : "Set";
+  try {
+    return openingHoursSummary(JSON.parse(value as string) as OpeningHours);
+  } catch {
+    return "Set";
+  }
 }
 
 /**
