@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireTripAccess, readDayRows } = vi.hoisted(() => ({ requireTripAccess: vi.fn(), readDayRows: vi.fn() }));
+const { requireTripAccess, readDayRows, stopFindMany } = vi.hoisted(() => ({
+  requireTripAccess: vi.fn(),
+  readDayRows: vi.fn(),
+  stopFindMany: vi.fn(),
+}));
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
 vi.mock("@/lib/day-reads", () => ({ readDayRows }));
+// `readDayRows` is mocked wholesale, so it never actually calls the
+// `alongside` callback `loadDayForMcp` passes it (the real one queries
+// `db.stop.findMany` for every real-plan Stop's name, R5's owningStop fix
+// round 1); each test sets `alongside` directly on `readDayRows`'s resolved
+// value instead. This mock exists only so the module import doesn't throw
+// for lack of a DATABASE_URL.
+vi.mock("@/lib/db", () => ({ db: { stop: { findMany: stopFindMany } } }));
 
 import type { DayRows } from "@/lib/day-view-model";
 import { loadDayForMcp } from "./day";
@@ -36,7 +47,7 @@ describe("loadDayForMcp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
-    readDayRows.mockResolvedValue({ rows, visibility: {}, alongside: null });
+    readDayRows.mockResolvedValue({ rows, visibility: {}, alongside: [{ id: "s1", name: "Porto" }] });
   });
 
   it("reads the day as the Day view assembles it, the viewer's Surprise masking included", async () => {
@@ -52,6 +63,22 @@ describe("loadDayForMcp", () => {
     expect(day.timeline[0]).toMatchObject({ kind: "item", item: { title: "Port lodge tour", files: [{ id: "f1", title: "tour.pdf" }] } });
     expect(day.timeline[1]).toMatchObject({ kind: "item", item: { title: "Surprise", surprise: { youAreSurprised: true } } });
     expect(day.anytime.map((i) => i.id)).toEqual(["market"]);
+  });
+
+  // Fix round 1 (controller ruling): get_day's own `rows.stops` holds only
+  // dated Stops, so an Item owned by a rough Stop used to get no name for
+  // owningStop (owningStopRef's old fallback prose). The `alongside` names
+  // list (every real-plan Stop, rough ones included) fixes that.
+  it("an Item owned by a rough Stop (not in rows.stops) still gets its real name for owningStop", async () => {
+    readDayRows.mockResolvedValue({
+      rows: { ...rows, items: [...rows.items, itemRow({ id: "daytrip", title: "Somewhere else", stopId: "rough1", startTime: "15:00" })] },
+      visibility: {},
+      alongside: [{ id: "s1", name: "Porto" }, { id: "rough1", name: "IT Somewhere else" }],
+    });
+    const day = await loadDayForMcp("trip-1", "2027-06-02");
+    if ("success" in day) throw new Error("expected a day");
+    const entry = day.timeline.find((e) => e.kind === "item" && e.item.id === "daytrip");
+    expect(entry).toMatchObject({ item: { owningStop: { id: "rough1", name: "IT Somewhere else" } } });
   });
 
   it("lists the check-in in the timeline on its day, timed", async () => {
@@ -73,7 +100,7 @@ describe("loadDayForMcp", () => {
   });
 
   it("a trip with a start date but no end date is the same no-dates tool error, not a one-day trip", async () => {
-    readDayRows.mockResolvedValue({ rows: { ...rows, trip: { ...rows.trip, endDate: null }, endDate: rows.startDate }, visibility: {}, alongside: null });
+    readDayRows.mockResolvedValue({ rows: { ...rows, trip: { ...rows.trip, endDate: null }, endDate: rows.startDate }, visibility: {}, alongside: [{ id: "s1", name: "Porto" }] });
     expect(await loadDayForMcp("trip-1", "2027-06-01")).toEqual({
       success: false,
       errors: { date: ["This trip has no dates yet, so it has no days. Read it with get_trip_plan."] },

@@ -7,11 +7,13 @@
  * Real plan only: readDayRows never reads a Fork.
  */
 import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { readDayRows } from "@/lib/day-reads";
 import { buildDayModel, nightOfStay } from "@/lib/day-view-model";
 import { orderDayEntries, type ItemEntry } from "@/lib/itinerary";
 import { fail, type ActionFailure } from "@/lib/action-result";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { toMcpDayItem, toMcpSurprise, type McpDayItem, type McpSurprise } from "./plan-shapes";
 
 /** One entry of a day's timeline, in the Day view's order (`orderDayEntries`). */
@@ -52,14 +54,21 @@ export interface McpDay {
 
 export async function loadDayForMcp(tripId: string, date: string): Promise<McpDay | ActionFailure> {
   const { user } = await requireTripAccess(tripId);
-  const read = await readDayRows(tripId, user.id, async () => null);
+  // Fix round 1 (controller ruling): readDayRows' own `rows.stops` holds only
+  // dated real-plan Stops (its stopRows query excludes rough ones), which
+  // made a rough Stop's owningStop.name resolve to nothing. Fetch every
+  // real-plan Stop's name here instead — the same query readMcpStops makes
+  // (entities.ts) — so a thing owned by a rough Stop still gets its real name.
+  const read = await readDayRows(tripId, user.id, async () =>
+    db.stop.findMany({ where: { tripId, ...REAL_PLAN }, select: { id: true, name: true } }),
+  );
   if (read === "missing") notFound();
   // A start with no end is still "no dates yet" for get_day: readDayRows
   // reads it as a one-day Trip, which would offer Claude a day that isn't.
   if (read === "dateless" || read.rows.trip.endDate === null) {
     return fail({ date: ["This trip has no dates yet, so it has no days. Read it with get_trip_plan."] });
   }
-  const { rows } = read;
+  const { rows, alongside: stopRows } = read;
   if (date < rows.startDate || date > rows.endDate) {
     return fail({ date: [`${date} is outside the trip, which runs ${rows.startDate} to ${rows.endDate}.`] });
   }
@@ -70,7 +79,7 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
 
   const filesFor = (_kind: string, id: string) =>
     (model.attachmentsByTarget[id] ?? []).map((a) => ({ id: a.id, title: a.title ?? a.filename }));
-  const stopName = new Map(rows.stops.map((s) => [s.id, s.name]));
+  const stopName = new Map(stopRows.map((s) => [s.id, s.name]));
   const item = (e: ItemEntry): McpDayItem => toMcpDayItem(e.item, filesFor, stopName);
   const home = rows.trip.homeName ?? "Home";
   const endName = (isHome: boolean | null | undefined, stopId: string | null | undefined, place: string | null | undefined) =>

@@ -212,6 +212,24 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect((await as(OWNER)(() => loadItemForMcp(FAREWELL))).owningStop).toEqual({ id: PORTO, name: "IT Porto" });
   });
 
+  // Fix round 1 (controller ruling): get_day's own `rows.stops` (readDayRows'
+  // stopRows query) excludes rough Stops, which made owningStopRef invent "a
+  // Stop with no dates yet" for an Item owned by one. get_day now fetches
+  // every real-plan Stop's name (the same query readMcpStops makes), so a
+  // rough owner's real name shows, same as get_item.
+  it("an Item owned by a rough Stop gets its real Stop name in get_day, same as get_item (R5)", async () => {
+    const ROUGH = "it-narrow-rough-stop";
+    const ROUGH_ITEM = "it-narrow-rough-item";
+    await db.stop.create({ data: { id: ROUGH, tripId: TRIP_ID, name: "IT Somewhere else", sortOrder: 9 } });
+    await db.item.create({ data: { id: ROUGH_ITEM, tripId: TRIP_ID, stopId: ROUGH, title: "IT Day trip", category: "ACTIVITY", date: "2027-06-02", startTime: "15:00", sortOrder: 9 } });
+
+    const day = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-02"));
+    if ("success" in day) throw new Error("expected a day");
+    expect(day.timeline).toContainEqual(expect.objectContaining({ kind: "item", item: expect.objectContaining({ id: ROUGH_ITEM, owningStop: { id: ROUGH, name: "IT Somewhere else" } }) }));
+
+    expect((await as(OWNER)(() => loadItemForMcp(ROUGH_ITEM))).owningStop).toEqual({ id: ROUGH, name: "IT Somewhere else" });
+  });
+
   it("get_day on a Trip with a start date but no end date is the no-dates tool error, not a one-day Trip", async () => {
     await db.trip.update({ where: { id: TRIP_ID }, data: { endDate: null } });
     expect(await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-01"))).toEqual({

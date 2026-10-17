@@ -205,7 +205,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get trip plan",
       description:
-        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters, each day's things naming their owningStop: on a Changeover day (one day two Stops share) a thing is listed under both Stops but is owned by, and costed against, that one Stop. Transport with departure/arrival places and local times (each end in its own zone; a Home end is read in the trip's Home timezone, homeTimezone, when it's set), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. Read one with get_attachment, or see them all with list_attachments. To re-check one thing, use get_stop, get_item, get_transport, get_accommodation or get_day instead of reading the whole plan again.",
+        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters, each day's things naming their owningStop: on a Changeover day (one day two Stops share) a thing is listed under both Stops but is owned by, and costed against, that one Stop. Each thing's openingHours (same shape as set_opening_hours) is null when not known. Transport with departure/arrival places and local times (each end in its own zone; a Home end is read in the trip's Home timezone, homeTimezone, when it's set), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. Read one with get_attachment, or see them all with list_attachments. To re-check one thing, use get_stop, get_item, get_transport, get_accommodation or get_day instead of reading the whole plan again.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
@@ -229,7 +229,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get thing to do",
       description:
-        "Reads one thing to do or see exactly as get_trip_plan shows it, with its date and Stop, its Costs (as list_costs shows them), its files, its openingHours (null when not known; set them with set_opening_hours), and notesOnItem: the Notes the Travellers left on it. Its own notes field is different. That is the Item's description, part of the Item, changed with update_thing_to_do. A Note is a separate comment, added with add_note and removed with delete_note.",
+        "Reads one thing to do or see exactly as get_trip_plan shows it, with its date and Stop, its Costs (as list_costs shows them), its files, its openingHours (same shape as set_opening_hours; null when not known), and notesOnItem: the Notes the Travellers left on it. Its own notes field is different. That is the Item's description, part of the Item, changed with update_thing_to_do. A Note is a separate comment, added with add_note and removed with delete_note.",
       inputSchema: { itemId: z.string() },
       annotations: { readOnlyHint: true },
     },
@@ -264,7 +264,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get day",
       description:
-        "Reads one day of the trip as the Day view shows it: the day's Stop (the arriving one on a Changeover day), the Day title, tonight's Accommodation, and the timeline in order; each thing names its owningStop, which on a Changeover day can be the departing Stop. The timeline holds departures and arrivals, check-out and check-in, and timed things to do; then come the untimed things to do (anytime). date is YYYY-MM-DD within the trip's dates.",
+        "Reads one day of the trip as the Day view shows it: the day's Stop (the arriving one on a Changeover day), the Day title, tonight's Accommodation, and the timeline in order; each thing names its owningStop, which on a Changeover day can be the departing Stop, and its openingHours (same shape as set_opening_hours). The timeline holds departures and arrivals, check-out and check-in, and timed things to do; then come the untimed things to do (anytime). date is YYYY-MM-DD within the trip's dates.",
       inputSchema: { tripId: z.string(), date: isoDate },
       annotations: { readOnlyHint: true },
     },

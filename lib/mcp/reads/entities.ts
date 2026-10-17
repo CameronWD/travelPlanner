@@ -23,6 +23,7 @@ import { loadTripAttachments, type TripAttachmentsResult } from "./attachments";
 import { readMcpCosts, type McpCost } from "./costs";
 import { readMcpNotes, type McpNote } from "./notes";
 import { ownerKey } from "./owners";
+import { withOpeningHours } from "@/lib/opening-hours-stored";
 import {
   buildMcpStops, MCP_ACCOMMODATION_SELECT, MCP_CHAPTER_SELECT, MCP_DATED_ITEM_SELECT, MCP_THING_TO_DO_SELECT, MCP_TRANSPORT_SELECT,
   MCP_TRIP_SELECT, mcpStopSelect, toMcpAccommodation, toMcpItem, toMcpTransport, toMcpTrip, withPlaceholders,
@@ -57,7 +58,11 @@ export async function loadItemForMcp(itemId: string): Promise<McpItemDetail> {
     row.stopId ? db.stop.findFirst({ where: { id: row.stopId, tripId, ...REAL_PLAN }, select: { id: true, name: true } }) : Promise.resolve(null),
   ]);
   return {
-    ...toMcpItem({ ...row, surprise: v.views.items.get(itemId) ?? null }, filesFrom(files), new Map(owner ? [[owner.id, owner.name]] : [])),
+    ...toMcpItem(
+      { ...withOpeningHours(row), surprise: v.views.items.get(itemId) ?? null },
+      filesFrom(files),
+      new Map(owner ? [[owner.id, owner.name]] : []),
+    ),
     costs,
     notesOnItem,
   };
@@ -142,7 +147,7 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
   const hidden = new Set(v.hiddenStopIds);
   const open = stops.filter((s) => !hidden.has(s.id) && s.arriveDate && s.departDate);
 
-  const [thingsToDo, scheduled, neighbours, names] = await Promise.all([
+  const [thingsToDo, scheduled, neighbours] = await Promise.all([
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: { in: stops.map((s) => s.id) }, ...v.where.item },
       orderBy: { sortOrder: "asc" },
@@ -166,15 +171,24 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
           orderBy: { sortOrder: "asc" },
           select: { id: true, arriveDate: true, departDate: true },
         }),
-    // Every real-plan Stop's name (R5's owningStop may name a Stop outside
-    // stopIds, e.g. a Changeover day's other Stop). A Stop's name is its
-    // shell, so this needs no Surprise fragment — same as loadTransportForMcp's endpoints.
-    db.stop.findMany({ where: { tripId, ...REAL_PLAN }, select: { id: true, name: true } }),
   ]);
-  const stopNameById = new Map(names.map((s) => [s.id, s.name]));
 
   const datedItems = withPlaceholders(scheduled, v);
-  const [dayTitles, files] = await Promise.all([
+  // Fix round 1 (minor, scoped): `stops` already names every Stop asked for;
+  // the only names still missing are owningStop's (R5), for a thing whose
+  // own stopId names a Stop outside `stopIds` (a Changeover day's other
+  // Stop, say). Scoped to those ids, not every real-plan Stop of the trip —
+  // a Stop's name is its shell, so no Surprise fragment, same as
+  // loadTransportForMcp's endpoints.
+  const alreadyNamed = new Map(stops.map((s) => [s.id, s.name]));
+  const extraStopIds = [
+    ...new Set(
+      [...thingsToDo, ...datedItems]
+        .map((i) => i.stopId)
+        .filter((id): id is string => !!id && !alreadyNamed.has(id)),
+    ),
+  ];
+  const [dayTitles, files, extraNames] = await Promise.all([
     loadDayTitles(neighbours),
     loadTripAttachments(tripId, v, {
       targetIds: [
@@ -184,7 +198,11 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
         ...datedItems.map((i) => i.id),
       ],
     }),
+    extraStopIds.length === 0
+      ? Promise.resolve([])
+      : db.stop.findMany({ where: { tripId, ...REAL_PLAN, id: { in: extraStopIds } }, select: { id: true, name: true } }),
   ]);
+  const stopNameById = new Map([...alreadyNamed, ...extraNames.map((s): [string, string] => [s.id, s.name])]);
 
   return buildMcpStops({
     stops, thingsToDo, datedItems, dayTitles, hiddenStopIds: hidden,

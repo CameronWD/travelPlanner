@@ -299,6 +299,29 @@ describe("plan write tools", () => {
       expect(setOpeningHours).toHaveBeenCalledWith(ITEM_ID, null);
     });
 
+    // Fix round 1 (minor): hours: {} is a valid, fully-empty OpeningHours
+    // once the schema's defaults fill in week/seasons/closed; it reaches
+    // setOpeningHours as that canonical empty shape, which is itself the one
+    // that stores as a clear (isEmptyOpeningHours, lib/opening-hours.ts),
+    // already covered where setOpeningHours is tested for real.
+    it("hours: {} reaches setOpeningHours as the canonical empty shape (itself a clear)", async () => {
+      setOpeningHours.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours: {} } });
+      expect(r.isError).toBeFalsy();
+      expect(setOpeningHours).toHaveBeenCalledWith(ITEM_ID, { week: {}, seasons: [], closed: [] });
+    });
+
+    it("invalid hours (a span out of order) is isError and calls nothing", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "set_opening_hours",
+        arguments: { itemId: ITEM_ID, hours: { week: { mon: [["18:00", "10:00"]] } } },
+      });
+      expect(r.isError).toBe(true);
+      expect(setOpeningHours).not.toHaveBeenCalled();
+    });
+
     it("on a Fork's row is not found and writes nothing", async () => {
       itemFindUnique.mockResolvedValue(null);
       const c = await connectTestClient();

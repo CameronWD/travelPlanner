@@ -10,7 +10,8 @@ import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/li
 import { transportTimeDisplay } from "@/lib/time-display";
 import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
-import { readStoredOpeningHours } from "@/lib/opening-hours-stored";
+import { withOpeningHours } from "@/lib/opening-hours-stored";
+import { parseOpeningHours } from "@/lib/validations/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
 import type { McpFileRef } from "./attachments";
@@ -282,8 +283,8 @@ export interface McpItemRow {
   address: string | null; link: string | null; booking: string | null; notes: string | null; stopId: string | null;
   bookingState: string; bookBy: string | null;
   slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null;
-  /** The stored column (a JSON string), or already-parsed (get_day's rows) — see `readStoredOpeningHours`. */
-  openingHours?: unknown;
+  /** The stored column: a JSON string, or null. Parse at the row edge with `withOpeningHours`/`parseOpeningHours` before building a shape — never hand this straight to a shape that expects `OpeningHours`. */
+  openingHours: string | null;
 }
 
 export interface McpTransportRow {
@@ -301,13 +302,16 @@ export function toMcpSurprise(view: SurpriseView | null | undefined): McpSurpris
 }
 
 /**
- * The Stop a day item is owned by (R5): null for no Stop. Only get_day can
- * miss a name for a known stopId — its rows hold dated Stops only, so the
- * owner would be a rough Stop with no entry in the names map.
+ * The Stop a day item is owned by (R5): null for no Stop. Fix round 1
+ * (controller ruling): every caller passes a `names` map covering every
+ * real-plan Stop of the trip, rough ones included (get_day's own fix), so a
+ * known stopId should always resolve; if a name is somehow still missing,
+ * this returns null rather than inventing prose.
  */
 export function owningStopRef(stopId: string | null | undefined, names: ReadonlyMap<string, string>): McpOwningStop | null {
   if (!stopId) return null;
-  return { id: stopId, name: names.get(stopId) ?? "a Stop with no dates yet" };
+  const name = names.get(stopId);
+  return name ? { id: stopId, name } : null;
 }
 
 /** The Slot time fields as Claude reads them; a row without them reads as none / UNKNOWN. */
@@ -331,49 +335,56 @@ function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: S
   return {
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
     notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, ...mcpSlot(i),
-    openingHours: readStoredOpeningHours(i.openingHours),
+    openingHours: parseOpeningHours(i.openingHours),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
   };
 }
 
-/** A dated thing to do on a day (get_trip_plan's `days[].items`, get_day's timeline). */
+/** A dated thing to do on a day (get_trip_plan's `days[].items`, get_day's timeline). Its `openingHours` has already been parsed at the row edge (`StopDayItem.openingHours` is the model, never the stored string). */
 export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpDayItem {
   return {
     id: i.id, title: i.title, category: i.category,
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
     bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
-    openingHours: readStoredOpeningHours(i.openingHours ?? null),
+    openingHours: i.openingHours ?? null,
     owningStop: owningStopRef(i.stopId, stopNameById),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
 }
 
-export function toMcpItem(
-  i: McpItemRow & { surprise: SurpriseView | null },
-  filesFor: FilesFor,
-  stopNameById: ReadonlyMap<string, string>,
-): McpItem {
+/**
+ * Fix round 1 (controller ruling): a `McpItemRow` with its `openingHours`
+ * parsed once at the MCP row edge (`withOpeningHours`) and its Surprise view
+ * attached. Parsing here — rather than inside `toMcpDayItem`/`toMcpItem` on
+ * every read — means the `datedItems as unknown as StopDayItem[]` cast
+ * `buildMcpStops` makes to group these rows is honest: `openingHours` really
+ * is an `OpeningHours | null` by the time anything (Branch 2's Flags
+ * included) sees it as a `StopDayItem`, never a raw JSON string wearing that
+ * type.
+ */
+type DatedItem = Omit<McpItemRow, "openingHours"> & { openingHours: OpeningHours | null; surprise: SurpriseView | null };
+
+export function toMcpItem(i: DatedItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpItem {
   return {
-    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState } as unknown as StopDayItem, filesFor, stopNameById),
+    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState }, filesFor, stopNameById),
     date: i.date,
     stopId: i.stopId,
   };
 }
 
-type DatedItem = McpItemRow & { surprise: SurpriseView | null };
-
 /**
  * The real plan's dated Items with each hidden Surprise Item joined as a
  * placeholder titled "Surprise" on its date and time (ADR 0051), date order,
- * same-day order kept.
+ * same-day order kept. Each scheduled row's `openingHours` is parsed once
+ * here (`withOpeningHours`), at the row edge — see `DatedItem`.
  */
 export function withPlaceholders(
   scheduled: McpItemRow[],
   v: Pick<SurpriseVisibility, "placeholderItems" | "views">,
 ): DatedItem[] {
   return [
-    ...scheduled.map((i) => ({ ...i, surprise: v.views.items.get(i.id) ?? null })),
+    ...scheduled.map((i) => ({ ...withOpeningHours(i), surprise: v.views.items.get(i.id) ?? null })),
     ...v.placeholderItems
       .filter((p) => p.forkId === null && p.date !== null)
       .map((p) => ({

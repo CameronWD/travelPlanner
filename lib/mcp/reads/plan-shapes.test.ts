@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { withOpeningHours } from "@/lib/opening-hours-stored";
+import { serializeOpeningHours } from "@/lib/validations/opening-hours";
+import type { HoursSpan, OpeningHours } from "@/lib/opening-hours";
+import type { SurpriseView } from "@/lib/surprise";
 import {
   buildMcpStops,
   owningStopRef,
@@ -21,6 +25,11 @@ const item = (o: Partial<McpItemRow> = {}): McpItemRow => ({
   openingHours: null, ...o,
 });
 const surpriseView = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true } as never;
+// Fix round 1 (controller ruling): `toMcpItem` and `buildMcpStops`'s
+// `datedItems` now take rows whose `openingHours` has already been parsed at
+// the row edge (`withOpeningHours`), same as production (`withPlaceholders`,
+// `loadItemForMcp`) — never a raw string wearing the parsed type.
+const datedItem = (o: Partial<McpItemRow> = {}, surprise: SurpriseView | null = null) => ({ ...withOpeningHours(item(o)), surprise });
 
 describe("buildMcpStops", () => {
   it("puts a Changeover day's Item under both Stops, each day titled once, and reports it covered", () => {
@@ -28,8 +37,8 @@ describe("buildMcpStops", () => {
       stops: [stop(), stop({ id: "s2", name: "Lisbon", arriveDate: "2027-06-04", departDate: "2027-06-06", sortOrder: 1 })],
       thingsToDo: [item({ id: "t1", stopId: "s1" })],
       datedItems: [
-        { ...item({ id: "c1", date: "2027-06-04", startTime: "09:00" }), surprise: null },
-        { ...item({ id: "far", date: "2027-07-01" }), surprise: null },
+        datedItem({ id: "c1", date: "2027-06-04", startTime: "09:00" }),
+        datedItem({ id: "far", date: "2027-07-01" }),
       ],
       dayTitles: new Map([["2027-06-04", { title: "Changeover", stopId: "s2" }]]),
       hiddenStopIds: new Set(),
@@ -46,7 +55,7 @@ describe("buildMcpStops", () => {
   it("keeps a hidden Surprise Stop's shell: rough false, dates kept, no days", () => {
     const { stops } = buildMcpStops({
       stops: [stop({ notes: null, surprise: surpriseView })],
-      thingsToDo: [], datedItems: [{ ...item({ id: "c1", date: "2027-06-02" }), surprise: null }],
+      thingsToDo: [], datedItems: [datedItem({ id: "c1", date: "2027-06-02" })],
       dayTitles: new Map(), hiddenStopIds: new Set(["s1"]), itemView: () => null, filesFor: noFiles,
       stopNameById: new Map(),
     });
@@ -68,8 +77,8 @@ describe("buildMcpStops", () => {
       stops: [stop(), stop({ id: "s2", name: "Lisbon", arriveDate: "2027-06-04", departDate: "2027-06-06", sortOrder: 1 })],
       thingsToDo: [],
       datedItems: [
-        { ...item({ id: "lunch", date: "2027-06-04", startTime: "12:00", stopId: "s1" }), surprise: null },
-        { ...item({ id: "train", date: "2027-06-04", startTime: "09:00" }), surprise: null },
+        datedItem({ id: "lunch", date: "2027-06-04", startTime: "12:00", stopId: "s1" }),
+        datedItem({ id: "train", date: "2027-06-04", startTime: "09:00" }),
       ],
       dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
       stopNameById: new Map([["s1", "Porto"], ["s2", "Lisbon"]]),
@@ -104,14 +113,17 @@ describe("withPlaceholders", () => {
 // d-as-built.md is authoritative, so this uses S's actual vocabulary instead:
 // `week` keyed sun..sat (absent = not known, [] = closed) and `closed`.
 describe("opening hours (CONTEXT.md Opening hours)", () => {
-  const span = [["10:00", "18:00"]];
-  const hours = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [] };
+  const span: HoursSpan[] = [["10:00", "18:00"]];
+  const hours: OpeningHours = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [] };
 
+  // Fix round 1 (controller ruling): goes through the real stored-string
+  // path end to end — `item()`'s `openingHours` is the column (a JSON
+  // string, or null/unreadable text), never an already-parsed object.
   it("a thing to do and a day item read the stored hours; a bad stored value reads as none", () => {
     const { stops } = buildMcpStops({
       stops: [stop()],
-      thingsToDo: [item({ id: "t1", stopId: "s1", openingHours: hours })],
-      datedItems: [{ ...item({ id: "d1", date: "2027-06-02", openingHours: { week: "?" } }), surprise: null }],
+      thingsToDo: [item({ id: "t1", stopId: "s1", openingHours: serializeOpeningHours(hours) })],
+      datedItems: [datedItem({ id: "d1", date: "2027-06-02", openingHours: '{"week":"?"}' })],
       dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
       stopNameById: new Map(),
     });
@@ -131,7 +143,7 @@ describe("opening hours (CONTEXT.md Opening hours)", () => {
 describe("toMcpItem / toMcpTransport", () => {
   it("toMcpItem carries the date and owning Stop alongside the day-item fields", () => {
     expect(
-      toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1" }), surprise: null }, noFiles, new Map([["s1", "Porto"]])),
+      toMcpItem(datedItem({ id: "i1", date: "2027-06-02", stopId: "s1" }), noFiles, new Map([["s1", "Porto"]])),
     ).toEqual({
       id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
@@ -141,7 +153,7 @@ describe("toMcpItem / toMcpTransport", () => {
   });
 
   it("every shape carries Booking state; a placeholder is never To book", () => {
-    expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }), surprise: null }, noFiles, new Map()))
+    expect(toMcpItem(datedItem({ id: "i1", date: "2027-06-02", stopId: "s1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }), noFiles, new Map()))
       .toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-01" });
     const [p] = withPlaceholders([], { views: { stops: new Map(), items: new Map() }, placeholderItems: [placeholder({ id: "p1" })] });
     expect(p).toMatchObject({ bookingState: "NONE", bookBy: null });
@@ -149,6 +161,11 @@ describe("toMcpItem / toMcpTransport", () => {
 
   it("owningStopRef is null with no Stop", () => {
     expect(owningStopRef(null, new Map())).toBeNull();
+  });
+
+  // Fix round 1 (controller ruling): no invented prose when a name is missing.
+  it("owningStopRef is null, not invented prose, when the stopId has no entry in names", () => {
+    expect(owningStopRef("s9", new Map())).toBeNull();
   });
 
   it("toMcpTransport reads a Home end in the Home timezone and a Stop end in the Stop's", () => {
@@ -170,7 +187,7 @@ describe("toMcpItem / toMcpTransport", () => {
 
 describe("Slot time in the Claude reads (R3)", () => {
   it("a thing to do and a day item read the slot, the margin and refundability", () => {
-    const row = { ...item({ id: "i1", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }), surprise: null };
+    const row = datedItem({ id: "i1", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false });
     expect(toMcpItem(row, noFiles, new Map())).toMatchObject({ startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" });
     const { stops } = buildMcpStops({
       stops: [stop()], thingsToDo: [item({ id: "t1", stopId: "s1", slotTime: "19:30", refundable: true })], datedItems: [],
@@ -180,6 +197,6 @@ describe("Slot time in the Claude reads (R3)", () => {
     expect(stops[0].thingsToDo[0]).toMatchObject({ slotTime: "19:30", arriveByMinutes: null, refundable: "YES" });
   });
   it("a row read without the columns says none / UNKNOWN", () => {
-    expect(toMcpItem({ ...item(), surprise: null }, noFiles, new Map())).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
+    expect(toMcpItem(datedItem(), noFiles, new Map())).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
   });
 });
