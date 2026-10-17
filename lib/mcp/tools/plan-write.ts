@@ -56,6 +56,7 @@ import { loadNoteForMcp } from "../reads/notes";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { arriveByMinutesSchema, refundableSchema } from "@/lib/validations/planning";
 import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
 const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
@@ -69,6 +70,18 @@ const describedVoteLevel = voteLevelSchema.describe(describeValues("How keen you
 const ITEM_NOTES_DESCRIPTION =
   "The Item's own notes: its description, part of the Item, edited here. Not a Note: a Note is a comment a Traveller leaves on it, added with add_note.";
 
+/**
+ * CONTEXT.md "Slot time" (R3): the ticket's own time, separate from startTime
+ * (the Traveller's plan). Section S stores refundable as a plain true/false/
+ * not-known column (not an enum), so the field here takes a boolean or null,
+ * matching get_item/get_trip_plan's read, which shows null as "UNKNOWN".
+ */
+const SLOT_TIME_DESCRIPTION =
+  "The ticket's time, HH:MM in the Stop's local time: the 12:00 tour, the 19:30 sitting. Not the start time. startTime is when the Travellers plan to be there. With a date and no startTime, the start is set to slotTime less arriveByMinutes.";
+const ARRIVE_BY_DESCRIPTION = "How many minutes before the slot to be there, as the ticket asks. 15 means be there 15 minutes early.";
+const REFUNDABLE_DESCRIPTION =
+  "Whether the ticket can be refunded: true (refundable or free cancellation), false (non-refundable) or null (not known, the default). Reads show this as YES, NO or UNKNOWN.";
+
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
   title: z.string().trim().min(1),
@@ -81,6 +94,9 @@ const itemCreateShape = {
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
+  slotTime: hhmm.optional().describe(SLOT_TIME_DESCRIPTION),
+  arriveByMinutes: arriveByMinutesSchema.optional().describe(ARRIVE_BY_DESCRIPTION),
+  refundable: refundableSchema.optional().describe(REFUNDABLE_DESCRIPTION),
   ...bookingCreateShape,
 };
 
@@ -96,6 +112,9 @@ const itemPatchShape = {
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
+  slotTime: hhmm.nullable().optional().describe(`${SLOT_TIME_DESCRIPTION} null clears it.`),
+  arriveByMinutes: arriveByMinutesSchema.nullable().optional().describe(`${ARRIVE_BY_DESCRIPTION} null clears it.`),
+  refundable: refundableSchema.nullable().optional().describe(`${REFUNDABLE_DESCRIPTION} null clears it, back to not known.`),
   ...bookingPatchShape,
 };
 
@@ -125,7 +144,8 @@ export function registerPlanWriteTools(server: McpServer): void {
       title: "Update thing to do",
       description:
         "Changes only the fields you pass; fields you omit keep their current value. Location comes from address, not from lat/lng. " +
-        "notes is the Item's own notes, its description, and is edited here. That is not a Note: a Note is a separate comment a Traveller left on the Item (see get_item's notesOnItem or get_notes). A Note is never edited. Remove it with delete_note and, if it still needs saying, add it again with add_note.",
+        "notes is the Item's own notes, its description, and is edited here. That is not a Note: a Note is a separate comment a Traveller left on the Item (see get_item's notesOnItem or get_notes). A Note is never edited. Remove it with delete_note and, if it still needs saying, add it again with add_note. " +
+        "A null slotTime or arriveByMinutes clears it. Moving the slot never moves a start time that is already set.",
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
     ({ itemId, ...patch }) =>
@@ -166,15 +186,20 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Schedule thing to do",
       description:
-        "Schedules a thing to do or see onto a date. A Wishlist idea is copied onto the date (the idea stays in the Wishlist); an already-placed thing to do is moved.",
-      inputSchema: { itemId: z.string(), date: isoDate, startTime: hhmm.optional(), endTime: hhmm.optional() },
+        "Schedules a thing to do or see onto a date. A Wishlist idea is copied onto the date (the idea stays in the Wishlist); an already-placed thing to do is moved. " +
+        "With no startTime, a slot time (given here or already on the thing) sets the start to the slot less arriveByMinutes.",
+      inputSchema: {
+        itemId: z.string(), date: isoDate, startTime: hhmm.optional(), endTime: hhmm.optional(),
+        slotTime: hhmm.optional().describe(SLOT_TIME_DESCRIPTION),
+        arriveByMinutes: arriveByMinutesSchema.optional().describe(ARRIVE_BY_DESCRIPTION),
+      },
     },
-    ({ itemId, date, startTime, endTime }) =>
+    ({ itemId, date, startTime, endTime, slotTime, arriveByMinutes }) =>
       runWrite(
         "schedule_thing_to_do",
         async () => {
           await requireRealPlanRow("item", itemId);
-          return scheduleItem(itemId, { date, startTime, endTime });
+          return scheduleItem(itemId, { date, startTime, endTime, slotTime, arriveByMinutes });
         },
         async (done) => ({ item: await loadItemForMcp(done.placedItemId ?? itemId) }),
       ),

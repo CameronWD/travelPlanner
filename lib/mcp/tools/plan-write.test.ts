@@ -587,4 +587,36 @@ describe("plan write tools", () => {
       expect(body(await c.callTool({ name: "clear_vote", arguments: { tripId: "trip-1", itemId: "item-1" } }))).toEqual({ itemId: "item-1", votes: [] });
     });
   });
+
+  describe("Slot time on the thing-to-do tools (R3)", () => {
+    it("add_thing_to_do forwards slotTime, arriveByMinutes and refundable to createItem", async () => {
+      createItem.mockResolvedValue({ success: true, id: "new-1" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "Lodge tour", category: "ACTIVITY", date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, refundable: false } });
+      expect(createItem.mock.calls[0][1]).toEqual(expect.objectContaining({ slotTime: "12:00", arriveByMinutes: 15, refundable: false }));
+    });
+    it("update_thing_to_do passes null through to clear the slot, and refuses a made-up refundability", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, slotTime: null, arriveByMinutes: null } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { slotTime: null, arriveByMinutes: null });
+      const bad = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, refundable: "MAYBE" } });
+      expect(bad.isError).toBe(true);
+    });
+    it("schedule_thing_to_do forwards a slot; its description says start defaults from it", async () => {
+      scheduleItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: ITEM_ID, date: "2027-06-02", slotTime: "20:00", arriveByMinutes: 10 } });
+      expect(scheduleItem.mock.calls[0][1]).toEqual({ date: "2027-06-02", slotTime: "20:00", arriveByMinutes: 10 });
+      const tool = (await c.listTools()).tools.find((t) => t.name === "schedule_thing_to_do")!;
+      expect(tool.description).toMatch(/slot/i);
+    });
+    it("the slot fields are described as the ticket's, not the start", async () => {
+      const c = await connectTestClient();
+      const add = (await c.listTools()).tools.find((t) => t.name === "add_thing_to_do")!;
+      const props = (add.inputSchema as { properties: Record<string, { description?: string }> }).properties;
+      expect(props.slotTime.description).toMatch(/ticket/i);
+      expect(props.refundable.description).toMatch(/UNKNOWN/);
+    });
+  });
 });
