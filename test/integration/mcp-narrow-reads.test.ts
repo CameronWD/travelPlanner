@@ -248,6 +248,29 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect(out.shifted).toEqual([expect.objectContaining({ id: SECRET, arriveDate: "2027-06-05", notes: null, days: [] })]);
   });
 
+  // Task Z addendum item 3: set_booking_state through the real MCP tool
+  // surface (not the action directly), then get_trip_plan and get_item
+  // agree on the result — the one write path, one Activity line (A.7 note).
+  it("set_booking_state through the MCP tool reaches get_trip_plan and get_item (flow)", async () => {
+    const { connectTestClient } = await import("@/lib/mcp/test-client");
+    await as(OWNER)(async () => {
+      const client = await connectTestClient();
+      const result = await client.callTool({
+        name: "set_booking_state",
+        arguments: { kind: "ITEM", id: MARKET, state: "TO_BOOK", bookBy: "2027-05-15" },
+      });
+      expect(result.isError).toBeFalsy();
+
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      const porto = plan.stops.find((s) => s.id === PORTO)!;
+      const marketOnDay = porto.days.find((d) => d.date === "2027-06-02")!.items.find((i) => i.id === MARKET)!;
+      expect(marketOnDay).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-15" });
+
+      const item = await loadItemForMcp(MARKET);
+      expect(item).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-15" });
+    });
+  });
+
   it("the list readers read real rows", async () => {
     const { loadChecklistOfItemForMcp, loadVotesForMcp } = await import("@/lib/mcp/reads/lists");
     const a = await db.checklistItem.create({ data: { tripId: TRIP_ID, kind: "PACKING", text: "IT Adapter", sortOrder: 1 } });
