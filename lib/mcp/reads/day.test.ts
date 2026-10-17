@@ -84,7 +84,29 @@ describe("loadDayForMcp", () => {
   it("lists the check-in in the timeline on its day, timed", async () => {
     const day = await loadDayForMcp("trip-1", "2027-06-01");
     if ("success" in day) throw new Error("expected a day");
-    expect(day.timeline).toContainEqual({ kind: "check-in", accommodationId: "a1", name: "Casa", time: "15:00" });
+    expect(day.timeline).toContainEqual({ kind: "check-in", accommodationId: "a1", name: "Casa", time: "15:00", bookingState: "BOOKED", bookBy: null });
+  });
+
+  it("legs, check-ins, check-outs and tonight carry Booking state and book-by, as get_trip_plan's legs and stays do", async () => {
+    const leg = {
+      // An overnight bus: departs 22:00 on the 3rd, arrives 01:00 on the 4th (Lisbon, UTC+1).
+      id: "leg1", mode: "BUS", fromStopId: "s1", toStopId: null, depPlace: null, arrPlace: "Lisbon",
+      depAt: new Date("2027-06-03T21:00:00Z"), arrAt: new Date("2027-06-04T00:00:00Z"), depLat: null, depLng: null, arrLat: null, arrLng: null,
+      reference: null, notes: null, sortOrder: 0, anchorStopId: null, depIsHome: false, arrIsHome: false,
+      bookingState: "TO_BOOK" as const, bookingStateSet: false, bookBy: "2027-05-01",
+    };
+    const stay = { ...rows.accommodations[0]!, bookingState: "TO_BOOK" as const, bookBy: "2027-05-10", confirmation: null };
+    readDayRows.mockResolvedValue({ rows: { ...rows, transports: [leg], accommodations: [stay] }, visibility: {}, alongside: [{ id: "s1", name: "Porto" }] });
+    const dep = await loadDayForMcp("trip-1", "2027-06-03");
+    if ("success" in dep) throw new Error("expected a day");
+    expect(dep.timeline).toContainEqual(expect.objectContaining({ kind: "departure", transportId: "leg1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }));
+    const day = await loadDayForMcp("trip-1", "2027-06-04");
+    if ("success" in day) throw new Error("expected a day");
+    expect(day.timeline).toContainEqual(expect.objectContaining({ kind: "arrival", transportId: "leg1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }));
+    expect(day.timeline).toContainEqual(expect.objectContaining({ kind: "check-out", accommodationId: "a1", bookingState: "TO_BOOK", bookBy: "2027-05-10" }));
+    const first = await loadDayForMcp("trip-1", "2027-06-02");
+    if ("success" in first) throw new Error("expected a day");
+    expect(first.tonight).toMatchObject({ id: "a1", bookingState: "TO_BOOK", bookBy: "2027-05-10" });
   });
 
   it("a date outside the trip is a tool error naming the range, not a clamp", async () => {

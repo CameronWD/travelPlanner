@@ -264,7 +264,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get day",
       description:
-        "Reads one day of the trip as the Day view shows it: the day's Stop (the arriving one on a Changeover day), the Day title, tonight's Accommodation, and the timeline in order; each thing names its owningStop, which on a Changeover day can be the departing Stop, and its openingHours (same shape as set_opening_hours). The timeline holds departures and arrivals, check-out and check-in, and timed things to do; then come the untimed things to do (anytime). date is YYYY-MM-DD within the trip's dates.",
+        "Reads one day of the trip as the Day view shows it: the day's Stop (the arriving one on a Changeover day), the Day title, tonight's Accommodation, and the timeline in order; each thing names its owningStop, which on a Changeover day can be the departing Stop, and its openingHours (same shape as set_opening_hours). The timeline holds departures and arrivals, check-out and check-in, and timed things to do; then come the untimed things to do (anytime). Each departure, arrival, check-in and check-out, and tonight, carries its bookingState (NONE, TO_BOOK or BOOKED) and bookBy, as get_trip_plan's legs and stays do. date is YYYY-MM-DD within the trip's dates.",
       inputSchema: { tripId: z.string(), date: isoDate },
       annotations: { readOnlyHint: true },
     },

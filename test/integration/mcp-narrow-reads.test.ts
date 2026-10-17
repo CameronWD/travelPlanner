@@ -154,6 +154,24 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect(day.timeline.some((e) => e.kind === "item" && e.item.id === FORK_ITEM)).toBe(false);
   });
 
+  it("get_day's legs, check-in, check-out and tonight carry the same Booking state as get_trip_plan's legs and stays", async () => {
+    await db.accommodation.update({ where: { id: CASA }, data: { bookBy: "2027-05-15" } });
+    const plan = await as(OWNER)(() => loadTripPlanForMcp(TRIP_ID));
+    const stay = plan.stops.find((s) => s.id === PORTO)!.accommodations.find((a) => a.id === CASA)!;
+    const flight = plan.transports.find((t) => t.id === FLIGHT)!;
+    expect(stay).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-15" });
+
+    const first = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-01"));
+    if ("success" in first) throw new Error("expected a day");
+    expect(first.timeline).toContainEqual(expect.objectContaining({ kind: "departure", transportId: FLIGHT, bookingState: flight.bookingState, bookBy: flight.bookBy }));
+    expect(first.timeline).toContainEqual(expect.objectContaining({ kind: "check-in", accommodationId: CASA, bookingState: stay.bookingState, bookBy: stay.bookBy }));
+    expect(first.tonight).toMatchObject({ id: CASA, bookingState: "TO_BOOK", bookBy: "2027-05-15" });
+
+    const last = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-04"));
+    if ("success" in last) throw new Error("expected a day");
+    expect(last.timeline).toContainEqual(expect.objectContaining({ kind: "check-out", accommodationId: CASA, bookingState: "TO_BOOK", bookBy: "2027-05-15" }));
+  });
+
   it("get_day agrees on the slot, and the surprised member's placeholder hides it (R3)", async () => {
     const day = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-02"));
     if ("success" in day) throw new Error("expected a day");
