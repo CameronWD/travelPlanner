@@ -27,7 +27,7 @@ export interface StopSnapshot {
 
 const COMPARED = Object.keys(SNAPSHOT_SELECT) as (keyof StopSnapshot)[];
 
-export async function snapshotPlanStops(tripId: string): Promise<StopSnapshot[]> {
+async function snapshotPlanStops(tripId: string): Promise<StopSnapshot[]> {
   return db.stop.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: SNAPSHOT_SELECT });
 }
 
