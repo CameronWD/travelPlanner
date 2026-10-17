@@ -683,9 +683,9 @@ async function finishPlacedCopy({
 /**
  * The fields a copy-in placement always inherits from its source Wishlist
  * idea — source link, title/category, coordinates, address, link, notes, the
- * share-hidden flag and the place's Opening hours (spec 2026-10-17 R4: shared
- * by the family — each row holds a copy and writes go to all of them,
- * lib/item-family.ts). The idea's CHOSEN Booking
+ * share-hidden flag, the place's Opening hours and the Try list with its
+ * ticks (spec 2026-10-17 R4, R6: shared by the family — each row holds a copy
+ * and writes go to all of them, lib/item-family.ts). The idea's CHOSEN Booking
  * state carries over, with its book-by date while To book; an un-chosen
  * idea's copy re-derives without the reference (never copied), so it needs
  * no booking (lib/booking-state-patch.ts copiedBookingFields). The ticket's
@@ -713,6 +713,7 @@ function ideaCopyData(fullItem: {
   bookingState: string;
   bookingStateSet: boolean;
   bookBy: string | null;
+  tryList?: string | null;
 }) {
   return {
     sourceItemId: fullItem.id,
@@ -729,6 +730,9 @@ function ideaCopyData(fullItem: {
     // (review fix, Task 9).
     hiddenFromShares: fullItem.hiddenFromShares ?? false,
     openingHours: fullItem.openingHours ?? null,
+    // CONTEXT.md "Try list" (R6): shared by the family, ticks and all — the
+    // copy starts with the idea's list as it stands (lib/item-family.ts).
+    tryList: fullItem.tryList ?? null,
     // A ticket's facts follow the idea onto its placed copy (R3); scheduleItem
     // may override the slot and margin.
     slotTime: fullItem.slotTime ?? null,

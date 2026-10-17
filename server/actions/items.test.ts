@@ -940,6 +940,22 @@ describe("scheduleItem", () => {
     expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ openingHours: hours }) });
   });
 
+  it("carries the idea's Try list, ticks included, onto the placed copy (spec 2026-10-17 R6)", async () => {
+    const list = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: true }]);
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({
+        id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Christkindlesmarkt", category: "FOOD", tryList: list,
+      });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("item-1", { date: "2026-12-05" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tryList: list }) });
+  });
+
   it("rescheduling an already-placed item (date non-null) keeps in-place update", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" })
@@ -1517,6 +1533,24 @@ describe("placeIdeaAtStop", () => {
       .mockResolvedValueOnce(IDEA); // no openingHours on the row
     await placeIdeaAtStop("idea-1", "s1");
     expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ openingHours: null }) });
+  });
+
+  it("carries the idea's Try list onto the thing to do; none copies as null", async () => {
+    const list = JSON.stringify([{ id: "aaaa1111", text: "Lebkuchen", tried: false }]);
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ ...IDEA, tryList: list });
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ tryList: list }) });
+
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA); // no tryList on the row
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ tryList: null }) });
   });
 
   it("refuses a Stop from another trip (no create)", async () => {
