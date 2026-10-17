@@ -26,6 +26,7 @@ const GIFT = "it-narrow-gift"; // Surprise Item in Porto on 06-03, hidden from M
 const FORK_ITEM = "it-narrow-fork-item";
 const CASA = "it-narrow-casa";
 const FLIGHT = "it-narrow-flight";
+const FAREWELL = "it-narrow-farewell"; // Porto's, on the Changeover day (R5)
 
 export const as = (id: string) => <T,>(fn: () => Promise<T>) =>
   runAsTraveller({ id, name: id, email: `${id}@example.test`, image: null }, fn);
@@ -187,6 +188,28 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     const memberPlan = await as(MEMBER)(() => loadTripPlanForMcp(TRIP_ID));
     const memberDay = await as(MEMBER)(() => loadDayForMcp(TRIP_ID, "2027-06-03"));
     expect(JSON.stringify([memberPlan, memberDay])).not.toContain("it-gift-dinner");
+  });
+
+  it("marks each Changeover-day Item with its owning Stop in get_trip_plan, get_stop, get_day and get_item (R5)", async () => {
+    // Created here, not in beforeEach, so the existing Changeover-day assertions keep their exact item lists.
+    await db.item.create({ data: { id: FAREWELL, tripId: TRIP_ID, stopId: PORTO, title: "IT Farewell lunch", category: "FOOD", date: "2027-06-04", startTime: "12:00", sortOrder: 5 } });
+    const plan = await as(OWNER)(() => loadTripPlanForMcp(TRIP_ID));
+    const owners = (items: { id: string; owningStop: unknown }[]) => Object.fromEntries(items.map((i) => [i.id, i.owningStop]));
+    const departing = plan.stops.find((s) => s.id === PORTO)!.days.at(-1)!;
+    const arriving = plan.stops.find((s) => s.id === SECRET)!.days[0];
+    expect(departing.date).toBe("2027-06-04");
+    expect(arriving.date).toBe("2027-06-04");
+    expect(owners(departing.items)).toEqual({ [TRAIN]: null, [FAREWELL]: { id: PORTO, name: "IT Porto" } });
+    expect(owners(arriving.items)).toEqual(owners(departing.items));
+
+    expect((await as(OWNER)(() => loadStopForMcp(SECRET))).days[0]).toEqual(arriving);
+
+    const day = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-04"));
+    if ("success" in day) throw new Error("expected a day");
+    expect(day.stop?.id).toBe(SECRET); // the arriving Stop…
+    expect(day.timeline).toContainEqual(expect.objectContaining({ kind: "item", item: expect.objectContaining({ id: FAREWELL, owningStop: { id: PORTO, name: "IT Porto" } }) })); // …but the lunch is Porto's
+
+    expect((await as(OWNER)(() => loadItemForMcp(FAREWELL))).owningStop).toEqual({ id: PORTO, name: "IT Porto" });
   });
 
   it("get_day on a Trip with a start date but no end date is the no-dates tool error, not a one-day Trip", async () => {

@@ -70,8 +70,8 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
 
   const filesFor = (_kind: string, id: string) =>
     (model.attachmentsByTarget[id] ?? []).map((a) => ({ id: a.id, title: a.title ?? a.filename }));
-  const item = (e: ItemEntry): McpDayItem => toMcpDayItem(e.item, filesFor);
   const stopName = new Map(rows.stops.map((s) => [s.id, s.name]));
+  const item = (e: ItemEntry): McpDayItem => toMcpDayItem(e.item, filesFor, stopName);
   const home = rows.trip.homeName ?? "Home";
   const endName = (isHome: boolean | null | undefined, stopId: string | null | undefined, place: string | null | undefined) =>
     isHome ? home : ((stopId ? stopName.get(stopId) : undefined) ?? place ?? null);

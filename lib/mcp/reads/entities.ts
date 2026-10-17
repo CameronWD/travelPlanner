@@ -49,12 +49,18 @@ export async function loadItemForMcp(itemId: string): Promise<McpItemDetail> {
   const v = await visibilityFor(tripId);
   const row = await db.item.findFirst({ where: { id: itemId, tripId, ...REAL_PLAN, ...v.where.item }, select: MCP_DATED_ITEM_SELECT });
   if (!row) notFound();
-  const [files, { costs }, notesOnItem] = await Promise.all([
+  const [files, { costs }, notesOnItem, owner] = await Promise.all([
     loadTripAttachments(tripId, v, { targetIds: [itemId] }),
     readMcpCosts(tripId, v, { ownerType: "ITEM", ownerId: itemId }),
     readMcpNotes(tripId, v, { targetType: "ITEM", targetId: itemId }),
+    // A Stop's name is its shell, so this needs no Surprise fragment — same as get_trip_plan's endpoints.
+    row.stopId ? db.stop.findFirst({ where: { id: row.stopId, tripId, ...REAL_PLAN }, select: { id: true, name: true } }) : Promise.resolve(null),
   ]);
-  return { ...toMcpItem({ ...row, surprise: v.views.items.get(itemId) ?? null }, filesFrom(files)), costs, notesOnItem };
+  return {
+    ...toMcpItem({ ...row, surprise: v.views.items.get(itemId) ?? null }, filesFrom(files), new Map(owner ? [[owner.id, owner.name]] : [])),
+    costs,
+    notesOnItem,
+  };
 }
 
 export async function loadTransportForMcp(transportId: string): Promise<McpTransportDetail> {
@@ -136,7 +142,7 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
   const hidden = new Set(v.hiddenStopIds);
   const open = stops.filter((s) => !hidden.has(s.id) && s.arriveDate && s.departDate);
 
-  const [thingsToDo, scheduled, neighbours] = await Promise.all([
+  const [thingsToDo, scheduled, neighbours, names] = await Promise.all([
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: { in: stops.map((s) => s.id) }, ...v.where.item },
       orderBy: { sortOrder: "asc" },
@@ -160,7 +166,12 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
           orderBy: { sortOrder: "asc" },
           select: { id: true, arriveDate: true, departDate: true },
         }),
+    // Every real-plan Stop's name (R5's owningStop may name a Stop outside
+    // stopIds, e.g. a Changeover day's other Stop). A Stop's name is its
+    // shell, so this needs no Surprise fragment — same as loadTransportForMcp's endpoints.
+    db.stop.findMany({ where: { tripId, ...REAL_PLAN }, select: { id: true, name: true } }),
   ]);
+  const stopNameById = new Map(names.map((s) => [s.id, s.name]));
 
   const datedItems = withPlaceholders(scheduled, v);
   const [dayTitles, files] = await Promise.all([
@@ -177,7 +188,7 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
 
   return buildMcpStops({
     stops, thingsToDo, datedItems, dayTitles, hiddenStopIds: hidden,
-    itemView: (id) => v.views.items.get(id) ?? null, filesFor: filesFrom(files),
+    itemView: (id) => v.views.items.get(id) ?? null, filesFor: filesFrom(files), stopNameById,
   }).stops;
 }
 

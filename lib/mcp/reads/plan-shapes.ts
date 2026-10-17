@@ -96,8 +96,21 @@ export interface McpDayItem {
   refundable: McpRefundable;
   /** CONTEXT.md "Opening hours": week (sun..sat), seasons and closed dates, in the Stop's local time; null = not known. */
   openingHours: OpeningHours | null;
+  /**
+   * The Stop this thing is owned by: the one whose Budget line its Cost
+   * counts against. On a Changeover day the thing is listed under both
+   * Stops' days (and get_day's stop is the arriving one), but it has this
+   * one owner. Null for a dated thing with no Stop.
+   */
+  owningStop: McpOwningStop | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
+}
+
+/** CONTEXT.md "Changeover day" (ADR 0049): the one Stop a scheduled thing is counted against. */
+export interface McpOwningStop {
+  id: string;
+  name: string;
 }
 
 interface McpStopDay {
@@ -287,6 +300,16 @@ export function toMcpSurprise(view: SurpriseView | null | undefined): McpSurpris
   return view ? { plannedBy: view.plannerName, for: view.forNames, youAreSurprised: view.youAreSurprised } : null;
 }
 
+/**
+ * The Stop a day item is owned by (R5): null for no Stop. Only get_day can
+ * miss a name for a known stopId — its rows hold dated Stops only, so the
+ * owner would be a rough Stop with no entry in the names map.
+ */
+export function owningStopRef(stopId: string | null | undefined, names: ReadonlyMap<string, string>): McpOwningStop | null {
+  if (!stopId) return null;
+  return { id: stopId, name: names.get(stopId) ?? "a Stop with no dates yet" };
+}
+
 /** The Slot time fields as Claude reads them; a row without them reads as none / UNKNOWN. */
 function mcpSlot(i: {
   slotTime?: string | null;
@@ -314,20 +337,25 @@ function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: S
 }
 
 /** A dated thing to do on a day (get_trip_plan's `days[].items`, get_day's timeline). */
-export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor): McpDayItem {
+export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpDayItem {
   return {
     id: i.id, title: i.title, category: i.category,
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
     bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
     openingHours: readStoredOpeningHours(i.openingHours ?? null),
+    owningStop: owningStopRef(i.stopId, stopNameById),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
 }
 
-export function toMcpItem(i: McpItemRow & { surprise: SurpriseView | null }, filesFor: FilesFor): McpItem {
+export function toMcpItem(
+  i: McpItemRow & { surprise: SurpriseView | null },
+  filesFor: FilesFor,
+  stopNameById: ReadonlyMap<string, string>,
+): McpItem {
   return {
-    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState } as unknown as StopDayItem, filesFor),
+    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState } as unknown as StopDayItem, filesFor, stopNameById),
     date: i.date,
     stopId: i.stopId,
   };
@@ -375,8 +403,10 @@ export function buildMcpStops(input: {
   hiddenStopIds: ReadonlySet<string>;
   itemView: (id: string) => SurpriseView | null;
   filesFor: FilesFor;
+  /** Every real-plan Stop's name, for `owningStop` (R5); a hidden Surprise Stop keeps its name (its shell). */
+  stopNameById: ReadonlyMap<string, string>;
 }): { stops: McpStop[]; coveredItemIds: Set<string> } {
-  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor } = input;
+  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor, stopNameById } = input;
   const openStops = stops.filter((s) => !hiddenStopIds.has(s.id));
 
   const thingsToDoByStopId = new Map<string, McpThingToDo[]>();
@@ -396,7 +426,7 @@ export function buildMcpStops(input: {
       : buildStopDays(stop.arriveDate!, stop.departDate!, dayItemsByStopId.get(stop.id) ?? []).map((day) => ({
           date: day.dateISO,
           dayTitle: dayTitles.get(day.dateISO)?.title ?? null,
-          items: [...day.timed, ...day.untimed].map((i) => toMcpDayItem(i, filesFor)),
+          items: [...day.timed, ...day.untimed].map((i) => toMcpDayItem(i, filesFor, stopNameById)),
         }));
     return {
       id: stop.id, name: stop.name, countryCode: stop.countryCode, rough, nights: stop.nights,

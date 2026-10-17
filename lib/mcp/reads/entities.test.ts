@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   transportFindUnique: vi.fn(),
   tripFindUnique: vi.fn(),
   stopFindMany: vi.fn(),
+  stopFindFirst: vi.fn(),
   accommodationFindFirst: vi.fn(),
   chapterFindUnique: vi.fn(),
   itemFindMany: vi.fn(),
@@ -27,7 +28,7 @@ vi.mock("@/lib/db", () => ({
     item: { findFirst: m.itemFindFirst, findMany: m.itemFindMany },
     transport: { findUnique: m.transportFindUnique },
     trip: { findUnique: m.tripFindUnique },
-    stop: { findMany: m.stopFindMany },
+    stop: { findMany: m.stopFindMany, findFirst: m.stopFindFirst },
     accommodation: { findFirst: m.accommodationFindFirst },
     chapter: { findUnique: m.chapterFindUnique },
   },
@@ -54,6 +55,7 @@ beforeEach(() => {
   m.loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
   m.readMcpCosts.mockResolvedValue({ homeCurrency: "AUD", today: "2026-10-16", costs: [cost] });
   m.readMcpNotes.mockResolvedValue([note]);
+  m.stopFindFirst.mockResolvedValue(null);
 });
 
 describe("loadItemForMcp", () => {
@@ -64,6 +66,7 @@ describe("loadItemForMcp", () => {
       bookingState: "BOOKED", bookBy: null,
     });
     m.loadTripAttachments.mockResolvedValue({ attachments: [], byOwner: new Map([["ITEM:i1", [file]]]) });
+    m.stopFindFirst.mockResolvedValue({ id: "s1", name: "Sintra Town" });
     const out = await loadItemForMcp("i1");
     expect(m.requireRealPlanRow).toHaveBeenCalledWith("item", "i1");
     expect(m.loadTripAttachments).toHaveBeenCalledWith("trip-1", NO_SURPRISES, { targetIds: ["i1"] });
@@ -73,6 +76,7 @@ describe("loadItemForMcp", () => {
       id: "i1", title: "Castle", category: "SIGHTSEEING", startTime: "10:00", endTime: null, address: "Sintra",
       link: null, booking: "#448", notes: "Be there 15 min early", bookingState: "BOOKED", bookBy: null,
       slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null,
+      owningStop: { id: "s1", name: "Sintra Town" },
       files: [file], surprise: null, date: "2027-06-02", stopId: "s1", costs: [cost], notesOnItem: [note],
     });
   });
@@ -154,10 +158,14 @@ describe("readMcpStops / loadStopForMcp", () => {
     accommodations: [{ id: "a1", name: "Casa", address: null, checkIn: "2027-06-01", checkOut: "2027-06-04", confirmation: null, notes: null }],
   };
   beforeEach(() => {
-    // stop.findMany: the Stops asked for (selects accommodations) vs the neighbours that title their days.
-    m.stopFindMany.mockImplementation(async (args: { select: Record<string, unknown> }) =>
-      "accommodations" in args.select ? [porto] : [{ id: "s1", arriveDate: "2027-06-01", departDate: "2027-06-04" }, { id: "s2", arriveDate: "2027-06-04", departDate: "2027-06-06" }],
-    );
+    // stop.findMany: the Stops asked for (selects accommodations), the names
+    // query (R5's owningStop, selects id/name only) or the neighbours that
+    // title their days (selects id/arriveDate/departDate).
+    m.stopFindMany.mockImplementation(async (args: { select: Record<string, unknown> }) => {
+      if ("accommodations" in args.select) return [porto];
+      if ("name" in args.select) return [{ id: "s1", name: "Porto" }, { id: "s2", name: "Lisbon" }];
+      return [{ id: "s1", arriveDate: "2027-06-01", departDate: "2027-06-04" }, { id: "s2", arriveDate: "2027-06-04", departDate: "2027-06-06" }];
+    });
     // item.findMany: things to do (date null) vs the dated Items in the Stops' ranges.
     m.itemFindMany.mockImplementation(async (args: { where: { date?: unknown } }) =>
       args.where.date === null

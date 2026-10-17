@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMcpStops,
+  owningStopRef,
   toMcpItem,
   toMcpTransport,
   withPlaceholders,
@@ -34,6 +35,7 @@ describe("buildMcpStops", () => {
       hiddenStopIds: new Set(),
       itemView: () => null,
       filesFor: noFiles,
+      stopNameById: new Map(),
     });
     expect(stops[0].days.at(-1)).toMatchObject({ date: "2027-06-04", dayTitle: "Changeover", items: [expect.objectContaining({ id: "c1" })] });
     expect(stops[1].days[0]).toMatchObject({ date: "2027-06-04", dayTitle: "Changeover", items: [expect.objectContaining({ id: "c1" })] });
@@ -46,6 +48,7 @@ describe("buildMcpStops", () => {
       stops: [stop({ notes: null, surprise: surpriseView })],
       thingsToDo: [], datedItems: [{ ...item({ id: "c1", date: "2027-06-02" }), surprise: null }],
       dayTitles: new Map(), hiddenStopIds: new Set(["s1"]), itemView: () => null, filesFor: noFiles,
+      stopNameById: new Map(),
     });
     expect(stops[0]).toMatchObject({ rough: false, arriveDate: "2027-06-01", days: [], notes: null, surprise: { youAreSurprised: true } });
   });
@@ -54,8 +57,26 @@ describe("buildMcpStops", () => {
     const { stops } = buildMcpStops({
       stops: [stop({ arriveDate: null, departDate: null, nights: 3 })],
       thingsToDo: [], datedItems: [], dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      stopNameById: new Map(),
     });
     expect(stops[0]).toMatchObject({ rough: true, nights: 3, days: [] });
+  });
+
+  // Task D.13 (CONTEXT.md "Changeover day", ADR 0049, R5).
+  it("on a Changeover day each Stop lists the Item with its one owning Stop (ADR 0049)", () => {
+    const { stops } = buildMcpStops({
+      stops: [stop(), stop({ id: "s2", name: "Lisbon", arriveDate: "2027-06-04", departDate: "2027-06-06", sortOrder: 1 })],
+      thingsToDo: [],
+      datedItems: [
+        { ...item({ id: "lunch", date: "2027-06-04", startTime: "12:00", stopId: "s1" }), surprise: null },
+        { ...item({ id: "train", date: "2027-06-04", startTime: "09:00" }), surprise: null },
+      ],
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      stopNameById: new Map([["s1", "Porto"], ["s2", "Lisbon"]]),
+    });
+    const owners = (items: { id: string; owningStop: unknown }[]) => Object.fromEntries(items.map((i) => [i.id, i.owningStop]));
+    expect(owners(stops[0].days.at(-1)!.items)).toEqual({ train: null, lunch: { id: "s1", name: "Porto" } });
+    expect(owners(stops[1].days[0].items)).toEqual({ train: null, lunch: { id: "s1", name: "Porto" } });
   });
 });
 
@@ -92,6 +113,7 @@ describe("opening hours (CONTEXT.md Opening hours)", () => {
       thingsToDo: [item({ id: "t1", stopId: "s1", openingHours: hours })],
       datedItems: [{ ...item({ id: "d1", date: "2027-06-02", openingHours: { week: "?" } }), surprise: null }],
       dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      stopNameById: new Map(),
     });
     expect(stops[0].thingsToDo[0].openingHours).toEqual(hours);
     expect(stops[0].days.find((d) => d.date === "2027-06-02")!.items[0].openingHours).toBeNull();
@@ -108,19 +130,25 @@ describe("opening hours (CONTEXT.md Opening hours)", () => {
 
 describe("toMcpItem / toMcpTransport", () => {
   it("toMcpItem carries the date and owning Stop alongside the day-item fields", () => {
-    expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1" }), surprise: null }, noFiles)).toEqual({
+    expect(
+      toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1" }), surprise: null }, noFiles, new Map([["s1", "Porto"]])),
+    ).toEqual({
       id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
       bookingState: "NONE", bookBy: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN",
-      openingHours: null,
+      openingHours: null, owningStop: { id: "s1", name: "Porto" },
     });
   });
 
   it("every shape carries Booking state; a placeholder is never To book", () => {
-    expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }), surprise: null }, noFiles))
+    expect(toMcpItem({ ...item({ id: "i1", date: "2027-06-02", stopId: "s1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }), surprise: null }, noFiles, new Map()))
       .toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-01" });
     const [p] = withPlaceholders([], { views: { stops: new Map(), items: new Map() }, placeholderItems: [placeholder({ id: "p1" })] });
     expect(p).toMatchObject({ bookingState: "NONE", bookBy: null });
+  });
+
+  it("owningStopRef is null with no Stop", () => {
+    expect(owningStopRef(null, new Map())).toBeNull();
   });
 
   it("toMcpTransport reads a Home end in the Home timezone and a Stop end in the Stop's", () => {
@@ -143,14 +171,15 @@ describe("toMcpItem / toMcpTransport", () => {
 describe("Slot time in the Claude reads (R3)", () => {
   it("a thing to do and a day item read the slot, the margin and refundability", () => {
     const row = { ...item({ id: "i1", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }), surprise: null };
-    expect(toMcpItem(row, noFiles)).toMatchObject({ startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" });
+    expect(toMcpItem(row, noFiles, new Map())).toMatchObject({ startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" });
     const { stops } = buildMcpStops({
       stops: [stop()], thingsToDo: [item({ id: "t1", stopId: "s1", slotTime: "19:30", refundable: true })], datedItems: [],
       dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      stopNameById: new Map(),
     });
     expect(stops[0].thingsToDo[0]).toMatchObject({ slotTime: "19:30", arriveByMinutes: null, refundable: "YES" });
   });
   it("a row read without the columns says none / UNKNOWN", () => {
-    expect(toMcpItem({ ...item(), surprise: null }, noFiles)).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
+    expect(toMcpItem({ ...item(), surprise: null }, noFiles, new Map())).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
   });
 });

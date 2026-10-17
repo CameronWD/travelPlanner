@@ -246,6 +246,7 @@ describe("loadTripPlanForMcp", () => {
           arriveByMinutes: null,
           refundable: "UNKNOWN",
           openingHours: null,
+          owningStop: { id: "stopA", name: "Tokyo" },
           files: [],
           surprise: null,
         },
@@ -769,7 +770,8 @@ describe("loadTripPlanForMcp", () => {
         {
           id: "item-a-dinner", title: "Surprise", category: "OTHER", startTime: "19:00", endTime: null,
           address: null, link: null, booking: null, notes: null, bookingState: "NONE", bookBy: null,
-          slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null, files: [],
+          slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null,
+          owningStop: { id: "stopA", name: "Tokyo" }, files: [],
           surprise: { plannedBy: "Cam", for: ["Sam"], youAreSurprised: true },
         },
       ]);
