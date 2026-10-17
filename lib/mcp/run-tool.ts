@@ -2,7 +2,8 @@
  * One error contract for every MCP tool (spec 2026-10-09). Tools call the
  * existing server actions; this maps their results and Next's control-flow
  * throws into MCP tool results. notFound() covers both "missing" and "not
- * yours", so a tool never reveals whether a Trip exists.
+ * yours", so a tool never reveals whether a Trip exists. Writes go through
+ * `runWrite`, which returns the row as it now stands (F6).
  */
 import { ZodError } from "zod";
 import { reportError } from "@/lib/error-sink";
@@ -37,6 +38,32 @@ export async function runTool(name: string, fn: () => Promise<unknown>): Promise
   } catch (err) {
     return errorResult(name, err);
   }
+}
+
+/** The success branch of a write's result: what `runWrite`'s reread receives. */
+export type Succeeded<R> = R extends { success: false } ? never : R;
+
+const isFailed = (v: unknown): v is { success: false } =>
+  typeof v === "object" && v !== null && (v as { success?: unknown }).success === false;
+
+/**
+ * Every MCP write tool (spec 2026-10-16 F6): run the app's own action, and on
+ * success return the row as it now stands, re-read through the narrow reads
+ * (lib/mcp/reads/entities.ts and friends), instead of the action's
+ * `ActionResult` (ADR 0074 keeps that contract for the app). Deletes reread
+ * to `{ deleted: id }`. A failure, notFound() or throw maps exactly as
+ * `runTool` maps it, and nothing is re-read.
+ */
+export function runWrite<R>(
+  name: string,
+  write: () => Promise<R>,
+  reread: (done: Succeeded<R>) => Promise<object>,
+): Promise<ToolResult> {
+  return runTool(name, async () => {
+    const result = await write();
+    if (isFailed(result)) return result;
+    return reread(result as Succeeded<R>);
+  });
 }
 
 /** Like runTool, but fn builds the content itself (images). Same error mapping. */
