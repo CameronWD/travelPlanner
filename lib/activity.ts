@@ -13,6 +13,8 @@ import { formatLongDate, formatDayLabel, formatISODate } from "@/lib/dates";
 import { categoryLabel, type Category } from "@/lib/categories";
 import type { VoteLevel } from "@/lib/enum-values";
 import { BOOKING_STATE_LABELS } from "@/lib/booking-state-copy";
+import { parseOpeningHours } from "@/lib/validations/opening-hours";
+import { openingHoursSummary } from "@/lib/opening-hours-display";
 
 // ---------------------------------------------------------------------------
 // Vocab
@@ -134,6 +136,17 @@ function bookingStateFormat(value: unknown): string {
 }
 
 /**
+ * CONTEXT.md "Opening hours" (R4). `Item.openingHours` is stored as a JSON
+ * string (lib/validations/opening-hours.ts), so the before/after snapshot
+ * values here are that stored string (or null) — parse before summarising.
+ */
+function openingHoursFormat(value: unknown): string {
+  if (isEmpty(value)) return "Not set";
+  const hours = parseOpeningHours(value as string);
+  return hours ? openingHoursSummary(hours) : "Set";
+}
+
+/**
  * Format a Date (or ISO string) as a readable UTC date-time like "3 Jul 2025, 14:00".
  * Null / undefined / "" → "—".
  */
@@ -188,6 +201,7 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "refundable", label: "Refundable", format: (v) => (v === true ? "Yes" : v === false ? "No" : "Not known") },
     { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
     { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
+    { key: "openingHours", label: "Opening hours", format: (v) => openingHoursFormat(v) },
   ],
   TRANSPORT: [
     {
