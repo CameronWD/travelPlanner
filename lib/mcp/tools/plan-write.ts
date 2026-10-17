@@ -5,6 +5,9 @@
  * into the Wishlist, voting, Day titles, Notes, and the Chapter lifecycle
  * minus delete/reorder (covered elsewhere).
  *
+ * `set_opening_hours` (CONTEXT.md Opening hours, shared by an idea and its
+ * placed copies) sets or clears a thing's opening hours.
+ *
  * Every write delegates to the same server actions the app itself uses
  * (`server/actions/items`, `votes`, `day-titles`, `notes`, `chapters`), which
  * already resolve to the acting Traveller inside a Claude connection (via
@@ -39,7 +42,9 @@ import {
   unscheduleItem,
   placeIdeaAtStop,
   addMarkerToWishlist,
+  setOpeningHours,
 } from "@/server/actions/items";
+import { openingHoursSchema } from "@/lib/validations/opening-hours";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { setDayTitle } from "@/server/actions/day-titles";
 import { addNote, deleteNote } from "@/server/actions/notes";
@@ -174,6 +179,34 @@ export function registerPlanWriteTools(server: McpServer): void {
             ["stop", patch.stopId],
           ]);
           return updateItem(itemId, bookingPatchFrom({ ...patch, refundable: refundableFromMcp(refundable) }));
+        },
+        async () => ({ item: await loadItemForMcp(itemId) }),
+      ),
+  );
+
+  server.registerTool(
+    "set_opening_hours",
+    {
+      title: "Set opening hours",
+      description:
+        "Sets when the place a thing to do is about lets you in, read in its Stop's local time, replacing any hours it had. " +
+        "week has keys sun to sat: leaving one out means not known, [] means closed that day, otherwise one or two [open, close] spans as HH:mm (close may be 24:00 for midnight). " +
+        "seasons are recurring date ranges (from, to as MM-DD, inclusive; wraps the year end when from is after to) whose own week replaces the usual one for dates it covers. " +
+        "closed lists dates the place is shut: YYYY-MM-DD for that one day, or MM-DD for that day every year. " +
+        "The hours belong to the place, so the Wishlist idea and every copy placed from it get them too. " +
+        "Pass source for the page you read them on; it overrides hours.source. Pass hours: null to clear them. Only set hours you have checked.",
+      inputSchema: {
+        itemId: z.string(),
+        hours: openingHoursSchema.nullable(),
+        source: openingHoursSchema.shape.source.describe("The page the hours came from; overrides hours.source."),
+      },
+    },
+    ({ itemId, hours, source }) =>
+      runWrite(
+        "set_opening_hours",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return setOpeningHours(itemId, hours ? { ...hours, ...(source && { source }) } : null);
         },
         async () => ({ item: await loadItemForMcp(itemId) }),
       ),

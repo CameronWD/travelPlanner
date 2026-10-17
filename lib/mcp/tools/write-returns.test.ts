@@ -29,7 +29,7 @@ vi.mock("@/server/actions/chapters", () => ({ assignStopToChapter: ok(), createC
 vi.mock("@/server/actions/surprise", () => ({ setSurprise: ok(), revealSurprise: ok() }));
 vi.mock("@/server/actions/items", () => ({
   createItem: ok(), updateItem: ok(), deleteItem: ok(), scheduleItem: ok(), unscheduleItem: ok(),
-  placeIdeaAtStop: ok(), addMarkerToWishlist: ok(),
+  placeIdeaAtStop: ok(), addMarkerToWishlist: ok(), setOpeningHours: ok(),
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote: ok(), clearVote: ok() }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: ok() }));
@@ -116,6 +116,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   reveal_surprise: { kind: "ITEM", id: "item-1" },
   add_thing_to_do: { tripId: "trip-1", title: "Colosseum", category: "SIGHTSEEING" },
   update_thing_to_do: { itemId: "item-1", title: "Forum" },
+  set_opening_hours: { itemId: "item-1", hours: null },
   delete_thing_to_do: { itemId: "item-1" },
   schedule_thing_to_do: { itemId: "item-1", date: "2027-06-02" },
   unschedule_thing_to_do: { itemId: "item-1" },

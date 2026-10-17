@@ -8,6 +8,7 @@ const {
   unscheduleItem,
   placeIdeaAtStop,
   addMarkerToWishlist,
+  setOpeningHours,
   setVote,
   clearVote,
   setDayTitle,
@@ -33,6 +34,7 @@ const {
   unscheduleItem: vi.fn(),
   placeIdeaAtStop: vi.fn(),
   addMarkerToWishlist: vi.fn(),
+  setOpeningHours: vi.fn(),
   setVote: vi.fn(),
   clearVote: vi.fn(),
   setDayTitle: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock("@/server/actions/items", () => ({
   unscheduleItem,
   placeIdeaAtStop,
   addMarkerToWishlist,
+  setOpeningHours,
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote, clearVote }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle }));
@@ -169,6 +172,7 @@ describe("plan write tools", () => {
       expect.arrayContaining([
         "add_thing_to_do",
         "update_thing_to_do",
+        "set_opening_hours",
         "delete_thing_to_do",
         "schedule_thing_to_do",
         "unschedule_thing_to_do",
@@ -267,6 +271,41 @@ describe("plan write tools", () => {
       const c = await connectTestClient();
       const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, title: "x" } });
       expect(r.isError).toBe(true);
+    });
+  });
+
+  // Task D.12 (CONTEXT.md "Opening hours"). Adapted from the brief's assumed
+  // weekly/closedDates/sourceUrl shape to d-as-built.md: S's real OpeningHours
+  // is week (sun..sat)/seasons/closed, and the field (and this tool's
+  // override argument) is named source, not sourceUrl.
+  describe("set_opening_hours (R4)", () => {
+    it("checks the real plan, saves through setOpeningHours with the source link, and returns the item", async () => {
+      setOpeningHours.mockResolvedValue({ success: true });
+      loadItemForMcp.mockResolvedValue({ id: ITEM_ID, openingHours: { week: {}, seasons: [], closed: [] } });
+      const span = [["10:00", "18:00"]];
+      const hours = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: ["2027-12-25"] };
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours, source: "https://lello.example/hours" } });
+      expect(r.isError).toBeFalsy();
+      expect(itemFindUnique).toHaveBeenCalledWith({ where: { id: ITEM_ID, forkId: null }, select: { tripId: true } });
+      expect(setOpeningHours).toHaveBeenCalledWith(ITEM_ID, { ...hours, source: "https://lello.example/hours" });
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ item: { id: ITEM_ID, openingHours: { week: {}, seasons: [], closed: [] } } });
+    });
+
+    it("with null clears them", async () => {
+      setOpeningHours.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours: null } });
+      expect(setOpeningHours).toHaveBeenCalledWith(ITEM_ID, null);
+    });
+
+    it("on a Fork's row is not found and writes nothing", async () => {
+      itemFindUnique.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours: null } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(setOpeningHours).not.toHaveBeenCalled();
     });
   });
 

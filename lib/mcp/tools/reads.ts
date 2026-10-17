@@ -229,7 +229,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get thing to do",
       description:
-        "Reads one thing to do or see exactly as get_trip_plan shows it, with its date and Stop, its Costs (as list_costs shows them), its files, and notesOnItem: the Notes the Travellers left on it. Its own notes field is different. That is the Item's description, part of the Item, changed with update_thing_to_do. A Note is a separate comment, added with add_note and removed with delete_note.",
+        "Reads one thing to do or see exactly as get_trip_plan shows it, with its date and Stop, its Costs (as list_costs shows them), its files, its openingHours (null when not known; set them with set_opening_hours), and notesOnItem: the Notes the Travellers left on it. Its own notes field is different. That is the Item's description, part of the Item, changed with update_thing_to_do. A Note is a separate comment, added with add_note and removed with delete_note.",
       inputSchema: { itemId: z.string() },
       annotations: { readOnlyHint: true },
     },
