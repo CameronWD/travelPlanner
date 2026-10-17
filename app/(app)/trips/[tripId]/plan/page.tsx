@@ -18,7 +18,7 @@ import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
 import { itemPhotoUrl } from "@/lib/item-photo";
 import { titlesByDate } from "@/lib/day-titles";
-import type { ReminderItem } from "@/lib/reminder-reads";
+import { readRemindersAbout } from "@/lib/reminder-reads";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { isAiConfigured } from "@/lib/ai";
 import { tripTodayISO } from "@/lib/trip-today";
@@ -85,7 +85,7 @@ export default async function TripPlanPage({
   const v = rows.visibility;
 
   // The page's own (non-Plan) reads in ONE wave once the Plan is known (spec 2026-10-06 §C).
-  const [allAttachments, allNotes, dayTitleRows, stopReminders] = await Promise.all([
+  const [allAttachments, allNotes, dayTitleRows, remindersAbout] = await Promise.all([
     // All attachments for this trip's entities in one query
     db.attachment.findMany({
       where: {
@@ -132,11 +132,8 @@ export default async function TripPlanPage({
       where: { stop: { tripId, ...planScope(activeForkId) }, ...v.where.dayTitle },
       select: { stopId: true, dayIndex: true, title: true },
     }),
-    db.reminder.findMany({
-      where: { tripId, stopId: { not: null }, ...v.where.reminder },
-      orderBy: { date: "asc" },
-      select: { id: true, title: true, date: true, stopId: true },
-    }),
+    // Every Reminder about a Stop, Item or leg, any date, grouped by the thing (spec F8).
+    readRemindersAbout(tripId, v),
   ]);
 
   const trip = rows.trip;
@@ -289,24 +286,6 @@ export default async function TripPlanPage({
     ),
   );
 
-  // Reminders about a Stop (Task 7), grouped for the Stop card's own
-  // "Reminders" line — read in the main wave above (every Reminder a Stop
-  // holds, regardless of date, unlike listRemindersForTrip's feed).
-  const stopNameById = new Map(stops.map((s) => [s.id, s.name]));
-  const remindersByStopId = new Map<string, ReminderItem[]>();
-  for (const r of stopReminders) {
-    if (!r.stopId) continue;
-    const existing = remindersByStopId.get(r.stopId) ?? [];
-    existing.push({
-      id: r.id,
-      title: r.title,
-      date: r.date,
-      stopId: r.stopId,
-      stopName: stopNameById.get(r.stopId) ?? null,
-    });
-    remindersByStopId.set(r.stopId, existing);
-  }
-
   // Build a coord lookup by stop id so transport leg estimates can fall back
   // to linked stop coordinates when the transport has no typed dep/arr place.
   const stopCoordsById = new Map<string, { lat: number; lng: number }>();
@@ -432,7 +411,9 @@ export default async function TripPlanPage({
               thingsToDoByStopId={thingsToDoByStopId}
               dayItemsByStopId={dayItemsByStopId}
               dayTitles={dayTitles}
-              remindersByStopId={remindersByStopId}
+              remindersByStopId={remindersAbout.byStopId}
+              remindersByItemId={remindersAbout.byItemId}
+              remindersByTransportId={remindersAbout.byTransportId}
               thingsToDoItemCostsById={thingsToDoItemCostsById}
               initialStops={ordered.map((stop) => ({
                 ...stop,

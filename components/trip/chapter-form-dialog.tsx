@@ -55,6 +55,9 @@ export interface ChapterFormDialogProps {
  * whenever the dialog opens or the target chapter changes — avoids
  * setState-in-effect lint errors.
  */
+/** TU-01: shown on an edit of a dated Chapter while "Set dates now" is off. */
+const CHAPTER_DATES_OFF_WARNING = "This Chapter will no longer group its dated stops.";
+
 export function ChapterFormDialog({
   tripId,
   chapter,
@@ -131,17 +134,27 @@ function ChapterForm({
   const [setDatesNow, setSetDatesNow] = React.useState(
     isEdit ? chapter?.startDate != null : false,
   );
+  // TU-01: switching the dates off on an edit clears them (PATCH: null clears,
+  // ADR 0075) — the Chapter becomes rough and its dated Stops leave it.
+  const hadDates = isEdit && chapter?.startDate != null;
   useFormDirty({ name, colour, startDate, endDate, setDatesNow });
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
-      const input = setDatesNow
-        ? { name, colour, startDate, endDate }
-        : { name, colour };
-
-      return isEdit && chapter
-        ? updateChapter(chapter.id, input)
-        : createChapter(tripId, input, originStopId, forkId ?? undefined);
+      if (isEdit && chapter) {
+        return updateChapter(
+          chapter.id,
+          setDatesNow
+            ? { name, colour, startDate, endDate }
+            : { name, colour, startDate: null, endDate: null },
+        );
+      }
+      return createChapter(
+        tripId,
+        setDatesNow ? { name, colour, startDate, endDate } : { name, colour },
+        originStopId,
+        forkId ?? undefined,
+      );
     },
     onClose,
     onSaved,
@@ -195,6 +208,11 @@ function ChapterForm({
         />
         Set dates now
       </label>
+      {hadDates && !setDatesNow && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {CHAPTER_DATES_OFF_WARNING}
+        </p>
+      )}
 
       {/* Date row — only when dates are being set */}
       {setDatesNow && (

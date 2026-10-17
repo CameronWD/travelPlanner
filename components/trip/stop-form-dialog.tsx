@@ -19,7 +19,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { TIMEZONES, stopTimezone } from "@/lib/tz";
+import { TIMEZONES, UNCHOSEN_TIMEZONE, stopTimezone } from "@/lib/tz";
 import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { createStop, updateStop } from "@/server/actions/stops";
@@ -264,25 +264,41 @@ function StopForm({
     onSaved,
   });
 
+  // A pick's zone lookup in flight; a later pick, a typed country or a
+  // hand-picked zone bumps this so the lookup's answer is dropped.
+  const zoneRequest = React.useRef(0);
+
   // Auto-guess timezone when the user types a country
   function handleCountryChange(value: string) {
+    zoneRequest.current++;
     setCountry(value);
     // A hand-edited country no longer matches the picked point; drop it so
     // the save re-geocodes name + country server-side.
     setPicked(null);
     const guessed = stopTimezone({ country: value });
-    if (guessed !== "UTC") setTimezone(guessed);
+    if (guessed !== UNCHOSEN_TIMEZONE) setTimezone(guessed);
   }
 
-  // A pick sets the name, country and point, and the timezone from the
-  // country (stopTimezone).
+  // A pick sets the name, country and point, and the timezone: the
+  // country's at once, then the zone at the picked point once lib/tz-point
+  // loads (F3). Loaded with import() so the lookup table stays out of the
+  // main bundle; a failed load keeps the country's zone.
   function handlePick(p: PickedPlace) {
     setPicked(p);
     setName(p.name);
     const pickedCountry = p.region?.split(",").pop()?.trim();
     if (pickedCountry) setCountry(pickedCountry);
-    const tz = stopTimezone({ countryCode: p.countryCode, country: pickedCountry });
-    if (tz !== "UTC") setTimezone(tz);
+    const place = { countryCode: p.countryCode, country: pickedCountry };
+    const tz = stopTimezone(place);
+    if (tz !== UNCHOSEN_TIMEZONE) setTimezone(tz);
+    const request = ++zoneRequest.current;
+    import("@/lib/tz-point")
+      .then(({ pointTimezone }) => {
+        if (request !== zoneRequest.current) return;
+        const atPoint = stopTimezone({ ...place, pointZone: pointTimezone(p.lat, p.lng) });
+        if (atPoint !== UNCHOSEN_TIMEZONE) setTimezone(atPoint);
+      })
+      .catch(() => {});
   }
 
   return (
@@ -376,7 +392,10 @@ function StopForm({
           <Field label="Timezone" required error={errors.timezone?.[0]}>
             <Select
               value={timezone}
-              onValueChange={setTimezone}
+              onValueChange={(v) => {
+                zoneRequest.current++;
+                setTimezone(v);
+              }}
               disabled={isPending}
             >
               <SelectTrigger>

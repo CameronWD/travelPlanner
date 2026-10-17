@@ -13,9 +13,8 @@ import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import { orderPlanStops } from "@/lib/plan-order";
 import { tripTodayISO } from "@/lib/trip-today";
-import { listRemindersForTrip } from "@/lib/reminder-reads";
+import { listRemindersForTrip, readReminderAboutOptions } from "@/lib/reminder-reads";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { tripSlugFor } from "@/lib/trip-slug-read";
@@ -63,7 +62,7 @@ export default async function ChecklistsPage({
       select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
     })
     .then((rows) => rows);
-  const [trip, slug, rawItems, members, templates, stopsRaw, reminders] = await Promise.all([
+  const [trip, slug, rawItems, members, templates, stopsRaw, reminders, aboutOptions] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true } }),
     tripSlugFor(tripId),
     // All checklist items for this trip
@@ -87,10 +86,10 @@ export default async function ChecklistsPage({
     listTemplates(),
     stopsPromise,
     stopsPromise.then((rows) => listRemindersForTrip(tripId, tripTodayISO(rows))),
+    readReminderAboutOptions(tripId),
   ]);
 
   const memberList = members.map((m) => m.user);
-  const stops = orderPlanStops(stopsRaw);
   const today = tripTodayISO(stopsRaw);
 
   // Split into kinds and sort
@@ -135,7 +134,7 @@ export default async function ChecklistsPage({
         tripId={tripId}
         reminders={reminders}
         today={today}
-        stops={stops.map((s) => ({ id: s.id, name: s.name }))}
+        about={aboutOptions}
       />
 
       <ChecklistsLayout

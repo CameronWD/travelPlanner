@@ -13,6 +13,7 @@ vi.mock("@/lib/next-steps-loader", () => ({ loadNextSteps: m.nextSteps }));
 vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip: m.reminders }));
 
 import { loadTripsPage } from "./trips-page-loader";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 const TODAY = "2026-09-28";
 const stop = (id: string, name: string, lat: number, lng: number, arrive: string, depart: string, sortOrder: number) => ({
@@ -80,7 +81,7 @@ describe("loadTripsPage", () => {
       { role: "owner", trip: trip({ id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01") }) },
     ]);
     m.nextSteps.mockResolvedValue([{ id: "nudge-transport-times", title: "Add times to 6 transport legs", href: "/trips/eu/plan", severity: "info", source: "nudge", kind: "transport" }]);
-    m.reminders.mockResolvedValue([{ id: "r1", title: "Pay the deposit", date: "2026-10-01", stopId: null, stopName: null }]);
+    m.reminders.mockResolvedValue([reminderItem({ id: "r1", title: "Pay the deposit", date: "2026-10-01" })]);
     const d = await loadTripsPage("u", TODAY);
     expect(m.reminders).toHaveBeenCalledWith("eu", TODAY);
     expect(d.cards[0].nextStep?.title).toBe("Pay the deposit");

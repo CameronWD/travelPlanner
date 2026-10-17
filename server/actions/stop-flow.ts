@@ -6,7 +6,8 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { reflowArrangement } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
-import { stopTimezone } from "@/lib/tz";
+import { resolveStopTimezone } from "@/lib/tz-point";
+import { growTripEndTx } from "@/server/actions/trip-window";
 
 // ---------------------------------------------------------------------------
 // lockPlanStopsTx / lockPlanTransportsTx — canonical lock acquisition (ADR 0007)
@@ -132,7 +133,7 @@ export async function scheduleLoneStopTx(
   if (!trip?.startDate || !trip.endDate) return false;
   const stops = await tx.stop.findMany({
     where: { tripId, ...planScope(forkId) },
-    select: { id: true, arriveDate: true, departDate: true, timezone: true, country: true, countryCode: true },
+    select: { id: true, arriveDate: true, departDate: true, timezone: true, country: true, countryCode: true, lat: true, lng: true },
   });
   if (stops.length !== 1) return false;
   const [stop] = stops;
@@ -144,7 +145,7 @@ export async function scheduleLoneStopTx(
       arriveDate: trip.startDate,
       departDate: trip.endDate,
       nights: null,
-      timezone: stopTimezone(stop),
+      timezone: resolveStopTimezone(stop),
     },
   });
   // ADR 0038: a re-dated Stop carries its slotted Items and Accommodation.
@@ -227,14 +228,15 @@ export async function shiftStopPayloadTx(
  * caller has already written sortOrder), reflows only the span between the
  * first and last scheduled stop whose chronological position changed, shifts
  * each re-dated stop's payload, and self-heals chapter bands. Gap-preserving;
- * never changes the trip's overall length.
+ * never changes the trip's overall length (the soft end still runs, F4, in
+ * case a conflict pushed past it).
  */
 export async function reflowSpanTx(
   tx: Prisma.TransactionClient,
   tripId: string,
   forkId: PlanId,
   movedIds: ReadonlySet<string>,
-): Promise<{ changed: { id: string; arriveDate: string; departDate: string }[]; conflicts: FlowConflict[]; payload: PayloadShiftResult }> {
+): Promise<{ changed: { id: string; arriveDate: string; departDate: string }[]; conflicts: FlowConflict[]; payload: PayloadShiftResult; grownTo: string | null }> {
   const orderedStops = await tx.stop.findMany({
     where: { tripId, ...planScope(forkId) },
     orderBy: { sortOrder: "asc" },
@@ -252,9 +254,12 @@ export async function reflowSpanTx(
     payload.accommodations.push(...shifted.accommodations);
   }
   await recomputeChapterSpans(tx, tripId, forkId);
+  // F4: the soft end covers the re-dated plan (real plan only; never shrinks).
+  const grownTo = await growTripEndTx(tx, tripId, forkId);
   return {
     changed: changedResults.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate })),
     conflicts,
     payload,
+    grownTo,
   };
 }

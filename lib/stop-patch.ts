@@ -9,7 +9,9 @@
  *  - A lone date merges with the other on a scheduled Stop and is refused
  *    on one that ends up rough; nights sent with both dates must agree.
  *  - A timezone only applies to a scheduled result; none sent keeps the
- *    row's, else `stopTimezone` from the country.
+ *    row's — unless the patch says where (TU-02) or the row has none — and
+ *    is otherwise UNCHOSEN_TIMEZONE, so `updateStop` derives it from the
+ *    final point and country (`resolveStopTimezone`, F3).
  *  - The point (lat/lng/countryCode) is the row's unless the patch says
  *    where (country, countryCode, lat or lng); then only the patch's point
  *    counts and `updateStop` geocodes a missing one.
@@ -22,7 +24,7 @@ import type { ActionFailure } from "@/lib/action-result";
 import type { StopInput } from "@/lib/validations/stop";
 import { nightsBetween } from "@/lib/dates";
 import { patched } from "@/lib/patch";
-import { stopTimezone } from "@/lib/tz";
+import { UNCHOSEN_TIMEZONE } from "@/lib/tz";
 
 export type StopPatch = {
   mode?: "rough" | "scheduled";
@@ -100,7 +102,8 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
     // The schema refuses a missing date (a mode: "scheduled" patch on a rough Stop with no dates).
     const arriveDate = (patch.arriveDate ?? current.arriveDate ?? undefined) as string;
     const departDate = (patch.departDate ?? current.departDate ?? undefined) as string;
-    const timezone = patch.timezone ?? current.timezone ?? stopTimezone({ countryCode: point.countryCode, country: place.country });
+    // TU-02: a patch that says where moves the Stop, so the row's zone no longer applies.
+    const timezone = patch.timezone ?? (saysWhere ? undefined : current.timezone) ?? UNCHOSEN_TIMEZONE;
     return { mode, ...place, timezone, arriveDate, departDate } as StopInput;
   }
 

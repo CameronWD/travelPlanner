@@ -979,6 +979,16 @@ describe("collectDigestInput", () => {
     expect(input.reminders).toEqual([{ id: "rem-tomorrow", title: "Ring the landlord" }]);
   });
 
+  it("never reads a Reminder's notes or what it is about — the query selects id and title only (spec F8)", async () => {
+    dbData.reminder = [
+      { id: "rem-notes", tripId: TRIP_ID, title: "Ring the landlord", date: TOMORROW, notes: "Door code 4411", itemId: "item-1" },
+    ];
+    const input = await collect({ slot: "EVENING" });
+    expect(input.reminders).toEqual([{ id: "rem-notes", title: "Ring the landlord" }]);
+    const call = reminderFindManyMock.mock.calls.at(-1)![0] as { select: unknown };
+    expect(call.select).toEqual({ id: true, title: true });
+  });
+
   it("leaves the schedule empty when the target day is before the trip starts", async () => {
     seedPlanningTrip(); // departs 2026-12-20; the EVENING target is 2026-12-02
     dbData.item = [

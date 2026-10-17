@@ -4,7 +4,11 @@
  * `get_attachment` added by the 2026-10-11 read pass): the trip plan,
  * Wishlist, Notes, Reminders, Checklists, Activity, Globe markers, place
  * search, Budget, Flags, Costs, and Attachments (listing them and reading
- * one's contents).
+ * one's contents). The narrow reads (spec 2026-10-16 F7) re-check one thing
+ * as get_trip_plan shows it: `get_stop`, `get_item`, `get_transport` and
+ * `get_accommodation` are keyed by the row's own id (checked through its
+ * `tripId`, real plan only); `get_day` reads one dated day as the Day view
+ * assembles it.
  *
  * Every trip-scoped read starts with `requireTripAccess(tripId)` (directly,
  * or through a reused loader/action that itself starts with it), so a
@@ -30,8 +34,12 @@ import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
 import { isoDate } from "@/lib/validations/primitives";
 import { loadCostsForMcp } from "../reads/costs";
+import { loadNotesForMcp } from "../reads/notes";
 import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadAttachmentContentForMcp } from "../reads/attachment-content";
+import { loadAccommodationForMcp, loadItemForMcp, loadStopForMcp, loadTransportForMcp } from "../reads/entities";
+import { loadDayForMcp } from "../reads/day";
+import { CHECKLIST_VIEW_SELECT, toChecklistView, toMcpIdea, WISHLIST_IDEA_SELECT } from "../reads/lists";
 import { loadBudget } from "@/lib/money/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
@@ -46,58 +54,9 @@ async function loadWishlist(tripId: string) {
   const items = await db.item.findMany({
     where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE },
     orderBy: { sortOrder: "asc" },
-    select: {
-      id: true,
-      title: true,
-      category: true,
-      notes: true,
-      link: true,
-      votes: { select: { level: true, user: { select: TRAVELLER_SELECT } } },
-    },
+    select: WISHLIST_IDEA_SELECT,
   });
-  return {
-    ideas: items.map((i) => ({
-      id: i.id,
-      title: i.title,
-      category: i.category,
-      notes: i.notes,
-      link: i.link,
-      votes: i.votes.map((v) => ({ traveller: travellerName(v.user), level: v.level })),
-    })),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// get_notes
-// ---------------------------------------------------------------------------
-
-async function loadNotes(tripId: string) {
-  const { user } = await requireTripAccess(tripId);
-  // Surprise (ADR 0051): Notes inside a Surprise hidden from the acting
-  // Traveller stay in the database.
-  const v = await loadSurpriseVisibility(tripId, user.id);
-  const notes = await db.note.findMany({
-    where: { tripId, ...v.where.note },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      targetType: true,
-      targetId: true,
-      body: true,
-      createdAt: true,
-      author: { select: TRAVELLER_SELECT },
-    },
-  });
-  return {
-    notes: notes.map((n) => ({
-      id: n.id,
-      targetType: n.targetType,
-      targetId: n.targetId,
-      body: n.body,
-      author: travellerName(n.author),
-      createdAt: n.createdAt.toISOString(),
-    })),
-  };
+  return { ideas: items.map(toMcpIdea) };
 }
 
 // ---------------------------------------------------------------------------
@@ -110,12 +69,12 @@ async function loadChecklists(tripId: string) {
     db.checklistItem.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, kind: true, text: true, done: true, dueDate: true, sortOrder: true, buy: true },
+      select: CHECKLIST_VIEW_SELECT,
     }),
     listTemplates(),
   ]);
 
-  const view = (i: (typeof rawItems)[number]) => ({ id: i.id, text: i.text, done: i.done, dueDate: i.dueDate, buyState: i.buy });
+  const view = toChecklistView;
 
   return {
     pretrip: sortChecklist(rawItems.filter((i) => i.kind === "PRETRIP")).map(view),
@@ -246,11 +205,70 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get trip plan",
       description:
-        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. Transport with departure/arrival places and local times (each end in its own zone; a Home end is read in the trip's Home timezone, homeTimezone, when it's set), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. Read one with get_attachment, or see them all with list_attachments.",
+        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters. Transport with departure/arrival places and local times (each end in its own zone; a Home end is read in the trip's Home timezone, homeTimezone, when it's set), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. Read one with get_attachment, or see them all with list_attachments. To re-check one thing, use get_stop, get_item, get_transport, get_accommodation or get_day instead of reading the whole plan again.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
     ({ tripId }) => runTool("get_trip_plan", () => loadTripPlanForMcp(tripId)),
+  );
+
+  server.registerTool(
+    "get_stop",
+    {
+      title: "Get stop",
+      description:
+        "Reads one Stop of the real plan exactly as get_trip_plan shows it: nights or dates, timezone, Pinned, Chapter, its Accommodation, its things to do, and each of its days with the Day title and the things to do scheduled on it. Use it to re-check one Stop instead of reading the whole trip.",
+      inputSchema: { stopId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ stopId }) => runTool("get_stop", () => loadStopForMcp(stopId)),
+  );
+
+  server.registerTool(
+    "get_item",
+    {
+      title: "Get thing to do",
+      description:
+        "Reads one thing to do or see exactly as get_trip_plan shows it, with its date and Stop, its Costs (as list_costs shows them), its files, and notesOnItem: the Notes the Travellers left on it. Its own notes field is different. That is the Item's description, part of the Item, changed with update_thing_to_do. A Note is a separate comment, added with add_note and removed with delete_note.",
+      inputSchema: { itemId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ itemId }) => runTool("get_item", () => loadItemForMcp(itemId)),
+  );
+
+  server.registerTool(
+    "get_transport",
+    {
+      title: "Get transport",
+      description:
+        "Reads one Transport leg exactly as get_trip_plan shows it (each end with its local time and zone, a Home end in the trip's Home timezone), with its Costs.",
+      inputSchema: { transportId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ transportId }) => runTool("get_transport", () => loadTransportForMcp(transportId)),
+  );
+
+  server.registerTool(
+    "get_accommodation",
+    {
+      title: "Get accommodation",
+      description: "Reads one Accommodation exactly as get_trip_plan shows it, with the Stop it belongs to and its Costs.",
+      inputSchema: { accommodationId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ accommodationId }) => runTool("get_accommodation", () => loadAccommodationForMcp(accommodationId)),
+  );
+
+  server.registerTool(
+    "get_day",
+    {
+      title: "Get day",
+      description:
+        "Reads one day of the trip as the Day view shows it: the day's Stop (the arriving one on a Changeover day), the Day title, tonight's Accommodation, and the timeline in order. The timeline holds departures and arrivals, check-out and check-in, and timed things to do; then come the untimed things to do (anytime). date is YYYY-MM-DD within the trip's dates.",
+      inputSchema: { tripId: z.string(), date: isoDate },
+      annotations: { readOnlyHint: true },
+    },
+    ({ tripId, date }) => runTool("get_day", () => loadDayForMcp(tripId, date)),
   );
 
   server.registerTool(
@@ -268,18 +286,20 @@ export function registerReadTools(server: McpServer): void {
     "get_notes",
     {
       title: "Get notes",
-      description: "Reads notes left on this trip's Stops, Transport, Accommodation, and Items.",
+      description:
+        "Reads the Notes on this trip: comments the Travellers left on the Trip, its Stops, things to do, Transport and Accommodation, each with its id, what it is on (targetType, targetId), who wrote it and when. A Note is never edited: remove one with delete_note and add it again with add_note. A thing to do's own notes (its description) are not Notes. They are read with get_item or get_trip_plan and changed with update_thing_to_do.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
-    ({ tripId }) => runTool("get_notes", () => loadNotes(tripId)),
+    ({ tripId }) => runTool("get_notes", () => loadNotesForMcp(tripId)),
   );
 
   server.registerTool(
     "get_reminders",
     {
       title: "Get reminders",
-      description: "Reads this trip's Reminders dated on or after a date (today by default), soonest first.",
+      description:
+        "Reads this trip's Reminders dated on or after a date (today by default), soonest first. Each carries its notes and what it is about: stopId/stopName, itemId/itemTitle or transportId/transportLabel (all null when it is about the Trip as a whole).",
       inputSchema: { tripId: z.string(), fromDate: isoDate.optional() },
       annotations: { readOnlyHint: true },
     },

@@ -81,4 +81,32 @@ describe("FormDialog dirty guard (spec 2026-10-06 §M)", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByText("Discard changes?")).toBeInTheDocument();
   });
+
+  it("a dialog opened on top of a dirty form is not a stray tap: no prompt, the input stays", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    function Stacked() {
+      const [top, setTop] = React.useState(false);
+      return (
+        <>
+          <FormDialog open onOpenChange={onOpenChange} title="Edit Item">
+            <NameForm />
+            <button type="button" onClick={() => setTop(true)}>Add a reminder</button>
+          </FormDialog>
+          <FormDialog open={top} onOpenChange={setTop} title="Add a Reminder">
+            <input aria-label="Reminder title" />
+          </FormDialog>
+        </>
+      );
+    }
+    render(<Stacked />);
+    await user.type(screen.getByLabelText("Name"), "Rome");
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    await user.type(screen.getByLabelText("Reminder title"), "Book");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("Add a Reminder")).toBeNull();
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Name")).toHaveValue("Rome");
+  });
 });

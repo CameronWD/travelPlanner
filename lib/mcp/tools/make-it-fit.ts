@@ -36,6 +36,11 @@
  * trim's `stopId`, or `dropStopId`) are checked — existence then pinned —
  * before any `setStopNights`/`deleteStop` call runs.
  *
+ * What it returns (spec 2026-10-16 F6, through `runWrite`): trims return
+ * `{ stops }`, every real-plan Stop the trims changed (a trim can push the
+ * Stops after it), compared against a snapshot taken after the Trip access
+ * check (lib/mcp/reads/stop-changes.ts); a drop returns `{ deleted }`.
+ *
  * Nights floor: `buildTrimPlan`'s own `TRIM_FLOOR` (1) only bounds its
  * *suggested* plan — the dialog's manual per-stop `Input` is
  * `min={0}` with no clamp back up before `applyTrim` (make-it-fit.tsx
@@ -52,7 +57,8 @@ import { REAL_PLAN } from "@/lib/plan-scope";
 import { nightsOver, buildTrimPlan, buildDropCandidates, type FitStop } from "@/lib/make-it-fit";
 import { setStopNights, deleteStop } from "@/server/actions/stops";
 import { getTripProjection } from "@/lib/trip-projection-reads";
-import { runTool, fieldErrors } from "../run-tool";
+import { runTool, runWrite, fieldErrors } from "../run-tool";
+import { stopTracker } from "../reads/stop-changes";
 
 async function loadFitStops(tripId: string): Promise<FitStop[]> {
   return db.stop.findMany({
@@ -183,6 +189,17 @@ export function registerMakeItFitTools(server: McpServer): void {
       },
       annotations: { destructiveHint: true },
     },
-    ({ tripId, trims, dropStopId }) => runTool("make_it_fit_apply", () => applyMakeItFit(tripId, trims, dropStopId)),
+    ({ tripId, trims, dropStopId }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "make_it_fit_apply",
+        async () => {
+          await requireTripAccess(tripId);
+          await stops.start(tripId);
+          return applyMakeItFit(tripId, trims, dropStopId);
+        },
+        async () => (dropStopId !== undefined ? { deleted: dropStopId } : { stops: await stops.changed() }),
+      );
+    },
   );
 }

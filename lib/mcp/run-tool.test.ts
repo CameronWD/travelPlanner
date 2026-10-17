@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 import { reportError } from "@/lib/error-sink";
-import { NOT_FOUND_TEXT, runTool, runToolContent, type ToolResult } from "./run-tool";
+import { NOT_FOUND_TEXT, READ_BACK_FAILED_TEXT, runTool, runToolContent, runWrite, type ToolResult } from "./run-tool";
 
 const digestErr = (digest: string) => Object.assign(new Error(digest), { digest });
 /** runTool only ever builds text content; ToolResult also allows images (runToolContent). */
@@ -61,5 +61,47 @@ describe("runToolContent", () => {
     const r = await runToolContent("t", async () => { throw new Error("storage exploded"); });
     expect(r).toEqual({ isError: true, content: [{ type: "text", text: "Couldn't do that. Try again." }] });
     expect(reportError).toHaveBeenCalled();
+  });
+});
+
+describe("runWrite", () => {
+  it("returns the row the reread built, not the action's ActionResult", async () => {
+    const reread = vi.fn(async (done: { success: true; id: string }) => ({ stop: { id: done.id, name: "Porto" } }));
+    const r = await runWrite("t", async () => ({ success: true as const, id: "s1" }), reread);
+    expect(reread).toHaveBeenCalledWith({ success: true, id: "s1" });
+    expect(JSON.parse(firstText(r))).toEqual({ stop: { id: "s1", name: "Porto" } });
+  });
+
+  it("an action failure maps as runTool maps it, and nothing is re-read", async () => {
+    const reread = vi.fn();
+    const r = await runWrite("t", async () => ({ success: false as const, errors: { name: ["Name is required"] } }), reread);
+    expect(r).toEqual({ isError: true, content: [{ type: "text", text: "Couldn't do that: name: Name is required" }] });
+    expect(reread).not.toHaveBeenCalled();
+  });
+
+  it("a write that throws notFound() is NOT_FOUND_TEXT, and nothing is re-read", async () => {
+    const reread = vi.fn();
+    const r = await runWrite("t", async () => { throw digestErr("NEXT_HTTP_ERROR_FALLBACK;404"); }, reread);
+    expect(firstText(r)).toBe(NOT_FOUND_TEXT);
+    expect(reread).not.toHaveBeenCalled();
+  });
+
+  it("a write with no ActionResult (a custom success) is re-read too", async () => {
+    const r = await runWrite("t", async () => ({ applied: 2 }), async () => ({ stops: [] }));
+    expect(JSON.parse(firstText(r))).toEqual({ stops: [] });
+  });
+
+  it.each([
+    ["a generic Error", () => new Error("db hiccup")],
+    ["notFound()", () => digestErr("NEXT_HTTP_ERROR_FALLBACK;404")],
+  ])("a committed write whose reread throws %s is still a success, keeping the new id, and is reported", async (_label, makeErr) => {
+    vi.mocked(reportError).mockClear();
+    const write = vi.fn(async () => ({ success: true as const, id: "ch-1", payload: { big: true } }));
+    const err = makeErr();
+    const r = await runWrite("create_chapter", write, async () => { throw err; });
+    expect(r.isError).toBeUndefined();
+    expect(JSON.parse(firstText(r))).toEqual({ saved: true, readBack: READ_BACK_FAILED_TEXT, id: "ch-1" });
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(reportError).toHaveBeenCalledWith(err, expect.objectContaining({ route: "/api/mcp#create_chapter" }));
   });
 });

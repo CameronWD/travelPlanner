@@ -9,7 +9,7 @@ import { checkQuota } from "@/lib/storage-quota";
 import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { timezoneForCountryOrNull } from "@/lib/tz";
+import { resolveHomeTimezone } from "@/lib/tz-point";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
@@ -17,6 +17,9 @@ import { todayISO } from "@/lib/dates";
 import { roughStopRows, type RoughStopSeed } from "@/lib/new-trip/rough-stops";
 import { routeStopsFromShare } from "@/server/actions/copy-route-from-share";
 import { recordActivity } from "@/lib/activity-record";
+import { homeTimezoneSummary } from "@/lib/activity";
+import { refileHomeEndsTx } from "@/lib/home-timezone-refile";
+import { growTripEndTx } from "@/server/actions/trip-window";
 import { revealSurprisesPlannedBy } from "@/lib/surprise-sweep";
 import { recomputeChapterSpans, scheduleLoneStopTx } from "@/server/actions/stop-flow";
 import {
@@ -104,7 +107,7 @@ export async function createTrip(
       homeLat,
       homeLng,
       homeCountryCode: resolvedCountryCode,
-      homeTimezone: homeTimezone || timezoneForCountryOrNull(resolvedCountryCode),
+      homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: homeLat, lng: homeLng, countryCode: resolvedCountryCode }),
     };
   } else if (trimmedHome) {
     const geo = await geocodePlaceDetailed(trimmedHome);
@@ -114,7 +117,7 @@ export async function createTrip(
       homeLat: geo?.lat ?? null,
       homeLng: geo?.lng ?? null,
       homeCountryCode: resolvedCountryCode,
-      homeTimezone: homeTimezone || timezoneForCountryOrNull(resolvedCountryCode),
+      homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: geo?.lat, lng: geo?.lng, countryCode: resolvedCountryCode }),
     };
   }
 
@@ -219,13 +222,22 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
 // updateTrip
 // ---------------------------------------------------------------------------
 
-export type UpdateTripResult = ActionResult<{ slug?: string }>;
+/**
+ * `homeTimezone` (updateTrip only): the Home zone the Trip now has, so a
+ * form can show a zone the save re-derived (a rename re-locates the Home
+ * base, F3) rather than the one it sent.
+ */
+export type UpdateTripResult = ActionResult<{ slug?: string; homeTimezone?: string | null }>;
 
 /**
  * Update a Trip (PATCH, ADR 0075): name, dates, Hard end date and home
  * currency merge onto the row; `homeName`, `homeTimezone` and `roundTrip`
  * already mean "absent = unchanged" below. A date sent as `null` or `""`
  * (the settings form's empty date input) is cleared.
+ *
+ * A save that changes `homeTimezone` keeps every Home-end Transport time at
+ * the local time it showed, in the real plan and every Fork, in the same
+ * transaction (ADR 0030 amendment 2026-10-16).
  *
  * Note: changing homeCurrency doesn't retro-convert already-snapshotted cost
  * rates (rateToHome on Cost rows). That's intentional — the budget page can
@@ -335,11 +347,12 @@ export async function updateTrip(
         // than forcing it to null.
         timezoneUpdate = KEEP_TIMEZONE;
       } else {
+        // A rename re-locates the Home base: the zone at the new point,
+        // else its country's (F3, ADR 0030 amended 2026-10-16). Neither
+        // known: an unchanged country keeps the zone, a changed one clears it.
+        const derived = resolveHomeTimezone({ lat: geo.lat, lng: geo.lng, countryCode: geo.countryCode });
         const countryChanged = (geo.countryCode ?? null) !== (before.homeCountryCode ?? null);
-        timezoneUpdate =
-          countryChanged || before.homeTimezone == null
-            ? timezoneForCountryOrNull(geo.countryCode)
-            : KEEP_TIMEZONE;
+        timezoneUpdate = derived ?? (countryChanged ? null : KEEP_TIMEZONE);
       }
     } else if (sentTimezone !== undefined) {
       // Name unchanged, but a new zone was explicitly sent.
@@ -349,6 +362,12 @@ export async function updateTrip(
 
     homeUpdate = { homeName: nextHomeName, coordFields };
   }
+
+  // Writing the zone the Trip already has is no change: omit it, so a
+  // written homeTimezone always means the zone moved. A rename can move it
+  // without one being sent (F3), so "did the Home zone change?" is
+  // `timezoneUpdate !== KEEP_TIMEZONE`, not "was homeTimezone sent?".
+  if (timezoneUpdate === (before.homeTimezone ?? null)) timezoneUpdate = KEEP_TIMEZONE;
 
   const update = {
     where: { id: tripId },
@@ -371,15 +390,32 @@ export async function updateTrip(
     },
   };
 
-  if (datesChanged) {
-    // ADR 0073: new Trip dates pull the only Stop along, in the real plan and
-    // every Fork (the lone-Stop count is per plan; Trip dates are trip-wide).
+  // F5 (ADR 0030 amendment 2026-10-16): the zone this save actually moves to,
+  // whichever rule above picked it. Same-zone writes were already folded into
+  // KEEP_TIMEZONE, so a written zone is always a move.
+  const zoneMove =
+    timezoneUpdate !== KEEP_TIMEZONE ? { from: before.homeTimezone ?? null, to: timezoneUpdate } : null;
+  let homeEndsKept = 0;
+
+  if (datesChanged || zoneMove) {
     await db.$transaction(async (tx) => {
       await tx.trip.update(update);
-      const forks = await tx.fork.findMany({ where: { tripId }, select: { id: true } });
-      for (const forkId of [null, ...forks.map((f) => f.id)]) {
-        await scheduleLoneStopTx(tx, tripId, forkId, "follow");
+      // Home-end times keep their local time in the new zone — every Plan
+      // (the Home base is trip-wide). After the zone write, in the same tx.
+      if (zoneMove) homeEndsKept = await refileHomeEndsTx(tx, tripId, zoneMove.from, zoneMove.to);
+      if (datesChanged) {
+        // ADR 0073: new Trip dates pull the only Stop along, in the real plan and
+        // every Fork (the lone-Stop count is per plan; Trip dates are trip-wide).
+        const forks = await tx.fork.findMany({ where: { tripId }, select: { id: true } });
+        for (const forkId of [null, ...forks.map((f) => f.id)]) {
+          await scheduleLoneStopTx(tx, tripId, forkId, "follow");
+        }
       }
+      // F4: the return leg's landing, read in the new Home zone, may grow the
+      // soft end — unless this save set the end date itself (CF-04). The
+      // Settings form re-sends endDate on every save, so the test is
+      // "unchanged", not "not sent": an end the Traveller just pulled in stays.
+      if (zoneMove && (endDate ?? null) === (before.endDate ?? null)) await growTripEndTx(tx, tripId, null);
     });
   } else {
     await db.trip.update(update);
@@ -391,9 +427,25 @@ export async function updateTrip(
   // during a deploy window gets one on its next save.
   const slug = await db.$transaction((tx) => assignTripSlug(tx, tripId, name));
 
+  // One trip-level line for a Home timezone change (ADR 0030 amendment
+  // 2026-10-16). "TRIP" isn't an ActivityEntityType; TRANSPORT is the closest
+  // fit, as CHAPTER/FORK are for the toggles below. It names no Surprise thing.
+  if (zoneMove) {
+    await recordActivity({
+      tripId,
+      verb: "UPDATED",
+      entityType: "TRANSPORT",
+      entityId: null,
+      entityLabel: "Home timezone",
+      changes: homeTimezoneSummary(zoneMove.to, homeEndsKept > 0),
+      surpriseOf: null,
+    });
+  }
+
   revalidateTrip(tripId, "trip");
 
-  return { success: true, slug };
+  const homeTimezone = timezoneUpdate !== KEEP_TIMEZONE ? timezoneUpdate : (before.homeTimezone ?? null);
+  return { success: true, slug, homeTimezone };
 }
 
 // ---------------------------------------------------------------------------

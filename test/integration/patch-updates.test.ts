@@ -14,21 +14,24 @@ vi.mock("@/lib/money/fx", () => ({
   persistRate: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
-vi.mock("@/lib/guards", async () => ({
-  isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
-  requireUser: vi.fn(async () => ({ id: "it-user" })),
-  requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
-  requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
-  // The actions only read id/tripId/forkId (+ the reminder's own fields) off the guard's row.
-  requireRowAccess: vi.fn(async (kind: string, id: string) => {
-    const { db } = await import("@/lib/db");
-    const { notFound } = await import("next/navigation");
-    const delegate = (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind];
-    const row = await delegate.findUnique({ where: { id }, ...(kind === "reminder" ? { include: { stop: { select: { name: true } } } } : {}) });
-    if (!row) notFound();
-    return { row, user: { id: "it-user" }, membership: { role: "owner" }, surpriseOf: null };
-  }),
-}));
+vi.mock("@/lib/guards", async () => {
+  const { REMINDER_TRANSPORT_SELECT } = await import("@/lib/reminder-about");
+  return {
+    isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
+    requireUser: vi.fn(async () => ({ id: "it-user" })),
+    requireTripAccess: vi.fn(async () => ({ user: { id: "it-user" }, membership: { role: "owner" } })),
+    requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-user" }, membership: { role: "owner" }, plan: forkId ?? null })),
+    // The actions only read id/tripId/forkId (+ the reminder's own fields) off the guard's row.
+    requireRowAccess: vi.fn(async (kind: string, id: string) => {
+      const { db } = await import("@/lib/db");
+      const { notFound } = await import("next/navigation");
+      const delegate = (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind];
+      const row = await delegate.findUnique({ where: { id }, ...(kind === "reminder" ? { include: { stop: { select: { name: true } }, item: { select: { title: true } }, transport: { select: REMINDER_TRANSPORT_SELECT } } } : {}) });
+      if (!row) notFound();
+      return { row, user: { id: "it-user" }, membership: { role: "owner" }, surpriseOf: null };
+    }),
+  };
+});
 vi.mock("@/lib/surprise-guard", async () => ({
   ...(await vi.importActual<object>("@/lib/surprise-guard")),
   requireOutsideSurprise: vi.fn(async () => null),
@@ -43,6 +46,7 @@ import { updateAccommodation } from "@/server/actions/accommodation";
 import { updateItem } from "@/server/actions/items";
 import { updateTransport } from "@/server/actions/transport";
 import { updateStop } from "@/server/actions/stops";
+import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 
 const TRIP_ID = "it-trip-patch";
 
@@ -66,6 +70,33 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await updateReminder(r.id, { title: "New" })).toEqual({ success: true });
       expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ title: "New", date: "2026-05-02", stopId: stop.id });
     });
+
+    it("moving a Reminder from a Stop to an Item clears the Stop (the CHECK never trips); notes clear with null", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Lyon", sortOrder: 40 } });
+      const item = await db.item.create({ data: { tripId: TRIP_ID, title: "Bouchon", category: "OTHER" } });
+      const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Book table", date: "2026-05-03", stopId: stop.id, notes: "window" } });
+      expect(await updateReminder(r.id, { itemId: item.id })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ stopId: null, itemId: item.id, notes: "window" });
+      expect(await updateReminder(r.id, { notes: null })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ notes: null, itemId: item.id });
+    });
+
+    // E.2 review: an empty about id must never be written (it would fail the FK).
+    it("stopId \"\" clears the about instead of writing \"\"", async () => {
+      const stop = await db.stop.create({ data: { tripId: TRIP_ID, name: "Arles", sortOrder: 41 } });
+      const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Pack", date: "2026-05-04", stopId: stop.id } });
+      expect(await updateReminder(r.id, { stopId: "" })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ stopId: null, itemId: null, transportId: null });
+    });
+
+    it("nulls alone clear only the keys they name: a title edit with stopId/transportId null keeps the Item", async () => {
+      const item = await db.item.create({ data: { tripId: TRIP_ID, title: "Ring box", category: "OTHER" } });
+      const r = await db.reminder.create({ data: { tripId: TRIP_ID, title: "Collect", date: "2026-05-05", itemId: item.id } });
+      expect(await updateReminder(r.id, { title: "Collect it", stopId: null, transportId: null })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ title: "Collect it", itemId: item.id, stopId: null, transportId: null });
+      expect(await updateReminder(r.id, { stopId: null, itemId: null, transportId: null })).toEqual({ success: true });
+      expect(await db.reminder.findUnique({ where: { id: r.id } })).toMatchObject({ itemId: null, stopId: null, transportId: null });
+    });
   });
 
   describe("Chapter", () => {
@@ -75,6 +106,27 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", colour: "amber", startDate: "2026-05-01", endDate: "2026-05-05" });
       await updateChapter(ch.id, { startDate: null, endDate: null });
       expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ name: "Italia", startDate: null, endDate: null });
+    });
+
+    it("dates off on a dated Chapter makes it rough: its dated Stops keep their dates and leave it, rough members stay, and a later span recompute leaves it rough (TU-01)", async () => {
+      const ch = await db.chapter.create({ data: { tripId: TRIP_ID, name: "Tuscany", colour: "rose", startDate: "2026-05-15", endDate: "2026-05-18", sortOrder: 7 } });
+      const linked = await db.stop.create({ data: { tripId: TRIP_ID, name: "Siena", country: "Italy", arriveDate: "2026-05-15", departDate: "2026-05-17", nights: 2, chapterId: ch.id, chapterSortOrder: 0, sortOrder: 30 } });
+      const byDate = await db.stop.create({ data: { tripId: TRIP_ID, name: "Lucca", country: "Italy", arriveDate: "2026-05-17", departDate: "2026-05-18", nights: 1, sortOrder: 31 } });
+      const rough = await db.stop.create({ data: { tripId: TRIP_ID, name: "Pisa", country: "Italy", nights: 1, chapterId: ch.id, chapterSortOrder: 1, sortOrder: 32 } });
+
+      expect(await updateChapter(ch.id, { startDate: null, endDate: null })).toEqual({ success: true });
+
+      expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ startDate: null, endDate: null });
+      expect(await db.stop.findUnique({ where: { id: linked.id } })).toMatchObject({ arriveDate: "2026-05-15", departDate: "2026-05-17", chapterId: null });
+      expect(await db.stop.findUnique({ where: { id: byDate.id } })).toMatchObject({ arriveDate: "2026-05-17", chapterId: null });
+      expect(await db.stop.findUnique({ where: { id: rough.id } })).toMatchObject({ arriveDate: null, chapterId: ch.id });
+
+      // Any later Stop write runs this self-heal; it must not re-date the Chapter.
+      await db.$transaction((tx) => recomputeChapterSpans(tx, TRIP_ID, null));
+      expect(await db.chapter.findUnique({ where: { id: ch.id } })).toMatchObject({ startDate: null, endDate: null });
+
+      await db.stop.deleteMany({ where: { id: { in: [linked.id, byDate.id, rough.id] } } });
+      await db.chapter.delete({ where: { id: ch.id } });
     });
   });
 
@@ -156,6 +208,20 @@ describe.skipIf(process.env.INTEGRATION !== "1")("update actions take a PATCH (A
       expect(await updateStop(unknown.id, { arriveDate: "2026-05-12", departDate: "2026-05-14" })).toMatchObject({ success: true });
       expect(await db.stop.findUnique({ where: { id: known.id } })).toMatchObject({ arriveDate: "2026-05-10", timezone: "Europe/Rome", lat: 41.12 });
       expect(await db.stop.findUnique({ where: { id: unknown.id } })).toMatchObject({ arriveDate: "2026-05-12", timezone: "UTC" });
+    });
+
+    it("TU-02: re-locating a scheduled Stop with no timezone takes the new place's zone; a sent zone still wins", async () => {
+      const s = await db.stop.create({ data: { tripId: TRIP_ID, name: "Tokyo", country: "Japan", countryCode: "jp", lat: 35.68, lng: 139.69, arriveDate: "2026-05-14", departDate: "2026-05-16", timezone: "Asia/Tokyo", sortOrder: 12 } });
+      expect(await updateStop(s.id, { name: "Paris", country: "France", countryCode: "fr", lat: 48.86, lng: 2.35 })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-05-14", lat: 48.86 });
+      // A move inside one country moves the zone too (F3).
+      expect(await updateStop(s.id, { name: "Brisbane", country: "Australia", countryCode: "au", lat: -27.47, lng: 153.03 })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ timezone: "Australia/Brisbane" });
+      expect(await updateStop(s.id, { name: "Perth", countryCode: "au", lat: -31.95, lng: 115.86, timezone: "Australia/Brisbane" })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ name: "Perth", timezone: "Australia/Brisbane" });
+      // Naming no place keeps the zone.
+      expect(await updateStop(s.id, { notes: "kept" })).toMatchObject({ success: true });
+      expect(await db.stop.findUnique({ where: { id: s.id } })).toMatchObject({ timezone: "Australia/Brisbane" });
     });
   });
 });

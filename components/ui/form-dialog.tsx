@@ -79,6 +79,9 @@ export function FormDialog({
   }
 
   // A stray backdrop tap or Escape on unsaved input asks first (spec §M).
+  // Bound to pointer-down-outside, not interact-outside: focus moving into a
+  // dialog stacked on top (Add a reminder over an edit dialog) is not a tap,
+  // and a modal dialog never closes on focus-outside anyway.
   function guard(e: Event) {
     if (!(isDirty || reported.current)) return;
     e.preventDefault();
@@ -87,7 +90,7 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size={size} onInteractOutside={guard} onEscapeKeyDown={guard}>
+      <DialogContent size={size} onPointerDownOutside={guard} onEscapeKeyDown={guard}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

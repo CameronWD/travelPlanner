@@ -89,7 +89,7 @@ describe("completeInlineCost", () => {
   it("against more than one owned Cost is refused with Traveller wording (no tool name — that's the MCP tool's job to add)", () => {
     const result = completeInlineCost({ costMinor: 1 }, [paid, { ...paid, id: "c2" }]);
     expect(result).toEqual(MORE_THAN_ONE_COST);
-    expect(result).toMatchObject({ success: false, errors: { costMinor: ["This now has more than one Cost — edit them in Money."] } });
+    expect(result).toMatchObject({ success: false, errors: { costMinor: ["This now has more than one Cost. Edit them in Money."] } });
     expect(JSON.stringify(result)).not.toMatch(/update_cost/);
   });
   it("the form's unpaid save (paidAt: null) un-pays, keeping the amount as history", () => {

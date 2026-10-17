@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -22,8 +23,10 @@ vi.mock("@/server/actions/reminders", () => ({
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
+import { addReminder } from "@/server/actions/reminders";
 
 import { RemindersCard } from "./reminders-card";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 const TODAY = "2026-11-28";
 
@@ -37,7 +40,7 @@ describe("RemindersCard relative labels", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Print the insurance docs", date: TODAY, stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Print the insurance docs", date: TODAY, stopId: null, stopName: null })]}
       />,
     );
     expect(screen.getByText("Print the insurance docs")).toBeInTheDocument();
@@ -49,7 +52,7 @@ describe("RemindersCard relative labels", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null })]}
       />,
     );
     expect(screen.getByText("tomorrow")).toBeInTheDocument();
@@ -60,7 +63,7 @@ describe("RemindersCard relative labels", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Collect currency", date: "2026-11-30", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Collect currency", date: "2026-11-30", stopId: null, stopName: null })]}
       />,
     );
     expect(screen.getByText("in 2 days")).toBeInTheDocument();
@@ -71,7 +74,7 @@ describe("RemindersCard relative labels", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Collect currency", date: "2026-11-30", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Collect currency", date: "2026-11-30", stopId: null, stopName: null })]}
       />,
     );
     expect(screen.queryByText(/\d{1,2}:\d{2}/)).not.toBeInTheDocument();
@@ -89,8 +92,8 @@ describe("RemindersCard does not linger", () => {
         tripId="trip-1"
         today={TODAY}
         reminders={[
-          { id: "r1", title: "Apply for ETIAS", date: "2026-10-16", stopId: null, stopName: null },
-          { id: "r2", title: "Print the insurance docs", date: TODAY, stopId: null, stopName: null },
+          reminderItem({ id: "r1", title: "Apply for ETIAS", date: "2026-10-16", stopId: null, stopName: null }),
+          reminderItem({ id: "r2", title: "Print the insurance docs", date: TODAY, stopId: null, stopName: null }),
         ]}
       />,
     );
@@ -118,7 +121,7 @@ describe("RemindersCard does not linger", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Apply for ETIAS", date: "2026-10-16", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Apply for ETIAS", date: "2026-10-16", stopId: null, stopName: null })]}
       />,
     );
 
@@ -136,7 +139,7 @@ describe("RemindersCard malformed stored date", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Print docs", date: "not-a-date", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Print docs", date: "not-a-date", stopId: null, stopName: null })]}
       />,
     );
 
@@ -152,8 +155,8 @@ describe("RemindersCard malformed stored date", () => {
         tripId="trip-1"
         today={TODAY}
         reminders={[
-          { id: "r1", title: "Print docs", date: "not-a-date", stopId: null, stopName: null },
-          { id: "r2", title: "Pack", date: "2026-11-29", stopId: null, stopName: null },
+          reminderItem({ id: "r1", title: "Print docs", date: "not-a-date", stopId: null, stopName: null }),
+          reminderItem({ id: "r2", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }),
         ]}
       />,
     );
@@ -206,7 +209,7 @@ describe("RemindersCard kit shape", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null })]}
       />,
     );
     const card = container.firstElementChild as HTMLElement;
@@ -224,7 +227,7 @@ describe("RemindersCard kit shape", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: long, date: "2026-11-29", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: long, date: "2026-11-29", stopId: null, stopName: null })]}
       />,
     );
     const title = screen.getByText(long);
@@ -238,7 +241,7 @@ describe("RemindersCard kit shape", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null })]}
       />,
     );
     const del = screen.getByRole("button", { name: "Delete reminder: Pack" });
@@ -253,13 +256,13 @@ describe("RemindersCard Stop chip (Task 7: a Reminder about a Stop)", () => {
         tripId="trip-1"
         today={TODAY}
         reminders={[
-          {
+          reminderItem({
             id: "r1",
             title: "Reconfirm the tour",
             date: "2026-11-29",
             stopId: "s1",
             stopName: "Denpasar",
-          },
+          }),
         ]}
       />,
     );
@@ -271,23 +274,23 @@ describe("RemindersCard Stop chip (Task 7: a Reminder about a Stop)", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Print docs", date: "2026-11-29", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Print docs", date: "2026-11-29", stopId: null, stopName: null })]}
       />,
     );
     expect(screen.queryByText("Denpasar")).not.toBeInTheDocument();
   });
 
-  it("offers a Stop select in the add form when `stops` is provided", async () => {
+  it("offers an About select in the add form when `about` is provided", async () => {
     render(
       <RemindersCard
         tripId="trip-7"
         today={TODAY}
         reminders={[]}
-        stops={[{ id: "s1", name: "Denpasar" }]}
+        about={{ stops: [{ id: "s1", name: "Denpasar" }], items: [], transports: [] }}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Add Reminder" }));
-    expect(screen.getByLabelText("Stop")).toBeInTheDocument();
+    expect(screen.getByLabelText("About")).toBeInTheDocument();
   });
 
   it("submits the selected stopId alongside title and date", async () => {
@@ -296,7 +299,7 @@ describe("RemindersCard Stop chip (Task 7: a Reminder about a Stop)", () => {
         tripId="trip-7"
         today={TODAY}
         reminders={[]}
-        stops={[{ id: "s1", name: "Denpasar" }]}
+        about={{ stops: [{ id: "s1", name: "Denpasar" }], items: [], transports: [] }}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Add Reminder" }));
@@ -306,8 +309,8 @@ describe("RemindersCard Stop chip (Task 7: a Reminder about a Stop)", () => {
     fireEvent.change(screen.getByLabelText("Reminder date"), {
       target: { value: "2026-12-05" },
     });
-    fireEvent.change(screen.getByLabelText("Stop"), {
-      target: { value: "s1" },
+    fireEvent.change(screen.getByLabelText("About"), {
+      target: { value: "stop:s1" },
     });
     fireEvent.submit(screen.getByLabelText("Reminder date").closest("form")!);
 
@@ -320,10 +323,62 @@ describe("RemindersCard Stop chip (Task 7: a Reminder about a Stop)", () => {
     });
   });
 
-  it("omits stopId when no stops are provided (unchanged add-form contract)", async () => {
+  it("omits an about id when no `about` options are provided (unchanged add-form contract)", async () => {
     render(<RemindersCard tripId="trip-7" today={TODAY} reminders={[]} />);
     fireEvent.click(screen.getByRole("button", { name: "Add Reminder" }));
-    expect(screen.queryByLabelText("Stop")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("About")).not.toBeInTheDocument();
+  });
+
+  it("a chip names the Item or leg a Reminder is about (F8)", () => {
+    render(
+      <RemindersCard tripId="trip-1" today={TODAY} reminders={[
+        reminderItem({ id: "r1", title: "Book table", date: "2026-11-29", itemId: "i1", itemTitle: "Bouchon" }),
+        reminderItem({ id: "r2", title: "Seats", date: "2026-11-30", transportId: "t1", transportLabel: "Train Paris → Lyon" }),
+      ]} />,
+    );
+    expect(screen.getByText("Bouchon")).toBeInTheDocument();
+    expect(screen.getByText("Train Paris → Lyon")).toBeInTheDocument();
+  });
+
+  it("folds a Reminder's notes until tapped (F8)", async () => {
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Ring", date: "2026-11-29", notes: "Door code 4411" })]} />);
+    expect(screen.getByText("Door code 4411")).not.toBeVisible();
+    await user.click(screen.getByText("Notes"));
+    expect(screen.getByText("Door code 4411")).toBeVisible();
+  });
+
+  const ABOUT = {
+    stops: [{ id: "s1", name: "Denpasar" }],
+    items: [{ id: "i1", title: "Temple visit" }],
+    transports: [{ id: "t1", label: "Flight Brisbane → Denpasar" }],
+  };
+
+  it("offers one About picker over Stops, things to do and legs, and submits the one picked plus notes (F8)", async () => {
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    const select = screen.getByLabelText("About");
+    expect(within(select).getByRole("option", { name: "The whole trip" })).toBeInTheDocument();
+    expect(within(select).getByRole("option", { name: "Temple visit" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Reminder title"), { target: { value: "Bring a sarong" } });
+    fireEvent.change(screen.getByLabelText("Reminder date"), { target: { value: "2026-12-01" } });
+    fireEvent.change(screen.getByLabelText("Reminder notes"), { target: { value: "Shoulders covered" } });
+    fireEvent.change(select, { target: { value: "item:i1" } });
+    fireEvent.submit(select.closest("form")!);
+    await waitFor(() =>
+      expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Bring a sarong", date: "2026-12-01", notes: "Shoulders covered", itemId: "i1" }),
+    );
+  });
+
+  it("with no notes and no pick it submits only title and date", async () => {
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    fireEvent.change(screen.getByLabelText("Reminder title"), { target: { value: "Pack" } });
+    fireEvent.change(screen.getByLabelText("Reminder date"), { target: { value: "2026-12-01" } });
+    fireEvent.submit(screen.getByLabelText("Reminder date").closest("form")!);
+    await waitFor(() => expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Pack", date: "2026-12-01" }));
   });
 });
 
@@ -334,7 +389,7 @@ describe("RemindersCard Digest opt-in", () => {
       <RemindersCard
         tripId="trip-1"
         today={TODAY}
-        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]}
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null })]}
       />,
     );
     // Assert the absence of the specific control, not of any copy containing
@@ -351,7 +406,7 @@ describe("RemindersCard delete failures (spec 2026-10-06 §E)", () => {
     deleteReminderMock.mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that reminder."] } });
     render(
       <RemindersCard tripId="trip-1" today={TODAY}
-        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null }]} />,
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null })]} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Delete reminder: Pack" }));
     await waitFor(() =>

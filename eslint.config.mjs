@@ -21,6 +21,7 @@ const I = {
   components: { regex: into("components"), message: "lib may not import components (Q8): the view type lives in lib and the component imports it." },
   app: { regex: into("app"), message: "lib and components may not import app (Q8)." },
   libDb: { regex: "^(?:@/|(?:\\.\\./)+)lib/db$", message: "components may not import lib/db (Q8): read through a lib/*-reads.ts module." },
+  tzPoint: { regex: "^(?:@/|(?:\\.\\./)+)lib/tz-point$", message: "lib/tz-point carries the zone lookup table: client code loads it with import() when a place is picked, never statically (spec 2026-10-16 F3)." },
   enums: { regex: "^(?:@/lib/|\\./)enums$", message: "lib/enums builds zod schemas at load: import the plain values from @/lib/enum-values (spec 2026-10-06 §R)." },
   motion: { group: ["motion/react"], importNames: ["motion"], message: "Render m.* inside LazyMotion, never the full motion bundle (spec 2026-10-06 §Q)." },
   acting: { regex: ACTING, message: "Only lib/guards.ts, lib/activity-record.ts, lib/mcp/run-tool.ts and app/api/mcp/route.ts may import lib/mcp/acting-traveller." },
@@ -91,6 +92,9 @@ export const SURPRISE_VISIBILITY_READERS = [
   "lib/mcp/reads/trip-plan.ts",
   "lib/mcp/reads/costs.ts",
   "lib/mcp/reads/attachments.ts",
+  "lib/mcp/reads/notes.ts",
+  "lib/mcp/reads/entities.ts",
+  "lib/mcp/reads/lists.ts",
   "lib/mcp/tools/reads.ts",
   "server/actions/search.ts",
   "server/actions/ai.ts",
@@ -116,8 +120,8 @@ const runAs = (imports) => imports.map((p) => (p === I.acting ? I.runAs : p));
 const ZONE_DEFS = [
   { name: "everywhere", files: ["**/*.{js,mjs,cjs,ts,tsx}"], match: () => true, imports: [I.acting], syntax: S.actingDynamic },
   { name: "server", files: ["server/**"], match: (f) => f.startsWith("server/"), imports: [I.acting], syntax: LIB_S },
-  { name: "app", files: ["app/**"], match: (f) => f.startsWith("app/"), imports: [I.acting, I.enums, I.motion], syntax: UI_S },
-  { name: "components", files: ["components/**"], match: (f) => f.startsWith("components/"), imports: [I.acting, I.enums, I.motion, I.libDb, I.app], syntax: UI_S },
+  { name: "app", files: ["app/**"], match: (f) => f.startsWith("app/"), imports: [I.acting, I.enums, I.motion, I.tzPoint], syntax: UI_S },
+  { name: "components", files: ["components/**"], match: (f) => f.startsWith("components/"), imports: [I.acting, I.enums, I.motion, I.libDb, I.app, I.tzPoint], syntax: UI_S },
   { name: "lib", files: ["lib/**"], match: (f) => f.startsWith("lib/"), imports: LIB_I, syntax: LIB_S },
   // lib/mcp is reached only from app/api/mcp/route.ts (runtime nodejs), so @/lib/enums is fine there.
   { name: "lib-mcp", files: ["lib/mcp/**"], match: (f) => f.startsWith("lib/mcp/"), imports: MCP_I, syntax: LIB_S },

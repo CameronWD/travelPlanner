@@ -2,7 +2,8 @@
  * One error contract for every MCP tool (spec 2026-10-09). Tools call the
  * existing server actions; this maps their results and Next's control-flow
  * throws into MCP tool results. notFound() covers both "missing" and "not
- * yours", so a tool never reveals whether a Trip exists.
+ * yours", so a tool never reveals whether a Trip exists. Writes go through
+ * `runWrite`, which returns the row as it now stands (F6).
  */
 import { ZodError } from "zod";
 import { reportError } from "@/lib/error-sink";
@@ -37,6 +38,53 @@ export async function runTool(name: string, fn: () => Promise<unknown>): Promise
   } catch (err) {
     return errorResult(name, err);
   }
+}
+
+/** The success branch of a write's result: what `runWrite`'s reread receives. */
+export type Succeeded<R> = R extends { success: false } ? never : R;
+
+const isFailed = (v: unknown): v is { success: false } =>
+  typeof v === "object" && v !== null && (v as { success?: unknown }).success === false;
+
+/**
+ * Every MCP write tool (spec 2026-10-16 F6): run the app's own action, and on
+ * success return the row as it now stands, re-read through the narrow reads
+ * (lib/mcp/reads/entities.ts and friends), instead of the action's
+ * `ActionResult` (ADR 0074 keeps that contract for the app). Deletes reread
+ * to `{ deleted: id }`. A failure, notFound() or throw from the write maps
+ * exactly as `runTool` maps it, and nothing is re-read. A throw from the
+ * reread (the write already committed) is reported and returned as a success
+ * saying the read-back failed, with the write result's scalars (its new id).
+ */
+export function runWrite<R>(
+  name: string,
+  write: () => Promise<R>,
+  reread: (done: Succeeded<R>) => Promise<object>,
+): Promise<ToolResult> {
+  return runTool(name, async () => {
+    const result = await write();
+    if (isFailed(result)) return result;
+    try {
+      return await reread(result as Succeeded<R>);
+    } catch (err) {
+      // The write is committed. Reporting it as failed would have Claude retry
+      // it, duplicating a create, so a failed read-back is still a success.
+      await reportError(err, { route: `/api/mcp#${name}`, source: "server", userId: getActingTraveller()?.id });
+      return { saved: true, readBack: READ_BACK_FAILED_TEXT, ...scalarFields(result) };
+    }
+  });
+}
+
+export const READ_BACK_FAILED_TEXT = "The change was saved, but reading it back failed. Read it with the matching get_ tool.";
+
+/** A write result's top-level scalars (a new id, say), minus `success`. */
+function scalarFields(result: unknown): Record<string, unknown> {
+  if (typeof result !== "object" || result === null) return {};
+  return Object.fromEntries(
+    Object.entries(result).filter(
+      ([k, v]) => k !== "success" && (v === null || ["string", "number", "boolean"].includes(typeof v)),
+    ),
+  );
 }
 
 /** Like runTool, but fn builds the content itself (images). Same error mapping. */

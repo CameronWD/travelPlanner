@@ -260,7 +260,7 @@ export async function createItem(
 export async function addMarkerToWishlist(
   markerId: string,
   tripId: string,
-): Promise<ItemActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   const { user } = await requireTripAccess(tripId);
 
   const globe = await getUserGlobe(user.id);
@@ -284,7 +284,7 @@ export async function addMarkerToWishlist(
     where: { tripId, ...REAL_PLAN, stopId: null, date: null, sourceMarkerId: markerId },
     select: { id: true },
   });
-  if (existing) return { success: true };
+  if (existing) return { success: true, id: existing.id };
 
   const maxItem = await db.item.findFirst({
     where: { tripId, ...planScope(null) },
@@ -321,7 +321,7 @@ export async function addMarkerToWishlist(
     entityLabel: entityLabel("ITEM", created),
   });
   revalidateTrip(tripId, "plan");
-  return { success: true };
+  return { success: true, id: created.id };
 }
 
 /**

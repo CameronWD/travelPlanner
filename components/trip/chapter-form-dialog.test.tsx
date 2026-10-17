@@ -112,6 +112,39 @@ describe("ChapterFormDialog", () => {
     expect(createChapter).not.toHaveBeenCalled();
   });
 
+  // TU-01: switching "Set dates now" off on an edit clears the dates.
+  it("switching 'Set dates now' off on a dated chapter sends both dates as null and warns first", async () => {
+    const user = userEvent.setup();
+    render(<ChapterFormDialog {...baseProps} chapter={existingChapter} />);
+
+    expect(screen.queryByText("This Chapter will no longer group its dated stops.")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: /set dates now/i }));
+    expect(screen.getByText("This Chapter will no longer group its dated stops.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateChapter).toHaveBeenCalledWith("chapter-99", {
+      name: "France",
+      colour: "blue",
+      startDate: null,
+      endDate: null,
+    });
+  });
+
+  it("shows no warning when editing a rough chapter", () => {
+    render(<ChapterFormDialog {...baseProps} chapter={{ ...existingChapter, startDate: null, endDate: null }} />);
+    expect(screen.getByRole("checkbox", { name: /set dates now/i })).not.toBeChecked();
+    expect(screen.queryByText("This Chapter will no longer group its dated stops.")).not.toBeInTheDocument();
+  });
+
+  it("a new chapter with the switch off still sends only name and colour", async () => {
+    const user = userEvent.setup();
+    render(<ChapterFormDialog {...baseProps} />);
+    await user.type(screen.getByPlaceholderText(/e\.g\. france/i), "Spain");
+    await user.click(screen.getByRole("button", { name: /add chapter/i }));
+    expect(createChapter).toHaveBeenCalledWith("trip-1", { name: "Spain", colour: expect.any(String) }, undefined, undefined);
+    expect(screen.queryByText("This Chapter will no longer group its dated stops.")).not.toBeInTheDocument();
+  });
+
   // -------------------------------------------------------------------------
   // Case 6: server-returned field error is displayed
   // -------------------------------------------------------------------------

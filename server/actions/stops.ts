@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { stopTimezone } from "@/lib/tz";
+import { resolveStopTimezone } from "@/lib/tz-point";
 import { mergeStopPatch, type StopPatch } from "@/lib/stop-patch";
 import { flowDates, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
@@ -21,6 +21,7 @@ import { type ActionResult, fail, formFail, validationResult } from "@/lib/actio
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx, scheduleLoneStopTx } from "@/server/actions/stop-flow";
+import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
@@ -163,6 +164,7 @@ export async function createStop(
       }
     }
 
+    let grownTo: string | null = null;
     const created = await db.$transaction(async (tx) => {
       // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007:
       // canonical full-plan lock, acquired in id order via lockPlanStopsTx).
@@ -232,7 +234,7 @@ export async function createStop(
 
       // scheduled
       const { name, country, arriveDate, departDate, notes } = parsed.data;
-      const timezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: derivedCountryCode, country });
+      const timezone = resolveStopTimezone({ timezone: parsed.data.timezone, lat, lng, countryCode: derivedCountryCode, country });
       // A dated Stop belongs to whichever Chapter's dates cover its arrive date
       // (CONTEXT.md "Chapter", ADR 0008), so it stores no chapter — never the
       // anchor's (the stored anchor can differ from the displayed neighbour).
@@ -260,11 +262,13 @@ export async function createStop(
       await recomputeChapterSpans(tx, tripId, plan);
       // ADR 0073: a dated Trip's only Stop takes the Trip's dates.
       await scheduleLoneStopTx(tx, tripId, plan, "fill");
+      // F4: the soft end covers the new Stop (real plan only; never shrinks).
+      grownTo = await growTripEndTx(tx, tripId, plan);
       return createdScheduled;
     });
 
     await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created) });
-    revalidateTrip(tripId, "plan");
+    revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
     return { success: true, id: created.id };
   }
 
@@ -357,9 +361,10 @@ export async function createStop(
     }
   }
 
-  const appendTimezone = stopTimezone({ timezone: parsed.data.timezone, countryCode: appendCountryCode, country });
+  const appendTimezone = resolveStopTimezone({ timezone: parsed.data.timezone, lat, lng, countryCode: appendCountryCode, country });
 
   // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
+  let grownTo: string | null = null;
   const created = await db.$transaction(async (tx) => {
     const createdScheduled = await tx.stop.create({
       data: {
@@ -379,11 +384,13 @@ export async function createStop(
       },
     });
     await scheduleLoneStopTx(tx, tripId, plan, "fill");
+    // F4: the soft end covers the new Stop (real plan only; never shrinks).
+    grownTo = await growTripEndTx(tx, tripId, plan);
     return createdScheduled;
   });
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created) });
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, id: created.id };
 }
 
@@ -391,7 +398,7 @@ export async function createStop(
  * Update a Stop (PATCH, ADR 0075): merges onto the held row
  * (`lib/stop-patch.ts` — mode, dates, place and Chapter rules), then the
  * rough or scheduled write as before. A scheduled save resolves its
- * timezone by `stopTimezone` with the final country, as `createStop` does.
+ * timezone by `resolveStopTimezone` with the final point and country (F3), as `createStop` does.
  * Verifies the stop belongs to a trip the user can access.
  */
 export async function updateStop(
@@ -491,13 +498,14 @@ export async function updateStop(
 
   // Wrap the stop mutation + chapter span recompute in a single transaction so
   // the chapter band always stays in sync with its dated members (bug #3).
+  let grownTo: string | null = null;
   const updated = await db.$transaction(async (tx) => {
     const result = await tx.stop.update({
       where: { id: stopId },
       data: {
         name,
         country: country ?? null,
-        timezone: stopTimezone({ timezone, countryCode: parsed.data.countryCode ?? updateCountryCode, country }),
+        timezone: resolveStopTimezone({ timezone, lat, lng, countryCode: parsed.data.countryCode ?? updateCountryCode, country }),
         arriveDate,
         departDate,
         lat: lat ?? null,
@@ -514,11 +522,13 @@ export async function updateStop(
       await shiftStopPayloadTx(tx, { id: stopId, arriveDate: before.arriveDate }, arriveDate, departDate);
     }
     await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
+    // F4: the soft end covers the re-dated Stop (real plan only; never shrinks).
+    grownTo = await growTripEndTx(tx, stop.tripId, stop.forkId);
     return result;
   });
 
   await recordUpdate("STOP", { tripId: stop.tripId, plan: stop.forkId, entityId: stopId, before, after: updated });
-  revalidateTrip(stop.tripId, "plan");
+  revalidateTrip(stop.tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true };
 }
 
@@ -768,7 +778,7 @@ async function applyStopDates(
   let changed: { id: string; arriveDate: string; departDate: string }[] = [];
   let conflicts: FlowConflict[] = [];
   const payload: PayloadShiftResult = { items: [], accommodations: [] };
-  let maxDepart = dates.departDate;
+  let grownTo: string | null = null;
 
   await db.$transaction(async (tx) => {
     // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, before
@@ -816,18 +826,14 @@ async function applyStopDates(
       const shifted = await shiftStopPayloadTx(tx, { id: r.id, arriveDate: pre.arriveDate }, r.arriveDate, r.departDate);
       payload.items.push(...shifted.items);
       payload.accommodations.push(...shifted.accommodations);
-      if (r.departDate > maxDepart) maxDepart = r.departDate;
     }
     changed = pushed.results.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate }));
 
     // Bands self-heal on any member date change (ADR 0021 §4).
     await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
 
-    // Auto-grow the trip window; never shrink endDate.
-    const trip = await tx.trip.findUnique({ where: { id: stop.tripId }, select: { endDate: true } });
-    if (!trip?.endDate || trip.endDate < maxDepart) {
-      await tx.trip.update({ where: { id: stop.tripId }, data: { endDate: maxDepart } });
-    }
+    // F4: the soft end grows to cover the plan home (real plan only; never shrinks).
+    grownTo = await growTripEndTx(tx, stop.tripId, stop.forkId);
   });
 
   await recordUpdate("STOP", {
@@ -838,7 +844,7 @@ async function applyStopDates(
     after: { ...before, arriveDate: dates.arriveDate, departDate: dates.departDate },
   });
 
-  revalidateTrip(stop.tripId, "plan");
+  revalidateTrip(stop.tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, conflicts, changed, payload };
 }
 
@@ -966,14 +972,15 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   // stop dated past the current endDate silently drops out of every dated view
   // (calendar/day/today/print/share) and the budget. Only set startDate when it
   // was null (a date-less trip firmed up for the first time) — never move an
-  // existing start; never shrink endDate.
-  const firstArrive = results[0].arriveDate;
-  const lastDepart = results[results.length - 1].departDate;
-  const newStart = trip?.startDate ?? firstArrive;
-  const newEnd = !trip?.endDate || trip.endDate < lastDepart ? lastDepart : trip.endDate;
-  if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
-    // A Rough month falls away once the Trip has a start date (CONTEXT.md).
-    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
+  // existing start; the end grows by the one soft-end rule (F4), never shrinks.
+  // Real plan only: a Fork doesn't own the Trip window.
+  let grownTo: string | null = null;
+  if (plan === null) {
+    if (!trip?.startDate) {
+      // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+      await db.trip.update({ where: { id: tripId }, data: { startDate: results[0].arriveDate, roughMonth: null } });
+    }
+    grownTo = await growTripEndTx(db, tripId, plan);
   }
 
   if (chapterId && chapterWhere) {
@@ -1007,7 +1014,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     });
   }
 
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, conflicts };
 }
 
@@ -1091,14 +1098,15 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   }
   for (const r of results) datedById.set(r.id, { arriveDate: r.arriveDate, departDate: r.departDate });
 
-  // Grow the trip window: never shrink endDate; only set startDate when it was null.
-  let maxDepart = anchor;
-  for (const d of datedById.values()) if (d.departDate > maxDepart) maxDepart = d.departDate;
-  const newStart = trip?.startDate ?? anchor;
-  const newEnd = !trip?.endDate || trip.endDate < maxDepart ? maxDepart : trip.endDate;
-  if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
-    // A Rough month falls away once the Trip has a start date (CONTEXT.md).
-    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd, roughMonth: null } });
+  // Grow the trip window: only set startDate when it was null; the end grows
+  // by the one soft-end rule (F4), never shrinks. Real plan only.
+  let grownTo: string | null = null;
+  if (plan === null) {
+    if (!trip?.startDate) {
+      // A Rough month falls away once the Trip has a start date (CONTEXT.md).
+      await db.trip.update({ where: { id: tripId }, data: { startDate: anchor, roughMonth: null } });
+    }
+    grownTo = await growTripEndTx(db, tripId, plan);
   }
 
   // Recompute each chapter's band from its now-dated stops, then trim seams so
@@ -1147,7 +1155,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
     changes: { summary: `Dated ${rough.length} ${rough.length === 1 ? "stop" : "stops"} from ${formatLongDate(anchor)}` },
   });
 
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, conflicts };
 }
 
@@ -1334,6 +1342,7 @@ export async function reorderStops(
   let changed: { id: string; arriveDate: string; departDate: string }[] = [];
   let conflicts: FlowConflict[] = [];
   let payload: PayloadShiftResult = { items: [], accommodations: [] };
+  let grownTo: string | null = null;
 
   try {
     await db.$transaction(async (tx) => {
@@ -1366,6 +1375,7 @@ export async function reorderStops(
       changed = reflow.changed;
       conflicts = reflow.conflicts;
       payload = reflow.payload;
+      grownTo = reflow.grownTo;
     });
   } catch (e) {
     if (e instanceof Error && e.message === "STOP_NOT_IN_TRIP") {
@@ -1374,7 +1384,7 @@ export async function reorderStops(
     throw e;
   }
 
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true, changed, conflicts, payload };
 }
 
@@ -1524,6 +1534,7 @@ export async function restoreStops(
     await requireOutsideSurprise(user.id, { itemId });
   }
 
+  let grownTo: string | null = null;
   await db.$transaction(async (tx) => {
     // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to
     // serialise with concurrent reorders (ADR 0007 — never a subset: the
@@ -1562,8 +1573,10 @@ export async function restoreStops(
 
     // Bring chapter date-bands back in sync with the restored dates.
     await recomputeChapterSpans(tx, tripId, restoreForkId);
+    // F4: restored dates can reach past the end (real plan only; never shrinks).
+    grownTo = await growTripEndTx(tx, tripId, restoreForkId);
   });
 
-  revalidateTrip(tripId, "plan");
+  revalidateTrip(tripId, "plan", ...tripWindowScopes(grownTo));
   return { success: true };
 }

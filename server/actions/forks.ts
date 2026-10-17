@@ -16,6 +16,7 @@ import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { readPlan } from "@/lib/plan-reads";
 import { type ActionResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
+import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 
 /** Why a Fork create/promote is refused on a trip with plan variants off. */
 const PLAN_VARIANTS_OFF_ERROR = "What-if plans are off for this trip. Turn them on in Settings.";
@@ -763,6 +764,9 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   }
 
   // 3. Transaction — strictly ordered
+  // F4: set when the Trip window moved (a first start, or a grown end), so the
+  // layout's date range refreshes.
+  let windowMovedTo: string | null = null;
   await db.$transaction(async (tx) => {
     // Step 1: delete old real-plan rows for all six entities.
     //
@@ -819,6 +823,27 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
     // Step 3: remove ALL forks for this trip (promoted one now has no rows;
     // any other forks cascade-delete their rows)
     await tx.fork.deleteMany({ where: { tripId } });
+
+    // F4: the promoted rows are now the real plan — the soft end covers them
+    // (never shrinks; the Hard end date is untouched, ADR 0068). A Fork's
+    // firm-up no longer dates the Trip, so a date-less Trip takes its start
+    // here, from the promoted plan's first scheduled arrival, as the firm-ups
+    // do on the real plan (a Rough month falls away — CONTEXT.md).
+    if (!trip.startDate) {
+      const first = await tx.stop.findFirst({
+        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
+        orderBy: { arriveDate: "asc" },
+        select: { arriveDate: true },
+      });
+      if (first?.arriveDate) {
+        const { count } = await tx.trip.updateMany({
+          where: { id: tripId, startDate: null },
+          data: { startDate: first.arriveDate, roughMonth: null },
+        });
+        if (count > 0) windowMovedTo = first.arriveDate;
+      }
+    }
+    windowMovedTo = (await growTripEndTx(tx, tripId, null)) ?? windowMovedTo;
   });
 
   // 4. Record activity — use recordActivity directly (not fork-silencing guard)
@@ -831,7 +856,7 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   });
 
   // 5. Revalidate all live surfaces
-  revalidateTrip(tripId, "plan", "money");
+  revalidateTrip(tripId, "plan", "money", ...tripWindowScopes(windowMovedTo));
 
   return { success: true };
 }

@@ -494,16 +494,17 @@ naming, doc drift.
 | `SW-` | **no source doc** — found during the 2026-09-21 sweep (`SW-01`–`SW-03`) or the final whole-branch review that corrected this document (`SW-04`–`SW-05`) |
 | `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
 | `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
-| `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; ledger `.superpowers/sdd/2026-10-16-tidy-up-3-shape-hygiene/progress.md`) |
+| `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; the build ledger was scratch and is gone — the as-built notes in `docs/specs/2026-10-14-tidy-up-pass.md` are the record) |
+| `CF-` | **no source doc** — found while building the Claude connection fixes on branch `feat/feedback-tz-enddate-review`, 2026-10-16/17 (`CF-01`–`CF-11`; the as-built notes in `docs/specs/2026-10-16-claude-connection-fixes.md` are the record) |
 
-`SW-`, `CB-`, `RG-` and `TU-` are the prefixes with nothing to follow the citation
+`SW-`, `CB-`, `RG-`, `TU-` and `CF-` are the prefixes with nothing to follow the citation
 back to. Those entries are self-contained: the evidence in them is all the
 evidence there is.
 
 ---
 # Open items
 
-**6 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), `TU-01` and `TU-02` (added 2026-10-16).** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**13 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-03` and `CF-06`–`CF-11` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ and ~~`CF-05`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -579,8 +580,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   `npm update --save`, fail with `ERESOLVE`. Re-run `npm outdated` first;
   this list is a snapshot of 2026-10-16.
 
-### TU-01 · The Chapter form's "Set dates now" switched off on an edit keeps the dates
+### ~~TU-01 · The Chapter form's "Set dates now" switched off on an edit keeps the dates~~
 
+- **Fixed 2026-10-16** on `feat/feedback-tz-enddate-review` (tasks D.1–D.2, spec 2026-10-16 F9): with the switch off the edit sends both dates as `null`, and `updateChapter` unlinks the Chapter's dated Stops in the same transaction so `recomputeChapterSpans` can't re-date it. The form warns "This Chapter will no longer group its dated stops."
 - **Priority: P1** · **Effort: S** — one form, one test.
 - **Source:** none — found while drafting card 3.L (PATCH-shaped updates) of
   the 2026-10-14 tidy-up pass, 2026-10-16 (`docs/specs/2026-10-14-tidy-up-pass.md`,
@@ -598,8 +600,9 @@ ADR 0056) is written and unapplied — see the trust statement above.
   Chapter → the update carries both nulls), plus a `patch-updates`
   integration case that the dates clear.
 
-### TU-02 · Relocating a scheduled Stop through a patch keeps the Stop's old timezone
+### ~~TU-02 · Relocating a scheduled Stop through a patch keeps the Stop's old timezone~~
 
+- **Fixed 2026-10-16** on `feat/feedback-tz-enddate-review` (tasks A.4–A.6, spec 2026-10-16 F3/F9): a patch that says where and sends no zone sends `UNCHOSEN_TIMEZONE`, and `updateStop` resolves the zone from the final point (`resolveStopTimezone`). A Tokyo Stop re-located to Paris gets `Europe/Paris`; a zone sent with the patch still wins.
 - **Priority: P2** · **Effort: S** — one merge rule.
 - **Source:** none — the review of task 3.L.9 (tidy-up batch 3,
   2026-10-16). The old `update_stop` merge did the same, so it is not a
@@ -615,6 +618,177 @@ ADR 0056) is written and unapplied — see the trust statement above.
 - **Fix to decide:** when the patch says where (`saysWhere`) and sends no
   zone, take `stopTimezone` from the new point rather than the row's zone.
   Pin it with a pure case in `lib/stop-patch.test.ts` and an integration case.
+
+### CF-01 · The rough-segment firm-up and `firmUpTrip` date rough Stops in the first Stop's zone
+
+- **Priority: P2** · **Effort: S** — two call sites, one rule.
+- **Source:** none — section A of the Claude connection fixes (notes,
+  decision 7), 2026-10-16. Pre-existing; F3 did not change it.
+- **What:** firming up rough Stops writes each one's zone as
+  `s.timezone ?? tripTz`, where `tripTz` is the first scheduled Stop's zone,
+  not the zone of the rough Stop's own place. A rough Perth Stop firmed on a
+  Trip that starts in Sydney gets `Australia/Sydney`.
+- **Where:** `server/actions/stops.ts`, `firmUpSegment` (`const timezone =
+  s.timezone ?? tripTz`, ~:952) and `firmUpTrip` (`timezone: s.timezone ??
+  tripTz`, ~:1081).
+- **Fix to decide:** resolve through `resolveStopTimezone` from the Stop's
+  own point/country (which both paths geocode already), keeping `tripTz`
+  only as the last fallback. Pin with an integration case.
+
+### CF-02 · The Booking import proposes the country's zone, and confirming it makes that a choice
+
+- **Priority: P2** · **Effort: M** — the proposal has no point today.
+- **Source:** none — section A of the Claude connection fixes (notes,
+  decision 7), 2026-10-16.
+- **What:** a proposed Stop gets `stopTimezone({ countryCode, country })`,
+  the country's zone. Confirming sends it as a chosen zone, so it beats the
+  point lookup: an imported Brisbane hotel's Stop gets `Australia/Sydney`.
+- **Where:** `lib/booking-import/build.ts` ~:318 (proposal), confirmed
+  through `lib/booking-import/confirm.ts` → `createStop`.
+- **Fix to decide:** send `UNCHOSEN_TIMEZONE` from the confirm unless the
+  Traveller changed the proposed zone, so the server resolves from the
+  geocoded point; or geocode in the proposal and preview the point zone.
+
+### CF-03 · `createStop`'s rough append path drops a picked lat/lng
+
+- **Priority: P3** · **Effort: S** — one branch.
+- **Source:** none — section A of the Claude connection fixes (notes,
+  decision 7), 2026-10-16.
+- **What:** adding a rough Stop at the end of the plan always geocodes
+  `name, country` and writes the geocoder's coordinates, discarding the
+  `lat`/`lng` the Traveller picked. The insert path keeps them.
+- **Where:** `server/actions/stops.ts`, the ROUGH APPEND PATH (~:306-334,
+  `appendRoughCoords`).
+- **Fix:** use the input's `lat`/`lng` when both are present and geocode only
+  otherwise, as the insert and scheduled paths do. Test-first in
+  `server/actions/stops.test.ts`.
+
+### ~~CF-04 · A save that moves the Home zone and pulls the end date in gets the end grown back~~
+
+- **Fixed 2026-10-17** on `feat/feedback-tz-enddate-review` (final review of the Claude connection fixes): `updateTrip` grows the soft end after a Home zone move only when the save leaves `endDate` unchanged — `(endDate ?? null) === (before.endDate ?? null)`. "Not sent" was the wrong test, since the Settings form re-sends `endDate` on every save. Pinned in `server/actions/trips.test.ts` and `test/integration/home-timezone-refile.test.ts`.
+- **Priority: P2** · **Effort: S** — one condition.
+- **Source:** none — the review of task C.4 of the Claude connection fixes,
+  2026-10-16. Ruling recorded then: skip the grow when the patch sends
+  `endDate`.
+- **What:** `updateTrip` calls `growTripEndTx(tx, tripId, null)` after
+  re-filing Home ends whenever the Home zone moves. If the same save also
+  sets `endDate` earlier than the return leg's landing, the grow undoes the
+  Traveller's own end date — and pulling the end in is the Traveller's call
+  (CONTEXT.md **Hard end date**, spec F4 decision 9).
+- **Where:** `server/actions/trips.ts`, `updateTrip`'s transaction:
+  `if (zoneMove) await growTripEndTx(tx, tripId, null);`.
+- **Fix:** grow only when the patch does not send `endDate`
+  (`if (zoneMove && input.endDate === undefined)`). Test-first in
+  `server/actions/trips.test.ts`, plus a case in
+  `test/integration/home-timezone-refile.test.ts`.
+
+### ~~CF-05 · Claude-facing text names a Fork two ways~~
+
+- **Fixed 2026-10-17** on `feat/feedback-tz-enddate-review` (final review of the Claude connection fixes): Claude-facing text says "What-if plan", the on-screen label, cased one way — `update_trip`'s "every what-if plan" now reads "every What-if plan", matching `lib/mcp/server.ts`'s instructions. `lib/mcp/vocab.test.ts` pins it over the instructions and every tool's description and input schema, and that none says "Fork".
+- **Priority: P3** · **Effort: S** — wording only.
+- **Source:** none — the review of task C.5 of the Claude connection fixes,
+  2026-10-16.
+- **What:** the MCP server instructions say "What-if plan"
+  (`lib/mcp/server.ts`, "never a What-if plan") and `update_trip`'s
+  description says "every what-if plan", while the domain and code term is
+  **Fork** (CONTEXT.md: "What-if plan" is the on-screen label). Claude should
+  see one name, consistently cased.
+- **Where:** `lib/mcp/server.ts` (instructions), `lib/mcp/tools/trips-stops-write.ts`
+  (`update_trip`), and any other tool description that mentions Plans.
+- **Fix to decide:** pick one term for Claude-facing text ("What-if plan",
+  matching what Travellers see, is the likely pick) and use it everywhere
+  Claude reads, with `lib/mcp/vocab.test.ts` pinning
+  it.
+
+### CF-06 · Deleting a Surprise Item leaves its Reminders about nothing, and visible
+
+- **Priority: P2** · **Effort: S** — one delete path.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** a Reminder about an Item is hidden from the Traveller a Surprise
+  is kept from. Deleting the Item sets the Reminder's `itemId` to null
+  (`onDelete: SetNull`), so it is now "about the Trip as a whole" and shows
+  up for the surprised Traveller on Home, the Checklists page, the Digest and
+  through Claude. Its title can give the Surprise away ("Ring box at
+  Tiffany"). The same goes for a Surprise Stop and the Reminders on its Items.
+- **Where:** `prisma/schema.prisma` (the Reminder's `item` / `stop`
+  relations), `server/actions/items.ts` and `server/actions/stops.ts` delete
+  paths.
+- **Fix to decide:** delete the Reminders with a Surprise thing, or keep them
+  stamped with the Surprise they came from until the reveal. Pin with an
+  integration case.
+
+### CF-07 · Two Home-zone saves at once can re-file Home ends twice
+
+- **Priority: P3** · **Effort: S** — move one read.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** `updateTrip` reads `before.homeTimezone` before its transaction,
+  then re-files Home-end times from that zone to the new one. Two saves that
+  overlap (two tabs, or the app and Claude) both read the old zone, so the
+  second re-files times the first already moved, and Home-end times shift by
+  the zones' difference.
+- **Where:** `server/actions/trips.ts` `updateTrip` (the `before` read, then
+  `refileHomeEndsTx(tx, tripId, zoneMove.from, zoneMove.to)`).
+- **Fix to decide:** re-read `homeTimezone` inside the transaction with a row
+  lock (`SELECT … FOR UPDATE`) and derive `from` from that.
+
+### CF-08 · `add_note` and `delete_note` don't check the Note's target is in the real plan
+
+- **Priority: P3** · **Effort: S** — one guard per tool.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** every other Claude write refuses a What-if plan's row
+  (`requireRealPlanRows`, "Every tool works on the real plan"). `add_note`
+  passes `targetType`/`targetId` straight to `addNote`, and `delete_note`
+  deletes by Note id, so Claude can add or delete a Note on a Fork's Stop,
+  Item, leg or stay.
+- **Where:** `lib/mcp/tools/plan-write.ts` (`add_note`, `delete_note`),
+  `lib/mcp/real-plan.ts`.
+- **Fix:** run the target through `requireRealPlanRows` (and, for
+  `delete_note`, the Note's own target) before the write. Test-first in
+  `lib/mcp/tools/plan-write.test.ts`.
+
+### CF-09 · The Reminder About picker shows two things with the same name the same way
+
+- **Priority: P3** · **Effort: S** — label only.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** the Checklists page's About picker lists Items by bare title. Two
+  "Dinner" Items (or two Stops called "Paris") read the same, so the
+  Traveller can't tell which one the Reminder will be about.
+- **Where:** `lib/reminder-reads.ts` `readReminderAboutOptions` and the picker
+  in `components/trip/reminders-card.tsx`.
+- **Fix to decide:** add the Stop name or day to an Item's label (and the
+  dates to a Stop's) when a title repeats.
+
+### CF-10 · Claude's Reminder notes limit counts whitespace the app trims
+
+- **Priority: P3** · **Effort: S** — one schema.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** `add_reminder` and `update_reminder` check `notes` with
+  `z.string().max(2000)` before anything trims it, so 2000 characters plus a
+  trailing newline are refused as a schema error, while `reminderSchema`
+  (`.trim().max(2000)`) would accept them.
+- **Where:** `lib/mcp/tools/lists-write.ts` (both tools' `notes`).
+- **Fix:** `z.string().trim().max(2000)` in the tool schemas, matching
+  `lib/validations/reminder.ts`.
+
+### CF-11 · A Stop form saved before the zone lookup loads sends the country's zone
+
+- **Priority: P3** · **Effort: S** — one flag.
+- **Source:** none — the final whole-branch review of the Claude connection
+  fixes, 2026-10-17.
+- **What:** the Stop form shows the country's zone at once and swaps in the
+  point's zone when `lib/tz-point` has loaded. A save in between sends the
+  country's zone as a chosen zone, so it wins over the server's point lookup:
+  a Brisbane Stop saved quickly gets `Australia/Sydney`.
+- **Where:** `components/trip/stop-form-dialog.tsx` (the `import("@/lib/tz-point")`
+  effect, ~:283-300).
+- **Fix:** while the point lookup hasn't landed and the Traveller hasn't
+  touched the zone, send `UNCHOSEN_TIMEZONE` so the server resolves from the
+  point. Pin in `components/trip/stop-form-dialog.test.tsx`.
 
 ### RG-01 · The production database dumps were downloadable by anyone while the repository was public
 

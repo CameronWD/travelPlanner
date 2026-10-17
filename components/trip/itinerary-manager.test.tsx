@@ -204,6 +204,7 @@ import { summariseReorder, undoPayloadFor } from "@/components/plan/plan-editor-
 import { PlanBody, usePlanBody } from "@/components/plan/plan-body";
 import { setMatchMedia } from "@/test/setup";
 import { resetDayCollapse, setDayCollapsed } from "@/lib/plan/day-collapse";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 /** The desktop list — every stop, leg and bookend query goes through it (Task 17 adds a mobile twin). */
 const desktop = () => within(screen.getByTestId("plan-desktop-list"));
@@ -2276,6 +2277,27 @@ describe("day-aware plan editor wiring", () => {
 // ---------------------------------------------------------------------------
 
 describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
+  // The leg fixture the "optimistic transport delete" describe uses — its
+  // pill is "Flight from Sydney to Paris…" and its id "tr-opt-1".
+  function makeTransportBetweenStops(fromStopId: string, toStopId: string): ItineraryTransport {
+    return {
+      id: "tr-opt-1",
+      mode: "FLIGHT",
+      fromStopId,
+      toStopId,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: "Sydney",
+      arrPlace: "Paris",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+  }
+
   it("opens AddReminderDialog with the stop preset, and submits it with that stopId", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s1", name: "Denpasar" });
@@ -2324,7 +2346,7 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
         initialStops={[stop]}
         remindersByStopId={
           new Map([
-            ["s1", [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-08-01", stopId: "s1", stopName: "Denpasar" }]],
+            ["s1", [reminderItem({ id: "rem-1", title: "Reconfirm the tour", date: "2026-08-01", stopId: "s1", stopName: "Denpasar" })]],
           ])
         }
       />,
@@ -2334,6 +2356,84 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     await user.click(desktop().getByRole("button", { name: "1 reminder" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Reconfirm the tour")).toBeInTheDocument();
+  });
+
+  it("a leg's edit sheet lists its Reminders, and Add a reminder opens the dialog about that leg (F8)", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[makeTransportBetweenStops("s-a", "s-b")]}
+        remindersByTransportId={new Map([["tr-opt-1", [reminderItem({ id: "rem-9", title: "Reconfirm seats", date: "2026-08-01", transportId: "tr-opt-1" })]]])}
+      />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    expect(await screen.findByText("Reconfirm seats")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/reminder title/i), "Print boarding passes");
+    await user.type(screen.getByLabelText(/^date/i), "2026-08-02");
+    await user.click(screen.getByRole("button", { name: /^add reminder$/i }));
+    await waitFor(() =>
+      expect(addReminder).toHaveBeenCalledWith(TRIP_ID, { title: "Print boarding passes", date: "2026-08-02", transportId: "tr-opt-1" }),
+    );
+  });
+
+  it("Add a reminder opens on top of a leg's edit sheet, so its unsaved edits survive", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[makeTransportBetweenStops("s-a", "s-b")]}
+        remindersByTransportId={new Map([["tr-opt-1", []]])}
+      />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await user.type(await screen.findByLabelText(/^notes/i), "Window seats");
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: /add a reminder/i })).toBeNull());
+    expect(screen.getByLabelText(/^notes/i)).toHaveValue("Window seats");
+    // Focus moving into the stacked dialog is not a stray tap: no discard prompt.
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+  });
+
+  it("Add a reminder opens on top of an Item's edit dialog, so its unsaved edits survive", async () => {
+    const user = userEvent.setup();
+    const paris = makeStop({ id: "par", name: "Paris", sortOrder: 0, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5 });
+    // A #open= hash left by an earlier test would fold Paris shut.
+    window.history.replaceState(null, "", window.location.pathname);
+    const louvre = { id: "it1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[paris]} dayItemsByStopId={new Map([["par", [louvre]]])} remindersByItemId={new Map([["it1", []]])} />,
+      ["par"],
+    );
+    await user.click(desktop().getByRole("button", { name: "Edit Louvre" }));
+    await user.type(await screen.findByLabelText(/^notes/i), "Book the 10am slot");
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: /add a reminder/i })).toBeNull());
+    expect(screen.getByLabelText(/^notes/i)).toHaveValue("Book the 10am slot");
+    // Focus moving into the stacked dialog is not a stray tap: no discard prompt.
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+  });
+
+  it("a Fork's leg offers no Add a reminder", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} forkId={FORK_ID} initialStops={[stopA, stopB]} initialTransports={[makeTransportBetweenStops("s-a", "s-b")]} />);
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
   });
 });
 

@@ -14,6 +14,7 @@ import { addDays, formatDayLabel } from "@/lib/dates";
 import type { NextStep } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
 import type { ReminderItem } from "@/lib/reminder-reads";
+import { reminderAboutLabel } from "@/lib/reminder-about";
 
 export type SortTone = "coral" | "sun" | "teal" | "lilac" | "pink" | "stone";
 export type SortIcon =
@@ -34,6 +35,8 @@ export interface SortRow {
   href: Route | null;
   tone: SortTone;
   icon: SortIcon;
+  /** A Reminder's notes, folded under the row (spec F8). */
+  notes?: string;
 }
 
 export interface SortTheseOutInput {
@@ -105,14 +108,18 @@ export function sortTheseOut({
   const reminderRows: SortRow[] = reminders
     .filter((r) => r.date >= today && r.date <= until)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((r) => ({
-      id: `reminder-${r.id}`,
-      title: r.title,
-      subtitle: `Due ${formatDayLabel(r.date)}`,
-      href: r.stopId ? tripSubPath(basePath, `/plan#stop-${r.stopId}`) : tripSubPath(basePath, "/plan"),
-      tone: "coral",
-      icon: "bell",
-    }));
+    .map((r) => {
+      const about = reminderAboutLabel(r);
+      return {
+        id: `reminder-${r.id}`,
+        title: r.title,
+        subtitle: `Due ${formatDayLabel(r.date)}${about ? ` · ${about}` : ""}`,
+        href: r.stopId ? tripSubPath(basePath, `/plan#stop-${r.stopId}`) : tripSubPath(basePath, "/plan"),
+        tone: "coral" as const,
+        icon: "bell" as const,
+        ...(r.notes ? { notes: r.notes } : {}),
+      };
+    });
 
   const transport = steps.filter((s) => s.kind === "transport").map(stepRow);
   const rest = steps.filter((s) => s.kind !== "transport").map(stepRow);

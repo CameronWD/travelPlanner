@@ -42,6 +42,13 @@ const CASES: [string, string, string, boolean][] = [
   // Q8: components may not import lib/db or app
   ["components → lib/db", "components/probe.tsx", 'import { db } from "@/lib/db";', true],
   ["components → lib/db, relative", "components/a/probe.tsx", 'import { db } from "../../lib/db";', true],
+  // spec 2026-10-16 F3: the zone lookup table loads lazily in the client, never statically
+  ["component → lib/tz-point statically", "components/probe.tsx", 'import { pointTimezone } from "@/lib/tz-point";\nexport const p = pointTimezone;', true],
+  ["component → lib/tz-point, relative", "components/a/probe.tsx", 'import { pointTimezone } from "../../lib/tz-point";\nexport const p = pointTimezone;', true],
+  ["component → lib/tz-point lazily is fine", "components/probe.tsx", 'export const load = () => import("@/lib/tz-point");', false],
+  ["app → lib/tz-point statically", "app/probe.tsx", 'import { pointTimezone } from "@/lib/tz-point";\nexport const p = pointTimezone;', true],
+  ["server → lib/tz-point is fine", "server/actions/probe.ts", 'import { resolveStopTimezone } from "@/lib/tz-point";\nexport const r = resolveStopTimezone;', false],
+  ["MCP tool → lib/tz-point is fine", "lib/mcp/tools/probe.ts", 'import { resolveStopTimezone } from "@/lib/tz-point";\nexport const r = resolveStopTimezone;', false],
   ["components → app", "components/probe.tsx", 'import { x } from "@/app/(app)/trips/[tripId]/files/page";', true],
   ["components → server action is fine", "components/probe.tsx", 'import { createStop } from "@/server/actions/stops";', false],
   ["app → lib/db is fine", "app/probe.tsx", 'import { db } from "@/lib/db";', false],

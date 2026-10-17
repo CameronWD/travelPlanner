@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 // checklists/page.tsx is an async server component with DB calls. It now
 // delegates the tabs-vs-grid layout entirely to ChecklistsLayout (LA-017,
@@ -22,15 +23,16 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-const listRemindersForTrip = vi.hoisted(() =>
-  vi.fn(async () => [{ id: "r1", title: "Print insurance", date: "2099-01-01", stopId: null, stopName: null }]),
-);
+const { listRemindersForTrip, readReminderAboutOptions } = vi.hoisted(() => ({
+  listRemindersForTrip: vi.fn(async () => [reminderItem({ id: "r1", title: "Print insurance", date: "2099-01-01" })]),
+  readReminderAboutOptions: vi.fn(async () => ({ stops: [{ id: "s1", name: "Lisbon" }], items: [], transports: [] })),
+}));
 vi.mock("@/server/actions/reminders", () => ({}));
-vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip }));
+vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip, readReminderAboutOptions }));
 vi.mock("@/components/trip/reminders-card", () => ({
-  RemindersCard: (p: { tripId: string; reminders: { title: string }[]; today: string; stops?: { name: string }[] }) => (
+  RemindersCard: (p: { tripId: string; reminders: { title: string }[]; today: string; about?: { stops: { name: string }[] } }) => (
     <div data-testid="reminders-card" data-today={p.today}>
-      {p.reminders.map((r) => r.title).join(",")}|{(p.stops ?? []).map((s) => s.name).join(",")}
+      {p.reminders.map((r) => r.title).join(",")}|{(p.about?.stops ?? []).map((s) => s.name).join(",")}
     </div>
   ),
 }));
@@ -79,7 +81,7 @@ describe("ChecklistsPage Reminders (Task 16 fix — the desktop Home has no Remi
     const jsx = await ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) });
     render(jsx);
     const card = screen.getByTestId("reminders-card");
-    expect(card.textContent).toBe("Print insurance|Paris");
+    expect(card.textContent).toBe("Print insurance|Lisbon");
     expect(card.closest('[data-testid="checklists-layout"]')).toBeNull();
     const today = todayISOInZone("Europe/Paris");
     expect(card).toHaveAttribute("data-today", today);

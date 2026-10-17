@@ -208,6 +208,13 @@ describe("surpriseRootForEntity", () => {
     }
   });
 
+  it("REMINDER about an Item resolves through the Item (F8)", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ stopId: null, itemId: "item-1" });
+    itemFindUniqueMock.mockResolvedValue(itemRow("item-1", null, LIVE));
+    expect(await surpriseRootForEntity("REMINDER", "r1", NOW)).toEqual({ type: "ITEM", id: "item-1" });
+    expect(reminderFindUniqueMock).toHaveBeenCalledWith({ where: { id: "r1" }, select: { stopId: true, itemId: true } });
+  });
+
   it("TRANSPORT and TRIP are null", async () => {
     expect(await surpriseRootForEntity("TRANSPORT", "tr-1", NOW)).toBeNull();
     expect(await surpriseRootForEntity("TRIP", "trip-1", NOW)).toBeNull();
@@ -231,24 +238,26 @@ describe("insideSurpriseEntityIds", () => {
     const ids = await insideSurpriseEntityIds("STOP", "stop-1");
 
     expect(ids.sort()).toEqual(["acc-1", "att-1", "cost-1", "dt-1", "item-1", "note-1", "rem-1", "stop-1"]);
-    for (const m of ["item", "accommodation", "dayTitle", "reminder"] as const) {
+    for (const m of ["item", "accommodation", "dayTitle"] as const) {
       expect(findManyMocks[m]).toHaveBeenCalledWith({ where: { stopId: "stop-1" }, select: { id: true } });
     }
+    expect(findManyMocks.reminder).toHaveBeenCalledWith({ where: { OR: [{ stopId: "stop-1" }, { item: { stopId: "stop-1" } }] }, select: { id: true } });
     expect(findManyMocks.note).toHaveBeenCalledWith({ where: { targetId: { in: ["stop-1", "item-1", "acc-1"] } }, select: { id: true } });
     expect(findManyMocks.attachment).toHaveBeenCalledWith({ where: { targetId: { in: ["stop-1", "item-1", "acc-1"] } }, select: { id: true } });
     expect(findManyMocks.cost).toHaveBeenCalledWith({ where: { ownerId: { in: ["item-1", "acc-1"] } }, select: { id: true } });
   });
 
-  it("an Item: itself, the Notes and Attachments on it and the Costs it owns", async () => {
+  it("an Item: itself, the Notes and Attachments on it, the Reminders about it and the Costs it owns", async () => {
+    findManyMocks.reminder.mockResolvedValue([{ id: "rem-9" }]);
     findManyMocks.note.mockResolvedValue([{ id: "note-1" }]);
     findManyMocks.cost.mockResolvedValue([{ id: "cost-1" }]);
 
     const ids = await insideSurpriseEntityIds("ITEM", "item-1");
 
-    expect(ids.sort()).toEqual(["cost-1", "item-1", "note-1"]);
+    expect(ids.sort()).toEqual(["cost-1", "item-1", "note-1", "rem-9"]);
     expect(findManyMocks.note).toHaveBeenCalledWith({ where: { targetId: { in: ["item-1"] } }, select: { id: true } });
     expect(findManyMocks.cost).toHaveBeenCalledWith({ where: { ownerId: { in: ["item-1"] } }, select: { id: true } });
     expect(findManyMocks.item).not.toHaveBeenCalled();
-    expect(findManyMocks.reminder).not.toHaveBeenCalled();
+    expect(findManyMocks.reminder).toHaveBeenCalledWith({ where: { itemId: "item-1" }, select: { id: true } });
   });
 });

@@ -8,7 +8,7 @@ vi.mock("./stop-flow", async (orig) => {
 
 function tx(opts: {
   trip: { startDate: string | null; endDate: string | null } | null;
-  stops: Array<{ id: string; arriveDate: string | null; departDate: string | null; timezone: string | null; country: string | null; countryCode: string | null }>;
+  stops: Array<{ id: string; arriveDate: string | null; departDate: string | null; timezone: string | null; country: string | null; countryCode: string | null; lat?: number | null; lng?: number | null }>;
   items?: Array<{ id: string; date: string; stopId: string }>;
   accommodations?: Array<{ id: string; checkIn: string; checkOut: string }>;
 }) {
@@ -45,6 +45,16 @@ describe("scheduleLoneStopTx (ADR 0073)", () => {
     expect(t.update).toHaveBeenCalledWith({
       where: { id: "s1" },
       data: { arriveDate: "2026-11-04", departDate: "2026-11-05", nights: null, timezone: "Australia/Sydney" },
+    });
+  });
+
+  it("a rough lone Stop with a point takes the zone at its point, not the country's (F3)", async () => {
+    const t = tx({ trip: { startDate: "2026-11-04", endDate: "2026-11-05" }, stops: [{ ...rough, lat: -31.95, lng: 115.86 }] });
+    await expect(scheduleLoneStopTx(t.client, "trip1", null, "fill")).resolves.toBe(true);
+    expect(t.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ lat: true, lng: true }) }));
+    expect(t.update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { arriveDate: "2026-11-04", departDate: "2026-11-05", nights: null, timezone: "Australia/Perth" },
     });
   });
 

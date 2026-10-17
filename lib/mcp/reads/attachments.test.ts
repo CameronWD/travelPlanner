@@ -157,4 +157,18 @@ describe("loadTripAttachments / loadAttachmentIndexForMcp", () => {
     await expect(loadAttachmentIndexForMcp(TRIP_ID)).rejects.toThrow();
     expect(attachmentFindMany).not.toHaveBeenCalled();
   });
+
+  it("narrows to the given owners' files when targetIds is passed", async () => {
+    attachmentFindMany.mockResolvedValue([]);
+    await loadTripAttachments(TRIP_ID, NO_SURPRISES, { targetIds: ["i1", "a1"] });
+    expect(attachmentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tripId: TRIP_ID, targetId: { in: ["i1", "a1"] } } }),
+    );
+  });
+
+  it("narrows to the Trip's own files when tripFiles is passed", async () => {
+    attachmentFindMany.mockResolvedValue([]);
+    await loadTripAttachments(TRIP_ID, NO_SURPRISES, { tripFiles: true });
+    expect(attachmentFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: TRIP_ID, targetType: "TRIP" } }));
+  });
 });

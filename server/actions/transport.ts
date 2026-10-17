@@ -17,6 +17,7 @@ import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
+import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 import { revalidateTrip } from "@/lib/revalidate";
 
 // ---------------------------------------------------------------------------
@@ -176,6 +177,9 @@ export async function createTransport(
       arrLng,
     },
   });
+  // F4: a dated return leg can push the soft end to the day it lands home
+  // (real plan only; never shrinks — the helper's write is conditional).
+  const grownTo = await growTripEndTx(db, tripId, plan);
 
   // If an inline cost was supplied, create a single transport-owned Cost.
   // Resolve the FX rate BEFORE opening a transaction (network must not hold a
@@ -212,7 +216,7 @@ export async function createTransport(
   }
 
   await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created) });
-  revalidateTrip(tripId, "plan", "money");
+  revalidateTrip(tripId, "plan", "money", ...tripWindowScopes(grownTo));
   return { success: true, id: created.id };
 }
 
@@ -320,6 +324,8 @@ export async function updateTransport(
     arrLat,
     arrLng,
   }, transport.forkId ?? null, { before });
+  // F4: re-dating (or re-homing) a leg can push the soft end to the day it lands home.
+  const grownTo = await growTripEndTx(db, transport.tripId, transport.forkId ?? null);
 
   // Inline cost management:
   // 0 existing costs + amount provided → create
@@ -382,7 +388,7 @@ export async function updateTransport(
     }
   }
 
-  revalidateTrip(transport.tripId, "plan", "money");
+  revalidateTrip(transport.tripId, "plan", "money", ...tripWindowScopes(grownTo));
   return { success: true };
 }
 

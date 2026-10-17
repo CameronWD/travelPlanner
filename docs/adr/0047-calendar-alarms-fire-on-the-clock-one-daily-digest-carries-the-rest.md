@@ -159,3 +159,10 @@ warning instead of a missed train.
   Google throttles subscribed feeds to every 8–24 hours. A same-day re-time of
   a flight may alarm on stale data. The Digest, being server-side, is always
   current.
+
+## Amendment — 2026-10-16: Reminder notes, and about an Item or Transport leg
+
+Spec 2026-10-16 F8. `Reminder.notes`,
+`Reminder.itemId`, `Reminder.transportId` added. A DB CHECK
+(`Reminder_about_one_thing_check`) holds at most one of
+`stopId`/`itemId`/`transportId`. The Digest still reads `{ id, title }` only.

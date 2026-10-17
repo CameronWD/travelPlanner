@@ -173,7 +173,7 @@ describe("addChecklistItem", () => {
 
     const result = await addChecklistItem("trip-1", VALID_PRETRIP_INPUT);
 
-    expect(result.success).toBe(true);
+    expect(result).toEqual({ success: true, id: "ci-1" });
     expect(checklistItemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tripId: "trip-1",

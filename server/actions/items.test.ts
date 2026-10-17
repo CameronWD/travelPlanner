@@ -1964,7 +1964,7 @@ describe("addMarkerToWishlist", () => {
 
     const res = await addMarkerToWishlist("m1", "t1");
 
-    expect(res.success).toBe(true);
+    expect(res).toEqual({ success: true, id: "i1" });
     expect(itemCreateMock).toHaveBeenCalledTimes(1);
     const data = itemCreateMock.mock.calls[0][0].data;
     expect(data).toMatchObject({
@@ -2001,6 +2001,14 @@ describe("addMarkerToWishlist", () => {
     itemFindFirstMock.mockResolvedValueOnce({ id: "existing" }); // dedupe hit
     const res = await addMarkerToWishlist("m1", "t1");
     expect(res.success).toBe(true);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing idea's id when the Marker is already in this trip's Wishlist", async () => {
+    markerFindUniqueMock.mockResolvedValue(MARKER);
+    itemFindFirstMock.mockResolvedValueOnce({ id: "already-1" });
+    const res = await addMarkerToWishlist("m1", "t1");
+    expect(res).toEqual({ success: true, id: "already-1" });
     expect(itemCreateMock).not.toHaveBeenCalled();
   });
 });

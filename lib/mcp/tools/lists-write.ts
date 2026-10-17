@@ -17,14 +17,24 @@
  * findUnique → `notFound()` → `requireTripAccess` (or an equivalent
  * ownership check that also ends in `notFound()`) before touching the row,
  * so there's nothing left for this file to pre-load for those tools. A
- * Reminder's optional `stopId` is checked against the real plan first
- * (`../real-plan.ts`), so a Fork's Stop reads as not found (final review
- * finding 3).
+ * Reminder's `stopId`/`itemId`/`transportId` are each checked against the
+ * real plan first (`../real-plan.ts`), so a Fork's row reads as not found
+ * (final review finding 3).
+ *
+ * A Reminder is about at most one thing (spec F8): passing more than one of
+ * `stopId`/`itemId`/`transportId` is refused — before any lookup, real-plan
+ * or otherwise — with the same error text `addReminder`/`updateReminder`
+ * would return (`aboutCount`, `lib/reminder-about.ts`).
  *
  * `update_reminder` passes only the fields the caller supplied: `updateReminder`
- * takes a PATCH (ADR 0075) and merges onto the row it holds. There is still
- * no way to clear an existing `stopId` (the schema has no null for it), so
- * omitting `stopId` always means "leave it as is".
+ * takes a PATCH (ADR 0075) and merges onto the row it holds. Setting one
+ * of `stopId`/`itemId`/`transportId` to an id replaces the whole about — the
+ * other two are cleared along with it (`replaceAbout`). `null` alone clears
+ * only the keys it names: `null` on the one the Reminder holds makes it about
+ * the Trip as a whole, and `null` on another key changes nothing, so a caller
+ * echoing `stopId: null, itemId: null` beside a title edit no longer wipes an
+ * about it didn't mean to touch. A patch that names none leaves it as it is. This is the way to clear an existing
+ * `stopId`; the old comment saying there's no way to do so no longer holds.
  *
  * `update_checklist_item` needs no such merge: `checklistItemUpdateSchema`
  * already treats every field as a genuine partial-update field (an absent
@@ -51,6 +61,14 @@
  * The other sort of Shopping row — a Packing item marked "Need to buy" —
  * is not created here at all: it is an existing Packing item plus
  * `set_need_to_buy`, never a new row (CONTEXT.md "Shopping list").
+ *
+ * Every write except `leave_feedback` goes through `runWrite` and returns its
+ * row as it now stands (spec 2026-10-16 F6): `{ reminder }` (get_reminders'
+ * shape), `{ checklistItem }`, `{ kind, items }` (the whole list, in its new
+ * order) for a move, `{ template }` (get_checklists' templates entry),
+ * `{ added }` (the Packing rows a template created) and `{ deleted }` for a
+ * delete. `apply_packing_template` checks Trip access itself before it reads
+ * the Packing list it compares against.
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -68,17 +86,34 @@ import {
   reorderChecklistItem,
   saveAsTemplate,
   applyTemplate,
+  listTemplates,
 } from "@/server/actions/checklists";
 import { buyStateSchema } from "@/lib/enums";
-import { runTool } from "../run-tool";
-import { requireRealPlanRows } from "../real-plan";
+import { runTool, runWrite } from "../run-tool";
+import { readReminderItem } from "@/lib/reminder-reads";
+import { loadChecklistItemForMcp, loadChecklistOfItemForMcp, readChecklist } from "../reads/lists";
+import { requireRealPlanRows, type RealPlanKind } from "../real-plan";
 import { CHECKLIST_KIND_MEANING, describeValues } from "../vocab";
 import { isoDate } from "@/lib/validations/primitives";
+import { aboutCount } from "@/lib/reminder-about";
 
 /** `add_checklist_item`'s `kind` never includes "SHOPPING" — that's `add_shopping_item`'s job. */
 const addableChecklistKind = z
   .enum(["PRETRIP", "PACKING"])
   .describe(describeValues("Which list.", CHECKLIST_KIND_MEANING, ["PRETRIP", "PACKING"] as const));
+
+/** Spec F8: a Reminder is about one thing at most — refused before any lookup. */
+const ONE_ABOUT = {
+  success: false as const,
+  errors: { _: ["Pass at most one of stopId, itemId or transportId: a Reminder is about one thing."] },
+};
+
+type AboutArgs = { stopId?: string | null; itemId?: string | null; transportId?: string | null };
+const aboutRefs = (a: AboutArgs): [RealPlanKind, string | null | undefined][] => [
+  ["stop", a.stopId],
+  ["item", a.itemId],
+  ["transport", a.transportId],
+];
 
 export function registerListWriteTools(server: McpServer): void {
   // ---------------------------------------------------------------------
@@ -90,38 +125,55 @@ export function registerListWriteTools(server: McpServer): void {
     {
       title: "Add reminder",
       description:
-        "Adds a dated note for the Traveller to see on Home and hear in the evening-before Digest. Carries a date, never a time. Pass stopId to say the note is about that Stop (it does not move the date).",
+        "Adds a dated note for the Traveller to see on Home and hear in the evening-before Digest. Carries a date, never a time. notes is optional detail shown in the app only; the Digest reads out the title alone. Pass at most one of stopId, itemId (a thing to do) or transportId (a Transport leg) to say what the note is about; it does not move the date.",
       inputSchema: {
         tripId: z.string(),
         title: z.string().trim().min(1),
         date: isoDate,
+        notes: z.string().max(2000).optional(),
         stopId: z.string().optional(),
+        itemId: z.string().optional(),
+        transportId: z.string().optional(),
       },
     },
     ({ tripId, ...rest }) =>
-      runTool("add_reminder", async () => {
-        await requireRealPlanRows([["stop", rest.stopId]]);
-        return addReminder(tripId, rest);
-      }),
+      runWrite(
+        "add_reminder",
+        async () => {
+          if (aboutCount(rest) > 1) return ONE_ABOUT;
+          await requireRealPlanRows(aboutRefs(rest));
+          return addReminder(tripId, rest);
+        },
+        async (done) => ({ reminder: await readReminderItem(done.id!) }),
+      ),
   );
 
   server.registerTool(
     "update_reminder",
     {
       title: "Update reminder",
-      description: "Changes only the fields you pass; fields you omit keep their current value.",
+      description:
+        "Changes only the fields you pass; fields you omit keep their current value. notes: null clears them. Passing an id for one of stopId, itemId or transportId makes the Reminder about that thing instead (the other two are cleared). null clears only the key it names: null on the one it holds makes it about the Trip as a whole; null on the others changes nothing. Never pass more than one id.",
       inputSchema: {
         reminderId: z.string(),
         title: z.string().trim().min(1).optional(),
         date: isoDate.optional(),
-        stopId: z.string().optional(),
+        notes: z.string().max(2000).nullable().optional(),
+        stopId: z.string().nullable().optional(),
+        itemId: z.string().nullable().optional(),
+        transportId: z.string().nullable().optional(),
       },
     },
     ({ reminderId, ...patch }) =>
-      runTool("update_reminder", async () => {
-        await requireRealPlanRows([["stop", patch.stopId]]);
-        return updateReminder(reminderId, patch);
-      }),
+      runWrite(
+        "update_reminder",
+        async () => {
+          if (aboutCount(patch) > 1) return ONE_ABOUT;
+          await requireRealPlanRows(aboutRefs(patch));
+          return updateReminder(reminderId, patch);
+        },
+        async () => ({ reminder: await readReminderItem(reminderId) }),
+      ),
   );
 
   server.registerTool(
@@ -132,7 +184,12 @@ export function registerListWriteTools(server: McpServer): void {
       inputSchema: { reminderId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ reminderId }) => runTool("delete_reminder", () => deleteReminder(reminderId)),
+    ({ reminderId }) =>
+      runWrite(
+        "delete_reminder",
+        () => deleteReminder(reminderId),
+        async () => ({ deleted: reminderId }),
+      ),
   );
 
   // ---------------------------------------------------------------------
@@ -152,7 +209,12 @@ export function registerListWriteTools(server: McpServer): void {
         dueDate: isoDate.optional(),
       },
     },
-    ({ tripId, ...rest }) => runTool("add_checklist_item", () => addChecklistItem(tripId, rest)),
+    ({ tripId, ...rest }) =>
+      runWrite(
+        "add_checklist_item",
+        () => addChecklistItem(tripId, rest),
+        async (done) => ({ checklistItem: await loadChecklistItemForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -163,7 +225,12 @@ export function registerListWriteTools(server: McpServer): void {
         "Adds a standalone entry to a trip's Shopping list: something to buy that isn't also a Packing item, like flight snacks or a gift. To shop for a Packing item instead, use set_need_to_buy on it.",
       inputSchema: { tripId: z.string(), text: z.string().trim().min(1) },
     },
-    ({ tripId, text }) => runTool("add_shopping_item", () => addChecklistItem(tripId, { kind: "SHOPPING", text })),
+    ({ tripId, text }) =>
+      runWrite(
+        "add_shopping_item",
+        () => addChecklistItem(tripId, { kind: "SHOPPING", text }),
+        async (done) => ({ checklistItem: await loadChecklistItemForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -179,11 +246,14 @@ export function registerListWriteTools(server: McpServer): void {
       },
     },
     ({ itemId, text, dueDate }) =>
-      runTool("update_checklist_item", () =>
-        updateChecklistItem(itemId, {
-          ...(text !== undefined ? { text } : {}),
-          ...(dueDate !== undefined ? { dueDate: dueDate ?? "" } : {}),
-        }),
+      runWrite(
+        "update_checklist_item",
+        () =>
+          updateChecklistItem(itemId, {
+            ...(text !== undefined ? { text } : {}),
+            ...(dueDate !== undefined ? { dueDate: dueDate ?? "" } : {}),
+          }),
+        async () => ({ checklistItem: await loadChecklistItemForMcp(itemId) }),
       ),
   );
 
@@ -194,7 +264,12 @@ export function registerListWriteTools(server: McpServer): void {
       description: "Marks a checklist item done or not done.",
       inputSchema: { itemId: z.string(), done: z.boolean() },
     },
-    ({ itemId, done }) => runTool("tick_checklist_item", () => toggleChecklistItem(itemId, done)),
+    ({ itemId, done }) =>
+      runWrite(
+        "tick_checklist_item",
+        () => toggleChecklistItem(itemId, done),
+        async () => ({ checklistItem: await loadChecklistItemForMcp(itemId) }),
+      ),
   );
 
   server.registerTool(
@@ -205,7 +280,12 @@ export function registerListWriteTools(server: McpServer): void {
         "Sets a Packing item's shopping state (CONTEXT.md 'Shopping list'): NEEDED puts it on the Shopping list unticked, BOUGHT ticks it there, null clears it. The Packing item itself is untouched either way. Only a Packing item can carry this.",
       inputSchema: { itemId: z.string(), buy: buyStateSchema.nullable() },
     },
-    ({ itemId, buy }) => runTool("set_need_to_buy", () => setBuyState(itemId, buy)),
+    ({ itemId, buy }) =>
+      runWrite(
+        "set_need_to_buy",
+        () => setBuyState(itemId, buy),
+        async () => ({ checklistItem: await loadChecklistItemForMcp(itemId) }),
+      ),
   );
 
   server.registerTool(
@@ -215,7 +295,12 @@ export function registerListWriteTools(server: McpServer): void {
       description: "Moves a checklist item one place up or down within its own list, swapping it with its neighbour. A no-op at either end.",
       inputSchema: { itemId: z.string(), direction: z.enum(["up", "down"]) },
     },
-    ({ itemId, direction }) => runTool("move_checklist_item", () => reorderChecklistItem(itemId, direction)),
+    ({ itemId, direction }) =>
+      runWrite(
+        "move_checklist_item",
+        () => reorderChecklistItem(itemId, direction),
+        () => loadChecklistOfItemForMcp(itemId),
+      ),
   );
 
   server.registerTool(
@@ -226,7 +311,12 @@ export function registerListWriteTools(server: McpServer): void {
       inputSchema: { itemId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ itemId }) => runTool("delete_checklist_item", () => deleteChecklistItem(itemId)),
+    ({ itemId }) =>
+      runWrite(
+        "delete_checklist_item",
+        () => deleteChecklistItem(itemId),
+        async () => ({ deleted: itemId }),
+      ),
   );
 
   // ---------------------------------------------------------------------
@@ -240,7 +330,14 @@ export function registerListWriteTools(server: McpServer): void {
       description: "Saves the trip's current Packing list as a reusable template, owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), name: z.string().trim().min(1) },
     },
-    ({ tripId, name }) => runTool("save_packing_template", () => saveAsTemplate(tripId, name)),
+    ({ tripId, name }) =>
+      runWrite(
+        "save_packing_template",
+        () => saveAsTemplate(tripId, name),
+        async (done) => ({
+          template: (await listTemplates()).find((t) => t.id === done.templateId) ?? { id: done.templateId, name },
+        }),
+      ),
   );
 
   server.registerTool(
@@ -251,7 +348,18 @@ export function registerListWriteTools(server: McpServer): void {
         "Adds a saved Packing template's items to the trip's Packing list. Items already on the list (by text, case-insensitive) are skipped. The template must be owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), templateId: z.string() },
     },
-    ({ tripId, templateId }) => runTool("apply_packing_template", () => applyTemplate(tripId, templateId)),
+    ({ tripId, templateId }) => {
+      let before = new Set<string>();
+      return runWrite(
+        "apply_packing_template",
+        async () => {
+          await requireTripAccess(tripId);
+          before = new Set((await readChecklist(tripId, "PACKING")).map((i) => i.id));
+          return applyTemplate(tripId, templateId);
+        },
+        async () => ({ added: (await readChecklist(tripId, "PACKING")).filter((i) => !before.has(i.id)) }),
+      );
+    },
   );
 
   // ---------------------------------------------------------------------

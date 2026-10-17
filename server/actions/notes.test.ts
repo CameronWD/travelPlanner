@@ -126,10 +126,10 @@ describe("addNote", () => {
     });
   });
 
-  it("returns { success: true } on success", async () => {
+  it("returns { success: true, id } on success", async () => {
     noteCreateMock.mockResolvedValue({ id: "note-1" });
     const result = await addNote(TRIP_ID, VALID_INPUT);
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, id: "note-1" });
   });
 
   it("revalidates relevant paths after creating a note", async () => {
@@ -172,7 +172,7 @@ describe("addNote", () => {
       ...VALID_INPUT,
       body: "x".repeat(2000),
     });
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, id: "note-1" });
   });
 
   it("rejects an invalid targetType", async () => {

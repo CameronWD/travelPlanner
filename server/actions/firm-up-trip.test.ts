@@ -40,6 +40,15 @@ vi.mock("@/lib/db", () => ({
     chapter: { update: chapterUpdateMock },
   },
 }));
+// F4: the soft-end rule is tested on its own (lib/soft-end.test.ts) and
+// against Postgres (test/integration/soft-end-date.test.ts); here we only
+// check that each dating write runs it for its plan, and revalidates the
+// layout when it grew.
+const growTripEndTxMock = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null));
+vi.mock("@/server/actions/trip-window", () => ({
+  growTripEndTx: growTripEndTxMock,
+  tripWindowScopes: (g: string | null) => (g ? ["trip"] : []),
+}));
 
 import { firmUpTrip } from "./stops";
 
@@ -73,10 +82,10 @@ describe("firmUpTrip", () => {
       where: { id: "b" },
       data: expect.objectContaining({ arriveDate: "2026-07-04", departDate: "2026-07-06" }),
     }));
-    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "trip-1" },
-      data: expect.objectContaining({ endDate: "2026-07-06" }),
-    }));
+    // The trip already starts 07-01 (no Trip write of its own); the end grows
+    // through the one soft-end rule (F4).
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "trip-1", null);
   });
 
   it("does nothing (success) when there are no rough stops", async () => {

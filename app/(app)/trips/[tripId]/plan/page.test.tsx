@@ -10,18 +10,24 @@ import React from "react";
 // pure `maskPlanStops`/`mergePlanItems`). `readPlan`'s masking, placeholder
 // and query-shape behaviour is pinned in lib/plan-reads.test.ts. The `?plan=`
 // gate (`resolvePlanParam`) runs for real over a mocked Trip shell and
-// `db.fork`. The page's own reads — attachments, notes, Day titles,
-// reminders — stay mocked at the `db` level.
+// `db.fork`. The page's own reads — attachments, notes, Day titles — stay
+// mocked at the `db` level; the Reminders about its things come from
+// `readRemindersAbout` (pinned in lib/reminder-reads.test.ts and integration).
 
 const mockDb = vi.hoisted(() => ({
   fork: { findFirst: vi.fn() },
   attachment: { findMany: vi.fn() },
   note: { findMany: vi.fn() },
-  reminder: { findMany: vi.fn() },
   dayTitle: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
+const { readRemindersAbout } = vi.hoisted(() => ({
+  readRemindersAbout: vi.fn<(tripId: string, v: unknown) => Promise<Record<"byStopId" | "byItemId" | "byTransportId", Map<string, unknown[]>>>>(
+    async () => ({ byStopId: new Map(), byItemId: new Map(), byTransportId: new Map() }),
+  ),
+}));
+vi.mock("@/lib/reminder-reads", () => ({ readRemindersAbout }));
 const { readPlanMock, readTripShellMock } = vi.hoisted(() => ({ readPlanMock: vi.fn(), readTripShellMock: vi.fn() }));
 vi.mock("@/lib/plan-reads", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/plan-reads")>();
@@ -95,6 +101,7 @@ const { maskPlanStops, mergePlanItems } = await import("@/lib/plan-reads");
 const { planRows } = await import("@/test/builders/plan-rows");
 const { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } = await import("@/test/helpers/surprise-visibility");
 const { expectAccessCheckedBeforeWrite } = await import("@/test/helpers/access-order");
+const { reminderItem } = await import("@/test/helpers/reminder-item");
 const { renderToStaticMarkup } = await import("react-dom/server");
 
 const BASE_TRIP = {
@@ -171,7 +178,6 @@ beforeEach(() => {
   mockDb.fork.findFirst.mockResolvedValue(null);
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.note.findMany.mockResolvedValue([]);
-  mockDb.reminder.findMany.mockResolvedValue([]);
   mockDb.dayTitle.findMany.mockResolvedValue([]);
 });
 
@@ -350,35 +356,29 @@ describe("Plan page with stops (LA-038)", () => {
     accommodations: [],
   };
 
-  // Task 7: a Reminder about a Stop is queried directly (not via
-  // listRemindersForTrip's date-filtered/capped "upcoming" feed) and grouped
-  // by stopId for the Stop card's own "Reminders" line.
+  // Task 7: a Reminder about a Stop is read by readRemindersAbout (not
+  // listRemindersForTrip's date-filtered/capped "upcoming" feed), grouped by
+  // stopId for the Stop card's own "Reminders" line.
   it("groups a Stop's reminders by stopId and passes them to ItineraryManager", async () => {
     scenario.stops = [STOP];
-    mockDb.reminder.findMany.mockResolvedValue([
-      { id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1" },
-    ]);
+    readRemindersAbout.mockResolvedValueOnce({
+      byStopId: new Map([["s1", [reminderItem({ id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1", stopName: "Rome" })]]]),
+      byItemId: new Map(),
+      byTransportId: new Map(),
+    });
 
     await renderPlan();
 
-    expect(mockDb.reminder.findMany).toHaveBeenCalledWith({
-      where: { tripId: "trip-1", stopId: { not: null } },
-      orderBy: { date: "asc" },
-      select: { id: true, title: true, date: true, stopId: true },
-    });
+    expect(readRemindersAbout).toHaveBeenCalledWith("trip-1", expect.anything());
     const remindersByStopId = itineraryManagerCapture.props?.remindersByStopId as Map<
       string,
       unknown[]
     >;
     expect(remindersByStopId.get("s1")).toEqual([
-      {
-        id: "r1",
-        title: "Reconfirm the tour",
-        date: "2026-01-02",
-        stopId: "s1",
-        stopName: "Rome",
-      },
+      reminderItem({ id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1", stopName: "Rome" }),
     ]);
+    expect(itineraryManagerCapture.props?.remindersByItemId).toBeInstanceOf(Map);
+    expect(itineraryManagerCapture.props?.remindersByTransportId).toBeInstanceOf(Map);
   });
 
   // Task 5 (CONTEXT.md "Day title", spec §H): the loader resolves DayTitle
@@ -465,7 +465,7 @@ describe("Plan page reads (spec 2026-10-06 §C)", () => {
     expect(readPlanMock).toHaveBeenCalledTimes(1);
     expect(mockDb.note.findMany).toHaveBeenCalledTimes(1);
     expect(mockDb.dayTitle.findMany).toHaveBeenCalledTimes(1);
-    expect(mockDb.reminder.findMany).toHaveBeenCalledTimes(1);
+    expect(readRemindersAbout).toHaveBeenCalledTimes(1);
     release([]);
     await pending;
   });
@@ -510,7 +510,8 @@ describe("Plan page — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(whereOf(mockDb.attachment.findMany)[0]).toMatchObject(MARKER_WHERE.attachment);
     expect(whereOf(mockDb.note.findMany)[0]).toMatchObject(MARKER_WHERE.note);
     expect(whereOf(mockDb.dayTitle.findMany)[0]).toMatchObject(MARKER_WHERE.dayTitle);
-    expect(whereOf(mockDb.reminder.findMany)[0]).toMatchObject(MARKER_WHERE.reminder);
+    // The Reminders read gets this viewer's visibility; it spreads where.reminder itself.
+    expect(readRemindersAbout).toHaveBeenCalledWith("trip-1", scenario.visibility);
   });
 
   it("blanks a hidden Stop's notes, badges it, and adds this Plan's placeholders as Items titled Surprise", async () => {

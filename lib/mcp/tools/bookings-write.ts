@@ -34,6 +34,13 @@
  * pair, Due date and inline-Cost completion lib/money/cost-patch.ts's.
  * `paidMinor`/`paidAt`/`settlement` are deliberately not on these tools'
  * schemas (use `update_cost`/`mark_cost_paid` once the owned Cost exists).
+ *
+ * Every write goes through `runWrite` and returns its row as it now stands
+ * (spec 2026-10-16 F6): `{ accommodation }` (get_accommodation's shape),
+ * `{ transport }` (get_transport's), `{ cost }` (list_costs' entry), and
+ * `{ deleted }` for a delete. A refusal before the action (a Home
+ * contradiction, an end with neither Stop nor place, more than one Cost)
+ * returns `success: false`, so nothing is read back.
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -51,7 +58,9 @@ import type { ActionResult } from "@/lib/action-result";
 import type { AccommodationInput } from "@/lib/validations/accommodation";
 import type { TransportInput } from "@/lib/validations/transport";
 import type { CostRawInput } from "@/lib/validations/cost";
-import { runTool } from "../run-tool";
+import { runWrite } from "../run-tool";
+import { loadAccommodationForMcp, loadTransportForMcp } from "../reads/entities";
+import { loadCostForMcp } from "../reads/costs";
 import { requireRealPlanRow, requireRealPlanRows, type RealPlanKind } from "../real-plan";
 import { homeContradictionError } from "@/lib/transport-patch";
 import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
@@ -249,10 +258,14 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { stopId: z.string(), ...accommodationCreateShape },
     },
     (input) =>
-      runTool("add_accommodation", async () => {
-        await requireRealPlanRow("stop", input.stopId);
-        return createAccommodation(input as AccommodationInput);
-      }),
+      runWrite(
+        "add_accommodation",
+        async () => {
+          await requireRealPlanRow("stop", input.stopId);
+          return createAccommodation(input as AccommodationInput);
+        },
+        async (done) => ({ accommodation: await loadAccommodationForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -265,13 +278,17 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { accommodationId: z.string(), ...accommodationPatchShape },
     },
     ({ accommodationId, ...patch }) =>
-      runTool("update_accommodation", async () => {
-        await requireRealPlanRows([
-          ["accommodation", accommodationId],
-          ["stop", patch.stopId],
-        ]);
-        return withUpdateCostGuidance(await updateAccommodation(accommodationId, patch));
-      }),
+      runWrite(
+        "update_accommodation",
+        async () => {
+          await requireRealPlanRows([
+            ["accommodation", accommodationId],
+            ["stop", patch.stopId],
+          ]);
+          return withUpdateCostGuidance(await updateAccommodation(accommodationId, patch));
+        },
+        async () => ({ accommodation: await loadAccommodationForMcp(accommodationId) }),
+      ),
   );
 
   server.registerTool(
@@ -282,10 +299,15 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { accommodationId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ accommodationId }) => runTool("delete_accommodation", async () => {
-        await requireRealPlanRow("accommodation", accommodationId);
-        return deleteAccommodation(accommodationId);
-      }),
+    ({ accommodationId }) =>
+      runWrite(
+        "delete_accommodation",
+        async () => {
+          await requireRealPlanRow("accommodation", accommodationId);
+          return deleteAccommodation(accommodationId);
+        },
+        async () => ({ deleted: accommodationId }),
+      ),
   );
 
   server.registerTool(
@@ -300,20 +322,24 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { tripId: z.string(), ...transportCreateShape },
     },
     ({ tripId, ...rest }) =>
-      runTool("add_transport", async () => {
-        if (rest.depIsHome && (rest.fromStopId || rest.depPlace)) {
-          return homeContradictionError({ stopField: "fromStopId", placeField: "depPlace", homeField: "depIsHome" });
-        }
-        if (rest.arrIsHome && (rest.toStopId || rest.arrPlace)) {
-          return homeContradictionError({ stopField: "toStopId", placeField: "arrPlace", homeField: "arrIsHome" });
-        }
-        await requireRealPlanRows([
-          ["stop", rest.fromStopId || undefined],
-          ["stop", rest.toStopId || undefined],
-          ["stop", rest.anchorStopId],
-        ]);
-        return createTransport(tripId, rest as TransportInput);
-      }),
+      runWrite(
+        "add_transport",
+        async () => {
+          if (rest.depIsHome && (rest.fromStopId || rest.depPlace)) {
+            return homeContradictionError({ stopField: "fromStopId", placeField: "depPlace", homeField: "depIsHome" });
+          }
+          if (rest.arrIsHome && (rest.toStopId || rest.arrPlace)) {
+            return homeContradictionError({ stopField: "toStopId", placeField: "arrPlace", homeField: "arrIsHome" });
+          }
+          await requireRealPlanRows([
+            ["stop", rest.fromStopId || undefined],
+            ["stop", rest.toStopId || undefined],
+            ["stop", rest.anchorStopId],
+          ]);
+          return createTransport(tripId, rest as TransportInput);
+        },
+        async (done) => ({ transport: await loadTransportForMcp(done.id) }),
+      ),
   );
 
   server.registerTool(
@@ -330,22 +356,26 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { transportId: z.string(), ...transportPatchShape },
     },
     ({ transportId, ...patch }) =>
-      runTool("update_transport", async () => {
-        // The app's form may save an end with neither; through Claude, emptying both in one call is a mistake (deviation 5).
-        if (patch.fromStopId === "" && patch.depPlace === "" && !patch.depIsHome) {
-          return { success: false, errors: { fromStopId: ["Departure needs a stop or a place."] } };
-        }
-        if (patch.toStopId === "" && patch.arrPlace === "" && !patch.arrIsHome) {
-          return { success: false, errors: { toStopId: ["Arrival needs a stop or a place."] } };
-        }
-        await requireRealPlanRows([
-          ["transport", transportId],
-          ["stop", patch.fromStopId || undefined],
-          ["stop", patch.toStopId || undefined],
-          ["stop", patch.anchorStopId],
-        ]);
-        return withUpdateCostGuidance(await updateTransport(transportId, patch));
-      }),
+      runWrite(
+        "update_transport",
+        async () => {
+          // The app's form may save an end with neither; through Claude, emptying both in one call is a mistake (deviation 5).
+          if (patch.fromStopId === "" && patch.depPlace === "" && !patch.depIsHome) {
+            return { success: false, errors: { fromStopId: ["Departure needs a stop or a place."] } };
+          }
+          if (patch.toStopId === "" && patch.arrPlace === "" && !patch.arrIsHome) {
+            return { success: false, errors: { toStopId: ["Arrival needs a stop or a place."] } };
+          }
+          await requireRealPlanRows([
+            ["transport", transportId],
+            ["stop", patch.fromStopId || undefined],
+            ["stop", patch.toStopId || undefined],
+            ["stop", patch.anchorStopId],
+          ]);
+          return withUpdateCostGuidance(await updateTransport(transportId, patch));
+        },
+        async () => ({ transport: await loadTransportForMcp(transportId) }),
+      ),
   );
 
   server.registerTool(
@@ -356,10 +386,15 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { transportId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ transportId }) => runTool("delete_transport", async () => {
-        await requireRealPlanRow("transport", transportId);
-        return deleteTransport(transportId);
-      }),
+    ({ transportId }) =>
+      runWrite(
+        "delete_transport",
+        async () => {
+          await requireRealPlanRow("transport", transportId);
+          return deleteTransport(transportId);
+        },
+        async () => ({ deleted: transportId }),
+      ),
   );
 
   server.registerTool(
@@ -372,11 +407,15 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { tripId: z.string(), ...costCreateShape },
     },
     ({ tripId, ...rest }) =>
-      runTool("add_cost", async () => {
-        const kind = realPlanKindForOwner(rest.ownerType);
-        if (kind && rest.ownerId) await requireRealPlanRow(kind, rest.ownerId);
-        return createCost(tripId, rest as CostRawInput);
-      }),
+      runWrite(
+        "add_cost",
+        async () => {
+          const kind = realPlanKindForOwner(rest.ownerType);
+          if (kind && rest.ownerId) await requireRealPlanRow(kind, rest.ownerId);
+          return createCost(tripId, rest as CostRawInput);
+        },
+        async (done) => ({ cost: await loadCostForMcp(done.cost!.id) }),
+      ),
   );
 
   server.registerTool(
@@ -389,15 +428,19 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { costId: z.string(), ...costPatchShape },
     },
     ({ costId, ...patch }) =>
-      runTool("update_cost", async () => {
-        const { row } = await requireRowAccess("cost", costId, { realPlanOnly: true });
-        if (patch.ownerType !== undefined || patch.ownerId !== undefined) {
-          const kind = realPlanKindForOwner(patch.ownerType ?? row.ownerType);
-          const ownerId = patch.ownerId ?? row.ownerId;
-          if (kind && ownerId) await requireRealPlanRow(kind, ownerId);
-        }
-        return updateCost(costId, patch);
-      }),
+      runWrite(
+        "update_cost",
+        async () => {
+          const { row } = await requireRowAccess("cost", costId, { realPlanOnly: true });
+          if (patch.ownerType !== undefined || patch.ownerId !== undefined) {
+            const kind = realPlanKindForOwner(patch.ownerType ?? row.ownerType);
+            const ownerId = patch.ownerId ?? row.ownerId;
+            if (kind && ownerId) await requireRealPlanRow(kind, ownerId);
+          }
+          return updateCost(costId, patch);
+        },
+        async () => ({ cost: await loadCostForMcp(costId) }),
+      ),
   );
 
   server.registerTool(
@@ -408,10 +451,15 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { costId: z.string() },
       annotations: { destructiveHint: true },
     },
-    ({ costId }) => runTool("delete_cost", async () => {
-        await requireRealPlanRow("cost", costId);
-        return deleteCost(costId);
-      }),
+    ({ costId }) =>
+      runWrite(
+        "delete_cost",
+        async () => {
+          await requireRealPlanRow("cost", costId);
+          return deleteCost(costId);
+        },
+        async () => ({ deleted: costId }),
+      ),
   );
 
   server.registerTool(
@@ -422,10 +470,14 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { costId: z.string(), paidMinor: z.number().int().min(0), paidAt: isoDate },
     },
     ({ costId, paidMinor, paidAt }) =>
-      runTool("mark_cost_paid", async () => {
-        await loadCostForMark(costId);
-        return markCostPaid(costId, paidMinor, paidAt);
-      }),
+      runWrite(
+        "mark_cost_paid",
+        async () => {
+          await loadCostForMark(costId);
+          return markCostPaid(costId, paidMinor, paidAt);
+        },
+        async () => ({ cost: await loadCostForMcp(costId) }),
+      ),
   );
 
   server.registerTool(
@@ -436,9 +488,13 @@ export function registerBookingsWriteTools(server: McpServer): void {
       inputSchema: { costId: z.string() },
     },
     ({ costId }) =>
-      runTool("mark_cost_unpaid", async () => {
-        await loadCostForMark(costId);
-        return markCostUnpaid(costId);
-      }),
+      runWrite(
+        "mark_cost_unpaid",
+        async () => {
+          await loadCostForMark(costId);
+          return markCostUnpaid(costId);
+        },
+        async () => ({ cost: await loadCostForMcp(costId) }),
+      ),
   );
 }

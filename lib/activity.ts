@@ -226,11 +226,13 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "dueDate", label: "Due date", format: (v) => dateFormat(v) },
     { key: "assignedToName", label: "Assigned to" },
   ],
-  // stopName, likewise, is the "about" Stop's name, resolved by the caller.
+  // about, likewise, is what the Reminder is about by name (a Stop's name,
+  // an Item's title or a leg's label), resolved by the caller (spec F8).
   REMINDER: [
     { key: "title", label: "Reminder" },
     { key: "date", label: "Date", format: (v) => dateFormat(v) },
-    { key: "stopName", label: "About" },
+    { key: "notes", label: "Notes" },
+    { key: "about", label: "About" },
   ],
   // VOTE is always a { summary } line — nothing to diff
   VOTE: [],
@@ -503,6 +505,16 @@ export function surpriseSummary(input: {
   const names = input.forNames ?? [];
   const who = names.length <= 1 ? names[0] ?? "no one" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   return { summary: `made ${input.label} a surprise for ${who}` };
+}
+
+/**
+ * A Home timezone change (ADR 0030 amendment 2026-10-16): one trip-level
+ * line. `keptLocalTimes` when at least one Home-end time was re-filed so it
+ * keeps the local time it showed.
+ */
+export function homeTimezoneSummary(to: string | null, keptLocalTimes: boolean): ActivitySummary {
+  const head = to === null ? "cleared the Home timezone" : `changed the Home timezone to ${to}`;
+  return { summary: keptLocalTimes ? `${head}; Home-end times kept as local times` : head };
 }
 
 // ---------------------------------------------------------------------------

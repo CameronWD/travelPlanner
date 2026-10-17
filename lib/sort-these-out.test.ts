@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "./sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
 import type { ReminderItem } from "@/lib/reminder-reads";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 const BASE = "/trips/t1";
 const step = (id: string, title: string, extra: Partial<NextStep> = {}): NextStep => ({
@@ -13,14 +14,8 @@ const step = (id: string, title: string, extra: Partial<NextStep> = {}): NextSte
   source: "nudge",
   ...extra,
 });
-const reminder = (id: string, date: string, extra: Partial<ReminderItem> = {}): ReminderItem => ({
-  id,
-  title: `Reminder ${id}`,
-  date,
-  stopId: null,
-  stopName: null,
-  ...extra,
-});
+const reminder = (id: string, date: string, extra: Partial<ReminderItem> = {}): ReminderItem =>
+  reminderItem({ id, title: `Reminder ${id}`, date, ...extra });
 
 describe("sortTheseOut", () => {
   const today = "2026-12-01";
@@ -68,6 +63,19 @@ describe("sortTheseOut", () => {
     });
     expect(rows[0].href).toBe(`${BASE}/plan#stop-s9`);
     expect(rows[1].href).toBe(`${BASE}/plan`);
+  });
+
+  it("a Reminder row names what it is about and carries its notes (F8)", () => {
+    const { rows } = sortTheseOut({
+      basePath: BASE, today: "2026-12-01", steps: [],
+      reminders: [
+        reminder("r1", "2026-12-02", { itemId: "i1", itemTitle: "Temple visit", notes: "Bring a sarong" }),
+        reminder("r2", "2026-12-03", { stopId: "s9", stopName: "Ubud" }),
+      ],
+    });
+    expect(rows[0]).toMatchObject({ subtitle: "Due Wed 2 Dec · Temple visit", notes: "Bring a sarong", href: `${BASE}/plan` });
+    expect(rows[1]).toMatchObject({ subtitle: "Due Thu 3 Dec · Ubud" });
+    expect(rows[1].notes).toBeUndefined();
   });
 
   it("gives pre-trip lilac, empty days pink with a day label (never ISO)", () => {

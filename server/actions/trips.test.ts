@@ -218,6 +218,13 @@ vi.mock("@/server/actions/stop-flow", () => ({
   recomputeChapterSpans: recomputeChapterSpansMock,
   scheduleLoneStopTx: scheduleLoneStopTxMock,
 }));
+// F5 (ADR 0030 amendment 2026-10-16): the re-file itself is tested in
+// lib/home-timezone-refile.test.ts; here it is a spy so updateTrip's call is observable.
+const { refileHomeEndsTxMock } = vi.hoisted(() => ({ refileHomeEndsTxMock: vi.fn().mockResolvedValue(0) }));
+vi.mock("@/lib/home-timezone-refile", () => ({ refileHomeEndsTx: refileHomeEndsTxMock }));
+// F4: the soft-end grow is tested in trip-window.test.ts; a spy here.
+const { growTripEndTxMock } = vi.hoisted(() => ({ growTripEndTxMock: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/server/actions/trip-window", () => ({ growTripEndTx: growTripEndTxMock }));
 vi.mock("@/lib/trip-slug-store", () => ({ assignTripSlug: assignTripSlugMock }));
 const { routeStopsFromShareMock } = vi.hoisted(() => ({ routeStopsFromShareMock: vi.fn() }));
 vi.mock("@/server/actions/copy-route-from-share", () => ({ routeStopsFromShare: routeStopsFromShareMock }));
@@ -616,13 +623,23 @@ describe("createTrip", () => {
     expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" }) });
   });
 
-  it("computes homeTimezone from the home country when none is sent", async () => {
+  it("computes homeTimezone from the picked Home point when none is sent (F3)", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1" });
     tripCreateMock.mockResolvedValue({ id: "trip-tz" });
     await createTrip({
       name: "Oz", homeCurrency: "AUD", homeName: "Gold Coast", homeLat: -28.0, homeLng: 153.43, homeCountryCode: "au",
     });
-    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeTimezone: "Australia/Sydney" }) });
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeTimezone: "Australia/Brisbane" }) });
+  });
+
+  it("a geocoded Home point decides too; a point at sea falls back to the country", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-tz3" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Perth", lat: -31.95, lng: 115.86, city: "Perth", country: "Australia", countryCode: "au" });
+    await createTrip({ name: "Oz", homeCurrency: "AUD", homeName: "Perth" });
+    expect(tripCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ homeTimezone: "Australia/Perth" }) });
+    await createTrip({ name: "Oz", homeCurrency: "AUD", homeName: "Offshore", homeLat: 0, homeLng: -30, homeCountryCode: "au" });
+    expect(tripCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ homeTimezone: "Australia/Sydney" }) });
   });
 
   it("a sent homeTimezone wins over the guessed one", async () => {
@@ -1007,6 +1024,18 @@ describe("updateTrip", () => {
       }));
     });
 
+    it("returns the Home zone the Trip now has: the re-derived one after a rename, the kept one otherwise", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Paris", homeCountryCode: "fr", homeTimezone: "Europe/Paris" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+      expect(await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" })).toMatchObject({ success: true, homeTimezone: "Australia/Sydney" });
+
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Paris", homeCountryCode: "fr", homeTimezone: "Europe/Paris" });
+      expect(await updateTrip("t1", { name: "T2", homeCurrency: "AUD" })).toMatchObject({ success: true, homeTimezone: "Europe/Paris" });
+    });
+
     it("name changed, same country, but before.homeTimezone was null → guesses anyway", async () => {
       tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Gold Coast", homeCountryCode: "au", homeTimezone: null });
       geocodePlaceDetailedMock.mockResolvedValueOnce({
@@ -1021,7 +1050,7 @@ describe("updateTrip", () => {
       }));
     });
 
-    it("name changed, same country, a zone already set → unchanged (omitted)", async () => {
+    it("name changed, same country → the zone at the new point (F3; ADR 0030 amended 2026-10-16)", async () => {
       tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Gold Coast", homeCountryCode: "au", homeTimezone: "Australia/Brisbane" });
       geocodePlaceDetailedMock.mockResolvedValueOnce({
         name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
@@ -1029,6 +1058,58 @@ describe("updateTrip", () => {
       tripUpdateMock.mockResolvedValue({ id: "t1" });
 
       await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Sydney" }),
+      }));
+    });
+
+    it("name changed to Brisbane from Sydney → Australia/Brisbane, the bug F3 fixes", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney", homeCountryCode: "au", homeTimezone: "Australia/Sydney" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Brisbane", lat: -27.47, lng: 153.03, city: "Brisbane", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Brisbane" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: "Australia/Brisbane" }),
+      }));
+    });
+
+    it("name changed, the new place gives no zone and the country is unchanged → kept (omitted)", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Somewhere", homeCountryCode: null, homeTimezone: "Pacific/Fiji" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Mid-ocean", lat: 0, lng: -30, city: null, country: null, countryCode: null });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Mid-ocean" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.not.objectContaining({ homeTimezone: expect.anything() }),
+      }));
+    });
+
+    it("name changed, the new place gives no zone and the country changed → cleared", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Paris", homeCountryCode: "fr", homeTimezone: "Europe/Paris" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Mid-ocean", lat: 0, lng: -30, city: null, country: null, countryCode: null });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Mid-ocean" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ homeTimezone: null }),
+      }));
+    });
+
+    it("name changed within the same zone → the zone is not rewritten (omitted), so nothing reads it as a change", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney", homeCountryCode: "au", homeTimezone: "Australia/Sydney" });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({
+        name: "Bondi", lat: -33.89, lng: 151.27, city: "Sydney", country: "Australia", countryCode: "au",
+      });
+      tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+      await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Bondi" });
 
       expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.not.objectContaining({ homeTimezone: expect.anything() }),
@@ -1094,12 +1175,140 @@ describe("updateTrip", () => {
     });
   });
 
+  describe("a Home timezone change keeps Home-end local times (F5)", () => {
+    const home = { name: "T", homeCurrency: "AUD", homeName: "Gold Coast", homeCountryCode: "au", homeTimezone: "Australia/Sydney" };
+
+    it("re-files Home ends in the transaction that writes the zone, after the write", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce(home);
+      tripUpdateMock.mockResolvedValue({});
+      refileHomeEndsTxMock.mockResolvedValueOnce(2);
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane" });
+
+      expect(refileHomeEndsTxMock).toHaveBeenCalledWith(expect.anything(), "t1", "Australia/Sydney", "Australia/Brisbane");
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ homeTimezone: "Australia/Brisbane" }) }));
+      expect(tripUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(refileHomeEndsTxMock.mock.invocationCallOrder[0]);
+      expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null);
+      expect(refileHomeEndsTxMock.mock.invocationCallOrder[0]).toBeLessThan(growTripEndTxMock.mock.invocationCallOrder[0]);
+    });
+
+    it("CF-04: a zone move with the end date re-sent unchanged may grow the soft end", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ ...home, startDate: "2026-12-01", endDate: "2026-12-10" });
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane", startDate: "2026-12-01", endDate: "2026-12-10" });
+
+      expect(growTripEndTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null);
+    });
+
+    it("CF-04: a zone move in the same save that pulls the end date in does not re-grow it", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ ...home, startDate: "2026-12-01", endDate: "2026-12-10" });
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane", startDate: "2026-12-01", endDate: "2026-12-08" });
+
+      expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ endDate: "2026-12-08" }) }));
+      expect(refileHomeEndsTxMock).toHaveBeenCalled();
+      expect(growTripEndTxMock).not.toHaveBeenCalled();
+    });
+
+    it("records one Activity line that says the times were kept", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce(home);
+      tripUpdateMock.mockResolvedValue({});
+      refileHomeEndsTxMock.mockResolvedValueOnce(2);
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane" });
+
+      expect(recordActivityMock).toHaveBeenCalledOnce();
+      expect(recordActivityMock).toHaveBeenCalledWith({
+        tripId: "t1",
+        verb: "UPDATED",
+        entityType: "TRANSPORT",
+        entityId: null,
+        entityLabel: "Home timezone",
+        changes: { summary: "changed the Home timezone to Australia/Brisbane; Home-end times kept as local times" },
+        surpriseOf: null,
+      });
+    });
+
+    it("no Home-end time moved → the line names the zone only", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce(home);
+      tripUpdateMock.mockResolvedValue({});
+      refileHomeEndsTxMock.mockResolvedValueOnce(0);
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane" });
+
+      expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
+        changes: { summary: "changed the Home timezone to Australia/Brisbane" },
+      }));
+    });
+
+    it("null → a guessed zone (rename) re-files from no zone", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ ...home, homeTimezone: null });
+      geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au" });
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { homeName: "Sydney" });
+
+      const written = (tripUpdateMock.mock.calls[0][0] as { data: { homeTimezone: string } }).data.homeTimezone;
+      expect(written).toEqual(expect.any(String));
+      expect(refileHomeEndsTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null, written);
+    });
+
+    it("clearing the Home base re-files to no zone", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce(home);
+      tripUpdateMock.mockResolvedValue({});
+      refileHomeEndsTxMock.mockResolvedValueOnce(1);
+
+      await updateTrip("t1", { homeName: "" });
+
+      expect(refileHomeEndsTxMock).toHaveBeenCalledWith(expect.anything(), "t1", "Australia/Sydney", null);
+      expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({
+        changes: { summary: "cleared the Home timezone; Home-end times kept as local times" },
+      }));
+    });
+
+    it("re-sending the zone the Trip already has changes nothing: no re-file, no Activity, no extra transaction", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce(home);
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { homeTimezone: "Australia/Sydney" });
+
+      expect(refileHomeEndsTxMock).not.toHaveBeenCalled();
+      expect(recordActivityMock).not.toHaveBeenCalled();
+      // Only the slug transaction runs.
+      expect(transactionMock).toHaveBeenCalledOnce();
+    });
+
+    it("a save that leaves the zone alone (key omitted) does not re-file", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce(home);
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { name: "Renamed" });
+
+      expect(refileHomeEndsTxMock).not.toHaveBeenCalled();
+      expect(recordActivityMock).not.toHaveBeenCalled();
+    });
+
+    it("a zone change with new dates runs both in one transaction", async () => {
+      tripFindUniqueMock.mockResolvedValueOnce({ ...home, startDate: "2026-12-01", endDate: "2026-12-20" });
+      tripUpdateMock.mockResolvedValue({});
+
+      await updateTrip("t1", { homeTimezone: "Australia/Brisbane", startDate: "2026-12-02", endDate: "2026-12-21" });
+
+      expect(refileHomeEndsTxMock).toHaveBeenCalledOnce();
+      expect(scheduleLoneStopTxMock).toHaveBeenCalledWith(expect.anything(), "t1", null, "follow");
+      // One transaction for the trip write + re-file + lone-Stop rule, one for the slug.
+      expect(transactionMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("re-derives the slug from the saved name on every save and returns it (a rename moves it; an unchanged name keeps it)", async () => {
     tripUpdateMock.mockResolvedValue({});
     assignTripSlugMock.mockResolvedValueOnce("new-name");
     const res = await updateTrip(TRIP_ID, { ...VALID_INPUT, name: "New name" });
     expect(assignTripSlugMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, "New name");
-    expect(res).toEqual({ success: true, slug: "new-name" });
+    expect(res).toMatchObject({ success: true, slug: "new-name" });
   });
 
   it("updateTrip with changed dates follows for the real plan and every Fork, in one transaction (ADR 0073)", async () => {

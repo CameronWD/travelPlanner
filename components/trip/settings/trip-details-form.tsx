@@ -94,6 +94,9 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         // rename in this same session won't resend it as if freshly picked,
         // which would win server-side and block the re-guess (spec A3).
         setHomeTimezoneTouched(false);
+        // Show the zone the Trip now has: a rename re-derives it on the
+        // server (F3), so the one this form last held can be stale.
+        if (result.homeTimezone !== undefined) setHomeTimezone(result.homeTimezone ?? "");
         savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
 
         // A rename moved the Trip to a new slug: put it in the address bar and

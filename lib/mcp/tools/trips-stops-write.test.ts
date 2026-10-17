@@ -23,6 +23,12 @@ const {
   itemFindUnique,
   setSurprise,
   revealSurprise,
+  loadStopForMcp,
+  loadItemForMcp,
+  loadTripSummaryForMcp,
+  stopAndShifted,
+  trackerChanged,
+  trackerStart,
 } = vi.hoisted(() => ({
   createTrip: vi.fn(),
   updateTrip: vi.fn(),
@@ -46,6 +52,12 @@ const {
   itemFindUnique: vi.fn(),
   setSurprise: vi.fn(),
   revealSurprise: vi.fn(),
+  loadStopForMcp: vi.fn(),
+  loadItemForMcp: vi.fn(),
+  loadTripSummaryForMcp: vi.fn(),
+  stopAndShifted: vi.fn(),
+  trackerChanged: vi.fn(),
+  trackerStart: vi.fn(),
 }));
 
 vi.mock("@/server/actions/trips", () => ({ createTrip, updateTrip, setTripHardEndDate }));
@@ -64,6 +76,11 @@ vi.mock("@/server/actions/stops", () => ({
 }));
 vi.mock("@/server/actions/chapters", () => ({ assignStopToChapter }));
 vi.mock("@/server/actions/surprise", () => ({ setSurprise, revealSurprise }));
+vi.mock("../reads/entities", () => ({ loadStopForMcp, loadItemForMcp, loadTripSummaryForMcp }));
+vi.mock("../reads/stop-changes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../reads/stop-changes")>()),
+  stopTracker: () => ({ start: trackerStart, stopAndShifted, changed: trackerChanged }),
+}));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -144,6 +161,12 @@ describe("trip and stop write tools", () => {
     stopFindUnique.mockResolvedValue(roughStopRow());
     chapterFindUnique.mockResolvedValue({ tripId: TRIP_ID });
     itemFindUnique.mockResolvedValue({ tripId: TRIP_ID, stopId: null, date: null, surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null });
+    loadStopForMcp.mockImplementation(async (id: string) => ({ id, name: "Rome" }));
+    loadItemForMcp.mockImplementation(async (id: string) => ({ id, title: "Dinner" }));
+    loadTripSummaryForMcp.mockImplementation(async (id: string) => ({ id, name: "Japan" }));
+    trackerStart.mockResolvedValue(undefined);
+    stopAndShifted.mockImplementation(async (id: string) => ({ stop: { id }, shifted: [] }));
+    trackerChanged.mockResolvedValue([{ id: STOP_ID }]);
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -193,10 +216,38 @@ describe("trip and stop write tools", () => {
     expect(createTrip).toHaveBeenCalledTimes(1);
     expect(createTrip.mock.calls[0]).toHaveLength(1);
     expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ name: "Japan", homeCurrency: "USD" }));
-    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ tripId: "t1", href: "/trips/t1" });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ trip: { id: "t1", name: "Japan" } });
+  });
+
+  it("create_trip forwards homeTimezone and describes the default", async () => {
+    createTrip.mockResolvedValue({ success: true, tripId: "t1", href: "/trips/t1" });
+    const c = await connectTestClient();
+    const tool = (await c.listTools()).tools.find((t) => t.name === "create_trip")!;
+    const props = (tool.inputSchema as { properties?: Record<string, { description?: string }> }).properties ?? {};
+    expect(Object.keys(props)).toContain("homeTimezone");
+    expect(props.homeTimezone.description).toMatch(/where the Home base is/i);
+    await c.callTool({ name: "create_trip", arguments: { name: "Oz", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane" } });
+    expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Brisbane", homeTimezone: "Australia/Brisbane" }));
+  });
+
+  it("create_trip surfaces createTrip's error for an invalid homeTimezone", async () => {
+    createTrip.mockResolvedValue({ success: false, errors: { homeTimezone: ["Pick a timezone from the list."] } });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "create_trip", arguments: { name: "Oz", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Mars/Olympus" } });
+    expect(r.isError).toBe(true);
+    expect((r.content as { text: string }[])[0].text).toContain("Pick a timezone from the list.");
   });
 
   describe("update_trip (PATCH)", () => {
+    it("says a Home timezone change keeps Home-end times as local times (F5)", async () => {
+      const c = await connectTestClient();
+      const tool = (await c.listTools()).tools.find((t) => t.name === "update_trip")!;
+      expect(tool.description).toMatch(/homeTimezone/);
+      expect(tool.description).toMatch(/keeps? .*local time/i);
+      const tz = (tool.inputSchema as { properties: Record<string, { description?: string }> }).properties.homeTimezone;
+      expect(tz.description).toMatch(/local time/i);
+    });
+
     it("forwards only the fields passed", async () => {
       updateTrip.mockResolvedValue({ success: true });
       const c = await connectTestClient();
@@ -294,15 +345,15 @@ describe("trip and stop write tools", () => {
     expect(call[2]).toBeUndefined();
   });
 
-  it("add_stop derives a timezone from countryCode when scheduled and timezone is omitted", async () => {
+  it("add_stop leaves an omitted timezone unchosen, so createStop takes it from the place's point (F3)", async () => {
     createStop.mockResolvedValue({ success: true });
     const c = await connectTestClient();
     await c.callTool({
       name: "add_stop",
-      arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", arriveDate: "2026-05-01", departDate: "2026-05-04" },
+      arguments: { tripId: TRIP_ID, name: "Brisbane", countryCode: "au", arriveDate: "2026-05-01", departDate: "2026-05-04" },
     });
     const call = createStop.mock.calls[0];
-    expect((call[1] as { timezone: string }).timezone).toBe("Europe/Rome");
+    expect((call[1] as { timezone: string }).timezone).toBe("UTC");
   });
 
   it("add_stop passes afterStopId through as the 4th argument", async () => {
@@ -367,6 +418,7 @@ describe("trip and stop write tools", () => {
     expect(r.isError).toBeFalsy();
     const body = JSON.parse((r.content as { text: string }[])[0].text);
     expect(body.preview).toEqual({ accommodations: [], unpaidCosts: [], attachmentCount: 0, noteCount: 0 });
+    expect(body.deleted).toBe(STOP_ID);
   });
 
   it("delete_stop does not delete when the preview itself fails", async () => {
@@ -501,7 +553,7 @@ describe("trip and stop write tools", () => {
       const r = await c.callTool({ name: "set_stop_pinned", arguments: { stopId: STOP_ID, pinned: true } });
       expect(r.isError).toBeFalsy();
       expect(toggleStopPin).toHaveBeenCalledWith(STOP_ID);
-      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ pinned: true });
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ stop: { id: STOP_ID, name: "Rome" } });
     });
 
     it("does not toggle when the Stop is already in the requested state", async () => {
@@ -510,7 +562,7 @@ describe("trip and stop write tools", () => {
       const r = await c.callTool({ name: "set_stop_pinned", arguments: { stopId: STOP_ID, pinned: true } });
       expect(r.isError).toBeFalsy();
       expect(toggleStopPin).not.toHaveBeenCalled();
-      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ pinned: true });
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ stop: { id: STOP_ID, name: "Rome" } });
     });
 
     it("surfaces the action's error, e.g. pinning a rough Stop", async () => {
@@ -648,6 +700,76 @@ describe("trip and stop write tools", () => {
       const r = await c.callTool({ name: "reveal_surprise", arguments: { kind: "STOP", id: STOP_ID } });
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe("Couldn't do that: Only the planner can reveal this surprise.");
+    });
+  });
+
+  describe("writes return the row (F6)", () => {
+    const body = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
+
+    it("set_stop_dates returns the Stop, the Stops it pushed and the action's conflicts, not { success }", async () => {
+      stopFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      setStopDates.mockResolvedValue({ success: true, conflicts: [{ stopId: "prev" }], changed: [{ id: "next" }], payload: { big: true } });
+      stopAndShifted.mockResolvedValue({ stop: { id: STOP_ID }, shifted: [{ id: "next" }] });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_stop_dates", arguments: { stopId: STOP_ID, arriveDate: "2027-06-01", departDate: "2027-06-04" } });
+      expect(trackerStart).toHaveBeenCalledWith(TRIP_ID);
+      expect(trackerStart.mock.invocationCallOrder[0]).toBeLessThan(setStopDates.mock.invocationCallOrder[0]);
+      expect(body(r)).toEqual({ stop: { id: STOP_ID }, shifted: [{ id: "next" }], conflicts: [{ stopId: "prev" }] });
+    });
+
+    it("the tracker starts only after the tool's own access check", async () => {
+      stopFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      updateStop.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_stop", arguments: { stopId: STOP_ID, name: "X" } });
+      expect(requireTripAccess.mock.invocationCallOrder[0]).toBeLessThan(trackerStart.mock.invocationCallOrder[0]);
+    });
+
+    it("add_stop checks Trip access before the snapshot, and reads back the new Stop", async () => {
+      createStop.mockResolvedValue({ success: true, id: "new-stop" });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "add_stop", arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it", nights: 2 } });
+      expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
+      expect(requireTripAccess.mock.invocationCallOrder[0]).toBeLessThan(trackerStart.mock.invocationCallOrder[0]);
+      expect(trackerStart.mock.invocationCallOrder[0]).toBeLessThan(createStop.mock.invocationCallOrder[0]);
+      expect(body(r)).toEqual({ stop: { id: "new-stop" }, shifted: [] });
+    });
+
+    it("an add_stop refused by its input checks takes no snapshot", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "add_stop", arguments: { tripId: TRIP_ID, name: "Rome", countryCode: "it" } });
+      expect(r.isError).toBe(true);
+      expect(trackerStart).not.toHaveBeenCalled();
+    });
+
+    it("a refused write takes no snapshot and reads nothing back", async () => {
+      stopFindUnique.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_stop", arguments: { stopId: "fork-stop", name: "X" } });
+      expect(r.isError).toBe(true);
+      expect(trackerStart).not.toHaveBeenCalled();
+      expect(stopAndShifted).not.toHaveBeenCalled();
+    });
+
+    it("firm_up_trip returns every Stop it dated", async () => {
+      requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+      firmUpTrip.mockResolvedValue({ success: true, conflicts: [] });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "firm_up_trip", arguments: { tripId: TRIP_ID } }))).toEqual({ stops: [{ id: STOP_ID }] });
+      expect(requireTripAccess.mock.invocationCallOrder[0]).toBeLessThan(trackerStart.mock.invocationCallOrder[0]);
+    });
+
+    it("set_surprise on an ITEM returns the Item as it now stands", async () => {
+      itemFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      setSurprise.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "set_surprise", arguments: { kind: "ITEM", id: "item-1" } }))).toEqual({ item: { id: "item-1", title: "Dinner" } });
+    });
+
+    it("update_trip returns the Trip summary", async () => {
+      updateTrip.mockResolvedValue({ success: true, slug: "japan" });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "update_trip", arguments: { tripId: TRIP_ID, name: "Japan" } }))).toEqual({ trip: { id: TRIP_ID, name: "Japan" } });
     });
   });
 });

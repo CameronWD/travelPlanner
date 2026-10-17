@@ -83,3 +83,55 @@ for storing no zone no longer holds.
 
 Zones are not worked out from coordinates. A Transport end that is a departure
 or arrival point with no Stop keeps the other end's zone.
+
+## Amendment — 2026-10-16: the zone comes from the point
+
+The 2026-10-14 amendment guessed `homeTimezone` from the country and kept a
+hand-picked zone across a same-country rename, because the guess was
+country-granular (Australia → Sydney). With an offline point lookup
+(`@photostructure/tz-lookup`, spec 2026-10-16 F3) the guess is the zone at the
+Home base's point, so that protection now keeps exactly the wrong zone.
+
+1. **One rule, shared with Stops** (`homeBaseTimezone` beside `stopTimezone`
+   in `lib/tz.ts`; `resolveHomeTimezone` in `lib/tz-point.ts` does the lookup):
+   a zone the Traveller sent wins; else the zone at the Home point; else the
+   country's; else none. A point at sea gives no zone.
+2. **A rename re-derives it** from the new point when no zone is sent with
+   it. When the new place gives no zone, an unchanged country keeps the zone
+   and a changed one clears it. A failed geocode still keeps it.
+3. "Zones are not worked out from coordinates" (above) no longer holds for
+   the Home base or a Stop. A Transport end that is a departure or arrival
+   point with no Stop still keeps the other end's zone.
+
+## Amendment — 2026-10-16: changing the Home timezone keeps Home-end local times
+
+The 2026-10-14 amendment made the Home zone editable but left stored leg
+times alone. A Transport time is typed as a local time off a ticket and stored
+as an instant read in that end's zone, so correcting a wrong guess moved every
+typed Home-end time. Changing Sydney to Brisbane in December moved a 06:10
+departure to 05:10. For a ticket, the local time is the fact.
+
+1. **A save that changes `homeTimezone` keeps every Home-end time's local
+   time.** It does not matter where the change came from: Trip settings,
+   `update_trip`, or a Home base rename that re-derives the zone (whichever
+   rule picks it). Each affected end's stored instant is recomputed from the
+   wall-clock time it showed, in the new zone. This covers the real plan and
+   every Fork, because the Home base is trip-wide. It happens in the same
+   transaction as the zone write, and the soft end date is then re-grown
+   (spec 2026-10-16 F4).
+2. **An end is affected when its resolved zone changes.** The test is the
+   rule the write path and every display share (`resolveEndpointZones`):
+   a Home end, and also a non-Home end with no Stop that borrowed the Home
+   zone. Moving from no zone re-reads the times in the fallback they were
+   typed in (the other end's Stop zone, else UTC). Clearing the Home base
+   does the reverse. Point 3 of the 2026-10-14 amendment was a note about
+   that one migration. It does not govern later changes.
+3. **An end with no time is untouched.** A date-only booking import stores
+   no time. A local time that doesn't exist in the new zone (a daylight-saving
+   gap) lands on the next valid time, e.g. 02:30 → 03:30.
+4. **One Activity line** records the change, "changed the Home timezone to
+   Australia/Brisbane; Home-end times kept as local times", and the legs
+   record nothing of their own. `update_trip`'s description says the same,
+   so Claude fixes a zone instead of retyping times.
+
+No backfill: stored times are already the moments that were typed.

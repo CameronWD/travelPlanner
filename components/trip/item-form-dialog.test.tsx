@@ -35,6 +35,7 @@ import { deleteAttachment } from "@/server/actions/attachments";
 import { ItemFormDialog, AddItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
+import { reminderItem } from "@/test/helpers/reminder-item";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -1365,5 +1366,24 @@ describe("ItemFormDialog: Proposal mode (Booking import)", () => {
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", booking: "PENA-1" }));
     expect(createItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("ItemFormDialog: Reminders (F8)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("lists the Item's Reminders and offers Add a reminder without saving the Item (F8)", async () => {
+    const user = userEvent.setup();
+    const onAddReminder = vi.fn();
+    render(<ItemFormDialog {...baseProps} item={existingItem} reminders={[reminderItem({ id: "r1", title: "Book a slot", date: "2026-08-01", itemId: existingItem.id })]} onAddReminder={onAddReminder} />);
+    expect(screen.getByText("Book a slot")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(onAddReminder).toHaveBeenCalledTimes(1);
+    expect(updateItem).not.toHaveBeenCalled();
+  });
+
+  it("shows no Reminders field when creating an Item", () => {
+    render(<ItemFormDialog {...baseProps} onAddReminder={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
   });
 });

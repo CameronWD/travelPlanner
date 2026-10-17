@@ -7,6 +7,7 @@
  * (`loadOwners`). Real plan only: scoped with `REAL_PLAN`, never accepts a
  * `forkId`.
  */
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
@@ -15,10 +16,11 @@ import { formatMinor } from "@/lib/money/money";
 import { isOnTrip } from "@/lib/enum-values";
 import { daysBetween, formatISODate } from "@/lib/dates";
 import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
-import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
+import { requireRealPlanRow } from "../real-plan";
 import { loadOwners, ownerKey, REMOVED_LABEL, type OwnerKind } from "./owners";
 
-interface McpCost {
+export interface McpCost {
   id: string;
   amount: { minor: number; currency: string; formatted: string };
   /** null = no exchange rate is known for this cost's currency. */
@@ -54,19 +56,16 @@ function compareCosts(a: McpCost, b: McpCost): number {
   return 0;
 }
 
-export async function loadCostsForMcp(
+/** Every real-plan Cost matching `where`, in list_costs' shape and order (`compareCosts`). Callers have checked access. */
+export async function readMcpCosts(
   tripId: string,
-  opts: { unpaidOnly?: boolean; dueWithinDays?: number },
+  v: SurpriseVisibility,
+  where: { id?: string; ownerType?: string; ownerId?: string } = {},
 ): Promise<McpCostsResult> {
-  const { user } = await requireTripAccess(tripId);
-  // Surprise (ADR 0051): lines inside a Surprise hidden from the acting
-  // Traveller stay in the database. Their money still counts in get_budget.
-  const v = await loadSurpriseVisibility(tripId, user.id);
-
   const [trip, rawCosts, stops, items] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true } }),
     db.cost.findMany({
-      where: { tripId, ...REAL_PLAN, ...v.where.cost },
+      where: { tripId, ...REAL_PLAN, ...where, ...v.where.cost },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -136,7 +135,20 @@ export async function loadCostsForMcp(
     };
   });
 
-  const filtered = mapped
+  return { homeCurrency, today, costs: mapped.sort(compareCosts) };
+}
+
+export async function loadCostsForMcp(
+  tripId: string,
+  opts: { unpaidOnly?: boolean; dueWithinDays?: number },
+): Promise<McpCostsResult> {
+  const { user } = await requireTripAccess(tripId);
+  // Surprise (ADR 0051): lines inside a Surprise hidden from the acting
+  // Traveller stay in the database. Their money still counts in get_budget.
+  const v = await loadSurpriseVisibility(tripId, user.id);
+  const { homeCurrency, today, costs } = await readMcpCosts(tripId, v);
+
+  const filtered = costs
     .filter((c) => !opts.unpaidOnly || c.paid === null)
     .filter(
       (c) =>
@@ -144,5 +156,17 @@ export async function loadCostsForMcp(
         (c.paid === null && c.dueDate !== null && c.daysUntilDue !== null && c.daysUntilDue <= opts.dueWithinDays),
     );
 
-  return { homeCurrency, today, costs: filtered.sort(compareCosts) };
+  return { homeCurrency, today, costs: filtered };
+}
+
+/** One Cost in list_costs' shape (a Cost write's read-back, F6). A Fork's Cost, or one the caller is surprised by, is notFound. */
+export async function loadCostForMcp(costId: string): Promise<McpCost> {
+  const { tripId } = await requireRealPlanRow("cost", costId);
+  const { user } = await requireTripAccess(tripId);
+  const v = await loadSurpriseVisibility(tripId, user.id);
+  const {
+    costs: [cost],
+  } = await readMcpCosts(tripId, v, { id: costId });
+  if (!cost) notFound();
+  return cost;
 }

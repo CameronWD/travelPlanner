@@ -18,10 +18,20 @@
  * lib/stop-patch.ts's rules (mode from the dates, the lone-date and nights
  * checks, the Chapter carried).
  *
+ * Every write goes through `runWrite` and returns its row as it now stands
+ * (spec 2026-10-16 F6): a Trip write `{ trip }`, a Stop write `{ stop }`.
+ * A write that can move other Stops' dates (add, update, re-night, re-date,
+ * move, make rough) returns `{ stop, shifted }`, every other real-plan Stop
+ * it changed (lib/mcp/reads/stop-changes.ts), plus the action's `conflicts`
+ * when there are any; Firm up returns `{ stops }`. The tracker snapshots the
+ * plan only after the tool's own access check. `delete_stop` returns
+ * `{ deleted, preview }`.
+ *
  * Timezone for a scheduled Stop: `stopTimezone` (lib/tz.ts), the one rule
  * the Add-a-stop UI, `createStop`/`updateStop`, the lone-Stop rule and the
  * Booking import share — an explicit zone wins unless it is the "UTC"
- * fallback, then the country code, then the country name.
+ * fallback, then the zone at the Stop's point, then the country (F3). The
+ * tools send no guess of their own: the actions resolve it server-side.
  */
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -49,10 +59,12 @@ import {
 import { assignStopToChapter } from "@/server/actions/chapters";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
-import { stopTimezone } from "@/lib/tz";
+import { UNCHOSEN_TIMEZONE } from "@/lib/tz";
 import { NIGHTS_REQUIRED, LONE_DATE, TIMEZONE_ON_ROUGH, nightsMismatch } from "@/lib/stop-patch";
 import type { StopInput } from "@/lib/validations/stop";
-import { runTool } from "../run-tool";
+import { runWrite } from "../run-tool";
+import { stopTracker, conflictsOf } from "../reads/stop-changes";
+import { loadStopForMcp, loadItemForMcp, loadTripSummaryForMcp } from "../reads/entities";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { isoDate } from "@/lib/validations/primitives";
 
@@ -122,7 +134,9 @@ function buildStopInput(args: {
       name,
       country,
       countryCode,
-      timezone: stopTimezone({ timezone, countryCode, country }),
+      // Unchosen unless the caller sent one: createStop resolves it at the
+      // final point (picked or geocoded), which a country guess here would beat (F3).
+      timezone: timezone ?? UNCHOSEN_TIMEZONE,
       arriveDate,
       departDate,
       lat,
@@ -148,12 +162,17 @@ async function loadStopPinned(stopId: string): Promise<boolean> {
   return stop.pinned;
 }
 
+/** set_surprise / reveal_surprise read back the Stop or the Item they changed. */
+async function surpriseRow(kind: "STOP" | "ITEM", id: string): Promise<object> {
+  return kind === "STOP" ? { stop: await loadStopForMcp(id) } : { item: await loadItemForMcp(id) };
+}
+
 export function registerTripStopWriteTools(server: McpServer): void {
   server.registerTool(
     "create_trip",
     {
       title: "Create trip",
-      description: "Creates a new Trip for the acting Traveller, who becomes its owner.",
+      description: "Creates a new Trip for the acting Traveller, who becomes its owner. Give homeName for a Home base; its timezone is taken from where the Home base is unless you pass homeTimezone.",
       inputSchema: {
         name: z.string().trim().min(1),
         startDate: isoDate.optional(),
@@ -161,29 +180,32 @@ export function registerTripStopWriteTools(server: McpServer): void {
         hardEndDate: isoDate.optional(),
         homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]]),
         homeName: z.string().optional(),
+        homeTimezone: z.string().trim().optional().describe("IANA timezone of the Home base, e.g. Australia/Brisbane. Omit it and it is taken from where the Home base is (its point, else its country). Home ends of Transport are read and written in it."),
         roundTrip: z.boolean().optional(),
         roughMonth: roughMonth.optional(),
       },
     },
-    (input) => runTool("create_trip", () => createTrip(input)),
+    (input) =>
+      runWrite("create_trip", () => createTrip(input), async (done) => ({ trip: await loadTripSummaryForMcp(done.tripId) })),
   );
 
   server.registerTool(
     "update_trip",
     {
       title: "Update trip",
-      description: "Changes only the fields you pass; fields you omit keep their current value.",
+      description:
+        "Changes only the fields you pass; fields you omit keep their current value. Changing homeTimezone keeps every Home-end Transport time at the local time it shows (a 06:10 departure stays 06:10), in the real plan and every What-if plan; only the moment it stands for moves with the zone. Fix a wrong Home timezone this way rather than editing the leg times.",
       inputSchema: {
         tripId: z.string(),
         name: z.string().trim().min(1).optional(),
         startDate: isoDate.optional(),
         endDate: isoDate.optional(),
         homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]]).optional(),
-        homeTimezone: z.string().trim().optional().describe("IANA timezone of the Home base, e.g. Australia/Brisbane. Home ends of Transport are read and written in it."),
+        homeTimezone: z.string().trim().optional().describe("IANA timezone of the Home base, e.g. Australia/Brisbane. Home ends of Transport are read and written in it; changing it keeps their local times."),
       },
     },
     ({ tripId, ...patch }) =>
-      runTool("update_trip", () => updateTrip(tripId, patch)),
+      runWrite("update_trip", () => updateTrip(tripId, patch), async () => ({ trip: await loadTripSummaryForMcp(tripId) })),
   );
 
   server.registerTool(
@@ -193,7 +215,12 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Sets or clears a Trip's Hard end date, the Traveller's ceiling on when the trip must be over. Not a schedule change. Pass null to clear it.",
       inputSchema: { tripId: z.string(), hardEndDate: isoDate.nullable() },
     },
-    ({ tripId, hardEndDate }) => runTool("set_hard_end_date", () => setTripHardEndDate(tripId, hardEndDate)),
+    ({ tripId, hardEndDate }) =>
+      runWrite(
+        "set_hard_end_date",
+        () => setTripHardEndDate(tripId, hardEndDate),
+        async () => ({ trip: await loadTripSummaryForMcp(tripId) }),
+      ),
   );
 
   server.registerTool(
@@ -201,16 +228,24 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Add stop",
       description:
-        "Adds a Stop to the trip's real plan. Give arriveDate and departDate for a scheduled Stop (timezone is derived from the country if you omit it); give nights instead for a rough Stop with no dates yet. afterStopId inserts right after that Stop; omit it to append at the end.",
+        "Adds a Stop to the trip's real plan. Give arriveDate and departDate for a scheduled Stop (omit timezone and it is taken from the place: the zone at its point, else its country); give nights instead for a rough Stop with no dates yet. afterStopId inserts right after that Stop; omit it to append at the end.",
       inputSchema: { tripId: z.string(), afterStopId: z.string().optional(), ...stopCreateShape },
     },
-    ({ tripId, afterStopId, ...rest }) =>
-      runTool("add_stop", async () => {
-        const input = buildStopInput(rest);
-        if (isFailure(input)) return input;
-        await requireRealPlanRows([["stop", afterStopId]]);
-        return createStop(tripId, input, undefined, afterStopId ?? null);
-      }),
+    ({ tripId, afterStopId, ...rest }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "add_stop",
+        async () => {
+          const input = buildStopInput(rest);
+          if (isFailure(input)) return input;
+          await requireRealPlanRows([["stop", afterStopId]]);
+          await requireTripAccess(tripId);
+          await stops.start(tripId);
+          return createStop(tripId, input, undefined, afterStopId ?? null);
+        },
+        async (done) => ({ ...(await stops.stopAndShifted(done.id!)), ...conflictsOf(done) }),
+      );
+    },
   );
 
   server.registerTool(
@@ -218,14 +253,21 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Update stop",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. Passing country or countryCode re-locates the Stop: its point is looked up again from the place. Supplying both arriveDate and departDate makes the Stop scheduled; supplying nights with no dates on a scheduled Stop makes it rough again, same as make_stop_rough. A dated Trip's only Stop always keeps the Trip's dates; making it rough is refused (ADR 0073).",
+        "Changes only the fields you pass; fields you omit keep their current value. Passing country or countryCode re-locates the Stop: its point is looked up again from the place. Re-locating a scheduled Stop without a timezone gives it the zone at its new place. Supplying both arriveDate and departDate makes the Stop scheduled; supplying nights with no dates on a scheduled Stop makes it rough again, same as make_stop_rough. A dated Trip's only Stop always keeps the Trip's dates; making it rough is refused (ADR 0073).",
       inputSchema: { stopId: z.string(), ...stopPatchShape },
     },
-    ({ stopId, ...patch }) =>
-      runTool("update_stop", async () => {
-        await requireRealPlanRow("stop", stopId);
-        return updateStop(stopId, patch);
-      }),
+    ({ stopId, ...patch }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "update_stop",
+        async () => {
+          const { tripId } = await requireRealPlanRow("stop", stopId);
+          await stops.start(tripId);
+          return updateStop(stopId, patch);
+        },
+        async (done) => ({ ...(await stops.stopAndShifted(stopId)), ...conflictsOf(done) }),
+      );
+    },
   );
 
   server.registerTool(
@@ -238,14 +280,18 @@ export function registerTripStopWriteTools(server: McpServer): void {
       annotations: { destructiveHint: true },
     },
     ({ stopId }) =>
-      runTool("delete_stop", async () => {
-        await requireRealPlanRow("stop", stopId);
-        const preview = await previewStopDeletion(stopId);
-        if (!preview.success) return preview;
-        const result = await deleteStop(stopId);
-        if (!result.success) return result;
-        return { success: true, preview: preview.preview };
-      }),
+      runWrite(
+        "delete_stop",
+        async () => {
+          await requireRealPlanRow("stop", stopId);
+          const preview = await previewStopDeletion(stopId);
+          if (!preview.success) return preview;
+          const result = await deleteStop(stopId);
+          if (!result.success) return result;
+          return { success: true as const, preview: preview.preview };
+        },
+        async (done) => ({ deleted: stopId, preview: done.preview }),
+      ),
   );
 
   server.registerTool(
@@ -255,10 +301,18 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Moves a Stop one place up or down, swapping it with its neighbour. A no-op at either end.",
       inputSchema: { stopId: z.string(), direction: z.enum(["up", "down"]) },
     },
-    ({ stopId, direction }) => runTool("move_stop", async () => {
-        await requireRealPlanRow("stop", stopId);
-        return moveStop(stopId, direction);
-      }),
+    ({ stopId, direction }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "move_stop",
+        async () => {
+          const { tripId } = await requireRealPlanRow("stop", stopId);
+          await stops.start(tripId);
+          return moveStop(stopId, direction);
+        },
+        () => stops.stopAndShifted(stopId),
+      );
+    },
   );
 
   server.registerTool(
@@ -268,10 +322,18 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Sets how many nights a Stop covers. On a scheduled Stop this moves its depart date forward or back.",
       inputSchema: { stopId: z.string(), nights: z.number().int().min(0).max(366) },
     },
-    ({ stopId, nights }) => runTool("set_stop_nights", async () => {
-        await requireRealPlanRow("stop", stopId);
-        return setStopNights(stopId, nights);
-      }),
+    ({ stopId, nights }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "set_stop_nights",
+        async () => {
+          const { tripId } = await requireRealPlanRow("stop", stopId);
+          await stops.start(tripId);
+          return setStopNights(stopId, nights);
+        },
+        async (done) => ({ ...(await stops.stopAndShifted(stopId)), ...conflictsOf(done) }),
+      );
+    },
   );
 
   server.registerTool(
@@ -281,10 +343,18 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Sets a Stop's arrive and depart dates directly.",
       inputSchema: { stopId: z.string(), arriveDate: isoDate, departDate: isoDate },
     },
-    ({ stopId, arriveDate, departDate }) => runTool("set_stop_dates", async () => {
-        await requireRealPlanRow("stop", stopId);
-        return setStopDates(stopId, { arriveDate, departDate });
-      }),
+    ({ stopId, arriveDate, departDate }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "set_stop_dates",
+        async () => {
+          const { tripId } = await requireRealPlanRow("stop", stopId);
+          await stops.start(tripId);
+          return setStopDates(stopId, { arriveDate, departDate });
+        },
+        async (done) => ({ ...(await stops.stopAndShifted(stopId)), ...conflictsOf(done) }),
+      );
+    },
   );
 
   server.registerTool(
@@ -292,17 +362,21 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Set stop pinned",
       description:
-        "Sets whether a Stop is Pinned (its dates stay fixed when the plan shifts). Only a Stop with dates can be pinned. Returns the resulting state.",
+        "Sets whether a Stop is Pinned (its dates stay fixed when the plan shifts). Only a Stop with dates can be pinned. Returns the Stop as it now stands.",
       inputSchema: { stopId: z.string(), pinned: z.boolean() },
     },
     ({ stopId, pinned }) =>
-      runTool("set_stop_pinned", async () => {
-        const current = await loadStopPinned(stopId);
-        if (current === pinned) return { success: true, pinned };
-        const result = await toggleStopPin(stopId);
-        if (!result.success) return result;
-        return { success: true, pinned };
-      }),
+      runWrite(
+        "set_stop_pinned",
+        async () => {
+          const current = await loadStopPinned(stopId);
+          if (current === pinned) return { success: true as const };
+          const result = await toggleStopPin(stopId);
+          if (!result.success) return result;
+          return { success: true as const };
+        },
+        async () => ({ stop: await loadStopForMcp(stopId) }),
+      ),
   );
 
   server.registerTool(
@@ -312,10 +386,18 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Clears a scheduled Stop's dates, turning it back into a rough Stop. Its nights are kept. A dated Trip's only Stop always keeps the Trip's dates; making it rough is refused (ADR 0073).",
       inputSchema: { stopId: z.string() },
     },
-    ({ stopId }) => runTool("make_stop_rough", async () => {
-        await requireRealPlanRow("stop", stopId);
-        return makeStopRough(stopId);
-      }),
+    ({ stopId }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "make_stop_rough",
+        async () => {
+          const { tripId } = await requireRealPlanRow("stop", stopId);
+          await stops.start(tripId);
+          return makeStopRough(stopId);
+        },
+        () => stops.stopAndShifted(stopId),
+      );
+    },
   );
 
   server.registerTool(
@@ -325,10 +407,15 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Replaces the free-text notes on a Stop.",
       inputSchema: { stopId: z.string(), notes: z.string() },
     },
-    ({ stopId, notes }) => runTool("set_stop_notes", async () => {
-        await requireRealPlanRow("stop", stopId);
-        return setStopNotes(stopId, notes);
-      }),
+    ({ stopId, notes }) =>
+      runWrite(
+        "set_stop_notes",
+        async () => {
+          await requireRealPlanRow("stop", stopId);
+          return setStopNotes(stopId, notes);
+        },
+        async () => ({ stop: await loadStopForMcp(stopId) }),
+      ),
   );
 
   server.registerTool(
@@ -339,7 +426,18 @@ export function registerTripStopWriteTools(server: McpServer): void {
         "Turns rough Stops into scheduled ones by flowing dates forward from an anchor (the trip's start date by default, or anchorDate). Stops at any Pinned Stop.",
       inputSchema: { tripId: z.string(), anchorDate: isoDate.optional() },
     },
-    ({ tripId, anchorDate }) => runTool("firm_up_trip", () => firmUpTrip(tripId, anchorDate)),
+    ({ tripId, anchorDate }) => {
+      const stops = stopTracker();
+      return runWrite(
+        "firm_up_trip",
+        async () => {
+          await requireTripAccess(tripId);
+          await stops.start(tripId);
+          return firmUpTrip(tripId, anchorDate);
+        },
+        async (done) => ({ stops: await stops.changed(), ...conflictsOf(done) }),
+      );
+    },
   );
 
   server.registerTool(
@@ -349,13 +447,18 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Assigns a Stop to a Chapter. Pass chapterId null to make it Ungrouped instead.",
       inputSchema: { stopId: z.string(), chapterId: z.string().nullable() },
     },
-    ({ stopId, chapterId }) => runTool("assign_stop_to_chapter", async () => {
-        await requireRealPlanRows([
-          ["stop", stopId],
-          ["chapter", chapterId],
-        ]);
-        return assignStopToChapter(stopId, chapterId);
-      }),
+    ({ stopId, chapterId }) =>
+      runWrite(
+        "assign_stop_to_chapter",
+        async () => {
+          await requireRealPlanRows([
+            ["stop", stopId],
+            ["chapter", chapterId],
+          ]);
+          return assignStopToChapter(stopId, chapterId);
+        },
+        async () => ({ stop: await loadStopForMcp(stopId) }),
+      ),
   );
 
   // Surprise (CONTEXT.md, ADR 0051). The real-plan check also refuses a
@@ -368,10 +471,15 @@ export function registerTripStopWriteTools(server: McpServer): void {
         "Makes a Stop or a thing to do a Surprise: the named Travellers (default: everyone but you) see only its outside (a Stop's name, dates and transport, or an item's date and time) until it is revealed. Only works on the real plan.",
       inputSchema: { kind: z.enum(["STOP", "ITEM"]), id: z.string(), forUserIds: z.array(z.string()).optional() },
     },
-    ({ kind, id, forUserIds }) => runTool("set_surprise", async () => {
-        await requireRealPlanRow(kind === "STOP" ? "stop" : "item", id);
-        return setSurprise({ kind, id, forIds: forUserIds });
-      }),
+    ({ kind, id, forUserIds }) =>
+      runWrite(
+        "set_surprise",
+        async () => {
+          await requireRealPlanRow(kind === "STOP" ? "stop" : "item", id);
+          return setSurprise({ kind, id, forIds: forUserIds });
+        },
+        () => surpriseRow(kind, id),
+      ),
   );
 
   server.registerTool(
@@ -381,9 +489,14 @@ export function registerTripStopWriteTools(server: McpServer): void {
       description: "Reveals a Surprise you planned, so everyone sees inside it. Planner only.",
       inputSchema: { kind: z.enum(["STOP", "ITEM"]), id: z.string() },
     },
-    ({ kind, id }) => runTool("reveal_surprise", async () => {
-        await requireRealPlanRow(kind === "STOP" ? "stop" : "item", id);
-        return revealSurprise({ kind, id });
-      }),
+    ({ kind, id }) =>
+      runWrite(
+        "reveal_surprise",
+        async () => {
+          await requireRealPlanRow(kind === "STOP" ? "stop" : "item", id);
+          return revealSurprise({ kind, id });
+        },
+        () => surpriseRow(kind, id),
+      ),
   );
 }

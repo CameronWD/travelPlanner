@@ -7,6 +7,7 @@ import {
   checklistItemsAddedSummary,
   checklistTickSummary,
   dayTitleSummary,
+  homeTimezoneSummary,
   surpriseSummary,
   describeChanges,
   entityLabel,
@@ -507,14 +508,14 @@ describe("TC-07 entity types", () => {
     ]);
   });
 
-  it("diffs a Reminder's title, date and Stop name", () => {
+  it("diffs a Reminder's title, date, notes and what it is about (spec F8)", () => {
     expect(
       describeChanges(
         "REMINDER",
-        { title: "Print docs", date: "2026-11-26", stopName: null },
-        { title: "Print docs", date: "2026-11-28", stopName: "Lisbon" },
+        { title: "Print docs", date: "2026-11-26", notes: null, about: null },
+        { title: "Print docs", date: "2026-11-28", notes: "Two copies", about: "Lisbon" },
       ).map((c) => c.label),
-    ).toEqual(["Date", "About"]);
+    ).toEqual(["Date", "Notes", "About"]);
   });
 
   it("labels the new entity types from their text", () => {
@@ -583,5 +584,23 @@ describe("surpriseSummary", () => {
   it("words a reveal differently for a Stop and an Item", () => {
     expect(surpriseSummary({ kind: "reveal", kindOf: "STOP", label: "Paris" }).summary).toBe("revealed the surprise in Paris");
     expect(surpriseSummary({ kind: "reveal", kindOf: "ITEM", label: "Dinner" }).summary).toBe("revealed the surprise: Dinner");
+  });
+});
+
+describe("homeTimezoneSummary (ADR 0030 amendment 2026-10-16)", () => {
+  it("names the new zone and says the Home-end times kept their local time", () => {
+    expect(homeTimezoneSummary("Australia/Brisbane", true)).toEqual({
+      summary: "changed the Home timezone to Australia/Brisbane; Home-end times kept as local times",
+    });
+  });
+  it("leaves the clause off when no Home-end time had to move", () => {
+    expect(homeTimezoneSummary("Australia/Brisbane", false)).toEqual({ summary: "changed the Home timezone to Australia/Brisbane" });
+  });
+  it("a cleared zone reads as cleared", () => {
+    expect(homeTimezoneSummary(null, true)).toEqual({ summary: "cleared the Home timezone; Home-end times kept as local times" });
+  });
+  it("is the line activityLine shows", () => {
+    expect(activityLine({ verb: "UPDATED", entityType: "TRANSPORT", entityLabel: "Home timezone", changes: homeTimezoneSummary("Australia/Brisbane", true) }))
+      .toBe("changed the Home timezone to Australia/Brisbane; Home-end times kept as local times");
   });
 });

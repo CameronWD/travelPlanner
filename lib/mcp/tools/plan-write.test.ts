@@ -12,12 +12,19 @@ const {
   clearVote,
   setDayTitle,
   addNote,
+  deleteNote,
   createChapter,
   updateChapter,
   requireTripAccess,
   itemFindUnique,
   chapterFindUnique,
   stopFindUnique,
+  loadItemForMcp,
+  loadStopForMcp,
+  loadChapterForMcp,
+  loadWishlistIdeaForMcp,
+  loadVotesForMcp,
+  loadNoteForMcp,
 } = vi.hoisted(() => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
@@ -30,12 +37,19 @@ const {
   clearVote: vi.fn(),
   setDayTitle: vi.fn(),
   addNote: vi.fn(),
+  deleteNote: vi.fn(),
   createChapter: vi.fn(),
   updateChapter: vi.fn(),
   requireTripAccess: vi.fn(),
   itemFindUnique: vi.fn(),
   chapterFindUnique: vi.fn(),
   stopFindUnique: vi.fn(),
+  loadItemForMcp: vi.fn(),
+  loadStopForMcp: vi.fn(),
+  loadChapterForMcp: vi.fn(),
+  loadWishlistIdeaForMcp: vi.fn(),
+  loadVotesForMcp: vi.fn(),
+  loadNoteForMcp: vi.fn(),
 }));
 
 vi.mock("@/server/actions/items", () => ({
@@ -49,8 +63,11 @@ vi.mock("@/server/actions/items", () => ({
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote, clearVote }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle }));
-vi.mock("@/server/actions/notes", () => ({ addNote }));
+vi.mock("@/server/actions/notes", () => ({ addNote, deleteNote }));
+vi.mock("../reads/notes", () => ({ loadNoteForMcp, loadNotesForMcp: vi.fn() }));
 vi.mock("@/server/actions/chapters", () => ({ createChapter, updateChapter }));
+vi.mock("../reads/entities", () => ({ loadItemForMcp, loadStopForMcp, loadChapterForMcp }));
+vi.mock("../reads/lists", () => ({ loadWishlistIdeaForMcp, loadVotesForMcp }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   db: { item: { findUnique: itemFindUnique }, chapter: { findUnique: chapterFindUnique }, stop: { findUnique: stopFindUnique } },
@@ -137,6 +154,11 @@ describe("plan write tools", () => {
     itemFindUnique.mockResolvedValue(itemRow());
     chapterFindUnique.mockResolvedValue(chapterRow());
     stopFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+    loadItemForMcp.mockImplementation(async (id: string) => ({ id }));
+    loadChapterForMcp.mockImplementation(async (id: string) => ({ id }));
+    loadWishlistIdeaForMcp.mockImplementation(async (id: string) => ({ id, votes: [] }));
+    loadVotesForMcp.mockImplementation(async (itemId: string) => ({ itemId, votes: [] }));
+    loadStopForMcp.mockResolvedValue({ id: "stop-1", days: [{ date: "2027-06-02", dayTitle: "Ribeira day", items: [] }] });
   });
 
   it("registers every write tool, none accepting a forkId", async () => {
@@ -156,6 +178,7 @@ describe("plan write tools", () => {
         "clear_vote",
         "set_day_title",
         "add_note",
+        "delete_note",
         "add_chapter",
         "update_chapter",
       ]),
@@ -300,14 +323,56 @@ describe("plan write tools", () => {
     expect(setDayTitle).toHaveBeenCalledWith({ stopId: "stop-1", date: "2026-05-02", title: "" });
   });
 
-  it("add_note calls addNote", async () => {
-    addNote.mockResolvedValue({ success: true });
+  it("add_note returns the new Note: id, body and what it is on", async () => {
+    addNote.mockResolvedValue({ success: true, id: "note-1" });
+    loadNoteForMcp.mockResolvedValue({ id: "note-1", targetType: "ITEM", targetId: "item-1", body: "Book ahead", author: "Cam", createdAt: "2026-10-16T09:00:00.000Z" });
     const c = await connectTestClient();
-    await c.callTool({
-      name: "add_note",
-      arguments: { tripId: TRIP_ID, targetType: "ITEM", targetId: ITEM_ID, body: "Bring tickets" },
+    const r = await c.callTool({ name: "add_note", arguments: { tripId: "trip-1", targetType: "ITEM", targetId: "item-1", body: "Book ahead" } });
+    expect(addNote).toHaveBeenCalledWith("trip-1", { targetType: "ITEM", targetId: "item-1", body: "Book ahead" });
+    expect(loadNoteForMcp).toHaveBeenCalledWith("note-1");
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      note: { id: "note-1", targetType: "ITEM", targetId: "item-1", body: "Book ahead", author: "Cam", createdAt: "2026-10-16T09:00:00.000Z" },
     });
-    expect(addNote).toHaveBeenCalledWith(TRIP_ID, { targetType: "ITEM", targetId: ITEM_ID, body: "Bring tickets" });
+  });
+
+  describe("delete_note (F2)", () => {
+    it("calls deleteNote and returns { deleted }", async () => {
+      deleteNote.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "delete_note", arguments: { noteId: "note-1" } });
+      expect(deleteNote).toHaveBeenCalledWith("note-1");
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ deleted: "note-1" });
+    });
+
+    it("a Note the caller can't reach (not on their Trip, inside a Surprise hidden from them) is NOT_FOUND_TEXT", async () => {
+      deleteNote.mockRejectedValue(Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" }));
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "delete_note", arguments: { noteId: "note-x" } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+    });
+
+    it("is destructive and asks Claude to confirm first, like the other delete tools", async () => {
+      const c = await connectTestClient();
+      const { tools } = await c.listTools();
+      const t = tools.find((x) => x.name === "delete_note")!;
+      expect(t.annotations?.destructiveHint).toBe(true);
+      expect(t.description).toMatch(/This cannot be undone\. Confirm with the person before calling this\./);
+    });
+  });
+
+  it("the Note tools and update_thing_to_do tell a Note from an Item's own notes", async () => {
+    const c = await connectTestClient();
+    const { tools } = await c.listTools();
+    const d = (n: string) => tools.find((t) => t.name === n)!.description!;
+    for (const name of ["add_note", "get_notes", "delete_note"]) {
+      expect(d(name), name).toMatch(/never edited/i);
+      expect(d(name), name).toMatch(/update_thing_to_do/);
+    }
+    expect(d("update_thing_to_do")).toMatch(/add_note/);
+    expect(d("update_thing_to_do")).toMatch(/not a Note/i);
+    const notesField = (tools.find((t) => t.name === "update_thing_to_do")!.inputSchema as { properties: Record<string, { description?: string }> }).properties.notes;
+    expect(notesField.description).toMatch(/add_note/);
   });
 
   it("add_chapter calls createChapter with a single input argument, no forkId or originStopId", async () => {
@@ -431,6 +496,76 @@ describe("plan write tools", () => {
       await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "x", category: "SIGHTSEEING" } });
       expect(stopFindUnique).not.toHaveBeenCalled();
       expect(createItem).toHaveBeenCalled();
+    });
+  });
+
+  describe("writes return the row (F6)", () => {
+    const body = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
+
+    it("add_thing_to_do returns the new Item through get_item", async () => {
+      createItem.mockResolvedValue({ success: true, id: "new-1" });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "add_thing_to_do", arguments: { tripId: "trip-1", title: "Castle", category: "SIGHTSEEING" } }))).toEqual({ item: { id: "new-1" } });
+      expect(loadItemForMcp).toHaveBeenCalledWith("new-1");
+    });
+
+    it("schedule_thing_to_do returns the placed copy when an idea was copied onto the date", async () => {
+      itemFindUnique.mockResolvedValue({ tripId: "trip-1" });
+      scheduleItem.mockResolvedValue({ success: true, placedItemId: "placed-1" });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: "idea-1", date: "2027-06-02" } }))).toEqual({ item: { id: "placed-1" } });
+    });
+
+    it("schedule_thing_to_do on a placed thing to do returns that Item", async () => {
+      scheduleItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: "item-1", date: "2027-06-02" } }))).toEqual({ item: { id: "item-1" } });
+    });
+
+    it("place_idea_at_stop returns the placed copy", async () => {
+      placeIdeaAtStop.mockResolvedValue({ success: true, placedItemId: "placed-2" });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "place_idea_at_stop", arguments: { itemId: "idea-1", stopId: "stop-1" } }))).toEqual({ item: { id: "placed-2" } });
+    });
+
+    it.each([
+      [{ success: true, mode: "placement-removed", sourceItemId: "idea-1" }, { deleted: "item-1", ideaId: "idea-1" }],
+      [{ success: true, mode: "unslotted", sourceItemId: null }, { item: { id: "item-1" } }],
+    ])("unschedule_thing_to_do returns %j as %j", async (result, expected) => {
+      itemFindUnique.mockResolvedValue({ tripId: "trip-1" });
+      unscheduleItem.mockResolvedValue(result);
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "unschedule_thing_to_do", arguments: { itemId: "item-1" } }))).toEqual(expected);
+    });
+
+    it("set_day_title returns that day of the Stop with its title", async () => {
+      stopFindUnique.mockResolvedValue({ tripId: "trip-1" });
+      setDayTitle.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "set_day_title", arguments: { stopId: "stop-1", date: "2027-06-02", title: "Ribeira day" } }))).toEqual({
+        stopId: "stop-1", day: { date: "2027-06-02", dayTitle: "Ribeira day", items: [] },
+      });
+    });
+
+    it("set_vote returns the Votes on the Item; add_chapter the new Chapter; delete_thing_to_do { deleted }", async () => {
+      itemFindUnique.mockResolvedValue({ tripId: "trip-1" });
+      setVote.mockResolvedValue({ success: true });
+      createChapter.mockResolvedValue({ success: true, id: "ch-1" });
+      deleteItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "set_vote", arguments: { tripId: "trip-1", itemId: "item-1", level: "KEEN" } }))).toEqual({ itemId: "item-1", votes: [] });
+      expect(body(await c.callTool({ name: "add_chapter", arguments: { tripId: "trip-1", name: "Italy", colour: "rose" } }))).toEqual({ chapter: { id: "ch-1" } });
+      expect(body(await c.callTool({ name: "delete_thing_to_do", arguments: { itemId: "item-1" } }))).toEqual({ deleted: "item-1" });
+    });
+
+    it("add_marker_to_wishlist returns the idea; update_chapter the Chapter; clear_vote the Votes", async () => {
+      addMarkerToWishlist.mockResolvedValue({ success: true, id: "idea-9" });
+      updateChapter.mockResolvedValue({ success: true });
+      clearVote.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      expect(body(await c.callTool({ name: "add_marker_to_wishlist", arguments: { markerId: "m-1", tripId: "trip-1" } }))).toEqual({ idea: { id: "idea-9", votes: [] } });
+      expect(body(await c.callTool({ name: "update_chapter", arguments: { chapterId: "chapter-1", name: "Rome" } }))).toEqual({ chapter: { id: "chapter-1" } });
+      expect(body(await c.callTool({ name: "clear_vote", arguments: { tripId: "trip-1", itemId: "item-1" } }))).toEqual({ itemId: "item-1", votes: [] });
     });
   });
 });
