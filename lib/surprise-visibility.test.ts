@@ -211,6 +211,8 @@ describe("loadSurpriseVisibility", () => {
       arriveByMinutes: null,
       refundable: null,
       openingHours: null,
+      // Spec 2026-10-17 R6: the Try list says what the surprise is; it never leaks.
+      tryList: null,
     });
     expect(p.surprise.youAreSurprised).toBe(true);
   });

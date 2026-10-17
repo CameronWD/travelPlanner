@@ -94,7 +94,7 @@ const placeholder = (o: { id?: string; forkId?: string | null } = {}) => ({
   title: "Surprise" as const, category: "OTHER" as const, address: null, link: null, booking: null, notes: null,
   lat: null, lng: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
   sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null,
-  slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, surprise: surpriseView,
+  slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, surprise: surpriseView,
   ...o,
 });
 

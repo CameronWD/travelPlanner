@@ -53,6 +53,7 @@ export function placeholderItem(o: Partial<PlaceholderItem> & { id: string }): P
     arriveByMinutes: null,
     refundable: null,
     openingHours: null,
+    tryList: null,
     surprise: SURPRISED_VIEW,
     ...o,
   };
