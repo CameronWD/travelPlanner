@@ -60,6 +60,13 @@ describe("DesktopHomeGrid", () => {
     expect(slot("sort")).toHaveClass("col-span-5");
   });
 
+  it("puts Still to book in a full-width third row, and leaves it out when there's none", () => {
+    const { rerender } = render(<DesktopHomeGrid hasCover={false} countdown={<i />} cost={<i />} map={<i />} sort={<i />} stillToBook={<p>STB</p>} />);
+    expect(screen.getByText("STB").parentElement).toHaveClass("col-span-12");
+    rerender(<DesktopHomeGrid hasCover={false} countdown={<i />} cost={<i />} map={<i />} sort={<i />} stillToBook={null} />);
+    expect(screen.queryByText("STB")).not.toBeInTheDocument();
+  });
+
   it("exports the span classes", () => {
     expect(DESKTOP_GRID_SPANS.cover.countdown).toContain("col-span-8");
     expect(DESKTOP_GRID_SPANS.noCover.cost).toContain("col-span-6");
