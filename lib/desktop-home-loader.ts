@@ -47,6 +47,9 @@ import { computeProjection } from "@/lib/trip-projection";
 import { orderPlanStops } from "@/lib/plan-order";
 import { buildCostLabelMap } from "@/lib/money/cost-labels";
 import { buildUpcomingPayments, type UpcomingPayment } from "@/lib/money/upcoming-payments";
+import { buildStillToBook, type StillToBookRow } from "@/lib/still-to-book";
+import { resolveEndpointZones } from "@/lib/time-display";
+import { instantToZonedDateISO } from "@/lib/tz";
 
 const COST_SELECT = {
   id: true,
@@ -127,6 +130,8 @@ export interface HomePlanningData {
   upcomingPayments: UpcomingPayment[];
   /** Every Next step, ranked — callers cap it (the phone card shows 4). */
   steps: NextStep[];
+  /** CONTEXT.md "Booking state": everything still To book, soonest book-by first (lib/still-to-book.ts). Real plan; nothing hidden by a Surprise. */
+  stillToBook: StillToBookRow[];
 }
 
 async function load(
@@ -175,11 +180,14 @@ async function load(
         arrAt: true,
         depIsHome: true,
         arrIsHome: true,
+        anchorStopId: true,
+        bookingState: true,
+        bookBy: true,
       },
     }),
     db.accommodation.findMany({
       where: { tripId, ...REAL_PLAN, ...v.where.accommodation },
-      select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true },
+      select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, bookingState: true, bookBy: true },
     }),
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, ...v.where.item },
@@ -193,6 +201,8 @@ async function load(
         endTime: true,
         lat: true,
         lng: true,
+        bookingState: true,
+        bookBy: true,
       },
     }),
     db.cost.findMany({
@@ -302,6 +312,34 @@ async function load(
   const lineCosts = costs.filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId));
   const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, today });
 
+  // Still to book (spec 2026-10-17 R2): `itemRows`/`accommodations` already
+  // carry the Surprise fragments; Wishlist ideas (no Stop, no date) are not in the plan.
+  const tzById = new Map(allStopsRaw.map((s) => [s.id, s.timezone] as const));
+  const stillToBook = buildStillToBook(
+    [
+      ...itemRows
+        .filter((i) => i.bookingState === "TO_BOOK" && (i.stopId || i.date))
+        .map((i) => ({ kind: "ITEM" as const, id: i.id, label: i.title, bookingState: "TO_BOOK" as const, bookBy: i.bookBy, date: i.date, stopId: i.stopId })),
+      ...transports
+        .filter((t) => t.bookingState === "TO_BOOK")
+        .map((t) => {
+          const { depTz } = resolveEndpointZones(
+            t.fromStopId ? (tzById.get(t.fromStopId) ?? null) : null,
+            t.toStopId ? (tzById.get(t.toStopId) ?? null) : null,
+            { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: trip.homeTimezone },
+          );
+          return {
+            kind: "TRANSPORT" as const, id: t.id, label: ownerNames.get(t.id) ?? "Transport", bookingState: "TO_BOOK" as const, bookBy: t.bookBy,
+            date: t.depAt ? instantToZonedDateISO(t.depAt, depTz) : null, stopId: t.anchorStopId ?? t.fromStopId ?? t.toStopId,
+          };
+        }),
+      ...accommodations
+        .filter((a) => a.bookingState === "TO_BOOK")
+        .map((a) => ({ kind: "ACCOMMODATION" as const, id: a.id, label: a.name, bookingState: "TO_BOOK" as const, bookBy: a.bookBy, date: a.checkIn, stopId: a.stopId })),
+    ],
+    base,
+  );
+
   let steps: NextStep[];
   if (trip.startDate) {
     const projection = computeProjection({
@@ -359,7 +397,7 @@ async function load(
       },
     });
   }
-  return { datedStops, planStops, datedChapters, undatedChapterCount, budget, upcomingPayments, steps };
+  return { datedStops, planStops, datedChapters, undatedChapterCount, budget, upcomingPayments, steps, stillToBook };
 }
 
 /** Per-request memoised: the phone and desktop Home trees share one load. */

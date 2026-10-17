@@ -156,6 +156,7 @@ const loaderData = vi.hoisted(() => ({
     budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
     upcomingPayments: [] as unknown[],
     steps: [] as unknown[],
+    stillToBook: [] as unknown[],
   },
 }));
 vi.mock("@/lib/desktop-home-loader", () => ({
@@ -209,6 +210,7 @@ beforeEach(() => {
     budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
     upcomingPayments: [],
     steps: [],
+    stillToBook: [],
   };
 });
 
