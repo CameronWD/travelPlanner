@@ -65,6 +65,19 @@ describe("sortTheseOut", () => {
     expect(rows[1].href).toBe(`${BASE}/plan`);
   });
 
+  it("a Reminder row names what it is about and carries its notes (F8)", () => {
+    const { rows } = sortTheseOut({
+      basePath: BASE, today: "2026-12-01", steps: [],
+      reminders: [
+        reminder("r1", "2026-12-02", { itemId: "i1", itemTitle: "Temple visit", notes: "Bring a sarong" }),
+        reminder("r2", "2026-12-03", { stopId: "s9", stopName: "Ubud" }),
+      ],
+    });
+    expect(rows[0]).toMatchObject({ subtitle: "Due Wed 2 Dec · Temple visit", notes: "Bring a sarong", href: `${BASE}/plan` });
+    expect(rows[1]).toMatchObject({ subtitle: "Due Thu 3 Dec · Ubud" });
+    expect(rows[1].notes).toBeUndefined();
+  });
+
   it("gives pre-trip lilac, empty days pink with a day label (never ISO)", () => {
     const { rows } = sortTheseOut({
       basePath: BASE,

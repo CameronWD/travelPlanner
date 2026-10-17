@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import type { SortIcon, SortRow, SortTone } from "@/lib/sort-these-out";
+import { ReminderNotes } from "@/components/trip/reminder-notes";
 
 export const ICONS: Record<SortIcon, LucideIcon> = {
   bell: Bell,
@@ -103,6 +104,7 @@ export function SortTheseOutTile({ rows, total, seeAllHref }: SortTheseOutTilePr
                 <RowBody row={row} />
               </div>
             )}
+            {row.notes ? <div className="pb-2 pl-[54px]"><ReminderNotes notes={row.notes} /></div> : null}
           </li>
         ))}
       </ul>

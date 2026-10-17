@@ -1,5 +1,6 @@
 import type { Route } from "next";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { SortTheseOutTile } from "./sort-these-out-tile";
 import { ALL_SORTED_ROW, type SortRow } from "@/lib/sort-these-out";
@@ -43,5 +44,16 @@ describe("SortTheseOutTile", () => {
     expect(title.className).not.toContain("truncate");
     expect(title).toHaveAttribute("title", long);
     expect(screen.getByText("No times booked yet.").className).toContain("line-clamp-2");
+  });
+
+  it("folds a row's notes under it, outside the row's link (F8)", async () => {
+    const user = userEvent.setup();
+    render(<SortTheseOutTile total={1} seeAllHref={"/trips/t/summary" as Route} rows={[
+      { id: "reminder-r1", title: "Ring", subtitle: "Due Wed 2 Dec", href: "/trips/t/plan" as Route, tone: "coral", icon: "bell", notes: "Door code 4411" },
+    ]} />);
+    expect(screen.getByText("Door code 4411")).not.toBeVisible();
+    expect(screen.getByRole("link", { name: /Ring/ })).not.toContainElement(screen.getByText("Notes"));
+    await user.click(screen.getByText("Notes"));
+    expect(screen.getByText("Door code 4411")).toBeVisible();
   });
 });
