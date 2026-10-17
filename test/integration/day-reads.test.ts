@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { readDayRows } from "@/lib/day-reads";
+import { buildDayModel } from "@/lib/day-view-model";
 
 // Real Postgres (npm run test:integration). lib/day-reads.test.ts mocks the
 // db; only a real database proves the selects, the plan scope and the
@@ -123,5 +124,23 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readDayRows (real Postgres)", 
     const planner = await readDayRows(TRIP_ID, PLANNER, none);
     if (typeof planner === "string") throw new Error(planner);
     expect(planner.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ slotTime: "19:45", refundable: false });
+  });
+
+  it("a dated Item carries its opening hours to the Day view; a hidden Surprise's placeholder never does", async () => {
+    const span = [["09:30", "19:00"]];
+    const hours = { week: { sun: span, mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [], source: "https://it-tram.example" };
+    await db.item.update({ where: { id: "it-dr-tram" }, data: { openingHours: JSON.stringify(hours) } });
+    await db.item.update({ where: { id: "it-dr-dinner" }, data: { openingHours: JSON.stringify({ ...hours, source: "https://it-birthday-dinner.example" }) } });
+
+    const planner = await readDayRows(TRIP_ID, PLANNER, none);
+    if (typeof planner === "string") throw new Error(planner);
+    expect(planner.rows.items.find((i) => i.id === "it-dr-tram")!.openingHours).toEqual(hours);
+    const day = buildDayModel(planner.rows, "2027-06-02").dayPlan!;
+    expect([...day.timedItems, ...day.untimedItems].find((e) => e.item.id === "it-dr-tram")!.item.openingHours).toEqual(hours);
+
+    const member = await readDayRows(TRIP_ID, MEMBER, none);
+    if (typeof member === "string") throw new Error(member);
+    expect(member.rows.items.find((i) => i.id === "it-dr-dinner")!.openingHours).toBeNull();
+    expect(JSON.stringify(member.rows)).not.toContain("it-birthday-dinner");
   });
 });

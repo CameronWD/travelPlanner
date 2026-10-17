@@ -10,6 +10,7 @@ import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
+import type { OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
 // Minimal input shapes
@@ -52,6 +53,8 @@ export interface ItineraryItem {
   photoUrl?: string | null;
   /** CONTEXT.md "Surprise" — the live Surprise this Item is (planner's badge or a placeholder's shell); null/absent = none. */
   surprise?: SurpriseView | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
+  openingHours?: OpeningHours | null;
 }
 
 export interface ItineraryTransport {

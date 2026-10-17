@@ -8,6 +8,7 @@ import { chapterForDate } from "@/lib/chapters";
 import { titlesByDate } from "@/lib/day-titles";
 import { itemPhotoUrl } from "@/lib/item-photo";
 import type { SurpriseView } from "@/lib/surprise";
+import type { OpeningHours } from "@/lib/opening-hours";
 
 export function dayHeading(dateISO: string, tripStart: string, tripEnd: string): string {
   const spansYears = tripStart.slice(0, 4) !== tripEnd.slice(0, 4);
@@ -169,6 +170,8 @@ interface DayItemRow {
   bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
   /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
   slotTime: string | null; arriveByMinutes: number | null; refundable: boolean | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null = not known. */
+  openingHours: OpeningHours | null;
 }
 interface DayTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depPlace: string | null; arrPlace: string | null;
@@ -275,6 +278,7 @@ function deriveTrip(rows: DayRows): TripDerived {
         hiddenFromShares: i.hiddenFromShares, photoUrl: itemPhotoUrl(i, attachmentsById), surprise: i.surprise,
         bookingState: i.bookingState, bookBy: i.bookBy,
         slotTime: i.slotTime, arriveByMinutes: i.arriveByMinutes, refundable: i.refundable,
+        openingHours: i.openingHours,
       })),
       transports: rows.transports.map((t) => ({
         id: t.id, mode: t.mode as TransportMode, fromStopId: t.fromStopId, toStopId: t.toStopId,

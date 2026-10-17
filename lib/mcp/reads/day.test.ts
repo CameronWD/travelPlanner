@@ -11,7 +11,7 @@ const surprised = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: tru
 const itemRow = (o: Partial<DayRows["items"][number]>): DayRows["items"][number] => ({
   id: "i", title: "T", category: "SIGHTSEEING", date: "2027-06-02", startTime: null, endTime: null, sortOrder: 0, stopId: "s1",
   lat: null, lng: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null,
-  bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, ...o,
+  bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, ...o,
 });
 const rows: DayRows = {
   trip: { name: "Porto", startDate: "2027-06-01", endDate: "2027-06-04", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane", chaptersEnabled: false, roundTrip: true },
