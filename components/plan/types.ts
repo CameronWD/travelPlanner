@@ -6,6 +6,7 @@
 
 import type { ItemCardItem } from "@/components/trip/item-card";
 import type { BookingState } from "@/lib/enum-values";
+import type { OpeningHours } from "@/lib/opening-hours";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { SurpriseView } from "@/lib/surprise";
 
@@ -54,6 +55,8 @@ export interface ThingToDo {
   slotTime?: string | null;
   arriveByMinutes?: number | null;
   refundable?: boolean | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
+  openingHours?: OpeningHours | null;
   notes?: string | null;
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
@@ -82,6 +85,7 @@ export function toItemCardItem(it: StopDayItem | ThingToDo): ItemCardItem {
     slotTime: it.slotTime ?? null,
     arriveByMinutes: it.arriveByMinutes ?? null,
     refundable: it.refundable ?? null,
+    openingHours: it.openingHours ?? null,
     notes: it.notes ?? null,
     stopId: it.stopId ?? null,
     hiddenFromShares: it.hiddenFromShares ?? false,

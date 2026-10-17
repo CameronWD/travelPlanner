@@ -14,6 +14,8 @@ import {
 } from "@/lib/surprise-visibility";
 import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
+import { withOpeningHours } from "@/lib/opening-hours-stored";
+import type { OpeningHours } from "@/lib/opening-hours";
 
 /**
  * The Plan reader (spec 2026-10-14 card A, Q2): everything a page needs to
@@ -109,6 +111,7 @@ const PLAN_ITEM_SELECT = {
   slotTime: true,
   arriveByMinutes: true,
   refundable: true,
+  openingHours: true,
   bookingState: true,
   bookingStateSet: true,
   bookBy: true,
@@ -156,7 +159,12 @@ type PlanStopRow = Prisma.StopGetPayload<{ select: typeof PLAN_STOP_SELECT }> & 
 type WithBookingState<T> = Omit<T, "bookingState"> & { bookingState: BookingState };
 type PlanTransportRow = WithBookingState<Prisma.TransportGetPayload<{ select: typeof PLAN_TRANSPORT_SELECT }>>;
 type PlanAccommodationRow = WithBookingState<Prisma.AccommodationGetPayload<{ select: typeof PLAN_ACCOMMODATION_SELECT }>>;
-type PlanItemRow = (WithBookingState<Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }>> | PlaceholderItem) & {
+type PlanItemRow = (
+  | (Omit<WithBookingState<Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }>>, "openingHours"> & {
+      openingHours: OpeningHours | null;
+    })
+  | PlaceholderItem
+) & {
   surprise: SurpriseView | null;
 };
 type PlanCostRow = Prisma.CostGetPayload<{ select: typeof COST_SELECT }>;
@@ -300,7 +308,13 @@ export const readPlan: (tripId: string, viewer: PlanViewer, plan: PlanId) => Pro
       stops: orderPlanStops(maskPlanStops(stopRows, v)),
       transports: transports as PlanTransportRow[],
       accommodations: accommodations as PlanAccommodationRow[],
-      items: mergePlanItems(itemRows as WithBookingState<(typeof itemRows)[number]>[], v, plan),
+      items: mergePlanItems(
+        itemRows.map(withOpeningHours) as WithBookingState<
+          Omit<(typeof itemRows)[number], "openingHours"> & { openingHours: OpeningHours | null }
+        >[],
+        v,
+        plan,
+      ),
       costs,
       exchangeRates,
       chapters,

@@ -18,4 +18,14 @@ describe("toItemCardItem", () => {
     ).toMatchObject({ slotTime: "12:00", arriveByMinutes: 15, refundable: false });
     expect(toItemCardItem({ id: "i2", title: "Walk", category: "OTHER" })).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: null });
   });
+
+  it("carries the opening hours to the edit dialog", () => {
+    const hours = {
+      week: { sat: [["10:00", "14:00"]] as [string, string][] },
+      seasons: [],
+      closed: [],
+    };
+    expect(toItemCardItem({ id: "i1", title: "Market", category: "FOOD", openingHours: hours }).openingHours).toEqual(hours);
+    expect(toItemCardItem({ id: "i2", title: "Walk", category: "OTHER" }).openingHours).toBeNull();
+  });
 });

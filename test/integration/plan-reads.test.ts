@@ -111,4 +111,14 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () 
     const rows = await readPlan(TRIP_ID, OWNER, null);
     expect(rows.items.find((i) => i.id === "it-plan-slot")).toMatchObject({ slotTime: "12:00", arriveByMinutes: 15, refundable: false });
   });
+
+  it("an Item's opening hours read back parsed", async () => {
+    const span = [["10:00", "18:00"]];
+    const hours = { week: { mon: span, tue: span, wed: span, thu: span, fri: span, sat: span, sun: [] }, seasons: [], closed: ["2027-06-10"] };
+    await db.item.create({
+      data: { id: "it-plan-lello", tripId: TRIP_ID, stopId: STOP_A, title: "IT Lello", category: "SIGHTSEEING", date: "2027-06-02", sortOrder: 0, openingHours: JSON.stringify(hours) },
+    });
+    const rows = await readPlan(TRIP_ID, OWNER, null);
+    expect(rows.items.find((i) => i.id === "it-plan-lello")!.openingHours).toEqual(hours);
+  });
 });

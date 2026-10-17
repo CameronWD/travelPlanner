@@ -8,6 +8,7 @@
  */
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import type { PlanRows } from "@/lib/plan-reads";
+import { parseOpeningHours } from "@/lib/validations/opening-hours";
 import { datedTripFixture } from "./index";
 
 export function planRows(o: Partial<PlanRows> = {}): PlanRows {
@@ -20,7 +21,7 @@ export function planRows(o: Partial<PlanRows> = {}): PlanRows {
     stops: f.stops.map((s) => ({ ...s, surprise: null })),
     transports: f.transports,
     accommodations: f.stays,
-    items: f.items.map((i) => ({ ...i, surprise: null })),
+    items: f.items.map((i) => ({ ...i, surprise: null, openingHours: parseOpeningHours(i.openingHours) })),
     costs: f.costs,
     exchangeRates: [],
     chapters: [],

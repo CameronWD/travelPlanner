@@ -1,4 +1,5 @@
 import type { BookingState, TransportMode } from "@/lib/enum-values";
+import type { OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import type { CostRow } from "@/lib/money/cost-row";
 
@@ -28,6 +29,8 @@ export interface ItemCardItem {
   slotTime?: string | null;
   arriveByMinutes?: number | null;
   refundable?: boolean | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
+  openingHours?: OpeningHours | null;
   notes?: string | null;
   stopId?: string | null;
   stopName?: string | null; // resolved from stop relation

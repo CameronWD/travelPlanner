@@ -48,6 +48,8 @@ export type ItemRow = {
   booking: string | null; bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
   /** CONTEXT.md "Slot time" (R3) — the ticket's time, how early to be there, and whether it can be refunded. */
   slotTime: string | null; arriveByMinutes: number | null; refundable: boolean | null;
+  /** CONTEXT.md "Opening hours" (R4) — the stored JSON string column; null = not known. */
+  openingHours: string | null;
   notes: string | null; lat: number | null; lng: number | null; countryCode: string | null;
   hiddenFromShares: boolean; sortOrder: number; photoAttachmentId: string | null; sourceItemId: string | null;
   surprisePlannerId: string | null; surpriseRevealedAt: Date | null; createdAt: Date; updatedAt: Date;
@@ -106,6 +108,7 @@ export function item(o: Partial<ItemRow> = {}): ItemRow {
     id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", date: "2026-11-02", title: "Belém Tower",
     category: "SIGHTSEEING", startTime: "10:00", endTime: "11:30", address: null, link: null, booking: null,
     bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null,
+    openingHours: null,
     notes: null, lat: null, lng: null, countryCode: null,
     hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
     sourceItemId: null, surprisePlannerId: null, surpriseRevealedAt: null, createdAt: NOW, updatedAt: NOW, ...o,

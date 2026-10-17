@@ -18,6 +18,7 @@
 
 import type { BookingState } from "@/lib/enum-values";
 import { enumerateTripDays } from "@/lib/itinerary";
+import type { OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 
 export interface StopDayItem {
@@ -40,6 +41,8 @@ export interface StopDayItem {
   slotTime?: string | null;
   arriveByMinutes?: number | null;
   refundable?: boolean | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
+  openingHours?: OpeningHours | null;
   notes?: string | null;
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
