@@ -32,6 +32,12 @@ describe("slot fields", () => {
     expect(arriveByMinutesSchema.safeParse(-1).success).toBe(false);
     expect(arriveByMinutesSchema.safeParse(7.5).success).toBe(false);
   });
+  it("arrive-by's errors use the field's label, Be there early", () => {
+    const msg = (v: number) => arriveByMinutesSchema.safeParse(v).error?.issues[0]?.message;
+    expect(msg(7.5)).toBe("Be there early must be whole minutes");
+    expect(msg(-1)).toBe("Be there early can't be negative");
+    expect(msg(721)).toBe("Be there early can be at most 12 hours");
+  });
   it("refundable is yes or no (null, not known, is the caller's nullable())", () => {
     expect(refundableSchema.safeParse(false).success).toBe(true);
     expect(refundableSchema.safeParse("no").success).toBe(false);
@@ -45,7 +51,7 @@ describe("slot fields", () => {
     expect(s.safeParse({}).success).toBe(true);
     const bad = s.safeParse({ arriveByMinutes: 15 });
     expect(bad.success).toBe(false);
-    expect(bad.error?.issues[0]).toMatchObject({ path: ["arriveByMinutes"], message: "Set the slot time to use an arrive-by margin" });
+    expect(bad.error?.issues[0]).toMatchObject({ path: ["arriveByMinutes"], message: "Be there early needs a slot time" });
     expect(s.safeParse({ slotTime: null, arriveByMinutes: 15 }).success).toBe(false);
   });
 });

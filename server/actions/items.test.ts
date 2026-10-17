@@ -2403,7 +2403,7 @@ describe("scheduleItem: Slot time (R3)", () => {
     itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
       .mockResolvedValueOnce({ ...idea, slotTime: null, arriveByMinutes: null });
     expect(await scheduleItem("item-1", { date: "2027-06-02", arriveByMinutes: 15 }, null)).toEqual({
-      success: false, errors: { arriveByMinutes: ["Set the slot time to use an arrive-by margin"] },
+      success: false, errors: { arriveByMinutes: ["Be there early needs a slot time"] },
     });
     expect(itemCreateMock).not.toHaveBeenCalled();
     expect(itemUpdateMock).not.toHaveBeenCalled();

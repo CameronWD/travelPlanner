@@ -19,15 +19,16 @@ export const slotTimeSchema = hhmm;
 
 export const arriveByMinutesSchema = z
   .number()
-  .int("Arrive-by must be whole minutes")
-  .min(0, "Arrive-by can't be negative")
-  .max(MAX_ARRIVE_BY_MINUTES, "Arrive-by can be at most 12 hours");
+  // Copy uses the dialog's label for the field, "Be there early".
+  .int("Be there early must be whole minutes")
+  .min(0, "Be there early can't be negative")
+  .max(MAX_ARRIVE_BY_MINUTES, "Be there early can be at most 12 hours");
 
 /** true = refundable, false = not; the caller's `.nullable()` carries "not known". */
 export const refundableSchema = z.boolean();
 
 /** The refusal for an arrive-by margin with no slot time (checkSlotFields, scheduleItem). */
-export const ARRIVE_BY_NEEDS_SLOT_MESSAGE = "Set the slot time to use an arrive-by margin";
+export const ARRIVE_BY_NEEDS_SLOT_MESSAGE = "Be there early needs a slot time";
 
 /** superRefine callback: an arrive-by margin only means something against a slot time. */
 export function checkSlotFields(
