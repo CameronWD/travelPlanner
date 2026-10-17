@@ -1918,3 +1918,51 @@ describe("TransportFormDialog: Reminders (F8)", () => {
     expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
   });
 });
+
+describe("TransportFormDialog: Booking state (spec 2026-10-17 R2: a tentative leg is To book)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a new leg is To book with a Book by date; the date goes with the save, the state is left to the server", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    expect(screen.getByRole("radio", { name: "To book" })).toHaveAttribute("data-state", "on");
+    await user.type(screen.getByLabelText("Book by"), "2027-05-01");
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(vi.mocked(createTransport).mock.calls[0][1]).toMatchObject({ bookBy: "2027-05-01" });
+    expect(vi.mocked(createTransport).mock.calls[0][1].bookingState).toBeUndefined();
+  });
+
+  it("editing an un-chosen To book leg and typing its reference previews Booked and sends bookBy null", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={{ ...existingTransport, reference: null, bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01" }}
+      />,
+    );
+    expect(screen.getByLabelText("Book by")).toHaveValue("2027-05-01");
+    await user.type(screen.getByPlaceholderText(/BA0123/), "ICE 512");
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    expect(screen.queryByLabelText("Book by")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(existingTransport.id, expect.objectContaining({ reference: "ICE 512", bookBy: null }));
+    expect(vi.mocked(updateTransport).mock.calls[0][1].bookingState).toBeUndefined();
+  });
+
+  it("a leg the Traveller set to To book stays To book when its reference is typed, and keeps its date", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={{ ...existingTransport, reference: null, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-01" }}
+      />,
+    );
+    await user.type(screen.getByPlaceholderText(/BA0123/), "ICE 512");
+    expect(screen.getByRole("radio", { name: "To book" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(
+      existingTransport.id,
+      expect.objectContaining({ reference: "ICE 512", bookingState: "TO_BOOK", bookBy: "2027-05-01" }),
+    );
+  });
+});

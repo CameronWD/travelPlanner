@@ -49,6 +49,7 @@ import { HUE_CLASSES } from "@/lib/hues";
 import { formatDayLabel } from "@/lib/dates";
 import { resolveTransportSlot, canSitBeforeFirstStop, creationAnchor, HEAD_SLOT } from "@/lib/transport-anchor";
 import { toPatch } from "@/lib/patch";
+import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -280,7 +281,8 @@ interface TransportFormProps {
 export { HOME_ENDPOINT } from "./transport-endpoints";
 
 /** An edit's empty fields are clears (ADR 0075). Each end is sent whole; the home flags are always booleans. */
-const TRANSPORT_CLEARABLE = ["fromStopId", "toStopId", "depPlace", "arrPlace", "depAt", "arrAt", "reference", "notes", "anchorStopId", "paidAt"] as const;
+// `bookingState` is deliberately absent: a null would hand a choice back to automatic; an un-chosen state is simply not sent.
+const TRANSPORT_CLEARABLE = ["fromStopId", "toStopId", "depPlace", "arrPlace", "depAt", "arrAt", "reference", "notes", "anchorStopId", "paidAt", "bookBy"] as const;
 
 function TransportForm({
   tripId,
@@ -457,6 +459,7 @@ function TransportForm({
     proposed?.arrAt ? proposed.arrAt : instantToWallTimeInput(transport?.arrAt, initialZones.arrTz),
   );
   const [reference, setReference] = React.useState(transport?.reference ?? proposed?.reference ?? "");
+  const bookingField = useBookingStateField("TRANSPORT", transport ?? seedFromProposal(proposed), reference);
   const [notesText, setNotesText] = React.useState(transport?.notes ?? proposed?.notes ?? "");
   // Car with no times yet shows a drive estimate instead of empty Leaves/
   // Arrives cards; "Add times" reveals them without waiting for a real time.
@@ -476,7 +479,7 @@ function TransportForm({
   );
 
   // UI-only state (showTimes, selectedAt, showCost) is not input.
-  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, notesText, cost: cost.dirtyValues });
+  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, bookingState: bookingField.dirtyValues, notesText, cost: cost.dirtyValues });
 
   // The would-be create/update input, exactly as typed.
   function buildInput() {
@@ -521,6 +524,7 @@ function TransportForm({
       depAt: depAt || undefined,
       arrAt: arrAt || undefined,
       reference: reference.trim() || undefined,
+      ...bookingField.payload(),
       notes: notesText.trim() || undefined,
       // A proposed Stop id must never become an anchor: confirmProposal computes it.
       anchorStopId: onSubmitOverride ? undefined : anchorForSubmit(),
@@ -836,6 +840,9 @@ function TransportForm({
             </Field>
           )}
         </div>
+
+        {/* Booking state (CONTEXT.md): a tentative leg is To book; a typed reference implies Booked until the Traveller picks. */}
+        <BookingStateField field={bookingField} errors={errors} disabled={isPending} />
 
         {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
         <div className="flex flex-col gap-2">
