@@ -5,6 +5,7 @@ import {
   flagClosedOnDay,
   flagLateForSlot,
   flagOutsideOpeningHours,
+  flagStillToBookSoon,
   type FlagAccommodation,
   type FlagItem,
   type FlagStop,
@@ -245,5 +246,56 @@ describe("flagBookByDates (Book by soon, info / Overdue, warning)", () => {
     });
     expect(bookIds(flags)).toEqual(["book-by-soon-pass", "book-by-soon-t-rough"]);
     expect(flags.find((f) => f.id === "book-by-soon-t-rough")?.message).toBe("Book the train from Nuremberg to Somewhere by Thu 3 Dec, in 2 days.");
+  });
+});
+
+describe("flagStillToBookSoon (Still to book close to the day, info)", () => {
+  const today = "2026-12-01";
+  const nbg = stop({ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-09", sortOrder: 0 });
+  const munich = stop({ id: "munich", name: "Munich", arriveDate: "2026-12-09", departDate: "2026-12-12", sortOrder: 1 });
+  const leg = (o: Partial<FlagTransport> & { id: string }): FlagTransport => ({ mode: "TRAIN", fromStopId: "nbg", toStopId: "munich", arrAt: null, bookingState: "TO_BOOK", bookBy: null, depAt: null, ...o });
+  const stay = (o: Partial<FlagAccommodation> & { id: string }): FlagAccommodation => ({ stopId: "nbg", name: "Hotel Victoria", checkIn: "2026-12-06", checkOut: "2026-12-09", bookingState: "TO_BOOK", bookBy: null, ...o });
+  const run = (o: { transports?: FlagTransport[]; accommodations?: FlagAccommodation[] }) =>
+    flagStillToBookSoon({ transports: [], accommodations: [], today, stops: [nbg, munich], ...o });
+
+  it("a To book leg within 14 days, with no book-by date", () => {
+    expect(run({ transports: [leg({ id: "t1", depAt: "2026-12-09T08:00:00Z" })] })).toEqual([
+      { id: "still-to-book-t1", severity: "info", message: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", targetType: "TRANSPORT", targetId: "t1", stopId: "nbg" },
+    ]);
+    expect(run({ transports: [leg({ id: "t1", depAt: "2026-12-15T08:00:00Z" })] })[0].message).toContain("in 14 days (Tue 15 Dec)");
+    expect(run({ transports: [leg({ id: "t1", depAt: "2026-12-16T08:00:00Z" })] })).toEqual([]);
+  });
+
+  it("reads the leg's day in its own zone", () => {
+    // 23:30Z on 1 Dec is 00:30 on 2 Dec in Nuremberg.
+    expect(run({ transports: [leg({ id: "t1", depAt: "2026-12-01T23:30:00Z" })] })[0].message)
+      .toBe("The train from Nuremberg to Munich is still to book and leaves tomorrow.");
+  });
+
+  it("a To book stay checking in within 14 days", () => {
+    expect(run({ accommodations: [stay({ id: "a1", checkIn: "2026-12-01" })] })).toEqual([
+      { id: "still-to-book-a1", severity: "info", message: "Hotel Victoria is still to book and you check in today.", targetType: "ACCOMMODATION", targetId: "a1", stopId: "nbg" },
+    ]);
+  });
+
+  it("silent with a book-by date (Book by's job), when Booked, with no date, or once past", () => {
+    expect(run({
+      transports: [
+        leg({ id: "a", depAt: "2026-12-05T08:00:00Z", bookBy: "2026-12-03" }),
+        leg({ id: "b", depAt: "2026-12-05T08:00:00Z", bookingState: "BOOKED" }),
+        leg({ id: "c", depAt: null }),
+        leg({ id: "d", depAt: "2026-11-30T08:00:00Z" }),
+      ],
+      accommodations: [stay({ id: "e", checkIn: "2026-11-29" })],
+    })).toEqual([]);
+  });
+
+  it("detectFlags: never an Item; never a stay inside a hidden Stop", () => {
+    const flags = detectFlags({
+      stops: [nbg, munich], tripStart: "2026-12-06", tripEnd: "2026-12-12", today, hiddenStopIds: ["munich"], transports: [],
+      items: [item({ id: "i1", date: "2026-12-07", bookingState: "TO_BOOK" })],
+      accommodations: [stay({ id: "a-nbg" }), stay({ id: "a-secret", stopId: "munich", checkIn: "2026-12-09", checkOut: "2026-12-12" })],
+    });
+    expect(flags.map((f) => f.id).filter((id) => id.startsWith("still-to-book-"))).toEqual(["still-to-book-a-nbg"]);
   });
 });

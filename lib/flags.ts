@@ -1167,6 +1167,39 @@ export function flagBookByDates(
 }
 
 // ---------------------------------------------------------------------------
+// Rule 22: Still to book close to the day (info)
+//
+// A leg or stay still To book with no book-by date (a dated one is Rule 21's)
+// whose own day (local departure, check-in) is within
+// STILL_TO_BOOK_WITHIN_DAYS of today. Items are not included (spec R7: "a To
+// book leg or stay"); a leg with no departure time stays silent (the
+// unbooked-transport nudge covers it).
+// ---------------------------------------------------------------------------
+
+export const STILL_TO_BOOK_WITHIN_DAYS = 14;
+
+const dayFromToday = (n: number, date: string) =>
+  n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days (${formatDayLabel(date)})`;
+
+export function flagStillToBookSoon(
+  input: { transports: FlagTransport[]; accommodations: FlagAccommodation[] } & BookingContext,
+): Flag[] {
+  const flags: Flag[] = [];
+  for (const s of bookingSubjects([], input.transports, input.accommodations, input)) {
+    if (s.bookingState !== "TO_BOOK" || activeBookBy(s.bookingState, s.bookBy) || !s.when) continue;
+    const n = daysBetween(input.today, s.when);
+    if (n < 0 || n > STILL_TO_BOOK_WITHIN_DAYS) continue;
+    const when = dayFromToday(n, s.when);
+    const message =
+      s.target.targetType === "TRANSPORT"
+        ? `${s.label.charAt(0).toUpperCase()}${s.label.slice(1)} is still to book and leaves ${when}.`
+        : `${s.label} is still to book and you check in ${when}.`;
+    flags.push({ id: `still-to-book-${s.id}`, severity: "info", message, ...s.target });
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -1191,6 +1224,7 @@ export function flagBookByDates(
  *   18–19. Before opening / After closing (warning)
  *   20. Late for the slot (warning)
  *   21. Book by soon (info) / Overdue (warning)
+ *   22. Still to book close to the day (info)
  */
 export function detectFlags({
   stops,
@@ -1263,6 +1297,9 @@ export function detectFlags({
     ...flagLateForSlot(planning.items),
     ...(today
       ? flagBookByDates({ items: planning.items, transports, accommodations: planning.accommodations, today, stops, stopNames, home, homeTimezone })
+      : []),
+    ...(today
+      ? flagStillToBookSoon({ transports, accommodations: planning.accommodations, today, stops, stopNames, home, homeTimezone })
       : []),
   ];
 }
