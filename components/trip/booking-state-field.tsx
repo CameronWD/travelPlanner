@@ -56,7 +56,7 @@ export function useBookingStateField(subject: BookingSubject, seed: BookingState
 export type BookingStateFieldState = ReturnType<typeof useBookingStateField>;
 
 /** Shown under the control while the state is not picked (bookingStateSet false). */
-export const FOLLOWS_REFERENCE_HINT = "Follows the booking reference until you pick one.";
+const FOLLOWS_REFERENCE_HINT = "Follows the booking reference until you pick one.";
 const NOT_PAYING = "Booked doesn't mean paid. Mark the cost paid on its own.";
 
 /** The Segmented control, wired to its Field (id, aria-describedby, aria-invalid). */
