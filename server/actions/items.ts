@@ -25,6 +25,7 @@ import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { validateSurpriseFor } from "@/lib/surprise";
 import { revalidateTrip } from "@/lib/revalidate";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { arriveByMinutesSchema, slotTimeSchema } from "@/lib/validations/planning";
 import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
 import { startFromSlot } from "@/lib/slot-time";
 
@@ -540,6 +541,9 @@ const scheduleDateSchema = z
     date: isoDate,
     startTime: hhmm.optional(),
     endTime: hhmm.optional(),
+    // CONTEXT.md "Slot time" (R3): scheduling a ticket may name its slot.
+    slotTime: slotTimeSchema.optional(),
+    arriveByMinutes: arriveByMinutesSchema.optional(),
   })
   .refine(
     (data) => {
@@ -624,8 +628,9 @@ async function finishPlacedCopy({
  * lib/opening-hours.ts openingHoursFamilyWhere). The idea's CHOSEN Booking
  * state carries over, with its book-by date while To book; an un-chosen
  * idea's copy re-derives without the reference (never copied), so it needs
- * no booking (lib/booking-state-patch.ts copiedBookingFields). Slot time is
- * NOT copied: the ticket belongs to the placed Item. Shared by `scheduleItem`'s copy-in branch (which
+ * no booking (lib/booking-state-patch.ts copiedBookingFields). The ticket's
+ * Slot time, arrive-by and refundability carry over too (spec 2026-10-17 R3,
+ * Section C decision 5). Shared by `scheduleItem`'s copy-in branch (which
  * also sets a date/time and resolves an owning Stop from the date) and
  * `placeIdeaAtStop` (which sets a Stop directly and no date), so the two
  * copies can't drift apart (Task 15 brief).
@@ -642,6 +647,9 @@ function ideaCopyData(fullItem: {
   notes: string | null;
   hiddenFromShares: boolean | null;
   openingHours?: string | null;
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
   bookingState: string;
   bookingStateSet: boolean;
   bookBy: string | null;
@@ -661,6 +669,11 @@ function ideaCopyData(fullItem: {
     // (review fix, Task 9).
     hiddenFromShares: fullItem.hiddenFromShares ?? false,
     openingHours: fullItem.openingHours ?? null,
+    // A ticket's facts follow the idea onto its placed copy (R3); scheduleItem
+    // may override the slot and margin.
+    slotTime: fullItem.slotTime ?? null,
+    arriveByMinutes: fullItem.arriveByMinutes ?? null,
+    refundable: fullItem.refundable ?? null,
     ...copiedBookingFields(fullItem),
   };
 }
@@ -676,6 +689,9 @@ function ideaCopyData(fullItem: {
  *
  * The date is allowed to be outside the trip date range — this is a soft rule;
  * we store it as-is and the UI can warn.
+ *
+ * With no start, a slot (the call's, else the row's) sets it: slot − arrive-by
+ * (R3, startFromSlot). The in-place branch writes slot fields only when sent.
  */
 export async function scheduleItem(
   itemId: string,
@@ -690,11 +706,17 @@ export async function scheduleItem(
     return validationResult(parsed.error);
   }
 
-  const { date, startTime, endTime } = parsed.data;
+  const { date, startTime, endTime, slotTime, arriveByMinutes } = parsed.data;
 
   // Fetch the full item row to determine which branch to take.
   const fullItem = await db.item.findUnique({ where: { id: itemId } });
   if (!fullItem) notFound();
+
+  // The call's slot wins over the row's (R3); a margin still needs a slot.
+  const slot = { slotTime: slotTime ?? fullItem.slotTime, arriveByMinutes: arriveByMinutes ?? fullItem.arriveByMinutes };
+  if (slot.arriveByMinutes != null && !slot.slotTime) {
+    return { success: false, errors: { arriveByMinutes: ["Set the slot time to use an arrive-by margin"] } };
+  }
 
   const isWishlistIdea =
     fullItem.date === null && fullItem.stopId === null && fullItem.forkId === null;
@@ -730,7 +752,9 @@ export async function scheduleItem(
         ...ideaCopyData(fullItem),
         stopId: placedStopId,
         date,
-        startTime: startTime ?? null,
+        startTime: startFromSlot({ date, startTime, ...slot }),
+        slotTime: slot.slotTime ?? null,
+        arriveByMinutes: slot.arriveByMinutes ?? null,
         endTime: endTime ?? null,
         sortOrder,
       },
@@ -758,8 +782,10 @@ export async function scheduleItem(
     data: {
       date,
       stopId: owningStopId,
-      startTime: startTime ?? null,
+      startTime: startFromSlot({ date, startTime, ...slot }),
       endTime: endTime ?? null,
+      ...(slotTime !== undefined && { slotTime }),
+      ...(arriveByMinutes !== undefined && { arriveByMinutes }),
     },
   });
 

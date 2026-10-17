@@ -2322,3 +2322,73 @@ describe("updateItem: Slot time (R3, PATCH)", () => {
     expect(itemUpdateMock).not.toHaveBeenCalled();
   });
 });
+
+describe("scheduleItem: Slot time (R3)", () => {
+  const idea = {
+    id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Fado night", category: "NIGHTLIFE",
+    slotTime: "20:00", arriveByMinutes: 10, refundable: false, photoAttachmentId: null,
+  };
+  it("a placed copy carries the idea's slot and starts at slot − arrive-by when no start is given", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1", title: "Fado night" });
+    await scheduleItem("item-1", { date: "2027-06-02" }, null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      sourceItemId: "item-1", date: "2027-06-02", startTime: "19:50", slotTime: "20:00", arriveByMinutes: 10, refundable: false,
+    }) });
+  });
+  it("a slot given to the schedule call wins over the idea's, and an explicit start is kept", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await scheduleItem("item-1", { date: "2027-06-02", startTime: "19:00", slotTime: "21:00" }, null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "19:00", slotTime: "21:00", arriveByMinutes: 10 }) });
+  });
+  it("an idea without a slot places with no start, as before", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ ...idea, slotTime: null, arriveByMinutes: null, refundable: null });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await scheduleItem("item-1", { date: "2027-06-02" }, null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      startTime: null, slotTime: null, arriveByMinutes: null, refundable: null,
+    }) });
+  });
+  it("an in-place move with no start defaults it from the row's slot; slot fields are written only when sent", async () => {
+    const placed = { ...idea, id: "placed-1", date: "2027-06-01", stopId: null, startTime: null };
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }).mockResolvedValueOnce(placed);
+    itemUpdateMock.mockResolvedValue({ ...placed, date: "2027-06-02", startTime: "19:50" });
+    await scheduleItem("placed-1", { date: "2027-06-02" }, null);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "placed-1" }, data: { date: "2027-06-02", stopId: null, startTime: "19:50", endTime: null } });
+  });
+  it("an in-place move that names a slot writes it", async () => {
+    const placed = { ...idea, id: "placed-1", date: "2027-06-01", stopId: null, startTime: null };
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }).mockResolvedValueOnce(placed);
+    itemUpdateMock.mockResolvedValue(placed);
+    await scheduleItem("placed-1", { date: "2027-06-02", slotTime: "18:00", arriveByMinutes: 30 }, null);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "placed-1" }, data: {
+      date: "2027-06-02", stopId: null, startTime: "17:30", endTime: null, slotTime: "18:00", arriveByMinutes: 30,
+    } });
+  });
+  it("refuses a malformed slot or an out-of-range margin", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    expect((await scheduleItem("item-1", { date: "2027-06-02", slotTime: "25:00" }, null)).success).toBe(false);
+    expect((await scheduleItem("item-1", { date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 999 }, null)).success).toBe(false);
+    // a margin with no slot on the call or the row
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ ...idea, slotTime: null, arriveByMinutes: null });
+    expect(await scheduleItem("item-1", { date: "2027-06-02", arriveByMinutes: 15 }, null)).toEqual({
+      success: false, errors: { arriveByMinutes: ["Set the slot time to use an arrive-by margin"] },
+    });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+  it("placeIdeaAtStop copies the slot fields (no date, so no start)", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null }).mockResolvedValueOnce(idea);
+    stopFindFirstMock.mockResolvedValue({ id: "stop-1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-2" });
+    await placeIdeaAtStop("item-1", "stop-1", null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: null, slotTime: "20:00", arriveByMinutes: 10, refundable: false }) });
+  });
+});
