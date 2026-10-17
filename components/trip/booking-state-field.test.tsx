@@ -89,4 +89,35 @@ describe("BookingStateField (CONTEXT.md Booking state)", () => {
     render(<Harness kind="ITEM" onPayload={() => {}} />);
     expect(screen.getByText(/booked doesn't mean paid/i)).toBeInTheDocument();
   });
+
+  it("the control is wired to its Field: labelled, described, and pointed at the error when there is one", () => {
+    function WithError() {
+      const field = useBookingStateField("TRANSPORT", undefined, "");
+      return <BookingStateField field={field} errors={{ bookingState: ["Pick a booking state"] }} />;
+    }
+    const { unmount } = render(<Harness kind="TRANSPORT" onPayload={() => {}} />);
+    const group = screen.getByRole("radiogroup", { name: "Booking" });
+    expect(group).toHaveAccessibleDescription(/booked doesn't mean paid/i);
+    expect(group).not.toHaveAttribute("aria-invalid");
+    unmount();
+    render(<WithError />);
+    const invalid = screen.getByRole("radiogroup", { name: "Booking" });
+    expect(invalid).toHaveAttribute("aria-invalid", "true");
+    expect(invalid).toHaveAccessibleDescription(/pick a booking state/i);
+  });
+
+  it("while no state is picked it says it follows the booking reference; a pick drops the hint", async () => {
+    const user = userEvent.setup();
+    render(<Harness kind="TRANSPORT" onPayload={() => {}} />);
+    const group = screen.getByRole("radiogroup", { name: "Booking" });
+    expect(screen.getByText("Follows the booking reference until you pick one.")).toBeInTheDocument();
+    expect(group).toHaveAccessibleDescription(/follows the booking reference until you pick one/i);
+    await user.click(on("Booked"));
+    expect(screen.queryByText("Follows the booking reference until you pick one.")).not.toBeInTheDocument();
+  });
+
+  it("a saved choice shows no follows-the-reference hint", () => {
+    render(<Harness kind="ITEM" seed={{ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: null }} onPayload={() => {}} />);
+    expect(screen.queryByText("Follows the booking reference until you pick one.")).not.toBeInTheDocument();
+  });
 });
