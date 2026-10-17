@@ -127,7 +127,7 @@ describe("buildDayModel (card 3.M)", () => {
   const item = (o: Partial<DayRows["items"][number]> & { id: string; date: string }) => ({
     title: `Item ${o.id}`, category: "SIGHTSEEING", startTime: null, endTime: null, sortOrder: 0, stopId: "s-stras",
     lat: null, lng: null, address: null, link: null, booking: null, bookingState: "NONE" as const, bookingStateSet: false,
-    bookBy: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null, ...o,
+    bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null, ...o,
   });
   const SURPRISED = { plannerId: "u-pat", plannerName: "Pat", forIds: ["u-viv"], forNames: ["Viv"], youAreSurprised: true };
   const HOTEL = {
@@ -174,6 +174,12 @@ describe("buildDayModel (card 3.M)", () => {
     expect(entry.item).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2026-11-20" });
     const checkin = buildDayModel(r, "2026-12-10").dayPlan!.accommodationEntries.find((e) => e.kind === "accommodation-checkin")!;
     expect(checkin.accommodation).toMatchObject({ bookingState: "TO_BOOK" });
+  });
+
+  it("a day's Items carry their Slot time to the Timeline (R3)", () => {
+    const model = buildDayModel(rows({ items: [item({ id: "i-slot", date: "2026-12-11", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false })] }), "2026-12-11");
+    const entry = model.dayPlan!.timedItems.find((e) => e.item.id === "i-slot")!;
+    expect(entry.item).toMatchObject({ slotTime: "12:00", arriveByMinutes: 15, refundable: false });
   });
 
   it("a planned day: its plan, Stop, title, Chapter, number, tonight, map, photo and Surprise view", () => {

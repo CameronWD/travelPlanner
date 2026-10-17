@@ -105,4 +105,10 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () 
     expect(plan.accommodations.find((a) => a.id === STAY_ID)).toMatchObject({ bookingState: "TO_BOOK", bookBy: null });
     expect(plan.items.find((i) => i.id === TOUR_ID)).toMatchObject({ bookingState: "BOOKED" });
   });
+
+  it("an Item's Slot time comes back in readPlan's items (R3)", async () => {
+    await db.item.create({ data: { id: "it-plan-slot", tripId: TRIP_ID, stopId: STOP_A, title: "IT Lodge tour", category: "ACTIVITY", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false, sortOrder: 0 } });
+    const rows = await readPlan(TRIP_ID, OWNER, null);
+    expect(rows.items.find((i) => i.id === "it-plan-slot")).toMatchObject({ slotTime: "12:00", arriveByMinutes: 15, refundable: false });
+  });
 });

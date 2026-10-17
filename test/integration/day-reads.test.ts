@@ -43,9 +43,9 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readDayRows (real Postgres)", 
     });
     await db.item.createMany({
       data: [
-        { id: "it-dr-tram", tripId: TRIP_ID, stopId: PORTO, title: "IT Tram 22", category: "ACTIVITY", date: "2027-06-02", sortOrder: 0 },
+        { id: "it-dr-tram", tripId: TRIP_ID, stopId: PORTO, title: "IT Tram 22", category: "ACTIVITY", date: "2027-06-02", sortOrder: 0, slotTime: "10:00", arriveByMinutes: 15, refundable: false },
         // A Surprise Item on a seen Stop: MEMBER gets a placeholder on its day.
-        { id: "it-dr-dinner", tripId: TRIP_ID, stopId: PORTO, title: "IT Birthday dinner", category: "FOOD", date: "2027-06-03", startTime: "19:30", sortOrder: 1, surprisePlannerId: PLANNER, surpriseForIds: JSON.stringify([MEMBER]), bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" },
+        { id: "it-dr-dinner", tripId: TRIP_ID, stopId: PORTO, title: "IT Birthday dinner", category: "FOOD", date: "2027-06-03", startTime: "19:30", sortOrder: 1, surprisePlannerId: PLANNER, surpriseForIds: JSON.stringify([MEMBER]), bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20", slotTime: "19:45", refundable: false },
         // Inside the Surprise Stop: hidden from MEMBER, no placeholder (only a root Item gets one).
         { id: "it-dr-inside", tripId: TRIP_ID, stopId: SECRET, title: "IT Hidden spa", category: "ACTIVITY", date: "2027-06-05", sortOrder: 0 },
         { id: "it-dr-idea", tripId: TRIP_ID, title: "IT Port lodge tour", category: "FOOD", sortOrder: 0 },
@@ -113,5 +113,15 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readDayRows (real Postgres)", 
     const member = await readDayRows(TRIP_ID, MEMBER, none);
     if (typeof member === "string") throw new Error(member);
     expect(member.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ bookingState: "NONE", bookingStateSet: false, bookBy: null });
+  });
+
+  it("the slot fields come back for a seen Item and are masked on a placeholder (R3)", async () => {
+    const member = await readDayRows(TRIP_ID, MEMBER, none);
+    if (typeof member === "string") throw new Error(member);
+    expect(member.rows.items.find((i) => i.id === "it-dr-tram")).toMatchObject({ slotTime: "10:00", arriveByMinutes: 15, refundable: false });
+    expect(member.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ title: "Surprise", slotTime: null, arriveByMinutes: null, refundable: null });
+    const planner = await readDayRows(TRIP_ID, PLANNER, none);
+    if (typeof planner === "string") throw new Error(planner);
+    expect(planner.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ slotTime: "19:45", refundable: false });
   });
 });

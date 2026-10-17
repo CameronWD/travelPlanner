@@ -167,6 +167,8 @@ interface DayItemRow {
   photoAttachmentId: string | null; surprise: SurpriseView | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state). */
   bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
+  /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
+  slotTime: string | null; arriveByMinutes: number | null; refundable: boolean | null;
 }
 interface DayTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depPlace: string | null; arrPlace: string | null;
@@ -272,6 +274,7 @@ function deriveTrip(rows: DayRows): TripDerived {
         stopId: i.stopId, address: i.address, link: i.link, booking: i.booking, notes: i.notes,
         hiddenFromShares: i.hiddenFromShares, photoUrl: itemPhotoUrl(i, attachmentsById), surprise: i.surprise,
         bookingState: i.bookingState, bookBy: i.bookBy,
+        slotTime: i.slotTime, arriveByMinutes: i.arriveByMinutes, refundable: i.refundable,
       })),
       transports: rows.transports.map((t) => ({
         id: t.id, mode: t.mode as TransportMode, fromStopId: t.fromStopId, toStopId: t.toStopId,

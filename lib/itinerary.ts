@@ -41,6 +41,10 @@ export interface ItineraryItem {
   /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
   bookingState?: BookingState | null;
   bookBy?: string | null;
+  /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
   notes?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;

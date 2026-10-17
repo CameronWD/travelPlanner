@@ -72,6 +72,7 @@ export async function readDayRows<X>(
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
         lat: true, lng: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
+        slotTime: true, arriveByMinutes: true, refundable: true,
         bookingState: true, bookingStateSet: true, bookBy: true,
       },
     }),
@@ -133,6 +134,7 @@ export async function readDayRows<X>(
       id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
       sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, address: p.address, link: p.link,
       booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
+      slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable,
       bookingState: p.bookingState, bookingStateSet: p.bookingStateSet, bookBy: p.bookBy,
       surprise: p.surprise,
     })),
