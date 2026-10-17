@@ -7,13 +7,14 @@
  * and returns a list of Flag objects describing potential issues.
  */
 
-import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, formatISODate } from "@/lib/dates";
+import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, formatISODate, formatDayLabel, parseISODate } from "@/lib/dates";
 import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
+import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -85,6 +86,10 @@ export interface FlagItem {
   endTime?: string | null; // HH:MM
   lat?: number | null;
   lng?: number | null;
+  /** The Item's title, for the planning Flags' wording (spec 2026-10-17 R7). */
+  title?: string | null;
+  /** CONTEXT.md "Opening hours", already parsed (lib/opening-hours-stored.ts withOpeningHours); read in the Stop's local time, like startTime. */
+  openingHours?: OpeningHours | null;
 }
 
 export interface DetectFlagsInput {
@@ -135,6 +140,12 @@ export interface DetectFlagsInput {
    * outside (dates, Transport) still flags as normal.
    */
   hiddenStopIds?: readonly string[];
+  /**
+   * Surprise (ADR 0051): Items the viewer may not see (a hidden root Item's
+   * placeholder, every Item inside a hidden Stop). The planning Flags
+   * (spec 2026-10-17 R7) never name them.
+   */
+  hiddenItemIds?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -886,6 +897,81 @@ export function flagReturnLegAfterHardEnd(
 }
 
 // ---------------------------------------------------------------------------
+// Planning Flags (spec 2026-10-17 R7): what they may look at
+//
+// Plan placements only (a Wishlist idea has neither a Stop nor a day) and
+// nothing the viewer cannot see. Deliberately not `outsideHidden`: an Item of
+// a visible Stop on the Changeover day it shares with a hidden Stop still
+// flags. Placeholders are masked already (no hours, slot or booking), so the
+// id filter is a second line of defence.
+// ---------------------------------------------------------------------------
+
+function planningSubjects(
+  items: FlagItem[],
+  accommodations: FlagAccommodation[],
+  hiddenStops: ReadonlySet<string>,
+  hiddenItemIds: readonly string[] | undefined,
+): { items: FlagItem[]; accommodations: FlagAccommodation[] } {
+  const hiddenItems = new Set(hiddenItemIds ?? []);
+  return {
+    items: items.filter(
+      (i) => (i.stopId || i.date) && !hiddenItems.has(i.id) && !(i.stopId && hiddenStops.has(i.stopId)),
+    ),
+    accommodations: accommodations.filter((a) => !hiddenStops.has(a.stopId)),
+  };
+}
+
+function itemTitle(item: FlagItem): string | null {
+  return item.title?.trim() || null;
+}
+
+function itemTarget(item: FlagItem): Pick<Flag, "targetType" | "targetId" | "date" | "stopId"> {
+  return {
+    targetType: "ITEM",
+    targetId: item.id,
+    ...(item.date ? { date: item.date } : {}),
+    ...(item.stopId ? { stopId: item.stopId } : {}),
+  };
+}
+
+function itemFlag(item: FlagItem, id: string, severity: FlagSeverity, message: string): Flag {
+  return { id, severity, message, ...itemTarget(item) };
+}
+
+// ---------------------------------------------------------------------------
+// Rule 17: Closed that day (warning)
+//
+// The Item's day is closed by its Opening hours: a closed date, the governing
+// season's weekday, or the usual week's. Silent when the hours, the weekday
+// or the date is not known (hoursOn returns null).
+// ---------------------------------------------------------------------------
+
+const WEEKDAYS_PLURAL = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"] as const;
+
+function closedMessage(name: string, date: string, day: DayHours): string {
+  if (day.by === "closed-date") return `${name} is closed on ${formatDayLabel(date)}.`;
+  const weekdays = WEEKDAYS_PLURAL[parseISODate(date).getUTCDay()];
+  if (day.by === "season") {
+    return day.seasonLabel
+      ? `${name} is closed on ${weekdays} (${day.seasonLabel}).`
+      : `${name} is closed on ${weekdays} at that time of year.`;
+  }
+  return `${name} is closed on ${weekdays}.`;
+}
+
+export function flagClosedOnDay(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.date) continue;
+    const day = hoursOn(item.openingHours, item.date);
+    if (!day?.closed) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    flags.push(itemFlag(item, `item-closed-${item.id}`, "warning", closedMessage(name, item.date, day)));
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -906,6 +992,7 @@ export function flagReturnLegAfterHardEnd(
  *   11. Trip deadline — return leg or hard end date (warning/info)
  *   12. Tight / impossible connections (warning/info)
  *   13. Missing connection between consecutive stops (info)
+ *   17. Closed that day (warning)
  */
 export function detectFlags({
   stops,
@@ -926,6 +1013,7 @@ export function detectFlags({
   homeFirstStop,
   homeLastStop,
   hiddenStopIds,
+  hiddenItemIds,
 }: DetectFlagsInput): Flag[] {
   const hidden = new Set(hiddenStopIds ?? []);
   const hiddenStops = stops.filter((s) => hidden.has(s.id));
@@ -933,6 +1021,7 @@ export function detectFlags({
   const onHiddenDay = (f: Flag) =>
     f.date !== undefined && hiddenStops.some((s) => s.arriveDate <= f.date! && f.date! <= s.departDate);
   const outsideHidden = (flags: Flag[]) => (hiddenStops.length === 0 ? flags : flags.filter((f) => !onHiddenDay(f)));
+  const planning = planningSubjects(items, accommodations, hidden, hiddenItemIds);
   // Same last-Stop derivation flagMissingHomeConnection uses: the caller-supplied
   // override (all stops, dated + rough) when given, else the last of the
   // supplied `stops` by sortOrder.
@@ -968,5 +1057,7 @@ export function detectFlags({
     }),
     // ADR 0068: while the return leg IS the deadline this would compare the leg with itself.
     ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId, homeTimezone)),
+    // Spec 2026-10-17 R7: the planning Flags, on what the viewer can see.
+    ...flagClosedOnDay(planning.items),
   ];
 }
