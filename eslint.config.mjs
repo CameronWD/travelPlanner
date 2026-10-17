@@ -92,6 +92,7 @@ export const SURPRISE_VISIBILITY_READERS = [
   "lib/mcp/reads/trip-plan.ts",
   "lib/mcp/reads/costs.ts",
   "lib/mcp/reads/attachments.ts",
+  "lib/mcp/reads/notes.ts",
   "lib/mcp/tools/reads.ts",
   "server/actions/search.ts",
   "server/actions/ai.ts",

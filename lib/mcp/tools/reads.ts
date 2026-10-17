@@ -30,6 +30,7 @@ import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
 import { isoDate } from "@/lib/validations/primitives";
 import { loadCostsForMcp } from "../reads/costs";
+import { loadNotesForMcp } from "../reads/notes";
 import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadAttachmentContentForMcp } from "../reads/attachment-content";
 import { loadBudget } from "@/lib/money/budget-loader";
@@ -63,39 +64,6 @@ async function loadWishlist(tripId: string) {
       notes: i.notes,
       link: i.link,
       votes: i.votes.map((v) => ({ traveller: travellerName(v.user), level: v.level })),
-    })),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// get_notes
-// ---------------------------------------------------------------------------
-
-async function loadNotes(tripId: string) {
-  const { user } = await requireTripAccess(tripId);
-  // Surprise (ADR 0051): Notes inside a Surprise hidden from the acting
-  // Traveller stay in the database.
-  const v = await loadSurpriseVisibility(tripId, user.id);
-  const notes = await db.note.findMany({
-    where: { tripId, ...v.where.note },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      targetType: true,
-      targetId: true,
-      body: true,
-      createdAt: true,
-      author: { select: TRAVELLER_SELECT },
-    },
-  });
-  return {
-    notes: notes.map((n) => ({
-      id: n.id,
-      targetType: n.targetType,
-      targetId: n.targetId,
-      body: n.body,
-      author: travellerName(n.author),
-      createdAt: n.createdAt.toISOString(),
     })),
   };
 }
@@ -272,7 +240,7 @@ export function registerReadTools(server: McpServer): void {
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
-    ({ tripId }) => runTool("get_notes", () => loadNotes(tripId)),
+    ({ tripId }) => runTool("get_notes", () => loadNotesForMcp(tripId)),
   );
 
   server.registerTool(
