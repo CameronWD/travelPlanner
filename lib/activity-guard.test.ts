@@ -105,6 +105,13 @@ describe("auditedUpdate", () => {
 });
 
 describe("recordUpdate", () => {
+  it("stamps a given Surprise root, and leaves it to be resolved when none is given", async () => {
+    await recordUpdate("REMINDER", { tripId: "t1", plan: null, entityId: "r1", before: { title: "A" }, after: { title: "A" }, surpriseOf: { type: "ITEM", id: "i1" } });
+    expect(recordActivityMock.mock.calls[0][0].surpriseOf).toEqual({ type: "ITEM", id: "i1" });
+    await recordUpdate("REMINDER", { tripId: "t1", plan: null, entityId: "r1", before: { title: "A" }, after: { title: "A" }, surpriseOf: null });
+    expect(recordActivityMock.mock.calls[1][0]).not.toHaveProperty("surpriseOf");
+  });
+
   it("recordUpdate records the diff of a built after", async () => {
     await recordUpdate("CHAPTER", { tripId: "t1", plan: null, entityId: "c1", before: { name: "North" }, after: { name: "North", startDate: "2026-11-02" } });
     expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({

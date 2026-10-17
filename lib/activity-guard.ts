@@ -53,12 +53,24 @@ export async function auditedUpdate<Row extends { tripId: string }, Data>(
 /**
  * For writes inside a transaction or with a built `after`: record UPDATED
  * once the write has committed. A Fork (non-null plan) records nothing.
+ *
+ * `surpriseOf` stamps the entry with a Surprise root the caller already
+ * knows — an edit that moves a row OUT of a Surprise must carry the BEFORE
+ * state's root, or the surprised Traveller reads where it came from. Omitted
+ * (or null), the root is resolved from the row as it now is.
  */
 export async function recordUpdate(
   entityType: ActivityEntityType,
-  args: { tripId: string; plan: PlanId; entityId: string; before: object | null; after: object },
+  args: {
+    tripId: string;
+    plan: PlanId;
+    entityId: string;
+    before: object | null;
+    after: object;
+    surpriseOf?: RecordActivityInput["surpriseOf"];
+  },
 ): Promise<void> {
-  const { tripId, plan, entityId, before, after } = args;
+  const { tripId, plan, entityId, before, after, surpriseOf } = args;
   await recordPlanActivity(plan, {
     tripId,
     verb: "UPDATED",
@@ -66,5 +78,6 @@ export async function recordUpdate(
     entityId,
     entityLabel: entityLabel(entityType, after),
     changes: describeChanges(entityType, before ?? {}, after),
+    ...(surpriseOf ? { surpriseOf } : {}),
   });
 }

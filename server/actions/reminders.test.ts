@@ -550,6 +550,31 @@ describe("Surprise write guard", () => {
     expect(reminderCreateMock).not.toHaveBeenCalled();
   });
 
+  it("moving a Reminder off a Surprise Item stamps the edit with the Item's root, so the surprised Traveller never sees it", async () => {
+    const ITEM_ROW = { id: REMINDER_ID, tripId: TRIP_ID, title: "Ring box", date: "2026-07-01", notes: null, stopId: null, itemId: "item-1", transportId: null, stop: null, item: { title: "Tiffany" }, transport: null };
+    reminderFindUniqueMock.mockResolvedValue(ITEM_ROW);
+    stopFindFirstMock.mockResolvedValue({ id: "cjld2cjxh0000qzrmn831i7rn" });
+    // The guard's own lookup resolves the BEFORE state's root; the about
+    // check on the new Stop then finds nothing.
+    requireOutsideSurpriseMock.mockResolvedValueOnce({ type: "ITEM", id: "item-1" }).mockResolvedValue(null);
+    reminderUpdateMock.mockResolvedValue({ title: "Ring box", date: "2026-07-01", notes: null, stop: { name: "Paris" }, item: null, transport: null });
+
+    await updateReminder(REMINDER_ID, { stopId: "cjld2cjxh0000qzrmn831i7rn" });
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "REMINDER", surpriseOf: { type: "ITEM", id: "item-1" } }),
+    );
+  });
+
+  it("an edit outside any Surprise leaves the root to be resolved from the saved row", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ title: "New", date: "2026-07-01", notes: null, stop: { name: "Rome" }, item: null, transport: null });
+
+    await updateReminder(REMINDER_ID, { title: "New" });
+
+    expect(recordActivityMock.mock.calls[0][0]).not.toHaveProperty("surpriseOf");
+  });
+
   it("passes the Surprise root to the Activity record on delete", async () => {
     reminderFindUniqueMock.mockResolvedValue(ROW);
     reminderDeleteMock.mockResolvedValue({});

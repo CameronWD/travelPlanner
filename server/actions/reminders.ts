@@ -220,13 +220,17 @@ export async function updateReminder(
     select: ACTIVITY_SELECT,
   });
 
-  // Checklists and Reminders sit outside any Plan (plan: null): always recorded.
+  // Checklists and Reminders sit outside any Plan (plan: null): always
+  // recorded. A Reminder moved off a Surprise keeps the BEFORE state's root,
+  // so the surprised Traveller never reads where it came from; otherwise the
+  // root is resolved from the saved row (one moved INTO a Surprise).
   await recordUpdate("REMINDER", {
     tripId: reminder.tripId,
     plan: null,
     entityId: id,
     before: activityRow(reminder),
     after: activityRow(after),
+    surpriseOf: reminder.surpriseOf,
   });
 
   revalidateTrip(reminder.tripId, "plan", "lists");
