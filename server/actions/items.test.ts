@@ -14,8 +14,10 @@ const {
   geocodePlaceDetailedMock,
   itemFindUniqueMock,
   itemFindFirstMock,
+  itemFindManyMock,
   itemCreateMock,
   itemUpdateMock,
+  itemUpdateManyMock,
   itemDeleteMock,
   stopFindUniqueMock,
   stopFindManyMock,
@@ -48,10 +50,16 @@ const {
   // scheduleBlobDeletion(keys, tx) — the fake tx needs deletedBlob.createMany
   // so that call has somewhere real to land instead of silently erroring.
   const deletedBlobCreateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  // setOpeningHours (CONTEXT.md "Opening hours") writes the edited row and
+  // shares the family inside one $transaction — the fake tx's `item` shares
+  // the same update/updateMany spies as the top-level db.item mock, so
+  // either call site is observable the same way.
+  const itemUpdateMock = vi.fn();
+  const itemUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
-        item: { delete: itemDeleteMock },
+        item: { delete: itemDeleteMock, update: itemUpdateMock, updateMany: itemUpdateManyMock },
         cost: {
           findMany: costFindManyMock,
           create: costCreateMock,
@@ -85,8 +93,12 @@ const {
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
     itemFindFirstMock: vi.fn(),
+    // Opening hours (CONTEXT.md "Opening hours"; fix round 1): the family-
+    // recipients lookup, before the Surprise boundary check narrows it.
+    itemFindManyMock: vi.fn().mockResolvedValue([]),
     itemCreateMock: vi.fn(),
-    itemUpdateMock: vi.fn(),
+    itemUpdateMock,
+    itemUpdateManyMock,
     itemDeleteMock,
     stopFindUniqueMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
@@ -109,6 +121,10 @@ const {
 });
 
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// Opening hours (CONTEXT.md "Opening hours"; fix round 1): the family write
+// never crosses a Surprise. Defaults to "not a Surprise" (null); tests that
+// exercise the boundary resolve it per item id.
+const surpriseRootForMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 // requireItemAccess is now a thin adapter over requireRowAccess (Task 4) —
 // forward to the same itemFindUniqueMock/requireTripAccessMock/
 // requireOutsideSurpriseMock every test already seeds, so existing
@@ -141,7 +157,7 @@ vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
-  surpriseRootFor: vi.fn().mockResolvedValue(null),
+  surpriseRootFor: surpriseRootForMock,
   surpriseRootForEntity: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/lib/money/fx", () => ({
@@ -153,8 +169,10 @@ vi.mock("@/lib/db", () => ({
     item: {
       findUnique: itemFindUniqueMock,
       findFirst: itemFindFirstMock,
+      findMany: itemFindManyMock,
       create: itemCreateMock,
       update: itemUpdateMock,
+      updateMany: itemUpdateManyMock,
       delete: itemDeleteMock,
     },
     stop: {
@@ -210,7 +228,9 @@ import {
   rescheduleItem,
   addMarkerToWishlist,
   placeIdeaAtStop,
+  setOpeningHours,
 } from "./items";
+import { serializeOpeningHours } from "@/lib/validations/opening-hours";
 import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
@@ -226,6 +246,8 @@ beforeEach(() => {
   });
   getUserGlobeMock.mockResolvedValue({ id: "g1" });
   requireOutsideSurpriseMock.mockResolvedValue(null);
+  surpriseRootForMock.mockResolvedValue(null);
+  itemFindManyMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -723,7 +745,7 @@ describe("updateItem", () => {
 });
 
 describe("updateItem (PATCH, ADR 0075)", () => {
-  const row = { id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-05-02", startTime: "09:00", endTime: "11:00", address: "Rome, Italy", link: null, booking: null, notes: "old notes", hiddenFromShares: true };
+  const row = { id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-05-02", startTime: "09:00", endTime: "11:00", address: "Rome, Italy", link: null, booking: null, notes: "old notes", hiddenFromShares: true, bookingState: "NONE", bookingStateSet: false, bookBy: null };
   beforeEach(() => {
     itemFindUniqueMock.mockResolvedValue(row); // guard row, then the held row
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
@@ -743,6 +765,17 @@ describe("updateItem (PATCH, ADR 0075)", () => {
   it("an omitted surpriseForIds leaves the Surprise alone", async () => {
     await updateItem("item-1", { notes: "x" });
     expect(setSurpriseMock).not.toHaveBeenCalled();
+  });
+  it("refuses a book-by date on something it makes Booked, and writes nothing (spec R2)", async () => {
+    const result = await updateItem("item-1", { bookingState: "BOOKED", bookBy: "2027-05-01" });
+    expect(result).toEqual({ success: false, errors: { bookBy: ["A book-by date is only for something still to book."] } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+  it("writes the effective Booking state: a chosen To book with its book-by date", async () => {
+    await updateItem("item-1", { bookingState: "TO_BOOK", bookBy: "2027-05-01" });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-01" }),
+    }));
   });
 });
 
@@ -889,6 +922,22 @@ describe("scheduleItem", () => {
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ hiddenFromShares: true }),
     });
+  });
+
+  it("carries the idea's Opening hours onto the placed copy (spec 2026-10-17 R4)", async () => {
+    const hours = '{"week":{"mon":[]},"seasons":[],"closed":[]}';
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({
+        id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Uffizi", category: "SIGHTSEEING", openingHours: hours,
+      });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("item-1", { date: "2026-08-10" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ openingHours: hours }) });
   });
 
   it("rescheduling an already-placed item (date non-null) keeps in-place update", async () => {
@@ -1452,6 +1501,24 @@ describe("placeIdeaAtStop", () => {
     expect(result).toMatchObject({ success: true, placedItemId: "placed-1" });
   });
 
+  it("carries the idea's Opening hours onto the thing to do; none copies as null", async () => {
+    const hours = '{"week":{"tue":[["10:00","18:00"]]},"seasons":[],"closed":[]}';
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ ...IDEA, openingHours: hours });
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ openingHours: hours }) });
+
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA); // no openingHours on the row
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ openingHours: null }) });
+  });
+
   it("refuses a Stop from another trip (no create)", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
@@ -1914,7 +1981,10 @@ describe("updateItem: inline cost update/create", () => {
 
     await updateItem("iu-4", VALID_INPUT);
 
-    expect(transactionMock).not.toHaveBeenCalled();
+    // Fix round 1: updateItem now wraps its own row write in a transaction
+    // (so the Opening hours family write can share it), so transactionMock
+    // itself is called regardless — the Cost-specific mocks are what this
+    // test is actually about.
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
@@ -2208,3 +2278,353 @@ describe("createItem / updateItem with surpriseForIds", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Slot time (spec 2026-10-17 R3): written by create/update; start defaults
+// ---------------------------------------------------------------------------
+
+describe("createItem: Slot time (R3)", () => {
+  beforeEach(() => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1", title: "Lodge tour" });
+  });
+  it("persists the slot fields; refundable defaults to not known (null)", async () => {
+    await createItem("trip-1", { ...VALID_INPUT, slotTime: "12:00", arriveByMinutes: 15 });
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ slotTime: "12:00", arriveByMinutes: 15, refundable: null, startTime: null }),
+    });
+  });
+  it("a dated Item with a slot and no start starts at slot − arrive-by", async () => {
+    await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, refundable: false });
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ date: "2027-06-02", startTime: "11:45", slotTime: "12:00", refundable: false }),
+    });
+  });
+  it("never overwrites an explicit start", async () => {
+    await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", startTime: "11:00", slotTime: "12:00", arriveByMinutes: 15 });
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "11:00" }) });
+  });
+  it("refuses an arrive-by margin without a slot", async () => {
+    const r = await createItem("trip-1", { ...VALID_INPUT, arriveByMinutes: 15 });
+    expect(r.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateItem: Slot time (R3, PATCH)", () => {
+  const row = {
+    id: "item-1", tripId: "trip-1", forkId: null, stopId: null, title: "Lodge tour", category: "ACTIVITY", date: "2027-06-02",
+    startTime: "11:00", endTime: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false,
+    slotTime: "12:00", arriveByMinutes: 15, refundable: false,
+  };
+  beforeEach(() => {
+    itemFindUniqueMock.mockResolvedValue(row);
+    itemUpdateMock.mockResolvedValue(row);
+  });
+  it("a notes-only patch keeps the slot fields", async () => {
+    await updateItem("item-1", { notes: "x" });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "item-1" }, data: expect.objectContaining({
+      slotTime: "12:00", arriveByMinutes: 15, refundable: false, startTime: "11:00",
+    }) });
+  });
+  it("moving the slot keeps an existing start", async () => {
+    await updateItem("item-1", { slotTime: "14:00" });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ slotTime: "14:00", startTime: "11:00" }) }));
+  });
+  it("clearing the start with a slot set re-defaults it", async () => {
+    await updateItem("item-1", { startTime: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ startTime: "11:45" }) }));
+  });
+  it("null clears the slot and the margin; null refundable goes back to not known", async () => {
+    await updateItem("item-1", { slotTime: null, arriveByMinutes: null, refundable: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      slotTime: null, arriveByMinutes: null, refundable: null, startTime: "11:00",
+    }) }));
+  });
+  it("clearing only the slot leaves a margin without one: refused", async () => {
+    const r = await updateItem("item-1", { slotTime: null });
+    expect(r.success).toBe(false);
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleItem: Slot time (R3)", () => {
+  const idea = {
+    id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Fado night", category: "NIGHTLIFE",
+    slotTime: "20:00", arriveByMinutes: 10, refundable: false, photoAttachmentId: null,
+  };
+  it("a placed copy carries the idea's slot and starts at slot − arrive-by when no start is given", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1", title: "Fado night" });
+    await scheduleItem("item-1", { date: "2027-06-02" }, null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      sourceItemId: "item-1", date: "2027-06-02", startTime: "19:50", slotTime: "20:00", arriveByMinutes: 10, refundable: false,
+    }) });
+  });
+  it("a slot given to the schedule call wins over the idea's, and an explicit start is kept", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await scheduleItem("item-1", { date: "2027-06-02", startTime: "19:00", slotTime: "21:00" }, null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "19:00", slotTime: "21:00", arriveByMinutes: 10 }) });
+  });
+  it("an idea without a slot places with no start, as before", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ ...idea, slotTime: null, arriveByMinutes: null, refundable: null });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await scheduleItem("item-1", { date: "2027-06-02" }, null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      startTime: null, slotTime: null, arriveByMinutes: null, refundable: null,
+    }) });
+  });
+  it("an in-place move with no start defaults it from the row's slot; slot fields are written only when sent", async () => {
+    const placed = { ...idea, id: "placed-1", date: "2027-06-01", stopId: null, startTime: null };
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }).mockResolvedValueOnce(placed);
+    itemUpdateMock.mockResolvedValue({ ...placed, date: "2027-06-02", startTime: "19:50" });
+    await scheduleItem("placed-1", { date: "2027-06-02" }, null);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "placed-1" }, data: { date: "2027-06-02", stopId: null, startTime: "19:50", endTime: null } });
+  });
+  it("an in-place move that names a slot writes it", async () => {
+    const placed = { ...idea, id: "placed-1", date: "2027-06-01", stopId: null, startTime: null };
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }).mockResolvedValueOnce(placed);
+    itemUpdateMock.mockResolvedValue(placed);
+    await scheduleItem("placed-1", { date: "2027-06-02", slotTime: "18:00", arriveByMinutes: 30 }, null);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "placed-1" }, data: {
+      date: "2027-06-02", stopId: null, startTime: "17:30", endTime: null, slotTime: "18:00", arriveByMinutes: 30,
+    } });
+  });
+  it("refuses a malformed slot or an out-of-range margin", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    expect((await scheduleItem("item-1", { date: "2027-06-02", slotTime: "25:00" }, null)).success).toBe(false);
+    expect((await scheduleItem("item-1", { date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 999 }, null)).success).toBe(false);
+    // a margin with no slot on the call or the row
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ ...idea, slotTime: null, arriveByMinutes: null });
+    expect(await scheduleItem("item-1", { date: "2027-06-02", arriveByMinutes: 15 }, null)).toEqual({
+      success: false, errors: { arriveByMinutes: ["Be there early needs a slot time"] },
+    });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+  it("placeIdeaAtStop copies the slot fields (no date, so no start)", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null }).mockResolvedValueOnce(idea);
+    stopFindFirstMock.mockResolvedValue({ id: "stop-1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-2" });
+    await placeIdeaAtStop("item-1", "stop-1", null);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: null, slotTime: "20:00", arriveByMinutes: 10, refundable: false }) });
+  });
+});
+
+describe("Slot time with an end time and no start (R3, fix round 1)", () => {
+  it("createItem: the defaulted start satisfies the end-needs-start rule", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1", title: "Tour" });
+    const r = await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, endTime: "14:00" });
+    expect(r.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "11:45", endTime: "14:00" }) });
+  });
+  it("createItem: an end earlier than the defaulted start is still refused", async () => {
+    const r = await createItem("trip-1", { ...VALID_INPUT, date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, endTime: "11:30" });
+    expect(r).toMatchObject({ success: false, errors: { endTime: ["End time must be on or after start time"] } });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+  it("updateItem: clearing the start on a row with an end re-defaults it", async () => {
+    const row = {
+      id: "item-1", tripId: "trip-1", forkId: null, stopId: null, title: "Tour", category: "ACTIVITY", date: "2027-06-02",
+      startTime: "11:00", endTime: "14:00", address: null, link: null, booking: null, notes: null, hiddenFromShares: false,
+      slotTime: "12:00", arriveByMinutes: 15, refundable: null,
+    };
+    itemFindUniqueMock.mockResolvedValue(row);
+    itemUpdateMock.mockResolvedValue(row);
+    expect(await updateItem("item-1", { startTime: null })).toEqual({ success: true });
+    expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ startTime: "11:45", endTime: "14:00" }) }));
+  });
+  const idea = {
+    id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Tour", category: "ACTIVITY",
+    slotTime: "12:00", arriveByMinutes: 15, refundable: null, photoAttachmentId: null,
+  };
+  it("scheduleItem: an end with the idea's slot and no start places at 11:45", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    const r = await scheduleItem("item-1", { date: "2027-06-02", endTime: "14:00" }, null);
+    expect(r.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ startTime: "11:45", endTime: "14:00" }) });
+  });
+  it("scheduleItem: an end earlier than the defaulted start, or an end with no start and no slot, is refused", async () => {
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }).mockResolvedValueOnce(idea);
+    expect(await scheduleItem("item-1", { date: "2027-06-02", endTime: "11:30" }, null)).toEqual({
+      success: false, errors: { endTime: ["End time must be on or after start time"] },
+    });
+    itemFindUniqueMock.mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ ...idea, slotTime: null, arriveByMinutes: null });
+    expect(await scheduleItem("item-1", { date: "2027-06-02", endTime: "14:00" }, null)).toEqual({
+      success: false, errors: { startTime: ["Start time is required when an end time is set"] },
+    });
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+// Adapted from task-D.3-brief.md to Section S's actual shape (d-as-built.md):
+// the brief assumed a Json column (raw objects in Prisma calls, Prisma.DbNull
+// to clear); S stores Item.openingHours as a JSON string, so the Prisma data
+// carries serializeOpeningHours(...)'s string (or plain `null` to clear, a
+// SQL NULL on a String? column — no Prisma.DbNull needed). setOpeningHours
+// also writes inside one $transaction (ruling), so itemUpdateMock/
+// itemUpdateManyMock are wired into the fake tx too (see the hoisted mocks).
+//
+// Fix round 1 (controller ruling): the family write now goes through
+// openingHoursFamilyRecipients, which reads the candidate ids via
+// db.item.findMany (itemFindManyMock) before excluding anything inside a
+// live Surprise, so the family updateMany targets `{ id: { in: [...] } }`
+// rather than the raw family `where` — itemFindManyMock stands in for the
+// real family membership query throughout this block.
+describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and its placed copies)", () => {
+  const span = [["10:00", "18:00"]] as [string, string][];
+  // Key order matches weekHoursSchema's own field order (sun first): zod's
+  // strictObject output is reordered to the schema's declared key order, so
+  // this must match production's parsed value for the JSON strings to be
+  // byte-identical.
+  const HOURS = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [] };
+  const STORED_HOURS = serializeOpeningHours(HOURS);
+  const row = {
+    id: "copy-1", tripId: "trip-1", forkId: null, stopId: "stop-1", sourceItemId: "idea-1", title: "Lello", category: "SIGHTSEEING",
+    date: "2027-06-02", startTime: null, endTime: null, address: null, link: null, booking: null, notes: null,
+    hiddenFromShares: false, openingHours: null,
+  };
+
+  beforeEach(() => {
+    itemFindUniqueMock.mockResolvedValue(row);
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    itemUpdateMock.mockResolvedValue(row);
+    // The family's only other member, as db.item.findMany would return it
+    // (id only — openingHoursFamilyRecipients selects nothing else).
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]);
+  });
+
+  it("updateItem with hours writes the row and every other row of the family", async () => {
+    expect(await updateItem("copy-1", { openingHours: HOURS })).toMatchObject({ success: true });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+    expect(itemFindManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", OR: [{ id: "idea-1" }, { sourceItemId: "idea-1" }], id: { not: "copy-1" } },
+      select: { id: true },
+    });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: STORED_HOURS } });
+  });
+
+  it("updateItem that names no hours keeps them and leaves the family alone", async () => {
+    itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
+    await updateItem("copy-1", { notes: "book ahead" });
+    const call = itemUpdateMock.mock.calls[0][0] as { where: unknown; data: Record<string, unknown> };
+    expect(call).toMatchObject({ where: { id: "copy-1" }, data: { notes: "book ahead" } });
+    // Fix round 1: the patch never named the hours, so the key is entirely
+    // absent from the write — not re-included with the same value.
+    expect(call.data).not.toHaveProperty("openingHours");
+    expect(itemFindManyMock).not.toHaveBeenCalled(); // never even looks up the family
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a notes-only edit never re-serialises (and so never wipes) corrupt stored hours", async () => {
+    // Fix round 1: before.openingHours doesn't parse (parseOpeningHours → null),
+    // so if the write ever re-serialised it, the corrupt value would be wiped
+    // to SQL NULL even though the patch never named openingHours.
+    itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: "not valid json" });
+    await updateItem("copy-1", { notes: "book ahead" });
+    const call = itemUpdateMock.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty("openingHours");
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem with null clears them for the family, as SQL NULL", async () => {
+    itemFindUniqueMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
+    await updateItem("copy-1", { openingHours: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: null }) });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: null } });
+  });
+
+  it("refuses hours with three spans in a day and writes nothing", async () => {
+    const bad = { ...HOURS, week: { ...HOURS.week, mon: [["08:00", "09:00"], ["10:00", "11:00"], ["12:00", "13:00"]] } };
+    const result = await setOpeningHours("copy-1", bad as never);
+    expect(result).toMatchObject({ success: false, errors: { openingHours: expect.any(Array) } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("setOpeningHours writes only the hours, shares them, and revalidates the plan", async () => {
+    expect(await setOpeningHours("copy-1", HOURS)).toEqual({ success: true });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { openingHours: STORED_HOURS } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: STORED_HOURS } });
+    expect(itemUpdateManyMock).toHaveBeenCalledTimes(1);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+  });
+
+  it("setOpeningHours checks access before writing", async () => {
+    await setOpeningHours("copy-1", HOURS);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+  });
+
+  it("setOpeningHours records an Activity entry", async () => {
+    // The mock's `update` doesn't simulate a real write, so hand it back the
+    // row as it would actually look afterwards — recordUpdate diffs
+    // before/after, and `before` (row) still carries openingHours: null.
+    itemUpdateMock.mockResolvedValue({ ...row, openingHours: STORED_HOURS });
+    await setOpeningHours("copy-1", HOURS);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "ITEM",
+        entityId: "copy-1",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "openingHours" })]),
+      }),
+    );
+  });
+
+  // Fix round 2 (controller ruling): recordActivity writes through the
+  // global db, not tx (lib/activity-record.ts) — recording must wait until
+  // the transaction actually commits, or a family write that fails leaves a
+  // phantom UPDATED entry for a row change that never landed.
+  it("updateItem: when the family updateMany throws, no Activity is recorded and nothing downstream runs", async () => {
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]);
+    itemUpdateManyMock.mockRejectedValueOnce(new Error("boom"));
+    await expect(updateItem("copy-1", { openingHours: HOURS })).rejects.toThrow("boom");
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
+  });
+
+  // Fix round 1 (controller ruling): the hours family never crosses a
+  // Surprise (CONTEXT.md "Surprise"; ADR 0072) — one test per direction.
+  describe("the family never crosses a Surprise", () => {
+    it("a visible idea edit leaves a hidden copy untouched", async () => {
+      itemFindManyMock.mockResolvedValue([{ id: "idea-1" }, { id: "hidden-copy" }]);
+      surpriseRootForMock.mockImplementation(async (ref: { itemId?: string }) =>
+        ref.itemId === "hidden-copy" ? { type: "ITEM", id: "hidden-copy" } : null,
+      );
+      await updateItem("copy-1", { openingHours: HOURS });
+      expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: STORED_HOURS } });
+    });
+
+    it("a hidden copy edit leaves the visible idea and its visible siblings untouched", async () => {
+      itemFindManyMock.mockResolvedValue([{ id: "idea-1" }, { id: "other-copy" }]);
+      surpriseRootForMock.mockImplementation(async (ref: { itemId?: string }) =>
+        ref.itemId === "copy-1" ? { type: "ITEM", id: "copy-1" } : null,
+      );
+      await updateItem("copy-1", { openingHours: HOURS });
+      // The edited row is itself a Surprise: the write reaches only it, and
+      // never even looks up the rest of the family.
+      expect(itemFindManyMock).not.toHaveBeenCalled();
+      expect(itemUpdateManyMock).not.toHaveBeenCalled();
+      expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+    });
+  });
+
+  it("createItem stores hours given on create", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "new-1", title: "Lello" });
+    await createItem("trip-1", { ...VALID_INPUT, title: "Lello", openingHours: HOURS });
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+  });
+});

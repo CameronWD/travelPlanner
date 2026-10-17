@@ -203,6 +203,14 @@ describe("loadSurpriseVisibility", () => {
       sortOrder: 3,
       photoAttachmentId: null,
       sourceItemId: null,
+      // Spec 2026-10-17 R2–R4: nothing about the booking, the ticket or the place leaks.
+      bookingState: "NONE",
+      bookingStateSet: false,
+      bookBy: null,
+      slotTime: null,
+      arriveByMinutes: null,
+      refundable: null,
+      openingHours: null,
     });
     expect(p.surprise.youAreSurprised).toBe(true);
   });

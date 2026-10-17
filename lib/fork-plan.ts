@@ -4,7 +4,7 @@
  * a Fork (a faithful copy of the live arrangement).
  *
  * Rules (compare with buildDuplicatePlan in duplicate-trip.ts):
- *   KEEP  — dates, pinned, accommodations, estimated Costs, rateToHome
+ *   KEEP  — dates, pinned, accommodations, estimated Costs, rateToHome, Booking state / book-by / Slot time / Opening hours
  *   DROP  — paidAt, paidMinor from Costs; votes/notes/attachments (trip-wide)
  *   NULL  — sourceItemId (items) and ownerId (costs, remapped by the tx)
  *   ANCHOR — each leg's slot (sourceAnchorStopId, a SOURCE stop id; the tx
@@ -14,6 +14,7 @@
  * remaps FK relationships from the `sourceId` / `source*Id` keys.
  */
 
+import { effectiveBookingState } from "@/lib/booking-state";
 import { isOnTrip } from "@/lib/enum-values";
 import { orderPlanStops } from "@/lib/plan-order";
 import { creationAnchor } from "@/lib/transport-anchor";
@@ -77,6 +78,10 @@ interface ForkSourceTransport {
   reference: string | null;
   notes: string | null;
   sortOrder: number;
+  /** CONTEXT.md "Booking state" (spec 2026-10-17 R2) — optional so older-shaped rows still build. */
+  bookingState?: string | null;
+  bookingStateSet?: boolean | null;
+  bookBy?: string | null;
 }
 
 interface ForkSourceAccommodation {
@@ -92,6 +97,10 @@ interface ForkSourceAccommodation {
   notes: string | null;
   lat: number | null;
   lng: number | null;
+  /** CONTEXT.md "Booking state" (spec 2026-10-17 R2) — optional so older-shaped rows still build. */
+  bookingState?: string | null;
+  bookingStateSet?: boolean | null;
+  bookBy?: string | null;
 }
 
 interface ForkSourceItem {
@@ -122,6 +131,15 @@ interface ForkSourceItem {
   surprisePlannerId?: string | null;
   surpriseForIds?: string | null;
   surpriseRevealedAt?: Date | null;
+  /** CONTEXT.md "Booking state" (spec 2026-10-17 R2) — optional so older-shaped rows still build. */
+  bookingState?: string | null;
+  bookingStateSet?: boolean | null;
+  bookBy?: string | null;
+  /** CONTEXT.md "Slot time" / "Opening hours" (R3, R4). */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
+  openingHours?: string | null;
 }
 
 interface ForkSourceCost {
@@ -202,6 +220,9 @@ export interface ForkPlan {
       reference: string | null;
       notes: string | null;
       sortOrder: number;
+      bookingState: string;
+      bookingStateSet: boolean;
+      bookBy: string | null;
     };
   }>;
   accommodations: Array<{
@@ -217,6 +238,9 @@ export interface ForkPlan {
       notes: string | null;
       lat: number | null;
       lng: number | null;
+      bookingState: string;
+      bookingStateSet: boolean;
+      bookBy: string | null;
     };
   }>;
   items: Array<{
@@ -241,6 +265,13 @@ export interface ForkPlan {
       surprisePlannerId: string | null;
       surpriseForIds: string | null;
       surpriseRevealedAt: Date | null;
+      bookingState: string;
+      bookingStateSet: boolean;
+      bookBy: string | null;
+      slotTime: string | null;
+      arriveByMinutes: number | null;
+      refundable: boolean | null;
+      openingHours: string | null;
     };
   }>;
   costs: Array<{
@@ -291,6 +322,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         mode: t.mode, depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,
         reference: t.reference, notes: t.notes, sortOrder: t.sortOrder,
+        bookingState: effectiveBookingState("TRANSPORT", t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
       },
     })),
     accommodations: source.accommodations.map((a) => ({
@@ -299,6 +331,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut,
         checkInTime: a.checkInTime ?? null, checkOutTime: a.checkOutTime ?? null,
         confirmation: a.confirmation, notes: a.notes, lat: a.lat, lng: a.lng,
+        bookingState: effectiveBookingState("ACCOMMODATION", a, a.confirmation), bookingStateSet: a.bookingStateSet ?? false, bookBy: a.bookBy ?? null,
       },
     })),
     items: source.items.map((it) => ({
@@ -311,6 +344,9 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         hiddenFromShares: it.hiddenFromShares ?? false,
         surprisePlannerId: it.surprisePlannerId ?? null, surpriseForIds: it.surpriseForIds ?? null,
         surpriseRevealedAt: it.surpriseRevealedAt ?? null,
+        bookingState: effectiveBookingState("ITEM", it, it.booking), bookingStateSet: it.bookingStateSet ?? false, bookBy: it.bookBy ?? null,
+        slotTime: it.slotTime ?? null, arriveByMinutes: it.arriveByMinutes ?? null, refundable: it.refundable ?? null,
+        openingHours: it.openingHours ?? null,
       },
     })),
     costs: source.costs.map((c) => ({

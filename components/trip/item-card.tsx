@@ -25,6 +25,9 @@ import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
 import { ItemPhotoThumb } from "./item-photo-thumb";
+import { BookingStateBadge } from "./booking-state-badge";
+import { SlotFacts } from "./slot-facts";
+import { OpeningHoursLine } from "./opening-hours-line";
 import type { ItemCardItem } from "@/lib/plan-entity-views";
 
 export type { ItemCardItem };
@@ -135,6 +138,7 @@ export function ItemCard({
                 in this plan
               </span>
             )}
+            <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} />
           </div>
         ) : (
           <div className="min-w-0 flex-1">
@@ -217,6 +221,11 @@ export function ItemCard({
                 {item.stopName}
               </p>
             )}
+            {(item.slotTime || item.refundable === false) && (
+              <p className="mt-1 flex flex-wrap gap-x-2 text-xs font-semibold text-muted-foreground">
+                <SlotFacts item={item} highlight={highlight} />
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -234,6 +243,9 @@ export function ItemCard({
               {timeLabel}
             </span>
           )}
+          <SlotFacts item={item} highlight={highlight} />
+          <OpeningHoursLine hours={item.openingHours} dateISO={item.date} />
+          <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} />
         </div>
       )}
 
@@ -277,6 +289,8 @@ export function ItemCard({
           <p className={cn(expanded ? "whitespace-pre-wrap" : "line-clamp-2")}>{item.notes}</p>
         </div>
       )}
+
+      {wishlist && item.date && <OpeningHoursLine hours={item.openingHours} dateISO={item.date} />}
 
       {/* Vote control (wishlist mode only) — inline, no border-t */}
       {mode === "wishlist" && votes !== undefined && tripId && currentUserId && (

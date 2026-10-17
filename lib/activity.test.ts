@@ -17,6 +17,7 @@ import {
   voteSummary,
   type ActivitySummary,
 } from "@/lib/activity";
+import { serializeOpeningHours } from "@/lib/validations/opening-hours";
 
 // ---------------------------------------------------------------------------
 // Vocab constants
@@ -602,5 +603,68 @@ describe("homeTimezoneSummary (ADR 0030 amendment 2026-10-16)", () => {
   it("is the line activityLine shows", () => {
     expect(activityLine({ verb: "UPDATED", entityType: "TRANSPORT", entityLabel: "Home timezone", changes: homeTimezoneSummary("Australia/Brisbane", true) }))
       .toBe("changed the Home timezone to Australia/Brisbane; Home-end times kept as local times");
+  });
+});
+
+describe("describeChanges booking state (spec 2026-10-17 R2)", () => {
+  it.each(["ITEM", "TRANSPORT", "ACCOMMODATION"] as const)("%s: names the state and the book-by date in words", (kind) => {
+    const changes = describeChanges(kind, { bookingState: "TO_BOOK", bookBy: "2026-11-20" }, { bookingState: "BOOKED", bookBy: null });
+    expect(changes).toEqual(
+      expect.arrayContaining([
+        { field: "bookingState", label: "Booking", from: "To book", to: "Booked" },
+        expect.objectContaining({ field: "bookBy", label: "Book by", to: "" }),
+      ]),
+    );
+  });
+  it("an unchanged state is no change", () => {
+    expect(describeChanges("TRANSPORT", { bookingState: "TO_BOOK" }, { bookingState: "TO_BOOK" })).toEqual([]);
+  });
+});
+
+describe("describeChanges ITEM: Slot time (R3)", () => {
+  it("names the slot, the margin and refundability in plain words", () => {
+    expect(
+      describeChanges(
+        "ITEM",
+        { title: "Tour", slotTime: null, arriveByMinutes: null, refundable: null },
+        { title: "Tour", slotTime: "12:00", arriveByMinutes: 15, refundable: false },
+      ).map((c) => [c.label, c.from, c.to]),
+    ).toEqual([
+      ["Slot time", "", "12:00"],
+      ["Be there early", "", "15 min"],
+      ["Refundable", "Not known", "No"],
+    ]);
+  });
+  it("refundable Yes back to not known", () => {
+    expect(
+      describeChanges("ITEM", { refundable: true }, { refundable: null }).map((c) => [c.label, c.from, c.to]),
+    ).toEqual([["Refundable", "Yes", "Not known"]]);
+  });
+  it("an unchanged slot is no change", () => {
+    expect(describeChanges("ITEM", { slotTime: "12:00", refundable: true }, { slotTime: "12:00", refundable: true })).toEqual([]);
+    expect(describeChanges("ITEM", { refundable: null }, { refundable: null })).toEqual([]);
+  });
+});
+
+// Adapted from task-D.4-brief.md to Section S's actual shape (d-as-built.md,
+// authoritative): Item.openingHours is a JSON *string* column
+// (lib/validations/opening-hours.ts), not a Json column, so the before/after
+// values here are already serialised strings — describeChanges compares them
+// with plain `===` (two equal JSON strings from the same source object are
+// byte-identical), so normaliseForComparison needs no new object-handling.
+describe("describeChanges: an Item's opening hours (CONTEXT.md Opening hours)", () => {
+  const span = [["10:00", "18:00"]];
+  const hours = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: [] }, seasons: [], closed: [] };
+  const stored = serializeOpeningHours(hours as never);
+
+  it("reads a change as the one-line summary, and not set as 'Not set'", () => {
+    expect(describeChanges("ITEM", { title: "Lello", openingHours: null }, { title: "Lello", openingHours: stored })).toEqual([
+      { field: "openingHours", label: "Opening hours", from: "Not set", to: "Mon–Fri 10:00–18:00 · Sat–Sun closed" },
+    ]);
+  });
+
+  it("an unchanged value (re-serialised from an equal object) is no change", () => {
+    const again = serializeOpeningHours(JSON.parse(JSON.stringify(hours)));
+    expect(describeChanges("ITEM", { openingHours: stored }, { openingHours: again })).toEqual([]);
   });
 });

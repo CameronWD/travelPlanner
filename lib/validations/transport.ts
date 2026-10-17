@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { TRANSPORT_MODES, costSettlementSchema } from "@/lib/enums";
+import { TRANSPORT_MODES, bookingStateSchema, costSettlementSchema } from "@/lib/enums";
+import { bookBySchema } from "@/lib/validations/planning";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { WALL_TIME_RE } from "@/lib/wall-time";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
@@ -60,6 +61,10 @@ export const transportSchema = z.object({
 
   /** Booking / ticket reference (flight number, train code, …). */
   reference: z.string().trim().optional(),
+  /** CONTEXT.md "Booking state". Omitted = derived from `reference` (create) or kept (update). A To book leg is how a tentative journey lives in the plan. */
+  bookingState: bookingStateSchema.optional(),
+  /** The day it should be booked by; only while To book (lib/booking-state-patch.ts refuses it otherwise). */
+  bookBy: bookBySchema.optional(),
   /** Free-form notes. */
   notes: z.string().trim().optional(),
 

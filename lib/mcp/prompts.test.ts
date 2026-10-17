@@ -94,6 +94,8 @@ describe("MCP prompts", () => {
       expect(t).toMatch(/car|taxi/i);
       expect(t).toMatch(/opening hours/i);
       expect(t).toMatch(/unverified/i);
+      expect(t).toMatch(/set_opening_hours/);
+      expect(t).not.toMatch(/holds no opening hours/);
     }
   });
 

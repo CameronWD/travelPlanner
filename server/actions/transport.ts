@@ -19,6 +19,7 @@ import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
 import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 import { revalidateTrip } from "@/lib/revalidate";
+import { resolveBookingWrite } from "@/lib/booking-state-patch";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -92,6 +93,9 @@ export async function createTransport(
   }
 
   const data = parsed.data;
+  // CONTEXT.md "Booking state": stored as the effective state (a reference implies Booked).
+  const booking = resolveBookingWrite("TRANSPORT", null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.reference);
+  if ("success" in booking) return booking;
 
   // Normalise home-base flags: a home endpoint owns no stop and no free-text
   // place. Its coordinates resolve from the trip at read time.
@@ -175,6 +179,7 @@ export async function createTransport(
       depLng,
       arrLat,
       arrLng,
+      ...booking,
     },
   });
   // F4: a dated return leg can push the soft end to the day it lands home
@@ -243,12 +248,25 @@ export async function updateTransport(
   const inlineCost = completeInlineCost(patch, owned);
   if (inlineCost && "success" in inlineCost) return inlineCost;
 
-  const parsed = transportSchema.safeParse({ ...merged, ...inlineCost });
+  // The booking fields aren't endpoint rules (lib/transport-patch.ts): validated here, merged by resolveBookingWrite.
+  const parsed = transportSchema.safeParse({
+    ...merged,
+    ...inlineCost,
+    bookingState: patch.bookingState ?? undefined,
+    bookBy: patch.bookBy ?? undefined,
+  });
   if (!parsed.success) {
     return validationResult(parsed.error);
   }
 
   const data = parsed.data;
+  const booking = resolveBookingWrite(
+    "TRANSPORT",
+    before,
+    { bookingState: patch.bookingState, bookBy: patch.bookBy },
+    data.reference,
+  );
+  if ("success" in booking) return booking;
 
   // Normalise home-base flags: a home endpoint owns no stop and no free-text
   // place. Its coordinates resolve from the trip at read time.
@@ -323,6 +341,7 @@ export async function updateTransport(
     depLng,
     arrLat,
     arrLng,
+    ...booking,
   }, transport.forkId ?? null, { before });
   // F4: re-dating (or re-homing) a leg can push the soft end to the day it lands home.
   const grownTo = await growTripEndTx(db, transport.tripId, transport.forkId ?? null);

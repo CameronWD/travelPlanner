@@ -18,7 +18,7 @@ const cost = (over = {}) => ({
 });
 
 const ARTEMIDE: StayDetailAccommodation = {
-  id: "a1",
+  id: "a1", bookingStateSet: false,
   stopId: "r",
   name: "Hotel Artemide",
   address: "Via Nazionale 22, Roma",
@@ -39,7 +39,7 @@ const ARTEMIDE: StayDetailAccommodation = {
 
 // No address, no booking ref, no cost, no notes (FB-09: no map link without an address).
 const TRASTEVERE: StayDetailAccommodation = {
-  id: "a2", stopId: "r", name: "Trastevere flat", address: null, checkIn: "2026-12-18", checkOut: "2026-12-20",
+  id: "a2", stopId: "r", name: "Trastevere flat", address: null, checkIn: "2026-12-18", checkOut: "2026-12-20", bookingStateSet: false,
   checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: 41.88, lng: 12.47, costs: [],
 };
 
@@ -141,7 +141,7 @@ describe("StayDialog (spec 2026-10-05 §D)", () => {
   // selectedId, so the dialog itself has to notice the stays list grew.
   describe("selecting the newly added stay (R8)", () => {
     const NEW_STAY: StayDetailAccommodation = {
-      id: "a3", stopId: "r", name: "Brand New B&B", address: null, checkIn: "2026-12-15", checkOut: "2026-12-20",
+      id: "a3", stopId: "r", name: "Brand New B&B", address: null, checkIn: "2026-12-15", checkOut: "2026-12-20", bookingStateSet: false,
       checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: null, lng: null, costs: [],
     };
 

@@ -8,6 +8,7 @@ const {
   unscheduleItem,
   placeIdeaAtStop,
   addMarkerToWishlist,
+  setOpeningHours,
   setVote,
   clearVote,
   setDayTitle,
@@ -33,6 +34,7 @@ const {
   unscheduleItem: vi.fn(),
   placeIdeaAtStop: vi.fn(),
   addMarkerToWishlist: vi.fn(),
+  setOpeningHours: vi.fn(),
   setVote: vi.fn(),
   clearVote: vi.fn(),
   setDayTitle: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock("@/server/actions/items", () => ({
   unscheduleItem,
   placeIdeaAtStop,
   addMarkerToWishlist,
+  setOpeningHours,
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote, clearVote }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle }));
@@ -169,6 +172,7 @@ describe("plan write tools", () => {
       expect.arrayContaining([
         "add_thing_to_do",
         "update_thing_to_do",
+        "set_opening_hours",
         "delete_thing_to_do",
         "schedule_thing_to_do",
         "unschedule_thing_to_do",
@@ -214,6 +218,33 @@ describe("plan write tools", () => {
     expect(call[1]).toEqual(expect.objectContaining({ title: "Colosseum", category: "SIGHTSEEING" }));
   });
 
+  describe("Booking state (spec 2026-10-17 R2, R13)", () => {
+    it("update_thing_to_do passes bookingState through and turns bookBy \"\" into a clear (null)", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, bookingState: "TO_BOOK", bookBy: "" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { bookingState: "TO_BOOK", bookBy: null });
+    });
+
+    it("update_thing_to_do takes bookBy null as the clear", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, bookBy: null } });
+      expect(r.isError).toBeFalsy();
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, expect.objectContaining({ bookBy: null }));
+    });
+
+    it("add_thing_to_do forwards bookingState and bookBy", async () => {
+      createItem.mockResolvedValue({ success: true, id: "item-new" });
+      const c = await connectTestClient();
+      await c.callTool({
+        name: "add_thing_to_do",
+        arguments: { tripId: TRIP_ID, title: "Alhambra", category: "SIGHTSEEING", bookingState: "TO_BOOK", bookBy: "2027-05-01" },
+      });
+      expect(createItem).toHaveBeenCalledWith(TRIP_ID, expect.objectContaining({ bookingState: "TO_BOOK", bookBy: "2027-05-01" }));
+    });
+  });
+
   describe("update_thing_to_do (PATCH)", () => {
     it("checks the item and any new Stop are real-plan, then forwards only the fields passed", async () => {
       updateItem.mockResolvedValue({ success: true });
@@ -248,6 +279,64 @@ describe("plan write tools", () => {
       const c = await connectTestClient();
       const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, title: "x" } });
       expect(r.isError).toBe(true);
+    });
+  });
+
+  // Task D.12 (CONTEXT.md "Opening hours"). Adapted from the brief's assumed
+  // weekly/closedDates/sourceUrl shape to d-as-built.md: S's real OpeningHours
+  // is week (sun..sat)/seasons/closed, and the field (and this tool's
+  // override argument) is named source, not sourceUrl.
+  describe("set_opening_hours (R4)", () => {
+    it("checks the real plan, saves through setOpeningHours with the source link, and returns the item", async () => {
+      setOpeningHours.mockResolvedValue({ success: true });
+      loadItemForMcp.mockResolvedValue({ id: ITEM_ID, openingHours: { week: {}, seasons: [], closed: [] } });
+      const span = [["10:00", "18:00"]];
+      const hours = { week: { sun: [], mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: ["2027-12-25"] };
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours, source: "https://lello.example/hours" } });
+      expect(r.isError).toBeFalsy();
+      expect(itemFindUnique).toHaveBeenCalledWith({ where: { id: ITEM_ID, forkId: null }, select: { tripId: true } });
+      expect(setOpeningHours).toHaveBeenCalledWith(ITEM_ID, { ...hours, source: "https://lello.example/hours" });
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ item: { id: ITEM_ID, openingHours: { week: {}, seasons: [], closed: [] } } });
+    });
+
+    it("with null clears them", async () => {
+      setOpeningHours.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours: null } });
+      expect(setOpeningHours).toHaveBeenCalledWith(ITEM_ID, null);
+    });
+
+    // Fix round 1 (minor): hours: {} is a valid, fully-empty OpeningHours
+    // once the schema's defaults fill in week/seasons/closed; it reaches
+    // setOpeningHours as that canonical empty shape, which is itself the one
+    // that stores as a clear (isEmptyOpeningHours, lib/opening-hours.ts),
+    // already covered where setOpeningHours is tested for real.
+    it("hours: {} reaches setOpeningHours as the canonical empty shape (itself a clear)", async () => {
+      setOpeningHours.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours: {} } });
+      expect(r.isError).toBeFalsy();
+      expect(setOpeningHours).toHaveBeenCalledWith(ITEM_ID, { week: {}, seasons: [], closed: [] });
+    });
+
+    it("invalid hours (a span out of order) is isError and calls nothing", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "set_opening_hours",
+        arguments: { itemId: ITEM_ID, hours: { week: { mon: [["18:00", "10:00"]] } } },
+      });
+      expect(r.isError).toBe(true);
+      expect(setOpeningHours).not.toHaveBeenCalled();
+    });
+
+    it("on a Fork's row is not found and writes nothing", async () => {
+      itemFindUnique.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_opening_hours", arguments: { itemId: ITEM_ID, hours: null } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      expect(setOpeningHours).not.toHaveBeenCalled();
     });
   });
 
@@ -566,6 +655,73 @@ describe("plan write tools", () => {
       expect(body(await c.callTool({ name: "add_marker_to_wishlist", arguments: { markerId: "m-1", tripId: "trip-1" } }))).toEqual({ idea: { id: "idea-9", votes: [] } });
       expect(body(await c.callTool({ name: "update_chapter", arguments: { chapterId: "chapter-1", name: "Rome" } }))).toEqual({ chapter: { id: "chapter-1" } });
       expect(body(await c.callTool({ name: "clear_vote", arguments: { tripId: "trip-1", itemId: "item-1" } }))).toEqual({ itemId: "item-1", votes: [] });
+    });
+  });
+
+  describe("Slot time on the thing-to-do tools (R3)", () => {
+    it("add_thing_to_do forwards slotTime, arriveByMinutes and refundable to createItem, mapped to a boolean", async () => {
+      createItem.mockResolvedValue({ success: true, id: "new-1" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "Lodge tour", category: "ACTIVITY", date: "2027-06-02", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" } });
+      expect(createItem.mock.calls[0][1]).toEqual(expect.objectContaining({ slotTime: "12:00", arriveByMinutes: 15, refundable: false }));
+    });
+    it("add_thing_to_do's refundable UNKNOWN is the same as not setting it (nothing to clear on a create)", async () => {
+      createItem.mockResolvedValue({ success: true, id: "new-2" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "x", category: "ACTIVITY", refundable: "UNKNOWN" } });
+      expect(createItem.mock.calls[0][1].refundable).toBeUndefined();
+    });
+    it("update_thing_to_do passes null through to clear the slot, and refuses a made-up refundability", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, slotTime: null, arriveByMinutes: null } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { slotTime: null, arriveByMinutes: null });
+      const bad = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, refundable: "MAYBE" } });
+      expect(bad.isError).toBe(true);
+    });
+    it("update_thing_to_do maps YES/NO/UNKNOWN to true/false/null, UNKNOWN clearing it back to not known", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, refundable: "YES" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { refundable: true });
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, refundable: "UNKNOWN" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { refundable: null });
+    });
+    it("clearing slotTime alone while a margin remains is refused with the arrive-by message (checkSlotFields, via the action) (fix round 1 #3)", async () => {
+      const { ARRIVE_BY_NEEDS_SLOT_MESSAGE } = await import("@/lib/validations/planning");
+      updateItem.mockResolvedValue({ success: false, errors: { arriveByMinutes: [ARRIVE_BY_NEEDS_SLOT_MESSAGE] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, slotTime: null } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain(ARRIVE_BY_NEEDS_SLOT_MESSAGE);
+    });
+    it("update_thing_to_do's startTime takes null, to let a slot default it again (fix round 1 #6)", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, startTime: null } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, { startTime: null });
+      const tool = (await c.listTools()).tools.find((t) => t.name === "update_thing_to_do")!;
+      expect(tool.description).toMatch(/null startTime/i);
+    });
+    it("schedule_thing_to_do forwards a slot; its description says start defaults from it", async () => {
+      scheduleItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "schedule_thing_to_do", arguments: { itemId: ITEM_ID, date: "2027-06-02", slotTime: "20:00", arriveByMinutes: 10 } });
+      expect(scheduleItem.mock.calls[0][1]).toEqual({ date: "2027-06-02", slotTime: "20:00", arriveByMinutes: 10 });
+      const tool = (await c.listTools()).tools.find((t) => t.name === "schedule_thing_to_do")!;
+      expect(tool.description).toMatch(/slot/i);
+    });
+    it("the slot fields are described as the ticket's, not the start", async () => {
+      const c = await connectTestClient();
+      const add = (await c.listTools()).tools.find((t) => t.name === "add_thing_to_do")!;
+      const props = (add.inputSchema as { properties: Record<string, { description?: string }> }).properties;
+      expect(props.slotTime.description).toMatch(/ticket/i);
+      expect(props.refundable.description).toMatch(/UNKNOWN/);
+    });
+    it("update_thing_to_do's description says passing null for both slotTime and arriveByMinutes clears the slot", async () => {
+      const c = await connectTestClient();
+      const tool = (await c.listTools()).tools.find((t) => t.name === "update_thing_to_do")!;
+      expect(tool.description).toMatch(/pass null for both slottime and arrivebyminutes/i);
     });
   });
 });

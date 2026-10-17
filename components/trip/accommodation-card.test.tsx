@@ -20,7 +20,7 @@ vi.mock("@/server/actions/attachments", () => ({
 import { AccommodationCard } from "./accommodation-card";
 
 const baseAcc = {
-  id: "a1",
+  id: "a1", bookingStateSet: false,
   stopId: "s1",
   name: "The Grand Hotel",
   checkIn: "2026-07-10",
@@ -190,12 +190,29 @@ describe("AccommodationCard highlight (Booking import)", () => {
   it("marks name, times and confirmation", () => {
     const { container } = render(
       <AccommodationCard
-        accommodation={{ id: "p3", stopId: "s-lis", name: "Casa do Rio Lisboa", checkIn: "2026-12-02", checkOut: "2026-12-08", checkInTime: "15:00", confirmation: "CDR-55821" }}
+        accommodation={{ id: "p3", bookingStateSet: false, stopId: "s-lis", name: "Casa do Rio Lisboa", checkIn: "2026-12-02", checkOut: "2026-12-08", checkInTime: "15:00", confirmation: "CDR-55821" }}
         stop={{ arriveDate: "2026-12-02", departDate: "2026-12-08" }}
         highlight={["name", "checkInTime", "confirmation"]}
       />,
     );
     const marked = [...container.querySelectorAll("[data-highlight]")].map((el) => el.getAttribute("data-highlight"));
     expect(marked.sort()).toEqual(["checkInTime", "confirmation", "name"]);
+  });
+});
+
+describe("AccommodationCard Booking state (spec 2026-10-17 R2)", () => {
+  it("shows To book and its book-by date (spec R2)", () => {
+    render(
+      <AccommodationCard
+        accommodation={{ ...baseAcc, bookingState: "TO_BOOK", bookBy: "2026-11-20" }}
+        stop={baseStop}
+      />,
+    );
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText("Book by 20 Nov")).toBeInTheDocument();
+  });
+  it("a Booked thing shows no badge", () => {
+    render(<AccommodationCard accommodation={{ ...baseAcc, bookingState: "BOOKED" }} stop={baseStop} />);
+    expect(screen.queryByText("To book")).not.toBeInTheDocument();
   });
 });

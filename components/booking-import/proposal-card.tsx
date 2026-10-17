@@ -41,7 +41,7 @@ export function ProposalPreview({ proposal, stops, homeName, homeTimezone }: Pre
     const a = proposal.input;
     return (
       <AccommodationCard
-        accommodation={{ id: proposal.clientId, stopId: a.stopId, name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut, checkInTime: a.checkInTime, checkOutTime: a.checkOutTime, confirmation: a.confirmation, notes: a.notes }}
+        accommodation={{ id: proposal.clientId, stopId: a.stopId, name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut, checkInTime: a.checkInTime, checkOutTime: a.checkOutTime, confirmation: a.confirmation, bookingStateSet: a.bookingState !== undefined, notes: a.notes }}
         stop={stayRange(a, stops)}
         highlight={proposal.highlight}
       />
@@ -53,7 +53,7 @@ export function ProposalPreview({ proposal, stops, homeName, homeTimezone }: Pre
       {i.date && <p {...highlightAttrs(proposal.highlight, "date", "text-xs font-semibold text-muted-foreground")}>{formatDayLabel(i.date)}</p>}
       <ItemCard
         mode="scheduled"
-        item={{ id: proposal.clientId, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime, address: i.address, booking: i.booking, notes: i.notes, stopId: i.stopId, stopName: i.stopId ? (stops.get(i.stopId)?.name ?? null) : null }}
+        item={{ id: proposal.clientId, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime, address: i.address, booking: i.booking, bookingStateSet: i.bookingState !== undefined, notes: i.notes, stopId: i.stopId, stopName: i.stopId ? (stops.get(i.stopId)?.name ?? null) : null, slotTime: i.slotTime, arriveByMinutes: i.arriveByMinutes, refundable: i.refundable }}
         highlight={proposal.highlight}
       />
     </div>

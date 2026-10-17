@@ -110,7 +110,7 @@ const dayPlanWithCheckin: DayPlan = {
     {
       kind: "accommodation-checkin",
       accommodation: {
-        id: "acc-1",
+        id: "acc-1", bookingStateSet: false,
         stopId: "stop-1",
         name: LONG_ACCOMMODATION_NAME,
         checkIn: "2025-07-01",
@@ -126,7 +126,7 @@ const dayPlanWithCheckout: DayPlan = {
     {
       kind: "accommodation-checkout",
       accommodation: {
-        id: "acc-1",
+        id: "acc-1", bookingStateSet: false,
         stopId: "stop-1",
         name: LONG_ACCOMMODATION_NAME,
         checkIn: "2025-07-01",
@@ -155,7 +155,7 @@ const dayPlanWithTransport: DayPlan = {
     {
       kind: "transport-departure",
       transport: {
-        id: "tr-1",
+        id: "tr-1", bookingStateSet: false,
         mode: "FLIGHT",
         depPlace: LONG_DEP_PLACE,
         arrPlace: LONG_ARR_PLACE,
@@ -334,7 +334,7 @@ const dayPlanWithLongTimedTitle: DayPlan = {
     {
       kind: "item",
       item: {
-        id: "item-long-1",
+        id: "item-long-1", bookingStateSet: false,
         title: LONG_ITEM_TITLE,
         category: "ACTIVITY",
         date: "2025-07-01",
@@ -408,7 +408,7 @@ const dayPlanWithTimedFood: DayPlan = {
     {
       kind: "item",
       item: {
-        id: "item-food-1",
+        id: "item-food-1", bookingStateSet: false,
         title: "Sushi Dinner",
         category: "FOOD",
         date: "2025-07-01",
@@ -437,7 +437,7 @@ const dayPlanWithUntimedItem: DayPlan = {
     {
       kind: "item",
       item: {
-        id: "item-untimed-food-1",
+        id: "item-untimed-food-1", bookingStateSet: false,
         title: "Browse Tsukiji Market",
         category: "FOOD",
         date: "2025-07-01",
@@ -556,7 +556,7 @@ const dayPlanWithUntimedItemAddress: DayPlan = {
     {
       kind: "item",
       item: {
-        id: "item-untimed-addr-1",
+        id: "item-untimed-addr-1", bookingStateSet: false,
         title: "Senso-ji Temple",
         category: "SIGHTSEEING",
         date: "2025-07-01",
@@ -597,7 +597,7 @@ const dayPlanWithWrappingItem: DayPlan = {
     {
       kind: "item",
       item: {
-        id: "item-wrap-1",
+        id: "item-wrap-1", bookingStateSet: false,
         title: WRAP_ITEM_TITLE,
         category: "SIGHTSEEING",
         date: "2025-07-01",
@@ -649,7 +649,7 @@ const dayWithCheckoutAndItems: DayPlan = {
     {
       kind: "item",
       item: {
-        id: "item-museum",
+        id: "item-museum", bookingStateSet: false,
         title: TIMED_ITEM_TITLE,
         category: "SIGHTSEEING",
         date: "2025-07-05",
@@ -663,7 +663,7 @@ const dayWithCheckoutAndItems: DayPlan = {
     {
       kind: "accommodation-checkout",
       accommodation: {
-        id: "acc-1",
+        id: "acc-1", bookingStateSet: false,
         stopId: "stop-1",
         name: "Tokyo Hotel",
         checkIn: "2025-07-01",
@@ -688,7 +688,7 @@ const dayWithTimedCheckout: DayPlan = {
     {
       kind: "item",
       item: {
-        id: "item-bakery",
+        id: "item-bakery", bookingStateSet: false,
         title: "Bakery",
         category: "FOOD",
         date: "2025-07-05",
@@ -702,7 +702,7 @@ const dayWithTimedCheckout: DayPlan = {
     {
       kind: "accommodation-checkout",
       accommodation: {
-        id: "acc-1",
+        id: "acc-1", bookingStateSet: false,
         stopId: "stop-1",
         name: "Tokyo Hotel",
         checkIn: "2025-07-01",
@@ -729,7 +729,7 @@ const dayWithCheckinAndTransport: DayPlan = {
     {
       kind: "transport-arrival",
       transport: {
-        id: "tr-1",
+        id: "tr-1", bookingStateSet: false,
         mode: "TRAIN",
         depPlace: "Tokyo",
         arrPlace: "Osaka",
@@ -741,7 +741,7 @@ const dayWithCheckinAndTransport: DayPlan = {
     {
       kind: "accommodation-checkin",
       accommodation: {
-        id: "acc-2",
+        id: "acc-2", bookingStateSet: false,
         stopId: "stop-2",
         name: "Osaka Hotel",
         checkIn: "2025-07-05",
@@ -800,7 +800,7 @@ describe("Timeline — Unschedule control (Task 7)", () => {
 describe("Timeline — day-page entries open their details (editor)", () => {
   it("wraps entry titles in DayEntryLink when an editor is supplied, and not otherwise", () => {
     const editor: DayEntryEditor = {
-      tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY" } },
+      tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY", bookingStateSet: false } },
       transports: {}, accommodations: {}, costsByOwner: {},
     };
     const { unmount } = render(<Timeline day={dayPlan} variant="day" editor={editor} />);
@@ -819,10 +819,10 @@ describe("Timeline — day-page entries open their details (editor)", () => {
       tripId: "t1",
       stops: [],
       items: {},
-      transports: { "tr-1": { id: "tr-1", mode: "TRAIN", sortOrder: 0 } },
+      transports: { "tr-1": { id: "tr-1", bookingStateSet: false, mode: "TRAIN", sortOrder: 0 } },
       accommodations: {
         "acc-2": {
-          accommodation: { id: "acc-2", stopId: "stop-2", name: "Osaka Hotel", checkIn: "2025-07-05", checkOut: "2025-07-08" },
+          accommodation: { id: "acc-2", bookingStateSet: false, stopId: "stop-2", name: "Osaka Hotel", checkIn: "2025-07-05", checkOut: "2025-07-08" },
           stopDateRange: { arriveDate: "2025-07-05", departDate: "2025-07-08" },
         },
       },
@@ -853,7 +853,7 @@ describe("Timeline — Place category (map-pin icon)", () => {
       {
         kind: "item",
         item: {
-          id: "item-place-1",
+          id: "item-place-1", bookingStateSet: false,
           title: PLACE_ITEM_TITLE,
           category: "PLACE",
           date: "2025-07-01",
@@ -889,7 +889,7 @@ describe("Timeline — Anytime bucket grouped by Category", () => {
       {
         kind: "item",
         item: {
-          id: "item-untimed-food-2",
+          id: "item-untimed-food-2", bookingStateSet: false,
           title: "Browse Tsukiji Market",
           category: "FOOD",
           date: "2025-07-01",
@@ -898,7 +898,7 @@ describe("Timeline — Anytime bucket grouped by Category", () => {
       {
         kind: "item",
         item: {
-          id: "item-untimed-sightseeing-1",
+          id: "item-untimed-sightseeing-1", bookingStateSet: false,
           title: "Senso-ji Temple",
           category: "SIGHTSEEING",
           date: "2025-07-01",
@@ -1081,7 +1081,7 @@ describe("Timeline, Surprise Items (CONTEXT.md Surprise)", () => {
     accommodationEntries: [],
   });
   const editorFor = (title: string): DayEntryEditor => ({
-    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER" } }, transports: {}, accommodations: {}, costsByOwner: {},
+    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER", bookingStateSet: false } }, transports: {}, accommodations: {}, costsByOwner: {},
   });
 
   it("the planner's Item carries its badge and still opens", () => {
@@ -1108,7 +1108,7 @@ describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
     transportEntries: [
       {
         kind: "transport-departure",
-        transport: { id: "tr-1", mode: "FLIGHT", fromStopId: "stop-aghalee", depPlace },
+        transport: { id: "tr-1", bookingStateSet: false, mode: "FLIGHT", fromStopId: "stop-aghalee", depPlace },
         arrivesSameDay: false,
       },
     ],
@@ -1122,7 +1122,7 @@ describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
       items: {},
       transports: {
         "tr-1": {
-          id: "tr-1",
+          id: "tr-1", bookingStateSet: false,
           mode: "FLIGHT",
           fromStopId: "stop-aghalee",
           fromStopName: "Aghalee",
@@ -1144,7 +1144,7 @@ describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
       items: {},
       transports: {
         "tr-1": {
-          id: "tr-1",
+          id: "tr-1", bookingStateSet: false,
           mode: "FLIGHT",
           fromStopId: "stop-paris",
           fromStopName: "Paris",
@@ -1158,5 +1158,146 @@ describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
     render(<Timeline day={dayWithStopLinkedLeg("Paris Gare du Nord")} variant="day" editor={editor} />);
     expect(screen.getByText("Paris Gare du Nord")).toBeInTheDocument();
     expect(screen.queryByText("Paris · Paris Gare du Nord")).toBeNull();
+  });
+});
+
+describe("Booking state on the Timeline (spec 2026-10-17 R2)", () => {
+  it("a To book leg, Item and stay each say so; a Booked one doesn't", () => {
+    const day: DayPlan = {
+      dateISO: "2025-07-05",
+      stop: {
+        id: "stop-2",
+        name: "Osaka",
+        timezone: "Asia/Tokyo",
+        arriveDate: "2025-07-05",
+        departDate: "2025-07-08",
+        sortOrder: 1,
+      },
+      timedItems: [
+        {
+          kind: "item",
+          item: {
+            id: "item-tour", bookingStateSet: false,
+            title: "Osaka Castle tour",
+            category: "SIGHTSEEING",
+            date: "2025-07-05",
+            startTime: "11:00",
+            bookingState: "TO_BOOK",
+            bookBy: null,
+          },
+        },
+        {
+          kind: "item",
+          item: {
+            id: "item-ramen", bookingStateSet: false,
+            title: "Ichiran Ramen",
+            category: "FOOD",
+            date: "2025-07-05",
+            startTime: "19:00",
+            bookingState: "BOOKED",
+          },
+        },
+      ],
+      untimedItems: [],
+      transportEntries: [
+        {
+          kind: "transport-arrival",
+          transport: {
+            id: "tr-1", bookingStateSet: false,
+            mode: "TRAIN",
+            depPlace: "Tokyo",
+            arrPlace: "Osaka",
+            bookingState: "TO_BOOK",
+            bookBy: "2027-05-01",
+          },
+          arrTimeLabel: "09:30",
+        },
+      ],
+      accommodationEntries: [
+        {
+          kind: "accommodation-checkin",
+          accommodation: {
+            id: "acc-2", bookingStateSet: false,
+            stopId: "stop-2",
+            name: "Osaka Hotel",
+            checkIn: "2025-07-05",
+            checkOut: "2025-07-08",
+            checkInTime: null,
+            bookingState: "TO_BOOK",
+            bookBy: null,
+          },
+        },
+      ],
+    };
+    render(<Timeline day={day} variant="day" />);
+    // Compact badges: a book-by date shown in place of "To book" when set
+    // (the tour and the stay have none, so each says "To book"; the leg's
+    // date stands in for it). The Booked ramen booking shows no badge.
+    expect(screen.getAllByText("To book")).toHaveLength(2);
+    expect(screen.getByText("Book by 1 May")).toBeInTheDocument();
+    expect(screen.getByText("Ichiran Ramen")).toBeInTheDocument();
+  });
+});
+
+describe("Slot time on the Timeline (spec 2026-10-17 R3)", () => {
+  it("shows the slot and the margin, and Non-refundable; a Surprise placeholder shows neither", () => {
+    const day: DayPlan = {
+      ...dayPlan,
+      timedItems: [
+        {
+          kind: "item",
+          item: { ...dayPlan.timedItems[0]!.item, startTime: "11:45", endTime: null, slotTime: "12:00", arriveByMinutes: 15, refundable: false },
+        },
+        {
+          kind: "item",
+          item: { id: "item-secret", bookingStateSet: false, title: "Surprise", category: "OTHER", date: "2025-07-01", startTime: "19:00", surprise: { youAreSurprised: true, plannerId: "u1", plannerName: "Pat", forIds: ["u2"], forNames: ["Viv"] } },
+        },
+      ],
+    };
+    render(<Timeline day={day} variant="day" />);
+    expect(screen.getByText("Slot 12:00 · be there 11:45")).toBeInTheDocument();
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+    // The placeholder (masked by readPlan, so no slot facts) adds no slot line or refund fact: only the real row's.
+    expect(screen.queryAllByText(/^Slot /)).toHaveLength(1);
+    expect(screen.queryAllByText(/refundable/i)).toHaveLength(1);
+    expect(screen.getByText("Surprise")).toBeInTheDocument();
+  });
+});
+
+describe("Opening hours on the Timeline", () => {
+  const span = [["10:00", "18:00"]] as [string, string][];
+  const HOURS = { week: { mon: span, tue: span, wed: span, thu: span, fri: span, sat: span, sun: span }, seasons: [], closed: [] };
+
+  it("says 'today' only when todayISO matches the day", () => {
+    const day: DayPlan = {
+      ...dayPlan,
+      dateISO: "2027-06-02",
+      timedItems: [
+        {
+          kind: "item",
+          item: { ...dayPlan.timedItems[0]!.item, date: "2027-06-02", openingHours: HOURS },
+        },
+      ],
+    };
+    const { rerender } = render(<Timeline day={day} variant="day" todayISO="2027-06-02" />);
+    expect(screen.getByText("Open 10:00–18:00 today")).toBeInTheDocument();
+    rerender(<Timeline day={day} variant="day" todayISO="2027-06-01" />);
+    expect(screen.getByText("Open 10:00–18:00")).toBeInTheDocument();
+  });
+
+  it("says 'Closed today' for a row on a closed day that is today", () => {
+    const CLOSED_TUESDAY = { week: { ...HOURS.week, tue: [] as [string, string][] }, seasons: [], closed: [] };
+    const day: DayPlan = {
+      ...dayPlan,
+      dateISO: "2027-06-01", // a Tuesday
+      timedItems: [
+        {
+          kind: "item",
+          item: { ...dayPlan.timedItems[0]!.item, date: "2027-06-01", openingHours: CLOSED_TUESDAY },
+        },
+      ],
+    };
+    render(<Timeline day={day} variant="day" todayISO="2027-06-01" />);
+    expect(screen.getByText("Closed today")).toBeInTheDocument();
   });
 });

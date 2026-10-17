@@ -48,6 +48,9 @@ const {
 // Surprise (ADR 0051): the loader reads through the visibility loader first;
 // nothing is hidden unless a test says so.
 const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+// Records the Timeline's props (it renders nothing here).
+type TimelineProps = { todayISO?: string; day: { dateISO: string } };
+const { timelineMock } = vi.hoisted(() => ({ timelineMock: vi.fn<(props: TimelineProps) => null>(() => null) }));
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
   loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
@@ -98,7 +101,7 @@ vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {}, THINGS_TO_DO_WHERE
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ children }: { children: React.ReactNode }) => children }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
-vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
+vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: TimelineProps) => timelineMock(p) }));
 vi.mock("@/components/trip/day-map-panel", () => ({
   DayMapPanel: ({ variant, mountWhen }: { variant?: string; mountWhen?: unknown }) =>
     variant === "tile" ? <div data-testid="day-map-tile" data-mount-when={String(mountWhen)} /> : null,
@@ -725,6 +728,41 @@ describe("PhaseTravelling Today's journal placement (Task 7 / spec K)", () => {
 
     expect(dom.querySelector('[data-testid="todays-journal"]')).toBeNull();
     expect(loadTodaysJournalMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "today" on the Timeline (spec 2026-10-17 R4 opening hours) — the Trip's
+// real today, never the clamped day the Phase shows.
+// ---------------------------------------------------------------------------
+
+describe("PhaseTravelling passes the real today to the Timeline", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Before day 1: the Phase shows day one, but it is not today.
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2999-01-01", endDate: "2999-01-10", homeCurrency: "GBP", chaptersEnabled: false });
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+    vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue("2999-01-01");
+    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, tripElapsedPct: 0 });
+    const item = { id: "i1", title: "Museum", category: "SIGHTSEEING", startTime: "10:00" };
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, dateISO: "2999-01-01", timedItems: [{ kind: "item", item }], stop: { id: "s", name: "Porto", country: "Portugal" } });
+  });
+
+  it.each(["phone", "desktop"] as const)("before the trip (%s), the Timeline's todayISO is the real today, not day one, so nothing reads 'today'", async (layout) => {
+    toDom(await PhaseTravelling({ tripId: "trip-1", layout }));
+    expect(timelineMock).toHaveBeenCalled();
+    for (const [props] of timelineMock.mock.calls) {
+      expect(props.day.dateISO).toBe("2999-01-01");
+      expect(props.todayISO).not.toBe("2999-01-01");
+      expect(props.todayISO! < "2999-01-01").toBe(true);
+    }
   });
 });
 

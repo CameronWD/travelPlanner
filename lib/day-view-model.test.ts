@@ -126,13 +126,14 @@ describe("buildDayModel (card 3.M)", () => {
   });
   const item = (o: Partial<DayRows["items"][number]> & { id: string; date: string }) => ({
     title: `Item ${o.id}`, category: "SIGHTSEEING", startTime: null, endTime: null, sortOrder: 0, stopId: "s-stras",
-    lat: null, lng: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false,
-    photoAttachmentId: null, surprise: null, ...o,
+    lat: null, lng: null, address: null, link: null, booking: null, bookingState: "NONE" as const, bookingStateSet: false,
+    bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null, ...o,
   });
   const SURPRISED = { plannerId: "u-pat", plannerName: "Pat", forIds: ["u-viv"], forNames: ["Viv"], youAreSurprised: true };
   const HOTEL = {
     id: "a-corbeau", stopId: "s-stras", name: "Hôtel Cour du Corbeau", address: "6 Rue des Couples", checkIn: "2026-12-10",
     checkOut: "2026-12-13", checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: 48.5795, lng: 7.7498,
+    bookingState: "BOOKED" as const, bookingStateSet: false, bookBy: null,
   };
   function rows(over: Partial<DayRows> = {}): DayRows {
     return {
@@ -162,6 +163,24 @@ describe("buildDayModel (card 3.M)", () => {
       ...over,
     };
   }
+
+  it("carries Booking state onto the day's entries (spec R2)", () => {
+    const r = rows({
+      items: [item({ id: "i-tour", date: "2026-12-11", bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2026-11-20" })],
+      accommodations: [{ ...HOTEL, bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null }],
+    });
+    const m = buildDayModel(r, "2026-12-11");
+    const entry = m.dayPlan!.untimedItems.find((e) => e.item.id === "i-tour")!;
+    expect(entry.item).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2026-11-20" });
+    const checkin = buildDayModel(r, "2026-12-10").dayPlan!.accommodationEntries.find((e) => e.kind === "accommodation-checkin")!;
+    expect(checkin.accommodation).toMatchObject({ bookingState: "TO_BOOK" });
+  });
+
+  it("a day's Items carry their Slot time to the Timeline (R3)", () => {
+    const model = buildDayModel(rows({ items: [item({ id: "i-slot", date: "2026-12-11", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false })] }), "2026-12-11");
+    const entry = model.dayPlan!.timedItems.find((e) => e.item.id === "i-slot")!;
+    expect(entry.item).toMatchObject({ slotTime: "12:00", arriveByMinutes: 15, refundable: false });
+  });
 
   it("a planned day: its plan, Stop, title, Chapter, number, tonight, map, photo and Surprise view", () => {
     const m = buildDayModel(rows(), "2026-12-11");

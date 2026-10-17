@@ -8,7 +8,7 @@ import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
-import { requireOutsideSurprise } from "@/lib/surprise-guard";
+import { requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
@@ -25,6 +25,11 @@ import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { validateSurpriseFor } from "@/lib/surprise";
 import { revalidateTrip } from "@/lib/revalidate";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { ARRIVE_BY_NEEDS_SLOT_MESSAGE, arriveByMinutesSchema, slotTimeSchema } from "@/lib/validations/planning";
+import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
+import { startFromSlot } from "@/lib/slot-time";
+import { openingHoursSchema, parseOpeningHours, serializeOpeningHours } from "@/lib/validations/opening-hours";
+import { openingHoursFamilyRoot, openingHoursFamilyWhere, type OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -126,6 +131,9 @@ export async function createItem(
   }
 
   const data = parsed.data;
+  // CONTEXT.md "Booking state": stored as the effective state (a reference implies Booked).
+  const booking = resolveBookingWrite("ITEM", null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.booking);
+  if ("success" in booking) return booking;
 
   // Validate stopId belongs to this trip and the same plan
   let stopTimezone: string | null = null;
@@ -187,7 +195,7 @@ export async function createItem(
       title: data.title,
       category: data.category,
       date: data.date ?? null,
-      startTime: data.startTime ?? null,
+      startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
       endTime: data.endTime ?? null,
       address: data.address ?? null,
       link: data.link ?? null,
@@ -198,6 +206,13 @@ export async function createItem(
       countryCode,
       sortOrder,
       hiddenFromShares: data.hiddenFromShares ?? false,
+      // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
+      slotTime: data.slotTime ?? null,
+      arriveByMinutes: data.arriveByMinutes ?? null,
+      refundable: data.refundable ?? null,
+      // CONTEXT.md "Opening hours" (R4): a create has no family yet, so nothing is shared.
+      openingHours: serializeOpeningHours(data.openingHours),
+      ...booking,
     },
   });
 
@@ -310,6 +325,7 @@ export async function addMarkerToWishlist(
       link: seed.link,
       notes: seed.notes,
       sortOrder,
+      ...defaultBookingFields("ITEM"),
     },
   });
 
@@ -332,6 +348,9 @@ export async function addMarkerToWishlist(
  *
  * - Access-checked via requireItemAccess → requireTripAccess.
  * - If stopId changed, validates it still belongs to the same trip.
+ * - Slot time (R3): an empty start on a dated Item with a slot defaults to
+ *   slot − arrive-by (startFromSlot, in itemSchema's transform); an existing
+ *   start is never moved.
  */
 export async function updateItem(
   itemId: string,
@@ -355,6 +374,8 @@ export async function updateItem(
         title: before.title, category: before.category as ItemInput["category"], stopId: before.stopId, date: before.date,
         startTime: before.startTime, endTime: before.endTime, address: before.address, link: before.link,
         booking: before.booking, notes: before.notes, hiddenFromShares: before.hiddenFromShares,
+        slotTime: before.slotTime, arriveByMinutes: before.arriveByMinutes, refundable: before.refundable,
+        openingHours: parseOpeningHours(before.openingHours),
       },
       patch,
     ),
@@ -365,6 +386,15 @@ export async function updateItem(
   }
 
   const data = parsed.data;
+  // The current values above carry no booking fields, so the patch's own
+  // reach the schema (validated) and are merged here (lib/booking-state-patch.ts).
+  const booking = resolveBookingWrite(
+    "ITEM",
+    before,
+    { bookingState: patch.bookingState, bookBy: patch.bookBy },
+    data.booking,
+  );
+  if ("success" in booking) return booking;
 
   // Validate stopId belongs to this trip and to the item's own plan.
   if (data.stopId) {
@@ -392,14 +422,24 @@ export async function updateItem(
     countryCode = candidate?.countryCode?.toLowerCase() ?? null;
   }
 
-  // The Item row's update is recorded as soon as it lands; the inline Cost
-  // write below is a separate row and records nothing of its own here.
-  await auditedUpdate("ITEM", db.item, itemId, {
+  // CONTEXT.md "Opening hours": computed before the write (a plain read, like
+  // the FX-rate resolve above — ADR 0007 keeps network/extra reads outside a
+  // transaction) only when the patch actually names the hours, so a patch
+  // that doesn't touch them never re-serialises `before.openingHours` (which
+  // may not even parse — fix round 1) back onto the row, and never re-touches
+  // the family. The family boundary never crosses a Surprise (fix round 1,
+  // CONTEXT.md "Surprise"; ADR 0072): openingHoursFamilyRecipients returns no
+  // one when the edited row is itself a live Surprise, and otherwise leaves
+  // out every row that is.
+  const openingHoursStored = patch.openingHours !== undefined ? serializeOpeningHours(data.openingHours) : undefined;
+  const openingHoursRecipients = patch.openingHours !== undefined ? await openingHoursFamilyRecipients(before) : [];
+
+  const itemData = {
     stopId: data.stopId ?? null,
     title: data.title,
     category: data.category,
     date: data.date ?? null,
-    startTime: data.startTime ?? null,
+    startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
     endTime: data.endTime ?? null,
     address: data.address ?? null,
     link: data.link ?? null,
@@ -409,7 +449,43 @@ export async function updateItem(
     lng,
     countryCode,
     hiddenFromShares: data.hiddenFromShares ?? false,
-  }, item.forkId ?? null, { before });
+    // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
+    slotTime: data.slotTime ?? null,
+    arriveByMinutes: data.arriveByMinutes ?? null,
+    refundable: data.refundable ?? null,
+    // Omitted entirely when the patch didn't name the hours (fix round 1) —
+    // never present to re-serialise `before`'s value back onto the row.
+    ...(openingHoursStored !== undefined ? { openingHours: openingHoursStored } : {}),
+    ...booking,
+  };
+
+  // The Item row's update is recorded as soon as it lands; the inline Cost
+  // write below is a separate row and records nothing of its own here.
+  //
+  // Fix round 2: `recordActivity` writes through the global `db`, not `tx`
+  // (lib/activity-record.ts), so it must never run from inside a
+  // transaction whose other write could still roll back — that would leave
+  // a phantom UPDATED entry for a family write that never actually landed
+  // (lib/activity-guard.ts: "Activity is recorded only after the update
+  // succeeds"). So only the path that actually names the hours opens a
+  // transaction (for its own row write plus the family's, atomically, per
+  // fix round 1), and records the Activity itself, with `recordUpdate`,
+  // only once that transaction has committed — exactly as `setOpeningHours`
+  // already does. The plain path (patch doesn't touch openingHours) needs
+  // no transaction and keeps using `auditedUpdate` as before: Fork silence
+  // and the before/after comparison are `recordUpdate`'s, shared by both.
+  if (patch.openingHours !== undefined) {
+    const after = await db.$transaction(async (tx) => {
+      const updated = await tx.item.update({ where: { id: itemId }, data: itemData });
+      if (openingHoursRecipients.length > 0) {
+        await tx.item.updateMany({ where: { id: { in: openingHoursRecipients } }, data: { openingHours: openingHoursStored } });
+      }
+      return updated;
+    });
+    await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+  } else {
+    await auditedUpdate("ITEM", db.item, itemId, itemData, item.forkId ?? null, { before });
+  }
 
   // Inline cost management (mirrors transport cost logic):
   // 0 existing costs + amount provided → create
@@ -478,6 +554,72 @@ export async function updateItem(
 }
 
 /**
+ * The ids of `item`'s opening-hours family (CONTEXT.md "Opening hours") that
+ * may actually receive a shared write: every other row sharing its place,
+ * minus `item` itself, minus anything the family boundary must never cross.
+ *
+ * Fix round 1 (controller ruling): the hours family never crosses a
+ * Surprise (CONTEXT.md "Surprise"; ADR 0072). If `item` is itself, right
+ * now, inside a live Surprise — its own, or inherited from its Stop — the
+ * write must reach only that row, so this returns no one at all (the
+ * family is skipped). Otherwise every candidate that is itself inside a
+ * live Surprise is left out of the list, so a visible edit never reaches a
+ * hidden copy and a hidden copy's edit never reaches a visible row. Used by
+ * both `updateItem` and `setOpeningHours`.
+ */
+async function openingHoursFamilyRecipients(
+  item: { id: string; tripId: string; sourceItemId: string | null },
+): Promise<string[]> {
+  if (await surpriseRootFor({ itemId: item.id })) return [];
+  const root = openingHoursFamilyRoot(item);
+  const candidates = await db.item.findMany({
+    where: { ...openingHoursFamilyWhere(item.tripId, root), id: { not: item.id } },
+    select: { id: true },
+  });
+  const recipients: string[] = [];
+  for (const c of candidates) {
+    if (!(await surpriseRootFor({ itemId: c.id }))) recipients.push(c.id);
+  }
+  return recipients;
+}
+
+/**
+ * Set (or, with null, clear) a thing's opening hours (CONTEXT.md "Opening
+ * hours"), for it and every Item sharing its place: the Wishlist idea and
+ * each copy placed from it, in any Plan — except across a Surprise boundary
+ * (fix round 1; see `openingHoursFamilyRecipients`). Writes only the hours.
+ * Unlike a full `updateItem`, it never re-geocodes the address. The MCP tool
+ * `set_opening_hours` calls this.
+ *
+ * The edited row's own write is audited (it gets the Activity entry); the
+ * updateMany that shares the value with the rest of the family is silent.
+ * Both writes happen in one transaction, so the family can never be left
+ * half-updated.
+ */
+export async function setOpeningHours(itemId: string, hours: OpeningHours | null): Promise<ItemActionResult> {
+  const item = await requireItemAccess(itemId);
+  const parsed = z.object({ openingHours: openingHoursSchema.nullable() }).safeParse({ openingHours: hours });
+  if (!parsed.success) return validationResult(parsed.error);
+  const before = await db.item.findUnique({ where: { id: itemId } });
+  if (!before) notFound();
+  const next = parsed.data.openingHours;
+  const stored = serializeOpeningHours(next);
+  const recipients = await openingHoursFamilyRecipients(before);
+
+  const after = await db.$transaction(async (tx) => {
+    const updated = await tx.item.update({ where: { id: itemId }, data: { openingHours: stored } });
+    if (recipients.length > 0) {
+      await tx.item.updateMany({ where: { id: { in: recipients } }, data: { openingHours: stored } });
+    }
+    return updated;
+  });
+  await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+
+  revalidateTrip(item.tripId, "plan");
+  return { success: true };
+}
+
+/**
  * Delete an item.
  */
 export async function deleteItem(itemId: string): Promise<ItemActionResult> {
@@ -512,28 +654,12 @@ const scheduleDateSchema = z
     date: isoDate,
     startTime: hhmm.optional(),
     endTime: hhmm.optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.endTime && !data.startTime) return false;
-      return true;
-    },
-    {
-      message: "Start time is required when an end time is set",
-      path: ["startTime"],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.startTime && data.endTime && data.endTime < data.startTime)
-        return false;
-      return true;
-    },
-    {
-      message: "End time must be on or after start time",
-      path: ["endTime"],
-    },
-  );
+    // CONTEXT.md "Slot time" (R3): scheduling a ticket may name its slot.
+    slotTime: slotTimeSchema.optional(),
+    arriveByMinutes: arriveByMinutesSchema.optional(),
+  });
+// The end-needs-start and end ≥ start checks run in scheduleItem, after the
+// slot merge, against the start the slot may default (R3).
 
 export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 
@@ -590,8 +716,15 @@ async function finishPlacedCopy({
 
 /**
  * The fields a copy-in placement always inherits from its source Wishlist
- * idea — source link, title/category, coordinates, address, link, notes and
- * the share-hidden flag. Shared by `scheduleItem`'s copy-in branch (which
+ * idea — source link, title/category, coordinates, address, link, notes, the
+ * share-hidden flag and the place's Opening hours (spec 2026-10-17 R4: shared
+ * by the family — each row holds a copy and writes go to all of them,
+ * lib/opening-hours.ts openingHoursFamilyWhere). The idea's CHOSEN Booking
+ * state carries over, with its book-by date while To book; an un-chosen
+ * idea's copy re-derives without the reference (never copied), so it needs
+ * no booking (lib/booking-state-patch.ts copiedBookingFields). The ticket's
+ * Slot time, arrive-by and refundability carry over too (spec 2026-10-17 R3,
+ * Section C decision 5). Shared by `scheduleItem`'s copy-in branch (which
  * also sets a date/time and resolves an owning Stop from the date) and
  * `placeIdeaAtStop` (which sets a Stop directly and no date), so the two
  * copies can't drift apart (Task 15 brief).
@@ -607,6 +740,13 @@ function ideaCopyData(fullItem: {
   link: string | null;
   notes: string | null;
   hiddenFromShares: boolean | null;
+  openingHours?: string | null;
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
+  bookingState: string;
+  bookingStateSet: boolean;
+  bookBy: string | null;
 }) {
   return {
     sourceItemId: fullItem.id,
@@ -622,6 +762,13 @@ function ideaCopyData(fullItem: {
     // placed — the placed copy is what the share page actually reads
     // (review fix, Task 9).
     hiddenFromShares: fullItem.hiddenFromShares ?? false,
+    openingHours: fullItem.openingHours ?? null,
+    // A ticket's facts follow the idea onto its placed copy (R3); scheduleItem
+    // may override the slot and margin.
+    slotTime: fullItem.slotTime ?? null,
+    arriveByMinutes: fullItem.arriveByMinutes ?? null,
+    refundable: fullItem.refundable ?? null,
+    ...copiedBookingFields(fullItem),
   };
 }
 
@@ -636,6 +783,9 @@ function ideaCopyData(fullItem: {
  *
  * The date is allowed to be outside the trip date range — this is a soft rule;
  * we store it as-is and the UI can warn.
+ *
+ * With no start, a slot (the call's, else the row's) sets it: slot − arrive-by
+ * (R3, startFromSlot). The in-place branch writes slot fields only when sent.
  */
 export async function scheduleItem(
   itemId: string,
@@ -650,11 +800,25 @@ export async function scheduleItem(
     return validationResult(parsed.error);
   }
 
-  const { date, startTime, endTime } = parsed.data;
+  const { date, startTime, endTime, slotTime, arriveByMinutes } = parsed.data;
 
   // Fetch the full item row to determine which branch to take.
   const fullItem = await db.item.findUnique({ where: { id: itemId } });
   if (!fullItem) notFound();
+
+  // The call's slot wins over the row's (R3); a margin still needs a slot.
+  const slot = { slotTime: slotTime ?? fullItem.slotTime, arriveByMinutes: arriveByMinutes ?? fullItem.arriveByMinutes };
+  if (slot.arriveByMinutes != null && !slot.slotTime) {
+    return { success: false, errors: { arriveByMinutes: [ARRIVE_BY_NEEDS_SLOT_MESSAGE] } };
+  }
+  // With no start, a slot sets it; the end checks see that start.
+  const start = startFromSlot({ date, startTime, ...slot });
+  if (endTime && !start) {
+    return { success: false, errors: { startTime: ["Start time is required when an end time is set"] } };
+  }
+  if (start && endTime && endTime < start) {
+    return { success: false, errors: { endTime: ["End time must be on or after start time"] } };
+  }
 
   const isWishlistIdea =
     fullItem.date === null && fullItem.stopId === null && fullItem.forkId === null;
@@ -690,7 +854,9 @@ export async function scheduleItem(
         ...ideaCopyData(fullItem),
         stopId: placedStopId,
         date,
-        startTime: startTime ?? null,
+        startTime: start,
+        slotTime: slot.slotTime ?? null,
+        arriveByMinutes: slot.arriveByMinutes ?? null,
         endTime: endTime ?? null,
         sortOrder,
       },
@@ -718,8 +884,10 @@ export async function scheduleItem(
     data: {
       date,
       stopId: owningStopId,
-      startTime: startTime ?? null,
+      startTime: start,
       endTime: endTime ?? null,
+      ...(slotTime !== undefined && { slotTime }),
+      ...(arriveByMinutes !== undefined && { arriveByMinutes }),
     },
   });
 

@@ -1,0 +1,41 @@
+import { z } from "zod";
+import { MAX_ARRIVE_BY_MINUTES } from "@/lib/slot-time";
+import { hhmm, isoDateWith } from "@/lib/validations/primitives";
+
+/**
+ * Field schemas for the planning model (spec 2026-10-17 R2–R3), composed into
+ * itemSchema / transportSchema / accommodationSchema by the tasks that wire
+ * the fields in. Booking state itself is `bookingStateSchema` (lib/enums.ts).
+ */
+
+/** CONTEXT.md "Booking state": the day a To book thing should be booked by. */
+export const bookBySchema = isoDateWith(
+  "Book-by date must be in YYYY-MM-DD format",
+  "Book-by date must be a real calendar date",
+);
+
+/** CONTEXT.md "Slot time": the ticket's time, Stop-local. */
+export const slotTimeSchema = hhmm;
+
+export const arriveByMinutesSchema = z
+  .number()
+  // Copy uses the dialog's label for the field, "Be there early".
+  .int("Be there early must be whole minutes")
+  .min(0, "Be there early can't be negative")
+  .max(MAX_ARRIVE_BY_MINUTES, "Be there early can be at most 12 hours");
+
+/** true = refundable, false = not; the caller's `.nullable()` carries "not known". */
+export const refundableSchema = z.boolean();
+
+/** The refusal for an arrive-by margin with no slot time (checkSlotFields, scheduleItem). */
+export const ARRIVE_BY_NEEDS_SLOT_MESSAGE = "Be there early needs a slot time";
+
+/** superRefine callback: an arrive-by margin only means something against a slot time. */
+export function checkSlotFields(
+  data: { slotTime?: string | null; arriveByMinutes?: number | null },
+  ctx: z.RefinementCtx,
+): void {
+  if (data.arriveByMinutes != null && !data.slotTime) {
+    ctx.addIssue({ code: "custom", message: ARRIVE_BY_NEEDS_SLOT_MESSAGE, path: ["arriveByMinutes"] });
+  }
+}

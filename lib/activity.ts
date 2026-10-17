@@ -12,6 +12,9 @@ import { formatMoney } from "@/lib/money/money";
 import { formatLongDate, formatDayLabel, formatISODate } from "@/lib/dates";
 import { categoryLabel, type Category } from "@/lib/categories";
 import type { VoteLevel } from "@/lib/enum-values";
+import { BOOKING_STATE_LABELS } from "@/lib/booking-state-copy";
+import type { OpeningHours } from "@/lib/opening-hours";
+import { openingHoursSummary } from "@/lib/opening-hours-display";
 
 // ---------------------------------------------------------------------------
 // Vocab
@@ -127,6 +130,30 @@ function pinnedFormat(value: unknown): string {
   return value ? "Pinned" : "Not pinned";
 }
 
+function bookingStateFormat(value: unknown): string {
+  if (isEmpty(value)) return "";
+  return BOOKING_STATE_LABELS[value as keyof typeof BOOKING_STATE_LABELS] ?? String(value);
+}
+
+/**
+ * CONTEXT.md "Opening hours" (R4). `Item.openingHours` is stored as a JSON
+ * string (lib/validations/opening-hours.ts), so the before/after snapshot
+ * values here are that stored string (or null). Parsed with plain
+ * `JSON.parse`, not `parseOpeningHours` — that module imports zod, and
+ * lib/activity.ts is a client-safe module (notification-bell.tsx imports
+ * it), so it stays off the zod side of the boundary (lib/client-zod.guard.test.ts).
+ * The value was already validated by `openingHoursSchema` on write; this is
+ * display-only, so anything unreadable just falls back to "Set".
+ */
+function openingHoursFormat(value: unknown): string {
+  if (isEmpty(value)) return "Not set";
+  try {
+    return openingHoursSummary(JSON.parse(value as string) as OpeningHours);
+  } catch {
+    return "Set";
+  }
+}
+
 /**
  * Format a Date (or ISO string) as a readable UTC date-time like "3 Jul 2025, 14:00".
  * Null / undefined / "" → "—".
@@ -176,6 +203,13 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "startTime", label: "Start time" },
     { key: "endTime", label: "End time" },
     { key: "address", label: "Address" },
+    // CONTEXT.md "Slot time" (R3); refundable is Boolean? (null = not known)
+    { key: "slotTime", label: "Slot time" },
+    { key: "arriveByMinutes", label: "Be there early", format: (v) => (isEmpty(v) ? "" : `${v} min`) },
+    { key: "refundable", label: "Refundable", format: (v) => (v === true ? "Yes" : v === false ? "No" : "Not known") },
+    { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
+    { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
+    { key: "openingHours", label: "Opening hours", format: (v) => openingHoursFormat(v) },
   ],
   TRANSPORT: [
     {
@@ -188,6 +222,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "depAt", label: "Departure time", format: (v) => dateTimeFormat(v) },
     { key: "arrAt", label: "Arrival time", format: (v) => dateTimeFormat(v) },
     { key: "reference", label: "Reference" },
+    { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
+    { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
   ],
   ACCOMMODATION: [
     { key: "name", label: "Name" },
@@ -197,6 +233,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "checkInTime", label: "Check-in time" },
     { key: "checkOutTime", label: "Check-out time" },
     { key: "confirmation", label: "Confirmation" },
+    { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
+    { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
   ],
   CHAPTER: [
     { key: "name", label: "Name" },

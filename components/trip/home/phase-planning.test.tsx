@@ -59,7 +59,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));
-vi.mock("@/lib/dates", () => ({ daysBetween: vi.fn() }));
+// formatDayLabel: Still to book's subtitles (lib/still-to-book.ts) read it.
+vi.mock("@/lib/dates", () => ({ daysBetween: vi.fn(), formatDayLabel: vi.fn((s: string) => s) }));
 vi.mock("@/lib/trip-phase", () => ({ describePhase: vi.fn() }));
 vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn() }));
 vi.mock("@/lib/money/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
@@ -571,6 +572,34 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     expect(map).not.toBeNull();
     expect(map!.props.aspect).toBe("4/3");
     expect(map!.props.height).toBeUndefined();
+  });
+
+  // Spec 2026-10-17 R2: Still to book sits in the phone tile row, after Next steps.
+  const stillToBookHeading = async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await render();
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const row = div.querySelector('[data-testid="planning-tile-row"]')!;
+    return [...row.querySelectorAll("h2")].find((h) => /still to book/i.test(h.textContent ?? "")) ?? null;
+  };
+
+  it("lists what's still to book in the tile row, linked to its day", async () => {
+    itemFindManyMock.mockResolvedValue([
+      { id: "i1", title: "Lodge tour", stopId: "s1", category: "ACTIVITY", date: "2026-07-02", startTime: null, endTime: null, lat: null, lng: null, bookingState: "TO_BOOK", bookBy: null },
+    ]);
+    const heading = await stillToBookHeading();
+    expect(heading).not.toBeNull();
+    const link = heading!.closest("div.p-4")!.querySelector("a")!;
+    expect(link.textContent).toContain("Lodge tour");
+    expect(link.getAttribute("href")).toBe("/trips/trip-1/day/2026-07-02");
+  });
+
+  it("leaves Still to book out when nothing is To book", async () => {
+    itemFindManyMock.mockResolvedValue([
+      { id: "i1", title: "Walk", stopId: "s1", category: "ACTIVITY", date: "2026-07-02", startTime: null, endTime: null, lat: null, lng: null, bookingState: "NONE", bookBy: null },
+    ]);
+    expect(await stillToBookHeading()).toBeNull();
   });
 
   it("keeps the phone order: cover, hero, route, next steps, money, actions, reminders", async () => {

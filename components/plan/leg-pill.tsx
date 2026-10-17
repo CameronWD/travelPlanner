@@ -4,6 +4,9 @@ import * as React from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { LegLabel } from "@/lib/plan/leg-label";
+import { BookingStateBadge } from "@/components/trip/booking-state-badge";
+import { BOOKING_STATE_LABELS, bookByLabel } from "@/lib/booking-state-copy";
+import type { BookingState } from "@/lib/enum-values";
 
 export interface LegRowProps {
   kind: "legs" | "missing" | "line";
@@ -76,15 +79,22 @@ export interface LegPillProps {
   label: LegLabel;
   onClick(): void;
   compact?: boolean;
+  bookingState?: BookingState | null;
+  bookBy?: string | null;
 }
 
 /** A single leg on the strip: a real transport, or the dashed "missing" prompt (PLAN.md §2). */
-export function LegPill({ label, onClick, compact }: LegPillProps) {
+export function LegPill({ label, onClick, compact, bookingState, bookBy }: LegPillProps) {
   const Icon = label.icon;
+  // An explicit aria-label overrides name-from-content, so the visual
+  // BookingStateBadge below would otherwise go unheard. Speak the same copy
+  // here instead, and hide the badge from the accessibility tree.
+  const bookingText = bookingState === "TO_BOOK" ? (bookBy ? bookByLabel(bookBy) : BOOKING_STATE_LABELS.TO_BOOK) : null;
+  const accessibleName = bookingText ? `${label.accessibleName} ${bookingText}.` : label.accessibleName;
   return (
     <button
       type="button"
-      aria-label={label.accessibleName}
+      aria-label={accessibleName}
       onClick={onClick}
       className={cn(
         "group tap-target pressable inline-flex min-w-0 max-w-full items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
@@ -110,6 +120,7 @@ export function LegPill({ label, onClick, compact }: LegPillProps) {
           {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
           <span className="min-w-0 truncate">{label.label}</span>
           {label.sub ? <span className="shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
+          <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden />
         </>
       )}
     </button>

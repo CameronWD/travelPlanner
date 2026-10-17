@@ -8,6 +8,7 @@ import { countryName } from "@/lib/countries";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { formatDayLabel } from "@/lib/dates";
 import { decimalsFor, parseAmountToMinor } from "@/lib/money/money";
+import { MAX_ARRIVE_BY_MINUTES } from "@/lib/slot-time";
 import { stopTimezone, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
 import { countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
@@ -69,6 +70,9 @@ const UNCERTAIN_TO_HIGHLIGHT: Record<string, string> = {
   endTime: "startTime",
   booking: "booking",
   cost: "cost",
+  slotTime: "slotTime",
+  arriveBy: "slotTime",
+  refundable: "refundable",
 };
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -364,7 +368,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     const b = baseOf(d.src);
     const mode = t.mode ?? "OTHER";
     if (!t.mode) b.highlight.push("mode");
-    const input: ProposedTransportInput = { mode };
+    const input: ProposedTransportInput = { mode, bookingState: "BOOKED" };
     const homeHint = ctx.home.timezone ? null : timezoneForCountryOrNull(ctx.home.countryCode);
     let homeNoted = false;
 
@@ -453,6 +457,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
       checkInTime: normTime(a.checkInTime) ?? undefined,
       checkOutTime: normTime(a.checkOutTime) ?? undefined,
       confirmation,
+      bookingState: "BOOKED",
       ...costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck),
     });
     b.duplicateOf = findDuplicate({ kind: "accommodation", confirmation }, ctx.existing);
@@ -478,15 +483,32 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     const address = [venue, trimmed(i.address)].filter(Boolean).join(", ") || undefined;
     if (!d.date) b.missing.push("Date");
     const booking = trimmed(i.booking);
+    // CONTEXT.md "Slot time" (R3): Claude reports, code decides. A start that
+    // is only the slot reported twice is dropped, so the save defaults it to
+    // slot − arrive-by (server/actions/items.ts startFromSlot).
+    const slotTime = normTime(i.slotTime);
+    // An arrive-by margin only means something against a slot (checkSlotFields):
+    // with no readable slot, drop it too, rather than hand confirm a margin
+    // that fails validation and sinks the whole item.
+    const arriveByMinutes = slotTime && i.arriveByMinutes != null && Number.isInteger(i.arriveByMinutes) && i.arriveByMinutes >= 1 && i.arriveByMinutes <= MAX_ARRIVE_BY_MINUTES ? i.arriveByMinutes : undefined;
+    const refundable = i.refundable === "yes" ? true : i.refundable === "no" ? false : undefined;
+    const plannedStart = startTime && startTime !== slotTime ? startTime : null;
+    // itemSchema fills an empty start from the slot in its own transform,
+    // before the end-needs-start check runs, so a kept end time is safe even
+    // when the printed start was dropped as a repeat of the slot.
     const input = compact<ProposedItemInput>({
       title: d.title,
       category,
       stopId: placed.stopId,
       date: d.date ?? undefined,
-      startTime: startTime ?? undefined,
+      startTime: plannedStart ?? undefined,
       endTime: endTime ?? undefined,
       address,
+      slotTime: slotTime ?? undefined,
+      arriveByMinutes,
+      refundable,
       booking,
+      bookingState: "BOOKED",
       ...costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck),
     });
     b.duplicateOf = findDuplicate({ kind: "item", booking }, ctx.existing);

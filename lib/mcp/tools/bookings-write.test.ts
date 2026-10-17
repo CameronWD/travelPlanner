@@ -387,6 +387,64 @@ describe("bookings write tools", () => {
     expect(call[1]).toEqual(expect.objectContaining({ fromStopId: "", depPlace: "Milan Malpensa (MXP)" }));
   });
 
+  describe("Booking state (spec 2026-10-17 R2, R13)", () => {
+    it("update_transport passes bookingState through and turns bookBy \"\" into a clear (null)", async () => {
+      updateTransport.mockResolvedValue({ success: true });
+      loadTransportForMcp.mockResolvedValue({ id: TRANSPORT_ID });
+      transportFindUnique.mockResolvedValue(transportRow());
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, bookingState: "TO_BOOK", bookBy: "" } });
+      expect(updateTransport).toHaveBeenCalledWith(TRANSPORT_ID, { bookingState: "TO_BOOK", bookBy: null });
+    });
+
+    it("update_transport and update_accommodation take bookBy null as the clear, and say so", async () => {
+      updateTransport.mockResolvedValue({ success: true });
+      loadTransportForMcp.mockResolvedValue({ id: TRANSPORT_ID });
+      transportFindUnique.mockResolvedValue(transportRow());
+      accommodationFindUnique.mockResolvedValue(accommodationRow());
+      updateAccommodation.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const leg = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, bookBy: null } });
+      expect(leg.isError).toBeFalsy();
+      expect(updateTransport).toHaveBeenCalledWith(TRANSPORT_ID, { bookBy: null });
+      const stay = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, bookBy: null } });
+      expect(stay.isError).toBeFalsy();
+      expect(updateAccommodation).toHaveBeenCalledWith(ACCOMMODATION_ID, { bookBy: null });
+      const { tools } = await c.listTools();
+      for (const name of ["update_transport", "update_accommodation"]) {
+        const bookBy = (tools.find((t) => t.name === name)!.inputSchema.properties as Record<string, { description?: string }>).bookBy;
+        expect(bookBy.description).toMatch(/null clears it/);
+      }
+    });
+
+    it("update_accommodation takes bookingState null as back to automatic", async () => {
+      accommodationFindUnique.mockResolvedValue(accommodationRow());
+      updateAccommodation.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, bookingState: null } });
+      expect(updateAccommodation).toHaveBeenCalledWith(ACCOMMODATION_ID, { bookingState: null });
+    });
+
+    it("add_accommodation forwards bookingState and bookBy", async () => {
+      createAccommodation.mockResolvedValue({ success: true, id: "acc-new" });
+      const c = await connectTestClient();
+      await c.callTool({
+        name: "add_accommodation",
+        arguments: { stopId: STOP_ID, name: "Hotel Roma", checkIn: "2026-05-01", checkOut: "2026-05-04", bookingState: "TO_BOOK", bookBy: "2027-05-01" },
+      });
+      expect(createAccommodation).toHaveBeenCalledWith(expect.objectContaining({ bookingState: "TO_BOOK", bookBy: "2027-05-01" }));
+    });
+
+    it("an action's book-by refusal reads as a tool error naming the field", async () => {
+      updateTransport.mockResolvedValue({ success: false, errors: { bookBy: ["A book-by date is only for something still to book."] } });
+      transportFindUnique.mockResolvedValue(transportRow());
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, bookingState: "BOOKED", bookBy: "2027-05-01" } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("bookBy: A book-by date is only for something still to book.");
+    });
+  });
+
   describe("update_transport (PATCH)", () => {
     // The endpoint merge is lib/transport-patch.ts's (its tests); the inline Cost and the held row are the action's.
     it("checks the Transport and any named Stops are real-plan, then forwards only the fields passed", async () => {

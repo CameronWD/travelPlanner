@@ -78,8 +78,22 @@ describe("buildDuplicatePlan", () => {
       date: null, startTime: null, endTime: null, booking: null,
       lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", notes: "n",
       sortOrder: 0, hiddenFromShares: true,
+      openingHours: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
     });
+  });
+
+  // Spec 2026-10-17 R4: Opening hours belong to the place, so they survive a
+  // Duplicate like the address does. Booking state, book-by and Slot time go
+  // with the reference and the dates: the copy's rows take the column defaults.
+  it("keeps an Item's Opening hours; leaves Booking state and Slot time to the defaults", () => {
+    const hours = '{"week":{"mon":[]},"seasons":[],"closed":[]}';
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], openingHours: hours }] }, "x");
+    expect(plan.items[0].data.openingHours).toBe(hours);
+    for (const key of ["bookingState", "bookingStateSet", "bookBy", "slotTime", "arriveByMinutes", "refundable"]) {
+      expect(plan.items[0].data).not.toHaveProperty(key);
+    }
+    expect(plan.transports[0].data).not.toHaveProperty("bookingState");
   });
 
   it("carries a null countryCode through when the source item has none", () => {

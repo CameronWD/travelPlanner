@@ -19,7 +19,6 @@ import { StopOpenBody, type ExtrasKind } from "@/components/plan/stop-open-body"
 import { buildStopActions } from "@/components/plan/stop-actions";
 import { isLoneOnDatedTrip } from "@/components/plan/lone-stop";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
-import type { SurpriseView } from "@/lib/surprise";
 import { stopSheetMeta } from "@/components/plan/mobile/stop-sheet-meta";
 import { IdeaSheet } from "@/components/plan/idea-sheet";
 import { stopHue } from "@/lib/stop-colours";
@@ -64,7 +63,7 @@ import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
-import type { TransportMode } from "@/lib/enum-values";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { TravellerLike } from "@/lib/traveller";
@@ -138,6 +137,12 @@ export interface ItineraryTransport {
   depAt?: Date | null;
   arrAt?: Date | null;
   reference?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
+  bookingStateSet: boolean;
+  /** YYYY-MM-DD the thing should be booked by; only while To book. */
+  bookBy?: string | null;
   notes?: string | null;
   sortOrder: number;
   /** Costs attached to this transport */
@@ -194,22 +199,7 @@ interface ItineraryManagerProps {
    * Plan-owned things to do keyed by stopId (ADR 0022).
    * Feeds each open stop's ideas box.
    */
-  thingsToDoByStopId?: Map<string, Array<{
-    id: string;
-    title: string;
-    category: string;
-    date?: string | null;
-    startTime?: string | null;
-    endTime?: string | null;
-    address?: string | null;
-    link?: string | null;
-    booking?: string | null;
-    notes?: string | null;
-    stopId?: string | null;
-    hiddenFromShares?: boolean;
-    photoUrl?: string | null;
-    surprise?: SurpriseView | null;
-  }>>;
+  thingsToDoByStopId?: Map<string, ThingToDo[]>;
   /**
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
    */
@@ -1312,6 +1302,8 @@ export function ItineraryManager({
         key={t.id}
         compact={compact}
         label={legLabel(t, stops, homeBaseName, homeTimezone)}
+        bookingState={t.bookingState}
+        bookBy={t.bookBy}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);

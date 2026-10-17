@@ -42,7 +42,7 @@ const PARIS = {
   id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-14",
   nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null,
 };
-const ITEMS = [{ id: "a", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
+const ITEMS = [{ id: "a", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
 const SLOTS = daySlots(PARIS, [
   { id: "a", date: "2026-12-11", category: "FOOD" },
   { id: "b", date: "2026-12-11", category: "SIGHTSEEING" },
@@ -167,7 +167,7 @@ describe("P6 drag a plan", () => {
   });
 });
 
-const idea = (id: string, title: string) => ({ id, title, category: "SIGHTSEEING", startTime: null, endTime: null });
+const idea = (id: string, title: string) => ({ id, bookingStateSet: false, title, category: "SIGHTSEEING", startTime: null, endTime: null });
 
 describe("P7 schedule an idea", () => {
   it("a scheduled idea's chip leaves inert, and the count follows", async () => {
@@ -185,7 +185,7 @@ describe("P7 schedule an idea", () => {
   it("a row new to the day rises in; the ones already there don't", () => {
     const { container, rerender } = render(<DaySection {...dayProps} items={ITEMS} />);
     expect(container.querySelector("[data-row]")!.className).not.toContain("tp-rise-in");
-    rerender(<DaySection {...dayProps} items={[...ITEMS, { id: "n", title: "Orsay", category: "SIGHTSEEING", date: "2026-12-11" }]} />);
+    rerender(<DaySection {...dayProps} items={[...ITEMS, { id: "n", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING", date: "2026-12-11" }]} />);
     const rows = container.querySelectorAll("[data-row]");
     expect(rows[0].className).not.toContain("tp-rise-in");
     expect(rows[1].className).toContain("tp-rise-in");

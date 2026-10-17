@@ -144,6 +144,14 @@ _Avoid_: FX, forex
 The read-only overview of a whole Trip: each Stop with its nights, the Transport between Stops, cost per Stop/day, and a map of the route. Also runs automatic checks and raises **Flags**.
 _Avoid_: Report, dashboard
 
+**Review**:
+A deeper, AI-assisted check of a whole Trip, run by a Traveller who has been allowed to run Reviews (an Admin grants it; everyone else on the Trip can read the Reviews but never sees the option to run one) — for what the **Flags** cannot know: closures and seasons, event windows, public holidays at the destination and at home, ticket and pass coverage, rule changes, notes left stale by a re-plan, logistics, and what to pack for the weather. A Review reads the Trip as everyone on it can see it, with every **Surprise** masked, so whatever it says is safe for everyone to read. Every Review is kept: who ran it, when, and its **Findings**. Distinct from a **Flag**, which is detected by the app itself, continuously, from the plan alone.
+_Avoid_: Audit, check-up, report, scan
+
+**Finding**:
+One thing a **Review** noticed, about a Stop, Item, Transport leg, Accommodation or date: how serious it is, what kind of thing it is, why it matters, and — where it can — a suggested fix and where the information came from. A Finding is **Open** until someone **Applies** its fix or **Dismisses** it, or until a later Review no longer raises it (**No longer found**). A later Review recognises a Finding it raised before, so a problem keeps its history and a dismissed one stays dismissed.
+_Avoid_: Issue, result, warning (warnings are Flags)
+
 **Flag**:
 An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, **no Transport connecting two consecutive Stops** (a missing connection), no Transport from the **Home base** to the first Stop or — on a round trip — from the last Stop back to the Home base (a missing home connection), a **return** leg that lands after the **Hard end date**, a night at a Stop with **no Accommodation cover** (a coverage gap, finer than a Stop with none at all), an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more estimated driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**. A Flag is always something the Traveller can act on; pure awareness signals (e.g. spending over estimate — see **Spend so far**) are not Flags.
 _Avoid_: Warning, alert, issue, error
@@ -214,6 +222,10 @@ _Avoid_: Command palette (the code name, as **Fork** is to "variant"), ⌘K, omn
 The Trip's running record of the journey as it happens, written by its **Traveller**s. Each Traveller may write, for each day of the Trip that has arrived, one short **Journal entry** — a note of a few lines and one photo — so that by the end the Journal is a succinct day-by-day account, one voice per Traveller per day. It opens on the Trip's first day (never for days still ahead) and stays writable after the Trip ends so a missed day can be caught up. Trip-wide, not part of any **Plan**. A **Share link** may include it (see **Share link**); a Traveller may keep any one of their entries **off Share links**.
 _Avoid_: Diary, log, blog, updates, posts
 
+**Try list**:
+A small tickable list inside one **Item** — the things to try, see or buy while you are there ("Drei im Weggla, Feuerzangenbowle, Lebkuchen"). Shared by everyone on the Trip, so a tick shows for both, and ticked off on the day as you go. A thing to do and the copies placed from it share one Try list. Not a **Checklist**: it has no due dates or assignees and lives with its Item, not on the Checklists page.
+_Avoid_: Checklist (that is trip-wide preparation), to-do, sub-items
+
 **Checklist**:
 A list of tickable tasks. Three flavours: a **Pre-trip checklist** (visas, insurance, eSIM, with optional due dates), a **Packing list** (reusable across Trips via templates) and a **Shopping list** (what to buy before the Trip).
 _Avoid_: To-do, tasks
@@ -261,6 +273,18 @@ _Avoid_: Notification, alert, summary, roundup, daily email
 **Claude connection**:
 A Traveller's link from a Claude client (claude.ai on the web or phone, Claude Desktop, Claude Code) to TEEPEE, so Claude can read and build that Traveller's Trips on their behalf. It acts *as* that Traveller — the same Trips, the same permissions, nothing more — and what it changes is recorded as their **Activity**, marked **via Claude**. Works on the **real plan** only, never a **Fork**. Made by the Traveller themself: the Claude client asks, the Traveller signs in to TEEPEE and allows it, and the connection appears under **Connected apps** on their **Account**, where they can disconnect it at any time. Nothing is handed out by the operator.
 _Avoid_: Integration, bot, agent, API access; "the AI" (the in-app assistant is a different thing)
+
+**Opening hours**:
+When the place an **Item** is about lets you in: its usual **weekly hours** (each weekday closed, or open for one or two spans), any **seasons** that replace them for a date range (shorter winter hours), and **closed dates** (a holiday, a one-off closure). Read in the Item's **Stop**'s local time, like its start time. They belong to the place, so a thing to do and the copies placed from it share them. They are what lets the plan notice an Item scheduled before opening, after closing, or on a day the place is shut.
+_Avoid_: Schedule, timetable (that is Transport), availability
+
+**Slot time**:
+The time a booked **Item**'s ticket is for — the 12:00 tour, the 19:30 sitting — together with how early to **arrive by** (be there 15 minutes before) and whether the ticket is **refundable**. The slot time is the ticket's fact; the Item's own start time is the Traveller's plan, and the two are expected to agree (start no later than the slot less the arrive-by margin). Distinct from a Transport's departure, which is the leg's own time, and from **Opening hours**, which belong to the place.
+_Avoid_: Entry time, booking time, reservation time; per-person cost (money is one group total)
+
+**Booking state**:
+Whether a thing on the Trip still has to be booked — one of **No booking needed**, **To book** or **Booked** — carried by an **Item**, a **Transport** leg and an **Accommodation**. A **To book** thing may carry a **book-by date**: the day it should be booked by. A thing with a booking reference is **Booked**; Transport and Accommodation are **To book** until they have one, an Item needs no booking unless the Traveller says so. Booking is not paying: a Booked thing may still be unpaid, which is the **Cost**'s business (**Paid**). A Transport leg that is still **To book** is how an unconfirmed journey — a day-trip train you have not bought yet — lives in the plan, with placeholder times, before it is confirmed.
+_Avoid_: Status (too broad), tentative/confirmed (say To book / Booked), reserved, ticketed; Paid (that is the Cost)
 
 **Booking import**:
 One run of the importer on a Trip: a Traveller drops a booking file (a PDF, a screenshot or photo, an email) or pastes its text, and TEEPEE reads it and comes back with the **Proposals** it found. Nothing changes on the Trip until a Proposal is confirmed. One booking can yield several Proposals — a return flight, a multi-leg train, a stay plus a car.

@@ -84,6 +84,8 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
 
   const filesFor: FilesFor = (kind, id) => byOwner.get(ownerKey(kind, id)) ?? [];
   const stops = maskSurpriseStops(orderPlanStops(stopsRaw), v, v.views.stops);
+  // A hidden Surprise Stop keeps its name (its shell), so every owningStop resolves (R5).
+  const stopNameById = new Map(stops.map((s) => [s.id, s.name]));
   const hiddenStopIds = new Set(v.hiddenStopIds);
   const openStops = stops.filter((s) => !hiddenStopIds.has(s.id));
   const datedItems = withPlaceholders(scheduledItems, v);
@@ -91,10 +93,9 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
 
   const built = buildMcpStops({
     stops, thingsToDo: thingsToDoItems, datedItems, dayTitles, hiddenStopIds,
-    itemView: (id) => v.views.items.get(id) ?? null, filesFor,
+    itemView: (id) => v.views.items.get(id) ?? null, filesFor, stopNameById,
   });
 
-  const stopNameById = new Map(stops.map((s) => [s.id, s.name]));
   const tzById = new Map(stops.map((s) => [s.id, s.timezone]));
   const homeTimezone = trip?.homeTimezone ?? null;
 
@@ -105,7 +106,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
     chapters: chaptersRaw,
     unplacedDatedItems: datedItems
       .filter((i) => !built.coveredItemIds.has(i.id))
-      .map((i) => ({ ...toMcpItem(i, filesFor), date: i.date as string })),
+      .map((i) => ({ ...toMcpItem(i, filesFor, stopNameById), date: i.date as string })),
     travellers: members.map((m) => ({
       id: m.user.id,
       name: travellerName(m.user),

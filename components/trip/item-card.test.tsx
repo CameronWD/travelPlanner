@@ -44,7 +44,7 @@ import { ItemCard, type ItemCardItem } from "./item-card";
 // ---------------------------------------------------------------------------
 
 const baseItem: ItemCardItem = {
-  id: "item-1",
+  id: "item-1", bookingStateSet: false,
   title: "Eiffel Tower",
   category: "SIGHTSEEING",
 };
@@ -282,11 +282,68 @@ describe("ItemCard highlight (Booking import)", () => {
     const { container } = render(
       <ItemCard
         mode="scheduled"
-        item={{ id: "p4", title: "Pena Palace entry", category: "OTHER", date: "2026-12-04", startTime: "09:30", address: "Pena Palace", booking: "PENA-1" }}
+        item={{ id: "p4", bookingStateSet: false, title: "Pena Palace entry", category: "OTHER", date: "2026-12-04", startTime: "09:30", address: "Pena Palace", booking: "PENA-1" }}
         highlight={["title", "category", "startTime", "address", "booking"]}
       />,
     );
     const marked = [...container.querySelectorAll("[data-highlight]")].map((el) => el.getAttribute("data-highlight"));
     expect(marked.sort()).toEqual(["address", "booking", "category", "startTime", "title"]);
+  });
+});
+
+describe("ItemCard Booking state (spec 2026-10-17 R2)", () => {
+  it("shows To book and its book-by date (scheduled mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "TO_BOOK", bookBy: "2026-11-20" }} mode="scheduled" />);
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText("Book by 20 Nov")).toBeInTheDocument();
+  });
+  it("a Booked thing shows no badge (scheduled mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "BOOKED" }} mode="scheduled" />);
+    expect(screen.queryByText("To book")).not.toBeInTheDocument();
+  });
+  it("shows To book and its book-by date (wishlist mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "TO_BOOK", bookBy: "2026-11-20" }} mode="wishlist" />);
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText("Book by 20 Nov")).toBeInTheDocument();
+  });
+  it("a Booked thing shows no badge (wishlist mode)", () => {
+    render(<ItemCard item={{ ...baseItem, bookingState: "BOOKED" }} mode="wishlist" />);
+    expect(screen.queryByText("To book")).not.toBeInTheDocument();
+  });
+});
+
+describe("ItemCard Slot time (spec 2026-10-17 R3)", () => {
+  it("shows the slot, the margin and Non-refundable (scheduled mode)", () => {
+    render(
+      <ItemCard
+        mode="scheduled"
+        item={{ id: "i1", bookingStateSet: false, title: "Tour", category: "ACTIVITY", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }}
+      />,
+    );
+    expect(screen.getByText("Slot 12:00 · be there 11:45")).toBeInTheDocument();
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+  });
+  it("shows Non-refundable (wishlist mode)", () => {
+    render(<ItemCard item={{ ...baseItem, refundable: false }} mode="wishlist" />);
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+  });
+});
+
+describe("ItemCard Opening hours", () => {
+  const span = [["10:00", "18:00"]] as [string, string][];
+  const HOURS = { week: { mon: [] as [string, string][], tue: span, wed: span, thu: span, fri: span, sat: span, sun: span }, seasons: [], closed: [] };
+
+  it("shows the day's hours (scheduled mode)", () => {
+    render(
+      <ItemCard mode="scheduled" item={{ id: "i1", bookingStateSet: false, title: "Lello", category: "SIGHTSEEING", date: "2027-05-31", openingHours: HOURS }} />,
+    );
+    expect(screen.getByText("Closed on Mondays")).toBeInTheDocument();
+  });
+
+  it("shows the line in wishlist mode only once a date is set", () => {
+    const { rerender } = render(<ItemCard mode="wishlist" item={{ ...baseItem, openingHours: HOURS }} />);
+    expect(screen.queryByTestId("opening-hours-line")).not.toBeInTheDocument();
+    rerender(<ItemCard mode="wishlist" item={{ ...baseItem, date: "2027-05-31", openingHours: HOURS }} />);
+    expect(screen.getByText("Closed on Mondays")).toBeInTheDocument();
   });
 });

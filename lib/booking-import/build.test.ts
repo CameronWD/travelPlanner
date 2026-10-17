@@ -25,7 +25,7 @@ const item = (over: Partial<NonNullable<ExtractedProposal["item"]>>, cost: Extra
   uncertainFields: [],
   transport: null,
   accommodation: null,
-  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", country: "Portugal", booking: null, ...over },
+  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", country: "Portugal", booking: null, slotTime: null, arriveByMinutes: null, refundable: null, ...over },
   cost,
 });
 
@@ -63,6 +63,7 @@ describe("buildProposals: the sample booking", () => {
         arrAt: "2026-12-02T07:15",
         notes: "SK101 · Seat 32A · Economy",
         reference: "QX7P2M",
+        bookingState: "BOOKED",
         costMinor: 214_000,
         currency: "AUD",
         paidMinor: 214_000,
@@ -113,6 +114,7 @@ describe("buildProposals: the sample booking", () => {
       checkInTime: "15:00",
       checkOutTime: "11:00",
       confirmation: "CDR-55821",
+      bookingState: "BOOKED",
       costMinor: 81_240,
       currency: "EUR",
       paidMinor: 81_240,
@@ -262,13 +264,22 @@ describe("buildProposals: Costs", () => {
 });
 
 describe("buildProposals: things to do, car hire, gaps", () => {
+  it("every Proposal lands Booked as a choice, even a ticket that prints no reference (spec R2)", () => {
+    const { proposals } = buildProposals(report(item({ booking: null })), CTX);
+    expect(proposals[0].input).toMatchObject({ bookingState: "BOOKED" });
+    expect(proposals[0].input).not.toHaveProperty("booking");
+    const bookings = buildProposals(SAMPLE_EXTRACTION, CTX).proposals.filter((p) => p.kind !== "stop");
+    expect(bookings.length).toBeGreaterThan(0);
+    for (const p of bookings) expect(p.input).toMatchObject({ bookingState: "BOOKED" });
+  });
+
   it("a day-trip ticket joins the Stop covering its date; a missing category falls back to OTHER and is highlighted", () => {
     const p = byId(
       buildProposals(report(item({ title: "Pena Palace entry", category: null, startTime: "9:30", endTime: "11:00", place: "Pena Palace", address: "Estrada da Pena", city: "Sintra", booking: "PENA-1" })), CTX).proposals,
       "p1",
     );
     expect(p.highlight).toContain("category");
-    expect(p.input).toEqual({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", endTime: "11:00", address: "Pena Palace, Estrada da Pena", booking: "PENA-1" });
+    expect(p.input).toEqual({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", endTime: "11:00", address: "Pena Palace, Estrada da Pena", booking: "PENA-1", bookingState: "BOOKED" });
   });
 
   it("car hire is a CAR Transport from pickup to drop-off with the hire company in Notes", () => {
@@ -300,6 +311,45 @@ describe("buildProposals: things to do, car hire, gaps", () => {
     const { proposals, dropped } = buildProposals(report(OUTBOUND, backwards, untitled, nowhere), CTX);
     expect(proposals).toHaveLength(1);
     expect(dropped).toBe(3);
+  });
+
+  it("reports the ticket's slot, margin and refundability; a start that is just the slot again is dropped so it defaults on save (R3)", () => {
+    const p = byId(
+      buildProposals(report(item({ title: "Lodge tour", startTime: "10:00", slotTime: "10:00", arriveByMinutes: 15, refundable: "no", booking: "LT-9" })), CTX).proposals,
+      "p1",
+    );
+    expect(p.input).toEqual({ title: "Lodge tour", category: "SIGHTSEEING", stopId: "s-lis", date: "2026-12-04", slotTime: "10:00", arriveByMinutes: 15, refundable: false, booking: "LT-9", bookingState: "BOOKED" });
+  });
+
+  it("keeps a separate meeting time, reads 'yes' as refundable, and drops a margin outside 1–720 or an unreadable slot", () => {
+    const meet = byId(buildProposals(report(item({ startTime: "9:40", slotTime: "10:00", arriveByMinutes: 0, refundable: "yes" })), CTX).proposals, "p1");
+    expect(meet.input).toMatchObject({ startTime: "09:40", slotTime: "10:00", refundable: true });
+    expect(meet.input).not.toHaveProperty("arriveByMinutes");
+    const odd = byId(buildProposals(report(item({ slotTime: "25:00", arriveByMinutes: 999, refundable: null })), CTX).proposals, "p1");
+    expect(odd.input).not.toHaveProperty("slotTime");
+    expect(odd.input).not.toHaveProperty("arriveByMinutes");
+    expect(odd.input).not.toHaveProperty("refundable");
+    const atMax = byId(buildProposals(report(item({ slotTime: "10:00", arriveByMinutes: 720 })), CTX).proposals, "p1");
+    expect(atMax.input).toMatchObject({ arriveByMinutes: 720 });
+    const overMax = byId(buildProposals(report(item({ slotTime: "10:00", arriveByMinutes: 721 })), CTX).proposals, "p1");
+    expect(overMax.input).not.toHaveProperty("arriveByMinutes");
+  });
+
+  it("drops an arrive-by margin with no readable slot, so the item isn't rejected at confirm (fix round 1 #1)", () => {
+    const noSlot = byId(buildProposals(report(item({ slotTime: null, arriveByMinutes: 15 })), CTX).proposals, "p1");
+    expect(noSlot.input).not.toHaveProperty("slotTime");
+    expect(noSlot.input).not.toHaveProperty("arriveByMinutes");
+  });
+
+  it("a start that only repeats the slot is dropped, but the ticket's printed end time is kept (fix round 1 #5)", () => {
+    const p = byId(buildProposals(report(item({ startTime: "10:00", endTime: "12:00", slotTime: "10:00" })), CTX).proposals, "p1");
+    expect(p.input).not.toHaveProperty("startTime");
+    expect(p.input).toMatchObject({ endTime: "12:00", slotTime: "10:00" });
+  });
+
+  it("an uncertain slot highlights the slot on the card", () => {
+    const p = byId(buildProposals(report({ ...item({ slotTime: "10:00" }), uncertainFields: ["slotTime", "refundable"] }), CTX).proposals, "p1");
+    expect(p.highlight).toEqual(expect.arrayContaining(["slotTime", "refundable"]));
   });
 });
 

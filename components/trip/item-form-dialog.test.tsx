@@ -49,7 +49,7 @@ const baseProps = {
 };
 
 const existingItem: ItemCardItem = {
-  id: "item-99",
+  id: "item-99", bookingStateSet: false,
   title: "Museum visit",
   category: "SIGHTSEEING",
   date: null,
@@ -986,7 +986,7 @@ describe("defaultDate prop", () => {
         tripId="t1"
         stops={[{ id: "s1", name: "Paris" }]}
         item={{
-          id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07",
+          id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07", bookingStateSet: false,
           startTime: null, endTime: null, address: null, link: null,
           booking: null, notes: null, stopId: "s1",
         }}
@@ -1367,6 +1367,20 @@ describe("ItemFormDialog: Proposal mode (Booking import)", () => {
     expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", booking: "PENA-1" }));
     expect(createItem).not.toHaveBeenCalled();
   });
+
+  // Fix round 1 (controller ruling): buildInput() never carries openingHours
+  // (a Proposal has nowhere to store them), so showing the editor here would
+  // silently drop whatever the Traveller typed into it. Hide it instead.
+  it("has no Opening hours editor — buildInput() never carries it, so anything typed there would be silently dropped", () => {
+    render(
+      <ItemFormDialog
+        tripId="t" stops={[{ id: "s-lis", name: "Lisbon", arriveDate: "2026-12-02" }]} open onOpenChange={vi.fn()}
+        initialValues={{ title: "Pena Palace entry", category: "OTHER" }}
+        onSubmitOverride={vi.fn().mockResolvedValue({ success: true })}
+      />,
+    );
+    expect(screen.queryByText("Opening hours")).not.toBeInTheDocument();
+  });
 });
 
 describe("ItemFormDialog: Reminders (F8)", () => {
@@ -1385,5 +1399,210 @@ describe("ItemFormDialog: Reminders (F8)", () => {
   it("shows no Reminders field when creating an Item", () => {
     render(<ItemFormDialog {...baseProps} onAddReminder={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ItemFormDialog: Booking state (spec 2026-10-17 R2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a new thing to do needs no booking; choosing To book with a date sends both", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    expect(screen.getByRole("radio", { name: "No booking needed" })).toHaveAttribute("data-state", "on");
+    await user.type(screen.getByLabelText(/^title/i), "Lodge tour");
+    await user.click(screen.getByRole("radio", { name: "To book" }));
+    await user.type(screen.getByLabelText("Book by"), "2027-05-20");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1]).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-20" });
+  });
+
+  it("a booking reference on an un-chosen thing previews Booked and sends no state", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/^title/i), "Museum");
+    await user.type(screen.getByLabelText(/booking reference/i), "BK-1");
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1].bookingState).toBeUndefined();
+    expect(vi.mocked(createItem).mock.calls[0][1].bookBy).toBeUndefined();
+  });
+
+  it("an edit of a To book thing whose date is cleared sends bookBy null (PATCH)", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" }} />);
+    await user.clear(screen.getByLabelText("Book by"));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith(existingItem.id, expect.objectContaining({ bookingState: "TO_BOOK", bookBy: null }));
+  });
+
+  it("an edit of a To book thing with a date, marked Booked, sends bookBy null so the server does not refuse it", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" }} />);
+    await user.click(screen.getByRole("radio", { name: "Booked" }));
+    expect(screen.queryByLabelText("Book by")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith(existingItem.id, expect.objectContaining({ bookingState: "BOOKED", bookBy: null }));
+  });
+
+  it("a Proposal opens Booked and confirms Booked", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        initialValues={{ title: "Museum ticket", category: "SIGHTSEEING", bookingState: "BOOKED" }}
+        onSubmitOverride={onSubmitOverride}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ bookingState: "BOOKED" }));
+  });
+});
+
+describe("Ticket (Slot time, R3)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("is collapsed for a new Item and sends the slot, the margin and refundability", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} defaultUnscheduled={false} tripStartDate="2027-06-02" />);
+    const ticket = screen.getByText("Ticket").closest("details")!;
+    expect(ticket).not.toHaveAttribute("open");
+    await user.type(screen.getByPlaceholderText(/visit the night market/i), "Lodge tour");
+    await user.click(screen.getByText("Ticket"));
+    await user.type(screen.getByLabelText(/slot time/i), "12:00");
+    await user.type(screen.getByLabelText(/be there early/i), "15");
+    await user.click(screen.getByRole("radio", { name: "No" }));
+    // The empty start says what it will default to.
+    expect(screen.getByText(/starts at 11:45 if left empty/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ date: "2027-06-02", startTime: undefined, slotTime: "12:00", arriveByMinutes: 15, refundable: false }),
+      undefined,
+    );
+  });
+
+  it("opens with the saved ticket, and an unrelated edit sends it back unchanged", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false }} />);
+    expect(screen.getByText("Ticket").closest("details")).toHaveAttribute("open");
+    expect(screen.getByLabelText(/slot time/i)).toHaveValue("12:00");
+    await user.type(screen.getByLabelText(/^notes$/i), "Bring ID");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith("item-99", expect.objectContaining({ slotTime: "12:00", arriveByMinutes: 15, refundable: false, startTime: "11:45" }));
+  });
+
+  it("emptying the slot and the margin clears them (PATCH)", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, slotTime: "12:00", arriveByMinutes: 15 }} />);
+    await user.clear(screen.getByLabelText(/slot time/i));
+    await user.clear(screen.getByLabelText(/be there early/i));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateItem).toHaveBeenCalledWith("item-99", expect.objectContaining({ slotTime: null, arriveByMinutes: null, refundable: null }));
+  });
+
+  it("the Refundable control is a labelled Field, and a server error is announced on it", async () => {
+    (updateItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ success: false, errors: { refundable: ["Pick yes, no or not known"] } });
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, refundable: true }} />);
+    const group = screen.getByRole("radiogroup", { name: "Refundable" });
+    expect(group).not.toHaveAttribute("aria-invalid");
+    expect(document.getElementById("refundable-label")).toBeNull(); // no fixed id: two dialogs could share it
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    const invalid = await screen.findByRole("radiogroup", { name: "Refundable" });
+    await waitFor(() => expect(invalid).toHaveAttribute("aria-invalid", "true"));
+    expect(invalid).toHaveAccessibleDescription("Pick yes, no or not known");
+  });
+});
+
+describe("Opening hours (R4)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const span = [["10:00", "18:00"]] as [string, string][];
+  const HOURS = {
+    week: { sun: span, mon: span, tue: span, wed: span, thu: span, fri: span, sat: span },
+    seasons: [],
+    closed: [],
+  };
+
+  it("an edit that leaves the hours alone sends no openingHours", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
+    await user.type(screen.getByLabelText(/notes/i), "x");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).not.toHaveProperty("openingHours");
+  });
+
+  it("closing a weekday in the editor sends the new hours", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
+    await user.click(screen.getByText("Opening hours"));
+    await user.selectOptions(screen.getByLabelText("Tuesday"), "closed");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).toMatchObject({ openingHours: { week: { tue: [] } } });
+  });
+
+  it("removing the hours sends null", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
+    await user.click(screen.getByText("Opening hours"));
+    await user.click(screen.getByRole("button", { name: "Remove opening hours" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).toHaveProperty("openingHours", null);
+  });
+
+  it("a create with hours set sends them", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/title/i), "Lello");
+    await user.click(screen.getByText("Opening hours"));
+    await user.click(screen.getByRole("button", { name: "Add opening hours" }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect(vi.mocked(createItem).mock.calls[0][1]).toHaveProperty("openingHours.week");
+  });
+
+  // Fix round 1 (controller ruling): the previous version of this test only
+  // ever exercised the "with hours" branch of buildInput's condition — it
+  // never actually created an Item with the editor left untouched.
+  it("a create with no hours sends no openingHours", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/title/i), "Lello");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect(vi.mocked(createItem).mock.calls[0][1]).not.toHaveProperty("openingHours");
+  });
+
+  it("shows the server's opening-hours error in the editor", async () => {
+    (updateItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { openingHours: ["A season must end on or after it starts"] },
+    });
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
+    await user.click(screen.getByText("Opening hours"));
+    await user.selectOptions(screen.getByLabelText("Tuesday"), "closed");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByText("A season must end on or after it starts")).toBeInTheDocument();
+  });
+
+  it("keeps the editor open once opened, even after a successful save clears the error", async () => {
+    (updateItem as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ success: false, errors: { openingHours: ["A season must end on or after it starts"] } })
+      .mockResolvedValueOnce({ success: true });
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, openingHours: HOURS }} />);
+    await user.click(screen.getByText("Opening hours"));
+    await user.selectOptions(screen.getByLabelText("Tuesday"), "closed");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByText("A season must end on or after it starts")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Opening hours").closest("details")).toHaveAttribute("open");
   });
 });

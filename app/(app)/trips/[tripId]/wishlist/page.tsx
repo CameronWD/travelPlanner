@@ -13,6 +13,7 @@ import { getUserGlobe } from "@/lib/globe";
 import { suggestMarkersForTrip } from "@/lib/globe-suggestions";
 import type { MarkerView } from "@/components/globe/types";
 import type { ItemCardItem } from "@/components/trip/item-card";
+import type { BookingState } from "@/lib/enum-values";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { VoteView } from "@/components/trip/vote-control";
@@ -21,6 +22,7 @@ import { itemPhotoUrl } from "@/lib/item-photo";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
+import { parseOpeningHours } from "@/lib/validations/opening-hours";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
@@ -87,6 +89,13 @@ export default async function WishlistPage({
             address: true,
             link: true,
             booking: true,
+            bookingState: true,
+            bookingStateSet: true,
+            bookBy: true,
+            slotTime: true,
+            arriveByMinutes: true,
+            refundable: true,
+            openingHours: true,
             notes: true,
             stopId: true,
             lat: true,
@@ -304,6 +313,13 @@ export default async function WishlistPage({
     address: item.address,
     link: item.link,
     booking: item.booking,
+    bookingState: item.bookingState as BookingState, // a stored BOOKING_STATES value (lib/booking-state.ts)
+    bookingStateSet: item.bookingStateSet,
+    bookBy: item.bookBy,
+    slotTime: item.slotTime,
+    arriveByMinutes: item.arriveByMinutes,
+    refundable: item.refundable,
+    openingHours: parseOpeningHours(item.openingHours),
     notes: item.notes,
     stopId: item.stopId,
     stopName: item.stop?.name ?? null,

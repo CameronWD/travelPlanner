@@ -5,6 +5,9 @@
  * into the Wishlist, voting, Day titles, Notes, and the Chapter lifecycle
  * minus delete/reorder (covered elsewhere).
  *
+ * `set_opening_hours` (CONTEXT.md Opening hours, shared by an idea and its
+ * placed copies) sets or clears a thing's opening hours.
+ *
  * Every write delegates to the same server actions the app itself uses
  * (`server/actions/items`, `votes`, `day-titles`, `notes`, `chapters`), which
  * already resolve to the acting Traveller inside a Claude connection (via
@@ -39,7 +42,9 @@ import {
   unscheduleItem,
   placeIdeaAtStop,
   addMarkerToWishlist,
+  setOpeningHours,
 } from "@/server/actions/items";
+import { openingHoursSchema } from "@/lib/validations/opening-hours";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { setDayTitle } from "@/server/actions/day-titles";
 import { addNote, deleteNote } from "@/server/actions/notes";
@@ -54,8 +59,10 @@ import { loadItemForMcp, loadStopForMcp, loadChapterForMcp } from "../reads/enti
 import { loadWishlistIdeaForMcp, loadVotesForMcp } from "../reads/lists";
 import { loadNoteForMcp } from "../reads/notes";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
-import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, describeValues } from "../vocab";
+import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, REFUNDABLE_MEANING, REFUNDABLE_VALUES, describeValues, type RefundableLabel } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { arriveByMinutesSchema } from "@/lib/validations/planning";
+import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
 const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
 const describedCategory = categorySchema.describe(describeValues("The thing's Category.", CATEGORY_MEANING, CATEGORY_VALUES));
@@ -67,6 +74,31 @@ const describedVoteLevel = voteLevelSchema.describe(describeValues("How keen you
 
 const ITEM_NOTES_DESCRIPTION =
   "The Item's own notes: its description, part of the Item, edited here. Not a Note: a Note is a comment a Traveller leaves on it, added with add_note.";
+
+/**
+ * CONTEXT.md "Slot time" (R3): the ticket's own time, separate from startTime
+ * (the Traveller's plan).
+ */
+const SLOT_TIME_DESCRIPTION =
+  "The ticket's time, HH:MM in the Stop's local time: the 12:00 tour, the 19:30 sitting. Not the start time. startTime is when the Travellers plan to be there. With a date and no startTime, the start is set to slotTime less arriveByMinutes.";
+const ARRIVE_BY_DESCRIPTION = "How many minutes before the slot to be there, as the ticket asks. 15 means be there 15 minutes early.";
+
+/**
+ * Section S stores refundable as a plain true/false/not-known column, not an
+ * enum, but reads (get_item/get_trip_plan/get_day) and writes speak the same
+ * YES/NO/UNKNOWN vocabulary, so the tool field matches the read shape; the
+ * handler maps it to true/false/null before calling createItem/updateItem
+ * (never a zod `.transform`, so the mapping stays visible and testable here).
+ */
+const describedRefundable = z
+  .enum(REFUNDABLE_VALUES)
+  .describe(describeValues("Whether the ticket can be refunded.", REFUNDABLE_MEANING, REFUNDABLE_VALUES));
+
+/** YES/NO/UNKNOWN → true/false/null; omitted (undefined) stays omitted. */
+function refundableFromMcp(v: RefundableLabel | undefined): boolean | null | undefined {
+  if (v === undefined) return undefined;
+  return v === "YES" ? true : v === "NO" ? false : null;
+}
 
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
@@ -80,6 +112,10 @@ const itemCreateShape = {
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
+  slotTime: hhmm.optional().describe(SLOT_TIME_DESCRIPTION),
+  arriveByMinutes: arriveByMinutesSchema.optional().describe(ARRIVE_BY_DESCRIPTION),
+  refundable: describedRefundable.optional(),
+  ...bookingCreateShape,
 };
 
 /** update_thing_to_do: every field optional — a patch merges onto the current row. */
@@ -88,12 +124,17 @@ const itemPatchShape = {
   category: describedCategory.optional(),
   stopId: z.string().optional(),
   date: isoDate.optional(),
-  startTime: hhmm.optional(),
+  startTime: hhmm.nullable().optional().describe("Clear it (null) to let a slot time, if set, default it again."),
   endTime: hhmm.optional(),
   address: z.string().optional(),
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
+  slotTime: hhmm.nullable().optional().describe(`${SLOT_TIME_DESCRIPTION} null clears it.`),
+  arriveByMinutes: arriveByMinutesSchema.nullable().optional().describe(`${ARRIVE_BY_DESCRIPTION} null clears it.`),
+  // Not nullable: UNKNOWN (mapped to null in the handler) is how a patch clears it, back to not known.
+  refundable: describedRefundable.optional(),
+  ...bookingPatchShape,
 };
 
 export function registerPlanWriteTools(server: McpServer): void {
@@ -105,12 +146,14 @@ export function registerPlanWriteTools(server: McpServer): void {
         "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea, one of the ideas not yet placed. When you give a date, pass stopId too (the Stop whose stay covers that day) so it files under that Stop. Location comes from address, not from lat/lng.",
       inputSchema: { tripId: z.string(), ...itemCreateShape },
     },
-    ({ tripId, ...rest }) =>
+    ({ tripId, refundable, ...rest }) =>
       runWrite(
         "add_thing_to_do",
         async () => {
           await requireRealPlanRows([["stop", rest.stopId]]);
-          return createItem(tripId, rest);
+          // UNKNOWN maps to null, but there's nothing to clear on a create: that's
+          // just not setting it, same as omitting the field (?? undefined).
+          return createItem(tripId, { ...rest, refundable: refundableFromMcp(refundable) ?? undefined });
         },
         async (done) => ({ item: await loadItemForMcp(done.id) }),
       ),
@@ -122,10 +165,12 @@ export function registerPlanWriteTools(server: McpServer): void {
       title: "Update thing to do",
       description:
         "Changes only the fields you pass; fields you omit keep their current value. Location comes from address, not from lat/lng. " +
-        "notes is the Item's own notes, its description, and is edited here. That is not a Note: a Note is a separate comment a Traveller left on the Item (see get_item's notesOnItem or get_notes). A Note is never edited. Remove it with delete_note and, if it still needs saying, add it again with add_note.",
+        "notes is the Item's own notes, its description, and is edited here. That is not a Note: a Note is a separate comment a Traveller left on the Item (see get_item's notesOnItem or get_notes). A Note is never edited. Remove it with delete_note and, if it still needs saying, add it again with add_note. " +
+        "A null slotTime or arriveByMinutes clears it; an arrive-by margin with no slot is refused. To clear the slot, pass null for both slotTime and arriveByMinutes. " +
+        "A null startTime clears it too, letting a slot (if set) default it again. Moving the slot never moves a start time that is already set.",
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
-    ({ itemId, ...patch }) =>
+    ({ itemId, refundable, ...patch }) =>
       runWrite(
         "update_thing_to_do",
         async () => {
@@ -133,7 +178,35 @@ export function registerPlanWriteTools(server: McpServer): void {
             ["item", itemId],
             ["stop", patch.stopId],
           ]);
-          return updateItem(itemId, patch);
+          return updateItem(itemId, bookingPatchFrom({ ...patch, refundable: refundableFromMcp(refundable) }));
+        },
+        async () => ({ item: await loadItemForMcp(itemId) }),
+      ),
+  );
+
+  server.registerTool(
+    "set_opening_hours",
+    {
+      title: "Set opening hours",
+      description:
+        "Sets when the place a thing to do is about lets you in, read in its Stop's local time, replacing any hours it had. " +
+        "week has keys sun to sat: leaving one out means not known, [] means closed that day, otherwise one or two [open, close] spans as HH:mm (close may be 24:00 for midnight). " +
+        "seasons are recurring date ranges (from, to as MM-DD, inclusive; wraps the year end when from is after to) whose own week replaces the usual one for dates it covers. " +
+        "closed lists dates the place is shut: YYYY-MM-DD for that one day, or MM-DD for that day every year. " +
+        "The hours belong to the place, so the Wishlist idea and every copy placed from it get them too. " +
+        "Pass source for the page you read them on; it overrides hours.source. Pass hours: null to clear them. Only set hours you have checked.",
+      inputSchema: {
+        itemId: z.string(),
+        hours: openingHoursSchema.nullable(),
+        source: openingHoursSchema.shape.source.describe("The page the hours came from; overrides hours.source."),
+      },
+    },
+    ({ itemId, hours, source }) =>
+      runWrite(
+        "set_opening_hours",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return setOpeningHours(itemId, hours ? { ...hours, ...(source && { source }) } : null);
         },
         async () => ({ item: await loadItemForMcp(itemId) }),
       ),
@@ -163,15 +236,20 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Schedule thing to do",
       description:
-        "Schedules a thing to do or see onto a date. A Wishlist idea is copied onto the date (the idea stays in the Wishlist); an already-placed thing to do is moved.",
-      inputSchema: { itemId: z.string(), date: isoDate, startTime: hhmm.optional(), endTime: hhmm.optional() },
+        "Schedules a thing to do or see onto a date. A Wishlist idea is copied onto the date (the idea stays in the Wishlist); an already-placed thing to do is moved. " +
+        "With no startTime, a slot time (given here or already on the thing) sets the start to the slot less arriveByMinutes.",
+      inputSchema: {
+        itemId: z.string(), date: isoDate, startTime: hhmm.optional(), endTime: hhmm.optional(),
+        slotTime: hhmm.optional().describe(SLOT_TIME_DESCRIPTION),
+        arriveByMinutes: arriveByMinutesSchema.optional().describe(ARRIVE_BY_DESCRIPTION),
+      },
     },
-    ({ itemId, date, startTime, endTime }) =>
+    ({ itemId, date, startTime, endTime, slotTime, arriveByMinutes }) =>
       runWrite(
         "schedule_thing_to_do",
         async () => {
           await requireRealPlanRow("item", itemId);
-          return scheduleItem(itemId, { date, startTime, endTime });
+          return scheduleItem(itemId, { date, startTime, endTime, slotTime, arriveByMinutes });
         },
         async (done) => ({ item: await loadItemForMcp(done.placedItemId ?? itemId) }),
       ),

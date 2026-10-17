@@ -32,6 +32,9 @@ export const DESKTOP_GRID_SPANS = {
   },
   map: `col-span-7 ${SLOT}`,
   sort: `col-span-5 ${SLOT}`,
+  // An implicit `auto` third row, sized by its content (no `*:flex-1`, as
+  // PAST_GRID_SPANS.map), so the explicit row template stays as it is.
+  stillToBook: "col-span-12 flex min-h-0 min-w-0 flex-col",
 } as const;
 
 export interface DesktopHomeGridProps {
@@ -40,9 +43,11 @@ export interface DesktopHomeGridProps {
   cost: ReactNode;
   map: ReactNode;
   sort: ReactNode;
+  /** Home's Still to book (spec 2026-10-17 R2) — a full-width third row; null when nothing is To book. */
+  stillToBook?: ReactNode;
 }
 
-export function DesktopHomeGrid({ hasCover, countdown, cost, map, sort }: DesktopHomeGridProps) {
+export function DesktopHomeGrid({ hasCover, countdown, cost, map, sort, stillToBook }: DesktopHomeGridProps) {
   const row1 = hasCover ? DESKTOP_GRID_SPANS.cover : DESKTOP_GRID_SPANS.noCover;
   return (
     <div className={desktopHomeGridClass(hasCover)}>
@@ -50,6 +55,7 @@ export function DesktopHomeGrid({ hasCover, countdown, cost, map, sort }: Deskto
       <div className={row1.cost}>{cost}</div>
       <div className={DESKTOP_GRID_SPANS.map}>{map}</div>
       <div className={DESKTOP_GRID_SPANS.sort}>{sort}</div>
+      {stillToBook ? <div className={DESKTOP_GRID_SPANS.stillToBook}>{stillToBook}</div> : null}
     </div>
   );
 }

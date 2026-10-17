@@ -8,11 +8,22 @@
  */
 import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/lib/stop-days";
 import { transportTimeDisplay } from "@/lib/time-display";
+import type { BookingState } from "@/lib/enum-values";
+import type { OpeningHours } from "@/lib/opening-hours";
+import { withOpeningHours } from "@/lib/opening-hours-stored";
+import { parseOpeningHours } from "@/lib/validations/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
 import type { McpFileRef } from "./attachments";
 
 // ── Types ─────────────────────────────────────────────────────────────────
+
+/**
+ * CONTEXT.md "Slot time": Section S stores refundable as a plain
+ * true/false/not-known column, not an enum, but Claude's reads (here) and
+ * writes (lib/mcp/tools/plan-write.ts) speak the same tri-state vocabulary.
+ */
+type McpRefundable = "YES" | "NO" | "UNKNOWN";
 
 /**
  * A live Surprise as Claude sees it. `youAreSurprised` true means the acting
@@ -33,6 +44,10 @@ export interface McpAccommodation {
   checkOut: string;
   confirmation: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
   files: McpFileRef[];
 }
 
@@ -44,6 +59,18 @@ interface McpThingToDo {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
+  /** CONTEXT.md "Slot time": the ticket's time (HH:MM, the Stop's local time), or null. The start time is the plan; it defaults to slot less arriveByMinutes. */
+  slotTime: string | null;
+  /** How many minutes before the slot to be there, or null. */
+  arriveByMinutes: number | null;
+  /** YES, NO or UNKNOWN (not known). */
+  refundable: McpRefundable;
+  /** CONTEXT.md "Opening hours": week (sun..sat), seasons and closed dates, in the Stop's local time; null = not known. */
+  openingHours: OpeningHours | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -58,8 +85,33 @@ export interface McpDayItem {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
+  /** CONTEXT.md "Slot time": the ticket's time (HH:MM, the Stop's local time), or null. The start time is the plan; it defaults to slot less arriveByMinutes. */
+  slotTime: string | null;
+  /** How many minutes before the slot to be there, or null. */
+  arriveByMinutes: number | null;
+  /** YES, NO or UNKNOWN (not known). */
+  refundable: McpRefundable;
+  /** CONTEXT.md "Opening hours": week (sun..sat), seasons and closed dates, in the Stop's local time; null = not known. */
+  openingHours: OpeningHours | null;
+  /**
+   * The Stop this thing is owned by: the one whose Budget line its Cost
+   * counts against. On a Changeover day the thing is listed under both
+   * Stops' days (and get_day's stop is the arriving one), but it has this
+   * one owner. Null for a dated thing with no Stop.
+   */
+  owningStop: McpOwningStop | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
+}
+
+/** CONTEXT.md "Changeover day" (ADR 0049): the one Stop a scheduled thing is counted against. */
+export interface McpOwningStop {
+  id: string;
+  name: string;
 }
 
 interface McpStopDay {
@@ -122,6 +174,10 @@ export interface McpTransport {
   dayDelta: number;
   reference: string | null;
   notes: string | null;
+  /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
+  bookingState: BookingState;
+  /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
+  bookBy: string | null;
   files: McpFileRef[];
 }
 
@@ -167,6 +223,7 @@ export interface McpTripSummary {
 
 export const MCP_ACCOMMODATION_SELECT = {
   id: true, name: true, address: true, checkIn: true, checkOut: true, confirmation: true, notes: true,
+  bookingState: true, bookBy: true,
 } as const;
 
 const MCP_STOP_FIELDS = {
@@ -183,6 +240,8 @@ export const mcpStopSelect = (accommodationWhere: object) => ({
 export const MCP_THING_TO_DO_SELECT = {
   id: true, title: true, category: true, startTime: true, endTime: true,
   address: true, link: true, booking: true, notes: true, stopId: true,
+  bookingState: true, bookBy: true, slotTime: true, arriveByMinutes: true, refundable: true,
+  openingHours: true,
 } as const;
 
 export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } as const;
@@ -190,6 +249,7 @@ export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } a
 export const MCP_TRANSPORT_SELECT = {
   id: true, mode: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true,
   depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true, notes: true,
+  bookingState: true, bookBy: true,
 } as const;
 
 export const MCP_CHAPTER_SELECT = { id: true, name: true, startDate: true, endDate: true } as const;
@@ -201,7 +261,13 @@ export const MCP_TRIP_SELECT = {
 
 // ── Row types (what the selects above return) ────────────────────────────
 
-type AccommodationRow = Omit<McpAccommodation, "files">;
+/*
+ * `bookingState` is a plain String column holding one of BOOKING_STATES
+ * (every writer stores lib/booking-state.ts `bookingStateWrite`'s result), so
+ * the rows take the string and the shapes below name it as the union, as
+ * lib/plan-reads.ts does.
+ */
+type AccommodationRow = Omit<McpAccommodation, "files" | "bookingState"> & { bookingState: string };
 
 export interface McpStopRow {
   id: string; name: string; countryCode: string | null; timezone: string | null;
@@ -215,11 +281,16 @@ export interface McpStopRow {
 export interface McpItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
   address: string | null; link: string | null; booking: string | null; notes: string | null; stopId: string | null;
+  bookingState: string; bookBy: string | null;
+  slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null;
+  /** The stored column: a JSON string, or null. Parse at the row edge with `withOpeningHours`/`parseOpeningHours` before building a shape — never hand this straight to a shape that expects `OpeningHours`. */
+  openingHours: string | null;
 }
 
 export interface McpTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
   depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null; notes: string | null;
+  bookingState: string; bookBy: string | null;
 }
 
 export type FilesFor = (kind: "STOP" | "ACCOMMODATION" | "TRANSPORT" | "ITEM", id: string) => McpFileRef[];
@@ -230,49 +301,99 @@ export function toMcpSurprise(view: SurpriseView | null | undefined): McpSurpris
   return view ? { plannedBy: view.plannerName, for: view.forNames, youAreSurprised: view.youAreSurprised } : null;
 }
 
+/**
+ * The Stop a day item is owned by (R5): null for no Stop. Fix round 1
+ * (controller ruling): every caller passes a `names` map covering every
+ * real-plan Stop of the trip, rough ones included (get_day's own fix), so a
+ * known stopId should always resolve; if a name is somehow still missing,
+ * this returns null rather than inventing prose.
+ */
+export function owningStopRef(stopId: string | null | undefined, names: ReadonlyMap<string, string>): McpOwningStop | null {
+  if (!stopId) return null;
+  const name = names.get(stopId);
+  return name ? { id: stopId, name } : null;
+}
+
+/** The Slot time fields as Claude reads them; a row without them reads as none / UNKNOWN. */
+function mcpSlot(i: {
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
+}): { slotTime: string | null; arriveByMinutes: number | null; refundable: McpRefundable } {
+  return {
+    slotTime: i.slotTime ?? null,
+    arriveByMinutes: i.arriveByMinutes ?? null,
+    refundable: i.refundable === true ? "YES" : i.refundable === false ? "NO" : "UNKNOWN",
+  };
+}
+
 export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor): McpAccommodation {
-  return { ...a, files: filesFor("ACCOMMODATION", a.id) };
+  return { ...a, bookingState: a.bookingState as BookingState, files: filesFor("ACCOMMODATION", a.id) };
 }
 
 function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined): McpThingToDo {
   return {
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
-    notes: i.notes, files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
+    notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, ...mcpSlot(i),
+    openingHours: parseOpeningHours(i.openingHours),
+    files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
   };
 }
 
-/** A dated thing to do on a day (get_trip_plan's `days[].items`, get_day's timeline). */
-export function toMcpDayItem(i: StopDayItem, filesFor: FilesFor): McpDayItem {
+/** A dated thing to do on a day (get_trip_plan's `days[].items`, get_day's timeline). Its `openingHours` has already been parsed at the row edge (`StopDayItem.openingHours` is the model, never the stored string). */
+export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpDayItem {
   return {
     id: i.id, title: i.title, category: i.category,
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
+    bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
+    openingHours: i.openingHours ?? null,
+    owningStop: owningStopRef(i.stopId, stopNameById),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
 }
 
-export function toMcpItem(i: McpItemRow & { surprise: SurpriseView | null }, filesFor: FilesFor): McpItem {
-  return { ...toMcpDayItem(i, filesFor), date: i.date, stopId: i.stopId };
-}
+/**
+ * Fix round 1 (controller ruling): a `McpItemRow` with its `openingHours`
+ * parsed once at the MCP row edge (`withOpeningHours`) and its Surprise view
+ * attached. Parsing here — rather than inside `toMcpDayItem`/`toMcpItem` on
+ * every read — means the `datedItems as unknown as StopDayItem[]` cast
+ * `buildMcpStops` makes to group these rows is honest: `openingHours` really
+ * is an `OpeningHours | null` by the time anything (Branch 2's Flags
+ * included) sees it as a `StopDayItem`, never a raw JSON string wearing that
+ * type.
+ */
+type DatedItem = Omit<McpItemRow, "openingHours"> & { openingHours: OpeningHours | null; surprise: SurpriseView | null };
 
-type DatedItem = McpItemRow & { surprise: SurpriseView | null };
+export function toMcpItem(i: DatedItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpItem {
+  return {
+    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState }, filesFor, stopNameById),
+    date: i.date,
+    stopId: i.stopId,
+  };
+}
 
 /**
  * The real plan's dated Items with each hidden Surprise Item joined as a
  * placeholder titled "Surprise" on its date and time (ADR 0051), date order,
- * same-day order kept.
+ * same-day order kept. Each scheduled row's `openingHours` is parsed once
+ * here (`withOpeningHours`), at the row edge — see `DatedItem`.
  */
 export function withPlaceholders(
   scheduled: McpItemRow[],
   v: Pick<SurpriseVisibility, "placeholderItems" | "views">,
 ): DatedItem[] {
   return [
-    ...scheduled.map((i) => ({ ...i, surprise: v.views.items.get(i.id) ?? null })),
+    ...scheduled.map((i) => ({ ...withOpeningHours(i), surprise: v.views.items.get(i.id) ?? null })),
     ...v.placeholderItems
       .filter((p) => p.forkId === null && p.date !== null)
       .map((p) => ({
         id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-        address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId, surprise: p.surprise,
+        address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId,
+        bookingState: p.bookingState, bookBy: p.bookBy,
+        slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable,
+        openingHours: p.openingHours,
+        surprise: p.surprise,
       })),
   ].sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0));
 }
@@ -293,8 +414,10 @@ export function buildMcpStops(input: {
   hiddenStopIds: ReadonlySet<string>;
   itemView: (id: string) => SurpriseView | null;
   filesFor: FilesFor;
+  /** Every real-plan Stop's name, for `owningStop` (R5); a hidden Surprise Stop keeps its name (its shell). */
+  stopNameById: ReadonlyMap<string, string>;
 }): { stops: McpStop[]; coveredItemIds: Set<string> } {
-  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor } = input;
+  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor, stopNameById } = input;
   const openStops = stops.filter((s) => !hiddenStopIds.has(s.id));
 
   const thingsToDoByStopId = new Map<string, McpThingToDo[]>();
@@ -314,7 +437,7 @@ export function buildMcpStops(input: {
       : buildStopDays(stop.arriveDate!, stop.departDate!, dayItemsByStopId.get(stop.id) ?? []).map((day) => ({
           date: day.dateISO,
           dayTitle: dayTitles.get(day.dateISO)?.title ?? null,
-          items: [...day.timed, ...day.untimed].map((i) => toMcpDayItem(i, filesFor)),
+          items: [...day.timed, ...day.untimed].map((i) => toMcpDayItem(i, filesFor, stopNameById)),
         }));
     return {
       id: stop.id, name: stop.name, countryCode: stop.countryCode, rough, nights: stop.nights,
@@ -355,7 +478,9 @@ export function toMcpTransport(
     depPlace: t.depPlace, arrPlace: t.arrPlace,
     depAt: t.depAt ? t.depAt.toISOString() : null, arrAt: t.arrAt ? t.arrAt.toISOString() : null,
     departs: local(t.depAt, shown.dep), arrives: local(t.arrAt, shown.arr), dayDelta: shown.dayDelta,
-    reference: t.reference, notes: t.notes, files: ctx.filesFor("TRANSPORT", t.id),
+    reference: t.reference, notes: t.notes,
+    bookingState: t.bookingState as BookingState, bookBy: t.bookBy,
+    files: ctx.filesFor("TRANSPORT", t.id),
   };
 }
 

@@ -65,6 +65,7 @@ import { requireRealPlanRow, requireRealPlanRows, type RealPlanKind } from "../r
 import { homeContradictionError } from "@/lib/transport-patch";
 import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
 const currencySchema = z.enum(CURRENCY_CODES as [string, ...string[]]);
 const describedTransportMode = transportModeSchema.describe(
@@ -98,6 +99,7 @@ const accommodationCreateShape = {
   checkOutTime: hhmm.optional(),
   confirmation: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  ...bookingCreateShape,
   ...inlineCostCreateShape,
 };
 
@@ -111,6 +113,7 @@ const accommodationPatchShape = {
   checkOutTime: hhmm.optional(),
   confirmation: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  ...bookingPatchShape,
   ...inlineCostCreateShape,
 };
 
@@ -135,6 +138,7 @@ const transportCreateShape = {
   arrAt: transportDatetime,
   reference: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  ...bookingCreateShape,
   ...inlineCostCreateShape,
 };
 
@@ -159,6 +163,7 @@ const transportPatchShape = {
   arrAt: transportDatetime.optional(),
   reference: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  ...bookingPatchShape,
   ...inlineCostCreateShape,
 };
 
@@ -285,7 +290,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
             ["accommodation", accommodationId],
             ["stop", patch.stopId],
           ]);
-          return withUpdateCostGuidance(await updateAccommodation(accommodationId, patch));
+          return withUpdateCostGuidance(await updateAccommodation(accommodationId, bookingPatchFrom(patch)));
         },
         async () => ({ accommodation: await loadAccommodationForMcp(accommodationId) }),
       ),
@@ -352,6 +357,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
         "on a Stop-linked departure sets its point and keeps the Stop; pass depPlace \"\" to clear the point. A new " +
         "fromStopId clears the old point unless you pass depPlace too. fromStopId \"\" unlinks the Stop. Home takes no " +
         "point. The same applies to toStopId/arrPlace. " +
+        "A leg not bought yet is bookingState TO_BOOK; give bookBy for the day to book it by. " +
         `${MONEY_NOTE} To change paid status or settlement on an owned Cost, use update_cost/mark_cost_paid/mark_cost_unpaid once it exists.`,
       inputSchema: { transportId: z.string(), ...transportPatchShape },
     },
@@ -372,7 +378,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
             ["stop", patch.toStopId || undefined],
             ["stop", patch.anchorStopId],
           ]);
-          return withUpdateCostGuidance(await updateTransport(transportId, patch));
+          return withUpdateCostGuidance(await updateTransport(transportId, bookingPatchFrom(patch)));
         },
         async () => ({ transport: await loadTransportForMcp(transportId) }),
       ),

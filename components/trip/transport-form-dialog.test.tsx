@@ -44,7 +44,7 @@ const baseProps = {
 };
 
 const existingTransport: TransportCardTransport = {
-  id: "transport-99",
+  id: "transport-99", bookingStateSet: false,
   mode: "TRAIN",
   fromStopId: "stop-a",
   toStopId: "stop-b",
@@ -920,7 +920,7 @@ describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   const transportWithAnchor: TransportCardTransport = {
-    id: "transport-99",
+    id: "transport-99", bookingStateSet: false,
     mode: "TRAIN",
     fromStopId: "stop-a",
     toStopId: "stop-b",
@@ -1028,7 +1028,7 @@ describe("TransportFormDialog: homeBaseName", () => {
       <TransportFormDialog
         open
         tripId="t1"
-        transport={{ id: "tr1", mode: "FLIGHT", sortOrder: 0 }}
+        transport={{ id: "tr1", bookingStateSet: false, mode: "FLIGHT", sortOrder: 0 }}
         attachments={[]}
         stops={[]}
         onOpenChange={() => {}}
@@ -1081,7 +1081,7 @@ describe("TransportFormDialog: homeBaseName", () => {
 
 describe("TransportFormDialog: homeTimezone (Task 7)", () => {
   const homeLeg: TransportCardTransport = {
-    id: "transport-home",
+    id: "transport-home", bookingStateSet: false,
     mode: "FLIGHT",
     depIsHome: true,
     toStopId: "dps",
@@ -1299,7 +1299,7 @@ describe("transport sheet (PLAN.md §7.5)", () => {
   it("edit: Train to Florence, Save, Delete leg", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
-    render(<TransportFormDialog tripId="t" stops={STOPS} transport={{ id: "tr1", mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }} open onOpenChange={vi.fn()} onDelete={onDelete} />);
+    render(<TransportFormDialog tripId="t" stops={STOPS} transport={{ id: "tr1", bookingStateSet: false, mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }} open onOpenChange={vi.fn()} onDelete={onDelete} />);
     expect(screen.getByRole("dialog", { name: "Train to Florence" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete leg" }));
@@ -1329,7 +1329,7 @@ describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", ()
         tripId="t"
         stops={STOPS}
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "CAR",
           fromStopId: "rom",
           toStopId: "flo",
@@ -1359,7 +1359,7 @@ describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", ()
         tripId="t"
         stops={STOPS}
         transport={{
-          id: "tr1",
+          id: "tr1", bookingStateSet: false,
           mode: "CAR",
           fromStopId: "rom",
           toStopId: "flo",
@@ -1417,7 +1417,7 @@ describe("transport sheet (PLAN.md §7.5): collapsed cost submit and existing-co
       <TransportFormDialog
         tripId="t"
         stops={STOPS}
-        transport={{ id: "tr1", mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }}
+        transport={{ id: "tr1", bookingStateSet: false, mode: "TRAIN", fromStopId: "rom", toStopId: "flo", sortOrder: 0 }}
         costs={[
           {
             id: "c1",
@@ -1514,7 +1514,7 @@ describe("TransportFormDialog: position picker shows the resolved slot (spec 202
     { id: "stop-c", name: "Rome" },
   ];
   const leg = (o: Partial<TransportCardTransport>): TransportCardTransport => ({
-    id: "transport-99",
+    id: "transport-99", bookingStateSet: false,
     mode: "TRAIN",
     fromStopId: null,
     toStopId: null,
@@ -1749,7 +1749,7 @@ describe("TransportFormDialog: a Stop end keeps its departure/arrival point (Tas
   ];
 
   const legWithPoints: TransportCardTransport = {
-    id: "t-points",
+    id: "t-points", bookingStateSet: false,
     mode: "TRAIN",
     fromStopId: "paris",
     toStopId: "london",
@@ -1890,7 +1890,7 @@ describe("TransportFormDialog: Proposal mode (Booking import)", () => {
     render(
       <TransportFormDialog
         tripId="t" stops={STOPS} open onOpenChange={vi.fn()}
-        transport={{ id: "tr-1", mode: "FLIGHT", fromStopId: "rom", toStopId: "flo", depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: "SAVED", notes: null, sortOrder: 0, anchorStopId: "rom" } as unknown as TransportCardTransport}
+        transport={{ id: "tr-1", bookingStateSet: false, mode: "FLIGHT", fromStopId: "rom", toStopId: "flo", depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: "SAVED", notes: null, sortOrder: 0, anchorStopId: "rom" } as unknown as TransportCardTransport}
         initialValues={{ mode: "TRAIN", reference: "ABC" }}
       />,
     );
@@ -1916,5 +1916,53 @@ describe("TransportFormDialog: Reminders (F8)", () => {
   it("shows no Reminders field when creating a leg", () => {
     render(<TransportFormDialog {...baseProps} onAddReminder={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Add a reminder" })).not.toBeInTheDocument();
+  });
+});
+
+describe("TransportFormDialog: Booking state (spec 2026-10-17 R2: a tentative leg is To book)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a new leg is To book with a Book by date; the date goes with the save, the state is left to the server", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    expect(screen.getByRole("radio", { name: "To book" })).toHaveAttribute("data-state", "on");
+    await user.type(screen.getByLabelText("Book by"), "2027-05-01");
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(vi.mocked(createTransport).mock.calls[0][1]).toMatchObject({ bookBy: "2027-05-01" });
+    expect(vi.mocked(createTransport).mock.calls[0][1].bookingState).toBeUndefined();
+  });
+
+  it("editing an un-chosen To book leg and typing its reference previews Booked and sends bookBy null", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={{ ...existingTransport, reference: null, bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01" }}
+      />,
+    );
+    expect(screen.getByLabelText("Book by")).toHaveValue("2027-05-01");
+    await user.type(screen.getByPlaceholderText(/BA0123/), "ICE 512");
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    expect(screen.queryByLabelText("Book by")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(existingTransport.id, expect.objectContaining({ reference: "ICE 512", bookBy: null }));
+    expect(vi.mocked(updateTransport).mock.calls[0][1].bookingState).toBeUndefined();
+  });
+
+  it("a leg the Traveller set to To book stays To book when its reference is typed, and keeps its date", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={{ ...existingTransport, reference: null, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-01" }}
+      />,
+    );
+    await user.type(screen.getByPlaceholderText(/BA0123/), "ICE 512");
+    expect(screen.getByRole("radio", { name: "To book" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(
+      existingTransport.id,
+      expect.objectContaining({ reference: "ICE 512", bookingState: "TO_BOOK", bookBy: "2027-05-01" }),
+    );
   });
 });

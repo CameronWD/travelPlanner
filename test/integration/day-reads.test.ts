@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { readDayRows } from "@/lib/day-reads";
+import { buildDayModel } from "@/lib/day-view-model";
 
 // Real Postgres (npm run test:integration). lib/day-reads.test.ts mocks the
 // db; only a real database proves the selects, the plan scope and the
@@ -43,9 +44,9 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readDayRows (real Postgres)", 
     });
     await db.item.createMany({
       data: [
-        { id: "it-dr-tram", tripId: TRIP_ID, stopId: PORTO, title: "IT Tram 22", category: "ACTIVITY", date: "2027-06-02", sortOrder: 0 },
+        { id: "it-dr-tram", tripId: TRIP_ID, stopId: PORTO, title: "IT Tram 22", category: "ACTIVITY", date: "2027-06-02", sortOrder: 0, slotTime: "10:00", arriveByMinutes: 15, refundable: false },
         // A Surprise Item on a seen Stop: MEMBER gets a placeholder on its day.
-        { id: "it-dr-dinner", tripId: TRIP_ID, stopId: PORTO, title: "IT Birthday dinner", category: "FOOD", date: "2027-06-03", startTime: "19:30", sortOrder: 1, surprisePlannerId: PLANNER, surpriseForIds: JSON.stringify([MEMBER]) },
+        { id: "it-dr-dinner", tripId: TRIP_ID, stopId: PORTO, title: "IT Birthday dinner", category: "FOOD", date: "2027-06-03", startTime: "19:30", sortOrder: 1, surprisePlannerId: PLANNER, surpriseForIds: JSON.stringify([MEMBER]), bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20", slotTime: "19:45", refundable: false },
         // Inside the Surprise Stop: hidden from MEMBER, no placeholder (only a root Item gets one).
         { id: "it-dr-inside", tripId: TRIP_ID, stopId: SECRET, title: "IT Hidden spa", category: "ACTIVITY", date: "2027-06-05", sortOrder: 0 },
         { id: "it-dr-idea", tripId: TRIP_ID, title: "IT Port lodge tour", category: "FOOD", sortOrder: 0 },
@@ -55,6 +56,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readDayRows (real Postgres)", 
     });
     await db.accommodation.create({
       data: { id: "it-dr-villa", tripId: TRIP_ID, stopId: SECRET, name: "IT Secret villa", checkIn: "2027-06-04", checkOut: "2027-06-07" },
+    });
+    // Booking state (spec 2026-10-17 R2): a tentative leg with a book-by date.
+    await db.transport.create({
+      data: {
+        id: "it-dr-leg", tripId: TRIP_ID, mode: "TRAIN", fromStopId: PORTO, toStopId: SECRET, sortOrder: 0,
+        bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01",
+      },
     });
     await db.dayTitle.createMany({
       data: [
@@ -94,5 +102,45 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readDayRows (real Postgres)", 
     expect(rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ title: "IT Birthday dinner", surprise: { youAreSurprised: false } });
     expect(rows.accommodations.map((a) => a.id)).toEqual(["it-dr-villa"]);
     expect(rows.dayTitles).toHaveLength(2);
+  });
+
+  it("carries Booking state; the surprised member's placeholder is never To book (spec R2)", async () => {
+    const planner = await readDayRows(TRIP_ID, PLANNER, none);
+    if (typeof planner === "string") throw new Error(planner);
+    expect(planner.rows.transports.find((t) => t.id === "it-dr-leg")).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01" });
+    expect(planner.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" });
+    expect(planner.rows.accommodations.find((a) => a.id === "it-dr-villa")).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null });
+
+    const member = await readDayRows(TRIP_ID, MEMBER, none);
+    if (typeof member === "string") throw new Error(member);
+    expect(member.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ bookingState: "NONE", bookingStateSet: false, bookBy: null });
+  });
+
+  it("the slot fields come back for a seen Item and are masked on a placeholder (R3)", async () => {
+    const member = await readDayRows(TRIP_ID, MEMBER, none);
+    if (typeof member === "string") throw new Error(member);
+    expect(member.rows.items.find((i) => i.id === "it-dr-tram")).toMatchObject({ slotTime: "10:00", arriveByMinutes: 15, refundable: false });
+    expect(member.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ title: "Surprise", slotTime: null, arriveByMinutes: null, refundable: null });
+    const planner = await readDayRows(TRIP_ID, PLANNER, none);
+    if (typeof planner === "string") throw new Error(planner);
+    expect(planner.rows.items.find((i) => i.id === "it-dr-dinner")).toMatchObject({ slotTime: "19:45", refundable: false });
+  });
+
+  it("a dated Item carries its opening hours to the Day view; a hidden Surprise's placeholder never does", async () => {
+    const span = [["09:30", "19:00"]];
+    const hours = { week: { sun: span, mon: span, tue: span, wed: span, thu: span, fri: span, sat: span }, seasons: [], closed: [], source: "https://it-tram.example" };
+    await db.item.update({ where: { id: "it-dr-tram" }, data: { openingHours: JSON.stringify(hours) } });
+    await db.item.update({ where: { id: "it-dr-dinner" }, data: { openingHours: JSON.stringify({ ...hours, source: "https://it-birthday-dinner.example" }) } });
+
+    const planner = await readDayRows(TRIP_ID, PLANNER, none);
+    if (typeof planner === "string") throw new Error(planner);
+    expect(planner.rows.items.find((i) => i.id === "it-dr-tram")!.openingHours).toEqual(hours);
+    const day = buildDayModel(planner.rows, "2027-06-02").dayPlan!;
+    expect([...day.timedItems, ...day.untimedItems].find((e) => e.item.id === "it-dr-tram")!.item.openingHours).toEqual(hours);
+
+    const member = await readDayRows(TRIP_ID, MEMBER, none);
+    if (typeof member === "string") throw new Error(member);
+    expect(member.rows.items.find((i) => i.id === "it-dr-dinner")!.openingHours).toBeNull();
+    expect(JSON.stringify(member.rows)).not.toContain("it-birthday-dinner");
   });
 });

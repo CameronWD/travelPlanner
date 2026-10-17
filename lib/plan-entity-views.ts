@@ -1,4 +1,5 @@
-import type { TransportMode } from "@/lib/enum-values";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
+import type { OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import type { CostRow } from "@/lib/money/cost-row";
 
@@ -18,6 +19,18 @@ export interface ItemCardItem {
   address?: string | null;
   link?: string | null;
   booking?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
+  bookingStateSet: boolean;
+  /** YYYY-MM-DD the thing should be booked by; only while To book. */
+  bookBy?: string | null;
+  /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
+  openingHours?: OpeningHours | null;
   notes?: string | null;
   stopId?: string | null;
   stopName?: string | null; // resolved from stop relation
@@ -44,6 +57,12 @@ export interface TransportCardTransport {
   depAt?: Date | null;
   arrAt?: Date | null;
   reference?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
+  bookingStateSet: boolean;
+  /** YYYY-MM-DD the thing should be booked by; only while To book. */
+  bookBy?: string | null;
   notes?: string | null;
   sortOrder: number;
   /** Resolved name of the fromStop (if linked) */
@@ -68,6 +87,12 @@ export interface AccommodationCardAccommodation {
   checkInTime?: string | null;
   checkOutTime?: string | null;
   confirmation?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
+  bookingStateSet: boolean;
+  /** YYYY-MM-DD the thing should be booked by; only while To book. */
+  bookBy?: string | null;
   notes?: string | null;
   lat?: number | null;
   lng?: number | null;

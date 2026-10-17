@@ -19,7 +19,7 @@ vi.mock("@/server/actions/costs", () => ({
 import { AccommodationRow } from "./accommodation-row";
 
 const accommodation = {
-  id: "acc1",
+  id: "acc1", bookingStateSet: false,
   stopId: "s1",
   name: "Hotel du Louvre",
   address: "Place André Malraux",

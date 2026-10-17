@@ -10,6 +10,8 @@ import { Route } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CountdownHero } from "@/components/trip/home/countdown-hero";
 import { NextStepsCard } from "@/components/trip/home/next-steps-card";
+import { StillToBookCard } from "@/components/trip/home/still-to-book-card";
+import { STILL_TO_BOOK_LIMIT_PHONE } from "@/lib/still-to-book";
 import { BudgetGlance } from "@/components/trip/home/budget-glance";
 import { QuickActions } from "@/components/trip/home/quick-actions";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
@@ -92,7 +94,7 @@ export async function PhasePlanning({
 
   // One query path for the Home's planning data (lib/desktop-home-loader.ts),
   // shared with the desktop Home tiles on the same request.
-  const { datedStops, planStops, datedChapters, budget, upcomingPayments, steps: allSteps } =
+  const { datedStops, planStops, datedChapters, budget, upcomingPayments, steps: allSteps, stillToBook } =
     await loadHomePlanningData(tripId, today, phase, trip, userId);
   const steps = allSteps.slice(0, 4);
 
@@ -260,17 +262,23 @@ export async function PhasePlanning({
       >
         <AnimatedItem key="route" index={0}>{route}</AnimatedItem>
         <AnimatedItem key="next-steps" index={1}>{nextSteps}</AnimatedItem>
+        {/* Spec 2026-10-17 R2: what is still To book; no tile when nothing is. */}
+        {stillToBook.length > 0 ? (
+          <AnimatedItem key="still-to-book" index={2}>
+            <StillToBookCard rows={stillToBook} limit={STILL_TO_BOOK_LIMIT_PHONE} planHref={tripPath(slug, "/plan")} />
+          </AnimatedItem>
+        ) : null}
         {/* This tile is lg:hidden itself (spec E1's desktop stat tiles take
             over from lg) — repeated on the AnimatedItem grid item for the
             same reason as the desktop grid above: an un-hidden empty grid
             cell would still claim a track + gap at lg. */}
-        <AnimatedItem key="money" index={2} className="lg:hidden">
+        <AnimatedItem key="money" index={3} className="lg:hidden">
           <div className={`${HOME_STACK} lg:hidden`} data-home-money>
             {money}
             {upcomingEl}
           </div>
         </AnimatedItem>
-        <AnimatedItem key="actions" index={3}>{actions}</AnimatedItem>
+        <AnimatedItem key="actions" index={4}>{actions}</AnimatedItem>
       </AnimatedList>
       {reminders}
     </div>

@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IdeasBox } from "./ideas-box";
 
-const idea = (id: string, title: string, extra = {}) => ({ id, title, category: "SIGHTSEEING", startTime: null, endTime: null, ...extra });
+const idea = (id: string, title: string, extra = {}) => ({ id, bookingStateSet: false, title, category: "SIGHTSEEING", startTime: null, endTime: null, ...extra });
 const IDEAS = [idea("i1", "Musée d'Orsay"), idea("i2", "Sainte-Chapelle", { hiddenFromShares: true }), idea("i3", "Le Bon Marché")];
 
 afterEach(() => { vi.unstubAllGlobals(); });

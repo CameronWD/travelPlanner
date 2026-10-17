@@ -27,6 +27,7 @@ import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
 import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
+import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import type { ProposedAccommodationInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
@@ -141,7 +142,8 @@ interface AccommodationFormProps {
 }
 
 /** An edit's empty fields are clears (ADR 0075). The Cost's paid date: an un-ticked Paid. */
-const ACCOMMODATION_CLEARABLE = ["address", "checkInTime", "checkOutTime", "confirmation", "notes", "paidAt"] as const;
+// `bookingState` is deliberately absent: a null would hand a choice back to automatic; an un-chosen state is simply not sent.
+const ACCOMMODATION_CLEARABLE = ["address", "checkInTime", "checkOutTime", "confirmation", "notes", "paidAt", "bookBy"] as const;
 
 function AccommodationForm({
   tripId,
@@ -183,6 +185,7 @@ function AccommodationForm({
   const [confirmation, setConfirmation] = React.useState(
     accommodation?.confirmation ?? proposed?.confirmation ?? "",
   );
+  const bookingField = useBookingStateField("ACCOMMODATION", accommodation ?? seedFromProposal(proposed), confirmation);
   const [notes, setNotes] = React.useState(accommodation?.notes ?? proposed?.notes ?? "");
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
@@ -190,7 +193,7 @@ function AccommodationForm({
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 
-  useFormDirty({ name, address, checkIn, checkOut, checkInTime, checkOutTime, confirmation, notes, cost: cost.dirtyValues });
+  useFormDirty({ name, address, checkIn, checkOut, checkInTime, checkOutTime, confirmation, bookingState: bookingField.dirtyValues, notes, cost: cost.dirtyValues });
 
   // Soft warnings (reactive, non-blocking)
   const dateWarnings: string[] = [];
@@ -219,6 +222,7 @@ function AccommodationForm({
       ...(checkInTime ? { checkInTime } : {}),
       ...(checkOutTime ? { checkOutTime } : {}),
       confirmation: confirmation.trim() || undefined,
+      ...bookingField.payload(),
       notes: notes.trim() || undefined,
       // An invalid Cost is left out of the draft; submit refuses it first.
       ...(c.kind === "ok" && c.fields),
@@ -276,6 +280,9 @@ function AccommodationForm({
           />
         </Field>
       </div>
+
+      {/* Booking state (CONTEXT.md): a stay is To book; a confirmation implies Booked until the Traveller picks. */}
+      <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
 
       {/* Dates — own sub-grid so they always pair. */}
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">

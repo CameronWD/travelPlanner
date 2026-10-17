@@ -939,7 +939,7 @@ describe("updateAccommodation: inline cost update/create", () => {
 });
 
 describe("updateAccommodation (PATCH, ADR 0075)", () => {
-  const row = { id: "acc-1", tripId: "trip-1", forkId: null, stopId: "stop-1", name: "Hilton", address: "1 Via Roma", checkIn: "2026-05-01", checkOut: "2026-05-04", checkInTime: "15:00", checkOutTime: null, confirmation: "ABC", notes: "old", lat: 41.9, lng: 12.5 };
+  const row = { id: "acc-1", tripId: "trip-1", forkId: null, stopId: "stop-1", name: "Hilton", address: "1 Via Roma", checkIn: "2026-05-01", checkOut: "2026-05-04", checkInTime: "15:00", checkOutTime: null, confirmation: "ABC", notes: "old", lat: 41.9, lng: 12.5, bookingState: "BOOKED", bookingStateSet: false, bookBy: null };
   beforeEach(() => {
     accFindUniqueMock.mockResolvedValue(row); // guard row, then the held row
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
@@ -966,6 +966,11 @@ describe("updateAccommodation (PATCH, ADR 0075)", () => {
     costFindManyMock.mockResolvedValue([{ id: "c1", costMinor: 1, currency: "EUR", paidMinor: null, paidAt: null }, { id: "c2", costMinor: 2, currency: "EUR", paidMinor: null, paidAt: null }]);
     const r = await updateAccommodation("acc-1", { costMinor: 5 });
     expect(r.success).toBe(false);
+    expect(accUpdateMock).not.toHaveBeenCalled();
+  });
+  it("refuses a book-by date on a stay chosen Booked, and writes nothing (spec R2)", async () => {
+    const r = await updateAccommodation("acc-1", { bookingState: "BOOKED", bookBy: "2027-05-01" });
+    expect(r).toEqual({ success: false, errors: { bookBy: ["A book-by date is only for something still to book."] } });
     expect(accUpdateMock).not.toHaveBeenCalled();
   });
 });

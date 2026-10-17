@@ -12,7 +12,7 @@ const cost = (over = {}) => ({
 });
 
 const HOTEL: StayPanelAccommodation = {
-  id: "acc1",
+  id: "acc1", bookingStateSet: false,
   stopId: "par",
   name: "Hôtel Grands Boulevards",
   address: "17 Bd Poissonnière, Paris",
@@ -61,7 +61,7 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
 
   it("leaves out what isn't set; an unpaid cost says Unpaid", () => {
     const bare: StayPanelAccommodation = {
-      id: "acc2", stopId: "par", name: "Ibis Gare de l'Est", checkIn: "2026-12-10", checkOut: "2026-12-11",
+      id: "acc2", stopId: "par", name: "Ibis Gare de l'Est", checkIn: "2026-12-10", checkOut: "2026-12-11", bookingStateSet: false,
       costs: [cost({ id: "c2", ownerId: "acc2" })],
     };
     render(<StayPanel {...props({ accommodations: [bare] })} />);
@@ -100,7 +100,7 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
   });
 
   it("partial with gaps folds consecutive nights into runs", () => {
-    const a = (id: string, checkIn: string, checkOut: string): StayPanelAccommodation => ({ id, stopId: "par", name: id, checkIn, checkOut });
+    const a = (id: string, checkIn: string, checkOut: string): StayPanelAccommodation => ({ id, stopId: "par", name: id, checkIn, checkOut, bookingStateSet: false });
     render(
       <StayPanel
         {...props({
@@ -147,5 +147,15 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
     expect(block.className).toContain("min-w-0");
     expect(screen.getByRole("button", { name: "Hôtel Grands Boulevards" }).className).toContain("truncate");
     expect(screen.getByText("17 Bd Poissonnière, Paris").className).toContain("truncate");
+  });
+
+  it("a stay still to book says To book beside its cost line", () => {
+    render(<StayPanel {...props({ accommodations: [{ ...HOTEL, bookingState: "TO_BOOK" }] })} />);
+    expect(within(screen.getByTestId("stay-block")).getByText("To book")).toBeInTheDocument();
+  });
+
+  it("a Booked stay shows no To book badge", () => {
+    render(<StayPanel {...props({ accommodations: [{ ...HOTEL, bookingState: "BOOKED" }] })} />);
+    expect(within(screen.getByTestId("stay-block")).queryByText("To book")).not.toBeInTheDocument();
   });
 });

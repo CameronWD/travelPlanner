@@ -9,6 +9,8 @@
 import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import type { SurpriseView } from "@/lib/surprise";
+import type { BookingState } from "@/lib/enum-values";
+import type { OpeningHours } from "@/lib/opening-hours";
 
 // ---------------------------------------------------------------------------
 // Minimal input shapes
@@ -37,6 +39,15 @@ export interface ItineraryItem {
   address?: string | null;
   link?: string | null;
   booking?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state; absent on rows that don't read it (the Share page). */
+  bookingStateSet?: boolean;
+  bookBy?: string | null;
+  /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
   notes?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
@@ -44,6 +55,8 @@ export interface ItineraryItem {
   photoUrl?: string | null;
   /** CONTEXT.md "Surprise" — the live Surprise this Item is (planner's badge or a placeholder's shell); null/absent = none. */
   surprise?: SurpriseView | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
+  openingHours?: OpeningHours | null;
 }
 
 export interface ItineraryTransport {
@@ -56,6 +69,11 @@ export interface ItineraryTransport {
   depAt?: Date | string | null; // DateTime instant
   arrAt?: Date | string | null; // DateTime instant
   reference?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state; absent on rows that don't read it (the Share page). */
+  bookingStateSet?: boolean;
+  bookBy?: string | null;
   notes?: string | null;
   /** This end is the Trip's Home base, not a Stop — its zone is the Trip's `homeTimezone`. */
   depIsHome?: boolean | null;
@@ -72,6 +90,11 @@ export interface ItineraryAccommodation {
   checkOutTime?: string | null; // HH:MM
   address?: string | null;
   confirmation?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state; absent on rows that don't read it (the Share page). */
+  bookingStateSet?: boolean;
+  bookBy?: string | null;
   notes?: string | null;
 }
 

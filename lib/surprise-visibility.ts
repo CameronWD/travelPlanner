@@ -35,6 +35,14 @@ export interface PlaceholderItem {
   sortOrder: number;
   photoAttachmentId: null;
   sourceItemId: null;
+  // Spec 2026-10-17 R2–R4: masked like the title — a Surprise is never "To book", ticketed or hours-bearing to its audience.
+  bookingState: "NONE";
+  bookingStateSet: false;
+  bookBy: null;
+  slotTime: null;
+  arriveByMinutes: null;
+  refundable: null;
+  openingHours: null;
   surprise: SurpriseView;
 }
 
@@ -181,6 +189,13 @@ export async function loadSurpriseVisibility(
       sortOrder: i.sortOrder,
       photoAttachmentId: null,
       sourceItemId: null,
+      bookingState: "NONE" as const,
+      bookingStateSet: false as const,
+      bookBy: null,
+      slotTime: null,
+      arriveByMinutes: null,
+      refundable: null,
+      openingHours: null,
       surprise: views.items.get(i.id)!,
     }));
 

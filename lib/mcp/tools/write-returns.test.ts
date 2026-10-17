@@ -29,7 +29,7 @@ vi.mock("@/server/actions/chapters", () => ({ assignStopToChapter: ok(), createC
 vi.mock("@/server/actions/surprise", () => ({ setSurprise: ok(), revealSurprise: ok() }));
 vi.mock("@/server/actions/items", () => ({
   createItem: ok(), updateItem: ok(), deleteItem: ok(), scheduleItem: ok(), unscheduleItem: ok(),
-  placeIdeaAtStop: ok(), addMarkerToWishlist: ok(),
+  placeIdeaAtStop: ok(), addMarkerToWishlist: ok(), setOpeningHours: ok(),
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote: ok(), clearVote: ok() }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: ok() }));
@@ -116,6 +116,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   reveal_surprise: { kind: "ITEM", id: "item-1" },
   add_thing_to_do: { tripId: "trip-1", title: "Colosseum", category: "SIGHTSEEING" },
   update_thing_to_do: { itemId: "item-1", title: "Forum" },
+  set_opening_hours: { itemId: "item-1", hours: null },
   delete_thing_to_do: { itemId: "item-1" },
   schedule_thing_to_do: { itemId: "item-1", date: "2027-06-02" },
   unschedule_thing_to_do: { itemId: "item-1" },
@@ -133,6 +134,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   delete_accommodation: { accommodationId: "acc-1" },
   add_transport: { tripId: "trip-1", mode: "TRAIN", fromStopId: "stop-1", toStopId: "stop-2", depAt: "2027-06-04T09:00", arrAt: "2027-06-04T12:00" },
   update_transport: { transportId: "tr-1", reference: "ICE 512" },
+  set_booking_state: { kind: "TRANSPORT", id: "tr-1", state: "TO_BOOK", bookBy: "2027-05-01" },
   delete_transport: { transportId: "tr-1" },
   add_cost: { tripId: "trip-1", costMinor: 1000, currency: "AUD", ownerType: "OTHER", label: "Insurance" },
   update_cost: { costId: "cost-1", label: "Travel insurance" },

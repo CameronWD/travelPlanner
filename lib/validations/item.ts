@@ -3,8 +3,11 @@ import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
-import { costSettlementSchema } from "@/lib/enums";
+import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate } from "@/lib/validations/primitives";
+import { startFromSlot } from "@/lib/slot-time";
+import { arriveByMinutesSchema, bookBySchema, checkSlotFields, refundableSchema, slotTimeSchema } from "@/lib/validations/planning";
+import { openingHoursSchema } from "@/lib/validations/opening-hours";
 
 /**
  * Zod schema for creating or updating an Item.
@@ -13,6 +16,8 @@ import { hhmm, isoDate } from "@/lib/validations/primitives";
  * dropped (transformed to undefined). Times are only meaningful when scheduled.
  *
  * Refinements:
+ *  - arriveByMinutes needs a slotTime (checkSlotFields).
+ *  - A dated Item with a slot and no start starts at slot − arrive-by (startFromSlot).
  *  - If endTime is set, startTime must also be set.
  *  - endTime must be >= startTime (lexicographic comparison is valid for HH:MM).
  */
@@ -56,6 +61,21 @@ export const itemSchema = z
         message: "Link must be a valid web address (http/https)",
       }),
     booking: z.string().trim().optional(),
+    /** CONTEXT.md "Booking state". Omitted = derived from `booking` (create) or kept (update) — lib/booking-state-patch.ts. */
+    bookingState: bookingStateSchema.optional(),
+    /** The day it should be booked by; only while To book (lib/booking-state-patch.ts refuses it otherwise). */
+    bookBy: bookBySchema.optional(),
+    /**
+     * CONTEXT.md "Slot time" (R3): the ticket's time ("" = none, like startTime),
+     * how early to be there, and whether the ticket is refundable (omitted /
+     * cleared = not known). Kept without a date: a Wishlist idea may hold a ticket.
+     */
+    slotTime: z
+      .union([slotTimeSchema, z.literal("")])
+      .optional()
+      .transform((v) => (v === "" || v === undefined ? undefined : v)),
+    arriveByMinutes: arriveByMinutesSchema.optional(),
+    refundable: refundableSchema.optional(),
     notes: z.string().trim().optional(),
     lat: z.number().optional(),
     lng: z.number().optional(),
@@ -66,6 +86,8 @@ export const itemSchema = z
      * Omitted = leave the Surprise alone; non-empty = set it; empty on a live Surprise = reveal it.
      */
     surpriseForIds: z.array(z.string()).optional(),
+    /** CONTEXT.md "Opening hours" — the place's weekly hours, seasons and closed dates. Omitted = keep; a PATCH null clears. */
+    openingHours: openingHoursSchema.optional(),
 
     // --- Inline cost fields (all optional) ---
 
@@ -101,12 +123,16 @@ export const itemSchema = z
     /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
     settlement: costSettlementSchema.optional(),
   })
-  // Drop times when no date is set
+  // An arrive-by margin needs a slot time (lib/validations/planning.ts).
+  .superRefine(checkSlotFields)
+  // Drop times when no date is set (the slot is the ticket's fact and stays).
+  // With a date and no start, a slot sets it: slot − arrive-by (R3,
+  // startFromSlot), here so the end-time refines below see that start.
   .transform((data) => {
     if (!data.date) {
       return { ...data, startTime: undefined, endTime: undefined };
     }
-    return data;
+    return { ...data, startTime: startFromSlot(data) ?? undefined };
   })
   .refine(
     (data) => {

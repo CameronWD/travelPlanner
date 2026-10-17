@@ -16,7 +16,9 @@
  *   function handed it.
  */
 
+import type { BookingState } from "@/lib/enum-values";
 import { enumerateTripDays } from "@/lib/itinerary";
+import type { OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 
 export interface StopDayItem {
@@ -29,6 +31,18 @@ export interface StopDayItem {
   address?: string | null;
   link?: string | null;
   booking?: string | null;
+  /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */
+  bookingState?: BookingState | null;
+  /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
+  bookingStateSet: boolean;
+  /** YYYY-MM-DD the thing should be booked by; only while To book. */
+  bookBy?: string | null;
+  /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  refundable?: boolean | null;
+  /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
+  openingHours?: OpeningHours | null;
   notes?: string | null;
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */

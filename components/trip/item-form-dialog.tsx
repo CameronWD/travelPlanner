@@ -36,6 +36,11 @@ import { useCostFields } from "@/components/money/cost-fields/use-cost-fields";
 import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
+import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
+import { OpeningHoursEditor } from "@/components/trip/opening-hours-editor";
+import type { OpeningHours } from "@/lib/opening-hours";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { refundLabel, slotLabel, startFromSlot } from "@/lib/slot-time";
 import type { ProposedItemInput } from "@/lib/booking-import/types";
 import type { ItemInput } from "@/lib/validations/item";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
@@ -143,6 +148,30 @@ function CategoryGroup({ category, onSelect, disabled }: CategoryGroupProps) {
         </button>
       ))}
     </div>
+  );
+}
+
+/** The Ticket's Refundable choice (null = not known), wired to its surrounding Field like CategoryGroup. */
+function RefundableSegmented({ value, onChange, disabled }: { value: boolean | null; onChange(v: boolean | null): void; disabled?: boolean }) {
+  const fieldControl = useFieldControl();
+  return (
+    <Segmented
+      type="single"
+      tone="ink"
+      aria-label="Refundable"
+      {...fieldControl}
+      value={value === true ? "YES" : value === false ? "NO" : "UNKNOWN"}
+      onValueChange={(v) => {
+        if (!v) return; // Radix deselect on the already-chosen pill: keep it.
+        onChange(v === "YES" ? true : v === "NO" ? false : null);
+      }}
+      disabled={disabled}
+      className="self-start"
+    >
+      <SegmentedItem value="UNKNOWN">Not known</SegmentedItem>
+      <SegmentedItem value="YES">Yes</SegmentedItem>
+      <SegmentedItem value="NO">No</SegmentedItem>
+    </Segmented>
   );
 }
 
@@ -316,7 +345,8 @@ function ItemPhotoField({
 }
 
 /** An edit's empty fields are clears (ADR 0075). Not surpriseForIds (omitted = leave the Surprise alone). */
-const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "address", "link", "booking", "notes", "paidAt"] as const;
+// `bookingState` is deliberately absent: a null would hand a choice back to automatic; an un-chosen state is simply not sent.
+const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "slotTime", "arriveByMinutes", "refundable", "address", "link", "booking", "notes", "paidAt", "bookBy"] as const;
 
 // ---------------------------------------------------------------------------
 // Dialog wrapper
@@ -523,11 +553,26 @@ function ItemForm({
   const [dateTouched, setDateTouched] = React.useState(Boolean(item?.date ?? proposed?.date ?? defaultDate));
   const [startTime, setStartTime] = React.useState(item?.startTime ?? proposed?.startTime ?? "");
   const [endTime, setEndTime] = React.useState(item?.endTime ?? proposed?.endTime ?? "");
+  // CONTEXT.md "Slot time" (R3): the ticket's facts, under the "Ticket" disclosure.
+  // refundable is boolean | null (Section S's column: null = not known).
+  const [slotTime, setSlotTime] = React.useState(item?.slotTime ?? proposed?.slotTime ?? "");
+  const [arriveBy, setArriveBy] = React.useState(() => {
+    const v = item?.arriveByMinutes ?? proposed?.arriveByMinutes;
+    return v == null ? "" : String(v);
+  });
+  const [refundable, setRefundable] = React.useState<boolean | null>(item?.refundable ?? proposed?.refundable ?? null);
+  const [ticketOpenAtStart] = React.useState(() => Boolean(slotTime || arriveBy || refundable !== null));
   const [address, setAddress] = React.useState(item?.address ?? proposed?.address ?? "");
   const [link, setLink] = React.useState(item?.link ?? "");
   const [booking, setBooking] = React.useState(item?.booking ?? proposed?.booking ?? "");
+  const bookingField = useBookingStateField("ITEM", item ?? seedFromProposal(proposed), booking);
   const [notes, setNotes] = React.useState(item?.notes ?? proposed?.notes ?? "");
   const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
+  // CONTEXT.md "Opening hours" — sent only when changed, like the Surprise:
+  // an edit that never loaded them can't wipe the place's hours.
+  const [openingHours, setOpeningHours] = React.useState<OpeningHours | null>(item?.openingHours ?? null);
+  const [initialOpeningHours] = React.useState(() => JSON.stringify(item?.openingHours ?? null));
+  const openingHoursChanged = JSON.stringify(openingHours) !== initialOpeningHours;
   // CONTEXT.md Surprise: who this Item is a surprise for. Kept sorted so a tick and untick is no change.
   const surpriseOthers = members && currentUserId ? members.filter((m) => m.id !== currentUserId) : null;
   const [initialSurpriseForIds] = React.useState(() => [...(item?.surprise?.forIds ?? [])].sort());
@@ -539,7 +584,7 @@ function ItemForm({
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, address, link, booking, notes, hiddenFromShares, surpriseForIds, cost: cost.dirtyValues });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, openingHours, surpriseForIds, cost: cost.dirtyValues });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -556,9 +601,15 @@ function ItemForm({
       // Clear times if no date (defensive belt-and-braces, schema also drops them)
       startTime: date && startTime ? startTime : undefined,
       endTime: date && endTime ? endTime : undefined,
+      slotTime: slotTime || undefined,
+      arriveByMinutes: arriveBy.trim() === "" ? undefined : Number(arriveBy),
+      // null ("not known") is sent as undefined; ITEM_CLEARABLE's toPatch then
+      // turns the absent field into a clearing null on update (lib/patch.ts).
+      refundable: refundable === null ? undefined : refundable,
       address: address.trim() || undefined,
       link: link.trim() || undefined,
       booking: booking.trim() || undefined,
+      ...bookingField.payload(),
       notes: notes.trim() || undefined,
       hiddenFromShares,
       // Only a change is sent: an unchanged set leaves the Surprise alone (and lets a helper edit the Item).
@@ -578,8 +629,8 @@ function ItemForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && item
-        ? updateItem(item.id, toPatch(input, ITEM_CLEARABLE))
-        : createItem(tripId, input, forkId ?? undefined);
+        ? updateItem(item.id, { ...toPatch(input, ITEM_CLEARABLE), ...(openingHoursChanged && { openingHours }) })
+        : createItem(tripId, { ...input, ...(openingHours && { openingHours }) }, forkId ?? undefined);
     },
     onClose,
     onSaved,
@@ -735,7 +786,13 @@ function ItemForm({
         <Field
           label="Start time"
           error={errors.startTime?.[0]}
-          description={timesDisabled ? "Set a date first" : undefined}
+          description={
+            timesDisabled
+              ? "Set a date first"
+              : !startTime && slotTime
+                ? `Starts at ${startFromSlot({ date, slotTime, arriveByMinutes: arriveBy ? Number(arriveBy) : null })} if left empty`
+                : undefined
+          }
         >
           <Input
             type="time"
@@ -757,6 +814,41 @@ function ItemForm({
           />
         </Field>
       </div>
+
+      {/* Ticket (CONTEXT.md "Slot time", R3) — collapsed unless the Item already has one. */}
+      <details
+        className="sm:col-span-2"
+        open={ticketOpenAtStart || Boolean(errors.slotTime || errors.arriveByMinutes || errors.refundable) || undefined}
+      >
+        <summary className="tap-target cursor-pointer text-[13px] font-semibold text-muted-foreground">
+          Ticket
+          {(slotLabel({ slotTime, arriveByMinutes: arriveBy ? Number(arriveBy) : null }) || refundLabel(refundable)) && (
+            <span className="ml-2 font-medium">
+              {[slotLabel({ slotTime, arriveByMinutes: arriveBy ? Number(arriveBy) : null }), refundLabel(refundable)].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </summary>
+        <div className="mt-2 grid gap-4 sm:grid-cols-2">
+          <Field label="Slot time" description="The time on the ticket" error={errors.slotTime?.[0]}>
+            <Input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)} disabled={isPending} />
+          </Field>
+          <Field label="Be there early" description="Minutes before the slot" error={errors.arriveByMinutes?.[0]}>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
+              value={arriveBy}
+              onChange={(e) => setArriveBy(e.target.value)}
+              placeholder="15"
+              disabled={isPending}
+            />
+          </Field>
+          <Field label="Refundable" error={errors.refundable?.[0]} className="sm:col-span-2">
+            <RefundableSegmented value={refundable} onChange={setRefundable} disabled={isPending} />
+          </Field>
+        </div>
+      </details>
 
       {/* Address — full width; a street address reads best on one line. */}
       <Field label="Address" error={errors.address?.[0]} className="sm:col-span-2">
@@ -790,6 +882,9 @@ function ItemForm({
         </Field>
       </div>
 
+      {/* Booking state (CONTEXT.md): a reference implies Booked until the Traveller picks. */}
+      <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
+
       {/* Notes */}
       <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">
         <Textarea
@@ -799,6 +894,16 @@ function ItemForm({
           disabled={isPending}
         />
       </Field>
+
+      {/* Opening hours (CONTEXT.md "Opening hours"). Fix round 1 (controller
+          ruling): hidden in Proposal mode (onSubmitOverride) — buildInput()
+          never carries openingHours (a Proposal has nowhere to store them),
+          so showing the editor there would silently drop anything typed into it. */}
+      {!onSubmitOverride && (
+        <div className="sm:col-span-2">
+          <OpeningHoursEditor value={openingHours} onChange={setOpeningHours} disabled={isPending} error={errors.openingHours?.[0]} />
+        </div>
+      )}
 
       {/* Hide from shared links (CONTEXT.md "Share link") — the Item stays
           fully visible to every Traveller; this only affects what a share

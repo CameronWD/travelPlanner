@@ -156,6 +156,7 @@ const loaderData = vi.hoisted(() => ({
     budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
     upcomingPayments: [] as unknown[],
     steps: [] as unknown[],
+    stillToBook: [] as unknown[],
   },
 }));
 vi.mock("@/lib/desktop-home-loader", () => ({
@@ -209,6 +210,7 @@ beforeEach(() => {
     budget: { grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } },
     upcomingPayments: [],
     steps: [],
+    stillToBook: [],
   };
 });
 
@@ -520,6 +522,24 @@ describe("Trip Home, composed with its layout", () => {
       await renderTripHome();
       const desktop = screen.getByTestId("desktop-home");
       expect(desktop.textContent).toContain("Add your first stop");
+    });
+
+    it("shows Still to book as the desktop grid's third row when something is To book (spec 2026-10-17 R2)", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
+      loaderData.current = {
+        ...loaderData.current,
+        stillToBook: [{ id: "leg-1", kind: "TRANSPORT", title: "Train · A → B", subtitle: "Book by Sat 1 May", href: "/trips/trip-1/day/2026-01-04", bookBy: "2026-01-01" }],
+      };
+      await renderTripHome();
+      const desktop = screen.getByTestId("desktop-home");
+      expect(within(desktop).getByRole("heading", { name: /still to book/i })).toBeInTheDocument();
+      expect(within(desktop).getByRole("link", { name: /Train · A → B/ })).toHaveAttribute("href", "/trips/trip-1/day/2026-01-04");
+    });
+
+    it("leaves Still to book out of the desktop grid when nothing is To book", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
+      await renderTripHome();
+      expect(within(screen.getByTestId("desktop-home")).queryByRole("heading", { name: /still to book/i })).toBeNull();
     });
 
     // Task 17 (spec D): Travelling and Past get their own desktop layouts.

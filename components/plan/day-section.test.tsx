@@ -25,13 +25,13 @@ import { resolveItemDrop, type ItemDrop } from "./plan-dnd";
 const money = (minor: number, currency: string) => formatMoney(minor, currency).replace(/\s+/g, " ");
 
 const ITEMS = [
-  { id: "a", title: "Café Kitsuné", category: "FOOD", date: "2026-12-11", startTime: "09:00", address: "Palais Royal" },
-  { id: "b", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", booking: "LVR-123", notes: "Richelieu entrance" },
-  { id: "c", title: "Picnic", category: "FOOD", date: "2026-12-11", hiddenFromShares: true },
+  { id: "a", bookingStateSet: false, title: "Café Kitsuné", category: "FOOD", date: "2026-12-11", startTime: "09:00", address: "Palais Royal" },
+  { id: "b", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", booking: "LVR-123", bookingState: "BOOKED" as const, notes: "Richelieu entrance" },
+  { id: "c", bookingStateSet: false, title: "Picnic", category: "FOOD", date: "2026-12-11", hiddenFromShares: true },
 ];
 const IDEAS = [
-  { id: "i1", title: "Orsay", category: "SIGHTSEEING" },
-  { id: "i2", title: "Sainte-Chapelle", category: "SIGHTSEEING" },
+  { id: "i1", bookingStateSet: false, title: "Orsay", category: "SIGHTSEEING" },
+  { id: "i2", bookingStateSet: false, title: "Sainte-Chapelle", category: "SIGHTSEEING" },
 ];
 const COSTS = new Map([["b", [{ id: "k", costMinor: 2200, paidMinor: null, currency: "EUR", rateToHome: 1.65, paidAt: null, dueDate: null, ownerType: "ITEM", ownerId: "b", label: null, category: null, settlement: "BEFORE" }]]]);
 
@@ -228,7 +228,7 @@ describe("DaySection on a Changeover day (one plan under two open Stops)", () =>
     scrollTo.mockRestore();
   });
 
-  const TRAIN = { id: "x", title: "Train to Lyon", category: "TRANSPORT", date: "2026-12-14", startTime: "09:00" };
+  const TRAIN = { id: "x", bookingStateSet: false, title: "Train to Lyon", category: "TRANSPORT", date: "2026-12-14", startTime: "09:00" };
 
   /**
    * Paris (13th, 14th) and Lyon (14th) open on one board, the plan on the
@@ -284,7 +284,7 @@ describe("DaySection on a Changeover day (one plan under two open Stops)", () =>
 });
 
 describe("DaySection hover-open (a plan held over a folded day of its own Stop)", () => {
-  const PLAN = { id: "p", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" };
+  const PLAN = { id: "p", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" };
 
   /** Lifts Paris's plan with the keyboard and holds it over `target` (collisions pinned there; jsdom has no layout). */
   function hold(target: { stopId: string; dateISO: string }) {
@@ -380,11 +380,31 @@ describe("DaySection, Surprise Items (CONTEXT.md Surprise)", () => {
   });
 
   it("a placeholder reads Surprise with its badge, no edit and no drag", () => {
-    const placeholder = { id: "s", title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: { ...VIEW, youAreSurprised: true } };
+    const placeholder = { id: "s", bookingStateSet: false, title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: { ...VIEW, youAreSurprised: true } };
     renderDay({ items: [placeholder] });
     expect(screen.getByText("Surprise")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Edit Surprise/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Drag Surprise/ })).toBeNull();
+  });
+});
+
+describe("DaySection Booking state (spec 2026-10-17 R2)", () => {
+  it("Booked follows the Booking state, not the reference; To book shows on the row and in the summary", () => {
+    renderDay({ items: [
+      { ...ITEMS[0], booking: "BK-1", bookingState: "TO_BOOK" as const },
+      { ...ITEMS[2], booking: null, bookingState: "BOOKED" as const },
+    ] });
+    expect(screen.getAllByText(/^Booked/)).toHaveLength(1);
+    expect(screen.getByText("To book")).toBeInTheDocument();
+    expect(screen.getByText(/1 booked · 1 to book/)).toBeInTheDocument();
+  });
+});
+
+describe("DaySection Slot time (spec 2026-10-17 R3)", () => {
+  it("a row with a ticket shows its slot in the sub line and Non-refundable beside Booked (R3)", () => {
+    renderDay({ items: [{ ...ITEMS[1], startTime: "09:45", slotTime: "10:00", arriveByMinutes: 15, refundable: false }] });
+    expect(screen.getByText("Slot 10:00 · be there 09:45 · Richelieu entrance")).toBeInTheDocument();
+    expect(screen.getByText("Non-refundable")).toBeInTheDocument();
   });
 });

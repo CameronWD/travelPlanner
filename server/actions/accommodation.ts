@@ -19,6 +19,7 @@ import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { revalidateTrip } from "@/lib/revalidate";
+import { resolveBookingWrite } from "@/lib/booking-state-patch";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -60,6 +61,9 @@ export async function createAccommodation(
   }
 
   const data = parsed.data;
+  // CONTEXT.md "Booking state": stored as the effective state (a confirmation implies Booked).
+  const booking = resolveBookingWrite("ACCOMMODATION", null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.confirmation);
+  if ("success" in booking) return booking;
 
   // Look up the stop to get the tripId (must belong to the same plan)
   const stop = await db.stop.findUnique({
@@ -108,6 +112,7 @@ export async function createAccommodation(
       notes: data.notes ?? null,
       lat,
       lng,
+      ...booking,
     },
   });
 
@@ -187,6 +192,15 @@ export async function updateAccommodation(
   }
 
   const data = parsed.data;
+  // The current values above carry no booking fields, so the patch's own
+  // reach the schema (validated) and are merged here (lib/booking-state-patch.ts).
+  const booking = resolveBookingWrite(
+    "ACCOMMODATION",
+    before,
+    { bookingState: patch.bookingState, bookBy: patch.bookBy },
+    data.confirmation,
+  );
+  if ("success" in booking) return booking;
 
   // Ensure the new stopId still belongs to the same trip and plan
   const stop = await db.stop.findUnique({
@@ -222,6 +236,7 @@ export async function updateAccommodation(
     notes: data.notes ?? null,
     lat,
     lng,
+    ...booking,
   }, acc.forkId ?? null, { before });
 
   // Inline cost management:

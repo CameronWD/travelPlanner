@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORY_VALUES } from "@/lib/categories";
-import { TRANSPORT_MODES, COST_SETTLEMENTS, CHECKLIST_KINDS, VOTE_LEVELS } from "@/lib/enum-values";
+import { TRANSPORT_MODES, COST_SETTLEMENTS, CHECKLIST_KINDS, VOTE_LEVELS, BOOKING_STATES } from "@/lib/enum-values";
 import {
   CATEGORY_MEANING,
   TRANSPORT_MODE_MEANING,
   SETTLEMENT_MEANING,
   CHECKLIST_KIND_MEANING,
   VOTE_LEVEL_MEANING,
+  BOOKING_STATE_MEANING,
+  REFUNDABLE_VALUES,
+  REFUNDABLE_MEANING,
   WRITING_STYLE,
   CHECK_FACTS,
   describeValues,
@@ -29,6 +32,8 @@ describe("every app value has a meaning for Claude", () => {
     ["Settlement", COST_SETTLEMENTS, SETTLEMENT_MEANING],
     ["Checklist kind", CHECKLIST_KINDS, CHECKLIST_KIND_MEANING],
     ["Vote level", VOTE_LEVELS, VOTE_LEVEL_MEANING],
+    ["Booking state", BOOKING_STATES, BOOKING_STATE_MEANING],
+    ["Refundable", REFUNDABLE_VALUES, REFUNDABLE_MEANING],
   ] as const)("%s", (_name, values, meaning) => {
     expect(Object.keys(meaning).sort()).toEqual([...values].sort());
     for (const v of values) expect((meaning as Record<string, string>)[v].length).toBeGreaterThan(5);

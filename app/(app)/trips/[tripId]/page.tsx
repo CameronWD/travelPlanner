@@ -36,6 +36,8 @@ import { ArrivalDropIn } from "@/components/trip/home/desktop/arrival-drop-in";
 import { TripCostTile } from "@/components/trip/home/desktop/trip-cost-tile";
 import { RouteMapTile } from "@/components/trip/home/desktop/route-map-tile";
 import { SortTheseOutTile } from "@/components/trip/home/desktop/sort-these-out-tile";
+import { StillToBookCard } from "@/components/trip/home/still-to-book-card";
+import { STILL_TO_BOOK_LIMIT_DESKTOP } from "@/lib/still-to-book";
 import { loadHomePlanningData } from "@/lib/desktop-home-loader";
 import { buildHomeMapStops } from "@/lib/home-map-stops";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "@/lib/sort-these-out";
@@ -463,6 +465,11 @@ async function renderDesktopHome({
         }
         map={<RouteMapTile stops={buildHomeMapStops(planStops)} tripId={tripId} stopCount={planStops.length} mountWhen="desktop" />}
         sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={tripPath(slug, "/summary")} />}
+        stillToBook={
+          planning.stillToBook.length > 0 ? (
+            <StillToBookCard rows={planning.stillToBook} limit={STILL_TO_BOOK_LIMIT_DESKTOP} planHref={tripPath(slug, "/plan")} />
+          ) : null
+        }
       />
     </div>
   );
