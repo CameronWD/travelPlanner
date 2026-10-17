@@ -813,3 +813,50 @@ describe("AccommodationFormDialog: Proposal mode (Booking import)", () => {
     expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Casa Nova" }));
   });
 });
+
+describe("AccommodationFormDialog: Booking state (spec 2026-10-17 R2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a stay with no confirmation is To book", () => {
+    render(<AccommodationFormDialog {...baseProps} />);
+    expect(screen.getByRole("radio", { name: "To book" })).toHaveAttribute("data-state", "on");
+  });
+
+  it("a Proposal opens Booked and confirms Booked", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        initialValues={{ stopId: "stop-1", name: "Casa do Rio", checkIn: "2026-07-10", checkOut: "2026-07-13", bookingState: "BOOKED" }}
+        onSubmitOverride={onSubmitOverride}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ bookingState: "BOOKED" }));
+  });
+
+  it("choosing No booking needed (a stay with friends) is sent as a choice", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} accommodation={existingAccommodation} />);
+    await user.click(screen.getByRole("radio", { name: "No booking needed" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateAccommodation).toHaveBeenCalledWith("acc-1", expect.objectContaining({ bookingState: "NONE", bookBy: null }));
+  });
+
+  it("an un-chosen To book stay with a date, given its confirmation, previews Booked and sends bookBy null", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={{ ...existingAccommodation, confirmation: null, bookingState: "TO_BOOK", bookingStateSet: false, bookBy: "2027-05-01" }}
+      />,
+    );
+    await user.type(screen.getByLabelText("Booking confirmation"), "HX-1");
+    expect(screen.getByRole("radio", { name: "Booked" })).toHaveAttribute("data-state", "on");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(updateAccommodation).toHaveBeenCalledWith("acc-1", expect.objectContaining({ confirmation: "HX-1", bookBy: null }));
+    expect(vi.mocked(updateAccommodation).mock.calls[0][1].bookingState).toBeUndefined();
+  });
+});
