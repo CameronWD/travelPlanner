@@ -274,7 +274,7 @@ describe("bookings write tools", () => {
       const r = await c.callTool({ name: "update_accommodation", arguments: { accommodationId: ACCOMMODATION_ID, costMinor: 9500 } });
       expect(r.isError).toBe(true);
       const t = (r.content as { text: string }[])[0].text;
-      expect(t).toContain("This now has more than one Cost — edit them in Money.");
+      expect(t).toContain("This now has more than one Cost. Edit them in Money.");
       expect(t).toContain("Use update_cost to edit a specific one.");
     });
   });
@@ -444,7 +444,7 @@ describe("bookings write tools", () => {
       const r = await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, costMinor: 9500 } });
       expect(r.isError).toBe(true);
       const t = (r.content as { text: string }[])[0].text;
-      expect(t).toContain("This now has more than one Cost — edit them in Money.");
+      expect(t).toContain("This now has more than one Cost. Edit them in Money.");
       expect(t).toContain("Use update_cost to edit a specific one.");
     });
   });

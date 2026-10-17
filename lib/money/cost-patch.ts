@@ -101,7 +101,7 @@ export type InlineCost = { costMinor: number; currency: string; paidMinor?: numb
  */
 export const MORE_THAN_ONE_COST: ActionFailure = {
   success: false,
-  errors: { costMinor: ["This now has more than one Cost — edit them in Money."] },
+  errors: { costMinor: ["This now has more than one Cost. Edit them in Money."] },
 };
 const BOTH_HALVES: ActionFailure = {
   success: false,
