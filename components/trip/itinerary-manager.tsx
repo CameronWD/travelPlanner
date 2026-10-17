@@ -2062,12 +2062,9 @@ export function ItineraryManager({
           onAddReminder={
             forkId
               ? undefined
-              : () => {
-                  const id = editingTransport.id;
-                  setEditingTransport(null);
-                  setEditingTransportCosts(undefined);
-                  setAddReminderAbout({ transportId: id });
-                }
+              : // Opens on top of the edit sheet, which stays open: closing it
+                // here would skip its dirty guard and lose unsaved edits.
+                () => setAddReminderAbout({ transportId: editingTransport.id })
           }
         />
       )}
@@ -2165,11 +2162,8 @@ export function ItineraryManager({
           onAddReminder={
             forkId
               ? undefined
-              : () => {
-                  const id = itemForm.item.id;
-                  setItemForm(null);
-                  setAddReminderAbout({ itemId: id });
-                }
+              : // On top of the edit dialog, which stays open (see the leg's).
+                () => setAddReminderAbout({ itemId: itemForm.item.id })
           }
         />
       )}

@@ -2382,6 +2382,50 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
     );
   });
 
+  it("Add a reminder opens on top of a leg's edit sheet, so its unsaved edits survive", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[makeTransportBetweenStops("s-a", "s-b")]}
+        remindersByTransportId={new Map([["tr-opt-1", []]])}
+      />,
+    );
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await user.type(await screen.findByLabelText(/^notes/i), "Window seats");
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: /add a reminder/i })).toBeNull());
+    expect(screen.getByLabelText(/^notes/i)).toHaveValue("Window seats");
+    // Focus moving into the stacked dialog is not a stray tap: no discard prompt.
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+  });
+
+  it("Add a reminder opens on top of an Item's edit dialog, so its unsaved edits survive", async () => {
+    const user = userEvent.setup();
+    const paris = makeStop({ id: "par", name: "Paris", sortOrder: 0, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5 });
+    // A #open= hash left by an earlier test would fold Paris shut.
+    window.history.replaceState(null, "", window.location.pathname);
+    const louvre = { id: "it1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", endTime: null, stopId: "par" };
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[paris]} dayItemsByStopId={new Map([["par", [louvre]]])} remindersByItemId={new Map([["it1", []]])} />,
+      ["par"],
+    );
+    await user.click(desktop().getByRole("button", { name: "Edit Louvre" }));
+    await user.type(await screen.findByLabelText(/^notes/i), "Book the 10am slot");
+    await user.click(screen.getByRole("button", { name: "Add a reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: /add a reminder/i })).toBeNull());
+    expect(screen.getByLabelText(/^notes/i)).toHaveValue("Book the 10am slot");
+    // Focus moving into the stacked dialog is not a stray tap: no discard prompt.
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+  });
+
   it("a Fork's leg offers no Add a reminder", async () => {
     const user = userEvent.setup();
     const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
