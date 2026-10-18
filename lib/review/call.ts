@@ -37,7 +37,12 @@ export type ReviewCallOutcome =
   | { kind: "ok"; usage: AiTokenUsage; output: ReviewOutput }
   | { kind: "unreadable"; usage: AiTokenUsage; report: Error }
   | { kind: "busy"; usage: AiTokenUsage }
-  | { kind: "api_error"; usage: AiTokenUsage; status: number | null }
+  /**
+   * apiMessage: the API's own error message (a request-shape complaint such
+   * as an unsupported parameter, never plan text), for
+   * scripts/review-smoke.ts to print. The job neither logs nor stores it.
+   */
+  | { kind: "api_error"; usage: AiTokenUsage; status: number | null; apiMessage: string | null }
   | { kind: "timeout"; usage: AiTokenUsage };
 
 export interface ReviewCallRequest {
@@ -69,6 +74,13 @@ async function submitTool(): Promise<Tool> {
     // The same transform the booking import's output format uses: every object closed, unsupported constraints moved out.
     input_schema: zodOutputFormat(reviewOutputSchema).schema as Tool.InputSchema,
   };
+}
+
+/** The `error.message` of an Anthropic error body ({ type: "error", error: { type, message } }), capped. */
+function apiErrorMessage(err: { error?: unknown }): string | null {
+  const body = err.error as { error?: { message?: unknown } } | undefined;
+  const message = body?.error?.message;
+  return typeof message === "string" ? message.slice(0, 500) : null;
 }
 
 export async function callReviewModel(req: ReviewCallRequest): Promise<ReviewCallOutcome> {
@@ -115,7 +127,7 @@ export async function callReviewModel(req: ReviewCallRequest): Promise<ReviewCal
       if (err instanceof sdk.APIError) {
         const status = typeof err.status === "number" ? err.status : null;
         if (status === 429 || (status !== null && status >= 500)) return { kind: "busy", usage };
-        return { kind: "api_error", usage, status };
+        return { kind: "api_error", usage, status, apiMessage: apiErrorMessage(err) };
       }
       const name = err instanceof Error ? err.name : "unknown";
       return { kind: "unreadable", usage, report: new Error(`Review: the reply could not be read (${name})`) };

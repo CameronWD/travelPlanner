@@ -185,11 +185,22 @@ describe("callReviewModel failures", () => {
     fails(new APIError(429, "Rate limited"));
     expect((await request()).kind).toBe("busy");
     fails(new APIError(400, "Bad request"));
-    expect(await request()).toEqual({ kind: "api_error", usage: NO_TOKENS, status: 400 });
+    expect(await request()).toEqual({ kind: "api_error", usage: NO_TOKENS, status: 400, apiMessage: null });
     fails(new APIConnectionError());
     expect((await request()).kind).toBe("busy");
     fails(new APIUserAbortError());
     expect(await request()).toEqual({ kind: "timeout", usage: NO_TOKENS });
+  });
+
+  it("keeps a 4xx's own API message for the smoke script (a request-shape error, never the plan), capped", async () => {
+    const { APIError } = await sdk();
+    const err = Object.assign(new APIError(400, "400 Bad request"), {
+      error: { type: "error", error: { type: "invalid_request_error", message: "citations are not supported with strict tools" } },
+    });
+    fails(err);
+    expect(await request()).toMatchObject({ kind: "api_error", status: 400, apiMessage: "citations are not supported with strict tools" });
+    fails(Object.assign(new APIError(400, "x"), { error: { error: { message: "y".repeat(900) } } }));
+    expect((await request()) as { apiMessage: string }).toMatchObject({ apiMessage: "y".repeat(500) });
   });
 
   it("never forwards an unknown error's message (it could quote the plan)", async () => {
