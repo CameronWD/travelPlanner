@@ -134,7 +134,10 @@ describe("applyFinding (R8: runs the existing action, with Undo)", () => {
     });
     expect(h.updateItem).toHaveBeenCalledWith("i1", { notes: "Cash only.\n\nClosed Mondays." });
     expectAccessCheckedBeforeWrite(mdb.finding.updateMany, h.updateItem); // claimed before it runs
-    const stored = JSON.parse(mdb.finding.update.mock.calls[0][0].data.undoPayload);
+    // Parked 2: the payload is saved only onto our own claim, still waiting for it.
+    const save = mdb.finding.updateMany.mock.calls[1][0];
+    expect(save.where).toEqual({ id: "f1", state: "APPLIED", stateById: "u1", undoPayload: null });
+    const stored = JSON.parse(save.data.undoPayload);
     expect(stored).toEqual({ fix, before: { kind: "note", notes: "Cash only." }, after: { kind: "note", notes: "Cash only.\n\nClosed Mondays." } });
     expect(h.revalidateTrip).toHaveBeenCalledWith("t1", "reviews");
   });
@@ -299,6 +302,29 @@ describe("undoFinding of an Apply", () => {
     expect(h.revalidateTrip).toHaveBeenCalledWith("t1", "reviews");
   });
 
+  it("a refused single-step restore rolls nothing back, so a concurrent edit stands (parked 3)", async () => {
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: payload });
+    mdb.item.findUnique.mockResolvedValueOnce(APPLIED_ROW).mockResolvedValueOnce({ ...APPLIED_ROW, bookingState: "BOOKED" });
+    h.updateItem.mockResolvedValueOnce({ success: false, errors: { bookBy: ["No"] } });
+    await undoFinding("f1");
+    expect(h.updateItem).toHaveBeenCalledTimes(1); // the refused restore only: Xanni's BOOKED is not overwritten
+  });
+
+  it("a refused move back (it never landed) rolls nothing back, even when the day changed meanwhile (parked 3)", async () => {
+    const times = JSON.stringify({
+      fix: { kind: "item.times", itemId: "i1", startTime: "09:00", date: "2027-06-03" },
+      before: { kind: "times", date: "2027-06-02", startTime: "10:00", endTime: null },
+      after: { kind: "times", date: "2027-06-03", startTime: "09:00", endTime: null },
+    });
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: times });
+    const applied = { ...ITEM, date: "2027-06-03", startTime: "09:00" };
+    mdb.item.findUnique.mockResolvedValueOnce(applied).mockResolvedValueOnce({ ...applied, date: "2027-06-05" });
+    h.rescheduleItem.mockResolvedValueOnce({ success: false, errors: { date: ["No"] } });
+    await undoFinding("f1");
+    expect(h.rescheduleItem).toHaveBeenCalledTimes(1);
+    expect(h.updateItem).not.toHaveBeenCalled();
+  });
+
   it("a restore whose move landed before the times were refused puts the Applied day back", async () => {
     const times = JSON.stringify({
       fix: { kind: "item.times", itemId: "i1", startTime: "09:00", date: "2027-06-03" },
@@ -365,7 +391,7 @@ describe("applyFinding never strands or overwrites (fix round 1)", () => {
   it("a throw while saving the payload releases the Finding and rethrows", async () => {
     access({ suggestedFix: JSON.stringify({ kind: "item.note", itemId: "i1", append: "x" }) });
     mdb.item.findUnique.mockResolvedValue(ITEM);
-    mdb.finding.update.mockRejectedValueOnce(new Error("P2024 timeout"));
+    mdb.finding.updateMany.mockResolvedValueOnce({ count: 1 }).mockRejectedValueOnce(new Error("P2024 timeout"));
     await expect(applyFinding("f1")).rejects.toThrow("P2024 timeout");
     expect(mdb.finding.updateMany).toHaveBeenLastCalledWith(RELEASE);
     expect(h.revalidateTrip).not.toHaveBeenCalled();
@@ -387,6 +413,26 @@ describe("applyFinding never strands or overwrites (fix round 1)", () => {
     await applyFinding("f1");
     expect(h.rescheduleItem).toHaveBeenCalledTimes(1);
     expect(h.updateItem).not.toHaveBeenCalled();
+  });
+
+  it("a late payload save onto a Finding released meanwhile writes nothing, and the Apply still reports what happened (parked 2)", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "item.note", itemId: "i1", append: "x" }) });
+    mdb.item.findUnique.mockResolvedValue(ITEM);
+    mdb.finding.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    expect(await applyFinding("f1")).toEqual({ success: true });
+    expect(mdb.finding.updateMany).toHaveBeenCalledTimes(2); // the claim, then the conditional save: no release, no other write
+    expect(mdb.finding.update).not.toHaveBeenCalled();
+  });
+
+  it("a throw after the move landed puts the day back before releasing (parked 4)", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "item.times", itemId: "i1", startTime: "09:00", date: "2027-06-03" }) });
+    mdb.item.findUnique.mockResolvedValueOnce(ITEM).mockResolvedValueOnce({ ...ITEM, date: "2027-06-03" });
+    h.updateItem.mockRejectedValueOnce(new Error("connection reset"));
+    await expect(applyFinding("f1")).rejects.toThrow("connection reset");
+    expect(h.rescheduleItem.mock.calls).toEqual([["i1", "2027-06-03"], ["i1", "2027-06-02"]]);
+    expect(mdb.finding.updateMany).toHaveBeenLastCalledWith(RELEASE);
+    // The day goes back first, then the claim is released.
+    expect(h.rescheduleItem.mock.invocationCallOrder[1]).toBeLessThan(mdb.finding.updateMany.mock.invocationCallOrder.at(-1)!);
   });
 
   it("a landed move is put back by day only, leaving the times as they are now", async () => {

@@ -176,19 +176,38 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
       where: { id: finding.id, state: "APPLIED", stateById: user.id, undoPayload: null },
       data: { state: "OPEN", stateById: null, stateAt: null },
     });
+  // A half-landed two-step fix (the move went through, then a refusal or a
+  // throw) puts the day back, the times as they are now. Never throws.
+  const undoLandedMove = async () => {
+    const now = await loadFixRow(target);
+    const rollback = now ? landedStep(fix, before, fix.kind === "item.times" ? fix.date : undefined, now) : null;
+    if (rollback && now) await guarded(() => restoreSnapshot(fix, rollback, now), COPY.gone);
+  };
   try {
     const result = await guarded(() => runFix(fix, row), COPY.gone);
-    const now = await loadFixRow(target);
     if (!result.success) {
-      const rollback = now ? landedStep(fix, before, now) : null;
-      if (rollback && now) await guarded(() => restoreSnapshot(fix, rollback, now), COPY.gone);
+      await undoLandedMove();
       await release();
       return result;
     }
+    const now = await loadFixRow(target);
     const payload: UndoPayload = { fix, before, after: now ? snapshotFor(fix, now) : before };
-    await db.finding.update({ where: { id: finding.id }, data: { undoPayload: JSON.stringify(payload) } });
+    // Only onto our own claim, still waiting for its payload. A claim older
+    // than the 5-minute stranded cutoff (lib/review/fix.ts isStrandedApply)
+    // may have been released by an Undo meanwhile: the request that made it
+    // is killed at the page's maxDuration (300 s), so that is only ever a
+    // dead Apply's claim. Should a late one still get here, the condition
+    // refuses to write a payload onto a Finding that is no longer ours (Open
+    // again, or applied by someone else); the fix itself has landed, as the
+    // plan shows.
+    await db.finding.updateMany({
+      where: { id: finding.id, state: "APPLIED", stateById: user.id, undoPayload: null },
+      data: { undoPayload: JSON.stringify(payload) },
+    });
   } catch (err) {
-    // Never strand the Finding as APPLIED with nothing to undo (a Prisma error, an unexpected throw).
+    // Never strand the Finding as APPLIED with nothing to undo (a Prisma
+    // error, an unexpected throw), and never leave a moved day behind it.
+    await undoLandedMove().catch(() => undefined);
     await release().catch(() => undefined);
     throw err;
   }
@@ -197,17 +216,19 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
 }
 
 /**
- * After a refused fix, the snapshot to restore when a step of OUR fix landed,
- * or null. Only a two-step item.times fix can half-land: the move went
- * through, the times were refused. Then only the day goes back, the times as
- * they are now. A refused single-step fix wrote nothing, so a difference from
- * `before` is someone else's edit, left alone.
+ * After a refused (or thrown) change from `from` towards the day `toDate`,
+ * the snapshot to restore when a step of OUR change landed, or null. Only a
+ * two-step times change can half-land: the move went through, the times were
+ * refused. Then only the day goes back, the times as they are now. A refused
+ * single-step change wrote nothing, so a difference from `from` is someone
+ * else's edit, left alone. Apply passes (before, the fix's date); Undo passes
+ * (after, before's date).
  */
-function landedStep(fix: SuggestedFix, before: FixSnapshot, now: FixRow): FixSnapshot | null {
-  if (fix.kind !== "item.times" || before.kind !== "times" || fix.date === undefined) return null;
+function landedStep(fix: SuggestedFix, from: FixSnapshot, toDate: string | null | undefined, now: FixRow): FixSnapshot | null {
+  if (fix.kind !== "item.times" || from.kind !== "times" || toDate === undefined || from.date === toDate) return null;
   const current = snapshotFor(fix, now);
-  if (current.kind !== "times" || current.date !== fix.date || before.date === fix.date) return null;
-  return { ...current, date: before.date };
+  if (current.kind !== "times" || current.date !== toDate) return null;
+  return { ...current, date: from.date };
 }
 
 export async function dismissFinding(findingId: string): Promise<ActionResult> {
@@ -268,11 +289,14 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
 
   const result = await guarded(() => restoreSnapshot(payload.fix, payload.before, row), COPY.goneUndo);
   if (!result.success) {
-    // A two-step restore (a move back, then times) can fail half way: put `after` back, as Apply does.
+    // A two-step restore (a move back, then times) can fail half way: put the
+    // day back, by Apply's own rule (landedStep). A refused single step wrote
+    // nothing, so any difference now is someone else's edit, left alone.
     const current = await loadFixRow(target);
-    if (current && !sameSnapshot(snapshotFor(payload.fix, current), payload.after)) {
-      await guarded(() => restoreSnapshot(payload.fix, payload.after, current), COPY.goneUndo);
-    }
+    const rollback = current
+      ? landedStep(payload.fix, payload.after, payload.before.kind === "times" ? payload.before.date : undefined, current)
+      : null;
+    if (rollback && current) await guarded(() => restoreSnapshot(payload.fix, rollback, current), COPY.goneUndo);
     await db.finding.updateMany({
       where: { id: finding.id, state: "OPEN", stateById: null },
       data: { state: "APPLIED", stateById: finding.stateById, stateAt: finding.stateAt, undoPayload: finding.undoPayload },
