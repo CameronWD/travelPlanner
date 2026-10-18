@@ -1381,6 +1381,17 @@ describe("ItemFormDialog: Proposal mode (Booking import)", () => {
     );
     expect(screen.queryByText("Opening hours")).not.toBeInTheDocument();
   });
+
+  it("has no Try list editor: buildInput() never carries one", () => {
+    render(
+      <ItemFormDialog
+        tripId="t" stops={[{ id: "s-lis", name: "Lisbon", arriveDate: "2026-12-02" }]} open onOpenChange={vi.fn()}
+        initialValues={{ title: "Pena Palace entry", category: "OTHER" }}
+        onSubmitOverride={vi.fn().mockResolvedValue({ success: true })}
+      />,
+    );
+    expect(screen.queryByText("Try list")).not.toBeInTheDocument();
+  });
 });
 
 describe("ItemFormDialog: Reminders (F8)", () => {
@@ -1604,5 +1615,75 @@ describe("Opening hours (R4)", () => {
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     await waitFor(() => expect(updateItem).toHaveBeenCalledTimes(2));
     expect(screen.getByText("Opening hours").closest("details")).toHaveAttribute("open");
+  });
+});
+
+describe("Try list (R6)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const LIST = [
+    { id: "e1", text: "Lebkuchen", tried: true },
+    { id: "e2", text: "Drei im Weggla", tried: false },
+  ];
+
+  it("an edit that leaves the list alone sends no tryList", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: LIST }} />);
+    await user.type(screen.getByLabelText(/notes/i), "x");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).not.toHaveProperty("tryList");
+  });
+
+  it("adding an entry sends the list by id, without ticks, the new one without an id", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: LIST }} />);
+    await user.click(screen.getByText("Try list"));
+    await user.type(screen.getByLabelText("New thing to try"), "Schäufele{Enter}");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).toHaveProperty("tryList", [
+      { id: "e1", text: "Lebkuchen" },
+      { id: "e2", text: "Drei im Weggla" },
+      { text: "Schäufele" },
+    ]);
+  });
+
+  it("removing every entry sends null", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: LIST }} />);
+    await user.click(screen.getByText("Try list"));
+    await user.click(screen.getByRole("button", { name: "Remove Lebkuchen" }));
+    await user.click(screen.getByRole("button", { name: "Remove Drei im Weggla" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).toHaveProperty("tryList", null);
+  });
+
+  it("a create with entries sends them; without, sends none", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<ItemFormDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/title/i), "Christkindlesmarkt");
+    await user.click(screen.getByText("Try list"));
+    await user.type(screen.getByLabelText("New thing to try"), "Glühwein{Enter}");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect(vi.mocked(createItem).mock.calls[0][1]).toHaveProperty("tryList", [{ text: "Glühwein" }]);
+    unmount();
+    vi.mocked(createItem).mockClear();
+    render(<ItemFormDialog {...baseProps} />);
+    await user.type(screen.getByLabelText(/title/i), "Walk");
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect(vi.mocked(createItem).mock.calls[0][1]).not.toHaveProperty("tryList");
+  });
+
+  it("shows the server's Try list error in the editor", async () => {
+    vi.mocked(updateItem).mockResolvedValueOnce({ success: false, errors: { tryList: ["A Try list holds up to 30 things"] } });
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: LIST }} />);
+    await user.click(screen.getByText("Try list"));
+    await user.type(screen.getByLabelText("New thing to try"), "One more{Enter}");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByText("A Try list holds up to 30 things")).toBeInTheDocument();
   });
 });

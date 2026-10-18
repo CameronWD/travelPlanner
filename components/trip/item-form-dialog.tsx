@@ -39,6 +39,7 @@ import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import { OpeningHoursEditor } from "@/components/trip/opening-hours-editor";
 import type { OpeningHours } from "@/lib/opening-hours";
+import { TryListEditor, draftFromTryList, tryListPayload } from "@/components/trip/try-list-editor";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { refundLabel, slotLabel, startFromSlot } from "@/lib/slot-time";
 import type { ProposedItemInput } from "@/lib/booking-import/types";
@@ -573,6 +574,13 @@ function ItemForm({
   const [openingHours, setOpeningHours] = React.useState<OpeningHours | null>(item?.openingHours ?? null);
   const [initialOpeningHours] = React.useState(() => JSON.stringify(item?.openingHours ?? null));
   const openingHoursChanged = JSON.stringify(openingHours) !== initialOpeningHours;
+  // CONTEXT.md "Try list": sent only when changed, like the hours, so an edit
+  // that never loaded it can't wipe it. Ids, never ticks: a tick made while
+  // the dialog is open survives the save.
+  const [tryDraft, setTryDraft] = React.useState(() => draftFromTryList(item?.tryList));
+  const [initialTryList] = React.useState(() => JSON.stringify(tryListPayload(draftFromTryList(item?.tryList))));
+  const tryList = tryListPayload(tryDraft);
+  const tryListChanged = JSON.stringify(tryList) !== initialTryList;
   // CONTEXT.md Surprise: who this Item is a surprise for. Kept sorted so a tick and untick is no change.
   const surpriseOthers = members && currentUserId ? members.filter((m) => m.id !== currentUserId) : null;
   const [initialSurpriseForIds] = React.useState(() => [...(item?.surprise?.forIds ?? [])].sort());
@@ -584,7 +592,7 @@ function ItemForm({
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, openingHours, surpriseForIds, cost: cost.dirtyValues });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, openingHours, tryList, surpriseForIds, cost: cost.dirtyValues });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -629,8 +637,12 @@ function ItemForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && item
-        ? updateItem(item.id, { ...toPatch(input, ITEM_CLEARABLE), ...(openingHoursChanged && { openingHours }) })
-        : createItem(tripId, { ...input, ...(openingHours && { openingHours }) }, forkId ?? undefined);
+        ? updateItem(item.id, {
+            ...toPatch(input, ITEM_CLEARABLE),
+            ...(openingHoursChanged && { openingHours }),
+            ...(tryListChanged && { tryList: tryList.length > 0 ? tryList : null }),
+          })
+        : createItem(tripId, { ...input, ...(openingHours && { openingHours }), ...(tryList.length > 0 && { tryList }) }, forkId ?? undefined);
     },
     onClose,
     onSaved,
@@ -898,11 +910,17 @@ function ItemForm({
       {/* Opening hours (CONTEXT.md "Opening hours"). Fix round 1 (controller
           ruling): hidden in Proposal mode (onSubmitOverride) — buildInput()
           never carries openingHours (a Proposal has nowhere to store them),
-          so showing the editor there would silently drop anything typed into it. */}
+          so showing the editor there would silently drop anything typed into
+          it, and the Try list, for the same reason. */}
       {!onSubmitOverride && (
-        <div className="sm:col-span-2">
-          <OpeningHoursEditor value={openingHours} onChange={setOpeningHours} disabled={isPending} error={errors.openingHours?.[0]} />
-        </div>
+        <>
+          <div className="sm:col-span-2">
+            <OpeningHoursEditor value={openingHours} onChange={setOpeningHours} disabled={isPending} error={errors.openingHours?.[0]} />
+          </div>
+          <div className="sm:col-span-2">
+            <TryListEditor value={tryDraft} onChange={setTryDraft} disabled={isPending} error={errors.tryList?.[0]} />
+          </div>
+        </>
       )}
 
       {/* Hide from shared links (CONTEXT.md "Share link") — the Item stays
