@@ -75,4 +75,19 @@ describe("matchFindings (R10)", () => {
     expect(findings[0]).toMatchObject({ previousId: null, state: "OPEN" });
     expect(goneIds).toEqual([]); // the dismissed Before-opening Finding keeps its state
   });
+
+  it("a draft with no previous match starts Dismissed when an earlier Review's Dismissal was its key's latest word (final wave M4)", () => {
+    const earlier = [prev({ id: "e1", key: "CLOSURE|ITEM|a", state: "DISMISSED", stateById: "xanni", stateAt: AT })];
+    const { findings, goneIds } = matchFindings([prev({ id: "p1", key: "PACKING|TRIP|-" })], [draft({}), draft({ targetId: "b" })], earlier);
+    expect(findings[0]).toMatchObject({ key: "CLOSURE|ITEM|a", state: "DISMISSED", stateById: "xanni", stateAt: AT, previousId: "e1", firstFoundAt: T0 });
+    expect(findings[1]).toMatchObject({ state: "OPEN", previousId: null });
+    expect(goneIds).toEqual(["p1"]);
+  });
+
+  it("the previous Review's own match wins over an earlier Dismissal, and only Dismissals carry", () => {
+    const earlier = [prev({ id: "e1", key: "CLOSURE|ITEM|a", state: "DISMISSED", stateById: "xanni", stateAt: AT }), prev({ id: "e2", key: "CLOSURE|ITEM|b", state: "GONE" })];
+    const { findings } = matchFindings([prev({ id: "p1", key: "CLOSURE|ITEM|a" })], [draft({}), draft({ targetId: "b" })], earlier);
+    expect(findings[0]).toMatchObject({ state: "OPEN", previousId: "p1" });
+    expect(findings[1]).toMatchObject({ state: "OPEN", previousId: null });
+  });
 });

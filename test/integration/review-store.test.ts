@@ -108,6 +108,28 @@ describe.skipIf(process.env.INTEGRATION !== "1")("saveReviewResult and markRevie
     expect(await db.finding.findFirstOrThrow({ where: { reviewId: "it-rs-r3" } })).toMatchObject({ state: "DISMISSED", previousId: "it-rs-d" });
   });
 
+  it("a Dismissal carries across a gap: Dismissed in run 1, not raised in run 2, found again in run 3 (final wave M4)", async () => {
+    const at = (min: number) => new Date(T0.getTime() + min * 60_000);
+    const run = async (id: string, start: number, drafts: FindingDraft[]) => {
+      await running(id, at(start));
+      expect((await saveReviewResult(id, drafts, { summary: "s", now: at(start + 1) })).saved).toBe(true);
+      return db.finding.findMany({ where: { reviewId: id }, orderBy: { position: "asc" } });
+    };
+    const museum = draft({});
+    const [first] = await run("it-rs-g1", 0, [museum]);
+    await db.finding.update({ where: { id: first.id }, data: { state: "DISMISSED", stateById: OTHER, stateAt: DISMISSED_AT } });
+    expect(await run("it-rs-g2", 10, [draft({ category: "PACKING", targetType: "TRIP", targetId: undefined, title: "Rain" })])).toHaveLength(1);
+    const [again] = await run("it-rs-g3", 20, [museum]);
+    expect(again).toMatchObject({ key: first.key, state: "DISMISSED", stateById: OTHER, stateAt: DISMISSED_AT, previousId: first.id, firstFoundAt: first.firstFoundAt });
+
+    // Someone undoes that Dismiss on run 3; run 4 doesn't raise it (No longer found); run 5 does: Open, not Dismissed.
+    await db.finding.update({ where: { id: again.id }, data: { state: "OPEN", stateById: null, stateAt: null } });
+    await run("it-rs-g4", 30, []);
+    expect((await db.finding.findUniqueOrThrow({ where: { id: again.id } })).state).toBe("GONE");
+    const [fifth] = await run("it-rs-g5", 40, [museum]);
+    expect(fifth).toMatchObject({ state: "OPEN", stateById: null, previousId: null });
+  });
+
   it("a Review that is no longer RUNNING saves nothing", async () => {
     await db.review.create({ data: { id: "it-rs-r1", tripId: TRIP_ID, startedById: USER, kind: "STANDARD", model: "m", status: "FAILED", startedAt: T0 } });
     expect(await saveReviewResult("it-rs-r1", [draft({})], { summary: "late" })).toEqual({ saved: false, findingCount: 0 });

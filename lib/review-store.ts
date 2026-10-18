@@ -13,6 +13,8 @@ import { effectiveReviewStatus, type FindingDraft, type FindingState } from "@/l
 
 const MAX_ERROR = 500;
 
+const PREVIOUS_SELECT = { id: true, key: true, title: true, state: true, stateById: true, stateAt: true, firstFoundAt: true } as const;
+
 export async function saveReviewResult(
   reviewId: string,
   drafts: readonly FindingDraft[],
@@ -38,12 +40,24 @@ export async function saveReviewResult(
           await tx.finding.findMany({
             where: { reviewId: previousReview.id },
             orderBy: { position: "asc" },
-            select: { id: true, key: true, title: true, state: true, stateById: true, stateAt: true, firstFoundAt: true },
+            select: PREVIOUS_SELECT,
           })
         ).map((f) => ({ ...f, state: f.state as FindingState }))
       : [];
+    // M4: per key, the latest Finding of any earlier DONE Review; matchFindings
+    // carries it only when that latest word was Dismissed (so a Dismiss someone
+    // later undid, on a newer Review, doesn't come back).
+    const latestPerKey = await tx.finding.findMany({
+      where: { tripId: locked.tripId, reviewId: { not: reviewId }, review: { status: "DONE" } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      distinct: ["key"],
+      select: PREVIOUS_SELECT,
+    });
+    const earlier: PreviousFinding[] = latestPerKey
+      .filter((f) => f.state === "DISMISSED")
+      .map((f) => ({ ...f, state: f.state as FindingState }));
 
-    const { findings, goneIds } = matchFindings(previous, drafts);
+    const { findings, goneIds } = matchFindings(previous, drafts, earlier);
     if (findings.length > 0) {
       await tx.finding.createMany({
         data: findings.map((m, position) => ({

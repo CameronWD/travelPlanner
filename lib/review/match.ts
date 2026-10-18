@@ -10,6 +10,13 @@
  * An unmatched previous Finding that was Open becomes No longer found
  * (`goneIds`). An unmatched Dismissed or Applied one keeps that state on
  * its own Review: it records a person's decision. Pure.
+ *
+ * A Dismissal also carries across a gap (final wave M4): `earlier` holds,
+ * per key, a Dismissed Finding from an older Review that was that key's
+ * latest word (lib/review-store.ts). A draft the previous Review had no
+ * match for, whose key is there, starts Dismissed with that who and when,
+ * so "Dismissed in run 1, not raised in run 2, found again in run 3" stays
+ * Dismissed.
  */
 import { findingKey } from "@/lib/review/key";
 import type { FindingDraft, FindingState } from "@/lib/review/types";
@@ -38,7 +45,10 @@ export interface MatchedFinding {
 export function matchFindings(
   previous: readonly PreviousFinding[],
   drafts: readonly FindingDraft[],
+  earlier: readonly PreviousFinding[] = [],
 ): { findings: MatchedFinding[]; goneIds: string[] } {
+  const earlierDismissed = new Map<string, PreviousFinding>();
+  for (const e of earlier) if (e.state === "DISMISSED" && !earlierDismissed.has(e.key)) earlierDismissed.set(e.key, e);
   const unused = new Map<string, PreviousFinding[]>();
   for (const p of previous) unused.set(p.key, [...(unused.get(p.key) ?? []), p]);
   const take = (key: string, pick: (p: PreviousFinding) => boolean): PreviousFinding | undefined => {
@@ -60,7 +70,7 @@ export function matchFindings(
   });
 
   const findings = keyed.map(({ draft, key }, i): MatchedFinding => {
-    const p = pairs.get(i);
+    const p = pairs.get(i) ?? earlierDismissed.get(key);
     if (!p) return { draft, key, state: "OPEN", stateById: null, stateAt: null, previousId: null, firstFoundAt: null };
     const dismissed = p.state === "DISMISSED";
     return {
