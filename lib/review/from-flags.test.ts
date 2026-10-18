@@ -45,4 +45,17 @@ describe("flagsToFindings (R8: current Flags restated as Findings)", () => {
   it("an unknown Flag still restates, under Logistics", () => {
     expect(flagsToFindings([{ id: "something-new", severity: "info", message: "m.", targetType: "TRIP" }])[0]).toMatchObject({ category: "LOGISTICS", title: "Flag" });
   });
+
+  it("turns a tight connection's retime into an item.times fix on the later Item", () => {
+    const [d] = flagsToFindings([{ id: "tight-a-b", severity: "warning", message: "Tight…", targetType: "DAY", date: "2026-12-08",
+      retime: { itemId: "b", startTime: "12:35", endTime: "13:35" } }]);
+    expect(d).toMatchObject({ targetType: "ITEM", targetId: "b", date: "2026-12-08", flagId: "tight-a-b",
+      suggestedFix: { kind: "item.times", itemId: "b", startTime: "12:35", endTime: "13:35" } });
+  });
+
+  it("keeps a tight connection with no retime about its day, with no fix", () => {
+    const [d] = flagsToFindings([{ id: "tight-a-b", severity: "info", message: "…", targetType: "DAY", date: "2026-12-08" }]);
+    expect(d.targetType).toBe("DAY");
+    expect(d.suggestedFix).toBeUndefined();
+  });
 });

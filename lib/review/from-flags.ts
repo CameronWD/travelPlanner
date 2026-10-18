@@ -5,6 +5,11 @@
  * of R8's categories and a short title; its message becomes the detail. The
  * Flag id is kept as `flagId`, so it matches itself in the next Review
  * (lib/review/key.ts). A drift test fails on a Flag id with no rule here.
+ *
+ * A tight connection with a retime is about the later Item and carries its fix
+ * (spec 2026-10-18 A3). Its key (lib/review/key.ts) now has the ITEM target,
+ * so the first Review after this ships raises existing tight-connection Findings
+ * afresh (the DAY-keyed ones go No longer found) — a one-off.
  */
 import type { Flag } from "@/lib/flags";
 import type { FindingCategory, FindingDraft } from "@/lib/review/types";
@@ -42,11 +47,17 @@ const RULES: readonly { prefix: string; category: FindingCategory; title: string
 export function flagsToFindings(flags: readonly Flag[]): FindingDraft[] {
   return flags.map((f) => {
     const rule = RULES.find((r) => f.id === r.prefix || f.id.startsWith(`${r.prefix}-`));
+    const retimed = f.retime
+      ? {
+          targetType: "ITEM" as const,
+          targetId: f.retime.itemId,
+          suggestedFix: { kind: "item.times" as const, itemId: f.retime.itemId, startTime: f.retime.startTime, endTime: f.retime.endTime },
+        }
+      : { targetType: f.targetType, ...(f.targetId ? { targetId: f.targetId } : {}) };
     return {
       severity: f.severity,
       category: rule?.category ?? "LOGISTICS",
-      targetType: f.targetType,
-      ...(f.targetId ? { targetId: f.targetId } : {}),
+      ...retimed,
       ...(f.date ? { date: f.date } : {}),
       title: rule?.title ?? "Flag",
       detail: f.message,
