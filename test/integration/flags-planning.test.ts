@@ -107,6 +107,16 @@ describe.skipIf(process.env.INTEGRATION !== "1")("planning Flags (real Postgres)
     expect(ids).toEqual(expect.arrayContaining(["item-closed-it-fp-closed", "book-by-overdue-it-fp-casa", "still-to-book-it-fp-leg"]));
   });
 
+  it("on a Changeover day shared with a hidden Stop, an Item of the visible Stop still flags for the member", async () => {
+    // D(6) is IT Porto's departure day and IT Secret's arrival day.
+    await db.item.create({ data: {
+      id: "it-fp-changeover", tripId: TRIP_ID, stopId: "it-fp-porto", title: "IT Port lodge", category: "FOOD", date: D(6), sortOrder: 7, openingHours: closedOn(D(6)),
+    } });
+    const ids = (await flagIds(MEMBER)).map((f) => f.id);
+    expect(ids).toContain("item-closed-it-fp-changeover");
+    expect(ids).not.toContain("still-to-book-it-fp-hidden-stay");
+  });
+
   it("Home's Next steps carry the same Flags, linked to where they are fixed", async () => {
     const { steps } = await loadHomePlanningData(TRIP_ID, today, "planning", TRIP, OWNER);
     const ids = steps.map((s) => s.id);
