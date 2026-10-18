@@ -30,6 +30,7 @@ const accessRequestFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([])
 const allowedEmailFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const errorReportFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const feedbackNoteFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const userFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 
 vi.mock("@/lib/guards", () => ({ requireAdmin: requireAdminMock }));
 vi.mock("@/lib/db", () => ({
@@ -38,6 +39,7 @@ vi.mock("@/lib/db", () => ({
     allowedEmail: { findMany: allowedEmailFindManyMock, findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
     errorReport: { findMany: errorReportFindManyMock, findUnique: vi.fn(), delete: vi.fn() },
     feedbackNote: { findMany: feedbackNoteFindManyMock },
+    user: { findMany: userFindManyMock, updateMany: vi.fn() },
   },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -54,6 +56,9 @@ vi.mock("./error-reports", () => ({
 vi.mock("./feedback-review", () => ({
   FeedbackReviewPanel: () => <div data-testid="feedback-review-panel" />,
 }));
+vi.mock("./review-permissions", () => ({
+  ReviewPermissionsPanel: () => <div data-testid="review-permissions-panel" />,
+}));
 
 import AdminPage, { metadata } from "./page";
 
@@ -64,6 +69,7 @@ beforeEach(() => {
   allowedEmailFindManyMock.mockResolvedValue([]);
   errorReportFindManyMock.mockResolvedValue([]);
   feedbackNoteFindManyMock.mockResolvedValue([]);
+  userFindManyMock.mockResolvedValue([]);
 });
 
 describe("AdminPage", () => {
@@ -81,11 +87,11 @@ describe("AdminPage", () => {
   // observable that actually depends on the page having a FOURTH, its-own
   // call is the total count: 1 direct + 1 inside listAccessRequests + 1
   // inside listFeedbackNeedingReview + 1 inside listAllowedEmails + 1 inside
-  // listErrorReports = 5. Remove the page's own `await requireAdmin()` and
-  // this drops to 4.
+  // listErrorReports + 1 inside listReviewPermissions = 6. Remove the page's
+  // own `await requireAdmin()` and this drops to 5.
   it("calls requireAdmin() itself, not just relying on its data calls", async () => {
     await AdminPage();
-    expect(requireAdminMock).toHaveBeenCalledTimes(5);
+    expect(requireAdminMock).toHaveBeenCalledTimes(6);
   });
 
   it("a non-admin gets notFound() and no data is read", async () => {
@@ -96,6 +102,7 @@ describe("AdminPage", () => {
     expect(allowedEmailFindManyMock).not.toHaveBeenCalled();
     expect(errorReportFindManyMock).not.toHaveBeenCalled();
     expect(feedbackNoteFindManyMock).not.toHaveBeenCalled();
+    expect(userFindManyMock).not.toHaveBeenCalled();
   });
 
   it("renders all section headings and panels for an admin", async () => {
@@ -109,6 +116,9 @@ describe("AdminPage", () => {
     expect(screen.getByTestId("access-requests-panel")).toBeInTheDocument();
     expect(screen.getByTestId("allowed-emails-panel")).toBeInTheDocument();
     expect(screen.getByTestId("error-reports-panel")).toBeInTheDocument();
+    expect(screen.getByText("Reviews")).toBeInTheDocument();
+    expect(screen.getByText("Who can start a Review")).toBeInTheDocument();
+    expect(screen.getByTestId("review-permissions-panel")).toBeInTheDocument();
   });
 
   // Spec 2026-10-02 §D: second section — a queue of people waiting, like
@@ -125,5 +135,15 @@ describe("AdminPage", () => {
     expect(access.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(review.compareDocumentPosition(allow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("Accept or decline from the terminal")).toBeInTheDocument();
+  });
+
+  // Spec 2026-10-17 R12: who may start a Review sits with who may sign in, before Errors.
+  it("places Reviews after the allowlist and before Errors", async () => {
+    render(await AdminPage());
+    const allow = screen.getByText("Who can sign in");
+    const reviews = screen.getByRole("heading", { name: "Reviews" });
+    const errors = screen.getByText("Errors");
+    expect(allow.compareDocumentPosition(reviews) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(reviews.compareDocumentPosition(errors) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
