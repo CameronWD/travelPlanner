@@ -1,6 +1,7 @@
 "use server";
 
 import { notFound } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
@@ -31,6 +32,8 @@ import { startFromSlot } from "@/lib/slot-time";
 import { openingHoursSchema, parseOpeningHours, serializeOpeningHours } from "@/lib/validations/opening-hours";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { itemFamilyRecipients, writeItemFamily, type ItemFamilyData } from "@/lib/item-family";
+import { applyTryListInput, type TryEntryInput } from "@/lib/try-list";
+import { parseTryList, serializeTryList, tryListInputSchema } from "@/lib/validations/try-list";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -213,6 +216,8 @@ export async function createItem(
       refundable: data.refundable ?? null,
       // CONTEXT.md "Opening hours" (R4): a create has no family yet, so nothing is shared.
       openingHours: serializeOpeningHours(data.openingHours),
+      // CONTEXT.md "Try list" (R6): a create has no family yet; every entry gets a fresh id.
+      tryList: serializeTryList(applyTryListInput(null, data.tryList ?? [])),
       ...booking,
     },
   });
@@ -424,16 +429,15 @@ export async function updateItem(
   }
 
   // The Item family's shared columns (lib/item-family.ts: CONTEXT.md "Opening
-  // hours"; T adds the Try list here). Computed before the write — a plain
-  // read, like the FX-rate resolve above (ADR 0007 keeps extra reads outside a
-  // transaction) — and only for the columns the patch actually names, so a
+  // hours", "Try list"), only for the columns the patch actually names, so a
   // patch that doesn't touch them never re-serialises `before`'s value (which
   // may not even parse — fix round 1) back onto the row, and never re-touches
-  // the family. itemFamilyRecipients never crosses a Surprise (ADR 0072).
+  // the family. The hours are known now; the Try list is merged inside the
+  // transaction below, onto the list as it is under the family's row lock.
+  // itemFamilyRecipients never crosses a Surprise (ADR 0072).
   const familyData: ItemFamilyData = {};
   if (patch.openingHours !== undefined) familyData.openingHours = serializeOpeningHours(data.openingHours);
-  const sharesWithFamily = Object.keys(familyData).length > 0;
-  const familyRecipients = sharesWithFamily ? await itemFamilyRecipients(before) : [];
+  const sharesWithFamily = Object.keys(familyData).length > 0 || patch.tryList !== undefined;
 
   const itemData = {
     stopId: data.stopId ?? null,
@@ -454,9 +458,6 @@ export async function updateItem(
     slotTime: data.slotTime ?? null,
     arriveByMinutes: data.arriveByMinutes ?? null,
     refundable: data.refundable ?? null,
-    // Only the family columns the patch named (fix round 1) — never present
-    // to re-serialise `before`'s value back onto the row.
-    ...familyData,
     ...booking,
   };
 
@@ -472,16 +473,32 @@ export async function updateItem(
   // transaction (for its own row write plus the family's, atomically, per
   // fix round 1), and records the Activity itself, with `recordUpdate`,
   // only once that transaction has committed — exactly as `setOpeningHours`
-  // already does. The plain path (patch doesn't touch openingHours) needs
+  // already does. The plain path (patch names no family column) needs
   // no transaction and keeps using `auditedUpdate` as before: Fork silence
   // and the before/after comparison are `recordUpdate`'s, shared by both.
+  //
+  // The family path reads the family on `tx` and locks every row of it in id
+  // order first (lockItemFamily), so it never interleaves with a tick or
+  // another family write. A Try list in the patch is merged onto the list
+  // read under that lock, so a tick made since the dialog opened is kept (the
+  // dialog never sends `tried`), and the Activity compares against that list.
   if (sharesWithFamily) {
-    const after = await db.$transaction(async (tx) => {
-      const updated = await tx.item.update({ where: { id: itemId }, data: itemData });
-      await writeItemFamily(tx, familyRecipients, familyData);
-      return updated;
+    const { after, lockedTryList } = await db.$transaction(async (tx) => {
+      const recipients = await itemFamilyRecipients(before, tx);
+      const locked = await lockItemFamily(tx, itemId, recipients);
+      // Only the family columns the patch named (fix round 1): `tryList` is
+      // set only when the patch names it, so writeItemFamily's key count
+      // never sees an undefined-valued key.
+      const shared: ItemFamilyData = { ...familyData };
+      if (patch.tryList !== undefined) {
+        shared.tryList = serializeTryList(applyTryListInput(parseTryList(locked), data.tryList ?? []));
+      }
+      const updated = await tx.item.update({ where: { id: itemId }, data: { ...itemData, ...shared } });
+      await writeItemFamily(tx, recipients, shared);
+      return { after: updated, lockedTryList: locked };
     });
-    await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+    const beforeForActivity = patch.tryList !== undefined ? { ...before, tryList: lockedTryList } : before;
+    await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before: beforeForActivity, after });
   } else {
     await auditedUpdate("ITEM", db.item, itemId, itemData, item.forkId ?? null, { before });
   }
@@ -572,9 +589,11 @@ export async function setOpeningHours(itemId: string, hours: OpeningHours | null
   if (!before) notFound();
   const next = parsed.data.openingHours;
   const stored = serializeOpeningHours(next);
-  const recipients = await itemFamilyRecipients(before);
 
   const after = await db.$transaction(async (tx) => {
+    // Locked like every family write, so it never deadlocks with a Try list tick.
+    const recipients = await itemFamilyRecipients(before, tx);
+    await lockItemFamily(tx, itemId, recipients);
     const updated = await tx.item.update({ where: { id: itemId }, data: { openingHours: stored } });
     await writeItemFamily(tx, recipients, { openingHours: stored });
     return updated;
@@ -583,6 +602,54 @@ export async function setOpeningHours(itemId: string, hours: OpeningHours | null
 
   revalidateTrip(item.tripId, "plan");
   return { success: true };
+}
+
+/**
+ * Replace a thing's Try list (CONTEXT.md "Try list"); null or [] clears it.
+ * An entry's id keeps it and its tick unless `tried` is given
+ * (applyTryListInput). Writes only the list, for the thing and every Item
+ * sharing its place (never across a Surprise), under the family's row lock.
+ * It never re-geocodes, unlike a full updateItem. One UPDATED line on the
+ * edited Item, recorded after commit; a change that only moves ticks reads as
+ * no change (lib/activity.ts). The MCP tool `set_try_list` calls this.
+ */
+export async function setTryList(itemId: string, entries: TryEntryInput[] | null): Promise<ItemActionResult> {
+  const item = await requireItemAccess(itemId);
+  const parsed = z.object({ tryList: tryListInputSchema.nullable() }).safeParse({ tryList: entries });
+  if (!parsed.success) return validationResult(parsed.error);
+  const held = await db.item.findUnique({ where: { id: itemId } });
+  if (!held) notFound();
+
+  const { before, after } = await db.$transaction(async (tx) => {
+    const recipients = await itemFamilyRecipients(held, tx);
+    const locked = await lockItemFamily(tx, itemId, recipients);
+    const stored = serializeTryList(applyTryListInput(parseTryList(locked), parsed.data.tryList ?? []));
+    const updated = await tx.item.update({ where: { id: itemId }, data: { tryList: stored } });
+    await writeItemFamily(tx, recipients, { tryList: stored });
+    return { before: { ...held, tryList: locked }, after: updated };
+  });
+  await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+
+  revalidateTrip(item.tripId, "plan");
+  return { success: true };
+}
+
+/**
+ * CONTEXT.md "Opening hours", "Try list": lock every row of the Item family
+ * (the edited row and its recipients) in id order, as stop-flow.ts locks a
+ * plan's Stops (ADR 0007), and return the edited row's stored Try list. Every family write takes
+ * it first, so two writers on any rows of one family run one after the other
+ * (neither loses the other's tick) and, taking the rows in one order, never
+ * deadlock. Raw SQL because Prisma can't express SELECT … FOR UPDATE.
+ */
+async function lockItemFamily(tx: Prisma.TransactionClient, itemId: string, recipients: readonly string[]): Promise<string | null> {
+  const rows = await tx.$queryRaw<{ id: string; tryList: string | null }[]>`
+    SELECT "id", "tryList" FROM "Item"
+    WHERE "id" IN (${Prisma.join([itemId, ...recipients])})
+    ORDER BY "id"
+    FOR UPDATE
+  `;
+  return rows.find((r) => r.id === itemId)?.tryList ?? null;
 }
 
 /**
