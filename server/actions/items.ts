@@ -32,7 +32,7 @@ import { startFromSlot } from "@/lib/slot-time";
 import { openingHoursSchema, parseOpeningHours, serializeOpeningHours } from "@/lib/validations/opening-hours";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { itemFamilyRecipients, writeItemFamily, type ItemFamilyData } from "@/lib/item-family";
-import { applyTryListInput, type TryEntryInput } from "@/lib/try-list";
+import { applyTryListInput, withEntryTried, type TryEntryInput } from "@/lib/try-list";
 import { parseTryList, serializeTryList, tryListInputSchema } from "@/lib/validations/try-list";
 
 // ---------------------------------------------------------------------------
@@ -631,6 +631,39 @@ export async function setTryList(itemId: string, entries: TryEntryInput[] | null
   await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
 
   revalidateTrip(item.tripId, "plan");
+  return { success: true };
+}
+
+/**
+ * Tick (or untick) one entry of a thing's Try list (CONTEXT.md "Try list"),
+ * by its id: anyone on the Trip who can see the Item may. A read-modify-write
+ * under the family's row lock (lockItemFamily), so two Travellers ticking at
+ * once never lose a tick, and it reaches the Wishlist idea and every copy
+ * placed from it (never across a Surprise). Not Activity: like Packing ticks
+ * (ADR 0012 amendment 2026-10-11) it is bookkeeping done as you go, and the
+ * tick itself is what the partner sees. A tick to the state the entry already
+ * has (a double tap) succeeds with no write. The MCP tool `tick_try_entry`
+ * and the Day/Today checkboxes call this.
+ */
+export async function tickTryEntry(itemId: string, entryId: string, tried: boolean): Promise<ItemActionResult> {
+  const item = await requireItemAccess(itemId);
+  const held = await db.item.findUnique({ where: { id: itemId }, select: { id: true, tripId: true, sourceItemId: true } });
+  if (!held) notFound();
+
+  const outcome = await db.$transaction(async (tx) => {
+    const recipients = await itemFamilyRecipients(held, tx);
+    const current = parseTryList(await lockItemFamily(tx, itemId, recipients));
+    const entry = current?.find((e) => e.id === entryId);
+    if (!entry) return "gone" as const;
+    if (entry.tried === tried) return "unchanged" as const;
+    const stored = serializeTryList(withEntryTried(current, entryId, tried));
+    await tx.item.update({ where: { id: itemId }, data: { tryList: stored } });
+    await writeItemFamily(tx, recipients, { tryList: stored });
+    return "ticked" as const;
+  });
+
+  if (outcome === "gone") return { success: false, errors: { tryList: ["That one is no longer on the list."] } };
+  if (outcome === "ticked") revalidateTrip(item.tripId, "plan");
   return { success: true };
 }
 

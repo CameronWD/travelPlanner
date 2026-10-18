@@ -109,6 +109,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "scheduleItem",
     "setOpeningHours",
     "setTryList",
+    "tickTryEntry",
     "unscheduleItem",
     "updateItem",
   ],

@@ -37,7 +37,7 @@ vi.mock("@/lib/surprise-guard", async () => ({
 }));
 
 import { db } from "@/lib/db";
-import { setTryList, updateItem } from "@/server/actions/items";
+import { setTryList, tickTryEntry, updateItem } from "@/server/actions/items";
 import { parseTryList } from "@/lib/validations/try-list";
 
 const USER = "it-tl-user";
@@ -111,5 +111,45 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Try list is shared by an ide
   it("a refused list writes nothing", async () => {
     expect(await setTryList(COPY, [{ text: "" }])).toMatchObject({ success: false });
     expect(await listOf(IDEA)).toBeNull();
+  });
+
+  it("ticks on three rows of one family at once all land, on every row (five rounds)", async () => {
+    for (let round = 0; round < 5; round++) {
+      await setTryList(IDEA, [{ text: "IT Lebkuchen", tried: false }, { text: "IT Drei im Weggla", tried: false }, { text: "IT Glühwein", tried: false }]);
+      const [a, b, c] = (await listOf(IDEA))!;
+      const results = await Promise.all([tickTryEntry(COPY, a.id, true), tickTryEntry(IDEA, b.id, true), tickTryEntry(FORK_COPY, c.id, true)]);
+      expect(results).toEqual([{ success: true }, { success: true }, { success: true }]);
+      for (const id of [IDEA, COPY, FORK_COPY]) expect((await listOf(id))!.map((e) => e.tried)).toEqual([true, true, true]);
+    }
+  });
+
+  it("a tick and a dialog edit at once: the tick and the rename both survive (five rounds)", async () => {
+    for (let round = 0; round < 5; round++) {
+      await setTryList(IDEA, [{ text: "IT Lebkuchen", tried: false }, { text: "IT Drei im Weggla", tried: false }]);
+      const [a, b] = (await listOf(IDEA))!;
+      await Promise.all([
+        tickTryEntry(COPY, a.id, true),
+        updateItem(IDEA, { tryList: [{ id: a.id, text: "IT Lebkuchen" }, { id: b.id, text: "IT Drei im Weggla (Bratwurst)" }] }),
+      ]);
+      expect(await listOf(FORK_COPY)).toEqual([
+        { id: a.id, text: "IT Lebkuchen", tried: true },
+        { id: b.id, text: "IT Drei im Weggla (Bratwurst)", tried: false },
+      ]);
+    }
+  });
+
+  it("a tick on the Surprise copy stays on it", async () => {
+    await setTryList(SURPRISE_COPY, [{ text: "IT Secret stall" }]);
+    const [secret] = (await listOf(SURPRISE_COPY))!;
+    await tickTryEntry(SURPRISE_COPY, secret.id, true);
+    expect(await listOf(SURPRISE_COPY)).toEqual([{ ...secret, tried: true }]);
+    expect(await listOf(IDEA)).toBeNull();
+  });
+
+  it("a tick on an entry that is gone is refused and writes nothing", async () => {
+    await setTryList(IDEA, [{ text: "IT Lebkuchen" }]);
+    const before = await listOf(IDEA);
+    expect(await tickTryEntry(COPY, "gone1234", true)).toEqual({ success: false, errors: { tryList: ["That one is no longer on the list."] } });
+    expect(await listOf(COPY)).toEqual(before);
   });
 });

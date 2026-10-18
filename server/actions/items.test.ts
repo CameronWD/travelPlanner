@@ -238,6 +238,7 @@ import {
   placeIdeaAtStop,
   setOpeningHours,
   setTryList,
+  tickTryEntry,
 } from "./items";
 import { serializeOpeningHours } from "@/lib/validations/opening-hours";
 import { serializeTryList } from "@/lib/validations/try-list";
@@ -2827,6 +2828,59 @@ describe("Try list (CONTEXT.md Try list: shared by a thing to do and its placed 
     await expect(setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }])).rejects.toThrow("boom");
     expect(recordActivity).not.toHaveBeenCalled();
     expect(revalidateTripMock).not.toHaveBeenCalled();
+  });
+
+  it("tickTryEntry ticks one entry on the locked list and writes the row and its family, with no Activity", async () => {
+    expect(await tickTryEntry("copy-1", "e2", true)).toEqual({ success: true });
+    const next = serializeTryList([LIST[0], { ...LIST[1], tried: true }]);
+    expect(sqlOf(itemQueryRawMock.mock.calls[0])).toMatch(/FOR UPDATE/);
+    expect(itemQueryRawMock.mock.calls[0].slice(1)).toEqual([expect.objectContaining({ values: ["copy-1", "idea-1"] })]);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: next } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: next } });
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+  });
+
+  it("tickTryEntry builds on the locked list, so a tick made meanwhile on another entry is kept", async () => {
+    const partnerTicked = serializeTryList([{ ...LIST[0], tried: false }, { ...LIST[1], tried: true }]);
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: partnerTicked }, { id: "idea-1", tryList: partnerTicked }]);
+    await tickTryEntry("copy-1", "e1", true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "copy-1" },
+      data: { tryList: serializeTryList([{ ...LIST[0], tried: true }, { ...LIST[1], tried: true }]) },
+    });
+  });
+
+  it("an untick writes the list with the entry untried", async () => {
+    await tickTryEntry("copy-1", "e1", false);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: serializeTryList([{ ...LIST[0], tried: false }, LIST[1]]) } });
+  });
+
+  it("a tick to the state it already has writes nothing", async () => {
+    expect(await tickTryEntry("copy-1", "e1", true)).toEqual({ success: true });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a tick on an entry that is gone is refused on the field", async () => {
+    expect(await tickTryEntry("copy-1", "gone", true)).toEqual({ success: false, errors: { tryList: ["That one is no longer on the list."] } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: null }, { id: "idea-1", tryList: null }]);
+    expect(await tickTryEntry("copy-1", "e1", true)).toMatchObject({ success: false });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("tickTryEntry checks access before writing", async () => {
+    await tickTryEntry("copy-1", "e2", true);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+  });
+
+  it("a tick on a Surprise row stays on it", async () => {
+    surpriseRootForMock.mockResolvedValue({ kind: "ITEM", id: "copy-1" });
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: STORED }]);
+    await tickTryEntry("copy-1", "e2", true);
+    expect(itemUpdateMock).toHaveBeenCalledTimes(1);
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
   });
 
   it("a Surprise row's list reaches only itself, and locks only itself", async () => {
