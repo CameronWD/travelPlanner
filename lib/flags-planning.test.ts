@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BOOK_BY_SOON_DAYS,
   CLOSING_SOON_MIN,
   detectFlags,
   flagBookByDates,
@@ -194,6 +195,7 @@ describe("flagBookByDates (Book by soon, info / Overdue, warning)", () => {
     flagBookByDates({ items: [], transports: [], accommodations: [], today, stops: [nbg, munich], ...o });
 
   it("an Item To book within the next 7 days", () => {
+    expect(BOOK_BY_SOON_DAYS).toBe(7); // pins the "soon" window the day-count literals below exercise
     const at = (bookBy: string) => run({ items: [item({ id: "i1", title: "Neues Museum tour", date: "2026-12-08", ...toBook, bookBy })] });
     expect(at("2026-12-04")).toEqual([
       { id: "book-by-soon-i1", severity: "info", message: "Book Neues Museum tour by Fri 4 Dec, in 3 days.", targetType: "ITEM", targetId: "i1", date: "2026-12-08", stopId: "nbg" },
