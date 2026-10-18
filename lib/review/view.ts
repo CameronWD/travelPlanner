@@ -9,6 +9,8 @@ import {
   type FindingSeverity,
   type FindingState,
   type FindingTargetType,
+  type ReviewKind,
+  type ReviewStatus,
   type SuggestedFix,
 } from "@/lib/review/types";
 
@@ -231,4 +233,84 @@ export function groupFindings(cards: FindingCard[]): FindingGroup[] {
       cards: cards.filter((c) => c.severity === severity).sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state]),
     }))
     .filter((g) => g.cards.length > 0);
+}
+
+// ---------------------------------------------------------------------------
+// One Review
+// ---------------------------------------------------------------------------
+
+/** What these helpers read from a Review row (R's `ReviewSummary`/`ReviewDetail` are wider). */
+export interface ReviewForView {
+  id: string;
+  kind: ReviewKind;
+  status: ReviewStatus;
+  summary: string | null;
+  startedAt: Date;
+  finishedAt: Date | null;
+  startedBy: TravellerRefLike;
+}
+
+/** Spec R11: the tab's line while a Review runs. */
+export function reviewingLine(startedBy: TravellerRefLike): string {
+  return `Reviewing… (started by ${firstName(startedBy)})`;
+}
+
+/** The heading line for a shown Review: who ran it, and when. */
+export function reviewByLine(review: Pick<ReviewForView, "startedBy" | "startedAt">, timeZone: string): string {
+  return `Run by ${firstName(review.startedBy)}, ${formatReviewWhen(review.startedAt, timeZone)}`;
+}
+
+export interface HistoryRow {
+  id: string;
+  href: Route;
+  kindLabel: string;
+  byName: string;
+  when: string;
+  line: string;
+  status: ReviewStatus;
+  /** The Review the page is showing. */
+  current: boolean;
+}
+
+function historyLine(r: ReviewForView): string {
+  switch (r.status) {
+    case "DONE":
+      return r.summary?.trim() || "No summary";
+    case "RUNNING":
+      return "Still running";
+    case "FAILED":
+      return "Didn't finish";
+    default: {
+      const unhandled: never = r.status;
+      return unhandled;
+    }
+  }
+}
+
+/** Spec R10: every Review kept, as who, when, kind and its summary line; opening one shows its Findings. */
+export function toHistoryRow(r: ReviewForView, ctx: { base: string; timeZone: string; currentId: string | null }): HistoryRow {
+  return {
+    id: r.id,
+    href: tripSubPath(ctx.base, `/reviews?review=${encodeURIComponent(r.id)}`),
+    kindLabel: REVIEW_KIND_LABELS[r.kind],
+    byName: firstName(r.startedBy),
+    when: formatReviewWhen(r.startedAt, ctx.timeZone),
+    line: historyLine(r),
+    status: r.status,
+    current: r.id === ctx.currentId,
+  };
+}
+
+/** Spec R10: Home's "N open from the <date> review", or nothing. */
+export function homeReviewLine(
+  review: (ReviewForView & { findings: { state: FindingState }[] }) | null,
+  ctx: { base: string; timeZone: string },
+): { text: string; href: Route } | null {
+  if (!review || review.status !== "DONE") return null;
+  const open = review.findings.filter((f) => f.state === "OPEN").length;
+  if (open === 0) return null;
+  return {
+    text: `${open} open from the ${formatReviewDay(review.startedAt, ctx.timeZone)} review`,
+    href: tripSubPath(ctx.base, "/reviews"),
+  };
 }

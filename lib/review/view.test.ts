@@ -2,7 +2,8 @@ import type { Route } from "next";
 import { describe, expect, it } from "vitest";
 import {
   FINDING_CATEGORY_LABELS, REVIEW_KIND_LABELS, findingHref, findingStateLabel, formatReviewDay, formatReviewWhen,
-  groupFindings, sourceLink, suggestedFixLabel, toFindingCard, type FindingCard, type FindingForView,
+  groupFindings, homeReviewLine, reviewByLine, reviewingLine, sourceLink, suggestedFixLabel, toFindingCard, toHistoryRow,
+  type FindingCard, type FindingForView, type ReviewForView,
 } from "./view";
 
 const CAM = { id: "u1", name: "Cam Williams", image: null };
@@ -111,5 +112,57 @@ describe("toFindingCard + groupFindings", () => {
       ["Notes", ["d", "a"]],
     ]);
     expect(groupFindings(cards.filter((c) => c.severity === "info")).map((g) => g.heading)).toEqual(["Notes"]);
+  });
+});
+
+describe("reviewingLine (R11)", () => {
+  it("names who started it by first name", () => {
+    expect(reviewingLine(CAM)).toBe("Reviewing… (started by Cam)");
+  });
+  it("a former Traveller is shown whole", () => {
+    expect(reviewingLine(FORMER)).toBe("Reviewing… (started by a former Traveller)");
+  });
+});
+
+describe("reviewByLine", () => {
+  it("who ran it, and when", () => {
+    expect(reviewByLine({ startedBy: CAM, startedAt: AT }, BNE)).toBe("Run by Cam, Sun 18 Oct, 14:05");
+  });
+});
+
+describe("toHistoryRow (R10: who, when, kind, summary line)", () => {
+  const review = (o: Partial<ReviewForView> = {}): ReviewForView => ({
+    id: "r1", kind: "DEEP", status: "DONE", summary: "Two closures and a holiday to plan around.",
+    startedAt: AT, finishedAt: AT, startedBy: CAM, ...o,
+  });
+  const ctx = { base: "/trips/xmas", timeZone: BNE, currentId: "r1" };
+  it("a finished Review", () => {
+    expect(toHistoryRow(review(), ctx)).toEqual({
+      id: "r1", href: "/trips/xmas/reviews?review=r1" as Route, kindLabel: "Deep Review", byName: "Cam",
+      when: "Sun 18 Oct, 14:05", line: "Two closures and a holiday to plan around.", status: "DONE", current: true,
+    });
+  });
+  it("running, failed, and a finished one with no summary", () => {
+    expect(toHistoryRow(review({ status: "RUNNING", summary: null }), ctx).line).toBe("Still running");
+    expect(toHistoryRow(review({ status: "FAILED", summary: null }), ctx).line).toBe("Didn't finish");
+    expect(toHistoryRow(review({ summary: null }), ctx).line).toBe("No summary");
+    expect(toHistoryRow(review({ id: "r2" }), ctx).current).toBe(false);
+  });
+});
+
+describe("homeReviewLine (R10: Home shows 'N open from the <date> review')", () => {
+  const ctx = { base: "/trips/xmas", timeZone: BNE };
+  const done = (states: ("OPEN" | "APPLIED" | "DISMISSED" | "GONE")[]) => ({
+    id: "r1", kind: "STANDARD" as const, status: "DONE" as const, summary: null, startedAt: AT, finishedAt: AT, startedBy: CAM,
+    findings: states.map((state) => ({ state })),
+  });
+  it("counts Open Findings of the latest finished Review", () => {
+    expect(homeReviewLine(done(["OPEN", "APPLIED", "OPEN", "DISMISSED"]), ctx)).toEqual({ text: "2 open from the 18 Oct review", href: "/trips/xmas/reviews" as Route });
+    expect(homeReviewLine(done(["OPEN"]), ctx)?.text).toBe("1 open from the 18 Oct review");
+  });
+  it("nothing when there is no Review, it is not finished, or nothing is open", () => {
+    expect(homeReviewLine(null, ctx)).toBeNull();
+    expect(homeReviewLine({ ...done(["OPEN"]), status: "RUNNING" }, ctx)).toBeNull();
+    expect(homeReviewLine(done(["APPLIED", "DISMISSED"]), ctx)).toBeNull();
   });
 });
