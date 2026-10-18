@@ -14,7 +14,7 @@
  * remaps FK relationships from the `sourceId` / `source*Id` keys.
  */
 
-import { effectiveBookingState } from "@/lib/booking-state";
+import { effectiveBookingState, transportBookingSubject } from "@/lib/booking-state";
 import { isOnTrip } from "@/lib/enum-values";
 import { orderPlanStops } from "@/lib/plan-order";
 import { creationAnchor } from "@/lib/transport-anchor";
@@ -325,7 +325,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         mode: t.mode, depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,
         reference: t.reference, notes: t.notes, sortOrder: t.sortOrder,
-        bookingState: effectiveBookingState("TRANSPORT", t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
+        bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
       },
     })),
     accommodations: source.accommodations.map((a) => ({

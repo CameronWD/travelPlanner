@@ -75,6 +75,7 @@ describe("demoBookingColumns (CONTEXT.md Booking state; spec 2026-10-17 R2)", ()
   it("derives the state from the reference, as every writer stores it", () => {
     expect(demoBookingColumns("TRANSPORT", {}, "Blue Mountains Line")).toEqual({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
     expect(demoBookingColumns("TRANSPORT", {}, null)).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null });
+    expect(demoBookingColumns("DRIVE", {}, null)).toEqual({ bookingState: "NONE", bookingStateSet: false, bookBy: null });
     expect(demoBookingColumns("ACCOMMODATION", {}, "HM-44821")).toEqual({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
     expect(demoBookingColumns("ITEM", {}, null)).toEqual({ bookingState: "NONE", bookingStateSet: false, bookBy: null });
   });

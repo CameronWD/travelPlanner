@@ -485,3 +485,28 @@ going unflagged.
   family.
 - **Every tick refreshes the plan (I3),** including "unchanged" and "gone",
   so a stale page reconciles with a partner's tick or a removed entry.
+- **A drive needs no booking by default (I4, Cam's ruling).** A CAR
+  Transport leg with no booking reference now derives **No booking needed**
+  (`NONE`), not To book, unless the Traveller chose a state; a reference
+  still means Booked. `lib/booking-state.ts` gains a `DRIVE` subject and
+  `transportBookingSubject(mode)`, which every Transport writer passes:
+  `createTransport`/`updateTransport` (so MCP and Booking import, which go
+  through them), the Fork copy (`lib/fork-plan.ts`), Duplicate trip (which
+  now stores the mode's default instead of leaving the column default), the
+  demo's `demoBookingColumns` and the Transport dialog's preview. A mode
+  change on an unchosen leg re-derives the state, because `updateTransport`
+  takes the subject from the mode after the write. Existing rows are fixed
+  by a new data-only migration,
+  `20261018120000_drive_booking_default` (the Branch 1 migration is
+  deployed and stays untouched).
+- **Deploy note (I4):** rows written by the old build during the deploy
+  window miss the migration, so re-run its statement once after the deploy
+  is live. It is idempotent:
+
+  ```sql
+  UPDATE "Transport" SET "bookingState" = 'NONE', "bookBy" = NULL
+  WHERE "bookingStateSet" = false AND "mode" = 'CAR' AND NULLIF(btrim("reference"), '') IS NULL;
+  ```
+
+  `prisma/real/persist.ts` still stores no Booking state at all (FT-03), so
+  a drive it loads takes the column default (To book) like every other leg.

@@ -85,6 +85,14 @@ describe("BookingStateField (CONTEXT.md Booking state)", () => {
     expect(on("To book")).toHaveAttribute("data-state", "on");
   });
 
+  it("an unchosen drive (a CAR leg) previews No booking needed; a reference previews Booked (I4)", async () => {
+    const user = userEvent.setup();
+    render(<Harness kind="DRIVE" seed={{ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null }} onPayload={() => {}} />);
+    expect(on("No booking needed")).toHaveAttribute("data-state", "on");
+    await user.type(screen.getByLabelText("Reference"), "HERTZ-123");
+    expect(on("Booked")).toHaveAttribute("data-state", "on");
+  });
+
   it("says booking is not paying", () => {
     render(<Harness kind="ITEM" onPayload={() => {}} />);
     expect(screen.getByText(/booked doesn't mean paid/i)).toBeInTheDocument();

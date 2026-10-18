@@ -93,7 +93,14 @@ describe("buildDuplicatePlan", () => {
     for (const key of ["bookingState", "bookingStateSet", "bookBy", "slotTime", "arriveByMinutes", "refundable"]) {
       expect(plan.items[0].data).not.toHaveProperty(key);
     }
-    expect(plan.transports[0].data).not.toHaveProperty("bookingState");
+    // A Transport leg starts at its mode's default (I4): no reference is copied.
+    expect(plan.transports[0].data).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: false });
+    expect(plan.transports[0].data).not.toHaveProperty("bookBy");
+  });
+
+  it("a duplicated drive (a CAR leg) needs no booking (I4)", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, transports: [{ ...SOURCE.transports[0], mode: "CAR" }] }, "x");
+    expect(plan.transports[0].data).toMatchObject({ mode: "CAR", bookingState: "NONE", bookingStateSet: false });
   });
 
   // Spec 2026-10-17 R6: the Try list belongs to the thing to do, so a Duplicate
@@ -149,6 +156,7 @@ describe("buildDuplicatePlan", () => {
       mode: "TRAIN", depPlace: "Roma Termini", arrPlace: "Firenze",
       depAt: null, arrAt: null, reference: null, notes: null,
       depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, sortOrder: 0,
+      bookingState: "TO_BOOK", bookingStateSet: false,
     });
   });
 

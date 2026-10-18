@@ -20,6 +20,7 @@ import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
 import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 import { revalidateTrip } from "@/lib/revalidate";
 import { resolveBookingWrite } from "@/lib/booking-state-patch";
+import { transportBookingSubject } from "@/lib/booking-state";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -94,7 +95,7 @@ export async function createTransport(
 
   const data = parsed.data;
   // CONTEXT.md "Booking state": stored as the effective state (a reference implies Booked).
-  const booking = resolveBookingWrite("TRANSPORT", null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.reference);
+  const booking = resolveBookingWrite(transportBookingSubject(data.mode), null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.reference);
   if ("success" in booking) return booking;
 
   // Normalise home-base flags: a home endpoint owns no stop and no free-text
@@ -260,8 +261,10 @@ export async function updateTransport(
   }
 
   const data = parsed.data;
+  // The subject follows the mode AFTER the write, so a mode change on an
+  // unchosen leg re-derives its state (a drive needs no booking).
   const booking = resolveBookingWrite(
-    "TRANSPORT",
+    transportBookingSubject(data.mode),
     before,
     { bookingState: patch.bookingState, bookBy: patch.bookBy },
     data.reference,

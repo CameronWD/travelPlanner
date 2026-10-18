@@ -21,6 +21,7 @@ import { assignTripSlug } from "@/lib/trip-slug-store";
 import { getStorage, generateKey } from "@/lib/storage";
 import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { DEMO_TRIP_NAMES } from "@/lib/demo";
+import { transportBookingSubject } from "@/lib/booking-state";
 import { demoLegAnchorKeys, demoTripToggles, demoBookingColumns, type DemoGlobe, type DemoTrip, type DemoPlan, type Who } from "@/lib/demo/types";
 import { gradientPng } from "@/lib/demo/cover-image";
 import { serializeOpeningHours } from "@/lib/validations/opening-hours";
@@ -464,7 +465,7 @@ export async function persistTrip(
           reference: t.reference ?? null,
           notes: t.notes ?? null,
           sortOrder: t.sortOrder,
-          ...demoBookingColumns("TRANSPORT", t, t.reference),
+          ...demoBookingColumns(transportBookingSubject(t.mode), t, t.reference),
         },
       });
       id.set(t.key, dbT.id);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BOOKING_STATES } from "@/lib/enum-values";
 import {
   BOOKING_STATE_LABELS, activeBookBy, bookingStateWrite, defaultBookingState,
-  derivedBookingState, effectiveBookingState, hasBookingReference, isBookingState,
+  derivedBookingState, effectiveBookingState, hasBookingReference, isBookingState, transportBookingSubject,
 } from "./booking-state";
 
 describe("BOOKING_STATES", () => {
@@ -85,5 +85,32 @@ describe("activeBookBy", () => {
     expect(activeBookBy("NONE", "2026-11-01")).toBeNull();
     expect(activeBookBy("TO_BOOK", null)).toBeNull();
     expect(activeBookBy("TO_BOOK", "")).toBeNull();
+  });
+});
+
+describe("a drive (a CAR Transport leg) needs no booking by default (I4)", () => {
+  const car = transportBookingSubject("CAR");
+
+  it("a CAR leg is a drive; every other mode is Transport", () => {
+    expect(car).toBe("DRIVE");
+    for (const mode of ["FLIGHT", "TRAIN", "BUS", "FERRY", "OTHER"]) expect(transportBookingSubject(mode)).toBe("TRANSPORT");
+  });
+
+  it("with no reference it is No booking needed; a reference still means Booked", () => {
+    expect(bookingStateWrite(car, null, undefined, null)).toEqual({ bookingState: "NONE", bookingStateSet: false });
+    expect(bookingStateWrite(car, null, undefined, "  ")).toEqual({ bookingState: "NONE", bookingStateSet: false });
+    expect(bookingStateWrite(car, null, undefined, "HERTZ-123")).toEqual({ bookingState: "BOOKED", bookingStateSet: false });
+  });
+
+  it("a state the Traveller chose is kept", () => {
+    expect(bookingStateWrite(car, null, "TO_BOOK", null)).toEqual({ bookingState: "TO_BOOK", bookingStateSet: true });
+    expect(bookingStateWrite(car, { bookingState: "TO_BOOK", bookingStateSet: true }, undefined, null)).toEqual({ bookingState: "TO_BOOK", bookingStateSet: true });
+    expect(bookingStateWrite("TRANSPORT", { bookingState: "NONE", bookingStateSet: true }, undefined, null)).toEqual({ bookingState: "NONE", bookingStateSet: true });
+  });
+
+  it("a mode change on an unchosen leg re-derives the state", () => {
+    // TRAIN to CAR: To book becomes No booking needed; CAR to TRAIN: back to To book.
+    expect(bookingStateWrite(transportBookingSubject("CAR"), { bookingState: "TO_BOOK", bookingStateSet: false }, undefined, null)).toEqual({ bookingState: "NONE", bookingStateSet: false });
+    expect(bookingStateWrite(transportBookingSubject("TRAIN"), { bookingState: "NONE", bookingStateSet: false }, undefined, null)).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false });
   });
 });

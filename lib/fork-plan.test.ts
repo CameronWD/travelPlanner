@@ -131,6 +131,9 @@ it("a source row without the new columns copies the derived state and nulls", ()
   const bare = buildForkPlan({ ...source, transports: [{ ...source.transports[0], reference: null }], items: [{ ...source.items[0], booking: null }] });
   expect(bare.transports[0].data.bookingState).toBe("TO_BOOK");
   expect(bare.items[0].data.bookingState).toBe("NONE");
+  // I4: an unchosen drive (a CAR leg) with no reference copies as No booking needed.
+  const drive = buildForkPlan({ ...source, transports: [{ ...source.transports[0], mode: "CAR", reference: null, bookingState: "TO_BOOK", bookingStateSet: false }] });
+  expect(drive.transports[0].data).toMatchObject({ bookingState: "NONE", bookingStateSet: false });
 });
 
 // Spec 2026-10-17 R6: a Fork is a faithful copy, so the Try list carries into

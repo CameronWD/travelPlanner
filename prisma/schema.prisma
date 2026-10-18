@@ -719,7 +719,8 @@ model Transport {
   // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — lib/enum-values.ts
   // BOOKING_STATES. Always the EFFECTIVE state: every writer stores
   // lib/booking-state.ts bookingStateWrite's result. bookingStateSet = the
-  // Traveller chose it; false = derived (a `reference` means BOOKED, else TO_BOOK).
+  // Traveller chose it; false = derived (a `reference` means BOOKED, else
+  // TO_BOOK, or NONE for a drive: mode CAR, lib/booking-state.ts transportBookingSubject).
   bookingState    String  @default("TO_BOOK")
   bookingStateSet Boolean @default(false)
   bookBy          String? // "YYYY-MM-DD" — read only while To book (lib/booking-state.ts activeBookBy)

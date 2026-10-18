@@ -3316,7 +3316,9 @@ each is a one-file follow-up.
   `demoBookingColumns` now does for the demo persister
   (`prisma/demo/persist.ts`). Branch 1's migration backfill already corrects
   rows written through the app, so this only affects data loaded by this
-  script.
+  script. A drive (a CAR leg) it loads is To book too, rather than the
+  No booking needed the app now derives (I4); `demoBookingColumns` with
+  `transportBookingSubject(t.mode)` is the fix.
 - **FT-04 · `get_wishlist` ideas carry no Try list or Opening hours.**
   `WISHLIST_IDEA_SELECT` and `McpIdea` (`lib/mcp/reads/lists.ts` ~59-68)
   don't select or expose `tryList`/`openingHours`, so Claude can't see or

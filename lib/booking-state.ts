@@ -7,10 +7,21 @@ import { BOOKING_STATES, type BookingState } from "@/lib/enum-values";
  * Columns: `bookingState` is always the EFFECTIVE state, `bookingStateSet`
  * says the Traveller chose it. Unset, a booking reference (Item `booking`,
  * Transport `reference`, Accommodation `confirmation`) means Booked, and its
- * absence means the subject's default. Every writer stores
+ * absence means the subject's default (a Transport leg's subject follows its
+ * mode: `transportBookingSubject`). Every writer stores
  * `bookingStateWrite`'s result, so readers filter the column directly.
  */
-export type BookingSubject = "ITEM" | "TRANSPORT" | "ACCOMMODATION";
+export type BookingSubject = "ITEM" | "TRANSPORT" | "DRIVE" | "ACCOMMODATION";
+
+/**
+ * A Transport leg's subject, by its mode: a CAR leg is a drive (DRIVE), which
+ * needs no booking unless it carries a reference or the Traveller says so;
+ * every other mode is TRANSPORT. Every Transport writer passes this, never a
+ * bare "TRANSPORT", so a mode change on an unchosen leg re-derives its state.
+ */
+export function transportBookingSubject(mode: string): "TRANSPORT" | "DRIVE" {
+  return mode === "CAR" ? "DRIVE" : "TRANSPORT";
+}
 
 export const BOOKING_STATE_LABELS: Record<BookingState, string> = {
   NONE: "No booking needed",
@@ -22,9 +33,9 @@ export function isBookingState(v: unknown): v is BookingState {
   return typeof v === "string" && (BOOKING_STATES as readonly string[]).includes(v);
 }
 
-/** An Item needs no booking unless the Traveller says so; Transport and Accommodation are To book. */
+/** An Item, and a drive (a CAR leg), need no booking unless the Traveller says so; other Transport and Accommodation are To book. */
 export function defaultBookingState(subject: BookingSubject): BookingState {
-  return subject === "ITEM" ? "NONE" : "TO_BOOK";
+  return subject === "ITEM" || subject === "DRIVE" ? "NONE" : "TO_BOOK";
 }
 
 /** A reference that is blank or whitespace is no reference. */

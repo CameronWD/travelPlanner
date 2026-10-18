@@ -50,6 +50,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { resolveTransportSlot, canSitBeforeFirstStop, creationAnchor, HEAD_SLOT } from "@/lib/transport-anchor";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
+import { transportBookingSubject } from "@/lib/booking-state";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -459,7 +460,7 @@ function TransportForm({
     proposed?.arrAt ? proposed.arrAt : instantToWallTimeInput(transport?.arrAt, initialZones.arrTz),
   );
   const [reference, setReference] = React.useState(transport?.reference ?? proposed?.reference ?? "");
-  const bookingField = useBookingStateField("TRANSPORT", transport ?? seedFromProposal(proposed), reference);
+  const bookingField = useBookingStateField(transportBookingSubject(mode), transport ?? seedFromProposal(proposed), reference);
   const [notesText, setNotesText] = React.useState(transport?.notes ?? proposed?.notes ?? "");
   // Car with no times yet shows a drive estimate instead of empty Leaves/
   // Arrives cards; "Add times" reveals them without waiting for a real time.

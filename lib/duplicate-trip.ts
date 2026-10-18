@@ -14,6 +14,8 @@
 import { creationAnchor } from "@/lib/transport-anchor";
 import { untickAll } from "@/lib/try-list";
 import { parseTryList, serializeTryList } from "@/lib/validations/try-list";
+import { defaultBookingState, transportBookingSubject } from "@/lib/booking-state";
+import type { BookingState } from "@/lib/enum-values";
 
 interface DuplicateSourceChapter {
   id: string;
@@ -136,6 +138,7 @@ export interface DuplicatePlan {
     data: {
       mode: string; depPlace: string | null; arrPlace: string | null; depAt: null; arrAt: null; reference: null; notes: null;
       depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; sortOrder: number;
+      bookingState: BookingState; bookingStateSet: false;
     };
   }>;
   checklistItems: Array<{ data: { kind: string; text: string; done: false; dueDate: null; assignedToId: null; sortOrder: number } }>;
@@ -226,6 +229,9 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         arrLat: t.arrLat,
         arrLng: t.arrLng,
         sortOrder: idx,
+        // No reference is copied, so the leg starts at its mode's default: a drive needs no booking.
+        bookingState: defaultBookingState(transportBookingSubject(t.mode)),
+        bookingStateSet: false,
       },
     })),
     checklistItems: source.checklistItems.map((c, idx) => ({

@@ -3,7 +3,7 @@ import type { ProjectionStop } from "@/lib/firm-up";
 import type { HomeBase } from "@/lib/home-base";
 import { orderPlanStops } from "@/lib/plan-order";
 import { creationAnchor } from "@/lib/transport-anchor";
-import { activeBookBy, bookingStateWrite, type BookingSubject } from "@/lib/booking-state";
+import { activeBookBy, bookingStateWrite, transportBookingSubject, type BookingSubject } from "@/lib/booking-state";
 import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
 
@@ -90,7 +90,7 @@ export function toFlagStop(s: DemoStop): FlagStop | null {
   return { id: s.key, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate, timezone: s.timezone, lat: s.lat ?? null, lng: s.lng ?? null, sortOrder: s.sortOrder };
 }
 function toFlagTransport(t: DemoTransport): FlagTransport {
-  const b = demoBookingColumns("TRANSPORT", t, t.reference);
+  const b = demoBookingColumns(transportBookingSubject(t.mode), t, t.reference);
   return { id: t.key, fromStopId: t.fromStopKey ?? null, toStopId: t.toStopKey ?? null, depAt: t.depAt ?? null, arrAt: t.arrAt ?? null, mode: t.mode, depIsHome: t.depIsHome ?? false, arrIsHome: t.arrIsHome ?? false, bookingState: b.bookingState, bookBy: b.bookBy };
 }
 function toFlagItem(i: DemoItem): FlagItem {
