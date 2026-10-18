@@ -314,3 +314,19 @@ describe("itemSchema: Slot time (R3)", () => {
     if (!r.success) expect(r.error.issues[0].path).toEqual(["arriveByMinutes"]);
   });
 });
+
+describe("itemSchema: tryList (CONTEXT.md Try list)", () => {
+  it("passes a Try list through, and leaves it out when not given", () => {
+    const r = itemSchema.parse({ title: "Lebkuchen-Schmidt", category: "FOOD", tryList: [{ text: " Elisenlebkuchen " }] });
+    expect(r.tryList).toEqual([{ text: "Elisenlebkuchen" }]);
+    expect(itemSchema.parse({ title: "Walk", category: "OTHER" }).tryList).toBeUndefined();
+  });
+
+  it("reports a bad Try list on the tryList field", () => {
+    const r = itemSchema.safeParse({ title: "Market", category: "FOOD", tryList: [{ text: "" }] });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0].path[0]).toBe("tryList");
+    const many = itemSchema.safeParse({ title: "Market", category: "FOOD", tryList: Array.from({ length: 31 }, (_, i) => ({ text: `T${i}` })) });
+    expect(many.error?.issues[0]).toMatchObject({ path: ["tryList"], message: "At most 30 things to try" });
+  });
+});
