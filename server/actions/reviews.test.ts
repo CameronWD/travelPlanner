@@ -227,3 +227,79 @@ describe("applyFinding (R8: runs the existing action, with Undo)", () => {
     expect(await applyFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.gone, "gone"));
   });
 });
+
+describe("undoFinding of an Apply", () => {
+  const fix = { kind: "item.bookingState", id: "i1", bookingState: "TO_BOOK", bookBy: "2027-05-20" };
+  const payload = JSON.stringify({
+    fix,
+    before: { kind: "booking", bookingState: "NONE", bookingStateSet: false, bookBy: null },
+    after: { kind: "booking", bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" },
+  });
+  const APPLIED_ROW = { ...ITEM, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-20" };
+
+  it("puts a derived Booking state back to derived and reopens the Finding", async () => {
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, suggestedFix: JSON.stringify(fix), undoPayload: payload });
+    mdb.item.findUnique.mockResolvedValue(APPLIED_ROW);
+    expect(await undoFinding("f1")).toEqual({ success: true });
+    expect(mdb.finding.updateMany).toHaveBeenCalledWith({
+      where: { id: "f1", state: "APPLIED", undoPayload: payload },
+      data: { state: "OPEN", stateById: null, stateAt: null, undoPayload: null },
+    });
+    expect(h.updateItem).toHaveBeenCalledWith("i1", { bookingState: null, bookBy: null });
+    expect(h.revalidateTrip).toHaveBeenCalledWith("t1", "reviews");
+  });
+
+  it("refuses when the row was changed since Apply, and changes nothing", async () => {
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: payload });
+    mdb.item.findUnique.mockResolvedValue({ ...APPLIED_ROW, bookingState: "BOOKED" });
+    expect(await undoFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.changed, "changed"));
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+    expect(h.updateItem).not.toHaveBeenCalled();
+  });
+
+  it("when the restore is refused, the Finding goes back to Applied as it was", async () => {
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: payload });
+    mdb.item.findUnique.mockResolvedValue(APPLIED_ROW);
+    const refusal = { success: false, errors: { bookBy: ["No"] } };
+    h.updateItem.mockResolvedValueOnce(refusal);
+    expect(await undoFinding("f1")).toEqual(refusal);
+    expect(mdb.finding.updateMany).toHaveBeenLastCalledWith({
+      where: { id: "f1", state: "OPEN", stateById: null },
+      data: { state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: payload },
+    });
+  });
+
+  it("a Finding still being applied (no payload yet) can't be undone yet", async () => {
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: null });
+    expect(await undoFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.applying, "applying"));
+  });
+
+  it("fails cleanly when the target is gone", async () => {
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: payload });
+    h.requireRowAccess.mockRejectedValueOnce(NOT_FOUND);
+    expect(await undoFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.goneUndo, "gone"));
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("restores a chosen state as a choice, and a note verbatim", async () => {
+    const chosen = JSON.stringify({
+      fix: { kind: "transport.bookingState", id: "tr1", bookingState: "BOOKED" },
+      before: { kind: "booking", bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-01" },
+      after: { kind: "booking", bookingState: "BOOKED", bookingStateSet: true, bookBy: null },
+    });
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: chosen });
+    mdb.transport.findUnique.mockResolvedValue({ tripId: "t1", forkId: null, bookingState: "BOOKED", bookingStateSet: true, bookBy: null });
+    await undoFinding("f1");
+    expect(h.updateTransport).toHaveBeenCalledWith("tr1", { bookingState: "TO_BOOK", bookBy: "2027-05-01" });
+
+    const note = JSON.stringify({
+      fix: { kind: "item.note", itemId: "i1", append: "x" },
+      before: { kind: "note", notes: null },
+      after: { kind: "note", notes: "x" },
+    });
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: note });
+    mdb.item.findUnique.mockResolvedValue({ ...ITEM, notes: "x" });
+    await undoFinding("f1");
+    expect(h.updateItem).toHaveBeenCalledWith("i1", { notes: null });
+  });
+});

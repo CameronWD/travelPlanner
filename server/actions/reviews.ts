@@ -14,6 +14,7 @@ import { parseSuggestedFix } from "@/lib/review/schema";
 import {
   REVIEW_ACTION_COPY as COPY,
   appendedNote,
+  parseUndoPayload,
   fixTarget,
   sameSnapshot,
   snapshotFor,
@@ -191,6 +192,10 @@ export async function dismissFinding(findingId: string): Promise<ActionResult> {
   return ok();
 }
 
+/**
+ * Undo: a Dismiss reopens; an Apply restores the fields it changed (unless
+ * they changed since) and reopens. Works on a Finding of any Review.
+ */
 export async function undoFinding(findingId: string): Promise<ActionResult> {
   const { finding } = await requireFindingAccess(findingId);
   if (finding.state === "DISMISSED") {
@@ -202,5 +207,28 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
     revalidateTrip(finding.tripId, "reviews");
     return ok();
   }
-  return formFail(COPY.nothing, "nothing");
+  if (finding.state !== "APPLIED") return formFail(COPY.nothing, "nothing");
+  const payload = parseUndoPayload(finding.undoPayload);
+  if (!payload) return formFail(COPY.applying, "applying");
+  const row = await reachableRow(fixTarget(payload.fix), finding.tripId);
+  if (!row) return formFail(COPY.goneUndo, "gone");
+  // Decision 7: never overwrite an edit made since Apply.
+  if (!sameSnapshot(snapshotFor(payload.fix, row), payload.after)) return formFail(COPY.changed, "changed");
+
+  const claimed = await db.finding.updateMany({
+    where: { id: finding.id, state: "APPLIED", undoPayload: finding.undoPayload },
+    data: { state: "OPEN", stateById: null, stateAt: null, undoPayload: null },
+  });
+  if (claimed.count === 0) return formFail(COPY.handled, "handled");
+
+  const result = await guarded(() => restoreSnapshot(payload.fix, payload.before, row), COPY.goneUndo);
+  if (!result.success) {
+    await db.finding.updateMany({
+      where: { id: finding.id, state: "OPEN", stateById: null },
+      data: { state: "APPLIED", stateById: finding.stateById, stateAt: finding.stateAt, undoPayload: finding.undoPayload },
+    });
+    return result;
+  }
+  revalidateTrip(finding.tripId, "reviews");
+  return ok();
 }
