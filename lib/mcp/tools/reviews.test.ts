@@ -25,6 +25,9 @@ describe("get_review and list_reviews (R13)", () => {
     for (const name of ["get_review", "list_reviews"]) expect(tools.get(name)?.annotations?.readOnlyHint, name).toBe(true);
     expect(tools.get("get_review")!.description).toContain("No longer found");
     expect(tools.get("get_review")!.description).toContain("fixWith");
+    // Final wave, parked 6: a DAY target's id is null and its date is what get_day takes; the history is capped.
+    expect(tools.get("get_review")!.description).toContain("A DAY target has a null id: its day is the Finding's date (YYYY-MM-DD), which is what get_day takes.");
+    expect(tools.get("list_reviews")!.description).toContain("at most 50");
   });
 
   it("list_reviews returns the trip's Reviews as the reader shapes them", async () => {
@@ -131,7 +134,7 @@ describe("review_trip (R12, R13)", () => {
     const c = await connectTestClient({ reviewPermission: "LIMITED" });
     const r = await c.callTool({ name: "review_trip", arguments: { tripId: "trip-1" } });
     expect(r.isError).toBe(true);
-    expect(text(r)).toBe("Couldn't do that: You've used your Reviews for now. The next one is available from 2027-05-02T09:00:00.000Z.");
+    expect(text(r)).toBe("Couldn't do that: You've used your Reviews for now. The next one is available from 2027-05-02T09:00:00.000Z (UTC).");
     expect(m.loadReviewForMcp).not.toHaveBeenCalled();
   });
 

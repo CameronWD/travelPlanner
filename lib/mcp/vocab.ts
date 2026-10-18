@@ -114,7 +114,7 @@ export const FINDING_CATEGORY_MEANING: Record<FindingCategory, string> = {
 /** CONTEXT.md Finding: the four states. */
 export const FINDING_STATE_MEANING: Record<FindingState, string> = {
   OPEN: "Open, nobody has acted on it yet",
-  APPLIED: "Applied, someone made its suggested fix in Teepee",
+  APPLIED: "Applied, someone pressed Apply on it in the app",
   DISMISSED: "Dismissed, someone decided it doesn't matter. A later Review keeps it dismissed",
   GONE: "No longer found, a later Review didn't raise it again",
 };
@@ -137,11 +137,12 @@ export const FINDING_ORIGIN_MEANING: Record<FindingOrigin, string> = {
  */
 export const FIX_WITH_TOOL: Record<SuggestedFix["kind"], string> = {
   "item.times": "update_thing_to_do with startTime and endTime, or schedule_thing_to_do to change the date",
-  "item.bookingState": "set_booking_state with kind ITEM",
-  "transport.bookingState": "set_booking_state with kind TRANSPORT",
-  "accommodation.bookingState": "set_booking_state with kind ACCOMMODATION",
+  "item.bookingState": "set_booking_state with kind ITEM, passing the fix's bookingState as state (and its bookBy, if any)",
+  "transport.bookingState": "set_booking_state with kind TRANSPORT, passing the fix's bookingState as state (and its bookBy, if any)",
+  "accommodation.bookingState": "set_booking_state with kind ACCOMMODATION, passing the fix's bookingState as state (and its bookBy, if any)",
   "item.openingHours": "set_opening_hours with the hours and the source page",
-  "item.note": "update_thing_to_do with the text added to its notes",
+  // update_thing_to_do replaces notes whole, so the current ones are read first.
+  "item.note": "update_thing_to_do, after you read the current notes with get_item: pass them back with the text added",
 };
 
 /**

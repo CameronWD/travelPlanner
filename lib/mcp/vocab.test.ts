@@ -135,11 +135,19 @@ it("a Review's depth is the same word in review_trip and in get_review (R13)", (
   expect(REVIEW_KIND_OF_DEPTH).toEqual({ standard: "STANDARD", deep: "DEEP" });
 });
 
+it("the fix and state wording says how to pass a fix and what Applied means (final wave, parked 6)", () => {
+  for (const kind of ["item.bookingState", "transport.bookingState", "accommodation.bookingState"] as const) {
+    expect(FIX_WITH_TOOL[kind]).toContain("passing the fix's bookingState as state");
+  }
+  expect(FIX_WITH_TOOL["item.note"]).toMatch(/^update_thing_to_do, after you read the current notes with get_item: pass them back with the text added$/);
+  expect(FINDING_STATE_MEANING.APPLIED).toBe("Applied, someone pressed Apply on it in the app");
+});
+
 it("every suggested fix names a real tool Claude can make the same change with", async () => {
   const c = await connectTestClient();
   const names = new Set((await c.listTools()).tools.map((t) => t.name));
   for (const [kind, how] of Object.entries(FIX_WITH_TOOL)) {
-    const tool = how.split(" ")[0];
+    const tool = how.split(/[\s,]/)[0];
     expect(names.has(tool), `${kind} → ${tool}`).toBe(true);
   }
   // House style: the text reaches Claude verbatim.

@@ -31,7 +31,7 @@ export function registerReviewReadTools(server: McpServer): void {
     {
       title: "List reviews",
       description:
-        "Lists the trip's Reviews, newest first: who started each, when, its depth (standard or deep), its status (RUNNING, DONE or FAILED), its summary line and how many Findings are still open. " +
+        "Lists the trip's latest Reviews, at most 50, newest first: who started each, when, its depth (standard or deep), its status (RUNNING, DONE or FAILED), its summary line and how many Findings are still open. " +
         "A Review is a saved check of the whole trip that Teepee ran. It is not the review-plan prompt. Read one with get_review.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
@@ -46,7 +46,7 @@ export function registerReviewReadTools(server: McpServer): void {
       description:
         "Reads one Review and its Findings, warnings first. While its status is RUNNING it has no Findings yet, so check again in a minute or two. " +
         `${FINDINGS_EXPLAINED} ` +
-        "target names what a Finding is about (type ITEM, TRANSPORT, ACCOMMODATION, STOP, DAY or TRIP, and its id). Read it with get_item, get_transport, get_accommodation, get_stop or get_day. " +
+        "target names what a Finding is about (type ITEM, TRANSPORT, ACCOMMODATION, STOP, DAY or TRIP, and its id). Read it with get_item, get_transport, get_accommodation or get_stop. A DAY target has a null id: its day is the Finding's date (YYYY-MM-DD), which is what get_day takes. A TRIP target has a null id too. " +
         "suggestedFix is the change the app's Apply button would make, and fixWith names the tool you would make it with. Making the change yourself does not mark the Finding Applied, and only someone in the app can Apply or Dismiss it. " +
         "A Review saw the trip as everyone on it sees it, so a Surprise's contents are never in it, and a Finding about something kept from the person you act as is left out. Tell the person what it found and change nothing until they agree.",
       inputSchema: { reviewId: z.string() },
@@ -66,7 +66,7 @@ type StartResult = Awaited<ReturnType<typeof startReview>>;
 function withNextAvailable(result: StartResult): StartResult {
   if (result.success || !result.nextAvailableAt) return result;
   const errors = Object.fromEntries(
-    Object.entries(result.errors).map(([k, msgs]) => [k, k === "_" ? msgs.map((msg) => `${msg} The next one is available from ${result.nextAvailableAt}.`) : msgs]),
+    Object.entries(result.errors).map(([k, msgs]) => [k, k === "_" ? msgs.map((msg) => `${msg} The next one is available from ${result.nextAvailableAt} (UTC).`) : msgs]),
   );
   return { ...result, errors };
 }
@@ -87,7 +87,7 @@ export function registerReviewRunTool(server: McpServer): void {
       description:
         "Starts a Review of the whole trip: Teepee checks the real plan as everyone on the trip sees it (Surprises masked), with web search for closures, seasons, public holidays, tickets, logistics, stale notes and packing, and restates the current Flags. " +
         "It runs in the background and takes a few minutes. This returns the Review with status RUNNING and no Findings yet. Check it with get_review. " +
-        "Each one counts against the person's Review allowance, and a trip runs one at a time. If it is refused, say why, in the words it gives.",
+        "Each one counts against the person's Review allowance, and a trip runs one at a time. If it is refused, say why, in the words it gives. A refusal at the allowance gives when the next one is available as a UTC time: say it in the person's own time.",
       inputSchema: {
         tripId: z.string(),
         depth: z.enum(REVIEW_DEPTHS).optional().describe(describeValues("How thorough. Left out, standard.", REVIEW_DEPTH_MEANING, REVIEW_DEPTHS)),

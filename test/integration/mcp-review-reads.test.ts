@@ -7,6 +7,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }
 import { db } from "@/lib/db";
 import { runAsTraveller } from "@/lib/mcp/acting-traveller";
 import { loadReviewForMcp, loadReviewsForMcp } from "@/lib/mcp/reads/reviews";
+import { FIX_WITH_TOOL } from "@/lib/mcp/vocab";
 
 const OWNER = "it-mrev-owner";
 const MEMBER = "it-mrev-member";
@@ -85,7 +86,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP Review reads (real Postgre
   it("get_review returns warnings first, the fix parsed with its tool, and who dismissed", async () => {
     const r = await as(MEMBER)(() => loadReviewForMcp(NEW));
     expect(r.findings.map((f) => f.id)).toEqual(["it-mrev-f2", "it-mrev-f1", "it-mrev-f3", "it-mrev-f5"]);
-    expect(r.findings[0]).toMatchObject({ target: { type: "ITEM", id: LELLO }, suggestedFix: { kind: "item.bookingState" }, fixWith: "set_booking_state with kind ITEM" });
+    expect(r.findings[0]).toMatchObject({ target: { type: "ITEM", id: LELLO }, suggestedFix: { kind: "item.bookingState" }, fixWith: FIX_WITH_TOOL["item.bookingState"] });
     expect(r.findings[2]).toMatchObject({ state: "DISMISSED", stateBy: MEMBER, origin: "FLAG" });
   });
 
