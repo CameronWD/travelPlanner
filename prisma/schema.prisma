@@ -109,6 +109,13 @@ model User {
   /// that existed before the column — they are meant to see it once too.
   welcomeSeenAt DateTime?
 
+  /// Who may start a Review (spec 2026-10-17 R12, CONTEXT.md "Review"):
+  /// "OFF" | "LIMITED" | "UNLIMITED" (lib/enum-values.ts REVIEW_PERMISSIONS),
+  /// set by an Admin on the Admin page. A column, not ADMIN_EMAILS: it is
+  /// changed from the page without a deploy, and it is independent of Admin
+  /// standing. An unknown value reads as OFF (lib/review-permission.ts).
+  reviewPermission String @default("OFF")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
