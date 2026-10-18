@@ -48,6 +48,8 @@ export function registerReviewReadTools(server: McpServer): void {
         `${FINDINGS_EXPLAINED} ` +
         "target names what a Finding is about (type ITEM, TRANSPORT, ACCOMMODATION, STOP, DAY or TRIP, and its id). Read it with get_item, get_transport, get_accommodation or get_stop. A DAY target has a null id: its day is the Finding's date (YYYY-MM-DD), which is what get_day takes. A TRIP target has a null id too. " +
         "suggestedFix is the change the app's Apply button would make, and fixWith names the tool you would make it with. Making the change yourself does not mark the Finding Applied, and only someone in the app can Apply or Dismiss it. " +
+        "A checklist.add fix adds an entry to the trip's Packing list or Pre-trip checklist rather than changing the plan: for a PACKING one, ask whether they need to buy it. " +
+        "A Finding with state FIXED needs nothing doing. " +
         "A Review saw the trip as everyone on it sees it, so a Surprise's contents are never in it, and a Finding about something kept from the person you act as is left out. Tell the person what it found and change nothing until they agree.",
       inputSchema: { reviewId: z.string() },
       annotations: { readOnlyHint: true },

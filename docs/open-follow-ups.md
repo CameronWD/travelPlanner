@@ -496,15 +496,16 @@ naming, doc drift.
 | `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
 | `TU-` | **no source doc** — found while building tidy-up batch 3 on branch `chore/tidy-up-3-shape-hygiene`, 2026-10-16 (`TU-01`, `TU-02`; the build ledger was scratch and is gone — the as-built notes in `docs/specs/2026-10-14-tidy-up-pass.md` are the record) |
 | `CF-` | **no source doc** — found while building the Claude connection fixes on branch `feat/feedback-tz-enddate-review`, 2026-10-16/17 (`CF-01`–`CF-11`; the as-built notes in `docs/specs/2026-10-16-claude-connection-fixes.md` are the record) |
+| `AF-` | **no source doc** — deferred from the Actionable Findings spec (2026-10-18): Section "Not in this branch / follow-ups" (`AF-01`) |
 
-`SW-`, `CB-`, `RG-`, `TU-` and `CF-` are the prefixes with nothing to follow the citation
+`SW-`, `CB-`, `RG-`, `TU-`, `CF-` and `AF-` are the prefixes with nothing to follow the citation
 back to. Those entries are self-contained: the evidence in them is all the
 evidence there is.
 
 ---
 # Open items
 
-**13 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), and `CF-01`–`CF-03` and `CF-06`–`CF-11` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ and ~~`CF-05`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
+**14 items: `RG-01` (added 2026-09-23), `LA-215` (added 2026-10-12), `TD-01` and `DS-01` (added 2026-10-14), `AF-01` (added 2026-10-18), and `CF-01`–`CF-03` and `CF-06`–`CF-11` (added 2026-10-17). ~~`TU-01`~~ and ~~`TU-02`~~ were fixed 2026-10-16, and ~~`CF-04`~~ and ~~`CF-05`~~ 2026-10-17, on `feat/feedback-tz-enddate-review`.** `LA-215` is being fixed by the 2026-10-14 tidy-up pass (`docs/specs/2026-10-14-tidy-up-pass.md`, TB-02) and closes when that batch is deployed. All are below. Everything that stood here
 before it was closed out on 2026-09-21 on branch
 `chore/close-the-open-backlog` — struck, settled, or split between the two.
 The trail:
@@ -524,6 +525,24 @@ The trail:
 **That trail emptied this section; it did not mean nothing was owed.** Twelve
 items sit in *Blocked*, untouched, and a third migration (`whatsNewSeenAt`,
 ADR 0056) is written and unapplied — see the trust statement above.
+
+### AF-01 · Real routing for tight-connection and long-driving-day times
+
+- **Priority: P1** · **Effort: L** — integrates a routing service, needs an ADR.
+- **Source:** none — section "Not in this branch / follow-ups" of the Actionable
+  Findings spec (2026-10-18).
+- **What:** computing travel time between Items and real routing (Google Maps,
+  Apple Maps, or OpenStreetMap) for walk/drive/transit times in tight-connection
+  Findings and long-driving-day Flags. Reverses the "no routing SDK" stance in
+  `docs/maps-overview.md` (spec 2026-08-15, A6), so it needs an ADR.
+- **Where:** tight-connection retime is computed in `lib/flags.ts` (`tightRetime`
+  function at :663, called inside `flagTightConnections` at :675), computing the
+  later Item's new start time; restated as a Finding in `lib/review/from-flags.ts`
+  (`flagsToFindings` at :47); long-driving-day Flags are also generated in
+  `lib/flags.ts` (computed against Item times, not actual drive time).
+- **Fix to decide:** which routing service, and how to wire the travel-time
+  lookup into both paths. The ADR should surface where the service is called,
+  when caching is needed, and costs (quota or per-call).
 
 ### DS-01 · Generated screen pass for the Claude Design refinement (light theme only)
 

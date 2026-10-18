@@ -30,6 +30,22 @@ describe("get_review and list_reviews (R13)", () => {
     expect(tools.get("list_reviews")!.description).toContain("at most 50");
   });
 
+  it("get_review describes checklist.add fixes and the FIXED state", async () => {
+    const c = await connectTestClient();
+    const tools = new Map((await c.listTools()).tools.map((t) => [t.name, t]));
+    const desc = tools.get("get_review")!.description;
+    // Task 9: explain checklist.add fix
+    expect(desc).toContain("checklist.add");
+    expect(desc).toContain("Packing list");
+    expect(desc).toContain("Pre-trip checklist");
+    expect(desc).toContain("ask whether they need to buy it");
+    // Task 6/A4: FIXED state meaning
+    expect(desc).toContain("FIXED");
+    expect(desc).toContain("the app can see the problem is gone from the plan now");
+    // Task 9: Finding with FIXED needs nothing doing
+    expect(desc).toContain("A Finding with state FIXED needs nothing doing");
+  });
+
   it("list_reviews returns the trip's Reviews as the reader shapes them", async () => {
     m.loadReviewsForMcp.mockResolvedValue({ reviews: [{ id: "rev-1", depth: "standard", status: "DONE", openFindings: 3 }] });
     const c = await connectTestClient();

@@ -37,7 +37,7 @@ A new fix kind, proposed by the model (Standard and Deep Reviews alike):
   buttons instead of one Apply: **Need to pack** (adds the Packing entry) and
   **Need to buy** (adds it marked Need to buy, so it also shows on the Shopping
   list — CONTEXT.md **Shopping list**). The model never decides buy vs pack.
-- **Pre-trip** — `{ list: PRE_TRIP, text }`, e.g. "Buy the 3-day Kansai pass".
+- **Pre-trip** — `{ list: PRETRIP, text }`, e.g. "Buy the 3-day Kansai pass".
   One **Add to pre-trip checklist** button. No due date.
 - No standalone Shopping-list fixes, no Reminders.
 - Allowed on **any** Finding target (an umbrella Finding may be about the Kyoto
@@ -129,6 +129,22 @@ leaving the tab is safe; the page just never said so.
   "7 to deal with" (today only a FAILED run toasts).
 - Home's review line, while one runs: "Review running, back around 14:10".
 - Push or email on finish: not in this branch.
+
+## As built
+
+- **A2 Checklist list names:** `PRETRIP` (not `PRE_TRIP`), read from the schema
+  everywhere checklist fixes are explained or applied.
+- **A4 Fixed in the plan:** read-time derivation uses the Flag id already in
+  `Finding.key` — no schema migration. Derived by comparing the live Plan
+  against the Flags as everyone sees them (using the guarded
+  `getTripProjection`), while the Review input reads the unguarded
+  `loadTripProjection` as before.
+- **A3 Tight-connection re-target:** when the retimed Item's start is rounded
+  up to 5-minute boundaries, the Finding's key is re-keyed once (Finding id
+  stays, but key changes to match the new time). Matching across Reviews still
+  uses `flagId`.
+- **A1 Whole-Trip Finding go-to:** a live Finding with target type TRIP and no
+  fix shows only Dismiss; its go-to button opens the plan ("Open in the plan").
 
 ## Not in this branch / follow-ups
 
