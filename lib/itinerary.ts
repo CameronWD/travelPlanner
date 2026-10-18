@@ -11,6 +11,7 @@ import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
+import type { TryList } from "@/lib/try-list";
 
 // ---------------------------------------------------------------------------
 // Minimal input shapes
@@ -57,6 +58,8 @@ export interface ItineraryItem {
   surprise?: SurpriseView | null;
   /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
   openingHours?: OpeningHours | null;
+  /** CONTEXT.md "Try list": things to try there, ticked on the day; null/absent = none. */
+  tryList?: TryList | null;
 }
 
 export interface ItineraryTransport {

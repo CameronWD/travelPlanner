@@ -143,4 +143,24 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readDayRows (real Postgres)", 
     expect(member.rows.items.find((i) => i.id === "it-dr-dinner")!.openingHours).toBeNull();
     expect(JSON.stringify(member.rows)).not.toContain("it-birthday-dinner");
   });
+
+  it("a dated Item carries its Try list to the Day view; a hidden Surprise's placeholder never does", async () => {
+    const list = [
+      { id: "itdre1", text: "IT Pastel de nata", tried: true },
+      { id: "itdre2", text: "IT Bifana", tried: false },
+    ];
+    await db.item.update({ where: { id: "it-dr-tram" }, data: { tryList: JSON.stringify(list) } });
+    await db.item.update({ where: { id: "it-dr-dinner" }, data: { tryList: JSON.stringify([{ id: "itdrs1", text: "IT birthday cake stall", tried: false }]) } });
+
+    const planner = await readDayRows(TRIP_ID, PLANNER, none);
+    if (typeof planner === "string") throw new Error(planner);
+    expect(planner.rows.items.find((i) => i.id === "it-dr-tram")!.tryList).toEqual(list);
+    const day = buildDayModel(planner.rows, "2027-06-02").dayPlan!;
+    expect([...day.timedItems, ...day.untimedItems].find((e) => e.item.id === "it-dr-tram")!.item.tryList).toEqual(list);
+
+    const member = await readDayRows(TRIP_ID, MEMBER, none);
+    if (typeof member === "string") throw new Error(member);
+    expect(member.rows.items.find((i) => i.id === "it-dr-dinner")!.tryList).toBeNull();
+    expect(JSON.stringify(member.rows)).not.toContain("birthday cake stall");
+  });
 });

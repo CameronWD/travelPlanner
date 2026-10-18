@@ -23,6 +23,7 @@ import { db } from "@/lib/db";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import { loadSurpriseVisibility, maskSurpriseStops, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
+import { withTryList } from "@/lib/try-list-stored";
 import type { DayRows } from "@/lib/day-view-model";
 import type { BookingState } from "@/lib/enum-values";
 
@@ -73,7 +74,7 @@ export async function readDayRows<X>(
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
         lat: true, lng: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
-        slotTime: true, arriveByMinutes: true, refundable: true, openingHours: true,
+        slotTime: true, arriveByMinutes: true, refundable: true, openingHours: true, tryList: true,
         bookingState: true, bookingStateSet: true, bookBy: true,
       },
     }),
@@ -130,12 +131,12 @@ export async function readDayRows<X>(
 
   const placeholders = v.placeholderItems.filter((p) => p.forkId === null && p.date !== null);
   const items: DayRows["items"] = [
-    ...itemRows.map((it) => ({ ...withOpeningHours(it), bookingState: it.bookingState as BookingState, surprise: v.views.items.get(it.id) ?? null })),
+    ...itemRows.map((it) => ({ ...withTryList(withOpeningHours(it)), bookingState: it.bookingState as BookingState, surprise: v.views.items.get(it.id) ?? null })),
     ...placeholders.map((p) => ({
       id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
       sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, address: p.address, link: p.link,
       booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
-      slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable, openingHours: p.openingHours,
+      slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable, openingHours: p.openingHours, tryList: p.tryList,
       bookingState: p.bookingState, bookingStateSet: p.bookingStateSet, bookBy: p.bookBy,
       surprise: p.surprise,
     })),
