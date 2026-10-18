@@ -315,16 +315,14 @@ export function toHistoryRow(r: ReviewForView, ctx: { base: string; timeZone: st
   };
 }
 
-/** Spec R10: Home's "N open from the <date> review", or nothing. */
+/** Spec R10: Home's "N open from the <date> review", or nothing. Takes the latest DONE Review's count (lib/review-reads.ts latestReviewOpenCount). */
 export function homeReviewLine(
-  review: (ReviewForView & { findings: { state: FindingState }[] }) | null,
+  review: { startedAt: Date; openCount: number } | null,
   ctx: { base: string; timeZone: string },
 ): { text: string; href: Route } | null {
-  if (!review || review.status !== "DONE") return null;
-  const open = review.findings.filter((f) => f.state === "OPEN").length;
-  if (open === 0) return null;
+  if (!review || review.openCount === 0) return null;
   return {
-    text: `${open} open from the ${formatReviewDay(review.startedAt, ctx.timeZone)} review`,
+    text: `${review.openCount} open from the ${formatReviewDay(review.startedAt, ctx.timeZone)} review`,
     href: tripSubPath(ctx.base, "/reviews"),
   };
 }

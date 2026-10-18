@@ -231,6 +231,24 @@ export async function latestReview(tripId: string): Promise<ReviewDetail | null>
   return reviewDetail(row, v.hiddenTargetIds, row.id, new Date());
 }
 
+/**
+ * Home's review line (R10, final wave M9): the latest DONE Review's id and
+ * start, and how many of its Findings this viewer can see are Open, counted
+ * in the database with latestReview's Surprise filter, never loading them.
+ */
+export async function latestReviewOpenCount(tripId: string): Promise<{ id: string; startedAt: Date; openCount: number } | null> {
+  const { user } = await requireTripAccess(tripId);
+  const row = await db.review.findFirst({
+    where: { tripId, status: "DONE" },
+    orderBy: [{ finishedAt: "desc" }, { id: "desc" }],
+    select: { id: true, startedAt: true },
+  });
+  if (!row) return null;
+  const v = await loadSurpriseVisibility(tripId, user.id);
+  const openCount = await db.finding.count({ where: { reviewId: row.id, state: "OPEN", ...visibleFindings(v.hiddenTargetIds) } });
+  return { id: row.id, startedAt: row.startedAt, openCount };
+}
+
 /** One Review with its Findings (the history list's "open one"; MCP get_review). */
 export async function getReview(reviewId: string): Promise<ReviewDetail> {
   const row = await db.review.findUnique({ where: { id: reviewId }, select: REVIEW_SELECT });

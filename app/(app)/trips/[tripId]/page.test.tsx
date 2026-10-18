@@ -62,7 +62,7 @@ vi.mock("@/lib/reminder-reads", () => ({
   listRemindersForTrip: vi.fn(async () => []),
 }));
 const latestReviewMock = vi.hoisted(() => vi.fn(async () => null as unknown));
-vi.mock("@/lib/review-reads", () => ({ latestReview: latestReviewMock }));
+vi.mock("@/lib/review-reads", () => ({ latestReviewOpenCount: latestReviewMock }));
 vi.mock("@/components/trips/trip-cover", () => ({
   CoverArt: (props: Record<string, unknown>) => {
     coverArtMock(props);
@@ -258,12 +258,7 @@ describe("Trip Home, composed with its layout", () => {
   });
 
   it("shows 'N open from the <date> review' when the latest finished Review has open Findings (R10)", async () => {
-    latestReviewMock.mockResolvedValue({
-      id: "r1", tripId: "trip-1", kind: "STANDARD", status: "DONE", summary: null,
-      startedAt: new Date("2026-10-18T04:05:00Z"), finishedAt: new Date("2026-10-18T04:09:00Z"),
-      startedBy: { id: "owner-1", name: "Owner", image: null },
-      findings: [{ state: "OPEN" }, { state: "OPEN" }, { state: "DISMISSED" }],
-    });
+    latestReviewMock.mockResolvedValue({ id: "r1", startedAt: new Date("2026-10-18T04:05:00Z"), openCount: 2 });
     await renderTripHome();
     expect(latestReviewMock).toHaveBeenCalledWith("trip-1");
     const link = screen.getByRole("link", { name: "2 open from the 18 Oct review" });

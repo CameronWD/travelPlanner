@@ -173,17 +173,14 @@ describe("failedReviewText (final wave I2)", () => {
 
 describe("homeReviewLine (R10: Home shows 'N open from the <date> review')", () => {
   const ctx = { base: "/trips/xmas", timeZone: BNE };
-  const done = (states: ("OPEN" | "APPLIED" | "DISMISSED" | "GONE")[]) => ({
-    id: "r1", kind: "STANDARD" as const, status: "DONE" as const, summary: null, startedAt: AT, finishedAt: AT, startedBy: CAM,
-    findings: states.map((state) => ({ state })),
+  // The count comes from the reads (lib/review-reads.ts latestReviewOpenCount): the latest DONE Review only.
+  const done = (openCount: number) => ({ startedAt: AT, openCount });
+  it("the latest finished Review's Open count", () => {
+    expect(homeReviewLine(done(2), ctx)).toEqual({ text: "2 open from the 18 Oct review", href: "/trips/xmas/reviews" as Route });
+    expect(homeReviewLine(done(1), ctx)?.text).toBe("1 open from the 18 Oct review");
   });
-  it("counts Open Findings of the latest finished Review", () => {
-    expect(homeReviewLine(done(["OPEN", "APPLIED", "OPEN", "DISMISSED"]), ctx)).toEqual({ text: "2 open from the 18 Oct review", href: "/trips/xmas/reviews" as Route });
-    expect(homeReviewLine(done(["OPEN"]), ctx)?.text).toBe("1 open from the 18 Oct review");
-  });
-  it("nothing when there is no Review, it is not finished, or nothing is open", () => {
+  it("nothing when there is no finished Review, or nothing is open", () => {
     expect(homeReviewLine(null, ctx)).toBeNull();
-    expect(homeReviewLine({ ...done(["OPEN"]), status: "RUNNING" }, ctx)).toBeNull();
-    expect(homeReviewLine(done(["APPLIED", "DISMISSED"]), ctx)).toBeNull();
+    expect(homeReviewLine(done(0), ctx)).toBeNull();
   });
 });

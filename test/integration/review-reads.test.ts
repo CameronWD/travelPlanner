@@ -11,7 +11,7 @@ vi.mock("@/lib/guards", () => ({
 }));
 
 import { db } from "@/lib/db";
-import { getReview, latestReview, listReviews, requireFindingAccess, runningReview } from "@/lib/review-reads";
+import { getReview, latestReview, latestReviewOpenCount, listReviews, requireFindingAccess, runningReview } from "@/lib/review-reads";
 import { FORMER_TRAVELLER_NAME, REVIEW_STALE_ERROR } from "@/lib/review/types";
 
 const PLANNER = "it-rr-planner";
@@ -75,6 +75,15 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review reads (spec 2026-10-17 
       ["it-rr-f4", "info", false, true],
     ]);
     expect(r.findings[0].suggestedFix).toEqual({ kind: "item.note", itemId: VISIBLE, append: "Book online." });
+  });
+
+  it("Home's count (final wave M9) is the latest DONE Review's Open Findings this viewer can see, the same as latestReview's", async () => {
+    const member = await latestReviewOpenCount(TRIP_ID);
+    expect(member).toEqual({ id: "it-rr-r2", startedAt: ago(2000), openCount: 2 });
+    expect(member!.openCount).toBe((await latestReview(TRIP_ID))!.openCount);
+    viewer.id = PLANNER; // also sees the Finding about the Surprise
+    expect(await latestReviewOpenCount(TRIP_ID)).toMatchObject({ id: "it-rr-r2", openCount: 3 });
+    expect((await latestReview(TRIP_ID))!.openCount).toBe(3);
   });
 
   it("an older Review reads in full but offers no Apply, Dismiss or Undo of a Dismiss; a Dismissed one names who", async () => {

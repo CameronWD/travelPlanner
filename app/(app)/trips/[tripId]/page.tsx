@@ -43,7 +43,7 @@ import { buildHomeMapStops } from "@/lib/home-map-stops";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "@/lib/sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
 import type { TripPhase } from "@/lib/trip-phase";
-import { latestReview } from "@/lib/review-reads";
+import { latestReviewOpenCount } from "@/lib/review-reads";
 import { homeReviewLine } from "@/lib/review/view";
 import { ReviewHomeLine } from "@/components/trip/home/review-home-line";
 
@@ -116,8 +116,9 @@ export default async function TripHomePage({
     // (see remindersEl below). "today" is the Trip's own.
     tripPromise.then((row) => (row ? listRemindersForTrip(tripId, tripTodayISO(row.stops)) : [])),
     // Spec 2026-10-17 R10: Home's "N open from the <date> review". Every
-    // Traveller may read every Review (R9), so no viewer filter.
-    latestReview(tripId),
+    // Traveller may read every Review (R9); the count drops Findings a
+    // Surprise hides from this viewer, as the tab does.
+    latestReviewOpenCount(tripId),
     tripSlugFor(tripId),
   ]);
   if (!trip) notFound();
