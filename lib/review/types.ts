@@ -91,6 +91,13 @@ export interface FindingDraft {
  */
 export { REVIEW_STALE_AFTER_MS };
 
+/**
+ * Who started a Review, or Applied or Dismissed a Finding, once that account
+ * is deleted (Review.startedById and Finding.stateById are SetNull).
+ * Lower-case: it reads mid-sentence ("Started by a former Traveller").
+ */
+export const FORMER_TRAVELLER_NAME = "a former Traveller";
+
 /** What a stale run shows in place of an error. */
 export const REVIEW_STALE_ERROR = "This Review stopped before it finished.";
 
