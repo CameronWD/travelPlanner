@@ -6,6 +6,7 @@ import {
   REVIEW_STALE_AFTER_MS,
   REVIEW_WEEK_WINDOW_MS,
   countedSince,
+  nextReviewLabel,
   parseReviewPermission,
   reviewAllowance,
 } from "@/lib/review-permission";
@@ -106,5 +107,34 @@ describe("reviewAllowance", () => {
   it("does not care about input order", () => {
     const x = [ago(1 * H), ago(6 * 24 * H)];
     expect(reviewAllowance("LIMITED", x, NOW)).toEqual(reviewAllowance("LIMITED", [...x].reverse(), NOW));
+  });
+});
+
+describe("nextReviewLabel (the button at the cap)", () => {
+  // NOW is Sunday 2026-10-18 10:00 UTC = 20:00 in Brisbane (UTC+10, no DST).
+  const BNE = "Australia/Brisbane";
+
+  it("names the weekday, in the given timezone", () => {
+    // Wed 21 Oct 23:00 UTC is Thursday 09:00 in Brisbane.
+    expect(nextReviewLabel(new Date("2026-10-21T23:00:00Z"), NOW, BNE)).toBe("Next Review available Thursday");
+    expect(nextReviewLabel(new Date("2026-10-21T23:00:00Z"), NOW, "UTC")).toBe("Next Review available Wednesday");
+  });
+
+  it("says tomorrow for the next calendar day", () => {
+    expect(nextReviewLabel(new Date("2026-10-19T09:00:00Z"), NOW, "UTC")).toBe("Next Review available tomorrow");
+    // 13:00 UTC is 23:00 Sunday in Brisbane: still today there.
+    expect(nextReviewLabel(new Date("2026-10-18T13:00:00Z"), NOW, BNE)).toBe("Next Review available today at 23:00");
+  });
+
+  it("gives the time for later the same day", () => {
+    expect(nextReviewLabel(new Date("2026-10-18T15:40:00Z"), NOW, "UTC")).toBe("Next Review available today at 15:40");
+  });
+
+  it("says next <weekday> a week out, so it can't be read as today", () => {
+    expect(nextReviewLabel(new Date("2026-10-25T09:00:00Z"), NOW, "UTC")).toBe("Next Review available next Sunday");
+  });
+
+  it("falls back to UTC for an unknown timezone", () => {
+    expect(nextReviewLabel(new Date("2026-10-21T23:00:00Z"), NOW, "Mars/Olympus")).toBe("Next Review available Wednesday");
   });
 });

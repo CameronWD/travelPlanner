@@ -13,7 +13,9 @@
  * The per-Trip "one Review running at a time" rule applies to everyone and
  * lives with the start action, not here.
  */
+import { daysBetween } from "@/lib/dates";
 import { REVIEW_PERMISSIONS, type ReviewPermission } from "@/lib/enum-values";
+import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 
 export const REVIEW_LIMIT_PER_DAY = 1;
 export const REVIEW_LIMIT_PER_WEEK = 2;
@@ -78,4 +80,28 @@ export function reviewAllowance(
     freesAt = freesAt === null ? at : Math.max(freesAt, at);
   }
   return freesAt === null ? { canRun: true, nextAvailableAt: null } : { canRun: false, nextAvailableAt: new Date(freesAt) };
+}
+
+function weekdayIn(instant: Date, timeZone: string): string {
+  const format = (tz: string) => new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: tz }).format(instant);
+  try {
+    return format(timeZone);
+  } catch {
+    return format("UTC");
+  }
+}
+
+/**
+ * The Run button's text for a LIMITED account at the cap (R12): "Next Review
+ * available <day>", where the day is the viewer's own calendar day in
+ * `timeZone` (call it from client code with deviceTimeZone(); no timezone is
+ * stored per account). The same day names the time, the next day is
+ * "tomorrow", and a week out is "next <weekday>" so it can't be read as today.
+ */
+export function nextReviewLabel(nextAvailableAt: Date, now: Date, timeZone: string): string {
+  const days = daysBetween(instantToZonedDateISO(now, timeZone), instantToZonedDateISO(nextAvailableAt, timeZone));
+  if (days <= 0) return `Next Review available today at ${instantToZonedTime(nextAvailableAt, timeZone)}`;
+  if (days === 1) return "Next Review available tomorrow";
+  const weekday = weekdayIn(nextAvailableAt, timeZone);
+  return days >= 7 ? `Next Review available next ${weekday}` : `Next Review available ${weekday}`;
 }
