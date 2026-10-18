@@ -135,8 +135,11 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () 
       },
     });
     expect((await readPlan(TRIP_ID, OWNER, null)).items.find((i) => i.id === "it-plan-cafe")!.tryList).toEqual(list);
-    const surprised = (await readPlan(TRIP_ID, MEMBER, null)).items.find((i) => i.id === "it-plan-surprise-tl")!;
+    const memberPlan = await readPlan(TRIP_ID, MEMBER, null);
+    const surprised = memberPlan.items.find((i) => i.id === "it-plan-surprise-tl")!;
     expect(surprised.tryList).toBeNull();
+    // Nowhere in the member's whole payload: not on the placeholder, not anywhere else.
+    expect(JSON.stringify(memberPlan)).not.toContain("IT anniversary port");
   });
 
   it("a Surprise placeholder carries none of its planning facts to the surprised Traveller (R2-R4)", async () => {

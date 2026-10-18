@@ -220,7 +220,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get stop",
       description:
-        "Reads one Stop of the real plan exactly as get_trip_plan shows it: nights or dates, timezone, Pinned, Chapter, its Accommodation, its things to do, and each of its days with the Day title and the things to do scheduled on it. Each day's things name their owningStop, which on a Changeover day may be the neighbouring Stop. Use it to re-check one Stop instead of reading the whole trip.",
+        "Reads one Stop of the real plan exactly as get_trip_plan shows it: nights or dates, timezone, Pinned, Chapter, its Accommodation, its things to do, and each of its days with the Day title and the things to do scheduled on it. Each day's things name their owningStop, which on a Changeover day may be the neighbouring Stop. Each thing to do carries its openingHours and tryList (same shape as set_opening_hours / set_try_list). Use it to re-check one Stop instead of reading the whole trip.",
       inputSchema: { stopId: z.string() },
       annotations: { readOnlyHint: true },
     },
