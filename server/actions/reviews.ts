@@ -30,7 +30,7 @@ import {
 import { REVIEW_MESSAGES } from "@/lib/review/messages";
 import { runReview } from "@/lib/review/run";
 import { beginReview } from "@/lib/review/start";
-import { REVIEW_KINDS, type ReviewKind, type SuggestedFix } from "@/lib/review/types";
+import { isChecklistFix, REVIEW_KINDS, type ReviewKind, type RowFix } from "@/lib/review/types";
 import type { BookingState } from "@/lib/enum-values";
 import { fail, FORM_ERROR_KEY, formFail, ok, type ActionResult } from "@/lib/action-result";
 import { isNextControlFlow } from "@/lib/next-control-flow";
@@ -90,7 +90,7 @@ function bookingPatch(fix: { bookingState: BookingState; bookBy?: string | null 
 }
 
 /** R8: each fix kind is one existing action, run as the clicking Traveller. */
-async function runFix(fix: SuggestedFix, row: FixRow): Promise<ActionResult> {
+async function runFix(fix: RowFix, row: FixRow): Promise<ActionResult> {
   switch (fix.kind) {
     case "item.times": {
       // A new day goes through rescheduleItem, which re-files the owning Stop (ADR 0049 rule 4).
@@ -118,7 +118,7 @@ async function runFix(fix: SuggestedFix, row: FixRow): Promise<ActionResult> {
 }
 
 /** Put the touched fields back as `before` holds them, through the same actions. */
-async function restoreSnapshot(fix: SuggestedFix, before: FixSnapshot, current: FixRow): Promise<ActionResult> {
+async function restoreSnapshot(fix: RowFix, before: FixSnapshot, current: FixRow): Promise<ActionResult> {
   const target = fixTarget(fix);
   switch (before.kind) {
     case "times": {
@@ -159,6 +159,8 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
   const fix = parseSuggestedFix(finding.suggestedFix);
   // A fix only ever changes the Finding's own row (lib/review/fix.ts fixFitsTarget), as the reads show it.
   if (!fix || !fixFitsTarget(fix, finding)) return formFail(COPY.noFix, "no-fix");
+  // Task 5 replaces this: Apply doesn't yet add to a Checklist.
+  if (isChecklistFix(fix)) return formFail(COPY.noFix, "no-fix");
   const target = fixTarget(fix);
   const row = await reachableRow(target, finding.tripId);
   if (!row) return formFail(COPY.gone, "gone");
@@ -224,7 +226,7 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
  * else's edit, left alone. Apply passes (before, the fix's date); Undo passes
  * (after, before's date).
  */
-function landedStep(fix: SuggestedFix, from: FixSnapshot, toDate: string | null | undefined, now: FixRow): FixSnapshot | null {
+function landedStep(fix: RowFix, from: FixSnapshot, toDate: string | null | undefined, now: FixRow): FixSnapshot | null {
   if (fix.kind !== "item.times" || from.kind !== "times" || toDate === undefined || from.date === toDate) return null;
   const current = snapshotFor(fix, now);
   if (current.kind !== "times" || current.date !== toDate) return null;
@@ -275,11 +277,13 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
     revalidateTrip(finding.tripId, "reviews");
     return ok();
   }
-  const target = fixTarget(payload.fix);
+  // No Apply has ever saved a checklist.add payload (applyFinding refuses it, above), so this is always a RowFix. Task 5 widens it.
+  const fix = payload.fix as RowFix;
+  const target = fixTarget(fix);
   const row = await reachableRow(target, finding.tripId);
   if (!row) return formFail(COPY.goneUndo, "gone");
   // Decision 7: never overwrite an edit made since Apply.
-  if (!sameSnapshot(snapshotFor(payload.fix, row), payload.after)) return formFail(COPY.changed, "changed");
+  if (!sameSnapshot(snapshotFor(fix, row), payload.after)) return formFail(COPY.changed, "changed");
 
   const claimed = await db.finding.updateMany({
     where: { id: finding.id, state: "APPLIED", undoPayload: finding.undoPayload },
@@ -287,16 +291,16 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
   });
   if (claimed.count === 0) return formFail(COPY.handled, "handled");
 
-  const result = await guarded(() => restoreSnapshot(payload.fix, payload.before, row), COPY.goneUndo);
+  const result = await guarded(() => restoreSnapshot(fix, payload.before, row), COPY.goneUndo);
   if (!result.success) {
     // A two-step restore (a move back, then times) can fail half way: put the
     // day back, by Apply's own rule (landedStep). A refused single step wrote
     // nothing, so any difference now is someone else's edit, left alone.
     const current = await loadFixRow(target);
     const rollback = current
-      ? landedStep(payload.fix, payload.after, payload.before.kind === "times" ? payload.before.date : undefined, current)
+      ? landedStep(fix, payload.after, payload.before.kind === "times" ? payload.before.date : undefined, current)
       : null;
-    if (rollback && current) await guarded(() => restoreSnapshot(payload.fix, rollback, current), COPY.goneUndo);
+    if (rollback && current) await guarded(() => restoreSnapshot(fix, rollback, current), COPY.goneUndo);
     await db.finding.updateMany({
       where: { id: finding.id, state: "OPEN", stateById: null },
       data: { state: "APPLIED", stateById: finding.stateById, stateAt: finding.stateAt, undoPayload: finding.undoPayload },

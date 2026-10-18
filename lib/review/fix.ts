@@ -6,11 +6,11 @@
  */
 import { z } from "zod";
 import { suggestedFixSchema } from "@/lib/review/schema";
-import type { SuggestedFix } from "@/lib/review/types";
+import { isChecklistFix, type RowFix, type SuggestedFix } from "@/lib/review/types";
 
 export type FixTarget = { kind: "item" | "transport" | "accommodation"; id: string };
 
-export function fixTarget(fix: SuggestedFix): FixTarget {
+export function fixTarget(fix: RowFix): FixTarget {
   switch (fix.kind) {
     case "item.times":
     case "item.openingHours":
@@ -33,10 +33,13 @@ const TARGET_TYPE: Record<FixTarget["kind"], "ITEM" | "TRANSPORT" | "ACCOMMODATI
 
 /**
  * A fix only ever changes its Finding's own row (lib/review/model-output.ts
- * toSuggestedFix): same type, same id. A TRIP or DAY Finding has no row, so
- * no fix fits it. Reads and Apply treat a stored fix that doesn't fit as none.
+ * toSuggestedFix) — except a checklist fix, which adds to a list: same type,
+ * same id. A TRIP or DAY Finding has no row, so no row fix fits it, but a
+ * checklist fix fits any Finding, the Trip included. Reads and Apply treat a
+ * stored fix that doesn't fit as none.
  */
 export function fixFitsTarget(fix: SuggestedFix, finding: { targetType: string; targetId: string | null }): boolean {
+  if (isChecklistFix(fix)) return true;
   const target = fixTarget(fix);
   return TARGET_TYPE[target.kind] === finding.targetType && target.id === finding.targetId;
 }
@@ -61,7 +64,7 @@ const snapshotSchema = z.discriminatedUnion("kind", [
 ]);
 export type FixSnapshot = z.infer<typeof snapshotSchema>;
 
-export function snapshotFor(fix: SuggestedFix, row: FixRow): FixSnapshot {
+export function snapshotFor(fix: RowFix, row: FixRow): FixSnapshot {
   switch (fix.kind) {
     case "item.times":
       return { kind: "times", date: row.date ?? null, startTime: row.startTime ?? null, endTime: row.endTime ?? null };

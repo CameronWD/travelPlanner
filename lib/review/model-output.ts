@@ -14,7 +14,7 @@ import { safeWebHref } from "@/lib/url";
 import type { ReviewTargetType, ReviewTargets } from "./input-shape";
 import { findingKey } from "./key";
 import { suggestedFixSchema } from "./schema";
-import { FINDING_SEVERITIES, FINDING_TARGET_TYPES, type FindingCategory, type FindingDraft, type SuggestedFix } from "./types";
+import { CHECKLIST_FIX_LISTS, FINDING_SEVERITIES, FINDING_TARGET_TYPES, type FindingCategory, type FindingDraft, type SuggestedFix } from "./types";
 
 /** R8's eight categories: Claude may use every one (a restated Flag maps onto one of them too, R decision 2). */
 export const MODEL_CATEGORIES = [
@@ -66,6 +66,7 @@ const modelFixSchema = z.union([
     closed: z.array(text()),
   }),
   z.object({ kind: exactEnum(["item.note"]), itemId: text(), append: text() }),
+  z.object({ kind: exactEnum(["checklist.add"]), list: upperEnum(CHECKLIST_FIX_LISTS), text: text() }),
 ]);
 
 const modelFindingSchema = z.object({
@@ -128,8 +129,8 @@ const BOOKING_TARGET: Record<"item.bookingState" | "transport.bookingState" | "a
   "accommodation.bookingState": "ACCOMMODATION",
 };
 
-/** The fix in R's shape, and the row it touches; null when it changes nothing. */
-function fixCandidate(fix: ModelFix, source: string | undefined): { type: ReviewTargetType; id: string; value: unknown } | null {
+/** The fix in R's shape, and the row it touches; null when it changes nothing. A checklist fix never reaches here: toSuggestedFix handles it before calling in. */
+function fixCandidate(fix: Exclude<ModelFix, { kind: "checklist.add" }>, source: string | undefined): { type: ReviewTargetType; id: string; value: unknown } | null {
   switch (fix.kind) {
     case "item.times": {
       const times = {
@@ -167,15 +168,20 @@ function fixCandidate(fix: ModelFix, source: string | undefined): { type: Review
 type Placement = Pick<FindingDraft, "targetType" | "targetId" | "date">;
 
 /**
- * A fix only ever changes the Finding's own row: "the museum is closed on
- * Monday" must not carry a fix that marks a train as booked. So the fix's row
- * is the Finding's target, by type and id (item.* an ITEM, transport.* a
- * TRANSPORT, accommodation.* an ACCOMMODATION), and a TRIP or DAY Finding
- * never carries one (Dismiss only). lib/review-reads.ts applies the same rule
- * to stored Findings.
+ * A fix only ever changes the Finding's own row, except `checklist.add`,
+ * which adds to a list instead: "the museum is closed on Monday" must not
+ * carry a fix that marks a train as booked. So a row fix's row is the
+ * Finding's target, by type and id (item.* an ITEM, transport.* a TRANSPORT,
+ * accommodation.* an ACCOMMODATION), and a TRIP or DAY Finding never carries
+ * one (Dismiss only); a checklist fix fits any Finding. lib/review-reads.ts
+ * applies the same rule to stored Findings.
  */
 function toSuggestedFix(fix: ModelFix | null, at: Placement, targets: ReviewTargets, source: string | undefined): SuggestedFix | undefined {
   if (!fix) return undefined;
+  if (fix.kind === "checklist.add") {
+    const parsed = suggestedFixSchema.safeParse({ kind: fix.kind, list: fix.list, text: plainCopy(fix.text) });
+    return parsed.success ? parsed.data : undefined;
+  }
   const candidate = fixCandidate(fix, source);
   if (!candidate || candidate.type !== at.targetType || candidate.id !== at.targetId) return undefined;
   if (!targets[candidate.type].has(candidate.id)) return undefined;

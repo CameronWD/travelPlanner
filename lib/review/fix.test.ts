@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SuggestedFix } from "./types";
+import type { RowFix, SuggestedFix } from "./types";
 import { appendedNote, fixFitsTarget, fixTarget, parseUndoPayload, sameSnapshot, snapshotFor, REVIEW_ACTION_COPY } from "./fix";
 
 const ROW = {
@@ -8,7 +8,7 @@ const ROW = {
 };
 
 describe("fixTarget", () => {
-  it.each<[SuggestedFix, string, string]>([
+  it.each<[RowFix, string, string]>([
     [{ kind: "item.times", itemId: "i1", startTime: "11:00" }, "item", "i1"],
     [{ kind: "item.note", itemId: "i2", append: "x" }, "item", "i2"],
     [{ kind: "item.bookingState", id: "i3", bookingState: "BOOKED" }, "item", "i3"],
@@ -31,6 +31,12 @@ describe("fixFitsTarget (final wave I1: a fix only touches its Finding's own row
     expect(fixFitsTarget(note, { targetType: "ITEM", targetId: "i2" })).toBe(false);
     expect(fixFitsTarget(note, { targetType: "TRIP", targetId: null })).toBe(false);
     expect(fixFitsTarget(note, { targetType: "DAY", targetId: null })).toBe(false);
+  });
+
+  it("a checklist fix fits any Finding, the Trip included, since it adds to a list rather than touching a row", () => {
+    const checklist: SuggestedFix = { kind: "checklist.add", list: "PRETRIP", text: "Buy pass" };
+    expect(fixFitsTarget(checklist, { targetType: "TRIP", targetId: null })).toBe(true);
+    expect(fixFitsTarget(checklist, { targetType: "STOP", targetId: "s1" })).toBe(true);
   });
 });
 

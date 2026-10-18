@@ -63,6 +63,8 @@ describe("suggestedFixLabel", () => {
     // Final wave M6: the Item already has hours.
     expect(suggestedFixLabel({ kind: "item.openingHours", itemId: "i1", hours: { week: {}, seasons: [], closed: [] } }, { replacesHours: true })).toBe("Replace the opening hours");
     expect(suggestedFixLabel({ kind: "item.note", itemId: "i1", append: "Closed 24 Dec." })).toBe("Add to the note: Closed 24 Dec.");
+    expect(suggestedFixLabel({ kind: "checklist.add", list: "PACKING", text: "Umbrella" })).toBe("Add to the packing list: Umbrella");
+    expect(suggestedFixLabel({ kind: "checklist.add", list: "PRETRIP", text: "Buy the 3-day Kansai pass" })).toBe("Add to the pre-trip checklist: Buy the 3-day Kansai pass");
   });
 });
 

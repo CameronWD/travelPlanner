@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CHECKLIST_TEXT_MAX } from "@/lib/validations/checklist";
 import type { SuggestedFix } from "./types";
 import { MAX_NOTE_APPEND, parseSuggestedFix, serializeSuggestedFix, suggestedFixSchema } from "./schema";
 
@@ -13,6 +14,7 @@ const VALID: SuggestedFix[] = [
   { kind: "accommodation.bookingState", id: "a1", bookingState: "TO_BOOK", bookBy: null },
   { kind: "item.openingHours", itemId: "i1", hours: HOURS },
   { kind: "item.note", itemId: "i1", append: "Closed on the first Monday of the month." },
+  { kind: "checklist.add", list: "PACKING", text: "Umbrella" },
 ];
 
 describe("suggestedFixSchema (R8: each kind maps to an existing action)", () => {
@@ -32,6 +34,10 @@ describe("suggestedFixSchema (R8: each kind maps to an existing action)", () => 
     ["a note too long", { kind: "item.note", itemId: "i1", append: "x".repeat(MAX_NOTE_APPEND + 1) }],
     ["hours that don't parse", { kind: "item.openingHours", itemId: "i1", hours: { week: { funday: [] } } }],
     ["no target id", { kind: "item.note", itemId: "", append: "x" }],
+    ["a checklist fix on the Shopping list", { kind: "checklist.add", list: "SHOPPING", text: "Sunscreen" }],
+    ["an empty checklist text", { kind: "checklist.add", list: "PACKING", text: "   " }],
+    ["checklist text over the limit", { kind: "checklist.add", list: "PRETRIP", text: "x".repeat(CHECKLIST_TEXT_MAX + 1) }],
+    ["a checklist fix with an extra key", { kind: "checklist.add", list: "PACKING", text: "Umbrella", by: "me" }],
   ])("refuses %s", (_label, value) => {
     expect(suggestedFixSchema.safeParse(value).success).toBe(false);
     expect(parseSuggestedFix(JSON.stringify(value))).toBeNull();
@@ -50,5 +56,9 @@ describe("suggestedFixSchema (R8: each kind maps to an existing action)", () => 
 
   it("trims a note before storing it", () => {
     expect(parseSuggestedFix(serializeSuggestedFix({ kind: "item.note", itemId: "i1", append: "  Cash only.  " }))).toEqual({ kind: "item.note", itemId: "i1", append: "Cash only." });
+  });
+
+  it("trims a checklist fix's text before storing it", () => {
+    expect(parseSuggestedFix(serializeSuggestedFix({ kind: "checklist.add", list: "PACKING", text: " Umbrella " }))).toEqual({ kind: "checklist.add", list: "PACKING", text: "Umbrella" });
   });
 });

@@ -29,7 +29,7 @@ vi.mock("@/lib/revalidate", () => ({ revalidateTrip: h.revalidateTrip }));
 
 import { db } from "@/lib/db";
 import { REVIEW_ACTION_COPY, fixTarget } from "@/lib/review/fix";
-import type { SuggestedFix } from "@/lib/review/types";
+import type { RowFix } from "@/lib/review/types";
 import { applyFinding, dismissFinding, undoFinding } from "./reviews";
 
 const mdb = db as unknown as MockDb<"finding" | "item" | "transport" | "accommodation">;
@@ -38,7 +38,7 @@ const STATE_AT = new Date("2026-10-19T10:00:00Z");
 
 /** The Finding is about its fix's own row (final wave I1), unless `over` says otherwise. */
 function access(over: Record<string, unknown> = {}, isLatest = true) {
-  const fix = typeof over.suggestedFix === "string" ? (JSON.parse(over.suggestedFix) as SuggestedFix) : null;
+  const fix = typeof over.suggestedFix === "string" ? (JSON.parse(over.suggestedFix) as RowFix) : null;
   const own = fix ? { targetType: fixTarget(fix).kind.toUpperCase(), targetId: fixTarget(fix).id } : { targetType: "TRIP", targetId: null };
   h.requireFindingAccess.mockResolvedValue({
     user: { id: "u1" },

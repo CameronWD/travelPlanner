@@ -9,7 +9,8 @@ import { BOOKING_STATES } from "@/lib/enum-values";
 import { hhmm, isoDate } from "@/lib/validations/primitives";
 import { openingHoursSchema } from "@/lib/validations/opening-hours";
 import { BOOK_BY_NEEDS_TO_BOOK } from "@/lib/booking-state-patch";
-import type { SuggestedFix } from "@/lib/review/types";
+import { CHECKLIST_TEXT_MAX } from "@/lib/validations/checklist";
+import { CHECKLIST_FIX_LISTS, type SuggestedFix } from "@/lib/review/types";
 
 /** The longest text an `item.note` fix may add to an Item's notes. */
 export const MAX_NOTE_APPEND = 500;
@@ -37,6 +38,7 @@ export const suggestedFixSchema = z
     bookingFix("accommodation.bookingState"),
     z.strictObject({ kind: z.literal("item.openingHours"), itemId: rowId, hours: openingHoursSchema }),
     z.strictObject({ kind: z.literal("item.note"), itemId: rowId, append: z.string().trim().min(1).max(MAX_NOTE_APPEND) }),
+    z.strictObject({ kind: z.literal("checklist.add"), list: z.enum(CHECKLIST_FIX_LISTS), text: z.string().trim().min(1).max(CHECKLIST_TEXT_MAX) }),
   ])
   .superRefine((fix, ctx) => {
     if (fix.kind === "item.times" && fix.startTime === undefined && fix.endTime === undefined && fix.date === undefined) {

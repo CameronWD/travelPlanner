@@ -158,6 +158,8 @@ export function suggestedFixLabel(fix: SuggestedFix, opts: { replacesHours?: boo
       return opts.replacesHours ? "Replace the opening hours" : "Add the opening hours";
     case "item.note":
       return `Add to the note: ${fix.append}`;
+    case "checklist.add":
+      return fix.list === "PACKING" ? `Add to the packing list: ${fix.text}` : `Add to the pre-trip checklist: ${fix.text}`;
     default: {
       const unhandled: never = fix;
       return unhandled;

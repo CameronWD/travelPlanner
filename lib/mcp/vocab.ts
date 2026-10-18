@@ -143,6 +143,8 @@ export const FIX_WITH_TOOL: Record<SuggestedFix["kind"], string> = {
   "item.openingHours": "set_opening_hours with the hours and the source page",
   // update_thing_to_do replaces notes whole, so the current ones are read first.
   "item.note": "update_thing_to_do, after you read the current notes with get_item: pass them back with the text added",
+  "checklist.add":
+    "add_checklist_item with the fix's list as kind and its text. For PACKING, ask whether they need to buy it, and if so set_need_to_buy on the new entry. Check get_checklists first: if it is already there, say so instead",
 };
 
 /**

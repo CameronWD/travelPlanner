@@ -21,7 +21,7 @@ vi.mock("@/lib/mcp/acting-traveller", () => ({ getActingTraveller: () => null })
 import { db } from "@/lib/db";
 import { applyFinding, dismissFinding, undoFinding } from "@/server/actions/reviews";
 import { REVIEW_ACTION_COPY, fixTarget } from "@/lib/review/fix";
-import type { SuggestedFix } from "@/lib/review/types";
+import type { RowFix } from "@/lib/review/types";
 
 const USER = "it-ra-user";
 const TRIP_ID = "it-ra-trip";
@@ -34,7 +34,7 @@ const T0 = new Date("2026-10-19T09:00:00Z");
 const BOOKING = { bookingState: true, bookingStateSet: true, bookBy: true } as const;
 
 /** A Finding about the fix's own row (final wave I1: a fix only touches its Finding's target), else about the Dinner. */
-async function finding(id: string, fix: SuggestedFix | null, reviewId = "it-ra-r2", about?: { targetType: string; targetId: string }) {
+async function finding(id: string, fix: RowFix | null, reviewId = "it-ra-r2", about?: { targetType: string; targetId: string }) {
   const own = fix ? { targetType: fixTarget(fix).kind.toUpperCase(), targetId: fixTarget(fix).id } : { targetType: "ITEM", targetId: DINNER };
   await db.finding.create({
     data: {

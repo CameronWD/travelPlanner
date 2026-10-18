@@ -17,6 +17,7 @@ import { fixFitsTarget, fixTarget, isStrandedApply } from "@/lib/review/fix";
 import {
   effectiveReviewStatus,
   FORMER_TRAVELLER_NAME,
+  isChecklistFix,
   REVIEW_STALE_ERROR,
   REVIEW_STALE_AFTER_MS,
   type FindingCategory,
@@ -163,11 +164,12 @@ function toSummary(row: ReviewRow, counts: { open: number; total: number }, now:
 function toFindingView(f: FindingRow, onLatest: boolean, hiddenTargetIds: readonly string[], now: Date): FindingView {
   const state = f.state as FindingState;
   const parsed = parseSuggestedFix(f.suggestedFix);
-  // A fix only touches the Finding's own row: a stored one aimed elsewhere
-  // (written before that rule) reads as none, Dismiss only. And a row a
-  // Surprise hides from this viewer never leaves the server.
+  // A fix only touches the Finding's own row, except a checklist fix (never
+  // a row): a stored row fix aimed elsewhere (written before that rule)
+  // reads as none, Dismiss only. And a row a Surprise hides from this
+  // viewer never leaves the server.
   const suggestedFix =
-    parsed && fixFitsTarget(parsed, f) && !hiddenTargetIds.includes(fixTarget(parsed).id) ? parsed : null;
+    parsed && fixFitsTarget(parsed, f) && !(parsed && !isChecklistFix(parsed) && hiddenTargetIds.includes(fixTarget(parsed).id)) ? parsed : null;
   return {
     id: f.id,
     reviewId: f.reviewId,
