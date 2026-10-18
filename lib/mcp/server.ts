@@ -12,6 +12,7 @@ import { registerBookingsWriteTools } from "./tools/bookings-write";
 import { registerBookingStateTools } from "./tools/booking-state-write";
 import { registerListWriteTools } from "./tools/lists-write";
 import { registerMakeItFitTools } from "./tools/make-it-fit";
+import { registerReviewReadTools } from "./tools/reviews";
 import { registerPrompts } from "./prompts";
 import { WRITING_STYLE, CHECK_FACTS } from "./vocab";
 
@@ -30,6 +31,7 @@ export const MCP_INSTRUCTIONS = [
   "Checklists: PRETRIP is tasks like visas, insurance and bookings to make, PACKING is things to pack, SHOPPING is things to buy. A Checklist item persists until ticked. A Reminder is a dated note said once, the evening before its date. Use a Reminder for 'remember to print the tickets on the 27th', and a Checklist item for 'get travel insurance'.",
   "A Surprise is a Stop or a thing to do that one Traveller is arranging for another. If a Stop or item comes back with surprise.youAreSurprised true, it is being arranged for the person you are acting as: do not suggest, research, guess or ask what is inside it, and do not try to add to it or change it. Just say it is a surprise planned by the person named in surprise.plannedBy. If youAreSurprised is false, you can see inside and help plan it. The names in surprise.for must not see it, so never put its contents anywhere they would read (a Note on another Stop, a Reminder, a checklist). set_surprise makes a Stop or item a surprise, and reveal_surprise ends it (planner only).",
   "leave_feedback sends a Feedback note to Teepee's operator about the software itself (a bug, a confusing screen, a wish), the same as the app's Feedback button. Use it when the user asks to leave feedback or report a problem with Teepee, and tell them whether it is open or waiting for review.",
+  "A Review is a saved check of the whole trip that Teepee runs with web search, for what Flags can't know: closures, seasons, public holidays, tickets, logistics, stale notes and packing. Anyone on the trip can read them with list_reviews and get_review. Each Finding in one is a suggestion, and its fixWith names the tool that would make the change. Read Findings to the person and change nothing until they agree.",
   CHECK_FACTS,
   `Writing style for anything you write into Teepee (titles, Day titles, notes, Reminders, checklist items, cost labels) and for your proposals: ${WRITING_STYLE}`,
 ].join(" ");
@@ -44,6 +46,7 @@ export function buildMcpServer(): McpServer {
   registerBookingStateTools(server);
   registerListWriteTools(server);
   registerMakeItFitTools(server);
+  registerReviewReadTools(server);
   registerPrompts(server);
   return server;
 }

@@ -148,3 +148,12 @@ it("every suggested fix names a real tool Claude can make the same change with",
     expect(t).not.toContain(";");
   }
 });
+
+it("server instructions tell every Claude how to read Reviews, in the house style (R13)", () => {
+  expect(MCP_INSTRUCTIONS).toContain("list_reviews");
+  expect(MCP_INSTRUCTIONS).toContain("get_review");
+  expect(MCP_INSTRUCTIONS).not.toContain("review_trip");
+  const reviews = MCP_INSTRUCTIONS.slice(MCP_INSTRUCTIONS.indexOf("A Review is"), MCP_INSTRUCTIONS.indexOf(CHECK_FACTS));
+  expect(reviews).not.toContain("—");
+  expect(reviews).not.toContain(";");
+});
