@@ -80,11 +80,23 @@ export async function saveReviewResult(
   });
 }
 
-/** RUNNING → FAILED with a plain-words reason; false when the row was not RUNNING. */
-export async function markReviewFailed(reviewId: string, error: string, now: Date = new Date()): Promise<boolean> {
+/**
+ * RUNNING → FAILED with a plain-words reason and, when the run spent anything,
+ * its AiUsage row; false when the row was not RUNNING.
+ */
+export async function markReviewFailed(
+  reviewId: string,
+  error: string,
+  opts: { now?: Date; aiUsageId?: string | null } = {},
+): Promise<boolean> {
   const { count } = await db.review.updateMany({
     where: { id: reviewId, status: "RUNNING" },
-    data: { status: "FAILED", error: error.slice(0, MAX_ERROR), finishedAt: now },
+    data: {
+      status: "FAILED",
+      error: error.slice(0, MAX_ERROR),
+      finishedAt: opts.now ?? new Date(),
+      ...(opts.aiUsageId !== undefined ? { aiUsageId: opts.aiUsageId } : {}),
+    },
   });
   return count === 1;
 }

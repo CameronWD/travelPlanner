@@ -139,5 +139,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("saveReviewResult and markRevie
     const review = await db.review.findUniqueOrThrow({ where: { id: "it-rs-r1" } });
     expect(review).toMatchObject({ status: "FAILED", error: "The model's answer didn't make sense." });
     expect(review.finishedAt).toBeInstanceOf(Date);
+    expect(review.aiUsageId).toBeNull();
+  });
+
+  it("markReviewFailed keeps the run's spend row on the failed Review", async () => {
+    await running("it-rs-r1");
+    expect(await markReviewFailed("it-rs-r1", "Claude was busy.", { aiUsageId: "it-rs-usage" })).toBe(true);
+    expect(await db.review.findUniqueOrThrow({ where: { id: "it-rs-r1" }, select: { status: true, aiUsageId: true } }))
+      .toEqual({ status: "FAILED", aiUsageId: "it-rs-usage" });
   });
 });
