@@ -10,7 +10,7 @@
  * the zod-free model, so components can import it.
  */
 
-export interface TryEntry {
+interface TryEntry {
   id: string;
   text: string;
   tried: boolean;
