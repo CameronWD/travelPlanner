@@ -3333,8 +3333,9 @@ each is a one-file follow-up.
   family writer now that the Try list shares the same lock.
 - **FT-06 · Other multi-row Item transactions don't take the family lock.**
   Fork and Stop operations that touch many Item rows at once (for example
-  `server/actions/forks.ts` ~826's `tx.item.updateMany`) run outside
-  `lockItemFamily`. A rare deadlock (Postgres error 40P01) is possible
+  `server/actions/forks.ts` ~826's `tx.item.updateMany`), and `deleteItem`
+  (an idea delete locks its copies' rows too, via `sourceItemId` SetNull),
+  run outside `lockItemFamily`. A rare deadlock (Postgres error 40P01) is possible
   against a concurrent tick or hours/Try-list edit on the same family;
   Postgres aborts one side and the caller can retry, so this is an
   availability nit, not a correctness one.
