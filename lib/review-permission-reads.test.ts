@@ -70,4 +70,10 @@ describe("loadReviewStanding", () => {
     expect(tx.review.findMany).toHaveBeenCalled();
     expect(queryRawMock).not.toHaveBeenCalled();
   });
+
+  it("forUpdate without a transaction client throws a clear error, and reads nothing", async () => {
+    await expect(loadReviewStanding("u1", { now: NOW, forUpdate: true })).rejects.toThrow(/forUpdate needs the transaction's client/);
+    expect(queryRawMock).not.toHaveBeenCalled();
+    expect(userFindUniqueMock).not.toHaveBeenCalled();
+  });
 });

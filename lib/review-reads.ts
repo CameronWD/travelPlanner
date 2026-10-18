@@ -13,6 +13,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
 import { parseSuggestedFix } from "@/lib/review/schema";
+import { fixTarget, isStrandedApply } from "@/lib/review/fix";
 import {
   effectiveReviewStatus,
   FORMER_TRAVELLER_NAME,
@@ -68,8 +69,11 @@ export interface FindingView {
   stateBy: TravellerRef | null;
   stateAt: Date | null;
   firstFoundAt: Date;
+  /** OPEN, has a fix this viewer may see, on the latest DONE Review. */
   canApply: boolean;
+  /** OPEN, on the latest DONE Review. */
   canDismiss: boolean;
+  /** DISMISSED on the latest DONE Review; or APPLIED with its payload saved (any Review), or stranded (released). */
   canUndo: boolean;
 }
 
@@ -152,9 +156,12 @@ function toSummary(row: ReviewRow, counts: { open: number; total: number }, now:
   };
 }
 
-function toFindingView(f: FindingRow, onLatest: boolean): FindingView {
+function toFindingView(f: FindingRow, onLatest: boolean, hiddenTargetIds: readonly string[], now: Date): FindingView {
   const state = f.state as FindingState;
-  const suggestedFix = parseSuggestedFix(f.suggestedFix);
+  const parsed = parseSuggestedFix(f.suggestedFix);
+  // A fix may point at another row than the Finding's target. If a Surprise
+  // hides that row from this viewer, its id and text never leave the server.
+  const suggestedFix = parsed && !hiddenTargetIds.includes(fixTarget(parsed).id) ? parsed : null;
   return {
     id: f.id,
     reviewId: f.reviewId,
@@ -175,7 +182,9 @@ function toFindingView(f: FindingRow, onLatest: boolean): FindingView {
     firstFoundAt: f.firstFoundAt,
     canApply: onLatest && state === "OPEN" && suggestedFix !== null,
     canDismiss: onLatest && state === "OPEN",
-    canUndo: state === "DISMISSED" || (state === "APPLIED" && f.undoPayload !== null),
+    canUndo:
+      (onLatest && state === "DISMISSED") ||
+      (state === "APPLIED" && (f.undoPayload !== null || isStrandedApply(f, now))),
   };
 }
 
@@ -186,7 +195,7 @@ async function reviewDetail(row: ReviewRow, hiddenTargetIds: readonly string[], 
     select: FINDING_SELECT,
   });
   const findings = rows
-    .map((f) => toFindingView(f, row.id === latestId))
+    .map((f) => toFindingView(f, row.id === latestId, hiddenTargetIds, now))
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]); // stable: keeps `position` within a severity
   return { ...toSummary(row, { open: findings.filter((f) => f.state === "OPEN").length, total: findings.length }, now), findings };
 }

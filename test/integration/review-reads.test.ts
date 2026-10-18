@@ -77,11 +77,11 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review reads (spec 2026-10-17 
     expect(r.findings[0].suggestedFix).toEqual({ kind: "item.note", itemId: VISIBLE, append: "Book online." });
   });
 
-  it("an older Review reads in full but offers no Apply or Dismiss; a Dismissed one offers Undo and names who", async () => {
+  it("an older Review reads in full but offers no Apply, Dismiss or Undo of a Dismiss; a Dismissed one names who", async () => {
     const r = await getReview("it-rr-r1");
     expect(r.findings.map((f) => f.id)).toEqual(["it-rr-f1", "it-rr-f3"]); // f2 is about the hidden Gift
     expect(r.findings.every((f) => !f.canApply && !f.canDismiss)).toBe(true);
-    expect(r.findings[1]).toMatchObject({ state: "DISMISSED", stateBy: { id: PLANNER, name: "Cam" }, canUndo: true });
+    expect(r.findings[1]).toMatchObject({ state: "DISMISSED", stateBy: { id: PLANNER, name: "Cam" }, canUndo: false });
     expect(r).toMatchObject({ openCount: 1, findingCount: 2 });
   });
 
@@ -119,6 +119,31 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review reads (spec 2026-10-17 
       expect((await listReviews(TRIP_ID)).at(-1)).toMatchObject({ id: "it-rr-orphan", startedBy: { id: null, name: FORMER_TRAVELLER_NAME } });
     } finally {
       await db.review.delete({ where: { id: "it-rr-orphan" } });
+    }
+  });
+
+  it("a fix aimed at a row hidden from the viewer is withheld; Undo follows the latest-Review rule", async () => {
+    const SECRET_FIX = JSON.stringify({ kind: "item.note", itemId: SECRET, append: "Wrap it in blue." });
+    await db.finding.createMany({
+      data: [
+        { ...base, id: "it-rr-f8", reviewId: "it-rr-r2", key: "LOGISTICS|TRIP|-", category: "LOGISTICS", targetType: "TRIP", title: "Wrapping", suggestedFix: SECRET_FIX, position: 3 },
+        { ...base, id: "it-rr-f9", reviewId: "it-rr-r2", key: "PACKING|TRIP|-", category: "PACKING", targetType: "TRIP", title: "Plug", state: "DISMISSED", stateById: PLANNER, stateAt: ago(10), position: 4 },
+        { ...base, id: "it-rr-f10", reviewId: "it-rr-r1", key: "SEASON|TRIP|-", category: "SEASON", targetType: "TRIP", title: "Stranded", suggestedFix: FIX, state: "APPLIED", stateById: PLANNER, stateAt: ago(30), position: 5 },
+      ],
+    });
+    try {
+      const mine = (await latestReview(TRIP_ID))!.findings;
+      expect(mine.find((f) => f.id === "it-rr-f8")).toMatchObject({ suggestedFix: null, canApply: false, canDismiss: true });
+      expect(JSON.stringify(mine)).not.toContain(SECRET);
+      expect(mine.find((f) => f.id === "it-rr-f9")).toMatchObject({ canUndo: true }); // a Dismiss on the latest Review
+      // An Apply that never saved its payload, claimed 30 minutes ago: Undo releases it, on any Review.
+      expect((await getReview("it-rr-r1")).findings.find((f) => f.id === "it-rr-f10")).toMatchObject({ canUndo: true, canApply: false });
+
+      viewer.id = PLANNER;
+      const planner = (await latestReview(TRIP_ID))!.findings;
+      expect(planner.find((f) => f.id === "it-rr-f8")).toMatchObject({ suggestedFix: { kind: "item.note", itemId: SECRET }, canApply: true });
+    } finally {
+      await db.finding.deleteMany({ where: { id: { in: ["it-rr-f8", "it-rr-f9", "it-rr-f10"] } } });
     }
   });
 

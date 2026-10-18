@@ -14,6 +14,7 @@ import { parseSuggestedFix } from "@/lib/review/schema";
 import {
   REVIEW_ACTION_COPY as COPY,
   appendedNote,
+  isStrandedApply,
   parseUndoPayload,
   fixTarget,
   sameSnapshot,
@@ -162,21 +163,44 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
   });
   if (claimed.count === 0) return formFail(COPY.handled, "handled");
 
-  const result = await guarded(() => runFix(fix, row), COPY.gone);
-  const now = await loadFixRow(target);
-  if (!result.success) {
-    // A two-step fix (a move, then times) can fail half way: put back what landed.
-    if (now && !sameSnapshot(snapshotFor(fix, now), before)) await guarded(() => restoreSnapshot(fix, before, now), COPY.gone);
-    await db.finding.updateMany({
-      where: { id: finding.id, state: "APPLIED", stateById: user.id },
+  // Our claim, not yet completed by a saved payload: back to OPEN.
+  const release = () =>
+    db.finding.updateMany({
+      where: { id: finding.id, state: "APPLIED", stateById: user.id, undoPayload: null },
       data: { state: "OPEN", stateById: null, stateAt: null },
     });
-    return result;
+  try {
+    const result = await guarded(() => runFix(fix, row), COPY.gone);
+    const now = await loadFixRow(target);
+    if (!result.success) {
+      const rollback = now ? landedStep(fix, before, now) : null;
+      if (rollback && now) await guarded(() => restoreSnapshot(fix, rollback, now), COPY.gone);
+      await release();
+      return result;
+    }
+    const payload: UndoPayload = { fix, before, after: now ? snapshotFor(fix, now) : before };
+    await db.finding.update({ where: { id: finding.id }, data: { undoPayload: JSON.stringify(payload) } });
+  } catch (err) {
+    // Never strand the Finding as APPLIED with nothing to undo (a Prisma error, an unexpected throw).
+    await release().catch(() => undefined);
+    throw err;
   }
-  const payload: UndoPayload = { fix, before, after: now ? snapshotFor(fix, now) : before };
-  await db.finding.update({ where: { id: finding.id }, data: { undoPayload: JSON.stringify(payload) } });
   revalidateTrip(finding.tripId, "reviews");
   return ok();
+}
+
+/**
+ * After a refused fix, the snapshot to restore when a step of OUR fix landed,
+ * or null. Only a two-step item.times fix can half-land: the move went
+ * through, the times were refused. Then only the day goes back, the times as
+ * they are now. A refused single-step fix wrote nothing, so a difference from
+ * `before` is someone else's edit, left alone.
+ */
+function landedStep(fix: SuggestedFix, before: FixSnapshot, now: FixRow): FixSnapshot | null {
+  if (fix.kind !== "item.times" || before.kind !== "times" || fix.date === undefined) return null;
+  const current = snapshotFor(fix, now);
+  if (current.kind !== "times" || current.date !== fix.date || before.date === fix.date) return null;
+  return { ...current, date: before.date };
 }
 
 export async function dismissFinding(findingId: string): Promise<ActionResult> {
@@ -193,12 +217,15 @@ export async function dismissFinding(findingId: string): Promise<ActionResult> {
 }
 
 /**
- * Undo: a Dismiss reopens; an Apply restores the fields it changed (unless
- * they changed since) and reopens. Works on a Finding of any Review.
+ * Undo: a Dismiss reopens (latest Review only, as Dismiss); an Apply restores
+ * the fields it changed (unless they changed since) and reopens, on any
+ * Review. An Apply that never finished (no payload, claimed long ago) is
+ * released back to OPEN.
  */
 export async function undoFinding(findingId: string): Promise<ActionResult> {
-  const { finding } = await requireFindingAccess(findingId);
+  const { finding, isLatest } = await requireFindingAccess(findingId);
   if (finding.state === "DISMISSED") {
+    if (!isLatest) return formFail(COPY.replaced, "replaced");
     const { count } = await db.finding.updateMany({
       where: { id: finding.id, state: "DISMISSED" },
       data: { state: "OPEN", stateById: null, stateAt: null },
@@ -209,8 +236,19 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
   }
   if (finding.state !== "APPLIED") return formFail(COPY.nothing, "nothing");
   const payload = parseUndoPayload(finding.undoPayload);
-  if (!payload) return formFail(COPY.applying, "applying");
-  const row = await reachableRow(fixTarget(payload.fix), finding.tripId);
+  if (!payload) {
+    if (!isStrandedApply(finding, new Date())) return formFail(COPY.applying, "applying");
+    // A timeout stranded the claim: nothing was saved to undo, so just reopen it.
+    const { count } = await db.finding.updateMany({
+      where: { id: finding.id, state: "APPLIED", undoPayload: null, stateAt: finding.stateAt },
+      data: { state: "OPEN", stateById: null, stateAt: null },
+    });
+    if (count === 0) return formFail(COPY.handled, "handled");
+    revalidateTrip(finding.tripId, "reviews");
+    return ok();
+  }
+  const target = fixTarget(payload.fix);
+  const row = await reachableRow(target, finding.tripId);
   if (!row) return formFail(COPY.goneUndo, "gone");
   // Decision 7: never overwrite an edit made since Apply.
   if (!sameSnapshot(snapshotFor(payload.fix, row), payload.after)) return formFail(COPY.changed, "changed");
@@ -223,6 +261,11 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
 
   const result = await guarded(() => restoreSnapshot(payload.fix, payload.before, row), COPY.goneUndo);
   if (!result.success) {
+    // A two-step restore (a move back, then times) can fail half way: put `after` back, as Apply does.
+    const current = await loadFixRow(target);
+    if (current && !sameSnapshot(snapshotFor(payload.fix, current), payload.after)) {
+      await guarded(() => restoreSnapshot(payload.fix, payload.after, current), COPY.goneUndo);
+    }
     await db.finding.updateMany({
       where: { id: finding.id, state: "OPEN", stateById: null },
       data: { state: "APPLIED", stateById: finding.stateById, stateAt: finding.stateAt, undoPayload: finding.undoPayload },

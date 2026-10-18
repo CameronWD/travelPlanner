@@ -3,31 +3,20 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 // Spec 2026-10-17 R8, R10 against the real Postgres: Apply runs the app's own
 // actions and records who and when, Undo puts the row back exactly (a derived
 // Booking state goes back to derived), Undo refuses over a later edit, and a
-// fix whose target is gone fails cleanly. Only the Next/auth boundary, the
-// network (geocode, FX) and Activity are mocked.
+// fix whose target is gone, or hidden from the clicker by a Surprise, fails
+// cleanly. Only the Next/auth boundary (the session), the network (geocode,
+// FX) and Activity are mocked; the guards are real.
 const NOT_FOUND = () => Object.assign(new Error("NOT_FOUND"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
-vi.mock("next/navigation", () => ({ notFound: () => { throw NOT_FOUND(); } }));
+vi.mock("next/navigation", () => ({ notFound: () => { throw NOT_FOUND(); }, redirect: () => { throw new Error("NEXT_REDIRECT"); } }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null) }));
 vi.mock("@/lib/money/fx", () => ({ resolveRateForTrip: vi.fn(async () => ({ rate: 1, persist: null })), persistRate: vi.fn(async () => undefined) }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
-vi.mock("@/lib/guards", async () => ({
-  isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,
-  requireUser: vi.fn(async () => ({ id: "it-ra-user" })),
-  requireTripAccess: vi.fn(async () => ({ user: { id: "it-ra-user" }, membership: { role: "member" } })),
-  requirePlanAccess: vi.fn(async (_t: string, forkId?: string | null) => ({ user: { id: "it-ra-user" }, membership: { role: "member" }, plan: forkId ?? null })),
-  requireRowAccess: vi.fn(async (kind: string, id: string) => {
-    const { db } = await import("@/lib/db");
-    const { notFound } = await import("next/navigation");
-    const row = await (db as unknown as Record<string, { findUnique(a: unknown): Promise<unknown> }>)[kind].findUnique({ where: { id } });
-    if (!row) notFound();
-    return { row, user: { id: "it-ra-user" }, membership: { role: "member" }, surpriseOf: null };
-  }),
-}));
-vi.mock("@/lib/surprise-guard", async () => ({
-  ...(await vi.importActual<object>("@/lib/surprise-guard")),
-  requireOutsideSurprise: vi.fn(async () => null),
-}));
+// The real guards (lib/guards.ts requireRowAccess, lib/surprise-guard.ts) run:
+// only the session is stubbed, as the clicking Traveller.
+const session = vi.hoisted(() => ({ userId: "it-ra-user" }));
+vi.mock("@/lib/auth/auth", () => ({ auth: vi.fn(async () => ({ user: { id: session.userId } })) }));
+vi.mock("@/lib/mcp/acting-traveller", () => ({ getActingTraveller: () => null }));
 
 import { db } from "@/lib/db";
 import { applyFinding, dismissFinding, undoFinding } from "@/server/actions/reviews";
@@ -38,6 +27,8 @@ const TRIP_ID = "it-ra-trip";
 const PORTO = "it-ra-porto";
 const DINNER = "it-ra-dinner";
 const TRAIN = "it-ra-train";
+const PLANNER = "it-ra-planner";
+const GIFT = "it-ra-gift"; // a Surprise for USER, planned by PLANNER
 const T0 = new Date("2026-10-19T09:00:00Z");
 const BOOKING = { bookingState: true, bookingStateSet: true, bookBy: true } as const;
 
@@ -55,9 +46,10 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Apply, Undo and Dismiss (spec 
   beforeEach(async () => {
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
     await db.user.upsert({ where: { id: USER }, update: {}, create: { id: USER, email: "it-ra@example.test", name: "IT RA" } });
+    await db.user.upsert({ where: { id: PLANNER }, update: {}, create: { id: PLANNER, email: "it-ra-planner@example.test", name: "IT RA Planner" } });
     await db.trip.create({
       data: { id: TRIP_ID, name: "IT Review actions", homeCurrency: "AUD", createdById: USER, startDate: "2027-06-01", endDate: "2027-06-07",
-        members: { create: { userId: USER, role: "owner" } } },
+        members: { create: [{ userId: USER, role: "owner" }, { userId: PLANNER, role: "member" }] } },
     });
     await db.stop.create({ data: { id: PORTO, tripId: TRIP_ID, name: "IT Porto", timezone: "Europe/Lisbon", arriveDate: "2027-06-01", departDate: "2027-06-07", nights: 6, sortOrder: 0 } });
     await db.item.create({ data: { id: DINNER, tripId: TRIP_ID, stopId: PORTO, title: "IT Dinner", category: "FOOD", date: "2027-06-03", startTime: "19:30", notes: "Cash only.", sortOrder: 0, bookingState: "NONE", bookingStateSet: false } });
@@ -113,6 +105,24 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Apply, Undo and Dismiss (spec 
     await finding("it-ra-f5", { kind: "item.note", itemId: "it-ra-deleted", append: "x" });
     expect(await applyFinding("it-ra-f5")).toEqual({ success: false, errors: { _: [REVIEW_ACTION_COPY.gone] }, code: "gone" });
     expect((await stateOf("it-ra-f5")).state).toBe("OPEN");
+  });
+
+  it("a fix aimed at a Surprise hidden from the clicker fails as gone through the real guards, and stays Open", async () => {
+    await db.item.create({ data: { id: GIFT, tripId: TRIP_ID, stopId: PORTO, title: "IT Gift", category: "FOOD", date: "2027-06-05", notes: "Shh.", sortOrder: 1, surprisePlannerId: PLANNER, surpriseForIds: JSON.stringify([USER]) } });
+    // The Finding itself is about the visible Dinner; only its fix points into the Surprise.
+    await finding("it-ra-f7", { kind: "item.note", itemId: GIFT, append: "Wrap it in blue." });
+    expect(await applyFinding("it-ra-f7")).toEqual({ success: false, errors: { _: [REVIEW_ACTION_COPY.gone] }, code: "gone" });
+    expect(await stateOf("it-ra-f7")).toEqual({ state: "OPEN", stateById: null, stateAt: null, undoPayload: null });
+    expect((await db.item.findUniqueOrThrow({ where: { id: GIFT } })).notes).toBe("Shh.");
+
+    // The planner, who can see it, applies the same fix.
+    session.userId = PLANNER;
+    try {
+      expect(await applyFinding("it-ra-f7")).toEqual({ success: true });
+      expect((await db.item.findUniqueOrThrow({ where: { id: GIFT } })).notes).toBe("Shh.\n\nWrap it in blue.");
+    } finally {
+      session.userId = USER;
+    }
   });
 
   it("Dismiss records who and when; Undo reopens it; an older Review's Finding can't be dismissed", async () => {

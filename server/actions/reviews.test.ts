@@ -91,9 +91,10 @@ describe("undoFinding of a Dismiss", () => {
     expect(h.revalidateTrip).toHaveBeenCalledWith("t1", "reviews");
   });
 
-  it("works on an older Review too", async () => {
+  it("is refused on an older Review, as Dismiss is (its Undo would never carry forward)", async () => {
     access({ state: "DISMISSED", stateById: "u2", stateAt: STATE_AT }, false);
-    expect(await undoFinding("f1")).toEqual({ success: true });
+    expect(await undoFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.replaced, "replaced"));
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
   });
 
   it("an Open or No-longer-found Finding has nothing to undo", async () => {
@@ -198,7 +199,7 @@ describe("applyFinding (R8: runs the existing action, with Undo)", () => {
     h.updateItem.mockResolvedValueOnce(refusal);
     expect(await applyFinding("f1")).toEqual(refusal);
     expect(mdb.finding.updateMany).toHaveBeenLastCalledWith({
-      where: { id: "f1", state: "APPLIED", stateById: "u1" },
+      where: { id: "f1", state: "APPLIED", stateById: "u1", undoPayload: null },
       data: { state: "OPEN", stateById: null, stateAt: null },
     });
     expect(mdb.finding.update).not.toHaveBeenCalled();
@@ -270,8 +271,40 @@ describe("undoFinding of an Apply", () => {
   });
 
   it("a Finding still being applied (no payload yet) can't be undone yet", async () => {
-    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: null });
+    access({ state: "APPLIED", stateById: "u2", stateAt: new Date(Date.now() - 60_000), undoPayload: null });
     expect(await undoFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.applying, "applying"));
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("an Apply stranded for more than 5 minutes (no payload) is released back to Open", async () => {
+    const stateAt = new Date(Date.now() - 6 * 60_000);
+    access({ state: "APPLIED", stateById: "u2", stateAt, undoPayload: null }, false);
+    expect(await undoFinding("f1")).toEqual({ success: true });
+    expect(mdb.finding.updateMany).toHaveBeenCalledWith({
+      where: { id: "f1", state: "APPLIED", undoPayload: null, stateAt },
+      data: { state: "OPEN", stateById: null, stateAt: null },
+    });
+    expect(h.updateItem).not.toHaveBeenCalled();
+    expect(h.revalidateTrip).toHaveBeenCalledWith("t1", "reviews");
+  });
+
+  it("a restore whose move landed before the times were refused puts the Applied day back", async () => {
+    const times = JSON.stringify({
+      fix: { kind: "item.times", itemId: "i1", startTime: "09:00", date: "2027-06-03" },
+      before: { kind: "times", date: "2027-06-02", startTime: "10:00", endTime: null },
+      after: { kind: "times", date: "2027-06-03", startTime: "09:00", endTime: null },
+    });
+    access({ state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: times });
+    const applied = { ...ITEM, date: "2027-06-03", startTime: "09:00" };
+    mdb.item.findUnique.mockResolvedValueOnce(applied).mockResolvedValueOnce({ ...applied, date: "2027-06-02" });
+    const refusal = { success: false, errors: { startTime: ["No"] } };
+    h.updateItem.mockResolvedValueOnce(refusal);
+    expect(await undoFinding("f1")).toEqual(refusal);
+    expect(h.rescheduleItem.mock.calls).toEqual([["i1", "2027-06-02"], ["i1", "2027-06-03"]]);
+    expect(mdb.finding.updateMany).toHaveBeenLastCalledWith({
+      where: { id: "f1", state: "OPEN", stateById: null },
+      data: { state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: times },
+    });
   });
 
   it("fails cleanly when the target is gone", async () => {
@@ -301,5 +334,56 @@ describe("undoFinding of an Apply", () => {
     mdb.item.findUnique.mockResolvedValue({ ...ITEM, notes: "x" });
     await undoFinding("f1");
     expect(h.updateItem).toHaveBeenCalledWith("i1", { notes: null });
+  });
+});
+
+describe("applyFinding never strands or overwrites (fix round 1)", () => {
+  const RELEASE = {
+    where: { id: "f1", state: "APPLIED", stateById: "u1", undoPayload: null },
+    data: { state: "OPEN", stateById: null, stateAt: null },
+  };
+
+  it("a throw inside the action after the claim releases the Finding and rethrows", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "item.note", itemId: "i1", append: "x" }) });
+    mdb.item.findUnique.mockResolvedValue(ITEM);
+    h.updateItem.mockRejectedValueOnce(new Error("connection reset"));
+    await expect(applyFinding("f1")).rejects.toThrow("connection reset");
+    expect(mdb.finding.updateMany).toHaveBeenLastCalledWith(RELEASE);
+  });
+
+  it("a throw while saving the payload releases the Finding and rethrows", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "item.note", itemId: "i1", append: "x" }) });
+    mdb.item.findUnique.mockResolvedValue(ITEM);
+    mdb.finding.update.mockRejectedValueOnce(new Error("P2024 timeout"));
+    await expect(applyFinding("f1")).rejects.toThrow("P2024 timeout");
+    expect(mdb.finding.updateMany).toHaveBeenLastCalledWith(RELEASE);
+    expect(h.revalidateTrip).not.toHaveBeenCalled();
+  });
+
+  it("a refused single-step fix rolls nothing back, so a concurrent edit stands", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "item.note", itemId: "i1", append: "x" }) });
+    mdb.item.findUnique.mockResolvedValueOnce(ITEM).mockResolvedValueOnce({ ...ITEM, notes: "Edited by Xanni meanwhile." });
+    h.updateItem.mockResolvedValueOnce({ success: false, errors: { notes: ["No"] } });
+    await applyFinding("f1");
+    expect(h.updateItem).toHaveBeenCalledTimes(1);
+    expect(mdb.finding.updateMany).toHaveBeenLastCalledWith(RELEASE);
+  });
+
+  it("a refused move (it never landed) rolls nothing back, even when the day changed meanwhile", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "item.times", itemId: "i1", startTime: "09:00", date: "2027-06-03" }) });
+    mdb.item.findUnique.mockResolvedValueOnce(ITEM).mockResolvedValueOnce({ ...ITEM, date: "2027-06-05" });
+    h.rescheduleItem.mockResolvedValueOnce({ success: false, errors: { date: ["No"] } });
+    await applyFinding("f1");
+    expect(h.rescheduleItem).toHaveBeenCalledTimes(1);
+    expect(h.updateItem).not.toHaveBeenCalled();
+  });
+
+  it("a landed move is put back by day only, leaving the times as they are now", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "item.times", itemId: "i1", startTime: "09:00", date: "2027-06-03" }) });
+    mdb.item.findUnique.mockResolvedValueOnce(ITEM).mockResolvedValueOnce({ ...ITEM, date: "2027-06-03", startTime: "11:15" });
+    h.updateItem.mockResolvedValueOnce({ success: false, errors: { startTime: ["No"] } });
+    await applyFinding("f1");
+    expect(h.rescheduleItem.mock.calls).toEqual([["i1", "2027-06-03"], ["i1", "2027-06-02"]]);
+    expect(h.updateItem).toHaveBeenCalledTimes(1); // the refused times only; no times restore
   });
 });

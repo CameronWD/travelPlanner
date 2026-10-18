@@ -58,6 +58,10 @@ export async function loadReviewStanding(
   userId: string,
   opts: { now?: Date; client?: ReviewStandingClient; forUpdate?: boolean } = {},
 ): Promise<ReviewStanding> {
+  // A row lock outside a transaction is released at once: it would serialise nothing.
+  if (opts.forUpdate && !opts.client) {
+    throw new Error("loadReviewStanding: forUpdate needs the transaction's client (opts.client = tx)");
+  }
   const now = opts.now ?? new Date();
   const client = opts.client ?? db;
   let raw: string | null = null;

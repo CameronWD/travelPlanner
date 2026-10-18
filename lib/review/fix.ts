@@ -93,6 +93,18 @@ export function parseUndoPayload(raw: string | null | undefined): UndoPayload | 
   return parsed.success ? (parsed.data satisfies UndoPayload) : null;
 }
 
+/**
+ * An Apply claims its Finding (APPLIED, no undoPayload yet) before it runs the
+ * action and saves the payload after. A claim older than this never finished
+ * (a timeout killed the request), so Undo releases it back to OPEN.
+ */
+export const APPLY_STALE_AFTER_MS = 5 * 60_000;
+
+/** An APPLIED Finding whose Apply never saved its payload, and never will. */
+export function isStrandedApply(f: { state: string; undoPayload: string | null; stateAt: Date | null }, now: Date): boolean {
+  return f.state === "APPLIED" && f.undoPayload === null && (f.stateAt === null || now.getTime() - f.stateAt.getTime() > APPLY_STALE_AFTER_MS);
+}
+
 /** Form-level refusals of Apply, Dismiss and Undo (server/actions/reviews.ts). */
 export const REVIEW_ACTION_COPY = {
   handled: "Someone has already dealt with this one.",
