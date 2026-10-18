@@ -42,10 +42,15 @@ describe.skipIf(process.env.INTEGRATION !== "1")("User.reviewPermission migratio
   beforeAll(async () => {
     // A rerun after a failed run starts clean (only this file's ids start "it-rp-").
     await db.user.deleteMany({ where: { id: { startsWith: "it-rp-" } } });
-    // Cam's work address is written mixed-case with padding, to prove the match normalises.
     await account("cammark.williams@gmail.com", "cam");
+    // Cam's work address, mixed-case with padding: proves normalising the
+    // match does NOT grant an address that isn't in the list (fix round 1).
     await account("  Cameron.Williams@HismileTeeth.com ", "camWork");
     await account("xanni99.m@hotmail.com", "xanni");
+    // Xanni's own address, mixed-case with padding: proves normalising the
+    // match DOES grant an address that IS in the list, spelled differently
+    // (fix round 1).
+    await account("  Xanni99.M@Hotmail.com ", "xanniPadded");
     await account("it-rp-friend@example.test", "friend");
     await db.user.updateMany({ where: { id: { in: Object.values(ids) } }, data: { reviewPermission: "OFF" } });
   });
@@ -77,6 +82,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("User.reviewPermission migratio
     // cammark.williams@gmail.com and xanni99.m@hotmail.com).
     expect(byId[ids.camWork]).toBe("OFF");
     expect(byId[ids.xanni]).toBe("UNLIMITED");
+    expect(byId[ids.xanniPadded]).toBe("UNLIMITED");
     expect(byId[ids.friend]).toBe("OFF");
     expect(GRANTED).toHaveLength(2);
   });

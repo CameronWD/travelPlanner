@@ -40,11 +40,11 @@ describe("ReviewPermissionsPanel (R12)", () => {
     );
   });
 
-  it("puts the old value back and says why when the save is refused", async () => {
+  it("puts the old value back and names the account in the refusal message", async () => {
     setReviewPermission.mockResolvedValue({ success: false, errors: { _: ["That account no longer exists."] } });
     render(<ReviewPermissionsPanel initial={rows} />);
     await userEvent.click(within(group("pat@example.com")).getByRole("radio", { name: "Unlimited" }));
-    expect(await screen.findByText("That account no longer exists.")).toBeInTheDocument();
+    expect(await screen.findByText("Pat: That account no longer exists.")).toBeInTheDocument();
     expect(within(group("pat@example.com")).getByRole("radio", { name: "Off" })).toHaveAttribute("aria-checked", "true");
   });
 
@@ -57,5 +57,27 @@ describe("ReviewPermissionsPanel (R12)", () => {
   it("has an empty state", () => {
     render(<ReviewPermissionsPanel initial={[]} />);
     expect(screen.getByText("No accounts yet.")).toBeInTheDocument();
+  });
+
+  // Fix round 1: pending is a Set of ids, not one id, so finishing row A's
+  // save doesn't re-enable row B's control while row B's own save is still in flight.
+  it("keeps row B disabled while its own save is in flight, even after row A's finishes first", async () => {
+    let resolveB: (r: { success: true; permission: "UNLIMITED" }) => void = () => {};
+    setReviewPermission.mockImplementation((userId: string) => {
+      if (userId === "u1") return Promise.resolve({ success: true, permission: "LIMITED" });
+      return new Promise((resolve) => {
+        resolveB = resolve;
+      });
+    });
+    render(<ReviewPermissionsPanel initial={rows} />);
+
+    await userEvent.click(within(group("pat@example.com")).getByRole("radio", { name: "Unlimited" })); // u2, row B, stays pending
+    await userEvent.click(within(group("cam@example.com")).getByRole("radio", { name: "Off" })); // u1, row A, resolves immediately
+
+    await waitFor(() => expect(within(group("cam@example.com")).getByRole("radio", { name: "Off" })).not.toBeDisabled());
+    expect(within(group("pat@example.com")).getByRole("radio", { name: "Unlimited" })).toBeDisabled();
+
+    resolveB({ success: true, permission: "UNLIMITED" });
+    await waitFor(() => expect(within(group("pat@example.com")).getByRole("radio", { name: "Unlimited" })).not.toBeDisabled());
   });
 });

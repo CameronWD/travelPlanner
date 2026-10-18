@@ -41,6 +41,7 @@ export async function setReviewPermission(
   permission: string,
 ): Promise<ActionResult<{ permission: ReviewPermission }>> {
   await requireAdmin();
+  if (typeof userId !== "string" || userId.trim() === "") return formFail("Pick an account.");
   const parsed = reviewPermissionSchema.safeParse(permission);
   if (!parsed.success) return formFail("Pick Off, Limited or Unlimited.");
   const { count } = await db.user.updateMany({ where: { id: userId }, data: { reviewPermission: parsed.data } });

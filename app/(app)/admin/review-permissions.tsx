@@ -17,11 +17,21 @@ const LABEL: Record<ReviewPermission, string> = { OFF: "Off", LIMITED: "Limited"
  */
 export function ReviewPermissionsPanel({ initial }: { initial: ReviewPermissionView[] }) {
   const [rows, setRows] = React.useState(initial);
-  const [pendingId, setPendingId] = React.useState<string | null>(null);
+  // A Set, not one id: a save still in flight for row A must not make row B's
+  // control (re-)enable when row B's own save finishes first (fix round 1).
+  const [pendingIds, setPendingIds] = React.useState<ReadonlySet<string>>(new Set());
   const [message, setMessage] = React.useState<string | null>(null);
 
   const put = (userId: string, permission: ReviewPermission) =>
     setRows((prev) => prev.map((r) => (r.userId === userId ? { ...r, permission } : r)));
+
+  const setPending = (userId: string, pending: boolean) =>
+    setPendingIds((prev) => {
+      const next = new Set(prev);
+      if (pending) next.add(userId);
+      else next.delete(userId);
+      return next;
+    });
 
   async function change(row: ReviewPermissionView, value: string) {
     // Radix sends "" when the item already on is clicked again: nothing to do.
@@ -29,13 +39,13 @@ export function ReviewPermissionsPanel({ initial }: { initial: ReviewPermissionV
     const next = value as ReviewPermission;
     const before = row.permission;
     put(row.userId, next);
-    setPendingId(row.userId);
+    setPending(row.userId, true);
     setMessage(null);
     const result = await setReviewPermission(row.userId, next);
-    setPendingId(null);
+    setPending(row.userId, false);
     if (!result.success) {
       put(row.userId, before);
-      setMessage(formError(result) ?? "Couldn't change that.");
+      setMessage(`${row.name}: ${formError(result) ?? "Couldn't change that."}`);
     }
   }
 
@@ -59,7 +69,7 @@ export function ReviewPermissionsPanel({ initial }: { initial: ReviewPermissionV
             tone="ink"
             aria-label={`Reviews for ${row.email}`}
             value={row.permission}
-            disabled={pendingId === row.userId}
+            disabled={pendingIds.has(row.userId)}
             onValueChange={(v) => void change(row, v)}
             className="shrink-0 self-end sm:self-auto"
           >

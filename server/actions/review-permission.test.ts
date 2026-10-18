@@ -55,6 +55,12 @@ describe("setReviewPermission", () => {
     expect(revalidateAdminMock).toHaveBeenCalled();
   });
 
+  it("refuses an empty or blank userId, and writes nothing", async () => {
+    expect(await setReviewPermission("", "LIMITED")).toEqual({ success: false, errors: { _: ["Pick an account."] } });
+    expect(await setReviewPermission("   ", "LIMITED")).toEqual({ success: false, errors: { _: ["Pick an account."] } });
+    expect(userUpdateManyMock).not.toHaveBeenCalled();
+  });
+
   it("refuses a value that isn't Off, Limited or Unlimited, and writes nothing", async () => {
     const result = await setReviewPermission("u2", "ADMIN");
     expect(result).toEqual({ success: false, errors: { _: ["Pick Off, Limited or Unlimited."] } });
