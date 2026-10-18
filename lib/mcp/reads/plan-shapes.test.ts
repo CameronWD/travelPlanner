@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { serializeOpeningHours } from "@/lib/validations/opening-hours";
+import { withTryList } from "@/lib/try-list-stored";
 import type { HoursSpan, OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import {
@@ -22,14 +23,15 @@ const stop = (o: Partial<McpStopRow> = {}): McpStopRow => ({
 const item = (o: Partial<McpItemRow> = {}): McpItemRow => ({
   id: "i1", title: "Tour", category: "ACTIVITY", date: null, startTime: null, endTime: null,
   address: null, link: null, booking: null, notes: null, stopId: null, bookingState: "NONE", bookBy: null,
-  openingHours: null, ...o,
+  openingHours: null, tryList: null, ...o,
 });
 const surpriseView = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true } as never;
 // Fix round 1 (controller ruling): `toMcpItem` and `buildMcpStops`'s
-// `datedItems` now take rows whose `openingHours` has already been parsed at
-// the row edge (`withOpeningHours`), same as production (`withPlaceholders`,
-// `loadItemForMcp`) — never a raw string wearing the parsed type.
-const datedItem = (o: Partial<McpItemRow> = {}, surprise: SurpriseView | null = null) => ({ ...withOpeningHours(item(o)), surprise });
+// `datedItems` now take rows whose `openingHours` and `tryList` have already
+// been parsed at the row edge (`withOpeningHours`, `withTryList`), same as
+// production (`withPlaceholders`, `loadItemForMcp`) — never a raw string
+// wearing the parsed type.
+const datedItem = (o: Partial<McpItemRow> = {}, surprise: SurpriseView | null = null) => ({ ...withTryList(withOpeningHours(item(o))), surprise });
 
 describe("buildMcpStops", () => {
   it("puts a Changeover day's Item under both Stops, each day titled once, and reports it covered", () => {
@@ -148,7 +150,7 @@ describe("toMcpItem / toMcpTransport", () => {
       id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
       bookingState: "NONE", bookBy: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN",
-      openingHours: null, owningStop: { id: "s1", name: "Porto" },
+      openingHours: null, tryList: null, owningStop: { id: "s1", name: "Porto" },
     });
   });
 
@@ -198,5 +200,27 @@ describe("Slot time in the Claude reads (R3)", () => {
   });
   it("a row read without the columns says none / UNKNOWN", () => {
     expect(toMcpItem(datedItem(), noFiles, new Map())).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
+  });
+});
+
+describe("Try list (CONTEXT.md Try list)", () => {
+  const list = [{ id: "e1", text: "Francesinha", tried: true }];
+
+  it("a thing to do and a day item read the stored list; an unreadable one reads as none", () => {
+    const { stops } = buildMcpStops({
+      stops: [stop()],
+      thingsToDo: [item({ id: "t1", stopId: "s1", tryList: JSON.stringify(list) })],
+      datedItems: [datedItem({ id: "d1", date: "2027-06-02", tryList: "nope" })],
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      stopNameById: new Map(),
+    });
+    expect(stops[0].thingsToDo[0].tryList).toEqual(list);
+    expect(stops[0].days.find((d) => d.date === "2027-06-02")!.items[0].tryList).toBeNull();
+  });
+
+  it("toMcpItem carries it; a hidden Surprise's placeholder never does", () => {
+    expect(toMcpItem(datedItem({ id: "i1", date: "2027-06-02", tryList: JSON.stringify(list) }), noFiles, new Map()).tryList).toEqual(list);
+    const out = withPlaceholders([], { placeholderItems: [placeholder()], views: { stops: new Map(), items: new Map() } });
+    expect(out[0].tryList).toBeNull();
   });
 });

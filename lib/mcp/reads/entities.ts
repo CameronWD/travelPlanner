@@ -24,6 +24,7 @@ import { readMcpCosts, type McpCost } from "./costs";
 import { readMcpNotes, type McpNote } from "./notes";
 import { ownerKey } from "./owners";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
+import { withTryList } from "@/lib/try-list-stored";
 import {
   buildMcpStops, MCP_ACCOMMODATION_SELECT, MCP_CHAPTER_SELECT, MCP_DATED_ITEM_SELECT, MCP_THING_TO_DO_SELECT, MCP_TRANSPORT_SELECT,
   MCP_TRIP_SELECT, mcpStopSelect, toMcpAccommodation, toMcpItem, toMcpTransport, toMcpTrip, withPlaceholders,
@@ -59,7 +60,7 @@ export async function loadItemForMcp(itemId: string): Promise<McpItemDetail> {
   ]);
   return {
     ...toMcpItem(
-      { ...withOpeningHours(row), surprise: v.views.items.get(itemId) ?? null },
+      { ...withTryList(withOpeningHours(row)), surprise: v.views.items.get(itemId) ?? null },
       filesFrom(files),
       new Map(owner ? [[owner.id, owner.name]] : []),
     ),

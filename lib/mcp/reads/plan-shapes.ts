@@ -12,6 +12,9 @@ import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
+import { withTryList } from "@/lib/try-list-stored";
+import { parseTryList } from "@/lib/validations/try-list";
+import type { TryList } from "@/lib/try-list";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
 import type { McpFileRef } from "./attachments";
@@ -71,6 +74,8 @@ interface McpThingToDo {
   refundable: McpRefundable;
   /** CONTEXT.md "Opening hours": week (sun..sat), seasons and closed dates, in the Stop's local time; null = not known. */
   openingHours: OpeningHours | null;
+  /** CONTEXT.md "Try list": [{ id, text, tried }] in order, the same shape set_try_list takes; null = none. */
+  tryList: TryList | null;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -97,6 +102,8 @@ export interface McpDayItem {
   refundable: McpRefundable;
   /** CONTEXT.md "Opening hours": week (sun..sat), seasons and closed dates, in the Stop's local time; null = not known. */
   openingHours: OpeningHours | null;
+  /** CONTEXT.md "Try list": [{ id, text, tried }] in order, the same shape set_try_list takes; null = none. */
+  tryList: TryList | null;
   /**
    * The Stop this thing is owned by: the one whose Budget line its Cost
    * counts against. On a Changeover day the thing is listed under both
@@ -241,7 +248,7 @@ export const MCP_THING_TO_DO_SELECT = {
   id: true, title: true, category: true, startTime: true, endTime: true,
   address: true, link: true, booking: true, notes: true, stopId: true,
   bookingState: true, bookBy: true, slotTime: true, arriveByMinutes: true, refundable: true,
-  openingHours: true,
+  openingHours: true, tryList: true,
 } as const;
 
 export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } as const;
@@ -285,6 +292,8 @@ export interface McpItemRow {
   slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null;
   /** The stored column: a JSON string, or null. Parse at the row edge with `withOpeningHours`/`parseOpeningHours` before building a shape — never hand this straight to a shape that expects `OpeningHours`. */
   openingHours: string | null;
+  /** The stored column: a JSON string, or null. Parse at the row edge with `withTryList`/`parseTryList` before building a shape. */
+  tryList: string | null;
 }
 
 export interface McpTransportRow {
@@ -336,6 +345,7 @@ function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: S
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
     notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, ...mcpSlot(i),
     openingHours: parseOpeningHours(i.openingHours),
+    tryList: parseTryList(i.tryList),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
   };
 }
@@ -348,6 +358,7 @@ export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: 
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
     bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
     openingHours: i.openingHours ?? null,
+    tryList: i.tryList ?? null,
     owningStop: owningStopRef(i.stopId, stopNameById),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
@@ -363,7 +374,7 @@ export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: 
  * included) sees it as a `StopDayItem`, never a raw JSON string wearing that
  * type.
  */
-type DatedItem = Omit<McpItemRow, "openingHours"> & { openingHours: OpeningHours | null; surprise: SurpriseView | null };
+type DatedItem = Omit<McpItemRow, "openingHours" | "tryList"> & { openingHours: OpeningHours | null; tryList: TryList | null; surprise: SurpriseView | null };
 
 export function toMcpItem(i: DatedItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpItem {
   return {
@@ -384,7 +395,7 @@ export function withPlaceholders(
   v: Pick<SurpriseVisibility, "placeholderItems" | "views">,
 ): DatedItem[] {
   return [
-    ...scheduled.map((i) => ({ ...withOpeningHours(i), surprise: v.views.items.get(i.id) ?? null })),
+    ...scheduled.map((i) => ({ ...withTryList(withOpeningHours(i)), surprise: v.views.items.get(i.id) ?? null })),
     ...v.placeholderItems
       .filter((p) => p.forkId === null && p.date !== null)
       .map((p) => ({
@@ -393,6 +404,7 @@ export function withPlaceholders(
         bookingState: p.bookingState, bookBy: p.bookBy,
         slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable,
         openingHours: p.openingHours,
+        tryList: p.tryList,
         surprise: p.surprise,
       })),
   ].sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0));
