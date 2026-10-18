@@ -59,6 +59,25 @@ export async function itemFamilyRecipients(
   return recipients;
 }
 
+/**
+ * itemFamilyRecipients for a save that may also change where the Item stands
+ * (CONTEXT.md "Surprise"; ADR 0072). The Surprise part of a save
+ * (applySurpriseFor) lands after the family write, and the family is read from
+ * the Item as it is now, so a save that makes the Item a Surprise, or moves it
+ * into a Stop inside a live Surprise, would otherwise broadcast the new text to
+ * the visible idea and its copies. Either way it reaches no one: only the
+ * edited row takes the change.
+ */
+export async function itemFamilyRecipientsForSave(
+  item: { id: string; tripId: string; sourceItemId: string | null },
+  save: { surpriseForIds?: readonly string[] | null; stopId?: string | null },
+  client: ItemFamilyReadClient = db,
+): Promise<string[]> {
+  if (save.surpriseForIds && save.surpriseForIds.length > 0) return [];
+  if (save.stopId && (await surpriseRootFor({ stopId: save.stopId }, undefined, client))) return [];
+  return itemFamilyRecipients(item, client);
+}
+
 /** Share `data` with `recipients` inside the caller's transaction. Silent: the edited row's own write carries the Activity. */
 export async function writeItemFamily(tx: ItemFamilyClient, recipients: readonly string[], data: ItemFamilyData): Promise<void> {
   if (recipients.length === 0 || Object.keys(data).length === 0) return;

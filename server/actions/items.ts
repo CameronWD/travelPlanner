@@ -31,7 +31,7 @@ import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "
 import { startFromSlot } from "@/lib/slot-time";
 import { openingHoursSchema, parseOpeningHours, serializeOpeningHours } from "@/lib/validations/opening-hours";
 import type { OpeningHours } from "@/lib/opening-hours";
-import { itemFamilyRecipients, writeItemFamily, type ItemFamilyData } from "@/lib/item-family";
+import { itemFamilyRecipients, itemFamilyRecipientsForSave, writeItemFamily, type ItemFamilyData } from "@/lib/item-family";
 import { applyTryListInput, withEntryTried, type TryEntryInput } from "@/lib/try-list";
 import { parseTryList, serializeTryList, tryListInputSchema } from "@/lib/validations/try-list";
 
@@ -434,7 +434,8 @@ export async function updateItem(
   // may not even parse — fix round 1) back onto the row, and never re-touches
   // the family. The hours are known now; the Try list is merged inside the
   // transaction below, onto the list as it is under the family's row lock.
-  // itemFamilyRecipients never crosses a Surprise (ADR 0072).
+  // itemFamilyRecipientsForSave never crosses a Surprise (ADR 0072), not
+  // even one this same save sets.
   const familyData: ItemFamilyData = {};
   if (patch.openingHours !== undefined) familyData.openingHours = serializeOpeningHours(data.openingHours);
   const sharesWithFamily = Object.keys(familyData).length > 0 || patch.tryList !== undefined;
@@ -484,8 +485,10 @@ export async function updateItem(
   // dialog never sends `tried`), and the Activity compares against that list.
   if (sharesWithFamily) {
     const { after, lockedTryList } = await db.$transaction(async (tx) => {
-      const recipients = await itemFamilyRecipients(before, tx);
-      const locked = await lockItemFamily(tx, itemId, recipients);
+      // A save that also makes the Item a Surprise, or moves it into a live
+      // Surprise's Stop, reaches only this row (I1): its Surprise lands after.
+      const recipients = await itemFamilyRecipientsForSave(before, { surpriseForIds: data.surpriseForIds, stopId: data.stopId }, tx);
+      const locked = (await lockItemFamily(tx, itemId, recipients)).get(itemId) ?? null;
       // Only the family columns the patch named (fix round 1): `tryList` is
       // set only when the patch names it, so writeItemFamily's key count
       // never sees an undefined-valued key.
@@ -622,7 +625,7 @@ export async function setTryList(itemId: string, entries: TryEntryInput[] | null
 
   const { before, after } = await db.$transaction(async (tx) => {
     const recipients = await itemFamilyRecipients(held, tx);
-    const locked = await lockItemFamily(tx, itemId, recipients);
+    const locked = (await lockItemFamily(tx, itemId, recipients)).get(itemId) ?? null;
     const stored = serializeTryList(applyTryListInput(parseTryList(locked), parsed.data.tryList ?? []));
     const updated = await tx.item.update({ where: { id: itemId }, data: { tryList: stored } });
     await writeItemFamily(tx, recipients, { tryList: stored });
@@ -652,37 +655,48 @@ export async function tickTryEntry(itemId: string, entryId: string, tried: boole
 
   const outcome = await db.$transaction(async (tx) => {
     const recipients = await itemFamilyRecipients(held, tx);
-    const current = parseTryList(await lockItemFamily(tx, itemId, recipients));
-    const entry = current?.find((e) => e.id === entryId);
+    const locked = await lockItemFamily(tx, itemId, recipients);
+    const entry = parseTryList(locked.get(itemId) ?? null)?.find((e) => e.id === entryId);
     if (!entry) return "gone" as const;
     if (entry.tried === tried) return "unchanged" as const;
-    const stored = serializeTryList(withEntryTried(current, entryId, tried));
-    await tx.item.update({ where: { id: itemId }, data: { tryList: stored } });
-    await writeItemFamily(tx, recipients, { tryList: stored });
+    // Each row is ticked on its own list (I2): a revealed copy whose list has
+    // diverged keeps its other entries, and a row without this entry is left
+    // alone. Rows that land on the same list share one write.
+    const writes = new Map<string, string[]>();
+    for (const id of [itemId, ...recipients]) {
+      const list = parseTryList(locked.get(id) ?? null);
+      if (!list?.some((e) => e.id === entryId && e.tried !== tried)) continue;
+      const stored = serializeTryList(withEntryTried(list, entryId, tried));
+      if (id === itemId) await tx.item.update({ where: { id }, data: { tryList: stored } });
+      else if (stored !== null) writes.set(stored, [...(writes.get(stored) ?? []), id]);
+    }
+    for (const [stored, ids] of writes) await writeItemFamily(tx, ids, { tryList: stored });
     return "ticked" as const;
   });
 
+  // Every outcome refreshes the plan (I3): a tick that bounced back ("unchanged"
+  // after a partner's tick, or "gone") reconciles a stale page.
+  revalidateTrip(item.tripId, "plan");
   if (outcome === "gone") return { success: false, errors: { tryList: ["That one is no longer on the list."] } };
-  if (outcome === "ticked") revalidateTrip(item.tripId, "plan");
   return { success: true };
 }
 
 /**
  * CONTEXT.md "Opening hours", "Try list": lock every row of the Item family
  * (the edited row and its recipients) in id order, as stop-flow.ts locks a
- * plan's Stops (ADR 0007), and return the edited row's stored Try list. Every family write takes
+ * plan's Stops (ADR 0007), and return every locked row's stored Try list, by id. Every family write takes
  * it first, so two writers on any rows of one family run one after the other
  * (neither loses the other's tick) and, taking the rows in one order, never
  * deadlock. Raw SQL because Prisma can't express SELECT … FOR UPDATE.
  */
-async function lockItemFamily(tx: Prisma.TransactionClient, itemId: string, recipients: readonly string[]): Promise<string | null> {
+async function lockItemFamily(tx: Prisma.TransactionClient, itemId: string, recipients: readonly string[]): Promise<Map<string, string | null>> {
   const rows = await tx.$queryRaw<{ id: string; tryList: string | null }[]>`
     SELECT "id", "tryList" FROM "Item"
     WHERE "id" IN (${Prisma.join([itemId, ...recipients])})
     ORDER BY "id"
     FOR UPDATE
   `;
-  return rows.find((r) => r.id === itemId)?.tryList ?? null;
+  return new Map(rows.map((r) => [r.id, r.tryList]));
 }
 
 /**

@@ -152,4 +152,27 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Try list is shared by an ide
     expect(await tickTryEntry(COPY, "gone1234", true)).toEqual({ success: false, errors: { tryList: ["That one is no longer on the list."] } });
     expect(await listOf(COPY)).toEqual(before);
   });
+  it("a planner saving a placed copy as a Surprise with new entries leaves the visible idea's list as it was (I1)", async () => {
+    await setTryList(IDEA, [{ text: "IT Lebkuchen" }]);
+    const before = await listOf(IDEA);
+    const r = await updateItem(COPY, { tryList: [...before!, { text: "IT Secret birthday stall" }], surpriseForIds: [OTHER_USER] });
+    expect(r).toEqual({ success: true });
+    expect((await listOf(COPY))!.map((e) => e.text)).toEqual(["IT Lebkuchen", "IT Secret birthday stall"]);
+    expect(await listOf(IDEA)).toEqual(before);
+    expect(await listOf(FORK_COPY)).toEqual(before);
+    expect((await db.item.findUnique({ where: { id: COPY } }))!.surprisePlannerId).toBe(USER);
+  });
+
+  it("a tick on the idea keeps a revealed copy's extra entry and ticks the shared one there too (I2)", async () => {
+    await setTryList(IDEA, [{ text: "IT Lebkuchen" }]);
+    const [shared] = (await listOf(IDEA))!;
+    const extra = { id: "itextra1", text: "IT Feuerzangenbowle", tried: false };
+    await db.item.update({
+      where: { id: SURPRISE_COPY },
+      data: { surpriseRevealedAt: new Date("2027-01-01T00:00:00Z"), tryList: JSON.stringify([shared, extra]) },
+    });
+    expect(await tickTryEntry(IDEA, shared.id, true)).toEqual({ success: true });
+    expect(await listOf(SURPRISE_COPY)).toEqual([{ ...shared, tried: true }, extra]);
+    expect(await listOf(COPY)).toEqual([{ ...shared, tried: true }]);
+  });
 });

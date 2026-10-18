@@ -2751,6 +2751,26 @@ describe("Try list (CONTEXT.md Try list: shared by a thing to do and its placed 
     expect(itemUpdateMock.mock.calls[0][0]).not.toHaveProperty("data.tryList");
   });
 
+  it("a save that also makes the Item a Surprise keeps its list and hours off the family (I1)", async () => {
+    setSurpriseMock.mockResolvedValue({ success: true });
+    await updateItem("copy-1", { tryList: [{ id: "e1", text: "Lebkuchen" }, { text: "Secret" }], surpriseForIds: ["partner-1"] });
+    expect(written(itemUpdateMock)).toEqual([LIST[0], { id: freshId, text: "Secret", tried: false }]);
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+    expect(itemQueryRawMock.mock.calls[0].slice(1)).toEqual([expect.objectContaining({ values: ["copy-1"] })]);
+  });
+
+  it("a save that also moves the Item into a live Surprise's Stop keeps its list and hours off the family (I1)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "hidden-stop", tripId: "trip-1", forkId: null });
+    surpriseRootForMock.mockImplementation(async (ref: { stopId?: string }) => (ref.stopId === "hidden-stop" ? { type: "STOP", id: "hidden-stop" } : null));
+    await updateItem("copy-1", {
+      stopId: "hidden-stop",
+      tryList: [{ id: "e1", text: "Lebkuchen" }],
+      openingHours: { week: { sun: [], mon: [], tue: [], wed: [], thu: [], fri: [], sat: [] }, seasons: [], closed: [] },
+    });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ stopId: "hidden-stop", tryList: serializeTryList([LIST[0]]) }) });
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
   it("updateItem with hours only shares the hours, not the list", async () => {
     await updateItem("copy-1", { openingHours: { week: { sun: [], mon: [], tue: [], wed: [], thu: [], fri: [], sat: [] }, seasons: [], closed: [] } });
     expect(itemUpdateMock.mock.calls[0][0]).not.toHaveProperty("data.tryList");
@@ -2888,6 +2908,41 @@ describe("Try list (CONTEXT.md Try list: shared by a thing to do and its placed 
     itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: null }, { id: "idea-1", tryList: null }]);
     expect(await tickTryEntry("copy-1", "e1", true)).toMatchObject({ success: false });
     expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("a tick reaches each family row on its own list: a diverged copy keeps its extra entry, a row without the entry is left alone (I2)", async () => {
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }, { id: "revealed" }, { id: "other" }]);
+    const diverged = [...LIST, { id: "e9", text: "Feuerzangenbowle", tried: false }];
+    itemQueryRawMock.mockResolvedValue([
+      { id: "copy-1", tryList: STORED },
+      { id: "idea-1", tryList: STORED },
+      { id: "other", tryList: serializeTryList([{ id: "x1", text: "Something else", tried: false }]) },
+      { id: "revealed", tryList: serializeTryList(diverged) },
+    ]);
+    expect(await tickTryEntry("copy-1", "e2", true)).toEqual({ success: true });
+    const ticked = (list: typeof LIST) => serializeTryList(list.map((e) => (e.id === "e2" ? { ...e, tried: true } : e)));
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: ticked(LIST) } });
+    expect(itemUpdateManyMock).toHaveBeenCalledTimes(2);
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: ticked(LIST) } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["revealed"] } }, data: { tryList: ticked(diverged) } });
+  });
+
+  it("a family row whose entry already has the tick is not written", async () => {
+    itemQueryRawMock.mockResolvedValue([
+      { id: "copy-1", tryList: STORED },
+      { id: "idea-1", tryList: serializeTryList([LIST[0], { ...LIST[1], tried: true }]) },
+    ]);
+    await tickTryEntry("copy-1", "e2", true);
+    expect(itemUpdateMock).toHaveBeenCalledTimes(1);
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a tick revalidates the plan on every outcome, so a stale page reconciles (I3)", async () => {
+    await tickTryEntry("copy-1", "e1", true); // unchanged: a partner already ticked it
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+    revalidateTripMock.mockClear();
+    await tickTryEntry("copy-1", "gone", true);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
   });
 
   it("tickTryEntry checks access before writing", async () => {

@@ -7,7 +7,7 @@ const { itemFindManyMock, surpriseRootForMock } = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db: { item: { findMany: itemFindManyMock } } }));
 vi.mock("@/lib/surprise-guard", () => ({ surpriseRootFor: surpriseRootForMock }));
 
-import { itemFamilyRecipients, itemFamilyRoot, itemFamilyWhere, writeItemFamily } from "./item-family";
+import { itemFamilyRecipients, itemFamilyRecipientsForSave, itemFamilyRoot, itemFamilyWhere, writeItemFamily } from "./item-family";
 
 const COPY = { id: "copy-1", tripId: "trip-1", sourceItemId: "idea-1" };
 const hiddenIf = (ids: string[]) => async (ref: { itemId?: string }) =>
@@ -65,6 +65,28 @@ describe("itemFamilyRecipients (never crosses a Surprise)", () => {
       [{ itemId: "copy-1" }, undefined, tx],
       [{ itemId: "idea-1" }, undefined, tx],
     ]);
+  });
+});
+
+describe("itemFamilyRecipientsForSave (a save that also hides the Item never broadcasts)", () => {
+  it("is no one when the save makes the Item a Surprise, without reading the family", async () => {
+    expect(await itemFamilyRecipientsForSave(COPY, { surpriseForIds: ["partner-1"], stopId: "stop-1" })).toEqual([]);
+    expect(itemFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("is no one when the save moves the Item into a Stop inside a live Surprise", async () => {
+    surpriseRootForMock.mockImplementation(async (ref: { stopId?: string }) => (ref.stopId === "hidden-stop" ? { type: "STOP", id: "hidden-stop" } : null));
+    const tx = { item: { findMany: itemFindManyMock } };
+    expect(await itemFamilyRecipientsForSave(COPY, { stopId: "hidden-stop" }, tx as never)).toEqual([]);
+    expect(surpriseRootForMock).toHaveBeenCalledWith({ stopId: "hidden-stop" }, undefined, tx);
+    expect(itemFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("is the usual family otherwise (no Surprise named, or [] which clears one; a visible Stop; no Stop)", async () => {
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]);
+    expect(await itemFamilyRecipientsForSave(COPY, { surpriseForIds: [], stopId: "stop-1" })).toEqual(["idea-1"]);
+    expect(await itemFamilyRecipientsForSave(COPY, { stopId: null })).toEqual(["idea-1"]);
+    expect(await itemFamilyRecipientsForSave(COPY, {})).toEqual(["idea-1"]);
   });
 });
 

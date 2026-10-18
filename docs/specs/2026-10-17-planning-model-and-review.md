@@ -464,3 +464,24 @@ carrying no Try list or Opening hours, a family's recipients being read
 before its row lock, other multi-row Item transactions (Forks, Stops) not
 taking the family lock, and an overnight Item starting just before closing
 going unflagged.
+
+### Final fix wave (whole-branch review, 2026-10-18)
+
+- **A save that also hides the Item keeps it off the family (I1).** The
+  Surprise part of `updateItem` lands after its family write, so the family
+  is now worked out by `itemFamilyRecipientsForSave`: a save that sets a
+  non-empty `surpriseForIds`, or whose Stop is inside a live Surprise,
+  reaches only the edited row (Try list and Opening hours alike).
+- **A tick reaches each family row on its own list (I2).** `lockItemFamily`
+  returns every locked row's list, and `tickTryEntry` applies
+  `withEntryTried` to each row separately, writing only the rows that hold
+  that entry and actually change. A revealed Surprise copy whose list
+  diverged keeps its other entries. Outcomes are unchanged ("gone" and
+  "unchanged" read the edited row only).
+- **Known limitation:** whole-list writes (`setTryList`, and the dialog's
+  `updateItem`) stay last-writer-wins across the family: they write the
+  edited row's merged list over every recipient, so a revealed copy's
+  diverged entries are replaced by a whole-list edit made elsewhere in the
+  family.
+- **Every tick refreshes the plan (I3),** including "unchanged" and "gone",
+  so a stale page reconciles with a partner's tick or a removed entry.
