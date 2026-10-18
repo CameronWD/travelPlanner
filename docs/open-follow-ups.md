@@ -3345,3 +3345,40 @@ each is a one-file follow-up.
   start` (the decided overnight rule, notes-F.md decision 8), so an Item
   starting at 23:50 against a close at midnight raises nothing, unlike the
   same start with no end at all.
+
+## 2026-10-18 · AI Review (Branch 3) follow-ups (spec 2026-10-17-planning-model-and-review)
+
+Parked at Task Z's gate rather than fixed there — none block the branch;
+each is a one-file follow-up.
+
+- **RV-01 · Claude can't Apply or Dismiss a Finding.** `lib/mcp/tools/reviews.ts`
+  registers only `get_review`, `list_reviews` and `review_trip` (M.3/M.4);
+  there is no `apply_finding`/`dismiss_finding` mirroring
+  `server/actions/reviews.ts`'s `applyFinding`/`dismissFinding`. Claude can
+  already make a suggested change with the write tool `fixWith` names
+  (notes-M.md decision 5), but can't move the Finding itself to Applied or
+  Dismissed — that still needs the app.
+- **RV-02 · A history list of more than 50 Reviews has no way to page
+  further.** `listReviews` (`lib/review-reads.ts` ~101, ~226-234,
+  `HISTORY_LIMIT = 50`) returns at most the 50 newest Reviews, newest first,
+  with no cursor or offset; `list_reviews` (`lib/mcp/reads/reviews.ts`)
+  inherits the same cap. A Trip reviewed more than 50 times loses its oldest
+  history from both the Reviews tab and Claude, with no way to reach it.
+- **RV-03 · The MCP route's permission read is a second query, not folded
+  into the existing one.** `app/api/mcp/route.ts` calls
+  `reviewPermissionOf(traveller.id)` (`lib/review-permission-reads.ts`)
+  separately from the acting-Traveller select that already runs on every
+  call, rather than adding `reviewPermission` to that select (M.5 deviation
+  6 kept `ActingUser`'s four-field shape instead, to avoid widening it for
+  one caller-side gate). Costs one extra small query per MCP request.
+- **RV-04 · A theoretical deadlock window between starting a Review and
+  saving one, not yet fixed or commented.** `beginReview`
+  (`lib/review/start.ts` ~31-33) locks the starting User row, then the Trip
+  row (`FOR UPDATE` then `FOR NO KEY UPDATE`), before sweeping stale Review
+  rows for that Trip or account. `saveReviewResult` (`lib/review-store.ts`
+  ~25) locks a Review row directly with `FOR UPDATE` and never takes the
+  User or Trip lock. Today the two writers only meet at the Review table, so
+  Postgres has no cycle to find; flagged during the R.1-7 and J.8-14 reviews
+  as a window worth a code comment (parked, per task-Z-addendum.md, for a
+  later whole-branch fix wave rather than Task Z) in case either writer ever
+  grows a lock on the other's starting point.

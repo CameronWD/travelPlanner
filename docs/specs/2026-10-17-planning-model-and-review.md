@@ -3,7 +3,10 @@
 **Status:** Branch 1 (`feat/planning-model`) merged to `main`;
 `cmvaig4j5000u07gwgeqrvtkd` closes on its deploy. Branch 2 built on
 `feat/plan-flags-try-lists`, awaiting Cam's review, merge and deploy; on
-deploy, resolve `cmvaig9lq000v07gwt50bn7k0`. One spec, three sequential
+deploy, resolve `cmvaig9lq000v07gwt50bn7k0`. Branch 3 built on
+`feat/trip-review`, awaiting Cam's review, merge and deploy; on deploy, run
+`scripts/review-smoke.ts` (both kinds — see "Branch 3: as built" below) and
+then resolve `cmva5yfw4000007lawnx4y88x`. One spec, three sequential
 branches, each merged and deployed by Cam before the next starts:
 `feat/planning-model` (Branch 1), `feat/plan-flags-try-lists` (Branch 2),
 `feat/trip-review` (Branch 3). This spec ships on the first.
@@ -525,3 +528,377 @@ going unflagged.
   this branch doesn't touch), `npm run knip` (clean), the integration tier
   against a sandbox Postgres (33 files, 180 tests), and `npm run build` in a
   throwaway copy: all green.
+
+## Branch 3: as built (2026-10-18)
+
+Built section by section (P permission and limits, then R Review/Finding
+storage, matching and Apply/Dismiss/Undo plus P.8's counted-starts helper,
+then J the background job, then U the Reviews tab, then M the MCP tools),
+each reviewed; Task Z ran the gate and wrote this section. Full gate: `npm
+test` (855 files, 11,686 tests), `npx tsc --noEmit`, `npx eslint .` (0
+errors, 8 warnings — 7 pre-existing in files this branch doesn't touch, one
+new style warning on an un-exported constant only used as a type), `npm run
+knip` (clean, after Task Z's seven fixes below), the integration tier
+against a sandbox Postgres (43 files, 232 tests), and `npm run build` in a
+throwaway copy — all green (task-Z-report.md has the exact run).
+
+**What a Traveller sees:**
+- A **Reviews** tab sits beside Summary everywhere Summary appears (primary
+  nav, the More page, the phone More sheet, the rail's More match set, the
+  ≥1280px sidebar's Keep group, the ⌘K Go to list, the Help legend's sidebar
+  list), icon `SearchCheck`.
+- The two run buttons, **Standard Review** and **Deep Review**, show only to
+  an account whose Review permission is Limited or Unlimited — today that is
+  only `cammark.williams@gmail.com` and `xanni99.m@hotmail.com`, the two
+  accounts the migration grants Unlimited (Cam's ruling: his personal
+  account, not his work one). Everyone else sees no option where the buttons
+  would be — Off shows nothing, "no option shown anywhere" (R12).
+- A Limited account (none exist yet; an Admin grants it on `/admin`) sees the
+  same buttons until it uses its allowance — 1 Review per rolling 24 hours
+  and 2 per rolling 7 days, across every Trip the account can reach, Standard
+  and Deep each counting one — then one disabled button reading "Next Review
+  available today at HH:MM" / "tomorrow" / a weekday name / "next <weekday>",
+  in the viewer's device timezone. A failed run, or a stale RUNNING row over
+  15 minutes old, never counts against it.
+- While one runs, the tab reads "Reviewing… (started by <name>)" and polls
+  every 10 seconds (skipping a hidden tab); Home shows the same fact as one
+  line under the What's New banner, linking to the tab.
+- The latest Review's Findings group by category, each with its severity,
+  detail and an optional source link (opened in a new tab only when it
+  parses as `http(s)`). **Apply** (a 6-second toast Undo, plus a persistent
+  Undo on the Finding), **Dismiss**, and Undo of a Dismiss all show only on
+  the Trip's latest DONE Review's OPEN (or APPLIED, for Undo) Findings — an
+  older Review is read-only. **Undo of an Apply works on any Review**,
+  because it only ever restores captured values or reopens the Finding, so
+  it can never misrepresent history.
+- History lists every past Review (who, when, kind, summary line); once a
+  newer Review supersedes it, each of its Findings reads Open, Applied,
+  Dismissed (by, when) or **No longer found**, and a Dismissed Finding found
+  again stays Dismissed rather than reopening.
+- Whoever started a Review, or acted on a Finding, and then had their
+  account deleted, is shown as **"a former Traveller"** rather than
+  vanishing (`Review.startedById` and `Finding.stateById` are both nullable,
+  `onDelete: SetNull`).
+- A Finding whose target a Surprise now hides from the viewer is dropped
+  from the list, the counts and Claude's reads; a suggested fix aimed at a
+  hidden or deleted row is withheld, so Apply reports "That's no longer in
+  the plan" instead of reaching into a Surprise. This can't be perfect: text
+  that *names* something which only became a Surprise after the Review ran
+  can't be masked after the fact (a known limitation, not a bug).
+
+**What Cam must set in Vercel:** nothing new beyond what the booking importer
+already needs — Reviews run on the same `ANTHROPIC_API_KEY`. Optionally set
+`REVIEW_MODEL_STANDARD` (default `claude-sonnet-5`) and `REVIEW_MODEL_DEEP`
+(default `claude-opus-5`) if either should differ from the default. The full
+steps — including the deploy-time spend limit, keeping Fluid compute on with
+Max Duration at 300 s, and the first real Review to check after deploy — are
+in `docs/DEPLOY.md`'s "Enabling Reviews" section.
+
+**`scripts/review-smoke.ts` — the hard deploy gate.** Run
+`ANTHROPIC_API_KEY=… npx tsx --conditions=react-server scripts/review-smoke.ts standard`
+and the same with `deep`, using whichever `REVIEW_MODEL_STANDARD`/
+`REVIEW_MODEL_DEEP` Production will use. Each prints the model, time,
+searches, cost and the Findings it would store, then `PASS` or `FAIL` (exit
+1 on `FAIL`); pass a `get_trip_plan` JSON saved from a Claude connection as a
+second argument to smoke-test a real Trip instead of the built-in Kyoto
+sample. **Branch 3 must not deploy until both print PASS.** A Review sends a
+strict `submit_review` client tool in the same request as web search, whose
+results carry citations — a pairing the unit tests (the SDK mocked) can't
+verify and this sandbox can't run at all (no `ANTHROPIC_API_KEY`). A `400`
+whose message mentions citations means the pairing is refused live and needs
+a code change (drop `strict: true`), not a setting; `docs/DEPLOY.md` spells
+out every other failure mode.
+
+### Section P — permission and limits
+
+1. **Cam's granted account is his personal address, not his work one.**
+   The migration matches `cammark.williams@gmail.com` and
+   `xanni99.m@hotmail.com` case- and space-insensitively and grants only
+   those two UNLIMITED; every other existing account, Cam's work address
+   included, is OFF. A missing address updates nothing.
+2. **Permission is a `User` column, not an env var**, so an Admin can change
+   it from `/admin` with no deploy; Admin standing (`ADMIN_EMAILS`) and
+   Review permission stay independent — an Admin is Off until set otherwise.
+3. **An unknown stored value reads as OFF** (`parseReviewPermission`), like
+   every other enum-ish `String` column with no `CHECK` constraint.
+4. **`REVIEW_STALE_AFTER_MS = 15 * 60_000` is defined once**, in
+   `lib/review-permission.ts`; R, J and U import it from there rather than
+   redefining it.
+5. **Limit windows are DB-backed, not `lib/rate-limit.ts`'s in-memory
+   counter**, because a per-account cap across Trips, instances and deploys
+   needs rows, not process memory. A start is inside a window when `start >
+   now − window`; at exactly `start + 24h` it has left. DONE and fresh
+   RUNNING rows count; FAILED and stale RUNNING (over 15 minutes) don't.
+6. **`nextAvailableAt` with both caps full** is the later of the two moments
+   the windows free up, not simply the oldest start's.
+7. **The label's day is the viewer's device timezone**, since no timezone is
+   stored per User; MCP has no timezone, so it returns the ISO instant
+   instead. Wording: "today at HH:MM", "tomorrow", a weekday (2-6 days
+   away), "next <weekday>" at exactly 7 days (the weekly cap), so it can't
+   misread as today.
+8. **The start lock is on the `User` row** (`SELECT … FOR UPDATE`), the same
+   pattern as `lockItemFamily`'s raw `FOR UPDATE`; it doesn't by itself
+   serialise two different accounts starting on one Trip — J's per-Trip lock
+   covers that.
+9. **The Admin panel is a three-way Segmented control per account row**, not
+   a Select, saving on click; Cam's own row is editable too.
+
+### Section R — Review and Finding storage, matching, Apply/Dismiss/Undo
+
+1. **`suggestedFix` lives in `lib/review/schema.ts`, not `lib/review/types.ts`.**
+   `types.ts` stays zod-free (U's client components import it for labels and
+   enum values); the schema sits beside it instead.
+2. **No `"flag"` category.** Each restated Flag maps by its id prefix onto
+   one of the eight categories (closures/hours → CLOSURE, the slot → TICKET,
+   book-by/still-to-book/stays → BOOKING, everything else → LOGISTICS);
+   `origin: "FLAG"` already says where it came from. A drift test fails when
+   a new Flag id has no mapping.
+3. **A Finding's key is `category|targetType|targetRef[|flagId]`**
+   (`targetRef` is `targetId ?? date ?? "-"`); a restated Flag appends its
+   own stable Flag id so two Flags sharing a category and target each match
+   themselves across runs.
+4. **Only an unmatched OPEN Finding becomes GONE.** An unmatched DISMISSED
+   or APPLIED Finding keeps its state, so "Dismissed by Xanni" is never
+   erased by a later Review that simply didn't re-raise it.
+5. **A match records `previousId` and carries `firstFoundAt`** forward, so
+   history has a real "first found" date to show.
+6. **Apply and Dismiss work only on the Trip's latest DONE Review's
+   Findings** (refusal code `"replaced"`), because matching only reads the
+   latest DONE Review forward. **Undo works on any Review.**
+7. **Undo refuses when the target has changed since Apply** (`"changed"`):
+   Apply stores both the before and after values, and Undo checks the row
+   still holds "after" before writing "before" back, so a later edit is
+   never silently overwritten.
+8. **Booking Undo restores "not chosen"**, not a hand-picked state: when the
+   state before Apply was derived, Undo sends `bookingState: null`, and the
+   row re-derives from its reference as it did before.
+9. **Apply claims the Finding (a conditional `updateMany … WHERE state =
+   OPEN`) before running the action**, and releases it on failure, so two
+   simultaneous Applies — or an Apply racing a Dismiss — run the action at
+   most once; Undo of a Finding still mid-claim (no payload yet) is refused
+   (`"applying"`).
+10. **Reads hide a Finding whose target a later Surprise now hides**, even
+    though R9 made the Review safe when it ran — `requireFindingAccess`
+    treats a hidden Finding as missing, and DAY/TRIP Findings (no
+    `targetId`) are kept by an `OR` rather than a bare `NOT IN` (which would
+    drop every target-less row).
+11. **The revalidation scope is `"reviews"`** (`lib/revalidate.ts`), covering
+    Home and `/reviews`; R.10 is its only owner, so U.1 became a no-op.
+12. **`saveReviewResult` re-validates each fix and refuses a non-RUNNING
+    row.** An invalid fix is stored as no fix (Dismiss-only); a save onto an
+    already-FAILED or already-DONE Review reports `saved: false` rather than
+    double-writing.
+13. **A known, unfixed race:** a Dismiss landing in the instant between a new
+    Review's read of the previous Findings and its commit is not carried
+    forward — the window is one transaction long.
+14. **A deleted actor's name survives.** `Finding.stateById` is `SetNull`
+    too, so a Dismissed or Applied Finding whose actor's account is gone
+    still reads "a former Traveller" rather than losing its subject.
+
+### Section J — the background job
+
+1. **Structured output is a strict client tool (`submit_review`), not
+   `output_config.format`.** The documented alternative to JSON output
+   formats, which are incompatible with web search's citations; a forced
+   `tool_choice` can't combine with thinking, so the prompt states the
+   expectation instead and the job nudges once on a bare `end_turn` before
+   failing.
+2. **`eager_input_streaming` stays off**, so the server fully validates the
+   strict input before the job ever reads it — the job only calls
+   `finalMessage()`, never deltas.
+3. **`maxDuration = 300`** on both the Reviews page and `/api/mcp` (Vercel
+   Hobby's ceiling); the job aborts its own call at `REVIEW_RUN_BUDGET_MS =
+   270_000` and records FAILED itself, with the 15-minute stale rule still
+   covering a platform-level kill.
+4. **Deep sends `thinking: { type: "adaptive" }`** (`effort: "high"`,
+   `max_tokens: 64_000`); Standard sends no `thinking` block at all (Sonnet
+   5 runs adaptive by default) with `effort: "medium"` and `max_tokens:
+   32_000`. Neither sends `budget_tokens`.
+5. **`pause_turn` is resumed with no extra user message**, at most
+   `REVIEW_MAX_CONTINUATIONS = 3` times, bounding web search at roughly `4 ×
+   max_uses`; a top-level `cache_control` lets each continuation read the
+   prefix from cache.
+6. **The Review reads the plan as a Share link's null viewer would**
+   (`loadTripPlanView(tripId, null)`), the same Surprise masking R9 asks
+   for — booking references, confirmation numbers, Attachment titles,
+   Traveller names and `you` are all dropped; every `surprise` object
+   becomes a bare `true`.
+7. **The restated Flags are computed the same way** (`loadFlagRows(tripId,
+   null)`) so Claude's `<current_flags>` and R's `flagsToFindings` agree on
+   what everyone sees.
+8. **Hidden or invented ids move to the TRIP level.** A Finding whose target
+   isn't a visible entity of that type in the input (an invented id, a
+   Surprise placeholder, a hidden Stop's shell) is stored as a TRIP Finding
+   instead; a suggested fix pointed at an unknown id, or that fails R's
+   schema, is dropped and the Finding becomes Dismiss-only.
+9. **One Finding per key, Flags before Claude's** (`mergeDrafts`), so R10's
+   matching never sees two Findings sharing a key; Claude's own Findings cap
+   at `MAX_MODEL_FINDINGS = 40`, truncated rather than rejected.
+10. **The start lock is `FOR NO KEY UPDATE` on the User row, then the Trip
+    row, always in that order**, so starts never deadlock; inside the lock,
+    stale RUNNING rows of that Trip *and* that account are flipped to
+    FAILED first, so neither blocks nor counts regardless of P's read
+    filters.
+11. **`runReview` is a system job**: it never calls `requireUser`, reads
+    `startedById` off the row, and returns at once for a row that's missing
+    or no longer RUNNING — it may run inside the MCP route's `after()`,
+    possibly still carrying `runAsTraveller`'s context, but never uses it.
+12. **The smoke script takes an optional saved `get_trip_plan` JSON**; with
+    none, it reviews a built-in Kyoto sample (a Monday museum closure,
+    Culture Day, a stale note, a still-to-book train, a hidden Surprise).
+
+### Section U — the Reviews tab
+
+1. **"Reviews" sits right after Summary** in `primaryNav` (keeping
+   `lib/help-guide.test.ts`'s nav-drift guard covering it), and everywhere
+   else Summary appears, with no rail/Dock/phone-tab slot of its own, icon
+   `SearchCheck`.
+2. **Apply, Dismiss and Undo show only on the latest DONE Review** — an
+   older one is a read-only record whose Findings were already carried
+   forward or marked "No longer found" by matching.
+3. **Undo appears twice:** the 6-second toast after Apply (the existing
+   `useUndoableAction` pattern) and a persistent **Undo** button on an
+   APPLIED Finding of the latest Review, since R's saved payload outlives
+   the toast. Dismiss itself keeps no toast-Undo, but an already-Dismissed
+   Finding of the latest Review still offers Undo (R's own rule, which
+   supersedes an earlier brief assumption that Dismiss had none at all).
+4. **The "Next Review available <day>" label is the viewer's device
+   timezone**, via `deviceTimeZone()`, with the server render falling back
+   to the Trip's current timezone.
+5. **Run panel precedence:** Off shows nothing; no API key disables both
+   buttons ("Reviews are not set up"); a Review already running on the Trip
+   disables both; at the cap, one disabled button names when it returns;
+   otherwise both "Standard Review" and "Deep Review" are live.
+6. **`ReviewPoller` refreshes every 10 s while a Review runs**, skipping a
+   hidden tab, and unmounts itself once the refreshed page no longer shows
+   one.
+7. **The Home line sits directly under the What's New banner**, above both
+   the phone and desktop trees, reusing `latestReview` with no new query;
+   Reviews and Home both render dates in the Trip's current timezone, which
+   is deterministic on the server (the run panel's own label is the one
+   place that needs the viewer's).
+8. **A Finding's `source` renders only when it parses as `http(s)`**, opened
+   with `rel="noopener noreferrer"` — the model wrote it, so it's untrusted.
+9. **Each `FindingCard` carries its own `canApply`/`canDismiss`/`canUndo`**
+   (R's computed flags), not one page-level "actionable" gate, because Undo
+   of an Apply must still show on a Finding whose Review is no longer the
+   latest — a single review-wide flag couldn't express that.
+10. **Left out on purpose:** `GUIDE_NAV_LABELS`/help prose and the layout-
+    and contrast-audit route lists, both optional and unenforced.
+
+### Section M — MCP
+
+1. **The tool list is built per request, from the freshly loaded
+   permission.** `buildMcpServer(caller)` registers `review_trip` only when
+   `caller.reviewPermission` is Limited or Unlimited; an Admin's change
+   takes effect on Claude's very next request, with no SDK `disable()` or
+   listing hook needed.
+2. **Gating fails closed twice.** The tool isn't registered for Off (the SDK
+   answers "Tool review_trip not found"), and `startReview` re-checks the
+   permission itself inside its own transaction, so a call that somehow
+   reaches it anyway still starts nothing.
+3. **`get_review` and `list_reviews` reuse R's own reads** (`listReviews`,
+   `getReview`) rather than a parallel query, so Claude gets exactly R's
+   guard order, Surprise masking (a hidden Finding's fix and `fixWith` both
+   null, the Finding itself dropped from lists and counts), stale-as-FAILED
+   status and "a former Traveller" naming, for free.
+4. **Same vocabulary in reads and writes.** `depth` is `"standard" |
+   "deep"` in both `review_trip` and the reads; a Finding's `target.type`
+   uses the same words `set_booking_state`'s `kind` takes; `fixWith` names
+   the existing tool that would make the change.
+5. **No `apply_finding` or `dismiss_finding` tool.** Claude can already make
+   a suggested change with the tool `fixWith` names, but can't move the
+   Finding itself to Applied or Dismissed — R13 lists only the three tools
+   (a candidate follow-up, RV-01).
+6. **The instructions follow the listing:** every caller's base instructions
+   gain one sentence about reading Reviews; the Reviews-running sentence is
+   appended only for a caller who can actually run one.
+7. **`maxDuration = 300` on `/api/mcp`**, matching the Reviews page, because
+   a Review started from Claude runs its model call inside the route's own
+   `after()`.
+8. **A stale run reads as FAILED** through the same effective-status rule R
+   and J use, with the text "This Review stopped before it finished.", so
+   Claude stops polling a dead run.
+
+### Deviations from the briefs
+
+- **Each earlier section's actual exports were authoritative** wherever a
+  later brief assumed otherwise — notably: `lib/review/fix.ts`'s
+  `suggestedFixSchema` lives beside `types.ts`, not inside it (R.2);
+  `REVIEW_STALE_AFTER_MS` is defined once in `lib/review-permission.ts` and
+  re-exported, never redefined (R.2, per the Reconciliation rule); U's
+  `nextReviewLabel` re-exports P.4's already-shipped-and-tested function
+  rather than shipping a second, differently-worded one ("today at HH:MM",
+  not "later today" — U.4); M.2's reads are thin mappers over R's
+  `listReviews`/`getReview`, not a parallel narrow query as M's own brief
+  first assumed.
+- **P.2's brief-supplied migration test had two bugs**, both in the test
+  only: it asserted Cam's *work* address as UNLIMITED (contradicting the
+  granted-accounts rule and the migration's own SQL) and asserted the
+  `GRANTED` array's length as 3 when it has 2. Both assertions were
+  corrected to match the spec-correct, already-right migration.
+- **R.1: `Review.startedById` and `Finding.stateById` are nullable, with
+  `onDelete: SetNull`** (a controller ruling during review, not in the
+  brief), so a Dismissed or Applied Finding's "who" survives the actor's
+  account being deleted as "a former Traveller", instead of losing its
+  subject or cascading away.
+- **R.7: a test was made deterministic.** The brief's assertion compared a
+  `firstFoundAt` against the real wall clock, which fails in a sandbox whose
+  date sits before the brief's hard-coded reference instant; the fix passes
+  an explicit `now` through `saveReviewResult`'s `meta` instead.
+- **J.4: `loadTripProjection` was split from `getTripProjection`**, the same
+  pattern J.3 already used for the plan reader, because the brief's call
+  chain would have hit `requireUser`/`auth()` inside a job that runs with no
+  session.
+- **J.7: `callReviewModel` now truly never throws** — client construction
+  (which throws with no API key) was outside any `try` in the brief and is
+  now caught and reported as `unreadable`.
+- **J's Finding categories are UPPERCASE** (`CLOSURE`, `TICKET`, …), matching
+  R's actual enum, not the lowercase strings several briefs (J, U) assumed
+  before R's values were pinned.
+- **J.8: `failReview` wraps R's `markReviewFailed`** rather than writing its
+  own `updateMany`, and that function's third parameter became an options
+  object (`{ now?, aiUsageId? }`) so a failed run still carries its spend.
+- **J.10: `beginReview`'s stale sweep uses `lte`, not `lt`**, so a RUNNING
+  row exactly `REVIEW_STALE_AFTER_MS` old is swept consistently with
+  `effectiveReviewStatus`'s own `>=` check.
+- **U.2/U.6: each `FindingCard` carries `canApply`/`canDismiss`/`canUndo`**
+  rather than the brief's single page-level `actionable` flag — see Section
+  U decision 9; `ShownReview.actionable`/`isLatest` are kept for page-level
+  copy, not as the button gate.
+- **U.6: `loadReviewsPage` only handles the one case `getReview` itself
+  doesn't** — a `reviewId` for a *different* Trip than the page — since the
+  real `getReview` already calls `notFound()` on a missing id rather than
+  resolving `null` as the brief's mock assumed.
+- **M.5 reuses `reviewPermissionOf`** as a second small query rather than
+  widening the existing acting-Traveller select, keeping `ActingUser` at
+  four fields (a candidate follow-up, RV-03); on a `"limit"` refusal it
+  appends "The next one is available from `<ISO>`." so `nextAvailableAt`
+  reaches Claude, since `runTool` would otherwise drop it.
+- **Task Z (this gate):** `npm run knip` found seven exports with no
+  importer outside their own module — `DEFAULT_REVIEW_MODELS` (J.1),
+  `mcpInstructions`, `APPLY_STALE_AFTER_MS` (R.9), `REVIEW_STATUSES` (R.2),
+  `McpFinding` (M.2), `TravellerRef` (R.8) and `ShownReview` (U.6). All
+  seven are still used inside their own file, so only the `export` keyword
+  came off, in one `fix(review,mcp): …` commit; no behaviour change.
+
+### Deferred
+
+Four gaps that didn't meet the bar for this gate are logged in
+`docs/open-follow-ups.md` under **RV-01..04** (2026-10-18 · AI Review):
+Claude can't Apply or Dismiss a Finding itself, the 50-Review history cap
+has no way to page further, the MCP route's permission check is a second
+query rather than folded into the existing one, and a theoretical deadlock
+window between starting a Review and saving one that has been noted but not
+yet commented or fixed.
+
+Separately, six smaller items were raised and parked during the R, J, U and
+M code reviews for a later whole-branch fix wave rather than fixed on this
+gate (per the controller's addendum, not Task Z's to do): recording AiUsage
+right after the model call rather than after draft cleaning; the
+stranded-Apply cutoff and its conditional payload save; Undo's rollback
+using `landedStep` and the throw-after-move case; `reviewPermissionOf`
+calling through `parseReviewPermission`; the MCP vocabulary wording items
+(`FIX_WITH_TOOL`'s `bookingState`→`state`, note-append semantics, APPLIED's
+meaning, the DAY target, UTC for next-available, and `list_reviews`'s cap in
+its own description); and the deadlock comment above (RV-04).
