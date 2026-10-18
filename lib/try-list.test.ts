@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_TRY_ENTRIES, MAX_TRY_TEXT, TRY_ENTRY_ID_LENGTH, applyTryListInput, newTryEntryId,
-  tryListProgress, untickAll, withEntryTried, type TryList,
+  sameTryEntries, triedLabel, tryListProgress, tryListSummary, untickAll, withEntryTried, type TryList,
 } from "./try-list";
 
 const LIST: TryList = [
@@ -101,5 +101,34 @@ describe("tryListProgress", () => {
     expect(tryListProgress([])).toBeNull();
     expect(tryListProgress(null)).toBeNull();
     expect(tryListProgress(undefined)).toBeNull();
+  });
+});
+
+describe("triedLabel (the Timeline's count)", () => {
+  it("reads 'tried/total tried'; no list is no label", () => {
+    expect(triedLabel(LIST)).toBe("1/2 tried");
+    expect(triedLabel([])).toBeNull();
+    expect(triedLabel(null)).toBeNull();
+    expect(triedLabel(undefined)).toBeNull();
+  });
+});
+
+describe("tryListSummary (one Activity line)", () => {
+  it("names up to five entries, then how many more", () => {
+    expect(tryListSummary(LIST)).toBe("Drei im Weggla, Feuerzangenbowle");
+    const seven = Array.from({ length: 7 }, (_, i) => ({ id: `x${i}`, text: `Thing ${i + 1}`, tried: false }));
+    expect(tryListSummary(seven)).toBe("Thing 1, Thing 2, Thing 3, Thing 4, Thing 5 +2 more");
+    expect(tryListSummary(seven.slice(0, 5))).toBe("Thing 1, Thing 2, Thing 3, Thing 4, Thing 5");
+  });
+});
+
+describe("sameTryEntries (a tick is not a list edit)", () => {
+  it("compares the entries' texts in order, not the ticks", () => {
+    expect(sameTryEntries(LIST, [{ ...LIST[0], tried: false }, { ...LIST[1], tried: true }])).toBe(true);
+    expect(sameTryEntries(LIST, [LIST[1], LIST[0]])).toBe(false);
+    expect(sameTryEntries(LIST, [LIST[0]])).toBe(false);
+    expect(sameTryEntries(LIST, [LIST[0], { ...LIST[1], text: "Schäufele" }])).toBe(false);
+    expect(sameTryEntries(null, [])).toBe(true);
+    expect(sameTryEntries(undefined, null)).toBe(true);
   });
 });

@@ -79,3 +79,25 @@ export function tryListProgress(list: TryList | null | undefined): { tried: numb
   if (!list || list.length === 0) return null;
   return { tried: list.filter((e) => e.tried).length, total: list.length };
 }
+
+/** The Timeline's count: "2/5 tried"; null when there is no list. */
+export function triedLabel(list: TryList | null | undefined): string | null {
+  const progress = tryListProgress(list);
+  return progress ? `${progress.tried}/${progress.total} tried` : null;
+}
+
+const SUMMARY_NAMES = 5;
+
+/** One line for the Activity feed: up to five entries by name, then "+N more". */
+export function tryListSummary(list: TryList): string {
+  const names = list.slice(0, SUMMARY_NAMES).map((e) => e.text).join(", ");
+  const more = list.length - SUMMARY_NAMES;
+  return more > 0 ? `${names} +${more} more` : names;
+}
+
+/** True when both lists name the same entries in the same order. Ticks are ignored: a tick is not a list edit. */
+export function sameTryEntries(a: TryList | null | undefined, b: TryList | null | undefined): boolean {
+  const x = a ?? [];
+  const y = b ?? [];
+  return x.length === y.length && x.every((e, i) => e.text === y[i].text);
+}
