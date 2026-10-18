@@ -13,6 +13,7 @@ describe("pageLabelForRoute", () => {
     ["/trips/abc123/plan", "Plan editor"],
     ["/trips/abc123/budget", "Money"],
     ["/trips/abc123/summary", "Summary"],
+    ["/trips/abc123/reviews", "Reviews"],
     ["/trips/abc123/calendar", "Days"],
     ["/trips/abc123/today", "Today"],
     ["/trips/abc123/wishlist", "Wishlist"],

@@ -266,7 +266,7 @@ export function HelpLegend({
           {(
             [
               "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
-              "Journal", "Checklists", "Files", "Summary", "Activity",
+              "Journal", "Checklists", "Files", "Summary", "Reviews", "Activity",
               "Settings", "Help",
             ] as const
           ).map((label) => {

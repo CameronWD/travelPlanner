@@ -32,6 +32,7 @@ export function primaryNav(tripRef: string, planParam?: string | null): NavItem[
     { label: "Calendar", href: tripPath(tripRef, "/calendar") },
     { label: "Money", href: tripPath(tripRef, `/budget${plan}`) },
     { label: "Summary", href: tripPath(tripRef, "/summary") },
+    { label: "Reviews", href: tripPath(tripRef, "/reviews") },
   ];
 }
 
@@ -87,16 +88,17 @@ export interface TripRailItem {
  */
 export function tripRailItems(tripRef: string, planParam?: string | null, daysHref?: Route | null): TripRailItem[] {
   const base = tripPath(tripRef);
-  const nav = primaryNav(tripRef, planParam); // Home, Plan, Days, Calendar, Money, Summary
+  const nav = primaryNav(tripRef, planParam); // Home, Plan, Days, Calendar, Money, Summary, Reviews
   const more = moreNav(tripRef, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
   const byLabel = (label: string) => [...nav, ...more].find((i) => i.label === label)!;
 
   // Wishlist gets its own slot in the kit's ordering; the rest of moreNav
-  // (plus Summary, which has no slot) live on the More page
+  // (plus Summary and Reviews, which have no slot) live on the More page
   // (/trips/:id/more), so More stays lit on any of them and on /more.
   const moreHref = tripPath(tripRef, "/more");
   const moreItems = [
     byLabel("Summary"),
+    byLabel("Reviews"),
     ...more.filter((item) => item.label !== "Wishlist"),
     { label: "More", href: moreHref },
   ];
@@ -138,7 +140,7 @@ export interface TripSidebarGroup {
  * section, no More. Hrefs and ?plan= threading still come from
  * primaryNav/moreNav; matching mirrors tripRailItems (Home exact, Days on the
  * /day prefix, everything else on its own prefix). The Dock keeps
- * tripRailItems — a 96px strip has no room for thirteen rows.
+ * tripRailItems — a 96px strip has no room for fourteen rows.
  */
 export function tripSidebarGroups(tripRef: string, planParam?: string | null, daysHref?: Route | null): TripSidebarGroup[] {
   const base = tripPath(tripRef);
@@ -152,7 +154,7 @@ export function tripSidebarGroups(tripRef: string, planParam?: string | null, da
   const days: TripSidebarItem = { label: "Days", href: daysHref ?? daysIndexHref, match: (p) => isDaysActive(daysIndexHref, p, base) };
   return [
     { heading: "Plan it", items: [item("Home"), item("Plan"), days, item("Calendar"), item("Money"), item("Wishlist")] },
-    { heading: "Keep", items: [item("Journal"), item("Checklists"), item("Files"), item("Summary"), item("Activity")] },
+    { heading: "Keep", items: [item("Journal"), item("Checklists"), item("Files"), item("Summary"), item("Reviews"), item("Activity")] },
     { heading: null, items: [item("Settings"), item("Help")] },
   ];
 }

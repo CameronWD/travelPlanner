@@ -80,6 +80,13 @@ describe("CommandPalette", () => {
       expect(mockPush).toHaveBeenCalledWith("/trips/t1/calendar", undefined);
     });
 
+    it("Reviews opens the Reviews tab", async () => {
+      const user = userEvent.setup();
+      renderPalette();
+      await user.click(await screen.findByText("Reviews"));
+      expect(mockPush).toHaveBeenCalledWith("/trips/t1/reviews", undefined);
+    });
+
     it("does not render 'Go to' pages when tripId is null", async () => {
       renderPalette({ tripId: null });
       // Give it a tick to settle

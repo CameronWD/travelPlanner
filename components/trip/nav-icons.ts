@@ -1,10 +1,10 @@
 import {
   Activity, BookOpen, Calendar, CalendarDays, CircleHelp, FileText, Heart, Home, ListChecks,
-  Map, Menu, Paperclip, Settings, Wallet, type LucideIcon,
+  Map, Menu, Paperclip, SearchCheck, Settings, Wallet, type LucideIcon,
 } from "lucide-react";
 
 export type NavLabel =
-  | "Home" | "Plan" | "Days" | "Calendar" | "Money" | "Wishlist" | "Summary"
+  | "Home" | "Plan" | "Days" | "Calendar" | "Money" | "Wishlist" | "Summary" | "Reviews"
   | "Journal" | "Checklists" | "Files" | "Activity" | "Settings" | "Help" | "More";
 
 /**
@@ -14,6 +14,6 @@ export type NavLabel =
  * server and client components alike.
  */
 export const NAV_ICONS: Record<NavLabel, LucideIcon> = {
-  Home, Plan: Map, Days: CalendarDays, Calendar, Money: Wallet, Wishlist: Heart, Summary: FileText,
+  Home, Plan: Map, Days: CalendarDays, Calendar, Money: Wallet, Wishlist: Heart, Summary: FileText, Reviews: SearchCheck,
   Journal: BookOpen, Checklists: ListChecks, Files: Paperclip, Activity, Settings, Help: CircleHelp, More: Menu,
 };

@@ -50,6 +50,7 @@ function tripPages(tripRef: string): Array<{ label: string; href: Route }> {
     { label: "Wishlist", href: tripPath(tripRef, "/wishlist") },
     { label: "Money", href: tripPath(tripRef, "/budget") },
     { label: "Summary", href: tripPath(tripRef, "/summary") },
+    { label: "Reviews", href: tripPath(tripRef, "/reviews") },
     { label: "Checklists", href: tripPath(tripRef, "/checklists") },
     { label: "Files", href: tripPath(tripRef, "/files") },
     { label: "Journal", href: tripPath(tripRef, "/journal") },

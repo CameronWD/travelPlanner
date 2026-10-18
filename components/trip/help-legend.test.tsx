@@ -59,7 +59,7 @@ describe("HelpLegend", () => {
     }
   });
 
-  it("documents all thirteen desktop sidebar sections, in three groups", () => {
+  it("documents all fourteen desktop sidebar sections, in three groups", () => {
     render(<HelpLegend />);
     expect(screen.getByText("The list down the side (on a bigger screen)")).toBeInTheDocument();
     expect(screen.getByText("Plan it", { exact: false })).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe("HelpLegend", () => {
     expect(screen.getByText("Across trips", { exact: false })).toBeInTheDocument();
     for (const label of [
       "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
-      "Journal", "Checklists", "Files", "Summary", "Activity",
+      "Journal", "Checklists", "Files", "Summary", "Reviews", "Activity",
       "Settings", "Help",
     ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
