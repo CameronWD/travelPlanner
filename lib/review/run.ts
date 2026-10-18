@@ -9,7 +9,7 @@ import { failReview } from "./fail";
 import { flagsToFindings } from "./from-flags";
 import { buildReviewInput } from "./input";
 import { REVIEW_MESSAGES as M } from "./messages";
-import { mergeDrafts, reviewSummary, toFindingDrafts } from "./model-output";
+import { MAX_MODEL_FINDINGS, mergeDrafts, reviewSummary, toFindingDrafts } from "./model-output";
 import type { ReviewKind } from "./types";
 
 const ROUTE = "review";
@@ -62,14 +62,19 @@ export async function runReview(reviewId: string): Promise<void> {
       input,
       deadline: started + REVIEW_RUN_BUDGET_MS,
     });
-    const spent = {
+    // The spend row first, straight after the call: a throw while the reply
+    // is cleaned and merged below must never lose what was billed. Its id is
+    // linked when the Review is saved or failed. proposalCount: the Findings
+    // Claude returned, up to the cap toFindingDrafts keeps.
+    aiUsageId = await recordAiUsage({
       tripId: review.tripId, userId: starterId, model: review.model,
       usage: outcome.usage, durationMs: Date.now() - started, route: USAGE_ROUTE,
-    };
+      proposalCount: outcome.kind === "ok" ? Math.min(outcome.output.findings.length, MAX_MODEL_FINDINGS) : 0,
+      outcome: outcome.kind === "ok" ? "ok" : FAILURES[outcome.kind].outcome,
+    });
 
     if (outcome.kind !== "ok") {
       const failure = FAILURES[outcome.kind];
-      aiUsageId = await recordAiUsage({ ...spent, proposalCount: 0, outcome: failure.outcome });
       if (outcome.kind === "api_error") {
         await reportError(new Error(`Review: Anthropic API error ${outcome.status ?? "unknown"}`), { route: ROUTE, source: "server", userId });
       }
@@ -78,9 +83,7 @@ export async function runReview(reviewId: string): Promise<void> {
       return;
     }
 
-    const modelDrafts = toFindingDrafts(outcome.output, input.targets);
-    const drafts = mergeDrafts(flagsToFindings(input.flags), modelDrafts);
-    aiUsageId = await recordAiUsage({ ...spent, proposalCount: modelDrafts.length, outcome: "ok" });
+    const drafts = mergeDrafts(flagsToFindings(input.flags), toFindingDrafts(outcome.output, input.targets));
     const { saved } = await saveReviewResult(reviewId, drafts, { summary: reviewSummary(outcome.output, drafts.length), aiUsageId });
     // Refused: the row went stale (it already reads as FAILED) or another writer ended it.
     // failReview only moves a row still RUNNING, so this just links the spend to a stale one.

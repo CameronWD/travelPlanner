@@ -124,6 +124,20 @@ describe("runReview (spec 2026-10-17 R8, R11)", () => {
     expect(m.reportError.mock.calls[0][0]).not.toBe(crash);
   });
 
+  it("records the spend before cleaning the reply: a throw there still leaves the usage row on the failed Review (parked 1)", async () => {
+    const order: string[] = [];
+    m.recordAiUsage.mockImplementationOnce(async () => (order.push("usage"), "use-1"));
+    // No targets: toFindingDrafts throws on the ITEM Finding.
+    m.buildReviewInput.mockResolvedValueOnce({ ...INPUT, targets: undefined });
+    m.callReviewModel.mockResolvedValueOnce({ kind: "ok", usage: USAGE, output: { ...OUTPUT, findings: [{ ...OUTPUT.findings[0], targetType: "ITEM", targetId: "museum" }] } });
+    m.failReview.mockImplementationOnce(async () => void order.push("fail"));
+    await runReview("rev-1");
+    expect(m.recordAiUsage).toHaveBeenCalledWith({ ...SPENT, proposalCount: 1, outcome: "ok" });
+    expect(order).toEqual(["usage", "fail"]);
+    expect(m.failReview).toHaveBeenCalledWith("rev-1", M.failed, "use-1");
+    expect(m.saveReviewResult).not.toHaveBeenCalled();
+  });
+
   it("a crash while saving keeps the spend row on the failed Review", async () => {
     m.saveReviewResult.mockRejectedValueOnce(new Error("db down"));
     await runReview("rev-1");
