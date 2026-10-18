@@ -72,8 +72,11 @@ function buildLink(flag: Flag, basePath: Route): Route | null {
       return null;
     case "TRIP":
       return basePath;
-    default:
-      return null;
+    default: {
+      // Exhaustive: a new FlagTargetType fails to compile here until it has a link.
+      const unhandled: never = flag.targetType;
+      return unhandled;
+    }
   }
 }
 
