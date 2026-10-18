@@ -2,12 +2,14 @@
  * Writing a Review's outcome (spec 2026-10-17 R10, R11). The background run
  * (lib/review/run.ts) calls saveReviewResult with the restated Flags and the
  * model's Findings, or markReviewFailed. Both only ever move a RUNNING row,
- * so a run that finishes after it was marked FAILED (stale) writes nothing.
+ * so a run that finishes after it was marked FAILED writes nothing; nor does
+ * saveReviewResult save a RUNNING row already past REVIEW_STALE_AFTER_MS (it
+ * reads as FAILED).
  */
 import { db } from "@/lib/db";
 import { matchFindings, type PreviousFinding } from "@/lib/review/match";
 import { serializeSuggestedFix } from "@/lib/review/schema";
-import type { FindingDraft, FindingState } from "@/lib/review/types";
+import { effectiveReviewStatus, type FindingDraft, type FindingState } from "@/lib/review/types";
 
 const MAX_ERROR = 500;
 
@@ -19,9 +21,12 @@ export async function saveReviewResult(
   const now = meta.now ?? new Date();
   return db.$transaction(async (tx) => {
     // Lock the row so a concurrent markReviewFailed (or a second save) waits and then sees DONE.
-    const [locked] = await tx.$queryRaw<{ tripId: string; status: string }[]>`
-      SELECT "tripId", "status" FROM "Review" WHERE "id" = ${reviewId} FOR UPDATE`;
+    const [locked] = await tx.$queryRaw<{ tripId: string; status: string; startedAt: Date }[]>`
+      SELECT "tripId", "status", "startedAt" FROM "Review" WHERE "id" = ${reviewId} FOR UPDATE`;
     if (!locked || locked.status !== "RUNNING") return { saved: false, findingCount: 0 };
+    // A stale run already reads as FAILED everywhere (effectiveReviewStatus): a late finish
+    // must not flip it to DONE behind the UI's back.
+    if (effectiveReviewStatus("RUNNING", locked.startedAt, now) !== "RUNNING") return { saved: false, findingCount: 0 };
 
     const previousReview = await tx.review.findFirst({
       where: { tripId: locked.tripId, status: "DONE", id: { not: reviewId } },

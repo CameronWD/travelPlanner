@@ -7,7 +7,7 @@
 CREATE TABLE "Review" (
     "id" TEXT NOT NULL,
     "tripId" TEXT NOT NULL,
-    "startedById" TEXT NOT NULL,
+    "startedById" TEXT,
     "kind" TEXT NOT NULL,
     "model" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'RUNNING',
@@ -67,7 +67,7 @@ CREATE INDEX "Finding_tripId_state_idx" ON "Finding"("tripId", "state");
 ALTER TABLE "Review" ADD CONSTRAINT "Review_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_startedById_fkey" FOREIGN KEY ("startedById") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Review" ADD CONSTRAINT "Review_startedById_fkey" FOREIGN KEY ("startedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Finding" ADD CONSTRAINT "Finding_reviewId_fkey" FOREIGN KEY ("reviewId") REFERENCES "Review"("id") ON DELETE CASCADE ON UPDATE CASCADE;

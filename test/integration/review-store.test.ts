@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { markReviewFailed, saveReviewResult } from "@/lib/review-store";
+import { REVIEW_STALE_AFTER_MS } from "@/lib/review-permission";
 import type { FindingDraft } from "@/lib/review/types";
 
 // Spec 2026-10-17 R10 against the real Postgres: a Review's Findings are
@@ -11,6 +12,8 @@ const TRIP_ID = "it-rs-trip";
 const T0 = new Date("2026-10-19T09:00:00Z");
 const DISMISSED_AT = new Date("2026-10-19T09:30:00Z");
 const SAVED_AT = new Date("2026-10-20T09:05:00Z");
+/** A save a minute after T0: fresh, whatever the wall clock says (the stale cutoff is measured from meta.now). */
+const SOON = new Date(T0.getTime() + 60_000);
 
 const draft = (over: Partial<FindingDraft>): FindingDraft => ({
   severity: "warning", category: "CLOSURE", targetType: "ITEM", targetId: "it-rs-museum",
@@ -43,7 +46,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("saveReviewResult and markRevie
     const res = await saveReviewResult(
       "it-rs-r1",
       [draft({ suggestedFix: fix }), draft({ category: "PACKING", targetType: "TRIP", targetId: undefined, title: "Bring a rain jacket", severity: "info" })],
-      { summary: "Two things to look at.", aiUsageId: "it-rs-usage" },
+      { summary: "Two things to look at.", aiUsageId: "it-rs-usage", now: SOON },
     );
     expect(res).toEqual({ saved: true, findingCount: 2 });
 
@@ -101,7 +104,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("saveReviewResult and markRevie
     await db.finding.create({ data: { id: "it-rs-d", reviewId: "it-rs-r1", tripId: TRIP_ID, key: "CLOSURE|ITEM|a", severity: "warning", category: "CLOSURE", targetType: "ITEM", targetId: "a", title: "Closed", detail: "d", origin: "MODEL", state: "DISMISSED", stateById: OTHER, stateAt: DISMISSED_AT } });
     await db.review.create({ data: { id: "it-rs-failed", tripId: TRIP_ID, startedById: USER, kind: "STANDARD", model: "m", status: "FAILED", startedAt: new Date(T0.getTime() + 1000), finishedAt: new Date(T0.getTime() + 2000) } });
     await running("it-rs-r3", new Date(T0.getTime() + 3000));
-    await saveReviewResult("it-rs-r3", [draft({ targetId: "a", title: "Closed" })], { summary: "s" });
+    await saveReviewResult("it-rs-r3", [draft({ targetId: "a", title: "Closed" })], { summary: "s", now: new Date(T0.getTime() + 63_000) });
     expect(await db.finding.findFirstOrThrow({ where: { reviewId: "it-rs-r3" } })).toMatchObject({ state: "DISMISSED", previousId: "it-rs-d" });
   });
 
@@ -112,9 +115,20 @@ describe.skipIf(process.env.INTEGRATION !== "1")("saveReviewResult and markRevie
     expect(await db.review.findUniqueOrThrow({ where: { id: "it-rs-r1" } })).toMatchObject({ status: "FAILED", summary: null });
   });
 
+  it("a RUNNING Review past the stale cutoff saves nothing: it already reads as FAILED", async () => {
+    await running("it-rs-r1");
+    const late = new Date(T0.getTime() + REVIEW_STALE_AFTER_MS);
+    expect(await saveReviewResult("it-rs-r1", [draft({})], { summary: "late", now: late })).toEqual({ saved: false, findingCount: 0 });
+    expect(await db.finding.count({ where: { reviewId: "it-rs-r1" } })).toBe(0);
+    expect(await db.review.findUniqueOrThrow({ where: { id: "it-rs-r1" } })).toMatchObject({ status: "RUNNING", summary: null, finishedAt: null });
+
+    const justInTime = new Date(T0.getTime() + REVIEW_STALE_AFTER_MS - 1);
+    expect(await saveReviewResult("it-rs-r1", [draft({})], { summary: "in time", now: justInTime })).toEqual({ saved: true, findingCount: 1 });
+  });
+
   it("an invalid suggested fix is stored as no fix", async () => {
     await running("it-rs-r1");
-    await saveReviewResult("it-rs-r1", [draft({ suggestedFix: { kind: "item.note", itemId: "x", append: "" } })], { summary: "s" });
+    await saveReviewResult("it-rs-r1", [draft({ suggestedFix: { kind: "item.note", itemId: "x", append: "" } })], { summary: "s", now: SOON });
     expect((await db.finding.findFirstOrThrow({ where: { reviewId: "it-rs-r1" } })).suggestedFix).toBeNull();
   });
 

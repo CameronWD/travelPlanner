@@ -6,10 +6,12 @@ import { db } from "@/lib/db";
 // Review and its Trip, and deleting the Trip takes both with it.
 const TRIP_ID = "it-trip-reviews-migration";
 const USER = "it-rv-mig-user";
+const STARTER = "it-rv-mig-starter";
 
 describe.skipIf(process.env.INTEGRATION !== "1")("Review and Finding migration (spec 2026-10-17 R8, R10, real Postgres)", () => {
   beforeAll(async () => {
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.user.deleteMany({ where: { id: STARTER } });
     await db.user.upsert({ where: { id: USER }, update: {}, create: { id: USER, email: "it-rv-mig@example.test", name: "IT RV" } });
     await db.trip.create({
       data: { id: TRIP_ID, name: "IT Reviews migration", homeCurrency: "AUD", createdById: USER, members: { create: { userId: USER, role: "owner" } } },
@@ -18,6 +20,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Review and Finding migration (
 
   afterAll(async () => {
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.user.deleteMany({ where: { id: STARTER } });
   });
 
   it("a new Review is RUNNING from now, and a new Finding is OPEN, first found now", async () => {
@@ -46,6 +49,22 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Review and Finding migration (
       { column_name: "suggestedFix", data_type: "text" },
       { column_name: "undoPayload", data_type: "text" },
     ]);
+  });
+
+  it("deleting the starting account keeps the Review and its Findings, starter unknown", async () => {
+    await db.user.create({ data: { id: STARTER, email: "it-rv-mig-starter@example.test", name: "IT RV Starter" } });
+    const review = await db.review.create({ data: { tripId: TRIP_ID, startedById: STARTER, kind: "DEEP", model: "claude-opus-5", status: "DONE" } });
+    const finding = await db.finding.create({
+      data: {
+        reviewId: review.id, tripId: TRIP_ID, key: "HOLIDAY|DAY|2027-06-10", severity: "info", category: "HOLIDAY", targetType: "DAY",
+        date: "2027-06-10", title: "Public holiday", detail: "Portugal Day.", origin: "MODEL", state: "DISMISSED", stateById: USER, stateAt: new Date(),
+      },
+    });
+
+    await db.user.delete({ where: { id: STARTER } });
+
+    expect(await db.review.findUniqueOrThrow({ where: { id: review.id } })).toMatchObject({ startedById: null, status: "DONE" });
+    expect(await db.finding.findUniqueOrThrow({ where: { id: finding.id } })).toMatchObject({ state: "DISMISSED", stateById: USER });
   });
 
   it("deleting the Trip deletes its Reviews and Findings", async () => {

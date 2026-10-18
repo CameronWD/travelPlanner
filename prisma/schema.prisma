@@ -1447,7 +1447,8 @@ model AiUsage {
 model Review {
   id          String    @id @default(cuid())
   tripId      String
-  startedById String
+  /// Null once the starting account is deleted: the Review and its history stay ("a former Traveller").
+  startedById String?
   kind        String // STANDARD | DEEP (lib/review/types.ts ReviewKind)
   model       String // the model id the run used (REVIEW_MODEL_STANDARD / REVIEW_MODEL_DEEP)
   status      String    @default("RUNNING") // RUNNING | DONE | FAILED
@@ -1459,7 +1460,7 @@ model Review {
   aiUsageId   String?
 
   trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  startedBy User      @relation("ReviewStartedBy", fields: [startedById], references: [id], onDelete: Cascade)
+  startedBy User?     @relation("ReviewStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
   findings  Finding[]
 
   @@index([tripId, startedAt])
