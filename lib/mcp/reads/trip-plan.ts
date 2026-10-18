@@ -68,7 +68,20 @@ export interface McpTripPlan {
 
 export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
   const { user } = await requireTripAccess(tripId);
-  const v = await loadSurpriseVisibility(tripId, user.id);
+  return loadTripPlanView(tripId, user.id);
+}
+
+/**
+ * The plan as `viewerId` sees it: the loader behind `get_trip_plan`, with
+ * no access check of its own (the caller has made one). `null` reads it as
+ * a Share link does (ADR 0051/0072; lib/surprise.ts isSurprisedBy): every
+ * live Surprise hidden, a hidden Stop keeping only its shell, a hidden
+ * Item showing as its "Surprise" placeholder. The Review job
+ * (lib/review/input.ts, spec 2026-10-17 R9) is that caller: it runs after
+ * its own action checked access, with no session.
+ */
+export async function loadTripPlanView(tripId: string, viewerId: string | null): Promise<McpTripPlan> {
+  const v = await loadSurpriseVisibility(tripId, viewerId);
 
   const [trip, stopsRaw, transportsRaw, chaptersRaw, thingsToDoItems, scheduledItems, members, { byOwner }] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: MCP_TRIP_SELECT }),
@@ -111,7 +124,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
       id: m.user.id,
       name: travellerName(m.user),
       role: m.role === "owner" ? "owner" : "traveller",
-      you: m.user.id === user.id,
+      you: m.user.id === viewerId,
     })),
   };
 }

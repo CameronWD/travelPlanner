@@ -49,7 +49,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 import { NO_SURPRISES, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import type { SurpriseView } from "@/lib/surprise";
 import { hiddenVisibility, MARKER_WHERE, placeholderItem } from "@/test/helpers/surprise-visibility";
-import { loadTripPlanForMcp } from "./trip-plan";
+import { loadTripPlanForMcp, loadTripPlanView } from "./trip-plan";
 
 const TRIP_ID = "trip-1";
 
@@ -301,6 +301,21 @@ describe("loadTripPlanForMcp", () => {
     await expect(loadTripPlanForMcp(TRIP_ID)).rejects.toThrow();
     expect(stopFindMany).not.toHaveBeenCalled();
   });
+  it("loadTripPlanView(tripId, null) reads the plan as a Share link does: no access check, a null viewer, nobody is 'you' (spec 2026-10-17 R9)", async () => {
+    const plan = await loadTripPlanView(TRIP_ID, null);
+    expect(requireTripAccess).not.toHaveBeenCalled();
+    expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, null);
+    expect(plan.travellers.map((t) => t.you)).toEqual([false]);
+    expect(plan.stops.map((s) => s.id)).toEqual(["stopA", "stopB"]);
+  });
+
+  it("loadTripPlanForMcp still checks access and reads as the connection's Traveller", async () => {
+    const plan = await loadTripPlanForMcp(TRIP_ID);
+    expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
+    expect(loadSurpriseVisibility).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(plan.travellers.map((t) => t.you)).toEqual([true]);
+  });
+
   describe("dated things to do with no Stop (add_thing_to_do with a date only)", () => {
     const stopless = (id: string, date: string) => ({
       id,

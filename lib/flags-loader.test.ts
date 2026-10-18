@@ -247,6 +247,12 @@ describe("loadFlagRows", () => {
       expect(db[k].findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tripId: TRIP_ID, forkId: "fork-1" }) }));
     }
   });
+
+  it("reads as a Share link does when the viewer is null (the Review's restated Flags, spec 2026-10-17 R8/R9)", async () => {
+    await loadFlagRows(TRIP_ID, null);
+    expect(loadSurpriseVisibilityMock).toHaveBeenCalledWith(TRIP_ID, null);
+    expect(requireTripAccess).not.toHaveBeenCalled();
+  });
 });
 
 describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
