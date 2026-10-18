@@ -25,6 +25,22 @@ export function fixTarget(fix: SuggestedFix): FixTarget {
   }
 }
 
+const TARGET_TYPE: Record<FixTarget["kind"], "ITEM" | "TRANSPORT" | "ACCOMMODATION"> = {
+  item: "ITEM",
+  transport: "TRANSPORT",
+  accommodation: "ACCOMMODATION",
+};
+
+/**
+ * A fix only ever changes its Finding's own row (lib/review/model-output.ts
+ * toSuggestedFix): same type, same id. A TRIP or DAY Finding has no row, so
+ * no fix fits it. Reads and Apply treat a stored fix that doesn't fit as none.
+ */
+export function fixFitsTarget(fix: SuggestedFix, finding: { targetType: string; targetId: string | null }): boolean {
+  const target = fixTarget(fix);
+  return TARGET_TYPE[target.kind] === finding.targetType && target.id === finding.targetId;
+}
+
 /** The columns a fix can touch, as read from the Item, Transport or Accommodation row. */
 export interface FixRow {
   date?: string | null;

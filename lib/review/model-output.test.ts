@@ -126,9 +126,36 @@ describe("toFindingDrafts (spec 2026-10-17 R8)", () => {
         { kind: "item.openingHours", itemId: "museum", hours: { week: { mon: [], tue: [["09:30", "17:00"]] }, seasons: [], closed: ["2026-12-29"], source: "https://www.kyohaku.go.jp/eng/visit/" } },
       ],
     ];
+    const TARGET_OF = { "item.times": "ITEM", "item.note": "ITEM", "item.openingHours": "ITEM", "item.bookingState": "ITEM", "transport.bookingState": "TRANSPORT", "accommodation.bookingState": "ACCOMMODATION" } as const;
     for (const [suggestedFix, expected] of fixes) {
-      expect(toFindingDrafts(out(finding({ suggestedFix })), TARGETS)[0].suggestedFix).toEqual(expected);
+      const fix = suggestedFix!;
+      const own = { targetType: TARGET_OF[fix.kind], targetId: "itemId" in fix ? fix.itemId : fix.id };
+      expect(toFindingDrafts(out(finding({ ...own, suggestedFix })), TARGETS)[0].suggestedFix).toEqual(expected);
     }
+  });
+
+  it("drops a fix aimed at another row than the Finding's own, and keeps the Finding (Dismiss only)", () => {
+    // "Museum closed Monday" must not carry a fix that marks the train as booked.
+    const train = { kind: "transport.bookingState" as const, id: "train", bookingState: "BOOKED" as const, bookBy: null };
+    const [museum] = toFindingDrafts(out(finding({ suggestedFix: train })), TARGETS);
+    expect(museum).toMatchObject({ targetType: "ITEM", targetId: "museum", title: "The museum is closed on Mondays" });
+    expect(museum).not.toHaveProperty("suggestedFix");
+    // Same type, another id.
+    const [other] = toFindingDrafts(out(finding({ suggestedFix: { kind: "item.note", itemId: "kiyomizu", append: "Busy." } })), TARGETS);
+    expect(other).not.toHaveProperty("suggestedFix");
+    // The matching row keeps it.
+    const [own] = toFindingDrafts(out(finding({ targetType: "TRANSPORT", targetId: "train", suggestedFix: train })), TARGETS);
+    expect(own.suggestedFix).toEqual({ kind: "transport.bookingState", id: "train", bookingState: "BOOKED" });
+  });
+
+  it("never gives a TRIP or DAY Finding a fix", () => {
+    const fix = { kind: "item.note" as const, itemId: "museum", append: "Closed Mondays." };
+    const [trip] = toFindingDrafts(out(finding({ targetType: "TRIP", targetId: null, suggestedFix: fix })), TARGETS);
+    const [day] = toFindingDrafts(out(finding({ targetType: "DAY", targetId: null, date: "2026-11-02", suggestedFix: fix })), TARGETS);
+    expect(trip.targetType).toBe("TRIP");
+    expect(day.targetType).toBe("DAY");
+    expect(trip).not.toHaveProperty("suggestedFix");
+    expect(day).not.toHaveProperty("suggestedFix");
   });
 
   it("drops a fix on an id it may not touch, of the wrong type, empty, or invalid, but keeps the Finding (Dismiss only)", () => {

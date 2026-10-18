@@ -97,7 +97,8 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP Review reads (real Postgre
     // The planner sees both.
     const mine = await as(OWNER)(() => loadReviewForMcp(NEW));
     expect(mine.findings.map((f) => f.id)).toContain("it-mrev-f4");
-    expect(mine.findings.find((f) => f.id === "it-mrev-f5")).toMatchObject({ suggestedFix: { kind: "item.note", itemId: GIFT }, fixWith: "update_thing_to_do with the text added to its notes" });
+    // Final wave I1: a TRIP Finding never carries a fix, so the planner gets none either.
+    expect(mine.findings.find((f) => f.id === "it-mrev-f5")).toMatchObject({ suggestedFix: null, fixWith: null });
     expect(mine.openFindings).toBe(4);
   });
 

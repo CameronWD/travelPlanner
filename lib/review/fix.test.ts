@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SuggestedFix } from "./types";
-import { appendedNote, fixTarget, parseUndoPayload, sameSnapshot, snapshotFor, REVIEW_ACTION_COPY } from "./fix";
+import { appendedNote, fixFitsTarget, fixTarget, parseUndoPayload, sameSnapshot, snapshotFor, REVIEW_ACTION_COPY } from "./fix";
 
 const ROW = {
   date: "2027-06-02", startTime: "10:00", endTime: null, notes: "Cash only.", openingHours: null,
@@ -16,6 +16,21 @@ describe("fixTarget", () => {
     [{ kind: "accommodation.bookingState", id: "a1", bookingState: "BOOKED" }, "accommodation", "a1"],
   ])("%o targets %s %s", (fix, kind, id) => {
     expect(fixTarget(fix)).toEqual({ kind, id });
+  });
+});
+
+describe("fixFitsTarget (final wave I1: a fix only touches its Finding's own row)", () => {
+  it("fits only the same type and id, never a TRIP or DAY Finding", () => {
+    const note: SuggestedFix = { kind: "item.note", itemId: "i1", append: "x" };
+    const train: SuggestedFix = { kind: "transport.bookingState", id: "tr1", bookingState: "BOOKED" };
+    const stay: SuggestedFix = { kind: "accommodation.bookingState", id: "a1", bookingState: "BOOKED" };
+    expect(fixFitsTarget(note, { targetType: "ITEM", targetId: "i1" })).toBe(true);
+    expect(fixFitsTarget(train, { targetType: "TRANSPORT", targetId: "tr1" })).toBe(true);
+    expect(fixFitsTarget(stay, { targetType: "ACCOMMODATION", targetId: "a1" })).toBe(true);
+    expect(fixFitsTarget(train, { targetType: "ITEM", targetId: "i1" })).toBe(false);
+    expect(fixFitsTarget(note, { targetType: "ITEM", targetId: "i2" })).toBe(false);
+    expect(fixFitsTarget(note, { targetType: "TRIP", targetId: null })).toBe(false);
+    expect(fixFitsTarget(note, { targetType: "DAY", targetId: null })).toBe(false);
   });
 });
 

@@ -122,13 +122,14 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review reads (spec 2026-10-17 
     }
   });
 
-  it("a fix aimed at a row hidden from the viewer is withheld; Undo follows the latest-Review rule", async () => {
+  it("a fix aimed at a row hidden from the viewer, or at any row but its own target, is withheld; Undo follows the latest-Review rule", async () => {
     const SECRET_FIX = JSON.stringify({ kind: "item.note", itemId: SECRET, append: "Wrap it in blue." });
     await db.finding.createMany({
       data: [
         { ...base, id: "it-rr-f8", reviewId: "it-rr-r2", key: "LOGISTICS|TRIP|-", category: "LOGISTICS", targetType: "TRIP", title: "Wrapping", suggestedFix: SECRET_FIX, position: 3 },
         { ...base, id: "it-rr-f9", reviewId: "it-rr-r2", key: "PACKING|TRIP|-", category: "PACKING", targetType: "TRIP", title: "Plug", state: "DISMISSED", stateById: PLANNER, stateAt: ago(10), position: 4 },
         { ...base, id: "it-rr-f10", reviewId: "it-rr-r1", key: "SEASON|TRIP|-", category: "SEASON", targetType: "TRIP", title: "Stranded", suggestedFix: FIX, state: "APPLIED", stateById: PLANNER, stateAt: ago(30), position: 5 },
+        { ...base, id: "it-rr-f11", reviewId: "it-rr-r2", key: `TICKET|ITEM|${VISIBLE}`, category: "TICKET", targetType: "ITEM", targetId: VISIBLE, title: "Mismatched", suggestedFix: SECRET_FIX, position: 6 },
       ],
     });
     try {
@@ -141,9 +142,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review reads (spec 2026-10-17 
 
       viewer.id = PLANNER;
       const planner = (await latestReview(TRIP_ID))!.findings;
-      expect(planner.find((f) => f.id === "it-rr-f8")).toMatchObject({ suggestedFix: { kind: "item.note", itemId: SECRET }, canApply: true });
+      // Final wave I1: a fix only touches its Finding's own row, so a stored TRIP Finding's fix reads as none, even for the planner.
+      expect(planner.find((f) => f.id === "it-rr-f8")).toMatchObject({ suggestedFix: null, canApply: false, canDismiss: true });
+      // And an ITEM Finding's fix aimed at another Item reads as none; one on its own Item is kept (it-rr-f5).
+      expect(planner.find((f) => f.id === "it-rr-f11")).toMatchObject({ suggestedFix: null, canApply: false });
+      expect(planner.find((f) => f.id === "it-rr-f5")).toMatchObject({ suggestedFix: { kind: "item.note", itemId: VISIBLE }, canApply: true });
     } finally {
-      await db.finding.deleteMany({ where: { id: { in: ["it-rr-f8", "it-rr-f9", "it-rr-f10"] } } });
+      await db.finding.deleteMany({ where: { id: { in: ["it-rr-f8", "it-rr-f9", "it-rr-f10", "it-rr-f11"] } } });
     }
   });
 

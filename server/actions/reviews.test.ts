@@ -28,18 +28,22 @@ vi.mock("@/server/actions/accommodation", () => ({ updateAccommodation: h.update
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: h.revalidateTrip }));
 
 import { db } from "@/lib/db";
-import { REVIEW_ACTION_COPY } from "@/lib/review/fix";
+import { REVIEW_ACTION_COPY, fixTarget } from "@/lib/review/fix";
+import type { SuggestedFix } from "@/lib/review/types";
 import { applyFinding, dismissFinding, undoFinding } from "./reviews";
 
 const mdb = db as unknown as MockDb<"finding" | "item" | "transport" | "accommodation">;
 const FORM = (message: string, code: string) => ({ success: false, errors: { _: [message] }, code });
 const STATE_AT = new Date("2026-10-19T10:00:00Z");
 
+/** The Finding is about its fix's own row (final wave I1), unless `over` says otherwise. */
 function access(over: Record<string, unknown> = {}, isLatest = true) {
+  const fix = typeof over.suggestedFix === "string" ? (JSON.parse(over.suggestedFix) as SuggestedFix) : null;
+  const own = fix ? { targetType: fixTarget(fix).kind.toUpperCase(), targetId: fixTarget(fix).id } : { targetType: "TRIP", targetId: null };
   h.requireFindingAccess.mockResolvedValue({
     user: { id: "u1" },
     isLatest,
-    finding: { id: "f1", reviewId: "r1", tripId: "t1", state: "OPEN", suggestedFix: null, undoPayload: null, stateById: null, stateAt: null, ...over },
+    finding: { id: "f1", reviewId: "r1", tripId: "t1", ...own, state: "OPEN", suggestedFix: null, undoPayload: null, stateById: null, stateAt: null, ...over },
   });
 }
 
@@ -110,6 +114,13 @@ const NOT_FOUND = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { dig
 const ITEM = { tripId: "t1", forkId: null, date: "2027-06-02", startTime: "10:00", endTime: null, notes: "Cash only.", openingHours: null, bookingState: "NONE", bookingStateSet: false, bookBy: null };
 
 describe("applyFinding (R8: runs the existing action, with Undo)", () => {
+  it("refuses a stored fix aimed at another row than the Finding's own, without claiming it (final wave I1)", async () => {
+    access({ suggestedFix: JSON.stringify({ kind: "transport.bookingState", id: "tr1", bookingState: "BOOKED" }), targetType: "ITEM", targetId: "i1" });
+    expect(await applyFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.noFix, "no-fix"));
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+    expect(h.updateTransport).not.toHaveBeenCalled();
+  });
+
   it("an item.note fix appends through updateItem and stores what it changed", async () => {
     const fix = { kind: "item.note", itemId: "i1", append: "Closed Mondays." };
     access({ suggestedFix: JSON.stringify(fix) });

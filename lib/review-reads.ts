@@ -13,7 +13,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
 import { parseSuggestedFix } from "@/lib/review/schema";
-import { fixTarget, isStrandedApply } from "@/lib/review/fix";
+import { fixFitsTarget, fixTarget, isStrandedApply } from "@/lib/review/fix";
 import {
   effectiveReviewStatus,
   FORMER_TRAVELLER_NAME,
@@ -88,6 +88,8 @@ export interface FindingAccess {
     id: string;
     reviewId: string;
     tripId: string;
+    targetType: FindingTargetType;
+    targetId: string | null;
     state: FindingState;
     suggestedFix: string | null;
     undoPayload: string | null;
@@ -159,9 +161,11 @@ function toSummary(row: ReviewRow, counts: { open: number; total: number }, now:
 function toFindingView(f: FindingRow, onLatest: boolean, hiddenTargetIds: readonly string[], now: Date): FindingView {
   const state = f.state as FindingState;
   const parsed = parseSuggestedFix(f.suggestedFix);
-  // A fix may point at another row than the Finding's target. If a Surprise
-  // hides that row from this viewer, its id and text never leave the server.
-  const suggestedFix = parsed && !hiddenTargetIds.includes(fixTarget(parsed).id) ? parsed : null;
+  // A fix only touches the Finding's own row: a stored one aimed elsewhere
+  // (written before that rule) reads as none, Dismiss only. And a row a
+  // Surprise hides from this viewer never leaves the server.
+  const suggestedFix =
+    parsed && fixFitsTarget(parsed, f) && !hiddenTargetIds.includes(fixTarget(parsed).id) ? parsed : null;
   return {
     id: f.id,
     reviewId: f.reviewId,
@@ -268,7 +272,7 @@ export async function runningReview(tripId: string): Promise<ReviewSummary | nul
 export async function requireFindingAccess(findingId: string): Promise<FindingAccess> {
   const row = await db.finding.findUnique({
     where: { id: findingId },
-    select: { id: true, reviewId: true, tripId: true, targetId: true, state: true, suggestedFix: true, undoPayload: true, stateById: true, stateAt: true },
+    select: { id: true, reviewId: true, tripId: true, targetType: true, targetId: true, state: true, suggestedFix: true, undoPayload: true, stateById: true, stateAt: true },
   });
   if (!row) notFound();
   const { user } = await requireTripAccess(row.tripId);
@@ -283,6 +287,8 @@ export async function requireFindingAccess(findingId: string): Promise<FindingAc
       id: row.id,
       reviewId: row.reviewId,
       tripId: row.tripId,
+      targetType: row.targetType as FindingTargetType,
+      targetId: row.targetId,
       state: row.state as FindingState,
       suggestedFix: row.suggestedFix,
       undoPayload: row.undoPayload,

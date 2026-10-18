@@ -16,6 +16,7 @@ import { parseSuggestedFix } from "@/lib/review/schema";
 import {
   REVIEW_ACTION_COPY as COPY,
   appendedNote,
+  fixFitsTarget,
   isStrandedApply,
   parseUndoPayload,
   fixTarget,
@@ -156,7 +157,8 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
   if (finding.state !== "OPEN") return formFail(COPY.handled, "handled");
   if (!isLatest) return formFail(COPY.replaced, "replaced");
   const fix = parseSuggestedFix(finding.suggestedFix);
-  if (!fix) return formFail(COPY.noFix, "no-fix");
+  // A fix only ever changes the Finding's own row (lib/review/fix.ts fixFitsTarget), as the reads show it.
+  if (!fix || !fixFitsTarget(fix, finding)) return formFail(COPY.noFix, "no-fix");
   const target = fixTarget(fix);
   const row = await reachableRow(target, finding.tripId);
   if (!row) return formFail(COPY.gone, "gone");

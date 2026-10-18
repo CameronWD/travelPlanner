@@ -20,7 +20,8 @@ vi.mock("@/lib/mcp/acting-traveller", () => ({ getActingTraveller: () => null })
 
 import { db } from "@/lib/db";
 import { applyFinding, dismissFinding, undoFinding } from "@/server/actions/reviews";
-import { REVIEW_ACTION_COPY } from "@/lib/review/fix";
+import { REVIEW_ACTION_COPY, fixTarget } from "@/lib/review/fix";
+import type { SuggestedFix } from "@/lib/review/types";
 
 const USER = "it-ra-user";
 const TRIP_ID = "it-ra-trip";
@@ -32,11 +33,13 @@ const GIFT = "it-ra-gift"; // a Surprise for USER, planned by PLANNER
 const T0 = new Date("2026-10-19T09:00:00Z");
 const BOOKING = { bookingState: true, bookingStateSet: true, bookBy: true } as const;
 
-async function finding(id: string, fix: object | null, reviewId = "it-ra-r2") {
+/** A Finding about the fix's own row (final wave I1: a fix only touches its Finding's target), else about the Dinner. */
+async function finding(id: string, fix: SuggestedFix | null, reviewId = "it-ra-r2", about?: { targetType: string; targetId: string }) {
+  const own = fix ? { targetType: fixTarget(fix).kind.toUpperCase(), targetId: fixTarget(fix).id } : { targetType: "ITEM", targetId: DINNER };
   await db.finding.create({
     data: {
       id, reviewId, tripId: TRIP_ID, key: `BOOKING|ITEM|${id}`, severity: "warning", category: "BOOKING",
-      targetType: "ITEM", targetId: DINNER, title: "t", detail: "d", origin: "MODEL", suggestedFix: fix ? JSON.stringify(fix) : null,
+      ...(about ?? own), title: "t", detail: "d", origin: "MODEL", suggestedFix: fix ? JSON.stringify(fix) : null,
     },
   });
 }
@@ -107,11 +110,10 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Apply, Undo and Dismiss (spec 
     expect((await stateOf("it-ra-f5")).state).toBe("OPEN");
   });
 
-  it("a fix aimed at a Surprise hidden from the clicker fails as gone through the real guards, and stays Open", async () => {
+  it("a Finding about a Surprise hidden from the clicker is not found through the real guards, and stays Open", async () => {
     await db.item.create({ data: { id: GIFT, tripId: TRIP_ID, stopId: PORTO, title: "IT Gift", category: "FOOD", date: "2027-06-05", notes: "Shh.", sortOrder: 1, surprisePlannerId: PLANNER, surpriseForIds: JSON.stringify([USER]) } });
-    // The Finding itself is about the visible Dinner; only its fix points into the Surprise.
     await finding("it-ra-f7", { kind: "item.note", itemId: GIFT, append: "Wrap it in blue." });
-    expect(await applyFinding("it-ra-f7")).toEqual({ success: false, errors: { _: [REVIEW_ACTION_COPY.gone] }, code: "gone" });
+    await expect(applyFinding("it-ra-f7")).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
     expect(await stateOf("it-ra-f7")).toEqual({ state: "OPEN", stateById: null, stateAt: null, undoPayload: null });
     expect((await db.item.findUniqueOrThrow({ where: { id: GIFT } })).notes).toBe("Shh.");
 
@@ -123,6 +125,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Apply, Undo and Dismiss (spec 
     } finally {
       session.userId = USER;
     }
+  });
+
+  it("a stored fix aimed at another row than the Finding's own is no fix (final wave I1): Dismiss only, nothing changes", async () => {
+    await finding("it-ra-f8", { kind: "transport.bookingState", id: TRAIN, bookingState: "BOOKED" }, "it-ra-r2", { targetType: "ITEM", targetId: DINNER });
+    expect(await applyFinding("it-ra-f8")).toEqual({ success: false, errors: { _: [REVIEW_ACTION_COPY.noFix] }, code: "no-fix" });
+    expect((await stateOf("it-ra-f8")).state).toBe("OPEN");
+    expect(await db.transport.findUniqueOrThrow({ where: { id: TRAIN }, select: { bookingState: true, bookingStateSet: true } })).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false });
   });
 
   it("Dismiss records who and when; Undo reopens it; an older Review's Finding can't be dismissed", async () => {

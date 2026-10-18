@@ -164,15 +164,24 @@ function fixCandidate(fix: ModelFix, source: string | undefined): { type: Review
   }
 }
 
-function toSuggestedFix(fix: ModelFix | null, targets: ReviewTargets, source: string | undefined): SuggestedFix | undefined {
+type Placement = Pick<FindingDraft, "targetType" | "targetId" | "date">;
+
+/**
+ * A fix only ever changes the Finding's own row: "the museum is closed on
+ * Monday" must not carry a fix that marks a train as booked. So the fix's row
+ * is the Finding's target, by type and id (item.* an ITEM, transport.* a
+ * TRANSPORT, accommodation.* an ACCOMMODATION), and a TRIP or DAY Finding
+ * never carries one (Dismiss only). lib/review-reads.ts applies the same rule
+ * to stored Findings.
+ */
+function toSuggestedFix(fix: ModelFix | null, at: Placement, targets: ReviewTargets, source: string | undefined): SuggestedFix | undefined {
   if (!fix) return undefined;
   const candidate = fixCandidate(fix, source);
-  if (!candidate || !targets[candidate.type].has(candidate.id)) return undefined;
+  if (!candidate || candidate.type !== at.targetType || candidate.id !== at.targetId) return undefined;
+  if (!targets[candidate.type].has(candidate.id)) return undefined;
   const parsed = suggestedFixSchema.safeParse(candidate.value);
   return parsed.success ? parsed.data : undefined;
 }
-
-type Placement = Pick<FindingDraft, "targetType" | "targetId" | "date">;
 
 /** Where the Finding points. An id that isn't a visible row of that type (made up, or a Surprise's) becomes the Trip. */
 function placement(f: ModelFinding, targets: ReviewTargets): Placement {
@@ -191,11 +200,12 @@ export function toFindingDrafts(output: ReviewOutput, targets: ReviewTargets): F
     const title = plainCopy(f.title).slice(0, TITLE_MAX);
     if (!title) continue;
     const source = safeWebHref(f.source) ?? undefined;
-    const suggestedFix = toSuggestedFix(f.suggestedFix, targets, source);
+    const at = placement(f, targets);
+    const suggestedFix = toSuggestedFix(f.suggestedFix, at, targets, source);
     drafts.push({
       severity: f.severity,
       category: f.category,
-      ...placement(f, targets),
+      ...at,
       title,
       detail: plainCopy(f.detail).slice(0, DETAIL_MAX),
       ...(suggestedFix ? { suggestedFix } : {}),
