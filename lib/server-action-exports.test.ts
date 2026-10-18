@@ -123,6 +123,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "release-notes.ts": ["dismissWhatsNew"],
   "reminders.ts": ["addReminder", "deleteReminder", "updateReminder"],
   "review-permission.ts": ["listReviewPermissions", "setReviewPermission"],
+  "reviews.ts": ["dismissFinding", "undoFinding"],
   "search.ts": ["listMyTrips", "searchTrip"],
   "share.ts": ["createShareLink", "listShareLinks", "revokeShareLink", "rotateShareLink", "updateShareLink"],
   "stops.ts": [
