@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { verifyMcpAccessToken, findUnique, reportError } = vi.hoisted(() => ({
+const { verifyMcpAccessToken, findUnique, reportError, reviewPermissionOf, builtFor } = vi.hoisted(() => ({
   verifyMcpAccessToken: vi.fn(),
   findUnique: vi.fn(),
   reportError: vi.fn(),
+  reviewPermissionOf: vi.fn(async () => "OFF"),
+  builtFor: [] as unknown[],
 }));
 
 // The real lib/mcp/oauth.ts runs (bearer parsing, the RFC 9728 challenge);
@@ -16,11 +18,13 @@ vi.mock("@/lib/auth/auth", () => ({
 }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique } } }));
 vi.mock("@/lib/error-sink", () => ({ reportError }));
+vi.mock("@/lib/review-permission-reads", () => ({ reviewPermissionOf }));
 vi.mock("@/lib/mcp/server", async () => {
   const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
   const { getActingTraveller } = await import("@/lib/mcp/acting-traveller");
   return {
-    buildMcpServer: () => {
+    buildMcpServer: (caller: unknown) => {
+      builtFor.push(caller);
       const server = new McpServer({ name: "teepee", version: "1.0.0" });
       server.registerTool("whoami", { description: "who", inputSchema: {} }, async () => {
         // Yield first, so a transport that answered before the handler
@@ -28,6 +32,9 @@ vi.mock("@/lib/mcp/server", async () => {
         await new Promise((r) => setTimeout(r, 5));
         return { content: [{ type: "text", text: getActingTraveller()?.id ?? "nobody" }] };
       });
+      server.registerTool("whoami_full", { description: "who, in full", inputSchema: {} }, async () => ({
+        content: [{ type: "text", text: JSON.stringify(getActingTraveller()) }],
+      }));
       return server;
     },
   };
@@ -38,7 +45,11 @@ vi.mock("@/lib/mcp/server", async () => {
 // AsyncLocalStorage). The rate-limit test uses its own Traveller instead.
 import * as route from "./route";
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  reviewPermissionOf.mockImplementation(async () => "OFF");
+  builtFor.length = 0;
+});
 
 function activeFor(token: string) {
   if (token === "good") return { active: true, userId: "user-1", clientId: "c1" };
@@ -114,6 +125,46 @@ describe("POST /api/mcp", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.result.content[0].text).toBe("user-1");
+  });
+
+  it.each(["OFF", "LIMITED", "UNLIMITED"])("builds the server for the caller's own Review permission (%s, R12)", async (reviewPermission) => {
+    findUnique.mockResolvedValue(userRow("user-1"));
+    reviewPermissionOf.mockImplementation(async () => reviewPermission);
+    const res = await route.POST(rpc(initialize));
+    expect(res.status).toBe(200);
+    expect(reviewPermissionOf).toHaveBeenCalledWith("user-1");
+    expect(builtFor).toEqual([{ reviewPermission }]);
+  });
+
+  it("reads the permission fresh on every request, so an Admin's change applies on Claude's next call", async () => {
+    findUnique.mockResolvedValue(userRow("user-1"));
+    reviewPermissionOf.mockImplementationOnce(async () => "OFF").mockImplementationOnce(async () => "LIMITED");
+    await route.POST(rpc(initialize));
+    await route.POST(rpc(initialize));
+    expect(builtFor).toEqual([{ reviewPermission: "OFF" }, { reviewPermission: "LIMITED" }]);
+  });
+
+  it("the acting Traveller carries no permission field: it reaches the tools only through the tool list", async () => {
+    findUnique.mockResolvedValue(userRow("user-1"));
+    reviewPermissionOf.mockImplementation(async () => "UNLIMITED");
+    const res = await route.POST(rpc({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "whoami_full", arguments: {} } }));
+    const json = await res.json();
+    expect(JSON.parse(json.result.content[0].text)).toEqual({ id: "user-1", name: "Ana", email: "user-1@example.com", image: null });
+  });
+
+  it("a throwing permission read is a generic 500, reported, and builds no server", async () => {
+    findUnique.mockResolvedValue(userRow("user-1"));
+    reviewPermissionOf.mockImplementation(async () => {
+      throw new Error("db down");
+    });
+    const res = await route.POST(rpc(initialize));
+    expect(res.status).toBe(500);
+    expect(reportError).toHaveBeenCalledTimes(1);
+    expect(builtFor).toEqual([]);
+  });
+
+  it("allows a Review started from Claude to finish in the background (after() runs within maxDuration)", () => {
+    expect(route.maxDuration).toBe(300);
   });
 
   it("rate limits one Traveller past 120 requests a minute, across tokens", async () => {
