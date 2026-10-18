@@ -6,9 +6,10 @@ import { estimateCostMicroUsd, type AiTokenUsage } from "@/lib/ai-pricing";
 /**
  * AiUsage.outcome (spec 2026-10-14 "Spend"). `error`: the API call was made
  * (and billed), then the import failed on our side before Proposals were
- * built (BI-13).
+ * built (BI-13). `timed_out`: a Review stopped at its time budget (spec
+ * 2026-10-17 R11, lib/review/call.ts).
  */
-type AiUsageOutcome = "ok" | "not_booking" | "unreadable" | "api_error" | "rate_limited" | "error";
+type AiUsageOutcome = "ok" | "not_booking" | "unreadable" | "api_error" | "rate_limited" | "error" | "timed_out";
 
 export interface AiUsageRecord {
   tripId: string;
@@ -18,6 +19,8 @@ export interface AiUsageRecord {
   proposalCount: number;
   outcome: AiUsageOutcome;
   durationMs: number;
+  /** Where a missing price or a lost row is reported; the Booking import's by default. */
+  route?: string;
 }
 
 const ROUTE = "booking-import#usage";
@@ -31,14 +34,17 @@ const ROUTE = "booking-import#usage";
  * never the original thrown value: a DB-layer error's message can carry
  * driver/connection detail that doesn't belong in the error sink (privacy
  * constraint, global-constraints.md).
+ *
+ * Returns the new row's id, or null when it could not be written.
  */
-export async function recordAiUsage(record: AiUsageRecord): Promise<void> {
+export async function recordAiUsage(record: AiUsageRecord): Promise<string | null> {
+  const route = record.route ?? ROUTE;
   try {
     const cost = estimateCostMicroUsd(record.model, record.usage);
     if (cost === null) {
-      await reportError(new Error(`No AI price for model ${record.model}`), { route: ROUTE, source: "server", userId: record.userId });
+      await reportError(new Error(`No AI price for model ${record.model}`), { route, source: "server", userId: record.userId });
     }
-    await db.aiUsage.create({
+    const row = await db.aiUsage.create({
       data: {
         tripId: record.tripId,
         userId: record.userId,
@@ -52,11 +58,14 @@ export async function recordAiUsage(record: AiUsageRecord): Promise<void> {
         outcome: record.outcome,
         durationMs: record.durationMs,
       },
+      select: { id: true },
     });
+    return row.id;
   } catch {
     // Never forward the caught error itself (e.g. a DB driver error) — a
     // fresh, fixed-message Error keeps the sink free of whatever detail the
     // original carried.
-    await reportError(new Error("AI usage row not written"), { route: ROUTE, source: "server", userId: record.userId });
+    await reportError(new Error("AI usage row not written"), { route, source: "server", userId: record.userId });
+    return null;
   }
 }

@@ -16,6 +16,7 @@ const TRIP_SUBPAGE_LABELS: Record<string, string> = {
   plan: "Plan editor",
   budget: "Money",
   summary: "Summary",
+  reviews: "Reviews",
   calendar: "Days",
   today: "Today",
   wishlist: "Wishlist",

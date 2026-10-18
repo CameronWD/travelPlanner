@@ -241,8 +241,11 @@ export type FlagRows = {
  *
  * Does NOT call `requireTripAccess` — every caller already has (or is) the
  * access check for its own page/action.
+ * `viewerId` null reads as a Share link does (every live Surprise hidden):
+ * the Review's restated Flags, as everyone on the Trip sees them (spec
+ * 2026-10-17 R8/R9, lib/review/input.ts).
  */
-export async function loadFlagRows(tripId: string, viewerId: string, plan?: PlanId): Promise<FlagRows | null> {
+export async function loadFlagRows(tripId: string, viewerId: string | null, plan?: PlanId): Promise<FlagRows | null> {
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: FLAG_TRIP_SELECT });
   if (!trip?.startDate || !trip.endDate) return null;
 

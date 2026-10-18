@@ -727,3 +727,68 @@ labelled "<label> (deleted)". Requires DATABASE_URL pointing at prod.
    Project → Settings → Functions, keep **Fluid compute** on and check the Max
    Duration is not capped below 60 s; then make sure the step-7 real import
    completes rather than ending in "busy".
+
+## Enabling Reviews (optional, paid)
+
+Reviews (spec 2026-10-17 R8–R12) run on the same `ANTHROPIC_API_KEY` as the
+rest of the AI features. Nobody sees a Review option until an Admin sets
+their Review permission to Limited or Unlimited on `/admin`; the migration
+sets Cam and Xanni to Unlimited.
+
+**Hard gate: do not deploy Branch 3 (`feat/trip-review`) until the smoke run
+below prints `PASS` for BOTH Standard and Deep.** A Review sends a strict
+client tool (`submit_review`, `strict: true`) in the same request as web
+search, whose results carry citations. That pairing has not been verified
+against the live API. The unit tests mock the SDK, so the smoke run is the
+only proof that the request shape is accepted.
+
+If the API refuses the pairing with a 400 whose message mentions citations
+or strict mode, `callReviewModel` re-sends that request once with `strict`
+removed from `submit_review` (`STRICT_REFUSAL` in `lib/review/call.ts`). The
+reply is still checked Finding by Finding by `parseReviewOutput`, so a bad
+Finding is dropped and a bad reply ends "unreadable". A citations conflict
+therefore heals itself, at the cost of one refused (unbilled) request per
+run. The gate stays: the smoke run is still the only proof that one of the
+two paths is accepted.
+
+1. Before the deploy, run both kinds on your machine, with the same
+   `REVIEW_MODEL_STANDARD` / `REVIEW_MODEL_DEEP` values Production will use
+   (or none, for the defaults):
+   `ANTHROPIC_API_KEY=… npx tsx --conditions=react-server scripts/review-smoke.ts standard`
+   and the same with `deep`. Each prints the model, time, searches, cost,
+   which request path ran, and the Findings it would store, then `PASS` or
+   `FAIL` (it exits 1 on a `FAIL`). For a real Trip, save a `get_trip_plan`
+   result from your Claude connection to a file and pass it as the second
+   argument. Check that a run finishes well inside 270 s: the job stops
+   itself there ("This Review took too long and stopped.").
+   - **`Request path: strict submit_review`** with `PASS`: the strict tool and
+     citations work together. Nothing else to do.
+   - **`Request path: FALLBACK`** with `PASS`: the API refused strict beside
+     citations, and the non-strict retry worked. Deployable: every Review
+     takes the same path. Worth noting, since the schema is then enforced
+     only by our own zod check, not by the API.
+   - **`Outcome: api_error (HTTP 400: …citations…)`** after `FALLBACK`: the
+     retry without strict was refused too. Do not deploy; it needs a code
+     change on the branch (likely a different structured-output approach).
+   - Any other 400 names the parameter the API rejected. Also a no-deploy.
+   - `busy` (429/5xx): try again in a few minutes. `timeout`: the run took
+     over 270 s; try again, and if it repeats, the model is too slow for the
+     platform limit. `unreadable`: Claude ended without a usable
+     `submit_review` call; run it again, and do not deploy if it repeats.
+2. Optional settings, Production: `REVIEW_MODEL_STANDARD` (default
+   `claude-sonnet-5`, $2/$10 per MTok) and `REVIEW_MODEL_DEEP` (default
+   `claude-opus-5`, $5/$25 per MTok). Web searches cost $10 per 1,000 on top
+   (up to about 15 a request). A model with no price in `lib/ai-pricing.ts`
+   still works but records no cost and logs an ErrorReport. Changing either
+   model after the gate means running the smoke run again for that kind.
+3. In Vercel → Project → Settings → Functions, keep **Fluid compute** on and
+   the Max Duration at 300 s. The Reviews page and `/api/mcp` both export
+   `maxDuration = 300`, because the Review runs after the response
+   (`after()`), only for as long as that allows. A run cut off by the
+   platform stays "Reviewing…" until it is 6 minutes old
+   (`REVIEW_STALE_AFTER_MS`), then counts as failed and no longer blocks the
+   Trip.
+4. After the deploy, start one Standard Review on a real Trip. Check that the
+   tab shows "Reviewing… (started by …)" and then the Findings, that `/admin`
+   shows no new ErrorReport, and that an `AiUsage` row with an
+   `estimatedCostMicroUsd` is linked from the Review (`Review.aiUsageId`).

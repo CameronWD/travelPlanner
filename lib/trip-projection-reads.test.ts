@@ -11,7 +11,7 @@ vi.mock("@/lib/db", () => ({
   db: { trip: { findUnique: tripFindUniqueMock }, stop: { findMany: stopFindManyMock }, transport: { findMany: transportFindManyMock } },
 }));
 
-import { getTripProjection } from "./trip-projection-reads";
+import { getTripProjection, loadTripProjection } from "./trip-projection-reads";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -23,6 +23,14 @@ it("checks Trip access before reading", async () => {
   stopFindManyMock.mockResolvedValue([]);
   await getTripProjection("trip-1");
   expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+});
+
+it("loadTripProjection reads the same projection with no access check (the Review job has no session, spec 2026-10-17 R9)", async () => {
+  tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: null });
+  stopFindManyMock.mockResolvedValue([{ id: "a", arriveDate: null, departDate: null, nights: 2, pinned: false, sortOrder: 0 }]);
+  const r = await loadTripProjection("trip-1");
+  expect(requireTripAccessMock).not.toHaveBeenCalled();
+  expect(r.projectedEnd).toBe("2026-07-03");
 });
 
 describe("getTripProjection", () => {

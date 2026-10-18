@@ -2,7 +2,9 @@
  * Claude connection endpoint (spec 2026-10-09, ADR 0070 amendment, ADR 0071).
  * Stateless Streamable HTTP: each POST builds a fresh MCP server and runs it
  * inside runAsTraveller, so requireUser() resolves to the access token's
- * Traveller and every tool goes through the app's own guards.
+ * Traveller and every tool goes through the app's own guards. The tool list
+ * follows the caller: review_trip is listed only when their Review
+ * permission isn't Off (spec 2026-10-17 R12).
  *
  * Auth is OAuth: an opaque access token from Claude's own sign-in
  * (lib/auth/auth.ts mcp()), bound to this host's /api/mcp and checked in process
@@ -17,8 +19,19 @@ import { runAsTraveller, type ActingUser } from "@/lib/mcp/acting-traveller";
 import { bearerToken, mcpChallenge, resourceFor, verifyMcpAccessToken } from "@/lib/mcp/oauth";
 import { buildMcpServer } from "@/lib/mcp/server";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { reviewPermissionOf } from "@/lib/review-permission-reads";
 
 export const runtime = "nodejs";
+
+/**
+ * A Review started from Claude (review_trip) runs its model call in this
+ * route's after() (lib/review/run.ts), and after() runs within the route's
+ * max duration (Next 16 docs, functions/after "Duration"). Matches the
+ * Reviews page's ceiling (Vercel Hobby's 300 s; the job aborts its own call
+ * at 270 s). It must be a literal: segment config is read statically.
+ * Ordinary calls are unaffected, only the cap rises.
+ */
+export const maxDuration = 300;
 
 /** Per Traveller, across all their tokens. */
 const limiter = createRateLimiter({ limit: 120, windowMs: 60_000 });
@@ -69,7 +82,10 @@ export async function POST(req: Request): Promise<Response> {
   const traveller = user;
   try {
     return await runAsTraveller(traveller, async () => {
-      const server = buildMcpServer();
+      // Read fresh per request, so an Admin's change applies on Claude's next
+      // call. It shapes the tool list (R12, lib/mcp/server.ts listsReviewTrip)
+      // and never rides along on the acting Traveller. Unknown or missing is Off.
+      const server = buildMcpServer({ reviewPermission: await reviewPermissionOf(traveller.id) });
       const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       await server.connect(transport);
       return transport.handleRequest(req);

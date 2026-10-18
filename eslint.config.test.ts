@@ -94,6 +94,14 @@ const CASES: [string, string, string, boolean][] = [
   // spec 3.P: one spelling of a UTC calendar date
   ["toISOString().slice in lib", "lib/probe.ts", "export const d = (x: Date) => x.toISOString().slice(0, 10);", true],
   ["toISOString().slice in a narrow zone", "lib/guards.ts", `export const d = (x: Date) => x.toISOString().slice(0, 10);\n${GUARD}`, true],
+  // spec 2026-10-17 R9: the unguarded plan and projection reads, only from the Review job's input
+  ["lib → loadTripPlanView", "lib/probe.ts", 'import { loadTripPlanView } from "@/lib/mcp/reads/trip-plan";', true],
+  ["MCP tool → loadTripPlanView, relative", "lib/mcp/tools/probe.ts", 'import { loadTripPlanView } from "../reads/trip-plan";', true],
+  ["action → loadTripProjection", "server/actions/probe.ts", 'import { loadTripProjection } from "@/lib/trip-projection-reads";', true],
+  ["page → loadTripProjection", "app/probe/page.tsx", 'import { loadTripProjection } from "@/lib/trip-projection-reads";', true],
+  ["lib → the guarded wrappers", "lib/probe.ts", 'import { loadTripPlanForMcp } from "@/lib/mcp/reads/trip-plan";\nimport { getTripProjection } from "@/lib/trip-projection-reads";', false],
+  ["review input → the unguarded reads", "lib/review/input.ts", 'import { loadTripPlanView } from "@/lib/mcp/reads/trip-plan";\nimport { loadTripProjection } from "@/lib/trip-projection-reads";', false],
+  ["a test → the unguarded reads", "lib/review/probe.test.ts", 'import { loadTripPlanView } from "@/lib/mcp/reads/trip-plan";', false],
   // Tests sit outside every boundary
   ["a test reaches across layers", "lib/probe.test.ts", 'import { db } from "@/lib/db";\nimport { runAsTraveller } from "@/lib/mcp/acting-traveller";\nimport { createStop } from "@/server/actions/stops";', false],
 ];

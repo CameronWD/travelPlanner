@@ -64,12 +64,13 @@ describe("the trip's More page", () => {
     expect(screen.getByText("Christmas in Europe")).toBeInTheDocument();
   });
 
-  it("shows eight section tiles, each a link to its route, Calendar first and Help last", async () => {
+  it("shows nine section tiles, each a link to its route, Calendar first and Help last", async () => {
     await renderPage();
     const tiles = within(screen.getByRole("list", { name: "Trip sections" })).getAllByRole("link");
     expect(tiles.map((a) => a.getAttribute("href"))).toEqual([
       "/trips/t1/calendar",
       "/trips/t1/summary",
+      "/trips/t1/reviews",
       "/trips/t1/journal",
       "/trips/t1/checklists",
       "/trips/t1/files",
@@ -79,8 +80,8 @@ describe("the trip's More page", () => {
     ]);
     expect(tiles[0]).toHaveTextContent("Calendar");
     expect(tiles[0]).toHaveTextContent("Every day at once, as a month or a list");
-    expect(tiles[7]).toHaveTextContent("Help");
-    expect(tiles[7]).toHaveTextContent("How to use Teepee");
+    expect(tiles[8]).toHaveTextContent("Help");
+    expect(tiles[8]).toHaveTextContent("How to use Teepee");
   });
 
   it("describes every section in one line", async () => {
@@ -91,6 +92,7 @@ describe("the trip's More page", () => {
       "Tickets, bookings and documents",
       "What everyone's changed",
       "Travellers, sharing, digests and details",
+      "Claude's check of the plan, and what it found",
     ]) {
       expect(screen.getByText(line)).toBeInTheDocument();
     }
@@ -104,7 +106,7 @@ describe("the trip's More page", () => {
     // given tag (no extra wrapper element), so the accessible list is still
     // the same <ul> carrying the section <li>s.
     expect(list.tagName).toBe("UL");
-    expect(within(list).getAllByRole("listitem")).toHaveLength(8);
+    expect(within(list).getAllByRole("listitem")).toHaveLength(9);
     expect(capturedListProps?.as).toBe("ul");
     expect(capturedListProps?.staggerOnMount).toBe(true);
   });

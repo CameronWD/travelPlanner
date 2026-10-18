@@ -89,6 +89,8 @@ model User {
   digestPreferences  DigestPreference[]
   digestDispatches   DigestDispatch[]
   travellerDetails   TravellerDetails?
+  reviewsStarted     Review[]           @relation("ReviewStartedBy")
+  findingsActedOn    Finding[]          @relation("FindingStateBy")
 
   // Better Auth (ADR 0071) — core and OAuth-provider tables.
   authSessions       AuthSession[]
@@ -108,6 +110,13 @@ model User {
   /// §G). NULL means they have not seen it, which is true of every account
   /// that existed before the column — they are meant to see it once too.
   welcomeSeenAt DateTime?
+
+  /// Who may start a Review (spec 2026-10-17 R12, CONTEXT.md "Review"):
+  /// "OFF" | "LIMITED" | "UNLIMITED" (lib/enum-values.ts REVIEW_PERMISSIONS),
+  /// set by an Admin on the Admin page. A column, not ADMIN_EMAILS: it is
+  /// changed from the page without a deploy, and it is independent of Admin
+  /// standing. An unknown value reads as OFF (lib/review-permission.ts).
+  reviewPermission String @default("OFF")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -520,6 +529,8 @@ model Trip {
   activities     Activity[]
   digestPreferences DigestPreference[]
   digestDispatches  DigestDispatch[]
+  reviews           Review[]
+  findings          Finding[]
 
   forks          Fork[]
 
@@ -1426,6 +1437,72 @@ model AiUsage {
   @@index([userId, createdAt])
   @@index([tripId])
   @@index([createdAt])
+}
+
+/// CONTEXT.md "Review" (spec 2026-10-17 R8–R12): one saved run over the Trip
+/// as everyone on it sees it (every Surprise masked, R9). Every Review is kept
+/// (R10 history). `status` is lib/review/types.ts ReviewStatus; a RUNNING row
+/// older than REVIEW_STALE_AFTER_MS reads as FAILED (effectiveReviewStatus), so a
+/// run that died never blocks the Trip.
+model Review {
+  id          String    @id @default(cuid())
+  tripId      String
+  /// Null once the starting account is deleted: the Review and its history stay ("a former Traveller").
+  startedById String?
+  kind        String // STANDARD | DEEP (lib/review/types.ts ReviewKind)
+  model       String // the model id the run used (REVIEW_MODEL_STANDARD / REVIEW_MODEL_DEEP)
+  status      String    @default("RUNNING") // RUNNING | DONE | FAILED
+  summary     String? // one line, from the model (R10's history list)
+  error       String? // why a FAILED run failed, in plain words
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  /// The run's AiUsage row. Plain string, no relation: AiUsage has none.
+  aiUsageId   String?
+
+  trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  startedBy User?     @relation("ReviewStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+  findings  Finding[]
+
+  @@index([tripId, startedAt])
+  @@index([tripId, status])
+  @@index([startedById, startedAt])
+}
+
+/// CONTEXT.md "Finding" (spec 2026-10-17 R8, R10): one thing a Review noticed.
+/// `key` (lib/review/key.ts) is how the next Review recognises it; `state` is
+/// lib/review/types.ts FindingState (GONE = "No longer found"). JSON as String
+/// (schema convention): `suggestedFix` is lib/review/schema.ts's
+/// suggestedFixSchema, `undoPayload` lib/review/fix.ts's UndoPayload.
+model Finding {
+  id           String    @id @default(cuid())
+  reviewId     String
+  tripId       String
+  key          String
+  position     Int       @default(0) // the order the Review raised it in
+  severity     String // warning | info
+  category     String // lib/review/types.ts FindingCategory
+  targetType   String // STOP | ITEM | TRANSPORT | ACCOMMODATION | DAY | TRIP
+  targetId     String?
+  date         String? // "YYYY-MM-DD": a DAY target's day, or the day it is about
+  title        String
+  detail       String
+  suggestedFix String?
+  source       String? // a URL the Finding came from
+  origin       String // FLAG | MODEL
+  state        String    @default("OPEN")
+  stateById    String? // who Applied or Dismissed it (null for OPEN and GONE)
+  stateAt      DateTime?
+  undoPayload  String? // what Apply changed, so Undo can put it back (APPLIED only)
+  previousId   String? // the previous Review's Finding this one matched (plain string)
+  firstFoundAt DateTime  @default(now()) // carried across matches
+  createdAt    DateTime  @default(now())
+
+  review  Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  trip    Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stateBy User?  @relation("FindingStateBy", fields: [stateById], references: [id], onDelete: SetNull)
+
+  @@index([reviewId])
+  @@index([tripId, state])
 }
 
 /// A storage blob whose owning row is gone but which is retained so a database

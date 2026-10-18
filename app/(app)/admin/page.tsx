@@ -4,18 +4,20 @@ import { requireAdmin } from "@/lib/guards";
 import { listAccessRequests, listAllowedEmails } from "@/server/actions/access-requests";
 import { listErrorReports } from "@/server/actions/error-reports";
 import { listFeedbackNeedingReview } from "@/server/actions/feedback";
+import { listReviewPermissions } from "@/server/actions/review-permission";
 import { CountBadge } from "@/components/ui/count-badge";
 import { AccessRequestsPanel } from "./access-requests";
 import { AllowedEmailsPanel } from "./allowed-emails";
 import { ErrorReportsPanel } from "./error-reports";
 import { FeedbackReviewPanel } from "./feedback-review";
+import { ReviewPermissionsPanel } from "./review-permissions";
 
 export const metadata: Metadata = { title: "Admin" };
 
 /**
  * One operator-console section: a heading row (kit shape — a bottom rule,
  * an optional count badge, a right-aligned hint) over its panel. Local to
- * this file; it has no reuse outside admin's four sections.
+ * this file; it has no reuse outside admin's sections.
  */
 function Section({
   id,
@@ -58,11 +60,12 @@ function Section({
 export default async function AdminPage() {
   const admin = await requireAdmin();
 
-  const [accessRequests, feedbackNeedingReview, allowedEmails, errorReports] = await Promise.all([
+  const [accessRequests, feedbackNeedingReview, allowedEmails, errorReports, reviewPermissions] = await Promise.all([
     listAccessRequests(),
     listFeedbackNeedingReview(),
     listAllowedEmails(),
     listErrorReports(),
+    listReviewPermissions(),
   ]);
 
   // One instant for the whole page, computed server-side so the client
@@ -101,6 +104,11 @@ export default async function AdminPage() {
 
       <Section id="adm-allow" title="Who can sign in" hint="The allowlist">
         <AllowedEmailsPanel initial={allowedEmails} now={now} viewerEmail={viewerEmail} />
+      </Section>
+
+      {/* Spec 2026-10-17 R12: who may start a Review (Off, Limited, Unlimited). */}
+      <Section id="adm-reviews" title="Reviews" hint="Who can start a Review">
+        <ReviewPermissionsPanel initial={reviewPermissions} />
       </Section>
 
       {/* Errors (ARCH-OBS-2) */}

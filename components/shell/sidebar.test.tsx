@@ -92,11 +92,11 @@ describe("Sidebar", () => {
     expect(within(lockups[0]).getByRole("img", { name: "Teepee" })).toBeInTheDocument();
   });
 
-  it("inside a trip renders the thirteen trip sections in order, then Trips and Globe", () => {
+  it("inside a trip renders the fourteen trip sections in order, then Trips and Globe", () => {
     renderSidebar();
     expect(navLinks().map((a) => a.textContent)).toEqual([
       "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
-      "Journal", "Checklists", "Files", "Summary", "Activity",
+      "Journal", "Checklists", "Files", "Summary", "Reviews", "Activity",
       "Settings", "Help", "Trips", "Globe",
     ]);
   });

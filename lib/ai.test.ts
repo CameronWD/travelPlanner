@@ -303,3 +303,38 @@ describe("draftPackingList", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// reviewModel (spec 2026-10-17 R11)
+// ---------------------------------------------------------------------------
+
+describe("reviewModel", () => {
+  const savedAiModel = process.env.AI_MODEL;
+  afterEach(() => {
+    delete process.env.REVIEW_MODEL_STANDARD;
+    delete process.env.REVIEW_MODEL_DEEP;
+    // Restored even when an expectation fails mid-test.
+    if (savedAiModel === undefined) delete process.env.AI_MODEL;
+    else process.env.AI_MODEL = savedAiModel;
+  });
+
+  it("runs a Standard Review on Claude Sonnet 5 and a Deep Review on Claude Opus 5 by default", async () => {
+    const { reviewModel } = await import("@/lib/ai");
+    expect(reviewModel("STANDARD")).toBe("claude-sonnet-5");
+    expect(reviewModel("DEEP")).toBe("claude-opus-5");
+  });
+
+  it("reads each kind's own setting, and treats an empty one as unset", async () => {
+    process.env.REVIEW_MODEL_STANDARD = "claude-sonnet-5-5";
+    process.env.REVIEW_MODEL_DEEP = "";
+    const { reviewModel } = await import("@/lib/ai");
+    expect(reviewModel("STANDARD")).toBe("claude-sonnet-5-5");
+    expect(reviewModel("DEEP")).toBe("claude-opus-5");
+  });
+
+  it("never follows AI_MODEL, which is the Booking import's setting", async () => {
+    process.env.AI_MODEL = "claude-haiku-5-5";
+    const { reviewModel } = await import("@/lib/ai");
+    expect(reviewModel("STANDARD")).toBe("claude-sonnet-5");
+  });
+});

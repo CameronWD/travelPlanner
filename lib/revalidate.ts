@@ -9,11 +9,11 @@ import { revalidatePath } from "next/cache";
  * Layout-wide only for `trip` and `travellers` (NAV-02): they change the
  * shell (name, cover, dials, who's going). Everything else names its pages.
  */
-export type TripScope = "plan" | "money" | "lists" | "journal" | "travellers" | "trip";
+export type TripScope = "plan" | "money" | "lists" | "journal" | "travellers" | "trip" | "reviews";
 
 export type TripPage =
   | "" | "/plan" | "/budget" | "/calendar" | "/summary" | "/print" | "/compare"
-  | "/day" | "/journal" | "/checklists" | "/wishlist" | "/files" | "/settings";
+  | "/day" | "/journal" | "/checklists" | "/wishlist" | "/files" | "/settings" | "/reviews";
 
 /** "/day" stands for every day page: revalidated through the route pattern. */
 const DAY_ROUTE = "/trips/[tripId]/day/[date]";
@@ -25,6 +25,8 @@ export const SCOPE_PAGES: Record<TripScope, readonly TripPage[] | "layout"> = {
   journal: ["", "/plan", "/day", "/journal", "/wishlist", "/files"],
   travellers: "layout",
   trip: "layout",
+  // Spec 2026-10-17 R10: Findings change state on the Reviews tab; Home shows "N open from the <date> review".
+  reviews: ["", "/reviews"],
 };
 
 /** The tables each scope's writers write. Read by the coverage test. */
@@ -35,6 +37,7 @@ export const SCOPE_TABLES: Record<TripScope, readonly string[]> = {
   journal: ["journalEntry", "attachment"],
   travellers: ["tripMember", "invite"],
   trip: ["trip", "shareLink", "calendarFeed", "digest"],
+  reviews: ["review", "finding"],
 };
 
 export function revalidateTrip(tripId: string, ...scopes: [TripScope, ...TripScope[]]): void {

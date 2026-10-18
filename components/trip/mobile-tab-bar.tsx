@@ -30,16 +30,16 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   const base = tripPath(tripRef);
   const [open, setOpen] = React.useState(false);
 
-  const nav = primaryNav(tripRef, planParam); // Home, Plan, Days, Calendar, Money, Summary
+  const nav = primaryNav(tripRef, planParam); // Home, Plan, Days, Calendar, Money, Summary, Reviews
   const more = moreNav(tripRef, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
   const byLabel = (label: string) => nav.find((i) => i.label === label)!;
 
   // Unlike the desktop rail (trip-nav.tsx), which promotes Wishlist to its
   // own item, mobile keeps the primary row at four items (Home, Plan, Days,
-  // Money) plus More as the fifth — so all nine routes that have no other
-  // mobile entry point (Calendar, Summary, Wishlist, Journal, Checklists,
-  // Files, Activity, Settings, Help) stay behind this one sheet.
-  const sheetItems = [byLabel("Calendar"), byLabel("Summary"), ...more];
+  // Money) plus More as the fifth — so all ten routes that have no other
+  // mobile entry point (Calendar, Summary, Reviews, Wishlist, Journal,
+  // Checklists, Files, Activity, Settings, Help) stay behind this one sheet.
+  const sheetItems = [byLabel("Calendar"), byLabel("Summary"), byLabel("Reviews"), ...more];
   const sheetActive = sheetItems.some((item) => isNavActive(item.href, pathname, base));
   const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, realPathname, base));
 

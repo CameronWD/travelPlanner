@@ -27,6 +27,9 @@ const I = {
   acting: { regex: ACTING, message: "Only lib/guards.ts, lib/activity-record.ts, lib/mcp/run-tool.ts and app/api/mcp/route.ts may import lib/mcp/acting-traveller." },
   runAs: { regex: ACTING, importNames: ["runAsTraveller"], message: "runAsTraveller is reachable only from app/api/mcp/route.ts." },
   zod: { group: ["zod", "zod/*"], message: "lib/enum-values.ts stays zod-free (spec 2026-10-06 §R)." },
+  // The unguarded reads behind loadTripPlanForMcp and getTripProjection: no access check, so only the Review job's input may call them (spec 2026-10-17 R9).
+  planView: { regex: "(?:^|/)trip-plan$", importNames: ["loadTripPlanView"], message: "loadTripPlanView makes no access check: call loadTripPlanForMcp. Only lib/review/input.ts may import it." },
+  projection: { regex: "(?:^|/)trip-projection-reads$", importNames: ["loadTripProjection"], message: "loadTripProjection makes no access check: call getTripProjection. Only lib/review/input.ts may import it." },
 };
 
 const TRIP_LINK = "Build internal Trip links with tripPath() from lib/trip-path.ts (ADR 0064).";
@@ -136,12 +139,19 @@ const ZONE_DEFS = [
   { name: "acting-run-tool", files: ["lib/mcp/run-tool.ts"], match: (f) => f === "lib/mcp/run-tool.ts", imports: runAs(MCP_I), syntax: S.tripLinks },
   { name: "acting-module", files: ["lib/mcp/acting-traveller.ts"], match: (f) => f === "lib/mcp/acting-traveller.ts", imports: MCP_I.filter((p) => p !== I.acting), syntax: [...S.tripLinks, ...S.noUseServer] },
   { name: "mcp-route", files: ["app/api/mcp/route.ts"], match: (f) => f === "app/api/mcp/route.ts", imports: [I.enums, I.motion], syntax: [...S.tripLinks, ...S.imageLoader] },
+  // The Review job reads with no session (spec 2026-10-17 R9): the one importer of the unguarded reads.
+  { name: "review-input", files: ["lib/review/input.ts"], match: (f) => f === "lib/review/input.ts", imports: LIB_I, syntax: LIB_S },
 ];
 
-/** Every zone also bans `export * from` the module, and every zone but the module and the route bans the name runAsTraveller. */
+/**
+ * Every zone also bans `export * from` the module, and every zone but the module and the route bans the name runAsTraveller.
+ * Every zone but review-input bans the unguarded plan and projection reads.
+ */
 const RUN_AS_OWNERS = new Set(["acting-module", "mcp-route"]);
+const UNGUARDED_READERS = new Set(["review-input"]);
 const ZONES = ZONE_DEFS.map((z) => ({
   ...z,
+  imports: [...z.imports, ...(UNGUARDED_READERS.has(z.name) ? [] : [I.planView, I.projection])],
   syntax: [...z.syntax, ...S.exportAllActing, ...(RUN_AS_OWNERS.has(z.name) ? [] : S.runAsName)],
 }));
 

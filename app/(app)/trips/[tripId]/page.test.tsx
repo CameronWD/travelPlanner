@@ -61,6 +61,8 @@ vi.mock("@/server/actions/reminders", () => ({}));
 vi.mock("@/lib/reminder-reads", () => ({
   listRemindersForTrip: vi.fn(async () => []),
 }));
+const latestReviewMock = vi.hoisted(() => vi.fn(async () => null as unknown));
+vi.mock("@/lib/review-reads", () => ({ latestReviewOpenCount: latestReviewMock }));
 vi.mock("@/components/trips/trip-cover", () => ({
   CoverArt: (props: Record<string, unknown>) => {
     coverArtMock(props);
@@ -202,6 +204,7 @@ beforeEach(() => {
   mockDb.transport.findFirst.mockResolvedValue(null);
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.tripMember.findMany.mockResolvedValue([]);
+  latestReviewMock.mockResolvedValue(null);
   loaderData.current = {
     datedStops: [],
     planStops: [],
@@ -252,6 +255,19 @@ describe("Trip Home, composed with its layout", () => {
   it("spaces the What's new banner below itself", async () => {
     await renderTripHome();
     expect(screen.getByTestId("whats-new")).toHaveClass("mb-6");
+  });
+
+  it("shows 'N open from the <date> review' when the latest finished Review has open Findings (R10)", async () => {
+    latestReviewMock.mockResolvedValue({ id: "r1", startedAt: new Date("2026-10-18T04:05:00Z"), openCount: 2 });
+    await renderTripHome();
+    expect(latestReviewMock).toHaveBeenCalledWith("trip-1");
+    const link = screen.getByRole("link", { name: "2 open from the 18 Oct review" });
+    expect(link).toHaveAttribute("href", "/trips/trip-1/reviews");
+  });
+
+  it("shows no Review line when there is nothing open", async () => {
+    await renderTripHome();
+    expect(screen.queryByRole("link", { name: /open from the/ })).toBeNull();
   });
 
   it("exposes the derived Phase as a hidden data-trip-phase marker (for the layout audit)", async () => {

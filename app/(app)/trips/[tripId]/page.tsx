@@ -43,6 +43,9 @@ import { buildHomeMapStops } from "@/lib/home-map-stops";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "@/lib/sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
 import type { TripPhase } from "@/lib/trip-phase";
+import { latestReviewOpenCount } from "@/lib/review-reads";
+import { homeReviewLine } from "@/lib/review/view";
+import { ReviewHomeLine } from "@/components/trip/home/review-home-line";
 
 export default async function TripHomePage({
   params,
@@ -101,7 +104,7 @@ export default async function TripHomePage({
       },
     })
     .then((row) => row);
-  const [trip, coverStopsRaw, myTrips, reminders] = await Promise.all([
+  const [trip, coverStopsRaw, myTrips, reminders, latest, slug] = await Promise.all([
     tripPromise,
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
@@ -112,12 +115,22 @@ export default async function TripHomePage({
     // Reminders are a Trip's dated notes and belong on Home in *every* Phase
     // (see remindersEl below). "today" is the Trip's own.
     tripPromise.then((row) => (row ? listRemindersForTrip(tripId, tripTodayISO(row.stops)) : [])),
+    // Spec 2026-10-17 R10: Home's "N open from the <date> review". Every
+    // Traveller may read every Review (R9); the count drops Findings a
+    // Surprise hides from this viewer, as the tab does.
+    latestReviewOpenCount(tripId),
+    tripSlugFor(tripId),
   ]);
   if (!trip) notFound();
 
   // ADR 0038: a scheduled stop's position IS its dates — the cover map's
   // route order must follow canonical plan order, not raw sortOrder.
   const coverStops = orderPlanStops(coverStopsRaw);
+
+  const reviewLine = homeReviewLine(latest, {
+    base: tripPath(slug),
+    timeZone: currentTripTimezone(orderPlanStops(trip.stops)),
+  });
 
   // Same canonical order for the "current timezone" pick — trip.stops is
   // fetched by sortOrder, which no longer tracks date order under ADR 0038.
@@ -243,6 +256,7 @@ export default async function TripHomePage({
     <>
       <span hidden data-trip-phase={phase} />
       <WhatsNewBanner className="mb-6" />
+      {reviewLine ? <ReviewHomeLine text={reviewLine.text} href={reviewLine.href} className="mb-6" /> : null}
       <div className={`${HOME_STACK} lg:hidden`}>{phoneTree}</div>
       {await renderDesktopHome({
         tripId,

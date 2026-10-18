@@ -20,6 +20,7 @@
 import "server-only";
 import { z } from "zod";
 import { CATEGORY_VALUES } from "@/lib/categories";
+import type { ReviewKind } from "@/lib/review/types";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -40,6 +41,24 @@ export const DEFAULT_AI_MODEL = "claude-haiku-5-5";
  */
 export function aiModel(): string {
   return process.env.AI_MODEL || DEFAULT_AI_MODEL;
+}
+
+/** Spec 2026-10-17 R11: a Standard Review runs Claude Sonnet 5, a Deep Review Claude Opus 5. */
+const DEFAULT_REVIEW_MODELS: Readonly<Record<ReviewKind, string>> = {
+  STANDARD: "claude-sonnet-5",
+  DEEP: "claude-opus-5",
+};
+
+/**
+ * The model a Review of this kind runs on (R11: "models are settings").
+ * REVIEW_MODEL_STANDARD and REVIEW_MODEL_DEEP override the defaults; an
+ * empty value counts as unset, like AI_MODEL. Read once, when the Review
+ * starts, and stored on its row, so a run and its AiUsage name the same model.
+ * Independent of AI_MODEL, which stays the Booking import's choice.
+ */
+export function reviewModel(kind: ReviewKind): string {
+  const override = kind === "DEEP" ? process.env.REVIEW_MODEL_DEEP : process.env.REVIEW_MODEL_STANDARD;
+  return override || DEFAULT_REVIEW_MODELS[kind];
 }
 
 // ---------------------------------------------------------------------------

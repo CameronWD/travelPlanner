@@ -410,6 +410,8 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `CRON_SECRET` | No (digest not sent) | Protects `/api/cron/digest` | `openssl rand -hex 32` |
 | `ANTHROPIC_API_KEY` | No (AI disabled) | Enables AI assistant features | [console.anthropic.com](https://console.anthropic.com/) |
 | `AI_MODEL` | No | Anthropic model ID (default: `claude-haiku-5-5`) | Any valid Anthropic model ID |
+| `REVIEW_MODEL_STANDARD` | No | Model for a Standard Review (default: `claude-sonnet-5`) | Any valid Anthropic model ID |
+| `REVIEW_MODEL_DEEP` | No | Model for a Deep Review (default: `claude-opus-5`) | Any valid Anthropic model ID |
 
 ### Feedback scripts
 

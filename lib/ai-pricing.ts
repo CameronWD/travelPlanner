@@ -10,6 +10,8 @@ export interface AiTokenUsage {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  /** Server-side web searches (a Review's, spec 2026-10-17 R11): billed per search on top of tokens. */
+  webSearchRequests?: number;
 }
 
 export const NO_TOKENS: AiTokenUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
@@ -35,7 +37,13 @@ const AI_PRICES: Readonly<Record<string, PriceEntry>> = {
   },
   "claude-sonnet-5-5": { base: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.1 } },
   "claude-opus-5-5": { base: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 } },
+  // The Review models (spec 2026-10-17 R11; shared/models.md, shared/prompt-caching.md: cache read 0.1×, 5-minute write 1.25×).
+  "claude-sonnet-5": { base: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 } },
+  "claude-opus-5": { base: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 } },
 };
+
+/** Anthropic's web search list price: US$10 per 1,000 searches, i.e. 10,000 µ$ each. */
+const WEB_SEARCH_MICRO_USD = 10_000;
 
 function promptTokens(u: AiTokenUsage): number {
   return u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;
@@ -44,16 +52,17 @@ function promptTokens(u: AiTokenUsage): number {
 /**
  * Estimated cost in millionths of a US dollar (an Int, like every money column
  * here), or null when the model has no price. tokens × ($ per MTok) is already
- * in micro-dollars.
+ * in micro-dollars; web searches add 10,000 µ$ each.
  */
 export function estimateCostMicroUsd(model: string, usage: AiTokenUsage): number | null {
   const entry = AI_PRICES[model];
   if (!entry) return null;
   const price = entry.above && promptTokens(usage) > entry.above.promptTokens ? entry.above.price : entry.base;
-  return Math.round(
+  const tokens = Math.round(
     usage.inputTokens * price.input +
       usage.outputTokens * price.output +
       usage.cacheWriteTokens * price.cacheWrite +
       usage.cacheReadTokens * price.cacheRead,
   );
+  return tokens + (usage.webSearchRequests ?? 0) * WEB_SEARCH_MICRO_USD;
 }

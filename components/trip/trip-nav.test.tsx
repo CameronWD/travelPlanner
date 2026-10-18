@@ -151,6 +151,7 @@ describe("TripNav", () => {
     expect(hrefs["Days"]).toBe("/trips/t1/day");
     expect(hrefs["Calendar"]).toBe("/trips/t1/calendar");
     expect(hrefs["Summary"]).toBe("/trips/t1/summary");
+    expect(hrefs["Reviews"]).toBe("/trips/t1/reviews");
     expect(hrefs["Home"]).toBe("/trips/t1");
   });
 
@@ -284,6 +285,11 @@ describe("tripRailItems", () => {
     ]);
   });
 
+  it("lights More on the Reviews tab (it has no rail slot of its own, like Summary)", () => {
+    const more = tripRailItems("t1").find((i) => i.label === "More")!;
+    expect(more.match("/trips/t1/reviews")).toBe(true);
+  });
+
   it("threads ?plan= through Plan, Money and Wishlist only", () => {
     const hrefs = Object.fromEntries(tripRailItems("t1", "f1").map((i) => [i.label, i.href]));
     expect(hrefs).toEqual({
@@ -308,12 +314,12 @@ describe("tripRailItems", () => {
 });
 
 describe("tripSidebarGroups (Feedback cmumd26ny000104jywgykrva2)", () => {
-  it("lists all thirteen sections in three groups with no More", () => {
+  it("lists all fourteen sections in three groups with no More", () => {
     const groups = tripSidebarGroups("t1", null, null);
     expect(groups.map((g) => g.heading)).toEqual(["Plan it", "Keep", null]);
     expect(groups.flatMap((g) => g.items.map((i) => i.label))).toEqual([
       "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
-      "Journal", "Checklists", "Files", "Summary", "Activity",
+      "Journal", "Checklists", "Files", "Summary", "Reviews", "Activity",
       "Settings", "Help",
     ]);
   });

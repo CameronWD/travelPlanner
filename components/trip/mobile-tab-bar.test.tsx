@@ -109,7 +109,7 @@ describe("MobileTabBar", () => {
     expect(container.querySelectorAll('[aria-current="page"]').length).toBe(0);
   });
 
-  // These nine routes have no other mobile entry point (task 2: Calendar
+  // These ten routes have no other mobile entry point (task 2: Calendar
   // joins the sheet as the phone has no Calendar tab of its own).
   it("links Days at the default day from DaysHrefProvider and still lights it on another date (ADR 0063)", () => {
     mockUsePathname.mockReturnValue("/trips/t1/day/2026-12-09");
@@ -119,7 +119,7 @@ describe("MobileTabBar", () => {
     expect(days).toHaveAttribute("aria-current", "page");
   });
 
-  it("reaches all nine More-only routes from the sheet", async () => {
+  it("reaches all ten More-only routes from the sheet", async () => {
     const user = userEvent.setup();
     render(<MobileTabBar tripId="t1" />);
     await user.click(screen.getByRole("button", { name: "More" }));
@@ -127,6 +127,7 @@ describe("MobileTabBar", () => {
     const expected = [
       ["Calendar", "/trips/t1/calendar"],
       ["Summary", "/trips/t1/summary"],
+      ["Reviews", "/trips/t1/reviews"],
       ["Wishlist", "/trips/t1/wishlist"],
       ["Journal", "/trips/t1/journal"],
       ["Checklists", "/trips/t1/checklists"],

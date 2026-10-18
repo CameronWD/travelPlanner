@@ -14,6 +14,11 @@ import {
   CHECK_FACTS,
   describeValues,
 } from "@/lib/mcp/vocab";
+import { REVIEW_KINDS, FINDING_CATEGORIES, FINDING_STATES, FINDING_SEVERITIES, FINDING_ORIGINS } from "@/lib/review/types";
+import {
+  REVIEW_DEPTHS, REVIEW_DEPTH_MEANING, REVIEW_KIND_OF_DEPTH, DEPTH_OF_REVIEW_KIND,
+  FINDING_CATEGORY_MEANING, FINDING_STATE_MEANING, FINDING_SEVERITY_MEANING, FINDING_ORIGIN_MEANING, FIX_WITH_TOOL,
+} from "@/lib/mcp/vocab";
 import { MCP_INSTRUCTIONS } from "@/lib/mcp/server";
 import { connectTestClient } from "@/lib/mcp/test-client";
 
@@ -34,6 +39,11 @@ describe("every app value has a meaning for Claude", () => {
     ["Vote level", VOTE_LEVELS, VOTE_LEVEL_MEANING],
     ["Booking state", BOOKING_STATES, BOOKING_STATE_MEANING],
     ["Refundable", REFUNDABLE_VALUES, REFUNDABLE_MEANING],
+    ["Review depth", REVIEW_DEPTHS, REVIEW_DEPTH_MEANING],
+    ["Finding category", FINDING_CATEGORIES, FINDING_CATEGORY_MEANING],
+    ["Finding state", FINDING_STATES, FINDING_STATE_MEANING],
+    ["Finding severity", FINDING_SEVERITIES, FINDING_SEVERITY_MEANING],
+    ["Finding origin", FINDING_ORIGINS, FINDING_ORIGIN_MEANING],
   ] as const)("%s", (_name, values, meaning) => {
     expect(Object.keys(meaning).sort()).toEqual([...values].sort());
     for (const v of values) expect((meaning as Record<string, string>)[v].length).toBeGreaterThan(5);
@@ -117,4 +127,41 @@ it("Claude reads a Fork by its on-screen name, \"What-if plan\", one way everywh
     expect(text).not.toMatch(/\bforks?\b(?!Id)/i);
   }
   expect(tools.find((t) => t.name === "update_trip")!.description).toContain("every What-if plan");
+});
+
+it("a Review's depth is the same word in review_trip and in get_review (R13)", () => {
+  for (const d of REVIEW_DEPTHS) expect(DEPTH_OF_REVIEW_KIND[REVIEW_KIND_OF_DEPTH[d]]).toBe(d);
+  expect([...REVIEW_KINDS].sort()).toEqual(Object.keys(DEPTH_OF_REVIEW_KIND).sort());
+  expect(REVIEW_KIND_OF_DEPTH).toEqual({ standard: "STANDARD", deep: "DEEP" });
+});
+
+it("the fix and state wording says how to pass a fix and what Applied means (final wave, parked 6)", () => {
+  for (const kind of ["item.bookingState", "transport.bookingState", "accommodation.bookingState"] as const) {
+    expect(FIX_WITH_TOOL[kind]).toContain("passing the fix's bookingState as state");
+  }
+  expect(FIX_WITH_TOOL["item.note"]).toMatch(/^update_thing_to_do, after you read the current notes with get_item: pass them back with the text added$/);
+  expect(FINDING_STATE_MEANING.APPLIED).toBe("Applied, someone pressed Apply on it in the app");
+});
+
+it("every suggested fix names a real tool Claude can make the same change with", async () => {
+  const c = await connectTestClient();
+  const names = new Set((await c.listTools()).tools.map((t) => t.name));
+  for (const [kind, how] of Object.entries(FIX_WITH_TOOL)) {
+    const tool = how.split(/[\s,]/)[0];
+    expect(names.has(tool), `${kind} → ${tool}`).toBe(true);
+  }
+  // House style: the text reaches Claude verbatim.
+  for (const t of [...Object.values(FIX_WITH_TOOL), ...Object.values(FINDING_STATE_MEANING), ...Object.values(REVIEW_DEPTH_MEANING)]) {
+    expect(t).not.toContain("—");
+    expect(t).not.toContain(";");
+  }
+});
+
+it("server instructions tell every Claude how to read Reviews, in the house style (R13)", () => {
+  expect(MCP_INSTRUCTIONS).toContain("list_reviews");
+  expect(MCP_INSTRUCTIONS).toContain("get_review");
+  expect(MCP_INSTRUCTIONS).not.toContain("review_trip");
+  const reviews = MCP_INSTRUCTIONS.slice(MCP_INSTRUCTIONS.indexOf("A Review is"), MCP_INSTRUCTIONS.indexOf(CHECK_FACTS));
+  expect(reviews).not.toContain("—");
+  expect(reviews).not.toContain(";");
 });

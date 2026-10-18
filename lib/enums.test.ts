@@ -5,6 +5,7 @@ import {
   COST_OWNER_TYPES,
   FEEDBACK_STATUSES,
   MEMBER_ROLES,
+  REVIEW_PERMISSIONS,
   TARGET_TYPES,
   TRANSPORT_MODES,
   VOTE_LEVELS,
@@ -12,6 +13,7 @@ import {
   checklistKindSchema,
   costOwnerTypeSchema,
   memberRoleSchema,
+  reviewPermissionSchema,
   targetTypeSchema,
   transportModeSchema,
   voteLevelSchema,
@@ -97,5 +99,14 @@ describe("enums", () => {
 
   it("Feedback statuses include Needs review, first", () => {
     expect(FEEDBACK_STATUSES).toEqual(["NEEDS_REVIEW", "OPEN", "DONE", "WONTFIX"]);
+  });
+
+  // Spec 2026-10-17 R12: a per-account permission an Admin sets on the Admin page.
+  it("defines the Review permissions, Off first (the default)", () => {
+    expect(REVIEW_PERMISSIONS).toEqual(["OFF", "LIMITED", "UNLIMITED"]);
+    expect(enumsModule.REVIEW_PERMISSIONS).toBe(enumValues.REVIEW_PERMISSIONS);
+    expect(reviewPermissionSchema.parse("LIMITED")).toBe("LIMITED");
+    expect(reviewPermissionSchema.safeParse("ADMIN").success).toBe(false);
+    expect(reviewPermissionSchema.safeParse("off").success).toBe(false);
   });
 });
