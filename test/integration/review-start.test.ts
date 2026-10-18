@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { REVIEW_MESSAGES } from "@/lib/review/messages";
 import { beginReview } from "@/lib/review/start";
+import { REVIEW_STALE_AFTER_MS } from "@/lib/review-permission";
 
 // Real Postgres (spec 2026-10-17 R12): the permission, limit and per-Trip
 // checks and the RUNNING insert happen under one lock, so two starts at once
@@ -84,15 +85,15 @@ describe.skipIf(process.env.INTEGRATION !== "1")("starting a Review (real Postgr
     }
   });
 
-  it("a Review left RUNNING for over 15 minutes is marked failed and blocks neither the Trip nor the count", async () => {
-    const stale = await db.review.create({ data: { tripId: TRIP_A, startedById: LIMITED, kind: "STANDARD", model: MODEL, status: "RUNNING", startedAt: new Date(Date.now() - 16 * MINUTE) } });
+  it("a Review left RUNNING past the stale cutoff (6 minutes) is marked failed and blocks neither the Trip nor the count", async () => {
+    const stale = await db.review.create({ data: { tripId: TRIP_A, startedById: LIMITED, kind: "STANDARD", model: MODEL, status: "RUNNING", startedAt: new Date(Date.now() - REVIEW_STALE_AFTER_MS - MINUTE) } });
     expect((await beginReview(LIMITED, TRIP_A, "DEEP", MODEL)).kind).toBe("started");
     expect(await db.review.findUniqueOrThrow({ where: { id: stale.id }, select: { status: true, error: true, finishedAt: true } }))
       .toEqual({ status: "FAILED", error: REVIEW_MESSAGES.stale, finishedAt: expect.any(Date) });
   });
 
   it("the account's own stale run on another Trip is marked failed too", async () => {
-    const stale = await db.review.create({ data: { tripId: TRIP_B, startedById: LIMITED, kind: "STANDARD", model: MODEL, status: "RUNNING", startedAt: new Date(Date.now() - 16 * MINUTE) } });
+    const stale = await db.review.create({ data: { tripId: TRIP_B, startedById: LIMITED, kind: "STANDARD", model: MODEL, status: "RUNNING", startedAt: new Date(Date.now() - REVIEW_STALE_AFTER_MS - MINUTE) } });
     expect((await beginReview(LIMITED, TRIP_A, "DEEP", MODEL)).kind).toBe("started");
     expect((await db.review.findUniqueOrThrow({ where: { id: stale.id }, select: { status: true } })).status).toBe("FAILED");
   });

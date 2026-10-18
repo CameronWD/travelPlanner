@@ -13,15 +13,15 @@ describe("effectiveReviewStatus (a stale run never blocks the Trip)", () => {
   const startedAt = new Date("2026-10-19T10:00:00Z");
   const at = (ms: number) => new Date(startedAt.getTime() + ms);
 
-  it("is 15 minutes", () => {
-    expect(REVIEW_STALE_AFTER_MS).toBe(15 * 60 * 1000);
+  it("is 6 minutes", () => {
+    expect(REVIEW_STALE_AFTER_MS).toBe(6 * 60 * 1000);
   });
 
-  it("a RUNNING row younger than 15 minutes is running", () => {
+  it("a RUNNING row younger than 6 minutes is running", () => {
     expect(effectiveReviewStatus("RUNNING", startedAt, at(REVIEW_STALE_AFTER_MS - 1))).toBe("RUNNING");
   });
 
-  it("a RUNNING row 15 minutes old reads as FAILED", () => {
+  it("a RUNNING row 6 minutes old reads as FAILED", () => {
     expect(effectiveReviewStatus("RUNNING", startedAt, at(REVIEW_STALE_AFTER_MS))).toBe("FAILED");
   });
 

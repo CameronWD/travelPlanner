@@ -16,12 +16,13 @@ const H = 3_600_000;
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
 
 describe("limits (decision 2)", () => {
-  it("are 1 per rolling day and 2 per rolling week; a running row goes stale after 15 minutes", () => {
+  it("are 1 per rolling day and 2 per rolling week; a running row goes stale after 6 minutes", () => {
     expect(REVIEW_LIMIT_PER_DAY).toBe(1);
     expect(REVIEW_LIMIT_PER_WEEK).toBe(2);
     expect(REVIEW_DAY_WINDOW_MS).toBe(24 * H);
     expect(REVIEW_WEEK_WINDOW_MS).toBe(7 * 24 * H);
-    expect(REVIEW_STALE_AFTER_MS).toBe(15 * 60_000);
+    // Past the job's own 270 s abort and the platform's 300 s kill (final wave M5).
+    expect(REVIEW_STALE_AFTER_MS).toBe(6 * 60_000);
   });
 
   it("countedSince is a week before now", () => {

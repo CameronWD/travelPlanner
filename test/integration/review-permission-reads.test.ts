@@ -29,7 +29,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review permission reads (R12, 
     });
     await db.review.createMany({ data: [
       { ...base, id: "it-rpr-done", startedById: ME, status: "DONE", startedAt: ago(30 * H), finishedAt: ago(30 * H) },
-      { ...base, id: "it-rpr-running", startedById: ME, status: "RUNNING", startedAt: ago(5 * 60_000) },
+      { ...base, id: "it-rpr-running", startedById: ME, status: "RUNNING", startedAt: ago(2 * 60_000) },
       { ...base, id: "it-rpr-stale", startedById: ME, status: "RUNNING", startedAt: ago(20 * 60_000) },
       { ...base, id: "it-rpr-failed", startedById: ME, status: "FAILED", startedAt: ago(2 * H), error: "boom" },
       { ...base, id: "it-rpr-old", startedById: ME, status: "DONE", startedAt: ago(8 * 24 * H) },
@@ -65,12 +65,12 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review permission reads (R12, 
   });
 
   it("counts DONE and fresh RUNNING, oldest first, and not a FAILED run with no spend", async () => {
-    expect(await countedReviewStarts(ME, ago(7 * 24 * H), { now: NOW })).toEqual([ago(30 * H), ago(5 * 60_000)]);
+    expect(await countedReviewStarts(ME, ago(7 * 24 * H), { now: NOW })).toEqual([ago(30 * H), ago(2 * 60_000)]);
   });
 
   it("standing: Limited, both caps full; the week frees later (7 days after the 30h-old run)", async () => {
     // Day window: the fresh run frees it at +24h. Week window: two counted runs
-    // (30h ago, 5 min ago) free it when the 30h-old one leaves, at +6d18h. Later wins.
+    // (30h ago, 2 min ago) free it when the 30h-old one leaves, at +6d18h. Later wins.
     expect(await loadReviewStanding(ME, { now: NOW })).toEqual({
       permission: "LIMITED",
       canRun: false,

@@ -24,8 +24,8 @@ export const metadata: Metadata = { title: "Reviews" };
  * after the response in `after()` (J), which lives within the route's max
  * duration (Next 16 docs: functions/after, route-segment-config/maxDuration).
  * A page-level maxDuration covers every Server Action used on the page, the
- * Plan page's Booking import precedent. A run older than 15 minutes counts
- * as failed anyway (decision 3).
+ * Plan page's Booking import precedent. A run older than
+ * REVIEW_STALE_AFTER_MS (6 minutes) counts as failed anyway (decision 3).
  */
 export const maxDuration = 300;
 

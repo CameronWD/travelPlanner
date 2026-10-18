@@ -558,8 +558,10 @@ throwaway copy — all green (task-Z-report.md has the exact run).
   and 2 per rolling 7 days, across every Trip the account can reach, Standard
   and Deep each counting one — then one disabled button reading "Next Review
   available today at HH:MM" / "tomorrow" / a weekday name / "next <weekday>",
-  in the viewer's device timezone. A failed run, or a stale RUNNING row over
-  15 minutes old, never counts against it.
+  in the viewer's device timezone. A run that failed before any call to
+  Claude, or a stale RUNNING row over 6 minutes old, never counts against
+  it; a failed run that had already spent (its AiUsage cost is above 0, or
+  it timed out) does (final wave I3).
 - While one runs, the tab reads "Reviewing… (started by <name>)" and polls
   every 10 seconds (skipping a hidden tab); Home shows the same fact as one
   line under the What's New banner, linking to the tab.
@@ -621,14 +623,16 @@ out every other failure mode.
    Review permission stay independent — an Admin is Off until set otherwise.
 3. **An unknown stored value reads as OFF** (`parseReviewPermission`), like
    every other enum-ish `String` column with no `CHECK` constraint.
-4. **`REVIEW_STALE_AFTER_MS = 15 * 60_000` is defined once**, in
+4. **`REVIEW_STALE_AFTER_MS = 6 * 60_000` is defined once**, in
    `lib/review-permission.ts`; R, J and U import it from there rather than
-   redefining it.
+   redefining it. (Built as 15 minutes; the final fix wave, M5, lowered it to
+   6, just past the job's own 270 s abort and the platform's 300 s kill.)
 5. **Limit windows are DB-backed, not `lib/rate-limit.ts`'s in-memory
    counter**, because a per-account cap across Trips, instances and deploys
    needs rows, not process memory. A start is inside a window when `start >
    now − window`; at exactly `start + 24h` it has left. DONE and fresh
-   RUNNING rows count; FAILED and stale RUNNING (over 15 minutes) don't.
+   RUNNING rows count, and a FAILED run that recorded spend (final wave I3);
+   a FAILED run with no spend and a stale RUNNING one (over 6 minutes) don't.
 6. **`nextAvailableAt` with both caps full** is the later of the two moments
    the windows free up, not simply the oldest start's.
 7. **The label's day is the viewer's device timezone**, since no timezone is
@@ -708,7 +712,7 @@ out every other failure mode.
    `finalMessage()`, never deltas.
 3. **`maxDuration = 300`** on both the Reviews page and `/api/mcp` (Vercel
    Hobby's ceiling); the job aborts its own call at `REVIEW_RUN_BUDGET_MS =
-   270_000` and records FAILED itself, with the 15-minute stale rule still
+   270_000` and records FAILED itself, with the 6-minute stale rule still
    covering a platform-level kill.
 4. **Deep sends `thinking: { type: "adaptive" }`** (`effort: "high"`,
    `max_tokens: 64_000`); Standard sends no `thinking` block at all (Sonnet

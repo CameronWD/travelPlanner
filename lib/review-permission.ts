@@ -28,8 +28,11 @@ export const REVIEW_WEEK_WINDOW_MS = 7 * 24 * HOUR_MS;
  * A RUNNING Review whose startedAt is older than this counts as FAILED: it
  * never blocks its Trip and never counts against its starter (decision 3).
  * The one definition; the start action, the reads and the tab all use it.
+ * Six minutes (final wave M5): the job aborts its own call at 270 s
+ * (lib/review/call.ts REVIEW_RUN_BUDGET_MS) and the platform kills it at
+ * maxDuration 300 s, so a row still RUNNING after that is dead.
  */
-export const REVIEW_STALE_AFTER_MS = 15 * 60_000;
+export const REVIEW_STALE_AFTER_MS = 6 * 60_000;
 
 const WINDOWS = [
   { ms: REVIEW_DAY_WINDOW_MS, limit: REVIEW_LIMIT_PER_DAY },

@@ -10,6 +10,7 @@ import { addDays } from "@/lib/dates";
 import type { ReviewInput } from "@/lib/review/input-shape";
 import { findingKey } from "@/lib/review/key";
 import { REVIEW_MESSAGES } from "@/lib/review/messages";
+import { REVIEW_STALE_AFTER_MS } from "@/lib/review-permission";
 import { runReview } from "@/lib/review/run";
 import { todayISOInZone } from "@/lib/tz";
 import { serializeOpeningHours } from "@/lib/validations/opening-hours";
@@ -140,7 +141,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Review run (real Postgres)",
   });
 
   it("a run that finishes after going stale is not saved, but its spend row is linked to the failed Review", async () => {
-    await db.review.update({ where: { id: NEXT }, data: { startedAt: new Date(Date.now() - 16 * 60_000) } });
+    await db.review.update({ where: { id: NEXT }, data: { startedAt: new Date(Date.now() - REVIEW_STALE_AFTER_MS - 60_000) } });
     callReviewModel.mockResolvedValue({ kind: "ok", usage: USAGE, output: { summary: "IT late.", findings: [] } });
     await runReview(NEXT);
     const review = await db.review.findUniqueOrThrow({ where: { id: NEXT }, select: { status: true, error: true, aiUsageId: true } });

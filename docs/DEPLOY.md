@@ -785,8 +785,9 @@ two paths is accepted.
    the Max Duration at 300 s. The Reviews page and `/api/mcp` both export
    `maxDuration = 300`, because the Review runs after the response
    (`after()`), only for as long as that allows. A run cut off by the
-   platform stays "Reviewing…" until it is 15 minutes old, then counts as
-   failed and no longer blocks the Trip.
+   platform stays "Reviewing…" until it is 6 minutes old
+   (`REVIEW_STALE_AFTER_MS`), then counts as failed and no longer blocks the
+   Trip.
 4. After the deploy, start one Standard Review on a real Trip. Check that the
    tab shows "Reviewing… (started by …)" and then the Findings, that `/admin`
    shows no new ErrorReport, and that an `AiUsage` row with an
