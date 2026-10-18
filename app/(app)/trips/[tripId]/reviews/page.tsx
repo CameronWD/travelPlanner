@@ -65,12 +65,20 @@ export default async function ReviewsPage({
 
       <ReviewRunPanel tripId={tripId} state={model.panel} fallbackTimeZone={timeZone} />
 
-      {model.running ? (
-        <p role="status" className="flex items-center gap-2 rounded-xl border-2 border-border bg-card px-4 py-3 text-sm font-semibold">
-          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
-          {model.running.line}
-        </p>
-      ) : null}
+      {/*
+        Always mounted, so a screen reader hears both edges: the line
+        appearing when a Review starts (ReviewPoller's refresh lands it) and
+        the content clearing once it's gone. An element that only ever
+        mounts while running never announces its own disappearance.
+      */}
+      <p role="status" className="flex items-center gap-2 empty:hidden rounded-xl border-2 border-border bg-card px-4 py-3 text-sm font-semibold">
+        {model.running ? (
+          <>
+            <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+            {model.running.line}
+          </>
+        ) : null}
+      </p>
       <ReviewPoller active={model.running != null} />
 
       {shown ? (

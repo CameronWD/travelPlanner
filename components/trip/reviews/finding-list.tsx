@@ -24,12 +24,13 @@ const SEVERITY = {
 /**
  * A Review's Findings, grouped by severity (spec 2026-10-17 R8, R10). Every
  * button follows R's own canApply/canDismiss/canUndo flags on the card
- * (lib/review-reads.ts), never a locally re-derived rule: an Undo of an
- * Apply (or, per R's own guard, of a Dismiss) can be offered even once its
- * Review is no longer the latest, so that one is never gated by `actionable`.
- * `actionable` (the latest DONE Review only) additionally gates Apply and
- * Dismiss, which only ever make sense there. Everyone on the Trip may use
- * them (R12): the server re-checks.
+ * (lib/review-reads.ts), never a locally re-derived rule: Undo of an Apply
+ * can be offered even once its Review is no longer the latest (it needs only
+ * a saved undo payload, or a stranded claim); Undo of a Dismiss, like Dismiss
+ * itself, only on the latest DONE Review. So Undo is never gated here by
+ * `actionable` — trust canUndo as given — while `actionable` still gates
+ * Apply and Dismiss, which only ever make sense on the latest Review.
+ * Everyone on the Trip may use them (R12): the server re-checks.
  */
 export function FindingList({ groups, actionable }: { groups: FindingGroup[]; actionable: boolean }) {
   if (groups.length === 0) {
@@ -80,7 +81,10 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     revert: () => setLocal(null),
     undo: (id) => undoFinding(id),
     applyUndo: () => setLocal("OPEN"),
-    revertUndo: () => setLocal("APPLIED"),
+    // A refused Undo here does NOT mean "still Applied": a persistent Undo
+    // elsewhere may already have gone through, so the server, not a guessed
+    // prior state, is the truth once we no longer trust our own optimism.
+    revertUndo: () => setLocal(null),
     done: () => ({ title: "Fix applied", description: card.title }),
     failure: "Couldn't apply that fix. Nothing changed.",
   });
@@ -90,17 +94,21 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     revert: () => setLocal(null),
     undo: (id) => undoFinding(id),
     applyUndo: () => setLocal("OPEN"),
-    revertUndo: () => setLocal("DISMISSED"),
+    // Same reasoning as apply's revertUndo above.
+    revertUndo: () => setLocal(null),
     done: () => ({ title: "Dismissed", description: card.title }),
     failure: "Couldn't dismiss that. Try again.",
   });
   // The lasting button on an Applied or Dismissed card (decision 4): a plain
-  // undo, with no undo of its own.
+  // undo, with no undo of its own. `state` here is read at click time (the
+  // closure useUndoableAction captures is the one from this render), so the
+  // toast names what was actually reversed even though `local` has already
+  // optimistically moved to OPEN by the time this callback runs.
   const undo = useUndoableAction({
     apply: () => setLocal("OPEN"),
     persist: (id: string) => undoFinding(id),
     revert: () => setLocal(null),
-    done: () => ({ title: "Fix undone", description: card.title }),
+    done: () => ({ title: state === "DISMISSED" ? "Dismiss undone" : "Fix undone", description: card.title }),
     failure: UNDO_FAILED,
   });
   const busy = apply.pending || dismiss.pending || undo.pending;

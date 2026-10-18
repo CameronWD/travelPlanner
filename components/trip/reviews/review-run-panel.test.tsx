@@ -36,6 +36,22 @@ describe("ReviewRunPanel (R12)", () => {
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
   });
 
+  it("re-enables the button once the post-start refresh settles (controller fix round 1, item 3)", async () => {
+    // router.refresh() now runs inside startTransition's async callback
+    // (React 19 keeps isPending true across its awaits), with the `finally`
+    // that clears `pending` living inside that same callback — not a
+    // separate effect, and not before the transition is handed its work.
+    // A synchronous mock settles too fast for RTL/jsdom to observe the
+    // mid-flight window itself; this pins the mechanism's end state: the
+    // button is not left disabled forever once the transition resolves.
+    startReview.mockResolvedValue({ success: true, reviewId: "r9" });
+    renderPanel({ kind: "ready" });
+    const btn = screen.getByRole("button", { name: "Standard Review" });
+    await userEvent.click(btn);
+    await waitFor(() => expect(router.refresh).toHaveBeenCalled());
+    await waitFor(() => expect(btn).not.toBeDisabled());
+  });
+
   it("ready: Deep Review starts a Deep run", async () => {
     startReview.mockResolvedValue({ success: true, reviewId: "r9" });
     renderPanel({ kind: "ready" });

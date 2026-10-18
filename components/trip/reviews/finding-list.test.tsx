@@ -21,9 +21,9 @@ import type { FindingCard, FindingGroup } from "@/lib/review/view";
 /**
  * R's real FindingCard carries its own canApply/canDismiss/canUndo (R's
  * FindingView flags, lib/review-reads.ts): on the latest DONE Review an OPEN
- * Finding with a fix can Apply and always can Dismiss; Undo of an Apply (or,
- * per R's own guard, of a Dismiss) can be offered on any Review. FindingList
- * follows these as given — see its docblock.
+ * Finding with a fix can Apply and always can Dismiss; Undo of an Apply can
+ * be offered on any Review, but Undo of a Dismiss only on the latest.
+ * FindingList follows these as given — see its docblock.
  */
 const card = (o: Partial<FindingCard> = {}): FindingCard => ({
   id: "f1", severity: "warning", categoryLabel: "Booking", title: "Night train not booked", detail: "Sells out in December.",
@@ -85,7 +85,7 @@ describe("FindingList (R8, R10)", () => {
     await waitFor(() => expect(r.getByText("Dismissed")).toBeInTheDocument());
   });
 
-  it("an Applied Finding keeps an Undo button after the toast", async () => {
+  it("an Applied Finding keeps an Undo button after the toast, and says 'Fix undone'", async () => {
     actions.undoFinding.mockResolvedValue({ success: true });
     render(<FindingList actionable groups={groups(card({ state: "APPLIED", stateLabel: "Applied by Cam, 18 Oct", canApply: false, canDismiss: false, canUndo: true }))} />);
     const r = within(row("Night train not booked"));
@@ -94,6 +94,7 @@ describe("FindingList (R8, R10)", () => {
     await userEvent.click(r.getByRole("button", { name: "Undo: Night train not booked" }));
     expect(actions.undoFinding).toHaveBeenCalledWith("f1");
     await waitFor(() => expect(r.getByText("Open")).toBeInTheDocument());
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Fix undone" }));
   });
 
   it("a failed persistent Undo leaves it Applied", async () => {
@@ -104,7 +105,7 @@ describe("FindingList (R8, R10)", () => {
     expect(within(row("Night train not booked")).getByText("Applied by Cam, 18 Oct")).toBeInTheDocument();
   });
 
-  it("Dismiss offers Undo too, when canUndo is true (decision: Dismiss has Undo)", async () => {
+  it("Dismiss offers Undo too, when canUndo is true, and says 'Dismiss undone'", async () => {
     actions.undoFinding.mockResolvedValue({ success: true });
     render(<FindingList actionable groups={groups(card({ state: "DISMISSED", stateLabel: "Dismissed by Cam, 18 Oct", canApply: false, canDismiss: false, canUndo: true }))} />);
     const r = within(row("Night train not booked"));
@@ -112,6 +113,35 @@ describe("FindingList (R8, R10)", () => {
     await userEvent.click(r.getByRole("button", { name: "Undo: Night train not booked" }));
     expect(actions.undoFinding).toHaveBeenCalledWith("f1");
     await waitFor(() => expect(r.getByText("Open")).toBeInTheDocument());
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Dismiss undone" }));
+  });
+
+  it("a refused toast Undo after a persistent Undo already succeeded does not resurrect a stale Applied badge (controller fix round 1, item 1)", async () => {
+    actions.applyFinding.mockResolvedValue({ success: true });
+    actions.undoFinding
+      .mockResolvedValueOnce({ success: true }) // the persistent Undo button, clicked first
+      .mockResolvedValueOnce({ success: false, errors: {} }); // the stale toast Undo, fired after
+    const { rerender } = render(<FindingList actionable groups={groups(card())} />);
+
+    // Apply, to capture the toast's own (later stale) Undo.
+    await userEvent.click(within(row("Night train not booked")).getByRole("button", { name: "Apply: Night train not booked" }));
+    await waitFor(() => expect(within(row("Night train not booked")).getByText("Applied")).toBeInTheDocument());
+    const staleToastUndo = capturedOnUndo!;
+
+    // The page refreshes: the server now shows it Applied, with its own persistent Undo.
+    rerender(<FindingList actionable groups={groups(card({ state: "APPLIED", stateLabel: "Applied by Cam, 18 Oct", canApply: false, canDismiss: false, canUndo: true }))} />);
+    await userEvent.click(within(row("Night train not booked")).getByRole("button", { name: "Undo: Night train not booked" }));
+    await waitFor(() => expect(within(row("Night train not booked")).getByText("Open")).toBeInTheDocument());
+
+    // The page refreshes again: the server now genuinely shows it Open.
+    rerender(<FindingList actionable groups={groups(card({ state: "OPEN" }))} />);
+
+    // The original toast's Undo, stale by now, finally fires and is refused
+    // (there is nothing left to undo) — the badge must still read Open, not
+    // revert to a guessed "Applied".
+    staleToastUndo();
+    await waitFor(() => expect(actions.undoFinding).toHaveBeenCalledTimes(2));
+    expect(within(row("Night train not booked")).getByText("Open")).toBeInTheDocument();
   });
 
   it("an older Review is read-only: no Apply, Dismiss or Undo", () => {

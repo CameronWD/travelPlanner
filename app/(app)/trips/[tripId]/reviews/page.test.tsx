@@ -74,6 +74,10 @@ describe("the Reviews tab (R10)", () => {
     expect(screen.getByTestId("history")).toHaveAttribute("data-rows", "1");
     expect(screen.getByTestId("run-panel")).toHaveAttribute("data-kind", "ready");
     expect(screen.getByTestId("poller")).toHaveAttribute("data-active", "false");
+    // The status region stays mounted even with nothing running, so its text
+    // changing (not the element appearing/disappearing) is what gets
+    // announced at both ends of a run (controller fix round 1, item 2).
+    expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
   it("passes ?review= through, and an older Review says it is not the latest", async () => {
