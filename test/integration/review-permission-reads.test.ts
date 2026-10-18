@@ -2,9 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { countedReviewStarts, loadReviewStanding } from "@/lib/review-permission-reads";
 
-// Spec 2026-10-17 R12 + decisions 2 and 3, against the real Postgres: only
-// DONE and fresh RUNNING runs count; FAILED and stale RUNNING (older than 15
-// minutes) don't; neither do another account's runs or runs before `since`.
+// Spec 2026-10-17 R12 + decisions 2 and 3, against the real Postgres: DONE
+// and fresh RUNNING runs count, and (final wave I3) a FAILED run that spent
+// something; a FAILED run with no spend and a stale RUNNING one (older than
+// REVIEW_STALE_AFTER_MS) don't; neither do another account's runs or runs
+// before `since`.
 // The forUpdate read holds the User row until its transaction ends.
 const TRIP_ID = "it-trip-review-permission";
 const ME = "it-rpr-me";
@@ -42,7 +44,27 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review permission reads (R12, 
     await db.user.deleteMany({ where: { id: { in: [ME, OTHER] } } });
   });
 
-  it("counts DONE and fresh RUNNING only, oldest first", async () => {
+  it("counts a FAILED run only when its spend row cost something or timed out (final wave I3)", async () => {
+    const SPENDER = "it-rpr-spender";
+    await db.user.upsert({ where: { id: SPENDER }, update: {}, create: { id: SPENDER, email: `${SPENDER}@example.test`, name: SPENDER, reviewPermission: "LIMITED" } });
+    const usage = async (estimatedCostMicroUsd: number | null, outcome: string) =>
+      (await db.aiUsage.create({ data: { tripId: TRIP_ID, userId: SPENDER, model: base.model, estimatedCostMicroUsd, outcome }, select: { id: true } })).id;
+    try {
+      await db.review.createMany({ data: [
+        { ...base, id: "it-rpr-s-paid", startedById: SPENDER, status: "FAILED", startedAt: ago(4 * H), error: "x", aiUsageId: await usage(2_500, "unreadable") },
+        { ...base, id: "it-rpr-s-timeout", startedById: SPENDER, status: "FAILED", startedAt: ago(3 * H), error: "x", aiUsageId: await usage(null, "timed_out") },
+        { ...base, id: "it-rpr-s-free", startedById: SPENDER, status: "FAILED", startedAt: ago(2 * H), error: "x", aiUsageId: await usage(0, "api_error") },
+        { ...base, id: "it-rpr-s-none", startedById: SPENDER, status: "FAILED", startedAt: ago(1 * H), error: "x" },
+      ] });
+      expect(await countedReviewStarts(SPENDER, ago(7 * 24 * H), { now: NOW })).toEqual([ago(4 * H), ago(3 * H)]);
+    } finally {
+      await db.review.deleteMany({ where: { startedById: SPENDER } });
+      await db.aiUsage.deleteMany({ where: { userId: SPENDER } });
+      await db.user.deleteMany({ where: { id: SPENDER } });
+    }
+  });
+
+  it("counts DONE and fresh RUNNING, oldest first, and not a FAILED run with no spend", async () => {
     expect(await countedReviewStarts(ME, ago(7 * 24 * H), { now: NOW })).toEqual([ago(30 * H), ago(5 * 60_000)]);
   });
 

@@ -16,6 +16,11 @@ const TRIP_B = "it-rst-trip-b";
 const MODEL = "claude-sonnet-5";
 const MINUTE = 60_000;
 
+async function spendRow(estimatedCostMicroUsd: number | null, outcome: string): Promise<string> {
+  const row = await db.aiUsage.create({ data: { tripId: TRIP_B, userId: LIMITED, model: MODEL, estimatedCostMicroUsd, outcome }, select: { id: true } });
+  return row.id;
+}
+
 describe.skipIf(process.env.INTEGRATION !== "1")("starting a Review (real Postgres)", () => {
   beforeAll(async () => {
     for (const [id, reviewPermission] of [[UNLIMITED, "UNLIMITED"], [UNLIMITED_2, "UNLIMITED"], [LIMITED, "LIMITED"], [OFF, "OFF"]] as const) {
@@ -25,6 +30,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("starting a Review (real Postgr
 
   beforeEach(async () => {
     await db.review.deleteMany({ where: { startedById: { in: USERS } } });
+    await db.aiUsage.deleteMany({ where: { userId: { in: USERS } } });
     await db.trip.deleteMany({ where: { id: { in: [TRIP_A, TRIP_B] } } }); // cascades their Reviews
     for (const id of [TRIP_A, TRIP_B]) {
       await db.trip.create({
@@ -35,6 +41,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("starting a Review (real Postgr
   });
 
   afterAll(async () => {
+    await db.aiUsage.deleteMany({ where: { userId: { in: USERS } } });
     await db.trip.deleteMany({ where: { id: { in: [TRIP_A, TRIP_B] } } });
   });
 
@@ -60,9 +67,21 @@ describe.skipIf(process.env.INTEGRATION !== "1")("starting a Review (real Postgr
     expect(results.find((r) => r.kind === "limit")).toEqual({ kind: "limit", nextAvailableAt: new Date(started.startedAt.getTime() + 24 * 60 * MINUTE) });
   });
 
-  it("a failed Review does not count against a Limited account", async () => {
+  it("a Review that failed before any call does not count against a Limited account", async () => {
     await db.review.create({ data: { tripId: TRIP_B, startedById: LIMITED, kind: "STANDARD", model: MODEL, status: "FAILED", error: REVIEW_MESSAGES.busy, startedAt: new Date(Date.now() - MINUTE), finishedAt: new Date() } });
+    // Busy at once: a spend row, but nothing billed.
+    const free = await spendRow(0, "api_error");
+    await db.review.create({ data: { tripId: TRIP_B, startedById: LIMITED, kind: "STANDARD", model: MODEL, status: "FAILED", error: REVIEW_MESSAGES.busy, startedAt: new Date(Date.now() - MINUTE), finishedAt: new Date(), aiUsageId: free } });
     expect((await beginReview(LIMITED, TRIP_A, "STANDARD", MODEL)).kind).toBe("started");
+  });
+
+  it("a failed Review that recorded spend counts (final wave I3): a paid call, or a timeout", async () => {
+    for (const [cost, outcome] of [[1_200, "api_error"], [null, "timed_out"]] as const) {
+      await db.review.deleteMany({ where: { startedById: LIMITED } });
+      const spent = await spendRow(cost, outcome);
+      await db.review.create({ data: { tripId: TRIP_B, startedById: LIMITED, kind: "STANDARD", model: MODEL, status: "FAILED", error: REVIEW_MESSAGES.timeout, startedAt: new Date(Date.now() - MINUTE), finishedAt: new Date(), aiUsageId: spent } });
+      expect((await beginReview(LIMITED, TRIP_A, "STANDARD", MODEL)).kind).toBe("limit");
+    }
   });
 
   it("a Review left RUNNING for over 15 minutes is marked failed and blocks neither the Trip nor the count", async () => {

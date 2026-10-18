@@ -3,13 +3,17 @@
  * decisions 2 and 3). The rules are pure in lib/review-permission.ts; this
  * loads their inputs.
  *
- * A run counts against its starter when it is DONE, or RUNNING and not stale.
- * A FAILED run doesn't, and a RUNNING row older than REVIEW_STALE_AFTER_MS
- * counts as failed. The count is across every Trip.
+ * A run counts against its starter when it is DONE, or RUNNING and not
+ * stale, or FAILED after it spent something (final wave I3, amending "failed
+ * runs don't count"): its AiUsage row has a cost above 0, or the outcome
+ * timed_out. A run that failed before any call (Claude busy at once, no key)
+ * doesn't, nor does a RUNNING row older than REVIEW_STALE_AFTER_MS (a job the
+ * platform killed, read as failed with nothing recorded). The count is across
+ * every Trip.
  */
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { REVIEW_PERMISSIONS, type ReviewPermission } from "@/lib/enum-values";
+import type { ReviewPermission } from "@/lib/enum-values";
 import {
   REVIEW_STALE_AFTER_MS,
   countedSince,
@@ -19,7 +23,7 @@ import {
 } from "@/lib/review-permission";
 
 /** `db` or a transaction client (the start action passes its `tx`). */
-export type ReviewStandingClient = Pick<Prisma.TransactionClient, "review" | "user" | "$queryRaw">;
+export type ReviewStandingClient = Pick<Prisma.TransactionClient, "review" | "user" | "aiUsage" | "$queryRaw">;
 
 /** The startedAt of this account's counted runs started after `since`, oldest first. */
 export async function countedReviewStarts(
@@ -34,12 +38,24 @@ export async function countedReviewStarts(
     where: {
       startedById: userId,
       startedAt: { gt: since },
-      OR: [{ status: "DONE" }, { status: "RUNNING", startedAt: { gt: freshAfter } }],
+      OR: [{ status: "DONE" }, { status: "RUNNING", startedAt: { gt: freshAfter } }, { status: "FAILED", aiUsageId: { not: null } }],
     },
-    select: { startedAt: true },
+    select: { startedAt: true, status: true, aiUsageId: true },
     orderBy: { startedAt: "asc" },
   });
-  return rows.map((r) => r.startedAt);
+  // Review.aiUsageId is a plain string (no relation), so a FAILED run's spend is a second read.
+  const failedUsageIds = rows.flatMap((r) => (r.status === "FAILED" && r.aiUsageId ? [r.aiUsageId] : []));
+  const spent = new Set(
+    failedUsageIds.length === 0
+      ? []
+      : (
+          await client.aiUsage.findMany({
+            where: { id: { in: failedUsageIds }, OR: [{ estimatedCostMicroUsd: { gt: 0 } }, { outcome: "timed_out" }] },
+            select: { id: true },
+          })
+        ).map((u) => u.id),
+  );
+  return rows.filter((r) => r.status !== "FAILED" || (r.aiUsageId !== null && spent.has(r.aiUsageId))).map((r) => r.startedAt);
 }
 
 export interface ReviewStanding extends ReviewAllowance {
@@ -89,6 +105,5 @@ export async function loadReviewStanding(
  */
 export async function reviewPermissionOf(userId: string): Promise<ReviewPermission> {
   const row = await db.user.findUnique({ where: { id: userId }, select: { reviewPermission: true } });
-  const value = row?.reviewPermission;
-  return value && (REVIEW_PERMISSIONS as readonly string[]).includes(value) ? (value as ReviewPermission) : "OFF";
+  return parseReviewPermission(row?.reviewPermission);
 }
