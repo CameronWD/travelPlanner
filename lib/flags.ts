@@ -44,6 +44,8 @@ export interface Flag {
   stopId?: string;
   /** A missing leg: the ends a new Transport would join; "home" is the Home base (spec 2026-10-06 §F). */
   connection?: { from: string; to: string };
+  /** A tight connection's own fix (spec 2026-10-18 A3): move the later Item to here, keeping its length. */
+  retime?: { itemId: string; startTime: string; endTime: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -649,6 +651,27 @@ function hhmmToMin(t: string): number {
   return h * 60 + m;
 }
 
+function minToHhmm(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
+
+/**
+ * The later Item's new slot: the earlier one's end, plus the travel, plus the
+ * buffer, rounded up to 5 minutes, keeping its length. None for a Booked Item
+ * (a booked slot never silently moves) or one that would run past 23:59.
+ */
+function tightRetime(
+  prev: { endTime: string },
+  next: FlagItem & { startTime: string; endTime: string },
+  travel: number,
+): Flag["retime"] {
+  if (next.bookingState === "BOOKED") return undefined;
+  const start = Math.ceil((hhmmToMin(prev.endTime) + Math.ceil(travel) + TIGHT_CONNECTION_BUFFER_MIN) / 5) * 5;
+  const length = hhmmToMin(next.endTime) - hhmmToMin(next.startTime);
+  if (length < 0 || start + length > 23 * 60 + 59) return undefined;
+  return { itemId: next.id, startTime: minToHhmm(start), endTime: minToHhmm(start + length) };
+}
+
 export function flagTightConnections(
   items: FlagItem[],
   transports: FlagTransport[],
@@ -699,23 +722,28 @@ export function flagTightConnections(
 
       const km = haversineKm({ lat: prev.lat, lng: prev.lng }, { lat: next.lat, lng: next.lng });
       const walkMin = (km / WALK_KMH) * 60;
-      const travel = walkMin <= MAX_WALK_MIN ? walkMin : estimateDriveMinutes(km, opts);
+      const mode = walkMin <= MAX_WALK_MIN ? "walk" : "drive";
+      const travel = mode === "walk" ? walkMin : estimateDriveMinutes(km, opts);
+      const how = `a ~${Math.round(travel)} min ${mode}`;
       const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
+      const retime = tightRetime(prev, next, travel);
       if (gap < travel) {
         flags.push({
           id: `tight-${prev.id}-${next.id}`,
           severity: "warning",
-          message: `Tight on ${date}: only ${Math.max(0, Math.round(gap))} min between activities, but ~${Math.round(travel)} min to get there.`,
+          message: `Tight on ${date}: only ${Math.max(0, Math.round(gap))} min between activities, but it's ${how}.`,
           targetType: "DAY",
           date,
+          ...(retime ? { retime } : {}),
         });
       } else if (gap < travel + TIGHT_CONNECTION_BUFFER_MIN) {
         flags.push({
           id: `tight-${prev.id}-${next.id}`,
           severity: "info",
-          message: `Cutting it close on ${date}: ${Math.round(gap)} min between activities (~${Math.round(travel)} min to get there).`,
+          message: `Cutting it close on ${date}: ${Math.round(gap)} min between activities (${how}).`,
           targetType: "DAY",
           date,
+          ...(retime ? { retime } : {}),
         });
       }
     }
