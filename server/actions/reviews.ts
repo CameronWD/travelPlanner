@@ -7,8 +7,10 @@
  * can't both act. Apply and Dismiss only on the Trip's latest DONE Review
  * (decision 6); Undo on any.
  */
+import { after } from "next/server";
+import { isAiConfigured, reviewModel } from "@/lib/ai";
 import { db } from "@/lib/db";
-import { requireRowAccess } from "@/lib/guards";
+import { requireRowAccess, requireTripAccess } from "@/lib/guards";
 import { requireFindingAccess } from "@/lib/review-reads";
 import { parseSuggestedFix } from "@/lib/review/schema";
 import {
@@ -24,9 +26,12 @@ import {
   type FixTarget,
   type UndoPayload,
 } from "@/lib/review/fix";
-import type { SuggestedFix } from "@/lib/review/types";
+import { REVIEW_MESSAGES } from "@/lib/review/messages";
+import { runReview } from "@/lib/review/run";
+import { beginReview } from "@/lib/review/start";
+import { REVIEW_KINDS, type ReviewKind, type SuggestedFix } from "@/lib/review/types";
 import type { BookingState } from "@/lib/enum-values";
-import { formFail, ok, type ActionResult } from "@/lib/action-result";
+import { fail, FORM_ERROR_KEY, formFail, ok, type ActionResult } from "@/lib/action-result";
 import { isNextControlFlow } from "@/lib/next-control-flow";
 import { revalidateTrip } from "@/lib/revalidate";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
@@ -274,4 +279,37 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
   }
   revalidateTrip(finding.tripId, "reviews");
   return ok();
+}
+
+type StartReviewResult = ActionResult<{ reviewId: string; status: "RUNNING" }, { nextAvailableAt?: string | null }>;
+
+/**
+ * Start a Review of this Trip (spec 2026-10-17 R11, R12): anyone on the
+ * Trip whose Review permission isn't Off, within a Limited account's
+ * limits, while no other Review runs here. beginReview checks all three and
+ * writes the RUNNING row in one locked transaction. Only once that has
+ * committed does the job run, in next/server after(): after the response,
+ * for as long as the calling page's or route's maxDuration allows (300 s on
+ * the Reviews page and /api/mcp; the job stops itself at
+ * REVIEW_RUN_BUDGET_MS). The job is a system job (lib/review/run.ts): it
+ * reads no session and writes no Activity. The tab polls while the row is
+ * RUNNING. Claude's review_trip calls this too (MCP tools call the app's
+ * actions).
+ */
+export async function startReview(tripId: string, kind: ReviewKind): Promise<StartReviewResult> {
+  const { user } = await requireTripAccess(tripId);
+  if (!isAiConfigured()) return formFail(REVIEW_MESSAGES.notSetUp, "disabled");
+  if (!(REVIEW_KINDS as readonly string[]).includes(kind)) return formFail(REVIEW_MESSAGES.badKind, "invalid");
+
+  const begun = await beginReview(user.id, tripId, kind, reviewModel(kind));
+  if (begun.kind === "off") return formFail(REVIEW_MESSAGES.off, "off");
+  if (begun.kind === "running") return formFail(REVIEW_MESSAGES.running, "running");
+  if (begun.kind === "limit") {
+    return fail({ [FORM_ERROR_KEY]: [REVIEW_MESSAGES.limit] }, { code: "limit", nextAvailableAt: begun.nextAvailableAt?.toISOString() ?? null });
+  }
+
+  const { reviewId } = begun;
+  after(() => runReview(reviewId));
+  revalidateTrip(tripId, "reviews");
+  return ok({ reviewId, status: "RUNNING" as const });
 }
