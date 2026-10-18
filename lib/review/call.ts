@@ -3,7 +3,7 @@ import type { MessageParam, Tool, ToolUnion, Usage } from "@anthropic-ai/sdk/res
 import { anthropicClient, zodOutputFormatHelper } from "@/lib/ai";
 import { NO_TOKENS, type AiTokenUsage } from "@/lib/ai-pricing";
 import type { ReviewInput } from "./input-shape";
-import { reviewOutputSchema, type ReviewOutput } from "./model-output";
+import { parseReviewOutput, reviewOutputSchema, type ReviewOutput } from "./model-output";
 import { REVIEW_SYSTEM_PROMPT, SUBMIT_NUDGE, SUBMIT_REVIEW_TOOL, buildReviewUserMessage } from "./prompt";
 import type { ReviewKind } from "./types";
 
@@ -19,7 +19,8 @@ import type { ReviewKind } from "./types";
  * parses every text block, including the narration before a search
  * (claude-api shared/tool-use-concepts.md, Structured Outputs; Tool Choice:
  * tool_choice auto plus `strict: true` keeps the schema guarantee). The
- * tool input is then validated with zod, like extract.ts's parsed_output.
+ * tool input is then validated with zod, Finding by Finding
+ * (parseReviewOutput), like extract.ts validates its parsed_output.
  */
 
 /** Inside /api/mcp's and the Reviews page's maxDuration (300 s), with room to record the outcome. */
@@ -128,9 +129,10 @@ export async function callReviewModel(req: ReviewCallRequest): Promise<ReviewCal
 
     const submitted = message.content.find((b) => b.type === "tool_use" && b.name === SUBMIT_REVIEW_TOOL);
     if (submitted?.type === "tool_use") {
-      const checked = reviewOutputSchema.safeParse(submitted.input);
-      if (!checked.success) return { kind: "unreadable", usage, report: new Error("Review: the reply failed validation") };
-      return { kind: "ok", usage, output: checked.data };
+      // Finding by Finding: a bad one is dropped, a malformed fix becomes null (notes decision 8).
+      const output = parseReviewOutput(submitted.input);
+      if (!output) return { kind: "unreadable", usage, report: new Error("Review: the reply failed validation") };
+      return { kind: "ok", usage, output };
     }
 
     // The server-side search loop paused: re-send its turn as it stands, and the server resumes.

@@ -11,8 +11,8 @@ import { reviewInputFromPlan, type ReviewInput } from "./input-shape";
  * null viewer, so every live Surprise is hidden. No access check and no
  * session (every read here is an unguarded one): the job runs after
  * startReview's check (lib/review/run.ts), possibly outside the request's
- * Traveller. A Trip without dates has
- * no Flags (loadFlagRows' null), and its today comes from the Home base.
+ * Traveller. A Trip without dates has no Flags (loadFlagRows' null), and
+ * its today comes from the Home base.
  */
 export async function buildReviewInput(tripId: string): Promise<ReviewInput> {
   const [plan, rows, projection] = await Promise.all([

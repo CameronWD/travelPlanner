@@ -7,6 +7,7 @@
  * source must be a web address.
  */
 import { z } from "zod";
+import { isRealCalendarDate } from "@/lib/dates";
 import { BOOKING_STATES } from "@/lib/enum-values";
 import { WEEKDAYS, type HoursSpan, type OpeningHours, type WeekHours } from "@/lib/opening-hours";
 import { safeWebHref } from "@/lib/url";
@@ -23,7 +24,6 @@ export const MODEL_CATEGORIES = [
 /** More than this from one run is noise: the rest are dropped, not the run. */
 export const MAX_MODEL_FINDINGS = 40;
 
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TITLE_MAX = 120;
 const DETAIL_MAX = 1_200;
 
@@ -77,7 +77,8 @@ const modelFindingSchema = z.object({
   title: text(),
   detail: text(),
   source: text().nullable(),
-  suggestedFix: modelFixSchema.nullable(),
+  // A malformed fix is no fix (notes decision 8): the Finding stays, Dismiss only.
+  suggestedFix: modelFixSchema.nullable().catch(null),
 });
 
 export const reviewOutputSchema = z.object({
@@ -86,6 +87,32 @@ export const reviewOutputSchema = z.object({
 });
 
 export type ReviewOutput = z.infer<typeof reviewOutputSchema>;
+
+/** The envelope read loosely, so one bad Finding never costs the run. */
+const envelopeSchema = z.object({ summary: text().catch(""), findings: z.array(z.unknown()).catch([]) });
+
+/**
+ * The submit_review input as a ReviewOutput (lib/review/call.ts), Finding by
+ * Finding: an invalid one (a category Claude may not use, no title, …) is
+ * dropped and the rest kept, and a malformed fix becomes null. Null, i.e.
+ * unreadable, when it is not an object, or it has no valid Finding and no
+ * summary.
+ */
+export function parseReviewOutput(input: unknown): ReviewOutput | null {
+  const envelope = envelopeSchema.safeParse(input);
+  if (!envelope.success) return null;
+  const findings = envelope.data.findings.flatMap((f) => {
+    const parsed = modelFindingSchema.safeParse(f);
+    return parsed.success ? [parsed.data] : [];
+  });
+  if (findings.length === 0 && !envelope.data.summary) return null;
+  return { summary: envelope.data.summary, findings };
+}
+
+/** No em-dashes in the app's copy (test/copy-style.test.ts): Claude's become commas. */
+function plainCopy(s: string): string {
+  return s.replace(/\s*\u2014\s*/g, ", ").trim();
+}
 type ModelFinding = ReviewOutput["findings"][number];
 type ModelFix = NonNullable<ModelFinding["suggestedFix"]>;
 
@@ -149,7 +176,7 @@ type Placement = Pick<FindingDraft, "targetType" | "targetId" | "date">;
 
 /** Where the Finding points. An id that isn't a visible row of that type (made up, or a Surprise's) becomes the Trip. */
 function placement(f: ModelFinding, targets: ReviewTargets): Placement {
-  const date = f.date && ISO_DAY.test(f.date) ? f.date : undefined;
+  const date = f.date && isRealCalendarDate(f.date) ? f.date : undefined;
   const dated = date ? { date } : {};
   if (f.targetType === "DAY") return date ? { targetType: "DAY", date } : { targetType: "TRIP" };
   if (f.targetType !== "TRIP" && f.targetId && targets[f.targetType].has(f.targetId)) {
@@ -161,7 +188,7 @@ function placement(f: ModelFinding, targets: ReviewTargets): Placement {
 export function toFindingDrafts(output: ReviewOutput, targets: ReviewTargets): FindingDraft[] {
   const drafts: FindingDraft[] = [];
   for (const f of output.findings.slice(0, MAX_MODEL_FINDINGS)) {
-    const title = f.title.trim().slice(0, TITLE_MAX);
+    const title = plainCopy(f.title).slice(0, TITLE_MAX);
     if (!title) continue;
     const source = safeWebHref(f.source) ?? undefined;
     const suggestedFix = toSuggestedFix(f.suggestedFix, targets, source);
@@ -170,7 +197,7 @@ export function toFindingDrafts(output: ReviewOutput, targets: ReviewTargets): F
       category: f.category,
       ...placement(f, targets),
       title,
-      detail: f.detail.trim().slice(0, DETAIL_MAX),
+      detail: plainCopy(f.detail).slice(0, DETAIL_MAX),
       ...(suggestedFix ? { suggestedFix } : {}),
       ...(source ? { source } : {}),
       origin: "MODEL",
@@ -194,7 +221,7 @@ export function mergeDrafts(...groups: readonly FindingDraft[][]): FindingDraft[
 
 /** The history's summary line (R10): Claude's, on one line, or a count. */
 export function reviewSummary(output: ReviewOutput, count: number): string {
-  const line = output.summary.replace(/\s+/g, " ").trim().slice(0, 200);
+  const line = plainCopy(output.summary.replace(/\s+/g, " ")).slice(0, 200);
   if (line) return line;
   if (count === 0) return "Nothing to look at.";
   return `${count} ${count === 1 ? "thing" : "things"} to look at.`;

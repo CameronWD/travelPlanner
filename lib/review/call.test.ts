@@ -136,8 +136,27 @@ describe("callReviewModel result", () => {
     expect(streamMock).toHaveBeenCalledTimes(REVIEW_MAX_CONTINUATIONS + 1);
   });
 
-  it("refuses a tool input that fails the schema, without quoting it", async () => {
-    replies(message({ content: [submit({ summary: "x", findings: [{ category: "weather" }] })] }));
+  it("resumes a pause after the nudge, then takes the tool call", async () => {
+    const ended = message({ stop_reason: "end_turn", content: [{ type: "text", text: "All checked." }] });
+    replies(ended, paused, message());
+    expect((await request()).kind).toBe("ok");
+    expect(streamMock).toHaveBeenCalledTimes(3);
+    expect(params(2).messages.slice(1)).toEqual([
+      { role: "assistant", content: ended.content },
+      { role: "user", content: SUBMIT_NUDGE },
+      { role: "assistant", content: paused.content },
+    ]);
+  });
+
+  it("drops an invalid Finding and a malformed fix, and keeps the rest of the run", async () => {
+    const badFix = { ...OUTPUT.findings[0], suggestedFix: { kind: "item.teleport" } };
+    replies(message({ content: [submit({ summary: OUTPUT.summary, findings: [{ category: "weather" }, badFix] })] }));
+    const out = await request();
+    expect(out).toMatchObject({ kind: "ok", output: { summary: OUTPUT.summary, findings: [{ title: OUTPUT.findings[0].title, suggestedFix: null }] } });
+  });
+
+  it("refuses a tool input with no valid Finding and no summary, without quoting it", async () => {
+    replies(message({ content: [submit({ findings: [{ category: "weather" }] })] }));
     const out = await request();
     expect(out).toMatchObject({ kind: "unreadable", report: expect.objectContaining({ message: "Review: the reply failed validation" }) });
     if (out.kind === "unreadable") expect(out.report.message).not.toContain("weather");

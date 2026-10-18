@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { ReviewTargets } from "./input-shape";
 import { findingKey } from "./key";
-import { MAX_MODEL_FINDINGS, mergeDrafts, reviewOutputSchema, reviewSummary, toFindingDrafts, type ReviewOutput } from "./model-output";
+import { MAX_MODEL_FINDINGS, mergeDrafts, parseReviewOutput, reviewOutputSchema, reviewSummary, toFindingDrafts, type ReviewOutput } from "./model-output";
 import type { FindingDraft, SuggestedFix } from "./types";
 
 const TARGETS: ReviewTargets = {
@@ -51,6 +51,40 @@ describe("reviewOutputSchema trims what Claude supplies (keys are compared exact
     const [d] = toFindingDrafts(parsed.data, TARGETS);
     expect(findingKey(d)).toBe(findingKey(toFindingDrafts(out(finding()), TARGETS)[0]));
     expect(d.suggestedFix).toEqual({ kind: "item.times", itemId: "museum", date: "2026-11-03" });
+  });
+});
+
+describe("parseReviewOutput (notes decision 8: drop what is bad, keep the run)", () => {
+  it("keeps a Finding whose fix is malformed, with no fix (Dismiss only)", () => {
+    const raw = { summary: "One thing.", findings: [{ ...finding(), suggestedFix: { kind: "item.teleport", itemId: "museum" } }] };
+    const parsed = parseReviewOutput(raw);
+    expect(parsed?.findings).toHaveLength(1);
+    expect(parsed?.findings[0]).toMatchObject({ title: "The museum is closed on Mondays", suggestedFix: null });
+  });
+
+  it("drops an invalid Finding (bad category, missing title) and keeps the others", () => {
+    const { title: _title, ...untitled } = finding();
+    void _title;
+    const raw = { summary: "Two things.", findings: [finding(), { ...finding(), category: "weather" }, untitled, finding({ category: "TICKET" })] };
+    const parsed = parseReviewOutput(raw);
+    expect(parsed?.findings.map((f) => f.category)).toEqual(["CLOSURE", "TICKET"]);
+    expect(parsed?.summary).toBe("Two things.");
+  });
+
+  it("keeps a summary with no Findings, and is unreadable with neither", () => {
+    expect(parseReviewOutput({ summary: "Nothing to change.", findings: [] })).toEqual({ summary: "Nothing to change.", findings: [] });
+    expect(parseReviewOutput({ summary: "  ", findings: [{ category: "weather" }] })).toBeNull();
+    expect(parseReviewOutput({ findings: [] })).toBeNull();
+    expect(parseReviewOutput("not an object")).toBeNull();
+    expect(parseReviewOutput(null)).toBeNull();
+  });
+
+  it("the tool schema still shows suggestedFix as the fix kinds or null", () => {
+    const schema = zodOutputFormat(reviewOutputSchema).schema as { properties: { findings: { items: { properties: Record<string, unknown>; required: string[] } } } };
+    const item = schema.properties.findings.items;
+    expect(item.required).toContain("suggestedFix");
+    expect(JSON.stringify(item.properties.suggestedFix)).toContain("item.openingHours");
+    expect(JSON.stringify(item.properties.suggestedFix)).toContain('"null"');
   });
 });
 
@@ -121,6 +155,21 @@ describe("toFindingDrafts (spec 2026-10-17 R8)", () => {
   });
 });
 
+describe("toFindingDrafts copy and dates", () => {
+  it("turns an em-dash in a title or detail into a comma (no em-dashes in the app's copy)", () => {
+    const [d] = toFindingDrafts(out(finding({ title: "Closed Mondays — move it", detail: "It closes on Mondays—every week —  all year." })), TARGETS);
+    expect(d.title).toBe("Closed Mondays, move it");
+    expect(d.detail).toBe("It closes on Mondays, every week, all year.");
+  });
+
+  it("ignores an impossible date", () => {
+    const [d] = toFindingDrafts(out(finding({ date: "2026-02-30" })), TARGETS);
+    expect(d).not.toHaveProperty("date");
+    const [day] = toFindingDrafts(out(finding({ targetType: "DAY", targetId: null, date: "2026-13-01" })), TARGETS);
+    expect(day.targetType).toBe("TRIP");
+  });
+});
+
 describe("mergeDrafts", () => {
   it("keeps the first draft per key, so a restated Flag wins over Claude saying the same", () => {
     const flag: FindingDraft = { severity: "warning", category: "CLOSURE", targetType: "ITEM", targetId: "museum", date: "2026-11-02", title: "Closed that day.", detail: "Closed that day.", origin: "FLAG" };
@@ -136,6 +185,7 @@ describe("reviewSummary", () => {
   it("is Claude's one line, squeezed and capped, or a plain count when it gave none", () => {
     expect(reviewSummary({ summary: "  Two things\n to check.  ", findings: [] }, 2)).toBe("Two things to check.");
     expect(reviewSummary({ summary: "x".repeat(300), findings: [] }, 1)).toHaveLength(200);
+    expect(reviewSummary({ summary: "A closure — and a holiday.", findings: [] }, 2)).toBe("A closure, and a holiday.");
     expect(reviewSummary({ summary: " ", findings: [] }, 0)).toBe("Nothing to look at.");
     expect(reviewSummary({ summary: "", findings: [] }, 1)).toBe("1 thing to look at.");
     expect(reviewSummary({ summary: "", findings: [] }, 3)).toBe("3 things to look at.");

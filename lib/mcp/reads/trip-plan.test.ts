@@ -301,6 +301,7 @@ describe("loadTripPlanForMcp", () => {
     await expect(loadTripPlanForMcp(TRIP_ID)).rejects.toThrow();
     expect(stopFindMany).not.toHaveBeenCalled();
   });
+
   it("loadTripPlanView(tripId, null) reads the plan as a Share link does: no access check, a null viewer, nobody is 'you' (spec 2026-10-17 R9)", async () => {
     const plan = await loadTripPlanView(TRIP_ID, null);
     expect(requireTripAccess).not.toHaveBeenCalled();
