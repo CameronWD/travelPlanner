@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLOSING_SOON_MIN,
   detectFlags,
   flagBookByDates,
   flagClosedOnDay,
@@ -113,6 +114,7 @@ describe("flagOutsideOpeningHours (Before opening / After closing, warnings)", (
   });
 
   it("with no end, a start within 30 minutes of closing (inclusive)", () => {
+    expect(CLOSING_SOON_MIN).toBe(30); // pins the "within 30 minutes" window the literals below exercise
     expect(run({ startTime: "17:40" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00, 20 minutes after this starts."]]);
     expect(run({ startTime: "17:30" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00, 30 minutes after this starts."]]);
     expect(run({ startTime: "17:59" })).toEqual([["item-after-close-i1", "Documentation Centre closes at 18:00, 1 minute after this starts."]]);
