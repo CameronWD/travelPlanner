@@ -23,7 +23,9 @@ vi.mock("@/components/trip/reviews/review-poller", () => ({
   ),
 }));
 vi.mock("@/components/trip/reviews/finding-list", () => ({
-  FindingList: (p: { actionable: boolean; groups: unknown[] }) => <div data-testid="finding-list" data-actionable={String(p.actionable)} data-groups={p.groups.length} />,
+  FindingList: (p: { actionable: boolean; open: unknown[]; dealtWith: unknown[] }) => (
+    <div data-testid="finding-list" data-actionable={String(p.actionable)} data-open={p.open.length} data-dealt-with={p.dealtWith.length} />
+  ),
 }));
 vi.mock("@/components/trip/reviews/review-history", () => ({
   ReviewHistory: (p: { rows: unknown[] }) => <div data-testid="history" data-rows={p.rows.length} />,
