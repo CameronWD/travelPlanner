@@ -9,7 +9,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import type { ReviewPermission } from "@/lib/enum-values";
+import { REVIEW_PERMISSIONS, type ReviewPermission } from "@/lib/enum-values";
 import {
   REVIEW_STALE_AFTER_MS,
   countedSince,
@@ -79,4 +79,16 @@ export async function loadReviewStanding(
   const starts =
     permission === "LIMITED" ? await countedReviewStarts(userId, countedSince(now), { now, client }) : [];
   return { permission, ...reviewAllowance(permission, starts, now) };
+}
+
+/**
+ * The account's own Review permission (R12), for the Reviews tab's run
+ * panel (lib/review/reviews-page-loader.ts) and Section M's per-user
+ * tool-listing gate. A missing user or an unknown stored value reads as
+ * Off, the safe side.
+ */
+export async function reviewPermissionOf(userId: string): Promise<ReviewPermission> {
+  const row = await db.user.findUnique({ where: { id: userId }, select: { reviewPermission: true } });
+  const value = row?.reviewPermission;
+  return value && (REVIEW_PERMISSIONS as readonly string[]).includes(value) ? (value as ReviewPermission) : "OFF";
 }
