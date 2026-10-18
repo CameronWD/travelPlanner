@@ -16,6 +16,8 @@ import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
 import type { OpeningHours } from "@/lib/opening-hours";
+import { withTryList } from "@/lib/try-list-stored";
+import type { TryList } from "@/lib/try-list";
 
 /**
  * The Plan reader (spec 2026-10-14 card A, Q2): everything a page needs to
@@ -112,6 +114,7 @@ const PLAN_ITEM_SELECT = {
   arriveByMinutes: true,
   refundable: true,
   openingHours: true,
+  tryList: true,
   bookingState: true,
   bookingStateSet: true,
   bookBy: true,
@@ -160,8 +163,9 @@ type WithBookingState<T> = Omit<T, "bookingState"> & { bookingState: BookingStat
 type PlanTransportRow = WithBookingState<Prisma.TransportGetPayload<{ select: typeof PLAN_TRANSPORT_SELECT }>>;
 type PlanAccommodationRow = WithBookingState<Prisma.AccommodationGetPayload<{ select: typeof PLAN_ACCOMMODATION_SELECT }>>;
 type PlanItemRow = (
-  | (Omit<WithBookingState<Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }>>, "openingHours"> & {
+  | (Omit<WithBookingState<Prisma.ItemGetPayload<{ select: typeof PLAN_ITEM_SELECT }>>, "openingHours" | "tryList"> & {
       openingHours: OpeningHours | null;
+      tryList: TryList | null;
     })
   | PlaceholderItem
 ) & {
@@ -309,8 +313,8 @@ export const readPlan: (tripId: string, viewer: PlanViewer, plan: PlanId) => Pro
       transports: transports as PlanTransportRow[],
       accommodations: accommodations as PlanAccommodationRow[],
       items: mergePlanItems(
-        itemRows.map(withOpeningHours) as WithBookingState<
-          Omit<(typeof itemRows)[number], "openingHours"> & { openingHours: OpeningHours | null }
+        itemRows.map((r) => withTryList(withOpeningHours(r))) as WithBookingState<
+          Omit<(typeof itemRows)[number], "openingHours" | "tryList"> & { openingHours: OpeningHours | null; tryList: TryList | null }
         >[],
         v,
         plan,

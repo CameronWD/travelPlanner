@@ -28,4 +28,10 @@ describe("toItemCardItem", () => {
     expect(toItemCardItem({ id: "i1", bookingStateSet: false, title: "Market", category: "FOOD", openingHours: hours }).openingHours).toEqual(hours);
     expect(toItemCardItem({ id: "i2", bookingStateSet: false, title: "Walk", category: "OTHER" }).openingHours).toBeNull();
   });
+
+  it("carries the Try list to the edit dialog", () => {
+    const list = [{ id: "e1", text: "Lebkuchen", tried: true }];
+    expect(toItemCardItem({ id: "i1", title: "Market", category: "FOOD", bookingStateSet: false, tryList: list }).tryList).toEqual(list);
+    expect(toItemCardItem({ id: "i2", title: "Walk", category: "OTHER", bookingStateSet: false }).tryList).toBeNull();
+  });
 });

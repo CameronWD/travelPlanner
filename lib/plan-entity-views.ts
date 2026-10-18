@@ -2,6 +2,7 @@ import type { BookingState, TransportMode } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import type { CostRow } from "@/lib/money/cost-row";
+import type { TryList } from "@/lib/try-list";
 
 /**
  * The Plan's entity rows as the cards and the three edit dialogs take them,
@@ -31,6 +32,8 @@ export interface ItemCardItem {
   refundable?: boolean | null;
   /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
   openingHours?: OpeningHours | null;
+  /** CONTEXT.md "Try list": things to try there, shared by an idea and its copies; null/absent = none. */
+  tryList?: TryList | null;
   notes?: string | null;
   stopId?: string | null;
   stopName?: string | null; // resolved from stop relation
