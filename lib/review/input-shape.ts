@@ -13,6 +13,13 @@ export type ReviewTargetType = "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION";
 /** The visible rows a Finding or a fix may name, by type (lib/review/model-output.ts). */
 export type ReviewTargets = Readonly<Record<ReviewTargetType, ReadonlySet<string>>>;
 
+/** One Checklist row (ChecklistItem), in the shape a Review reads it. */
+export interface ReviewChecklistEntry {
+  list: "PACKING" | "PRETRIP";
+  text: string;
+  ticked: boolean;
+}
+
 export interface ReviewInput {
   tripName: string;
   startDate: string | null;
@@ -23,6 +30,8 @@ export interface ReviewInput {
   plan: string;
   /** The current Flags, as everyone sees them: Claude must not repeat them, and they are restated as Findings. */
   flags: Flag[];
+  /** reviewChecklistsJson's output: so Claude never suggests packing or a pre-trip task already on a list. */
+  checklists: string;
   targets: ReviewTargets;
 }
 
@@ -71,7 +80,17 @@ export function collectReviewTargets(plan: McpTripPlan): ReviewTargets {
   return { STOP, ITEM, TRANSPORT, ACCOMMODATION };
 }
 
-export function reviewInputFromPlan(plan: McpTripPlan, flags: Flag[], today: string): ReviewInput {
+/**
+ * The Packing list and Pre-trip checklist as compact JSON, grouped by list
+ * and keeping each list's order, so Claude can check what is already there
+ * before suggesting a checklist.add fix (lib/review/prompt.ts).
+ */
+export function reviewChecklistsJson(entries: readonly ReviewChecklistEntry[]): string {
+  const byList = (list: ReviewChecklistEntry["list"]) => entries.filter((e) => e.list === list).map(({ text, ticked }) => ({ text, ticked }));
+  return JSON.stringify({ packing: byList("PACKING"), preTrip: byList("PRETRIP") });
+}
+
+export function reviewInputFromPlan(plan: McpTripPlan, flags: Flag[], today: string, checklists: readonly ReviewChecklistEntry[] = []): ReviewInput {
   return {
     tripName: plan.trip.name,
     startDate: plan.trip.startDate,
@@ -79,6 +98,7 @@ export function reviewInputFromPlan(plan: McpTripPlan, flags: Flag[], today: str
     today,
     plan: reviewPlanJson(plan),
     flags,
+    checklists: reviewChecklistsJson(checklists),
     targets: collectReviewTargets(plan),
   };
 }
