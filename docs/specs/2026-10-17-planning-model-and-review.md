@@ -510,3 +510,18 @@ going unflagged.
 
   `prisma/real/persist.ts` still stores no Booking state at all (FT-03), so
   a drive it loads takes the column default (To book) like every other leg.
+- **Minors and parked review items.** The promote preview selects the
+  fields Compare reads and passes the real plan's today, so its Flag delta
+  matches Compare (M5). Text typed in "New thing to try" but not added is
+  saved with the list and makes the dialog dirty (M6). The badge parses
+  Opening hours only for placed rows (M7). FT-06 names `deleteItem` (M8).
+  The Try list editor describes a ticked entry as Tried, never submits on
+  Enter in a rename, and keeps focus on a sensible control after a move;
+  `flag-list.tsx`'s `FlagTargetType` switch is exhaustive; `get_stop`'s
+  description names `openingHours` and `tryList`; and the badge=Summary,
+  Changeover-day, tick-isolation and Surprise-payload tests were added.
+- **Final gate (this wave):** `npm test` (824 files, 11,339 tests),
+  `npx tsc --noEmit`, `npx eslint .` (0 errors, 7 warnings, all in files
+  this branch doesn't touch), `npm run knip` (clean), the integration tier
+  against a sandbox Postgres (33 files, 180 tests), and `npm run build` in a
+  throwaway copy: all green.
