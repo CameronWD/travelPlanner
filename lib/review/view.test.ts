@@ -60,6 +60,8 @@ describe("suggestedFixLabel", () => {
     expect(suggestedFixLabel({ kind: "transport.bookingState", id: "t1", bookingState: "BOOKED" })).toBe("Mark as booked");
     expect(suggestedFixLabel({ kind: "accommodation.bookingState", id: "a1", bookingState: "NONE" })).toBe("Mark as no booking needed");
     expect(suggestedFixLabel({ kind: "item.openingHours", itemId: "i1", hours: { week: {}, seasons: [], closed: [] } })).toBe("Add the opening hours");
+    // Final wave M6: the Item already has hours.
+    expect(suggestedFixLabel({ kind: "item.openingHours", itemId: "i1", hours: { week: {}, seasons: [], closed: [] } }, { replacesHours: true })).toBe("Replace the opening hours");
     expect(suggestedFixLabel({ kind: "item.note", itemId: "i1", append: "Closed 24 Dec." })).toBe("Add to the note: Closed 24 Dec.");
   });
 });
@@ -98,6 +100,11 @@ describe("toFindingCard + groupFindings", () => {
       state: "OPEN", stateLabel: "Open", fixLabel: "Mark as booked", href: "/trips/xmas/day/2026-12-08" as Route,
       canApply: true, canDismiss: true, canUndo: false,
     } satisfies FindingCard);
+  });
+  it("an opening-hours fix on an Item that already has hours reads Replace (final wave M6)", () => {
+    const hours = { kind: "item.openingHours" as const, itemId: "i1", hours: { week: {}, seasons: [], closed: [] } };
+    expect(toFindingCard(finding({ suggestedFix: hours, replacesHours: true }), ctx).fixLabel).toBe("Replace the opening hours");
+    expect(toFindingCard(finding({ suggestedFix: hours }), ctx).fixLabel).toBe("Add the opening hours");
   });
   it("warnings first, then notes; inside each, Open before Applied, Dismissed, No longer found; empty groups dropped", () => {
     const cards = [

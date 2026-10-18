@@ -98,6 +98,8 @@ export interface FindingForView {
   canApply: boolean;
   canDismiss: boolean;
   canUndo: boolean;
+  /** R's FindingView: an opening-hours fix on an Item that already has hours (final wave M6). */
+  replacesHours?: boolean;
 }
 
 function byWhen(verb: string, f: Pick<FindingForView, "stateAt" | "stateBy">, timeZone: string): string {
@@ -130,8 +132,12 @@ const BOOKING_FIX: Record<BookingState, string> = {
   BOOKED: "Mark as booked",
 };
 
-/** The suggested fix, as the line under a Finding and the reason for its Apply button. */
-export function suggestedFixLabel(fix: SuggestedFix): string {
+/**
+ * The suggested fix, as the line under a Finding and the reason for its Apply
+ * button. `replacesHours`: the Item already has opening hours, so the fix
+ * replaces them rather than adding them.
+ */
+export function suggestedFixLabel(fix: SuggestedFix, opts: { replacesHours?: boolean } = {}): string {
   switch (fix.kind) {
     case "item.times": {
       const time =
@@ -149,7 +155,7 @@ export function suggestedFixLabel(fix: SuggestedFix): string {
     case "accommodation.bookingState":
       return fix.bookBy ? `${BOOKING_FIX[fix.bookingState]}, by ${shortDate(fix.bookBy)}` : BOOKING_FIX[fix.bookingState];
     case "item.openingHours":
-      return "Add the opening hours";
+      return opts.replacesHours ? "Replace the opening hours" : "Add the opening hours";
     case "item.note":
       return `Add to the note: ${fix.append}`;
     default: {
@@ -208,7 +214,7 @@ export function toFindingCard(f: FindingForView, ctx: { base: string; timeZone: 
     source: sourceLink(f.source),
     state: f.state,
     stateLabel: findingStateLabel(f, ctx.timeZone),
-    fixLabel: f.suggestedFix ? suggestedFixLabel(f.suggestedFix) : null,
+    fixLabel: f.suggestedFix ? suggestedFixLabel(f.suggestedFix, { replacesHours: f.replacesHours }) : null,
     href: findingHref(f, ctx.base),
     canApply: f.canApply,
     canDismiss: f.canDismiss,

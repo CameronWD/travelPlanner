@@ -75,6 +75,8 @@ export interface FindingView {
   canDismiss: boolean;
   /** DISMISSED on the latest DONE Review; or APPLIED with its payload saved (any Review), or stranded (released). */
   canUndo: boolean;
+  /** An item.openingHours fix on an Item that already has hours: Apply replaces them (final wave M6). */
+  replacesHours: boolean;
 }
 
 export interface ReviewDetail extends ReviewSummary {
@@ -189,7 +191,20 @@ function toFindingView(f: FindingRow, onLatest: boolean, hiddenTargetIds: readon
     canUndo:
       (onLatest && state === "DISMISSED") ||
       (state === "APPLIED" && (f.undoPayload !== null || isStrandedApply(f, now))),
+    replacesHours: false,
   };
+}
+
+/** M6: mark the opening-hours fixes whose Item already has hours, so the fix reads "Replace", not "Add". */
+async function markReplacedHours(findings: FindingView[]): Promise<FindingView[]> {
+  const itemIds = [...new Set(findings.flatMap((f) => (f.suggestedFix?.kind === "item.openingHours" ? [f.suggestedFix.itemId] : [])))];
+  if (itemIds.length === 0) return findings;
+  const withHours = new Set(
+    (await db.item.findMany({ where: { id: { in: itemIds }, openingHours: { not: null } }, select: { id: true } })).map((i) => i.id),
+  );
+  return findings.map((f) =>
+    f.suggestedFix?.kind === "item.openingHours" && withHours.has(f.suggestedFix.itemId) ? { ...f, replacesHours: true } : f,
+  );
 }
 
 async function reviewDetail(row: ReviewRow, hiddenTargetIds: readonly string[], latestId: string | null, now: Date): Promise<ReviewDetail> {
@@ -198,8 +213,7 @@ async function reviewDetail(row: ReviewRow, hiddenTargetIds: readonly string[], 
     orderBy: { position: "asc" },
     select: FINDING_SELECT,
   });
-  const findings = rows
-    .map((f) => toFindingView(f, row.id === latestId, hiddenTargetIds, now))
+  const findings = (await markReplacedHours(rows.map((f) => toFindingView(f, row.id === latestId, hiddenTargetIds, now))))
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]); // stable: keeps `position` within a severity
   return { ...toSummary(row, { open: findings.filter((f) => f.state === "OPEN").length, total: findings.length }, now), findings };
 }

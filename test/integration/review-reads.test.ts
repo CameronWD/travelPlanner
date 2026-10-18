@@ -152,6 +152,26 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review reads (spec 2026-10-17 
     }
   });
 
+  it("an opening-hours fix on an Item that already has hours is marked as replacing them (final wave M6)", async () => {
+    const hours = (itemId: string) => JSON.stringify({ kind: "item.openingHours", itemId, hours: { week: { mon: [] }, seasons: [], closed: [] } });
+    await db.item.create({ data: { id: "it-rr-hours", tripId: TRIP_ID, stopId: PORTO, title: "IT Hours", category: "SIGHTSEEING", date: "2027-06-04", sortOrder: 2, openingHours: JSON.stringify({ week: { tue: [["09:00", "17:00"]] }, seasons: [], closed: [] }) } });
+    await db.finding.createMany({
+      data: [
+        { ...base, id: "it-rr-h1", reviewId: "it-rr-r2", key: "SEASON|ITEM|it-rr-hours", category: "SEASON", targetType: "ITEM", targetId: "it-rr-hours", title: "Has hours", suggestedFix: hours("it-rr-hours"), position: 7 },
+        { ...base, id: "it-rr-h2", reviewId: "it-rr-r2", key: `SEASON|ITEM|${VISIBLE}`, category: "SEASON", targetType: "ITEM", targetId: VISIBLE, title: "No hours", suggestedFix: hours(VISIBLE), position: 8 },
+      ],
+    });
+    try {
+      const findings = (await latestReview(TRIP_ID))!.findings;
+      expect(findings.find((f) => f.id === "it-rr-h1")).toMatchObject({ suggestedFix: { kind: "item.openingHours" }, replacesHours: true });
+      expect(findings.find((f) => f.id === "it-rr-h2")).toMatchObject({ suggestedFix: { kind: "item.openingHours" }, replacesHours: false });
+      expect(findings.find((f) => f.id === "it-rr-f5")).toMatchObject({ replacesHours: false });
+    } finally {
+      await db.finding.deleteMany({ where: { id: { in: ["it-rr-h1", "it-rr-h2"] } } });
+      await db.item.delete({ where: { id: "it-rr-hours" } });
+    }
+  });
+
   it("getReview of a Review that doesn't exist is not found", async () => {
     await expect(getReview("it-rr-nope")).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
   });
