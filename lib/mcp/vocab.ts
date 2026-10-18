@@ -1,5 +1,6 @@
 import type { Category } from "@/lib/categories";
 import type { TransportMode, CostSettlement, ChecklistKind, VoteLevel, BookingState } from "@/lib/enum-values";
+import type { FindingCategory, FindingOrigin, FindingSeverity, FindingState, ReviewKind, SuggestedFix } from "@/lib/review/types";
 
 /** Spec Part G — one source for the style rule, used by MCP_INSTRUCTIONS (Task 7) and the day prompts. */
 export const WRITING_STYLE =
@@ -79,6 +80,68 @@ export const REFUNDABLE_MEANING: Record<RefundableLabel, string> = {
   YES: "the ticket can be refunded or cancelled for free",
   NO: "non-refundable",
   UNKNOWN: "not known (the default)",
+};
+
+/**
+ * A Review's two kinds as Claude says them (spec 2026-10-17 R11, R13):
+ * review_trip takes `depth`, and get_review / list_reviews report the same
+ * word, so Claude can pass back what it read. The stored ReviewKind never
+ * reaches Claude.
+ */
+export const REVIEW_DEPTHS = ["standard", "deep"] as const;
+export type ReviewDepth = (typeof REVIEW_DEPTHS)[number];
+
+export const REVIEW_DEPTH_MEANING: Record<ReviewDepth, string> = {
+  standard: "a Standard Review, the quicker check (the default)",
+  deep: "a Deep Review, which thinks harder and takes longer. Use it when the person asks for a thorough check",
+};
+
+export const REVIEW_KIND_OF_DEPTH: Record<ReviewDepth, ReviewKind> = { standard: "STANDARD", deep: "DEEP" };
+export const DEPTH_OF_REVIEW_KIND: Record<ReviewKind, ReviewDepth> = { STANDARD: "standard", DEEP: "deep" };
+
+/** What each Finding category means (spec R8), for get_review's findings. */
+export const FINDING_CATEGORY_MEANING: Record<FindingCategory, string> = {
+  CLOSURE: "the place is closed, or closes early, on the day it is planned",
+  SEASON: "a seasonal opening, event window or timetable that doesn't cover the date",
+  TICKET: "a ticket or pass that doesn't cover what it needs to, or needs buying ahead",
+  HOLIDAY: "a public holiday at the destination or at home that affects the plan",
+  LOGISTICS: "timing between things: check-in against arrival, airport buffers, luggage, getting between places",
+  STALE_NOTE: "a note that no longer matches the plan, often left over from a re-plan",
+  PACKING: "something to pack or sort out before going, for the weather or the activities",
+  BOOKING: "something still to book, or booked for the wrong time",
+};
+
+/** CONTEXT.md Finding: the four states. */
+export const FINDING_STATE_MEANING: Record<FindingState, string> = {
+  OPEN: "Open, nobody has acted on it yet",
+  APPLIED: "Applied, someone made its suggested fix in Teepee",
+  DISMISSED: "Dismissed, someone decided it doesn't matter. A later Review keeps it dismissed",
+  GONE: "No longer found, a later Review didn't raise it again",
+};
+
+export const FINDING_SEVERITY_MEANING: Record<FindingSeverity, string> = {
+  warning: "likely to go wrong on the day unless something changes",
+  info: "worth knowing, nothing is broken",
+};
+
+export const FINDING_ORIGIN_MEANING: Record<FindingOrigin, string> = {
+  FLAG: "one of the trip's Flags (get_flags), restated as part of the Review",
+  MODEL: "found by the Review's own checks, often with a source link",
+};
+
+/**
+ * The tool Claude would use to make a Finding's suggested fix itself (spec
+ * R8 SuggestedFix, discriminated on `kind`). The first word is the tool's
+ * name (vocab.test.ts checks it is registered). Making the change does not
+ * mark the Finding Applied: only the app's Apply does.
+ */
+export const FIX_WITH_TOOL: Record<SuggestedFix["kind"], string> = {
+  "item.times": "update_thing_to_do with startTime and endTime, or schedule_thing_to_do to change the date",
+  "item.bookingState": "set_booking_state with kind ITEM",
+  "transport.bookingState": "set_booking_state with kind TRANSPORT",
+  "accommodation.bookingState": "set_booking_state with kind ACCOMMODATION",
+  "item.openingHours": "set_opening_hours with the hours and the source page",
+  "item.note": "update_thing_to_do with the text added to its notes",
 };
 
 /**
