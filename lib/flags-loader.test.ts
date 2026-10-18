@@ -282,6 +282,13 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
     detectFlags.mockImplementation(actual.detectFlags);
     const projection = { projectedEnd: null, hardEndDate: null, deadline: null };
     const v = await loadSurpriseVisibilityMock();
+    // Planning Flags too (spec 2026-10-17 R7): a museum closed on its day, and
+    // a stay still To book six days out (today is 2026-01-01).
+    const closedHours = { week: {}, seasons: [], closed: ["2026-01-05"] };
+    const CLOSED = { ...VISIBLE, id: "museum", title: "Museum", category: "SIGHTSEEING", date: "2026-01-05", startTime: null, endTime: null };
+    const STAY = { id: "stay", stopId: "s1", name: "Casa", checkIn: "2026-01-07", checkOut: "2026-01-09", bookingState: "TO_BOOK", bookBy: null };
+    db.item.findMany.mockResolvedValue([VISIBLE, { ...CLOSED, openingHours: JSON.stringify(closedHours) }]);
+    db.accommodation.findMany.mockResolvedValue([STAY]);
 
     const rows = await loadFlagRows(TRIP_ID, "u-viewer");
     const badge = flagsForRows(rows!, projection);
@@ -290,8 +297,9 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
       trip: BASE_TRIP,
       allStops: [STOP],
       transports: [],
-      accommodations: [],
-      items: mergePlanItems([VISIBLE], v, null) as never,
+      accommodations: [STAY],
+      // readPlan hands Summary its Items with the hours already parsed.
+      items: mergePlanItems([VISIBLE, { ...CLOSED, openingHours: closedHours }] as never, v, null) as never,
       tripStart: BASE_TRIP.startDate,
       tripEnd: BASE_TRIP.endDate,
       projection,
@@ -304,6 +312,8 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
     expect(badge.length).toBe(summary.length);
     // The placeholder's slot is counted: its overlap with the visible Item is raised.
     expect(badge.some((f) => f.id.includes("2026-01-03") && /overlap/i.test(f.id))).toBe(true);
+    // The equality covers the planning kinds as well.
+    expect(badge.map((f) => f.id)).toEqual(expect.arrayContaining(["item-closed-museum", "still-to-book-stay"]));
   });
 });
 
@@ -323,6 +333,15 @@ describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 20
     db.item.findMany.mockResolvedValue([{ id: "i1", stopId: "s1", title: "Museum", date: "2026-01-06", openingHours: ROW_HOURS }]);
     const rows = await loadFlagRows(TRIP_ID, "u1");
     expect(rows?.items[0].openingHours).toEqual({ week: { tue: [] }, seasons: [], closed: [] });
+  });
+
+  it("leaves a Wishlist idea's hours unparsed: no Flag reads them (M7)", async () => {
+    db.item.findMany.mockResolvedValue([
+      { id: "idea", stopId: null, title: "Museum", date: null, openingHours: ROW_HOURS },
+      { id: "dated", stopId: null, title: "Museum", date: "2026-01-06", openingHours: ROW_HOURS },
+    ]);
+    const rows = await loadFlagRows(TRIP_ID, "u1");
+    expect(rows?.items.map((i) => i.openingHours)).toEqual([null, { week: { tue: [] }, seasons: [], closed: [] }]);
   });
 
   it("carries the Trip's own today (from its Stops) and the viewer's hidden Items", async () => {

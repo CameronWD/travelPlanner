@@ -228,7 +228,7 @@ export type FlagRows = {
   hiddenStopIds: readonly string[];
   /** Items hidden from the viewer by a Surprise (lib/surprise-visibility.ts hiddenItemIds). */
   hiddenItemIds: readonly string[];
-  /** The Trip's own today, from its real-plan Stops (lib/trip-today.ts). */
+  /** The Trip's own today, from this Plan's Stops (lib/trip-today.ts). */
   today: string;
 };
 
@@ -292,8 +292,10 @@ export async function loadFlagRows(tripId: string, viewerId: string, plan?: Plan
     allStops,
     transports: transports as FlagTransport[],
     accommodations: accommodations as FlagAccommodation[],
-    // Opening hours are parsed once, here at the row edge (Branch 1 D.11).
-    items: [...items.map(withOpeningHours), ...placeholders] as FlagItem[],
+    // Opening hours are parsed once, here at the row edge (Branch 1 D.11),
+    // and only for a placed row (a Stop or a date): no Flag reads a Wishlist
+    // idea's hours, so the badge's hot path never parses them (M7).
+    items: [...items.map((i) => (i.stopId || i.date ? withOpeningHours(i) : { ...i, openingHours: null })), ...placeholders] as FlagItem[],
     hiddenStopIds: v.hiddenStopIds,
     hiddenItemIds: v.hiddenItemIds,
     today: tripTodayISO(allStops),
