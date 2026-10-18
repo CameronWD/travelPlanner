@@ -93,7 +93,7 @@ async function submitTool(): Promise<Tool> {
  * citations (the pairing docs/DEPLOY.md's smoke gate checks): re-sent once
  * without `strict`, rather than every Review failing after the refusal.
  */
-const STRICT_REFUSAL = /citation|strict/i;
+const STRICT_REFUSAL = /citation|\bstrict\b/i;
 
 /** The same tool, with no `strict` key (STRICT_REFUSAL's one retry). */
 function withoutStrict(tool: Tool): Tool {
