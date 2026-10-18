@@ -14,14 +14,14 @@ import {
   FINDING_CATEGORY_MEANING, FINDING_ORIGIN_MEANING, FINDING_SEVERITY_MEANING, FINDING_STATE_MEANING, describeValues,
   REVIEW_DEPTHS, REVIEW_DEPTH_MEANING, REVIEW_KIND_OF_DEPTH,
 } from "../vocab";
-import type { FindingCategory, FindingOrigin, FindingSeverity, FindingState } from "@/lib/review/types";
+import type { FindingCategory, FindingOrigin, FindingSeverity, FindingShownState } from "@/lib/review/types";
 
 const keys = <K extends string>(r: Record<K, string>) => Object.keys(r) as K[];
 
 const FINDINGS_EXPLAINED = [
   describeValues("Each Finding has a severity.", FINDING_SEVERITY_MEANING, keys<FindingSeverity>(FINDING_SEVERITY_MEANING)),
   describeValues("A category.", FINDING_CATEGORY_MEANING, keys<FindingCategory>(FINDING_CATEGORY_MEANING)),
-  describeValues("A state.", FINDING_STATE_MEANING, keys<FindingState>(FINDING_STATE_MEANING)),
+  describeValues("A state.", FINDING_STATE_MEANING, keys<FindingShownState>(FINDING_STATE_MEANING)),
   describeValues("An origin.", FINDING_ORIGIN_MEANING, keys<FindingOrigin>(FINDING_ORIGIN_MEANING)),
 ].join(" ");
 

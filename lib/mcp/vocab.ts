@@ -1,6 +1,6 @@
 import type { Category } from "@/lib/categories";
 import type { TransportMode, CostSettlement, ChecklistKind, VoteLevel, BookingState } from "@/lib/enum-values";
-import type { FindingCategory, FindingOrigin, FindingSeverity, FindingState, ReviewKind, SuggestedFix } from "@/lib/review/types";
+import type { FindingCategory, FindingOrigin, FindingSeverity, FindingShownState, ReviewKind, SuggestedFix } from "@/lib/review/types";
 
 /** Spec Part G — one source for the style rule, used by MCP_INSTRUCTIONS (Task 7) and the day prompts. */
 export const WRITING_STYLE =
@@ -111,12 +111,13 @@ export const FINDING_CATEGORY_MEANING: Record<FindingCategory, string> = {
   BOOKING: "something still to book, or booked for the wrong time",
 };
 
-/** CONTEXT.md Finding: the four states. */
-export const FINDING_STATE_MEANING: Record<FindingState, string> = {
+/** CONTEXT.md Finding: the four stored states, and FIXED, derived as it is read (spec 2026-10-18 A4). */
+export const FINDING_STATE_MEANING: Record<FindingShownState, string> = {
   OPEN: "Open, nobody has acted on it yet",
   APPLIED: "Applied, someone pressed Apply on it in the app",
   DISMISSED: "Dismissed, someone decided it doesn't matter. A later Review keeps it dismissed",
   GONE: "No longer found, a later Review didn't raise it again",
+  FIXED: "the app can see the problem is gone from the plan now (someone changed it). It is Open again if it comes back.",
 };
 
 export const FINDING_SEVERITY_MEANING: Record<FindingSeverity, string> = {

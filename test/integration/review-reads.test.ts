@@ -192,3 +192,80 @@ describe.skipIf(process.env.INTEGRATION !== "1")("review reads (spec 2026-10-17 
     expect(await requireFindingAccess("it-rr-f2")).toMatchObject({ isLatest: false });
   });
 });
+
+// Spec 2026-10-18 A4: an Open restated Flag reads Fixed in the plan while its
+// Flag no longer fires, derived from the live Flags; every count agrees.
+const FX_TRIP = "it-rr-fx-trip";
+const FX_DATELESS = "it-rr-fx-dateless";
+const FX_STOP = "it-rr-fx-stop";
+const FX_ITEM = "it-rr-fx-item";
+const EMPTY_DAY = "empty-day-2027-07-02";
+
+describe.skipIf(process.env.INTEGRATION !== "1")("Fixed in the plan (spec 2026-10-18 A4, real Postgres)", () => {
+  const flagFinding = (id: string, reviewId: string, tripId: string) => ({
+    id, reviewId, tripId, origin: "FLAG", severity: "info", category: "LOGISTICS", targetType: "DAY", date: "2027-07-02",
+    key: `LOGISTICS|DAY|2027-07-02|${EMPTY_DAY}`, title: "Nothing planned", detail: "d", position: 0,
+  });
+
+  beforeAll(async () => {
+    await db.trip.deleteMany({ where: { id: { in: [FX_TRIP, FX_DATELESS] } } });
+    for (const id of [PLANNER, MEMBER]) await db.user.upsert({ where: { id }, update: {}, create: { id, email: `${id}@example.test`, name: id } });
+    await db.trip.create({
+      data: { id: FX_TRIP, name: "IT Fixed", homeCurrency: "AUD", createdById: PLANNER, startDate: "2027-07-01", endDate: "2027-07-02",
+        members: { create: [{ userId: PLANNER, role: "owner" }, { userId: MEMBER, role: "member" }] } },
+    });
+    await db.trip.create({
+      data: { id: FX_DATELESS, name: "IT Fixed, no dates", homeCurrency: "AUD", createdById: PLANNER,
+        members: { create: [{ userId: PLANNER, role: "owner" }, { userId: MEMBER, role: "member" }] } },
+    });
+    await db.stop.create({ data: { id: FX_STOP, tripId: FX_TRIP, name: "IT Lisbon", timezone: "Europe/Lisbon", arriveDate: "2027-07-01", departDate: "2027-07-02", nights: 1, sortOrder: 0 } });
+    await db.item.create({ data: { id: FX_ITEM, tripId: FX_TRIP, stopId: FX_STOP, title: "IT Tram 28", category: "SIGHTSEEING", date: "2027-07-02", sortOrder: 0 } });
+    await db.review.createMany({
+      data: [
+        { id: "it-rr-fx-r", tripId: FX_TRIP, startedById: PLANNER, kind: "STANDARD", model: "m", status: "DONE", summary: "S.", startedAt: ago(60), finishedAt: ago(59) },
+        { id: "it-rr-fx-rd", tripId: FX_DATELESS, startedById: PLANNER, kind: "STANDARD", model: "m", status: "DONE", summary: "S.", startedAt: ago(60), finishedAt: ago(59) },
+      ],
+    });
+    await db.finding.createMany({
+      data: [
+        flagFinding("it-rr-fx-f1", "it-rr-fx-r", FX_TRIP),
+        { ...base, tripId: FX_TRIP, id: "it-rr-fx-f2", reviewId: "it-rr-fx-r", key: "PACKING|TRIP|-", category: "PACKING", targetType: "TRIP", title: "Hat", position: 1 },
+        flagFinding("it-rr-fx-f3", "it-rr-fx-rd", FX_DATELESS),
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    await db.trip.deleteMany({ where: { id: { in: [FX_TRIP, FX_DATELESS] } } });
+  });
+
+  it("reads Fixed in the plan while the day has something on it, and Open with its Flag once it's empty again", async () => {
+    viewer.id = MEMBER;
+    let r = (await latestReview(FX_TRIP))!;
+    let f = r.findings.find((x) => x.id === "it-rr-fx-f1")!;
+    expect(f).toMatchObject({ state: "FIXED", liveFlag: null, canApply: false, canDismiss: false, canUndo: false });
+    expect(r.openCount).toBe(1);
+    expect((await latestReviewOpenCount(FX_TRIP))!.openCount).toBe(1);
+    expect((await listReviews(FX_TRIP)).find((x) => x.id === "it-rr-fx-r")!.openCount).toBe(1);
+    // Nothing is stored: the row is still Open.
+    expect((await db.finding.findUnique({ where: { id: "it-rr-fx-f1" } }))!.state).toBe("OPEN");
+
+    await db.item.delete({ where: { id: FX_ITEM } });
+    r = (await latestReview(FX_TRIP))!;
+    f = r.findings.find((x) => x.id === "it-rr-fx-f1")!;
+    expect(f).toMatchObject({ state: "OPEN", canDismiss: true });
+    expect(f.liveFlag?.id).toBe(EMPTY_DAY);
+    expect(r.openCount).toBe(2);
+    expect((await latestReviewOpenCount(FX_TRIP))!.openCount).toBe(2);
+    expect((await listReviews(FX_TRIP)).find((x) => x.id === "it-rr-fx-r")!.openCount).toBe(2);
+  });
+
+  it("a Trip without dates has no Flags to read, so its restated Flags stay Open", async () => {
+    viewer.id = MEMBER;
+    const r = (await latestReview(FX_DATELESS))!;
+    expect(r.findings[0]).toMatchObject({ id: "it-rr-fx-f3", state: "OPEN", liveFlag: null });
+    expect(r.openCount).toBe(1);
+    expect((await latestReviewOpenCount(FX_DATELESS))!.openCount).toBe(1);
+    expect((await listReviews(FX_DATELESS))[0].openCount).toBe(1);
+  });
+});

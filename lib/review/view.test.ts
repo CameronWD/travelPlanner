@@ -46,6 +46,7 @@ describe("findingStateLabel (R10)", () => {
     expect(findingStateLabel(finding({ state: "DISMISSED", stateBy: CAM, stateAt: AT }), BNE)).toBe("Dismissed by Cam, 18 Oct");
     expect(findingStateLabel(finding({ state: "DISMISSED" }), BNE)).toBe("Dismissed");
     expect(findingStateLabel(finding({ state: "GONE" }), BNE)).toBe("No longer found");
+    expect(findingStateLabel(finding({ state: "FIXED" }), BNE)).toBe("Fixed in the plan");
   });
   it("a former Traveller is shown whole, never split to its first word", () => {
     expect(findingStateLabel(finding({ state: "APPLIED", stateBy: FORMER, stateAt: AT }), BNE)).toBe("Applied by a former Traveller, 18 Oct");

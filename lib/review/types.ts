@@ -46,6 +46,14 @@ export const FINDING_STATE_LABELS: Record<FindingState, string> = {
   GONE: "No longer found",
 };
 
+/**
+ * A Finding's state as shown (spec 2026-10-18 A4): the stored state, or
+ * FIXED for an Open restated Flag that no longer fires. Derived at read time
+ * from the live Flags (lib/review/fixed.ts), never stored.
+ */
+export type FindingShownState = FindingState | "FIXED";
+export const FINDING_SHOWN_STATE_LABELS: Record<FindingShownState, string> = { ...FINDING_STATE_LABELS, FIXED: "Fixed in the plan" };
+
 /** `Finding.origin`: a Flag restated (R8), or the model's own check. */
 export const FINDING_ORIGINS = ["FLAG", "MODEL"] as const;
 export type FindingOrigin = (typeof FINDING_ORIGINS)[number];

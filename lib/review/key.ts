@@ -12,3 +12,13 @@ export function findingKey(d: Pick<FindingDraft, "category" | "targetType" | "ta
   if (d.flagId) parts.push(d.flagId);
   return parts.join("|");
 }
+
+/**
+ * The restated Flag's id a key carries (spec 2026-10-18 A4), or null for a
+ * key without one (a model Finding's). Everything from the 4th segment on;
+ * Flag ids never contain "|", so this is the id findingKey appended.
+ */
+export function flagIdOfKey(key: string): string | null {
+  const parts = key.split("|");
+  return parts.length < 4 ? null : parts.slice(3).join("|");
+}

@@ -6,14 +6,26 @@
  * the viewer's hiddenTargetIds is dropped from every read and count, and
  * requireFindingAccess treats it as missing (ADR 0072). Statuses are
  * effective: a stale RUNNING row reads FAILED (lib/review/types.ts).
+ *
+ * A Finding's state is the shown one (spec 2026-10-18 A4): an Open restated
+ * Flag whose Flag no longer fires reads FIXED, "Fixed in the plan". It is
+ * derived here from the live Flags (lib/review/live-flags.ts), never stored,
+ * so the Reviews tab, Home's line, the history and Claude all agree, and it
+ * turns back to Open the moment the Flag returns. Every open count counts the
+ * shown OPEN. A Trip without dates has no Flags (null, unknown), so none of
+ * its Findings reads FIXED. Saving and matching (lib/review/run.ts) keep
+ * reading the stored state.
  */
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import type { Flag } from "@/lib/flags";
 import { requireTripAccess } from "@/lib/guards";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
 import { parseSuggestedFix } from "@/lib/review/schema";
 import { fixFitsTarget, fixTarget, isStrandedApply } from "@/lib/review/fix";
+import { shownState } from "@/lib/review/fixed";
+import { loadLiveFlags } from "@/lib/review/live-flags";
 import {
   effectiveReviewStatus,
   FORMER_TRAVELLER_NAME,
@@ -23,6 +35,7 @@ import {
   type FindingCategory,
   type FindingOrigin,
   type FindingSeverity,
+  type FindingShownState,
   type FindingState,
   type FindingTargetType,
   type ReviewKind,
@@ -66,15 +79,18 @@ export interface FindingView {
   suggestedFix: SuggestedFix | null;
   source: string | null;
   origin: FindingOrigin;
-  state: FindingState;
+  /** Shown (spec 2026-10-18 A4): FIXED for an Open restated Flag that no longer fires. */
+  state: FindingShownState;
+  /** An Open restated Flag's Flag as it fires now; null otherwise. */
+  liveFlag: Flag | null;
   stateBy: TravellerRef | null;
   stateAt: Date | null;
   firstFoundAt: Date;
-  /** OPEN, has a fix this viewer may see, on the latest DONE Review. */
+  /** Shown OPEN, has a fix this viewer may see, on the latest DONE Review. */
   canApply: boolean;
-  /** OPEN, on the latest DONE Review. */
+  /** Shown OPEN, on the latest DONE Review. */
   canDismiss: boolean;
-  /** DISMISSED on the latest DONE Review; or APPLIED with its payload saved (any Review), or stranded (released). */
+  /** DISMISSED on the latest DONE Review; or APPLIED with its payload saved (any Review), or stranded (released). Never FIXED: the app changed nothing. */
   canUndo: boolean;
   /** An item.openingHours fix on an Item that already has hours: Apply replaces them (final wave M6). */
   replacesHours: boolean;
@@ -118,13 +134,13 @@ type ReviewRow = {
 
 const FINDING_SELECT = {
   id: true, reviewId: true, severity: true, category: true, targetType: true, targetId: true, date: true,
-  title: true, detail: true, suggestedFix: true, source: true, origin: true, state: true, stateAt: true,
+  key: true, title: true, detail: true, suggestedFix: true, source: true, origin: true, state: true, stateAt: true,
   undoPayload: true, firstFoundAt: true, stateBy: { select: TRAVELLER_SELECT },
 } as const;
 
 type FindingRow = {
   id: string; reviewId: string; severity: string; category: string; targetType: string; targetId: string | null;
-  date: string | null; title: string; detail: string; suggestedFix: string | null; source: string | null;
+  date: string | null; key: string; title: string; detail: string; suggestedFix: string | null; source: string | null;
   origin: string; state: string; stateAt: Date | null; undoPayload: string | null; firstFoundAt: Date;
   stateBy: TravellerLike | null;
 };
@@ -161,8 +177,15 @@ function toSummary(row: ReviewRow, counts: { open: number; total: number }, now:
   };
 }
 
-function toFindingView(f: FindingRow, onLatest: boolean, hiddenTargetIds: readonly string[], now: Date): FindingView {
+function toFindingView(
+  f: FindingRow,
+  onLatest: boolean,
+  hiddenTargetIds: readonly string[],
+  now: Date,
+  live: ReadonlyMap<string, Flag> | null,
+): FindingView {
   const state = f.state as FindingState;
+  const shown = shownState({ origin: f.origin, state, key: f.key }, live);
   const parsed = parseSuggestedFix(f.suggestedFix);
   // A fix only touches the Finding's own row, except a checklist fix (never
   // a row): a stored row fix aimed elsewhere (written before that rule)
@@ -183,16 +206,18 @@ function toFindingView(f: FindingRow, onLatest: boolean, hiddenTargetIds: readon
     suggestedFix,
     source: f.source,
     origin: f.origin as FindingOrigin,
-    state,
+    state: shown.state,
+    liveFlag: shown.liveFlag,
     // Applied or Dismissed by an account since deleted (stateById SetNull) still says it was someone.
     stateBy: f.stateBy ? ref(f.stateBy) : state === "APPLIED" || state === "DISMISSED" ? FORMER : null,
     stateAt: f.stateAt,
     firstFoundAt: f.firstFoundAt,
-    canApply: onLatest && state === "OPEN" && suggestedFix !== null,
-    canDismiss: onLatest && state === "OPEN",
+    canApply: onLatest && shown.state === "OPEN" && suggestedFix !== null,
+    canDismiss: onLatest && shown.state === "OPEN",
     canUndo:
-      (onLatest && state === "DISMISSED") ||
-      (state === "APPLIED" && (f.undoPayload !== null || isStrandedApply(f, now))),
+      shown.state !== "FIXED" &&
+      ((onLatest && state === "DISMISSED") ||
+        (state === "APPLIED" && (f.undoPayload !== null || isStrandedApply(f, now)))),
     replacesHours: false,
   };
 }
@@ -209,13 +234,17 @@ async function markReplacedHours(findings: FindingView[]): Promise<FindingView[]
   );
 }
 
+/** Only an Open restated Flag can read FIXED, so only then are the live Flags worth loading. */
+const mayBeFixed = (f: { origin: string; state: string }) => f.origin === "FLAG" && f.state === "OPEN";
+
 async function reviewDetail(row: ReviewRow, hiddenTargetIds: readonly string[], latestId: string | null, now: Date): Promise<ReviewDetail> {
   const rows = await db.finding.findMany({
     where: { reviewId: row.id, ...visibleFindings(hiddenTargetIds) },
     orderBy: { position: "asc" },
     select: FINDING_SELECT,
   });
-  const findings = (await markReplacedHours(rows.map((f) => toFindingView(f, row.id === latestId, hiddenTargetIds, now))))
+  const live = rows.some(mayBeFixed) ? await loadLiveFlags(row.tripId) : null;
+  const findings = (await markReplacedHours(rows.map((f) => toFindingView(f, row.id === latestId, hiddenTargetIds, now, live))))
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]); // stable: keeps `position` within a severity
   return { ...toSummary(row, { open: findings.filter((f) => f.state === "OPEN").length, total: findings.length }, now), findings };
 }
@@ -247,8 +276,14 @@ export async function latestReviewOpenCount(tripId: string): Promise<{ id: strin
   });
   if (!row) return null;
   const v = await loadSurpriseVisibility(tripId, user.id);
-  const openCount = await db.finding.count({ where: { reviewId: row.id, state: "OPEN", ...visibleFindings(v.hiddenTargetIds) } });
-  return { id: row.id, startedAt: row.startedAt, openCount };
+  const visible = visibleFindings(v.hiddenTargetIds);
+  const [modelOpen, flagOpen] = await Promise.all([
+    db.finding.count({ where: { reviewId: row.id, state: "OPEN", origin: "MODEL", ...visible } }),
+    db.finding.findMany({ where: { reviewId: row.id, state: "OPEN", origin: "FLAG", ...visible }, select: { key: true } }),
+  ]);
+  const live = flagOpen.length > 0 ? await loadLiveFlags(tripId) : null;
+  const stillOpen = flagOpen.filter((f) => shownState({ origin: "FLAG", state: "OPEN", key: f.key }, live).state === "OPEN").length;
+  return { id: row.id, startedAt: row.startedAt, openCount: modelOpen + stillOpen };
 }
 
 /** One Review with its Findings (the history list's "open one"; MCP get_review). */
@@ -271,16 +306,19 @@ export async function listReviews(tripId: string): Promise<ReviewSummary[]> {
   });
   if (rows.length === 0) return [];
   const v = await loadSurpriseVisibility(tripId, user.id);
-  const counts = await db.finding.groupBy({
-    by: ["reviewId", "state"],
-    where: { reviewId: { in: rows.map((r) => r.id) }, ...visibleFindings(v.hiddenTargetIds) },
-    _count: { _all: true },
-  });
+  const where = { reviewId: { in: rows.map((r) => r.id) }, ...visibleFindings(v.hiddenTargetIds) };
+  const [counts, flagOpen] = await Promise.all([
+    db.finding.groupBy({ by: ["reviewId", "state"], where, _count: { _all: true } }),
+    db.finding.findMany({ where: { ...where, state: "OPEN", origin: "FLAG" }, select: { reviewId: true, key: true } }),
+  ]);
+  // The stored Open count, less the restated Flags that read FIXED now.
+  const live = flagOpen.length > 0 ? await loadLiveFlags(tripId) : null;
+  const fixed = flagOpen.filter((f) => shownState({ origin: "FLAG", state: "OPEN", key: f.key }, live).state === "FIXED");
   const now = new Date();
   return rows.map((r) => {
     const mine = counts.filter((c) => c.reviewId === r.id);
     return toSummary(r, {
-      open: mine.filter((c) => c.state === "OPEN").reduce((n, c) => n + c._count._all, 0),
+      open: mine.filter((c) => c.state === "OPEN").reduce((n, c) => n + c._count._all, 0) - fixed.filter((f) => f.reviewId === r.id).length,
       total: mine.reduce((n, c) => n + c._count._all, 0),
     }, now);
   });

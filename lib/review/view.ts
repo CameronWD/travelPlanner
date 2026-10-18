@@ -7,7 +7,7 @@ import {
   REVIEW_KIND_LABELS,
   type FindingCategory,
   type FindingSeverity,
-  type FindingState,
+  type FindingShownState,
   type FindingTargetType,
   type ReviewKind,
   type ReviewStatus,
@@ -91,7 +91,8 @@ export interface FindingForView {
   detail: string;
   suggestedFix: SuggestedFix | null;
   source: string | null;
-  state: FindingState;
+  /** Shown (spec 2026-10-18 A4): FIXED is derived by R, never stored. */
+  state: FindingShownState;
   stateAt: Date | null;
   stateBy: TravellerRefLike | null;
   /** R's FindingView flags (lib/review-reads.ts): the gating rules live there, not here. */
@@ -108,7 +109,7 @@ function byWhen(verb: string, f: Pick<FindingForView, "stateAt" | "stateBy">, ti
   return `${verb}${who}${when}`;
 }
 
-/** CONTEXT.md "Finding": Open, Applied (by, when), Dismissed (by, when), No longer found. */
+/** CONTEXT.md "Finding": Open, Applied (by, when), Dismissed (by, when), Fixed in the plan, No longer found. */
 export function findingStateLabel(f: Pick<FindingForView, "state" | "stateAt" | "stateBy">, timeZone: string): string {
   switch (f.state) {
     case "OPEN":
@@ -117,6 +118,8 @@ export function findingStateLabel(f: Pick<FindingForView, "state" | "stateAt" | 
       return byWhen("Applied", f, timeZone);
     case "DISMISSED":
       return byWhen("Dismissed", f, timeZone);
+    case "FIXED":
+      return "Fixed in the plan";
     case "GONE":
       return "No longer found";
     default: {
@@ -195,7 +198,7 @@ export interface FindingCard {
   title: string;
   detail: string;
   source: { href: string; host: string } | null;
-  state: FindingState;
+  state: FindingShownState;
   stateLabel: string;
   /** The fix in words; null means Dismiss only (spec R8). */
   fixLabel: string | null;
@@ -230,7 +233,7 @@ export interface FindingGroup {
   cards: FindingCard[];
 }
 
-const STATE_ORDER: Record<FindingState, number> = { OPEN: 0, APPLIED: 1, DISMISSED: 2, GONE: 3 };
+const STATE_ORDER: Record<FindingShownState, number> = { OPEN: 0, APPLIED: 1, DISMISSED: 2, FIXED: 3, GONE: 4 };
 
 /** By severity (as FlagList does: Warnings, then Notes); inside each, what still needs doing first. */
 export function groupFindings(cards: FindingCard[]): FindingGroup[] {

@@ -9,11 +9,11 @@ import { UNDO_FAILED, useUndoableAction } from "@/components/ui/use-undoable-act
 import { applyFinding, dismissFinding, undoFinding } from "@/server/actions/reviews";
 import { cn } from "@/lib/cn";
 import type { FindingCard, FindingGroup } from "@/lib/review/view";
-import type { FindingState } from "@/lib/review/types";
+import type { FindingShownState, FindingState } from "@/lib/review/types";
 
 /** The badge while a change is still in flight or awaiting the page's refresh. */
-const LOCAL_LABEL: Record<FindingState, string> = { OPEN: "Open", APPLIED: "Applied", DISMISSED: "Dismissed", GONE: "No longer found" };
-const BADGE: Record<FindingState, "outline" | "success" | "muted"> = { OPEN: "outline", APPLIED: "success", DISMISSED: "muted", GONE: "muted" };
+const LOCAL_LABEL: Record<FindingShownState, string> = { OPEN: "Open", APPLIED: "Applied", DISMISSED: "Dismissed", FIXED: "Fixed in the plan", GONE: "No longer found" };
+const BADGE: Record<FindingShownState, "outline" | "success" | "muted"> = { OPEN: "outline", APPLIED: "success", DISMISSED: "muted", FIXED: "success", GONE: "muted" };
 
 // Same palette as FlagList (components/trip/flag-list.tsx), so a Finding restating a Flag looks like one.
 const SEVERITY = {
