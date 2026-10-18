@@ -563,8 +563,10 @@ throwaway copy — all green (task-Z-report.md has the exact run).
   it; a failed run that had already spent (its AiUsage cost is above 0, or
   it timed out) does (final wave I3).
 - While one runs, the tab reads "Reviewing… (started by <name>)" and polls
-  every 10 seconds (skipping a hidden tab); Home shows the same fact as one
-  line under the What's New banner, linking to the tab.
+  every 10 seconds (skipping a hidden tab). Home shows no running line: its
+  only Review line is "N open from the <date> review", under the What's New
+  banner and linking to the tab, once the latest finished Review has Open
+  Findings.
 - The latest Review's Findings group by category, each with its severity,
   detail and an optional source link (opened in a new tab only when it
   parses as `http(s)`). **Apply** (a 6-second toast Undo, plus a persistent
@@ -573,7 +575,10 @@ throwaway copy — all green (task-Z-report.md has the exact run).
   older Review is read-only. **Undo of an Apply works on any Review**,
   because it only ever restores captured values or reopens the Finding, so
   it can never misrepresent history.
-- History lists every past Review (who, when, kind, summary line); once a
+- History lists every past Review (who, when, kind, summary line). A
+  Review that failed reads "Didn't finish: <reason>" there, the shown failed
+  Review names the same reason, and a run the tab was waiting on that fails
+  raises a toast with it (final wave I2). Once a
   newer Review supersedes it, each of its Findings reads Open, Applied,
   Dismissed (by, when) or **No longer found**, and a Dismissed Finding found
   again stays Dismissed rather than reopening.
@@ -582,7 +587,8 @@ throwaway copy — all green (task-Z-report.md has the exact run).
   vanishing (`Review.startedById` and `Finding.stateById` are both nullable,
   `onDelete: SetNull`).
 - A Finding whose target a Surprise now hides from the viewer is dropped
-  from the list, the counts and Claude's reads; a suggested fix aimed at a
+  from the list, the counts and Claude's reads. A suggested fix only ever
+  touches the Finding's own row (final wave I1), and one aimed at a
   hidden or deleted row is withheld, so Apply reports "That's no longer in
   the plan" instead of reaching into a Surprise. This can't be perfect: text
   that *names* something which only became a Surprise after the Review ran
@@ -606,8 +612,11 @@ second argument to smoke-test a real Trip instead of the built-in Kyoto
 sample. **Branch 3 must not deploy until both print PASS.** A Review sends a
 strict `submit_review` client tool in the same request as web search, whose
 results carry citations — a pairing the unit tests (the SDK mocked) can't
-verify and this sandbox can't run at all (no `ANTHROPIC_API_KEY`). A `400`
-whose message mentions citations means the pairing is refused live and needs
+verify and this sandbox can't run at all (no `ANTHROPIC_API_KEY`). Since the
+final fix wave (Rec 2), a `400` naming citations or strict mode makes the
+job re-send the request once without `strict`, and the smoke run prints
+which path ran (`Request path: strict submit_review` or `FALLBACK`). A
+`400` after that fallback still means the pairing is refused live and needs
 a code change (drop `strict: true`), not a setting; `docs/DEPLOY.md` spells
 out every other failure mode.
 
@@ -667,8 +676,9 @@ out every other failure mode.
 5. **A match records `previousId` and carries `firstFoundAt`** forward, so
    history has a real "first found" date to show.
 6. **Apply and Dismiss work only on the Trip's latest DONE Review's
-   Findings** (refusal code `"replaced"`), because matching only reads the
-   latest DONE Review forward. **Undo works on any Review.**
+   Findings** (refusal code `"replaced"`), because matching reads the
+   latest DONE Review forward (plus, since the final wave's M4, each key's
+   latest earlier Dismissal). **Undo works on any Review.**
 7. **Undo refuses when the target has changed since Apply** (`"changed"`):
    Apply stores both the before and after values, and Undo checks the row
    still holds "after" before writing "before" back, so a later edit is
@@ -777,7 +787,9 @@ out every other failure mode.
    hidden tab, and unmounts itself once the refreshed page no longer shows
    one.
 7. **The Home line sits directly under the What's New banner**, above both
-   the phone and desktop trees, reusing `latestReview` with no new query;
+   the phone and desktop trees, from `latestReviewOpenCount` (the latest
+   DONE Review's id and date, and a count of its Open Findings with the
+   Surprise filter; final wave M9, which replaced reusing `latestReview`);
    Reviews and Home both render dates in the Trip's current timezone, which
    is deterministic on the server (the run panel's own label is the one
    place that needs the viewer's).
@@ -906,3 +918,57 @@ calling through `parseReviewPermission`; the MCP vocabulary wording items
 (`FIX_WITH_TOOL`'s `bookingState`→`state`, note-append semantics, APPLIED's
 meaning, the DAY target, UTC for next-available, and `list_reviews`'s cap in
 its own description); and the deadlock comment above (RV-04).
+
+### Final fix wave (whole-branch review, 2026-10-18)
+
+The whole-branch review came back "With fixes"; every item below is a
+controller ruling, built on `feat/trip-review`.
+
+- **A fix only touches the Finding's own row (I1).** `toFindingDrafts`
+  keeps a suggested fix only when its row is the Finding's `targetType` and
+  `targetId` (`item.*` an ITEM, `transport.bookingState` a TRANSPORT,
+  `accommodation.bookingState` an ACCOMMODATION); a TRIP or DAY Finding
+  gets Dismiss only. `fixFitsTarget` (`lib/review/fix.ts`) applies the same
+  rule to stored Findings in `toFindingView` and in `applyFinding`, so a
+  mismatched fix written earlier reads, and acts, as none.
+- **Failures say why (I2).** `Review.error` (always a `REVIEW_MESSAGES`
+  string) shows in the history line and the shown failed Review, and
+  `ReviewPoller` toasts it once when a run the tab saw running, or started
+  itself, ends FAILED.
+- **A timed-out run's spend is recorded, and counts (I3).** On abort or
+  error the job adds the stream's `currentMessage.usage` (SDK 0.105's
+  snapshot, web searches included). **This amends "failed runs don't
+  count":** a FAILED run whose AiUsage row cost more than 0, or timed out,
+  now counts against a Limited allowance; a run that failed before any
+  call (busy at once, no key) still doesn't, nor does a stale RUNNING row.
+- **A Dismissal carries across a gap (M4).** Matching also reads, per key,
+  the latest Finding of any earlier DONE Review; a draft with no match in
+  the previous Review starts Dismissed, with who and when, when that latest
+  word was a Dismissal. Dismissed in run 1, not raised in run 2, found in
+  run 3: still Dismissed. (Built as "latest Finding per key, carried only if
+  Dismissed" rather than "latest Dismissed Finding", so a Dismiss someone
+  later undid on a newer Review doesn't come back.)
+- **The stale cutoff is 6 minutes (M5).** `REVIEW_STALE_AFTER_MS = 6 *
+  60_000`: the job aborts itself at 270 s and the platform kills it at
+  300 s.
+- **Smaller fixes.** An opening-hours fix on an Item that already has hours
+  reads "Replace the opening hours" (M6). Every `<` and `>` inside
+  `<trip_plan>` and `<current_flags>` is escaped as `&lt;`/`&gt;` (M7).
+  Home's line counts instead of loading Findings (M9). A 400 about
+  citations or strict mode retries once without `strict` (Rec 2; see the
+  smoke gate above and `docs/DEPLOY.md`).
+- **Parked review items, done.** The AiUsage row is written straight after
+  the call, before the reply is cleaned. Apply saves its undo payload only
+  onto its own claim (the 5-minute stranded cutoff stays). Undo's rollback
+  uses Apply's `landedStep` rule, and a throw after Apply's move landed puts
+  the day back before releasing. `reviewPermissionOf` reuses
+  `parseReviewPermission`. The MCP wording names how to pass a fix
+  (`state`, notes read first), what APPLIED means, a DAY target's null id
+  and date, UTC for the next-available time, and `list_reviews`'s cap of 50.
+  `beginReview` carries a comment on the theoretical deadlock with a save
+  (RV-04).
+- **Final gate (this wave):** `npm test` (855 files, 11,714 tests), `npx tsc
+  --noEmit`, `npx eslint .` (0 errors, the same 8 warnings), `npm run knip`
+  (clean), the integration tier against a fresh sandbox Postgres (43 files,
+  238 tests), and `npm run build` in a throwaway copy: all green.
+  `maxDuration = 300` is set on the Reviews page and on `/api/mcp`.

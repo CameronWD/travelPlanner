@@ -3381,4 +3381,8 @@ each is a one-file follow-up.
   Postgres has no cycle to find; flagged during the R.1-7 and J.8-14 reviews
   as a window worth a code comment (parked, per task-Z-addendum.md, for a
   later whole-branch fix wave rather than Task Z) in case either writer ever
-  grows a lock on the other's starting point.
+  grows a lock on the other's starting point. **Commented (final fix
+  wave):** they can meet at the User row after all, since a save's Finding
+  insert with a carried Dismissal's `stateById` takes a KEY SHARE lock on
+  that User; `lib/review/start.ts` now explains the window, which Postgres
+  detects (40P01) and resolves by aborting one side.
