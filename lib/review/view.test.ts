@@ -1,0 +1,115 @@
+import type { Route } from "next";
+import { describe, expect, it } from "vitest";
+import {
+  FINDING_CATEGORY_LABELS, REVIEW_KIND_LABELS, findingHref, findingStateLabel, formatReviewDay, formatReviewWhen,
+  groupFindings, sourceLink, suggestedFixLabel, toFindingCard, type FindingCard, type FindingForView,
+} from "./view";
+
+const CAM = { id: "u1", name: "Cam Williams", image: null };
+const FORMER = { id: null, name: "a former Traveller" };
+// 2026-10-18T04:05Z is Sunday 18 Oct, 14:05 in Brisbane (UTC+10, no DST).
+const AT = new Date("2026-10-18T04:05:00Z");
+const BNE = "Australia/Brisbane";
+
+// R's categories are the eight UPPERCASE values (R8, no "flag": each Flag
+// restates onto one of the eight, R decision 2).
+const finding = (o: Partial<FindingForView> = {}): FindingForView => ({
+  id: "f1", severity: "warning", category: "CLOSURE", targetType: "ITEM", targetId: "i1", date: "2026-12-08",
+  title: "Kaiserburg is closed on Tuesdays", detail: "Winter hours: closed Tue.", suggestedFix: null, source: null,
+  state: "OPEN", stateAt: null, stateBy: null, canApply: false, canDismiss: false, canUndo: false, ...o,
+});
+
+describe("labels", () => {
+  it("names both kinds and every category", () => {
+    expect(REVIEW_KIND_LABELS).toEqual({ STANDARD: "Standard Review", DEEP: "Deep Review" });
+    for (const label of Object.values(FINDING_CATEGORY_LABELS)) expect(label).toMatch(/^[A-Z]/);
+  });
+});
+
+describe("formatReviewDay / formatReviewWhen", () => {
+  it("formats in the given zone", () => {
+    expect(formatReviewDay(AT, BNE)).toBe("18 Oct");
+    expect(formatReviewWhen(AT, BNE)).toBe("Sun 18 Oct, 14:05");
+    expect(formatReviewWhen(AT, "UTC")).toBe("Sun 18 Oct, 04:05");
+  });
+  it("falls back to UTC for a bad zone", () => {
+    expect(formatReviewWhen(AT, "Not/AZone")).toBe("Sun 18 Oct, 04:05");
+  });
+});
+
+describe("findingStateLabel (R10)", () => {
+  it("Open, Applied/Dismissed by whom and when, No longer found", () => {
+    expect(findingStateLabel(finding(), BNE)).toBe("Open");
+    expect(findingStateLabel(finding({ state: "APPLIED", stateBy: CAM, stateAt: AT }), BNE)).toBe("Applied by Cam, 18 Oct");
+    expect(findingStateLabel(finding({ state: "DISMISSED", stateBy: CAM, stateAt: AT }), BNE)).toBe("Dismissed by Cam, 18 Oct");
+    expect(findingStateLabel(finding({ state: "DISMISSED" }), BNE)).toBe("Dismissed");
+    expect(findingStateLabel(finding({ state: "GONE" }), BNE)).toBe("No longer found");
+  });
+  it("a former Traveller is shown whole, never split to its first word", () => {
+    expect(findingStateLabel(finding({ state: "APPLIED", stateBy: FORMER, stateAt: AT }), BNE)).toBe("Applied by a former Traveller, 18 Oct");
+  });
+});
+
+describe("suggestedFixLabel", () => {
+  it("describes each kind in plain words", () => {
+    expect(suggestedFixLabel({ kind: "item.times", itemId: "i1", startTime: "10:00", endTime: "12:00", date: "2026-12-09" })).toBe("Change to 10:00–12:00 on 9 Dec");
+    expect(suggestedFixLabel({ kind: "item.times", itemId: "i1", startTime: "10:00" })).toBe("Change the start to 10:00");
+    expect(suggestedFixLabel({ kind: "item.bookingState", id: "i1", bookingState: "TO_BOOK", bookBy: "2026-11-01" })).toBe("Mark as to book, by 1 Nov");
+    expect(suggestedFixLabel({ kind: "transport.bookingState", id: "t1", bookingState: "BOOKED" })).toBe("Mark as booked");
+    expect(suggestedFixLabel({ kind: "accommodation.bookingState", id: "a1", bookingState: "NONE" })).toBe("Mark as no booking needed");
+    expect(suggestedFixLabel({ kind: "item.openingHours", itemId: "i1", hours: { week: {}, seasons: [], closed: [] } })).toBe("Add the opening hours");
+    expect(suggestedFixLabel({ kind: "item.note", itemId: "i1", append: "Closed 24 Dec." })).toBe("Add to the note: Closed 24 Dec.");
+  });
+});
+
+describe("findingHref", () => {
+  const base = "/trips/xmas";
+  it("an Item or a day opens its day; a Stop opens on the plan; the Trip has no link", () => {
+    expect(findingHref(finding(), base)).toBe("/trips/xmas/day/2026-12-08");
+    expect(findingHref(finding({ targetType: "DAY", targetId: null }), base)).toBe("/trips/xmas/day/2026-12-08");
+    expect(findingHref(finding({ targetType: "STOP", targetId: "s 1", date: null }), base)).toBe("/trips/xmas/plan?stop=s%201");
+    expect(findingHref(finding({ targetType: "TRANSPORT", targetId: "t1", date: null }), base)).toBe("/trips/xmas/plan");
+    expect(findingHref(finding({ targetType: "TRIP", targetId: null, date: null }), base)).toBeNull();
+  });
+});
+
+describe("sourceLink", () => {
+  it("keeps http(s) only, and shows the host", () => {
+    expect(sourceLink("https://www.kaiserburg-nuernberg.de/en/hours")).toEqual({ href: "https://www.kaiserburg-nuernberg.de/en/hours", host: "kaiserburg-nuernberg.de" });
+    expect(sourceLink("javascript:alert(1)")).toBeNull();
+    expect(sourceLink("not a url")).toBeNull();
+    expect(sourceLink(null)).toBeNull();
+  });
+});
+
+describe("toFindingCard + groupFindings", () => {
+  const ctx = { base: "/trips/xmas", timeZone: BNE };
+  it("builds a serialisable card, passing R's canApply/canDismiss/canUndo straight through", () => {
+    const card = toFindingCard(
+      finding({ suggestedFix: { kind: "item.bookingState", id: "i1", bookingState: "BOOKED" }, source: "https://example.com/x", canApply: true, canDismiss: true, canUndo: false }),
+      ctx,
+    );
+    expect(card).toEqual({
+      id: "f1", severity: "warning", categoryLabel: FINDING_CATEGORY_LABELS.CLOSURE,
+      title: "Kaiserburg is closed on Tuesdays", detail: "Winter hours: closed Tue.",
+      source: { href: "https://example.com/x", host: "example.com" },
+      state: "OPEN", stateLabel: "Open", fixLabel: "Mark as booked", href: "/trips/xmas/day/2026-12-08" as Route,
+      canApply: true, canDismiss: true, canUndo: false,
+    } satisfies FindingCard);
+  });
+  it("warnings first, then notes; inside each, Open before Applied, Dismissed, No longer found; empty groups dropped", () => {
+    const cards = [
+      toFindingCard(finding({ id: "a", severity: "info", state: "DISMISSED" }), ctx),
+      toFindingCard(finding({ id: "b", severity: "warning", state: "GONE" }), ctx),
+      toFindingCard(finding({ id: "c", severity: "warning", state: "OPEN" }), ctx),
+      toFindingCard(finding({ id: "d", severity: "info", state: "OPEN" }), ctx),
+      toFindingCard(finding({ id: "e", severity: "warning", state: "APPLIED" }), ctx),
+    ];
+    const groups = groupFindings(cards);
+    expect(groups.map((g) => [g.heading, g.cards.map((c) => c.id)])).toEqual([
+      ["Warnings", ["c", "e", "b"]],
+      ["Notes", ["d", "a"]],
+    ]);
+    expect(groupFindings(cards.filter((c) => c.severity === "info")).map((g) => g.heading)).toEqual(["Notes"]);
+  });
+});
