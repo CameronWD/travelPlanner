@@ -7,10 +7,12 @@
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { runTool } from "../run-tool";
+import { startReview } from "@/server/actions/reviews";
+import { runTool, runWrite } from "../run-tool";
 import { loadReviewForMcp, loadReviewsForMcp } from "../reads/reviews";
 import {
   FINDING_CATEGORY_MEANING, FINDING_ORIGIN_MEANING, FINDING_SEVERITY_MEANING, FINDING_STATE_MEANING, describeValues,
+  REVIEW_DEPTHS, REVIEW_DEPTH_MEANING, REVIEW_KIND_OF_DEPTH,
 } from "../vocab";
 import type { FindingCategory, FindingOrigin, FindingSeverity, FindingState } from "@/lib/review/types";
 
@@ -51,5 +53,51 @@ export function registerReviewReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     ({ reviewId }) => runTool("get_review", () => loadReviewForMcp(reviewId)),
+  );
+}
+
+type StartResult = Awaited<ReturnType<typeof startReview>>;
+
+/**
+ * A limit refusal carries when the next Review is available (startReview's
+ * nextAvailableAt). runTool relays only the message, so the time joins it,
+ * and Claude can tell the person when. Every other result passes unchanged.
+ */
+function withNextAvailable(result: StartResult): StartResult {
+  if (result.success || !result.nextAvailableAt) return result;
+  const errors = Object.fromEntries(
+    Object.entries(result.errors).map(([k, msgs]) => [k, k === "_" ? msgs.map((msg) => `${msg} The next one is available from ${result.nextAvailableAt}.`) : msgs]),
+  );
+  return { ...result, errors };
+}
+
+/**
+ * review_trip (R13): starts a Review through the app's own startReview, so
+ * the permission, the Limited allowance (R12), the one-per-Trip lock and the
+ * background run (after(), lib/review/run.ts, which reads no session and
+ * records no Activity) are exactly the Reviews tab's. Returns the Review as
+ * it now stands (F6), RUNNING with no Findings yet. Only buildMcpServer's
+ * gate registers it.
+ */
+export function registerReviewRunTool(server: McpServer): void {
+  server.registerTool(
+    "review_trip",
+    {
+      title: "Start a review",
+      description:
+        "Starts a Review of the whole trip: Teepee checks the real plan as everyone on the trip sees it (Surprises masked), with web search for closures, seasons, public holidays, tickets, logistics, stale notes and packing, and restates the current Flags. " +
+        "It runs in the background and takes a few minutes. This returns the Review with status RUNNING and no Findings yet. Check it with get_review. " +
+        "Each one counts against the person's Review allowance, and a trip runs one at a time. If it is refused, say why, in the words it gives.",
+      inputSchema: {
+        tripId: z.string(),
+        depth: z.enum(REVIEW_DEPTHS).optional().describe(describeValues("How thorough. Left out, standard.", REVIEW_DEPTH_MEANING, REVIEW_DEPTHS)),
+      },
+    },
+    ({ tripId, depth }) =>
+      runWrite(
+        "review_trip",
+        async () => withNextAvailable(await startReview(tripId, REVIEW_KIND_OF_DEPTH[depth ?? "standard"])),
+        async (done) => ({ review: await loadReviewForMcp(done.reviewId) }),
+      ),
   );
 }

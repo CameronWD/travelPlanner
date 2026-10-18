@@ -45,6 +45,11 @@ vi.mock("@/server/actions/checklists", () => ({
   listTemplates: vi.fn(async () => [{ id: "tpl-1", name: "Beach", itemCount: 3 }]),
 }));
 vi.mock("@/server/actions/feedback", () => ({ createFeedbackNote: ok() }));
+vi.mock("@/server/actions/reviews", () => ({
+  startReview: vi.fn(async () => ({ success: true, reviewId: "rev-1", status: "RUNNING" })),
+  applyFinding: ok(), undoFinding: ok(), dismissFinding: ok(),
+}));
+vi.mock("../reads/reviews", () => ({ loadReviewForMcp: row(), loadReviewsForMcp: vi.fn() }));
 
 // Readers: each answers with a row naming the id it was asked for.
 vi.mock("../reads/entities", () => ({
@@ -158,6 +163,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   apply_packing_template: { tripId: "trip-1", templateId: "tpl-1" },
   leave_feedback: { body: "Love the Day view" },
   make_it_fit_apply: { tripId: "trip-1", trims: [{ stopId: "stop-1", nights: 2 }] },
+  review_trip: { tripId: "trip-1", depth: "standard" },
 };
 
 const text = (r: Record<string, unknown>) => (r.content as { type: string; text: string }[])[0].text;

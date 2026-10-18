@@ -69,7 +69,7 @@ export async function POST(req: Request): Promise<Response> {
   const traveller = user;
   try {
     return await runAsTraveller(traveller, async () => {
-      const server = buildMcpServer();
+      const server = buildMcpServer({ reviewPermission: "OFF" });
       const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       await server.connect(transport);
       return transport.handleRequest(req);

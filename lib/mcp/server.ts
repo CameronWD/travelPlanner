@@ -1,7 +1,9 @@
 /**
  * Builds the MCP server for one /api/mcp request (spec 2026-10-09). Each tool
  * group registers itself; every tool goes through runTool and the app's own
- * guards, as the acting Traveller.
+ * guards, as the acting Traveller. The tool list depends on the caller in
+ * one place only: review_trip is registered for a caller allowed to run
+ * Reviews (listsReviewTrip).
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTripReadTools } from "./tools/trips-read";
@@ -12,9 +14,10 @@ import { registerBookingsWriteTools } from "./tools/bookings-write";
 import { registerBookingStateTools } from "./tools/booking-state-write";
 import { registerListWriteTools } from "./tools/lists-write";
 import { registerMakeItFitTools } from "./tools/make-it-fit";
-import { registerReviewReadTools } from "./tools/reviews";
+import { registerReviewReadTools, registerReviewRunTool } from "./tools/reviews";
 import { registerPrompts } from "./prompts";
 import { WRITING_STYLE, CHECK_FACTS } from "./vocab";
+import type { ReviewPermission } from "@/lib/enum-values";
 
 export const MCP_INSTRUCTIONS = [
   "You are working on the user's TEEPEE trips, as them. Changes are real and visible to their travel partner, marked 'via Claude'.",
@@ -36,8 +39,33 @@ export const MCP_INSTRUCTIONS = [
   `Writing style for anything you write into Teepee (titles, Day titles, notes, Reminders, checklist items, cost labels) and for your proposals: ${WRITING_STYLE}`,
 ].join(" ");
 
-export function buildMcpServer(): McpServer {
-  const server = new McpServer({ name: "teepee", version: "1.0.0" }, { instructions: MCP_INSTRUCTIONS });
+/** Who the server is built for: the one per-caller fact the tool list depends on (spec 2026-10-17 R12). */
+export type McpCaller = { reviewPermission: string };
+
+const RUNS_REVIEWS: readonly ReviewPermission[] = ["LIMITED", "UNLIMITED"];
+
+/**
+ * R12: review_trip is listed only to a Traveller allowed to run Reviews.
+ * Fails closed: Off, and any value this code doesn't know, hide it. The route
+ * builds a fresh server per request from the freshly loaded permission, so an
+ * Admin's change applies from Claude's next request. Not listed means
+ * calling it anyway is the SDK's "Tool review_trip not found", and
+ * startReview re-checks the permission itself in its transaction.
+ */
+export function listsReviewTrip(permission: string): boolean {
+  return (RUNS_REVIEWS as readonly string[]).includes(permission);
+}
+
+/** Told only to a Claude that has review_trip, so nobody else's Claude offers it (R12: no option shown anywhere). */
+export const REVIEW_RUN_INSTRUCTION =
+  "review_trip starts a Review, standard or deep. It runs in the background for a few minutes, so tell the person it has started and check it with get_review. Each one counts against the person's Review allowance and a trip runs one at a time, so start one only when they ask, and read an earlier one with list_reviews instead of starting another.";
+
+export function mcpInstructions(caller: McpCaller): string {
+  return listsReviewTrip(caller.reviewPermission) ? `${MCP_INSTRUCTIONS} ${REVIEW_RUN_INSTRUCTION}` : MCP_INSTRUCTIONS;
+}
+
+export function buildMcpServer(caller: McpCaller): McpServer {
+  const server = new McpServer({ name: "teepee", version: "1.0.0" }, { instructions: mcpInstructions(caller) });
   registerTripReadTools(server);
   registerReadTools(server);
   registerTripStopWriteTools(server);
@@ -47,6 +75,7 @@ export function buildMcpServer(): McpServer {
   registerListWriteTools(server);
   registerMakeItFitTools(server);
   registerReviewReadTools(server);
+  if (listsReviewTrip(caller.reviewPermission)) registerReviewRunTool(server);
   registerPrompts(server);
   return server;
 }
