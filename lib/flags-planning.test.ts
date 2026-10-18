@@ -8,6 +8,7 @@ import {
   flagLateForSlot,
   flagOutsideOpeningHours,
   flagStillToBookSoon,
+  STILL_TO_BOOK_WITHIN_DAYS,
   type FlagAccommodation,
   type FlagItem,
   type FlagStop,
@@ -263,6 +264,7 @@ describe("flagStillToBookSoon (Still to book close to the day, info)", () => {
     flagStillToBookSoon({ transports: [], accommodations: [], today, stops: [nbg, munich], ...o });
 
   it("a To book leg within 14 days, with no book-by date", () => {
+    expect(STILL_TO_BOOK_WITHIN_DAYS).toBe(14); // pins the window the day-count literals below exercise
     expect(run({ transports: [leg({ id: "t1", depAt: "2026-12-09T08:00:00Z" })] })).toEqual([
       { id: "still-to-book-t1", severity: "info", message: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", targetType: "TRANSPORT", targetId: "t1", stopId: "nbg" },
     ]);
