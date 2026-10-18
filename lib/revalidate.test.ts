@@ -20,6 +20,10 @@ describe("revalidateTrip", () => {
     revalidateTrip("t1", "journal");
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/[tripId]/day/[date]", "page");
   });
+  it("reviews revalidates Home and the Reviews tab (spec 2026-10-17 R10)", () => {
+    revalidateTrip("t1", "reviews");
+    expect(revalidatePathMock.mock.calls).toEqual([["/trips/t1"], ["/trips/t1/reviews"]]);
+  });
   it("trip and travellers are layout-wide (NAV-02) and nothing else is", () => {
     revalidateTrip("t1", "plan", "travellers");
     expect(revalidatePathMock.mock.calls).toEqual([["/trips/t1", "layout"]]);
@@ -55,7 +59,7 @@ describe("revalidateTrip", () => {
  *   it via stop/item).
  */
 const PAGE_READS: Record<TripPage, readonly string[]> = {
-  "": ["trip", "stop", "item", "transport", "accommodation", "cost", "exchangeRate", "chapter", "checklistItem", "reminder"],
+  "": ["trip", "stop", "item", "transport", "accommodation", "cost", "exchangeRate", "chapter", "checklistItem", "reminder", "review", "finding"],
   "/plan": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "fork", "attachment", "note", "dayTitle", "reminder", "tripMember"],
   "/budget": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "fork"],
   "/calendar": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "dayTitle"],
@@ -68,6 +72,7 @@ const PAGE_READS: Record<TripPage, readonly string[]> = {
   "/wishlist": ["trip", "item", "cost", "note", "vote", "stop", "attachment", "tripMember", "fork"],
   "/files": ["attachment", "item", "stop", "transport", "accommodation"],
   "/settings": ["trip", "tripMember", "invite", "shareLink", "calendarFeed", "digest", "chapter"],
+  "/reviews": ["review", "finding", "tripMember"],
 };
 
 describe("scope coverage", () => {
