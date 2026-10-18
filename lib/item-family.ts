@@ -19,12 +19,14 @@
  */
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { surpriseRootFor } from "@/lib/surprise-guard";
+import { surpriseRootFor, type SurpriseClient } from "@/lib/surprise-guard";
 
 /** The columns a family shares. Each is the stored JSON string, or null to clear. */
 export type ItemFamilyData = { openingHours?: string | null; tryList?: string | null };
 
 export type ItemFamilyClient = Pick<Prisma.TransactionClient, "item">;
+/** What itemFamilyRecipients reads through: the family and its Surprise checks. */
+export type ItemFamilyReadClient = ItemFamilyClient & SurpriseClient;
 
 export function itemFamilyRoot(item: { id: string; sourceItemId: string | null }): string {
   return item.sourceItemId ?? item.id;
@@ -38,21 +40,21 @@ export function itemFamilyWhere(tripId: string, rootId: string) {
  * The ids of `item`'s family that may receive a shared write: every other row
  * of the family, minus anything inside a live Surprise. If `item` itself is
  * inside one (its own, or inherited from its Stop), no one: the write reaches
- * only that row. `client` lets a caller read the family inside its own
- * transaction; the Surprise check is a plain read through `db`.
+ * only that row. `client` lets a caller read the family, and its Surprise
+ * checks, inside its own transaction (one connection, not two).
  */
 export async function itemFamilyRecipients(
   item: { id: string; tripId: string; sourceItemId: string | null },
-  client: ItemFamilyClient = db,
+  client: ItemFamilyReadClient = db,
 ): Promise<string[]> {
-  if (await surpriseRootFor({ itemId: item.id })) return [];
+  if (await surpriseRootFor({ itemId: item.id }, undefined, client)) return [];
   const candidates = await client.item.findMany({
     where: { ...itemFamilyWhere(item.tripId, itemFamilyRoot(item)), id: { not: item.id } },
     select: { id: true },
   });
   const recipients: string[] = [];
   for (const c of candidates) {
-    if (!(await surpriseRootFor({ itemId: c.id }))) recipients.push(c.id);
+    if (!(await surpriseRootFor({ itemId: c.id }, undefined, client))) recipients.push(c.id);
   }
   return recipients;
 }

@@ -68,6 +68,21 @@ beforeEach(() => {
 });
 
 describe("surpriseRootFor / requireOutsideSurprise", () => {
+  it("reads through the client it is given (a transaction), item then Stop, never db", async () => {
+    const tx = {
+      item: { findUnique: vi.fn().mockResolvedValue(itemRow("item-1", "stop-1")) },
+      stop: { findUnique: vi.fn().mockResolvedValue(stopRow("stop-1", LIVE)) },
+      accommodation: { findUnique: vi.fn().mockResolvedValue({ stopId: "stop-1" }) },
+    };
+    expect(await surpriseRootFor({ itemId: "item-1" }, NOW, tx as never)).toEqual({ type: "STOP", id: "stop-1" });
+    expect(await surpriseRootFor({ accommodationId: "acc-1" }, NOW, tx as never)).toEqual({ type: "STOP", id: "stop-1" });
+    expect(tx.item.findUnique).toHaveBeenCalledTimes(1);
+    expect(tx.stop.findUnique).toHaveBeenCalledTimes(2);
+    expect(itemFindUniqueMock).not.toHaveBeenCalled();
+    expect(stopFindUniqueMock).not.toHaveBeenCalled();
+    expect(accommodationFindUniqueMock).not.toHaveBeenCalled();
+  });
+
   it("{ stopId } on a live Surprise Stop: root is the Stop, the surprised are refused, others get the root", async () => {
     stopFindUniqueMock.mockResolvedValue(stopRow("stop-1", LIVE));
     expect(await surpriseRootFor({ stopId: "stop-1" }, NOW)).toEqual({ type: "STOP", id: "stop-1" });

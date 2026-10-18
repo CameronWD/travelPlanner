@@ -178,11 +178,17 @@ function tryListFormat(value: unknown): string {
   return list && list.length > 0 ? tryListSummary(list) : "Set";
 }
 
-/** A tick is not a list edit (ADR 0012 amendment: ticked as you go): the same entries in the same order are no change. */
+/**
+ * A tick is not a list edit (ADR 0012 amendment: ticked as you go): the same
+ * entries in the same order are no change. When either side is unreadable,
+ * the stored values themselves decide, so an unrelated edit to an Item whose
+ * stored list won't parse records no "Set → Set" line.
+ */
 function sameTryList(before: unknown, after: unknown): boolean {
   const b = readTryList(before);
   const a = readTryList(after);
-  return b !== null && a !== null && sameTryEntries(b, a);
+  if (b === null || a === null) return before === after;
+  return sameTryEntries(b, a);
 }
 
 /**

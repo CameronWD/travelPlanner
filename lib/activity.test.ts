@@ -706,6 +706,16 @@ describe("describeChanges: an Item's Try list (CONTEXT.md Try list)", () => {
     ]);
   });
 
+  it("an unreadable stored value left as it is is no change (an unrelated edit records no Try list line)", () => {
+    expect(describeChanges("ITEM", { tryList: "not json" }, { tryList: "not json" })).toEqual([]);
+    expect(describeChanges("ITEM", { title: "Market", tryList: "not json" }, { title: "Market (cash only)", tryList: "not json" })).toEqual([
+      expect.objectContaining({ field: "title" }),
+    ]);
+    expect(describeChanges("ITEM", { tryList: two }, { tryList: "not json" })).toEqual([
+      { field: "tryList", label: "Try list", from: "Lebkuchen, Drei im Weggla", to: "Set" },
+    ]);
+  });
+
   it("an unreadable stored value still reads as a change, as 'Set'", () => {
     expect(describeChanges("ITEM", { tryList: "not json" }, { tryList: two })).toEqual([
       { field: "tryList", label: "Try list", from: "Set", to: "Lebkuchen, Drei im Weggla" },

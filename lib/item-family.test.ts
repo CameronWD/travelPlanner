@@ -57,6 +57,15 @@ describe("itemFamilyRecipients (never crosses a Surprise)", () => {
     expect(txFindMany).toHaveBeenCalledTimes(1);
     expect(itemFindManyMock).not.toHaveBeenCalled();
   });
+
+  it("runs its Surprise checks through that client too (one connection, not two)", async () => {
+    const tx = { item: { findMany: vi.fn().mockResolvedValue([{ id: "idea-1" }]) } };
+    await itemFamilyRecipients(COPY, tx as never);
+    expect(surpriseRootForMock.mock.calls).toEqual([
+      [{ itemId: "copy-1" }, undefined, tx],
+      [{ itemId: "idea-1" }, undefined, tx],
+    ]);
+  });
 });
 
 describe("writeItemFamily", () => {

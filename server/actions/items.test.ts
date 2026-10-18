@@ -2777,6 +2777,12 @@ describe("Try list (CONTEXT.md Try list: shared by a thing to do and its placed 
     itemUpdateMock.mockResolvedValue({ ...row, tryList: serializeTryList([LIST[0], { ...LIST[1], text: "Weggla" }, { id: "e3", text: "Schäufele", tried: false }]) });
     await updateItem("copy-1", { tryList: [{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Weggla" }, { text: "Schäufele" }] });
     expect(recordActivity).toHaveBeenCalledTimes(1);
+    // `from` is the locked list ("Weggla"), not the pre-read row's ("Drei im Weggla").
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: [{ field: "tryList", label: "Try list", from: "Lebkuchen, Weggla", to: "Lebkuchen, Weggla, Schäufele" }],
+      }),
+    );
     expect(transactionMock.mock.invocationCallOrder[0]).toBeLessThan((recordActivity as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
   });
 
