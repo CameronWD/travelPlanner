@@ -70,7 +70,7 @@ describe("loadReviewsPage", () => {
   it("a running Review: the line for everyone, and the panel is busy", async () => {
     reads.runningReview.mockResolvedValue(review("r3", { status: "RUNNING", summary: null, finishedAt: null }));
     const m = (await loadReviewsPage(input()))!;
-    expect(m.running).toEqual({ line: "Reviewing… (started by Cam)" });
+    expect(m.running).toEqual({ id: "r3", line: "Reviewing… (started by Cam)" });
     expect(m.panel).toEqual({ kind: "busy" });
   });
 
@@ -93,6 +93,18 @@ describe("loadReviewsPage", () => {
   it("no API key: not set up", async () => {
     ai.isAiConfigured.mockReturnValue(false);
     expect((await loadReviewsPage(input()))!.panel).toEqual({ kind: "not-configured" });
+  });
+
+  it("a FAILED Review: the shown block and the newest run carry its reason (final wave I2)", async () => {
+    const error = "Claude was busy, so this Review stopped. Start it again in a few minutes.";
+    reads.listReviews.mockResolvedValue([review("r3", { status: "FAILED", summary: null, error }), review("r2")]);
+    reads.getReview.mockResolvedValue(review("r3", { status: "FAILED", summary: null, error }));
+    const m = (await loadReviewsPage(input({ reviewId: "r3" })))!;
+    expect(m.shown).toMatchObject({ status: "FAILED", failure: `This Review didn't finish. ${error} Nothing on the trip was changed.` });
+    expect(m.latestRun).toEqual({ id: "r3", status: "FAILED", error });
+    expect(m.history[0].line).toBe(`Didn't finish: ${error}`);
+    // A finished one has no failure line.
+    expect((await loadReviewsPage(input()))!.shown!.failure).toBeNull();
   });
 
   it("no Reviews yet", async () => {

@@ -11,6 +11,7 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: (...a: unknown[]) => toastM
 vi.mock("@/lib/tz", async (orig) => ({ ...(await orig<typeof import("@/lib/tz")>()), deviceTimeZone: () => "Australia/Brisbane" }));
 
 import { ReviewRunPanel, START_FAILED } from "./review-run-panel";
+import { takeWatchedReview } from "./watched-reviews";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -34,6 +35,8 @@ describe("ReviewRunPanel (R12)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Standard Review" }));
     expect(startReview).toHaveBeenCalledWith("t1", "STANDARD");
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
+    // Watched, so a run that fails before the poller sees it still gets its toast (final wave I2).
+    expect(takeWatchedReview("r9")).toBe(true);
   });
 
   it("re-enables the button once the post-start refresh settles (controller fix round 1, item 3)", async () => {

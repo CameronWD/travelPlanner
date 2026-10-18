@@ -79,7 +79,7 @@ export default async function ReviewsPage({
           </>
         ) : null}
       </p>
-      <ReviewPoller active={model.running != null} />
+      <ReviewPoller active={model.running != null} runningId={model.running?.id ?? null} latestRun={model.latestRun} />
 
       {shown ? (
         <section aria-labelledby="shown-review" className="flex flex-col gap-3">
@@ -101,7 +101,7 @@ export default async function ReviewsPage({
               <FindingList groups={shown.groups} actionable={shown.actionable} />
             </>
           ) : shown.status === "FAILED" ? (
-            <p className="text-sm text-muted-foreground">This Review didn&apos;t finish. Nothing on the trip was changed.</p>
+            <p className="text-sm text-muted-foreground">{shown.failure}</p>
           ) : (
             <p className="text-sm text-muted-foreground">Still running.</p>
           )}

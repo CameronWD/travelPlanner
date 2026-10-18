@@ -1,8 +1,9 @@
 import type { Route } from "next";
 import { describe, expect, it } from "vitest";
+import { REVIEW_MESSAGES } from "./messages";
 import {
   FINDING_CATEGORY_LABELS, REVIEW_KIND_LABELS, findingHref, findingStateLabel, formatReviewDay, formatReviewWhen,
-  groupFindings, homeReviewLine, reviewByLine, reviewingLine, sourceLink, suggestedFixLabel, toFindingCard, toHistoryRow,
+  failedReviewText, groupFindings, homeReviewLine, reviewByLine, reviewingLine, sourceLink, suggestedFixLabel, toFindingCard, toHistoryRow,
   type FindingCard, type FindingForView, type ReviewForView,
 } from "./view";
 
@@ -145,8 +146,21 @@ describe("toHistoryRow (R10: who, when, kind, summary line)", () => {
   it("running, failed, and a finished one with no summary", () => {
     expect(toHistoryRow(review({ status: "RUNNING", summary: null }), ctx).line).toBe("Still running");
     expect(toHistoryRow(review({ status: "FAILED", summary: null }), ctx).line).toBe("Didn't finish");
+    // Final wave I2: the stored reason, when there is one.
+    expect(toHistoryRow(review({ status: "FAILED", summary: null, error: REVIEW_MESSAGES.busy }), ctx).line)
+      .toBe("Didn't finish: Claude was busy, so this Review stopped. Start it again in a few minutes.");
     expect(toHistoryRow(review({ summary: null }), ctx).line).toBe("No summary");
     expect(toHistoryRow(review({ id: "r2" }), ctx).current).toBe(false);
+  });
+});
+
+describe("failedReviewText (final wave I2)", () => {
+  it("names why the shown Review stopped, and that nothing changed", () => {
+    expect(failedReviewText(REVIEW_MESSAGES.timeout)).toBe("This Review didn't finish. This Review took too long and stopped. Nothing on the trip was changed.");
+    expect(failedReviewText(null)).toBe("This Review didn't finish. Nothing on the trip was changed.");
+  });
+  it("no em-dash in any reason it can show", () => {
+    for (const m of Object.values(REVIEW_MESSAGES)) expect(failedReviewText(m)).not.toContain("\u2014");
   });
 });
 

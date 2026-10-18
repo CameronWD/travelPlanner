@@ -245,9 +245,16 @@ export interface ReviewForView {
   kind: ReviewKind;
   status: ReviewStatus;
   summary: string | null;
+  /** Why a FAILED Review stopped: always one of REVIEW_MESSAGES (lib/review/messages.ts), or null. */
+  error?: string | null;
   startedAt: Date;
   finishedAt: Date | null;
   startedBy: TravellerRefLike;
+}
+
+/** The shown FAILED Review's line (final wave I2): what stopped it, and that nothing changed. */
+export function failedReviewText(error: string | null | undefined): string {
+  return error ? `This Review didn't finish. ${error} Nothing on the trip was changed.` : "This Review didn't finish. Nothing on the trip was changed.";
 }
 
 /** Spec R11: the tab's line while a Review runs. */
@@ -279,7 +286,8 @@ function historyLine(r: ReviewForView): string {
     case "RUNNING":
       return "Still running";
     case "FAILED":
-      return "Didn't finish";
+      // Final wave I2: say why, e.g. "Didn't finish: Claude was busy, so this Review stopped. …".
+      return r.error ? `Didn't finish: ${r.error}` : "Didn't finish";
     default: {
       const unhandled: never = r.status;
       return unhandled;

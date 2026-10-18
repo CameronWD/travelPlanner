@@ -9,6 +9,7 @@ import { startReview } from "@/server/actions/reviews";
 import { deviceTimeZone } from "@/lib/tz";
 import { nextReviewLabel, type RunPanelState } from "@/lib/review/run-panel";
 import type { ReviewKind } from "@/lib/review/types";
+import { watchReview } from "./watched-reviews";
 
 export const START_FAILED = "Couldn't start the Review. Try again.";
 
@@ -51,6 +52,8 @@ export function ReviewRunPanel({ tripId, state, fallbackTimeZone }: ReviewRunPan
           toastRefused(result, START_FAILED);
           return;
         }
+        // A run that fails before the next refresh still gets its toast (ReviewPoller).
+        watchReview(result.reviewId);
         router.refresh();
       } catch {
         toastRejected(START_FAILED);

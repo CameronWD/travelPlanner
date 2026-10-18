@@ -18,7 +18,9 @@ vi.mock("@/components/trip/reviews/review-run-panel", () => ({
   ReviewRunPanel: (p: { state: { kind: string }; fallbackTimeZone: string }) => <div data-testid="run-panel" data-kind={p.state.kind} data-zone={p.fallbackTimeZone} />,
 }));
 vi.mock("@/components/trip/reviews/review-poller", () => ({
-  ReviewPoller: (p: { active: boolean }) => <div data-testid="poller" data-active={String(p.active)} />,
+  ReviewPoller: (p: { active: boolean; runningId: string | null; latestRun: { id: string; status: string } | null }) => (
+    <div data-testid="poller" data-active={String(p.active)} data-running={p.runningId ?? ""} data-latest={p.latestRun ? `${p.latestRun.id}:${p.latestRun.status}` : ""} />
+  ),
 }));
 vi.mock("@/components/trip/reviews/finding-list", () => ({
   FindingList: (p: { actionable: boolean; groups: unknown[] }) => <div data-testid="finding-list" data-actionable={String(p.actionable)} data-groups={p.groups.length} />,
@@ -32,9 +34,10 @@ import ReviewsPage, { maxDuration, metadata } from "./page";
 const base: ReviewsPageModel = {
   panel: { kind: "ready" },
   running: null,
+  latestRun: { id: "r2", status: "DONE", error: null },
   shown: {
     id: "r2", heading: "Standard Review", byLine: "Run by Cam, Sun 18 Oct, 14:05", status: "DONE",
-    summary: "Two closures to plan around.", groups: [{ severity: "warning", heading: "Warnings", cards: [] }],
+    summary: "Two closures to plan around.", failure: null, groups: [{ severity: "warning", heading: "Warnings", cards: [] }],
     openCount: 2, actionable: true, isLatest: true,
   },
   history: [{ id: "r2", href: "/trips/xmas/reviews?review=r2" as never, kindLabel: "Standard Review", byName: "Cam", when: "Sun 18 Oct, 14:05", line: "x", status: "DONE", current: true }],
@@ -93,21 +96,25 @@ describe("the Reviews tab (R10)", () => {
   });
 
   it("while running: the line for everyone and the poll is on", async () => {
-    model.current = { ...base, running: { line: "Reviewing… (started by Cam)" } };
+    model.current = { ...base, running: { id: "r3", line: "Reviewing… (started by Cam)" }, latestRun: { id: "r3", status: "RUNNING", error: null } };
     await renderPage();
     expect(screen.getByRole("status")).toHaveTextContent("Reviewing… (started by Cam)");
     expect(screen.getByTestId("poller")).toHaveAttribute("data-active", "true");
+    // The poller watches the run, so it can toast if it ends FAILED (final wave I2).
+    expect(screen.getByTestId("poller")).toHaveAttribute("data-running", "r3");
+    expect(screen.getByTestId("poller")).toHaveAttribute("data-latest", "r3:RUNNING");
   });
 
-  it("a Review that didn't finish says so, with no Findings list", async () => {
-    model.current = { ...base, shown: { ...base.shown!, status: "FAILED", summary: null, groups: [], openCount: 0, actionable: false } };
+  it("a Review that didn't finish says why, with no Findings list (final wave I2)", async () => {
+    const failure = "This Review didn't finish. Claude was busy, so this Review stopped. Start it again in a few minutes. Nothing on the trip was changed.";
+    model.current = { ...base, shown: { ...base.shown!, status: "FAILED", summary: null, failure, groups: [], openCount: 0, actionable: false } };
     await renderPage();
-    expect(screen.getByText("This Review didn't finish. Nothing on the trip was changed.")).toBeInTheDocument();
+    expect(screen.getByText(failure)).toBeInTheDocument();
     expect(screen.queryByTestId("finding-list")).toBeNull();
   });
 
   it("no Reviews yet: an empty state, worded for whether the viewer can run one", async () => {
-    model.current = { panel: { kind: "hidden" }, running: null, shown: null, history: [] };
+    model.current = { panel: { kind: "hidden" }, running: null, latestRun: null, shown: null, history: [] };
     await renderPage();
     expect(screen.getByText("No Reviews yet")).toBeInTheDocument();
     expect(screen.getByText("When someone on this trip runs a Review, what Claude finds shows here.")).toBeInTheDocument();

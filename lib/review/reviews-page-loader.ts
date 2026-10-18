@@ -4,7 +4,7 @@ import { countedReviewStarts, reviewPermissionOf } from "@/lib/review-permission
 import { reviewAllowance } from "@/lib/review-permission";
 import { runPanelState, type RunPanelState } from "@/lib/review/run-panel";
 import {
-  REVIEW_KIND_LABELS, groupFindings, reviewByLine, reviewingLine, toFindingCard, toHistoryRow,
+  REVIEW_KIND_LABELS, failedReviewText, groupFindings, reviewByLine, reviewingLine, toFindingCard, toHistoryRow,
   type FindingGroup, type HistoryRow,
 } from "@/lib/review/view";
 import type { ReviewStatus } from "@/lib/review/types";
@@ -17,6 +17,8 @@ interface ShownReview {
   byLine: string;
   status: ReviewStatus;
   summary: string | null;
+  /** A FAILED Review's line, naming why it stopped (final wave I2); null otherwise. */
+  failure: string | null;
   groups: FindingGroup[];
   openCount: number;
   /**
@@ -33,7 +35,12 @@ interface ShownReview {
 
 export interface ReviewsPageModel {
   panel: RunPanelState;
-  running: { line: string } | null;
+  running: { id: string; line: string } | null;
+  /**
+   * The Trip's newest Review, whatever its status (the history's first row):
+   * ReviewPoller toasts its error when a run this tab watched ends FAILED.
+   */
+  latestRun: { id: string; status: ReviewStatus; error: string | null } | null;
   shown: ShownReview | null;
   history: HistoryRow[];
 }
@@ -84,7 +91,8 @@ export async function loadReviewsPage(input: {
       running: running != null,
       allowance: reviewAllowance(permission, starts, now),
     }),
-    running: running ? { line: reviewingLine(running.startedBy) } : null,
+    running: running ? { id: running.id, line: reviewingLine(running.startedBy) } : null,
+    latestRun: history[0] ? { id: history[0].id, status: history[0].status, error: history[0].error } : null,
     shown: review
       ? {
           id: review.id,
@@ -92,6 +100,7 @@ export async function loadReviewsPage(input: {
           byLine: reviewByLine(review, timeZone),
           status: review.status,
           summary: review.summary,
+          failure: review.status === "FAILED" ? failedReviewText(review.error) : null,
           groups: groupFindings(cards),
           openCount: cards.filter((c) => c.state === "OPEN").length,
           actionable: isLatest && review.status === "DONE",
