@@ -32,6 +32,16 @@ export type BeginReviewResult =
  */
 export async function beginReview(userId: string, tripId: string, kind: ReviewKind, model: string, now: Date = new Date()): Promise<BeginReviewResult> {
   return db.$transaction(async (tx): Promise<BeginReviewResult> => {
+    // A theoretical deadlock, noted, not fixed (docs/open-follow-ups.md): a
+    // saveReviewResult (lib/review-store.ts) holding its Review row FOR UPDATE
+    // can insert a Finding whose stateById (a carried Dismissal) is this User,
+    // which needs a KEY SHARE lock this FOR UPDATE blocks, while this start,
+    // below, waits on that same Review row to mark it stale. Only a save that
+    // passed its own stale check just as the row turned stale can meet it
+    // (a save of a row already stale refuses before inserting anything).
+    // Postgres detects the cycle (40P01) and aborts one transaction: the
+    // start returns an error to retry, or the job ends the Review FAILED.
+    // Neither leaves bad data.
     await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
     await tx.$queryRaw`SELECT "id" FROM "Trip" WHERE "id" = ${tripId} FOR NO KEY UPDATE`;
 
