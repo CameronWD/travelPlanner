@@ -80,6 +80,19 @@ describe("parseUndoPayload", () => {
     expect(parseUndoPayload("{")).toBeNull();
     expect(parseUndoPayload(JSON.stringify({ ...payload, before: { kind: "note" } }))).toBeNull();
   });
+  it("round-trips a checklist fix's payload, and keeps the two shapes apart (spec 2026-10-18 A2)", () => {
+    const checklist = {
+      fix: { kind: "checklist.add", list: "PACKING", text: "Umbrella" },
+      done: "added",
+      itemId: "c9",
+      after: { text: "Umbrella", done: false, buy: "NEEDED" },
+    };
+    expect(parseUndoPayload(JSON.stringify(checklist))).toEqual(checklist);
+    expect(parseUndoPayload(JSON.stringify({ ...checklist, done: "none", itemId: "c1", after: null }))).toEqual({ ...checklist, done: "none", itemId: "c1", after: null });
+    expect(parseUndoPayload(JSON.stringify({ ...checklist, done: "eaten" }))).toBeNull();
+    expect(parseUndoPayload(JSON.stringify({ ...checklist, fix: payload.fix }))).toBeNull();
+    expect(parseUndoPayload(JSON.stringify({ ...payload, fix: checklist.fix }))).toBeNull();
+  });
 });
 
 it("action copy never uses an em-dash", () => {

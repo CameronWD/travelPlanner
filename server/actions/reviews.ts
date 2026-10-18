@@ -2,7 +2,8 @@
 
 /**
  * Acting on a Review's Findings (spec 2026-10-17 R8, R10, R12): Dismiss,
- * Apply (R.12) and Undo. Open to everyone on the Trip (R12). Every write is
+ * Apply (R.12) and Undo. Apply changes the Finding's own row, or adds to the
+ * Packing or Pre-trip list (spec 2026-10-18 A2). Open to everyone on the Trip (R12). Every write is
  * conditional on the state it read, so two Travellers clicking at once
  * can't both act. Apply and Dismiss only on the Trip's latest DONE Review
  * (decision 6); Undo on any.
@@ -11,7 +12,7 @@ import { after } from "next/server";
 import { isAiConfigured, reviewModel } from "@/lib/ai";
 import { db } from "@/lib/db";
 import { requireRowAccess, requireTripAccess } from "@/lib/guards";
-import { requireFindingAccess } from "@/lib/review-reads";
+import { requireFindingAccess, type FindingAccess } from "@/lib/review-reads";
 import { parseSuggestedFix } from "@/lib/review/schema";
 import {
   REVIEW_ACTION_COPY as COPY,
@@ -24,13 +25,15 @@ import {
   snapshotFor,
   type FixRow,
   type FixSnapshot,
+  type ChecklistUndoPayload,
   type FixTarget,
-  type UndoPayload,
+  type RowUndoPayload,
 } from "@/lib/review/fix";
+import { CHECKLIST_CHOICES, CHECKLIST_FIX_COPY, planChecklistFix, type ChecklistChoice } from "@/lib/review/checklist-fix";
 import { REVIEW_MESSAGES } from "@/lib/review/messages";
 import { runReview } from "@/lib/review/run";
 import { beginReview } from "@/lib/review/start";
-import { isChecklistFix, REVIEW_KINDS, type ReviewKind, type RowFix } from "@/lib/review/types";
+import { isChecklistFix, REVIEW_KINDS, type ChecklistFix, type ReviewKind, type RowFix } from "@/lib/review/types";
 import type { BookingState } from "@/lib/enum-values";
 import { fail, FORM_ERROR_KEY, formFail, ok, type ActionResult } from "@/lib/action-result";
 import { isNextControlFlow } from "@/lib/next-control-flow";
@@ -39,6 +42,7 @@ import { parseOpeningHours } from "@/lib/validations/opening-hours";
 import { rescheduleItem, setOpeningHours, updateItem } from "@/server/actions/items";
 import { updateTransport } from "@/server/actions/transport";
 import { updateAccommodation } from "@/server/actions/accommodation";
+import { addChecklistItem, deleteChecklistItem, setBuyState } from "@/server/actions/checklists";
 
 type FixRowWithPlan = FixRow & { tripId: string; forkId: string | null };
 
@@ -76,7 +80,7 @@ async function reachableRow(target: FixTarget, tripId: string): Promise<FixRowWi
 }
 
 /** An action's own notFound() (its guard) is a clean "gone" failure, not a 404 page. */
-async function guarded(run: () => Promise<ActionResult>, gone: string): Promise<ActionResult> {
+async function guarded<T extends object = Record<never, never>>(run: () => Promise<ActionResult<T>>, gone: string): Promise<ActionResult<T>> {
   try {
     return await run();
   } catch (err) {
@@ -151,16 +155,18 @@ async function restoreSnapshot(fix: RowFix, before: FixSnapshot, current: FixRow
  * The Finding is claimed first (OPEN → APPLIED), so it runs at most once.
  * A refusal releases the claim and comes back as the action's own failure.
  * On success the touched fields, before and after, are saved for Undo.
+ * A checklist fix (spec 2026-10-18 A2) takes the Traveller's `choice` too:
+ * Need to pack or Need to buy, for a Packing fix. `already` is the toast
+ * when the entry was there and nothing was added.
  */
-export async function applyFinding(findingId: string): Promise<ActionResult> {
+export async function applyFinding(findingId: string, choice?: ChecklistChoice): Promise<ActionResult<{ already?: string }>> {
   const { user, finding, isLatest } = await requireFindingAccess(findingId);
   if (finding.state !== "OPEN") return formFail(COPY.handled, "handled");
   if (!isLatest) return formFail(COPY.replaced, "replaced");
   const fix = parseSuggestedFix(finding.suggestedFix);
   // A fix only ever changes the Finding's own row (lib/review/fix.ts fixFitsTarget), as the reads show it.
   if (!fix || !fixFitsTarget(fix, finding)) return formFail(COPY.noFix, "no-fix");
-  // Task 5 replaces this: Apply doesn't yet add to a Checklist.
-  if (isChecklistFix(fix)) return formFail(COPY.noFix, "no-fix");
+  if (isChecklistFix(fix)) return applyChecklistFix(user.id, finding, fix, choice);
   const target = fixTarget(fix);
   const row = await reachableRow(target, finding.tripId);
   if (!row) return formFail(COPY.gone, "gone");
@@ -193,7 +199,7 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
       return result;
     }
     const now = await loadFixRow(target);
-    const payload: UndoPayload = { fix, before, after: now ? snapshotFor(fix, now) : before };
+    const payload: RowUndoPayload = { fix, before, after: now ? snapshotFor(fix, now) : before };
     // Only onto our own claim, still waiting for its payload. A claim older
     // than the 5-minute stranded cutoff (lib/review/fix.ts isStrandedApply)
     // may have been released by an Undo meanwhile: the request that made it
@@ -215,6 +221,84 @@ export async function applyFinding(findingId: string): Promise<ActionResult> {
   }
   revalidateTrip(finding.tripId, "reviews");
   return ok();
+}
+
+/**
+ * Spec 2026-10-18 A2: add the entry (or mark the existing one Need to buy)
+ * through the checklist actions, as the clicking Traveller, claimed first
+ * like a row fix. The duplicate guard (lib/review/checklist-fix.ts) reads
+ * the list before the claim. `rawChoice` comes from the client, so it is
+ * checked here; a Pre-trip fix ignores it.
+ */
+async function applyChecklistFix(
+  userId: string,
+  finding: FindingAccess["finding"],
+  fix: ChecklistFix,
+  rawChoice: unknown,
+): Promise<ActionResult<{ already?: string }>> {
+  const choice = fix.list === "PRETRIP" ? "PACK" : CHECKLIST_CHOICES.find((c) => c === rawChoice);
+  if (!choice) return formFail(CHECKLIST_FIX_COPY.choose, "invalid");
+  const existing = await db.checklistItem.findMany({
+    where: { tripId: finding.tripId, kind: fix.list },
+    select: { id: true, text: true, done: true, buy: true },
+  });
+  const plan = planChecklistFix(fix, choice, existing);
+
+  const claimed = await db.finding.updateMany({
+    where: { id: finding.id, state: "OPEN" },
+    data: { state: "APPLIED", stateById: userId, stateAt: new Date(), undoPayload: null },
+  });
+  if (claimed.count === 0) return formFail(COPY.handled, "handled");
+  // As a row fix: release our own claim, and save the payload only onto it.
+  const release = () =>
+    db.finding.updateMany({
+      where: { id: finding.id, state: "APPLIED", stateById: userId, undoPayload: null },
+      data: { state: "OPEN", stateById: null, stateAt: null },
+    });
+  const savePayload = (payload: ChecklistUndoPayload) =>
+    db.finding.updateMany({
+      where: { id: finding.id, state: "APPLIED", stateById: userId, undoPayload: null },
+      data: { undoPayload: JSON.stringify(payload) },
+    });
+
+  let already: string | undefined;
+  try {
+    if (plan.kind === "already") {
+      await savePayload({ fix, done: "none", itemId: plan.itemId, after: null });
+      already = plan.copy;
+    } else if (plan.kind === "mark") {
+      const marked = await guarded(() => setBuyState(plan.itemId, "NEEDED"), COPY.gone);
+      if (!marked.success) {
+        await release();
+        return marked;
+      }
+      const row = await db.checklistItem.findUnique({ where: { id: plan.itemId }, select: { text: true, done: true, buy: true } });
+      await savePayload({ fix, done: "marked", itemId: plan.itemId, after: row });
+    } else {
+      const added = await guarded(() => addChecklistItem(finding.tripId, { kind: fix.list, text: fix.text }), COPY.gone);
+      if (!added.success) {
+        await release();
+        return added;
+      }
+      const buy = plan.buy;
+      if (buy) {
+        const marked = await guarded(() => setBuyState(added.id, buy), COPY.gone);
+        if (!marked.success) {
+          // Never leave a half-made entry behind the refusal.
+          await guarded(() => deleteChecklistItem(added.id), COPY.gone);
+          await release();
+          return marked;
+        }
+      }
+      // fix.text is already trimmed (lib/review/schema.ts), as addChecklistItem stores it.
+      await savePayload({ fix, done: "added", itemId: added.id, after: { text: fix.text, done: false, buy } });
+    }
+  } catch (err) {
+    await release().catch(() => undefined);
+    throw err;
+  }
+  revalidateTrip(finding.tripId, "reviews");
+  return already ? ok({ already }) : ok();
 }
 
 /**
@@ -277,8 +361,8 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
     revalidateTrip(finding.tripId, "reviews");
     return ok();
   }
-  // No Apply has ever saved a checklist.add payload (applyFinding refuses it, above), so this is always a RowFix. Task 5 widens it.
-  const fix = payload.fix as RowFix;
+  if ("done" in payload) return undoChecklistFix(finding, payload);
+  const fix = payload.fix;
   const target = fixTarget(fix);
   const row = await reachableRow(target, finding.tripId);
   if (!row) return formFail(COPY.goneUndo, "gone");
@@ -306,6 +390,42 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
       data: { state: "APPLIED", stateById: finding.stateById, stateAt: finding.stateAt, undoPayload: finding.undoPayload },
     });
     return result;
+  }
+  revalidateTrip(finding.tripId, "reviews");
+  return ok();
+}
+
+/**
+ * Spec 2026-10-18 A2 Undo: take off the entry Apply added, or unmark the row
+ * it marked, only while it is as Apply left it (decision 7: never overwrite
+ * a tick or an edit since). When Apply added nothing, just reopen.
+ */
+async function undoChecklistFix(finding: FindingAccess["finding"], payload: ChecklistUndoPayload): Promise<ActionResult> {
+  const { done, itemId } = payload;
+  if (done !== "none") {
+    const row = itemId
+      ? await db.checklistItem.findUnique({ where: { id: itemId }, select: { tripId: true, text: true, done: true, buy: true } })
+      : null;
+    if (!row || row.tripId !== finding.tripId) return formFail(COPY.goneUndo, "gone");
+    const a = payload.after;
+    if (!a || row.text !== a.text || row.done !== a.done || row.buy !== a.buy) return formFail(COPY.changed, "changed");
+  }
+
+  const claimed = await db.finding.updateMany({
+    where: { id: finding.id, state: "APPLIED", undoPayload: finding.undoPayload },
+    data: { state: "OPEN", stateById: null, stateAt: null, undoPayload: null },
+  });
+  if (claimed.count === 0) return formFail(COPY.handled, "handled");
+
+  if (done !== "none" && itemId) {
+    const result = await guarded(() => (done === "added" ? deleteChecklistItem(itemId) : setBuyState(itemId, null)), COPY.goneUndo);
+    if (!result.success) {
+      await db.finding.updateMany({
+        where: { id: finding.id, state: "OPEN", stateById: null },
+        data: { state: "APPLIED", stateById: finding.stateById, stateAt: finding.stateAt, undoPayload: finding.undoPayload },
+      });
+      return result;
+    }
   }
   revalidateTrip(finding.tripId, "reviews");
   return ok();
