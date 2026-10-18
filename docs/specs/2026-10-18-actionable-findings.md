@@ -117,6 +117,19 @@ Packing that the person picks pack vs buy) and the new Fixed-in-the-plan state.
 Claude carries a checklist fix out with `add_checklist_item` /
 `set_need_to_buy`, as it already does other fixes with the ordinary tools.
 
+## A7. A running Review says you can leave (added 2026-10-18)
+
+A Review already runs on the server after the page responds (`after()`), so
+leaving the tab is safe; the page just never said so.
+
+- Running line: "Reviewing… started by Cam at 14:05. This takes a few minutes
+  and keeps going if you leave. Check back around 14:10." (start + 5 min, the
+  Trip's zone).
+- A run this tab watched that finishes DONE toasts "Review finished" with
+  "7 to deal with" (today only a FAILED run toasts).
+- Home's review line, while one runs: "Review running, back around 14:10".
+- Push or email on finish: not in this branch.
+
 ## Not in this branch / follow-ups
 
 - **Real routing** (Google Maps or similar) for walk/drive/transit times in the

@@ -709,6 +709,31 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
+### Task 10: A running Review says it carries on without you, and when to come back
+
+Spec A7 (added 2026-10-18 after the plan: the user asked for it mid-planning).
+
+**Files:**
+- Modify: `lib/review/view.ts` (`reviewingLine`, `homeReviewLine`, a new `reviewBackAround`), `lib/review/reviews-page-loader.ts` (`running.line`, `latestRun.openCount`), `components/trip/reviews/review-poller.tsx` (success toast), `app/(app)/trips/[tripId]/page.tsx` (Home loads the running Review)
+- Test: `lib/review/view.test.ts`, `lib/review/reviews-page-loader.test.ts`, `components/trip/reviews/review-poller.test.tsx` (create if absent, or extend the existing one)
+
+**Interfaces:**
+- Produces:
+  - `export const REVIEW_BACK_AFTER_MS = 5 * 60_000;`
+  - `export function reviewBackAround(startedAt: Date, timeZone: string): string` → `"14:10"` (start + 5 min, the Trip's zone, `zonedParts`).
+  - `reviewingLine(startedBy: TravellerRefLike, startedAt: Date, timeZone: string): string` → `"Reviewing… started by Cam at 14:05. This takes a few minutes and keeps going if you leave. Check back around 14:10."`
+  - `homeReviewLine(review, ctx, running?: { startedAt: Date } | null)` → while running: `{ text: "Review running, back around 14:10", href: <reviews> }`, ahead of the open count.
+  - Loader `latestRun: { id; status; error; openCount: number } | null`.
+  - `export const REVIEW_DONE_TITLE = "Review finished";` and the description `"N to deal with"` (`"1 to deal with"`, `"Nothing to deal with"` for 0).
+
+- [ ] **Step 1: Failing tests.** `view.test.ts`: `reviewBackAround(new Date("2026-10-18T03:05:00Z"), "Europe/Berlin")` → `"05:10"`; `reviewingLine` exact copy as above; a former Traveller reads "started by a former Traveller at …"; `homeReviewLine(null, ctx, { startedAt })` and `homeReviewLine({ openCount: 3, … }, ctx, { startedAt })` both give the running text; without `running` unchanged. Loader test: `running.line` is the new copy; `latestRun.openCount` comes from the history row. Poller test (fake timers not needed): with a watched run (`watchReview(id)` first) whose `latestRun` arrives `DONE` with `openCount: 7`, `toast` is called once with `{ title: "Review finished", description: "7 to deal with" }`; `FAILED` keeps today's destructive toast; an unwatched run toasts nothing.
+- [ ] **Step 2: Run** them — FAIL.
+- [ ] **Step 3: Implement.** In the poller's last effect add the `DONE` branch (`toast({ title: REVIEW_DONE_TITLE, description: toDealWith(latestRun.openCount) })`). Home page: add `runningReview(tripId)` to the existing `Promise.all` beside `latestReviewOpenCount(tripId)` and pass it to `homeReviewLine`. Update the doc comments (spec 2026-10-18 A7; the run carries on server-side in `after()`, so leaving is safe). Note the toast's `openCount` is the history row's count, which Task 6 made shown-state aware.
+- [ ] **Step 4: Run** — PASS; `npx vitest related --run lib/review/view.ts lib/review/reviews-page-loader.ts components/trip/reviews/review-poller.tsx "app/(app)/trips/[tripId]/page.tsx"`; `npx tsc --noEmit`; eslint.
+- [ ] **Step 5: Commit** `feat(reviews): a running Review says it keeps going if you leave, and when to check back`.
+
+---
+
 ### Branch verification (once, by the orchestrator)
 
 - [ ] `npm test`
