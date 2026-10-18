@@ -43,7 +43,8 @@ describe("loadReviewsPage", () => {
   it("shows the latest finished Review, actionable, with its groups and open count", async () => {
     const m = (await loadReviewsPage(input()))!;
     expect(m.shown).toMatchObject({ id: "r2", heading: "Standard Review", byLine: "Run by Cam, Sat 17 Oct, 14:05", openCount: 2, actionable: true, isLatest: true, summary: "Summary r2" });
-    expect(m.shown!.groups.map((g) => g.heading)).toEqual(["Warnings", "Notes"]);
+    expect(m.shown!.open.map((g) => g.heading)).toEqual(["Warnings", "Notes"]);
+    expect(m.shown!.dealtWith.map((c) => c.id)).toEqual(["b"]);
     expect(m.history.map((h) => [h.id, h.current])).toEqual([["r2", true], ["r1", false]]);
     expect(m.panel).toEqual({ kind: "ready" });
     expect(m.running).toBeNull();

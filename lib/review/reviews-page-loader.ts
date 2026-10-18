@@ -4,8 +4,8 @@ import { countedReviewStarts, reviewPermissionOf } from "@/lib/review-permission
 import { reviewAllowance } from "@/lib/review-permission";
 import { runPanelState, type RunPanelState } from "@/lib/review/run-panel";
 import {
-  REVIEW_KIND_LABELS, failedReviewText, groupFindings, reviewByLine, reviewingLine, toFindingCard, toHistoryRow,
-  type FindingGroup, type HistoryRow,
+  REVIEW_KIND_LABELS, failedReviewText, partitionFindings, reviewByLine, reviewingLine, toFindingCard, toHistoryRow,
+  type FindingCard, type FindingGroup, type HistoryRow,
 } from "@/lib/review/view";
 import type { ReviewStatus } from "@/lib/review/types";
 
@@ -19,7 +19,8 @@ interface ShownReview {
   summary: string | null;
   /** A FAILED Review's line, naming why it stopped (final wave I2); null otherwise. */
   failure: string | null;
-  groups: FindingGroup[];
+  open: FindingGroup[];
+  dealtWith: FindingCard[];
   openCount: number;
   /**
    * The Trip's current, live Review: Apply/Dismiss show on its OPEN
@@ -83,6 +84,7 @@ export async function loadReviewsPage(input: {
   const isLatest = review != null && latest != null && review.id === latest.id;
   const ctx = { base, timeZone };
   const cards = review ? review.findings.map((f) => toFindingCard(f, ctx)) : [];
+  const { open, dealtWith } = partitionFindings(cards);
 
   return {
     panel: runPanelState({
@@ -101,7 +103,8 @@ export async function loadReviewsPage(input: {
           status: review.status,
           summary: review.summary,
           failure: review.status === "FAILED" ? failedReviewText(review.error) : null,
-          groups: groupFindings(cards),
+          open,
+          dealtWith,
           openCount: cards.filter((c) => c.state === "OPEN").length,
           actionable: isLatest && review.status === "DONE",
           isLatest,

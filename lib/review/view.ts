@@ -1,10 +1,13 @@
 import type { Route } from "next";
+import type { Flag } from "@/lib/flags";
+import { flagHref } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
 import { shortDate } from "@/lib/time-display";
 import type { BookingState } from "@/lib/enum-values";
 import {
   FINDING_CATEGORY_LABELS,
   REVIEW_KIND_LABELS,
+  isChecklistFix,
   type FindingCategory,
   type FindingSeverity,
   type FindingShownState,
@@ -101,6 +104,8 @@ export interface FindingForView {
   canUndo: boolean;
   /** R's FindingView: an opening-hours fix on an Item that already has hours (final wave M6). */
   replacesHours?: boolean;
+  /** R's FindingView: an Open restated Flag's Flag as it fires now; null otherwise (spec 2026-10-18 A1/A4). */
+  liveFlag?: Flag | null;
 }
 
 function byWhen(verb: string, f: Pick<FindingForView, "stateAt" | "stateBy">, timeZone: string): string {
@@ -171,11 +176,38 @@ export function suggestedFixLabel(fix: SuggestedFix, opts: { replacesHours?: boo
 }
 
 /** Where a Finding is fixed: an Item's or a day's page, a Stop on the plan, else the plan. The whole Trip has no single place. */
-export function findingHref(f: Pick<FindingForView, "targetType" | "targetId" | "date">, base: string): Route | null {
+function findingHref(f: Pick<FindingForView, "targetType" | "targetId" | "date">, base: string): Route | null {
   if (f.targetType === "TRIP") return null;
   if ((f.targetType === "ITEM" || f.targetType === "DAY") && f.date) return tripSubPath(base, `/day/${f.date}`);
   if (f.targetType === "STOP" && f.targetId) return tripSubPath(base, `/plan?stop=${encodeURIComponent(f.targetId)}`);
   return tripSubPath(base, "/plan");
+}
+
+/** The verb for a Finding's go-to link: what opening its href does. */
+function goToLabel(f: { targetType: FindingTargetType; date: string | null; liveFlag?: Flag | null }): string {
+  const flag = f.liveFlag;
+  if (flag?.connection) return "Add the transport";
+  if (f.targetType === "DAY") return f.date ? "Open the day" : "Open the calendar";
+  if (f.targetType === "ITEM" && f.date) return "Open the day";
+  if (f.targetType === "STOP" || flag?.stopId) return "Open the stop";
+  return "Open in the plan";
+}
+
+/**
+ * Where a Finding is fixed (spec 2026-10-18 A1). A Flag's Finding that still
+ * fires goes exactly where the Summary's Flag goes (flagHref): the label
+ * reads the Finding's own targetType/date even then, so a retimed tight
+ * connection (ITEM + date) still reads "Open the day", matching flagHref's
+ * DAY link. Anything else goes by its own target; a whole-Trip Finding from
+ * the Review's own checks (never a restated Flag) goes nowhere.
+ */
+export function findingGoTo(
+  f: Pick<FindingForView, "targetType" | "targetId" | "date" | "liveFlag">,
+  base: string,
+): { href: Route; label: string } | null {
+  if (f.liveFlag) return { href: flagHref(f.liveFlag, base), label: goToLabel(f) };
+  const href = findingHref(f, base);
+  return href ? { href, label: goToLabel(f) } : null;
 }
 
 /** The model's source URL, only when it is plain http(s): it is untrusted text. */
@@ -200,9 +232,12 @@ export interface FindingCard {
   source: { href: string; host: string } | null;
   state: FindingShownState;
   stateLabel: string;
-  /** The fix in words; null means Dismiss only (spec R8). */
-  fixLabel: string | null;
-  href: Route | null;
+  /** The fix in words and what applying it does; null means Dismiss only (spec R8). Null unless the card is Open: a dealt-with card's fix is history, not an action. */
+  fix: { kind: "row" | "packing" | "pretrip"; label: string } | null;
+  /** Where to go to see or fix it, and the link's own verb; null for a whole-Trip Finding with nowhere to go. */
+  goTo: { href: Route; label: string } | null;
+  /** When it was last acted on, in epoch ms (null: never); drives the Dealt with list's order. */
+  stateAtMs: number | null;
   /** R's FindingView flags, passed straight through: Apply/Dismiss only on the latest DONE Review; Undo of an Apply on any Review, Undo of a Dismiss only on the latest, a stranded Apply shows Undo. */
   canApply: boolean;
   canDismiss: boolean;
@@ -210,6 +245,13 @@ export interface FindingCard {
 }
 
 export function toFindingCard(f: FindingForView, ctx: { base: string; timeZone: string }): FindingCard {
+  const fix =
+    f.state === "OPEN" && f.suggestedFix
+      ? {
+          kind: isChecklistFix(f.suggestedFix) ? (f.suggestedFix.list === "PACKING" ? ("packing" as const) : ("pretrip" as const)) : ("row" as const),
+          label: suggestedFixLabel(f.suggestedFix, { replacesHours: f.replacesHours }),
+        }
+      : null;
   return {
     id: f.id,
     severity: f.severity,
@@ -219,8 +261,9 @@ export function toFindingCard(f: FindingForView, ctx: { base: string; timeZone: 
     source: sourceLink(f.source),
     state: f.state,
     stateLabel: findingStateLabel(f, ctx.timeZone),
-    fixLabel: f.suggestedFix ? suggestedFixLabel(f.suggestedFix, { replacesHours: f.replacesHours }) : null,
-    href: findingHref(f, ctx.base),
+    fix,
+    goTo: findingGoTo(f, ctx.base),
+    stateAtMs: f.stateAt?.getTime() ?? null,
     canApply: f.canApply,
     canDismiss: f.canDismiss,
     canUndo: f.canUndo,
@@ -233,17 +276,32 @@ export interface FindingGroup {
   cards: FindingCard[];
 }
 
-const STATE_ORDER: Record<FindingShownState, number> = { OPEN: 0, APPLIED: 1, DISMISSED: 2, FIXED: 3, GONE: 4 };
+/** Dealt-with first by state, FIXED first: it needs nobody's attention at all, not even a glance at when. */
+function dealtWithRank(c: Pick<FindingCard, "state" | "stateAtMs">): number {
+  return c.state === "FIXED" ? Infinity : c.stateAtMs ?? -Infinity;
+}
 
-/** By severity (as FlagList does: Warnings, then Notes); inside each, what still needs doing first. */
-export function groupFindings(cards: FindingCard[]): FindingGroup[] {
-  return (["warning", "info"] as const)
+/**
+ * Splits a Review's cards (spec 2026-10-18 A1): `open` is what still needs
+ * doing, by severity (as FlagList does: Warnings, then Notes); `dealtWith` is
+ * everything else, Fixed first, then most recently acted on, nulls last.
+ */
+export function partitionFindings(cards: FindingCard[]): { open: FindingGroup[]; dealtWith: FindingCard[] } {
+  const open = (["warning", "info"] as const)
     .map((severity) => ({
       severity,
       heading: severity === "warning" ? ("Warnings" as const) : ("Notes" as const),
-      cards: cards.filter((c) => c.severity === severity).sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state]),
+      cards: cards.filter((c) => c.severity === severity && c.state === "OPEN"),
     }))
     .filter((g) => g.cards.length > 0);
+  const dealtWith = cards
+    .filter((c) => c.state !== "OPEN")
+    .sort((a, b) => {
+      const ra = dealtWithRank(a);
+      const rb = dealtWithRank(b);
+      return ra === rb ? 0 : ra > rb ? -1 : 1;
+    });
+  return { open, dealtWith };
 }
 
 // ---------------------------------------------------------------------------

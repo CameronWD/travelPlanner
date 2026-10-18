@@ -129,11 +129,11 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
             <Badge variant={BADGE[state]}>{stateLabel}</Badge>
           </div>
           <p className="font-semibold leading-snug text-foreground">
-            {card.href ? <Link href={card.href} className="underline-offset-2 hover:underline">{card.title}</Link> : card.title}
+            {card.goTo ? <Link href={card.goTo.href} className="underline-offset-2 hover:underline">{card.title}</Link> : card.title}
           </p>
           <p className="leading-snug text-foreground">{card.detail}</p>
-          {state === "OPEN" && card.fixLabel ? (
-            <p className="text-[13px] text-muted-foreground">Suggested fix: {card.fixLabel}</p>
+          {state === "OPEN" && card.fix ? (
+            <p className="text-[13px] text-muted-foreground">Suggested fix: {card.fix.label}</p>
           ) : null}
           {card.source ? (
             <a href={card.source.href} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground underline underline-offset-2">

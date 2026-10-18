@@ -15,6 +15,7 @@ vi.mock("@/components/ui/undo-toast", () => ({
 const toastMock = vi.hoisted(() => vi.fn());
 vi.mock("@/components/ui/use-toast", () => ({ toast: (...a: unknown[]) => toastMock(...a) }));
 
+import type { Route } from "next";
 import { FindingList } from "./finding-list";
 import type { FindingCard, FindingGroup } from "@/lib/review/view";
 
@@ -28,7 +29,7 @@ import type { FindingCard, FindingGroup } from "@/lib/review/view";
 const card = (o: Partial<FindingCard> = {}): FindingCard => ({
   id: "f1", severity: "warning", categoryLabel: "Booking", title: "Night train not booked", detail: "Sells out in December.",
   source: { href: "https://example.com/nj", host: "example.com" }, state: "OPEN", stateLabel: "Open",
-  fixLabel: "Mark as to book", href: "/trips/xmas/plan" as FindingCard["href"],
+  fix: { kind: "row", label: "Mark as to book" }, goTo: { href: "/trips/xmas/plan" as Route, label: "Open in the plan" }, stateAtMs: null,
   canApply: true, canDismiss: true, canUndo: false, ...o,
 });
 const groups = (...cards: FindingCard[]): FindingGroup[] => [
@@ -44,7 +45,7 @@ beforeEach(() => {
 
 describe("FindingList (R8, R10)", () => {
   it("groups by severity and shows each Finding's detail, fix, source and state", () => {
-    render(<FindingList actionable groups={groups(card(), card({ id: "f2", severity: "info", title: "Pack layers", fixLabel: null, canApply: false, source: null }))} />);
+    render(<FindingList actionable groups={groups(card(), card({ id: "f2", severity: "info", title: "Pack layers", fix: null, canApply: false, source: null }))} />);
     expect(screen.getByRole("heading", { name: "Warnings (1)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Notes (1)" })).toBeInTheDocument();
     const r = within(row("Night train not booked"));
@@ -77,7 +78,7 @@ describe("FindingList (R8, R10)", () => {
 
   it("no fix means Dismiss only; Dismiss marks it Dismissed", async () => {
     actions.dismissFinding.mockResolvedValue({ success: true });
-    render(<FindingList actionable groups={groups(card({ fixLabel: null, canApply: false }))} />);
+    render(<FindingList actionable groups={groups(card({ fix: null, canApply: false }))} />);
     const r = within(row("Night train not booked"));
     expect(r.queryByRole("button", { name: "Apply: Night train not booked" })).toBeNull();
     await userEvent.click(r.getByRole("button", { name: "Dismiss: Night train not booked" }));

@@ -37,7 +37,7 @@ const base: ReviewsPageModel = {
   latestRun: { id: "r2", status: "DONE", error: null },
   shown: {
     id: "r2", heading: "Standard Review", byLine: "Run by Cam, Sun 18 Oct, 14:05", status: "DONE",
-    summary: "Two closures to plan around.", failure: null, groups: [{ severity: "warning", heading: "Warnings", cards: [] }],
+    summary: "Two closures to plan around.", failure: null, open: [{ severity: "warning", heading: "Warnings", cards: [] }], dealtWith: [],
     openCount: 2, actionable: true, isLatest: true,
   },
   history: [{ id: "r2", href: "/trips/xmas/reviews?review=r2" as never, kindLabel: "Standard Review", byName: "Cam", when: "Sun 18 Oct, 14:05", line: "x", status: "DONE", current: true }],
@@ -107,7 +107,7 @@ describe("the Reviews tab (R10)", () => {
 
   it("a Review that didn't finish says why, with no Findings list (final wave I2)", async () => {
     const failure = "This Review didn't finish. Claude was busy, so this Review stopped. Start it again in a few minutes. Nothing on the trip was changed.";
-    model.current = { ...base, shown: { ...base.shown!, status: "FAILED", summary: null, failure, groups: [], openCount: 0, actionable: false } };
+    model.current = { ...base, shown: { ...base.shown!, status: "FAILED", summary: null, failure, open: [], dealtWith: [], openCount: 0, actionable: false } };
     await renderPage();
     expect(screen.getByText(failure)).toBeInTheDocument();
     expect(screen.queryByTestId("finding-list")).toBeNull();
