@@ -15,7 +15,7 @@ export type ReviewKind = (typeof REVIEW_KINDS)[number];
 export const REVIEW_KIND_LABELS: Record<ReviewKind, string> = { STANDARD: "Standard Review", DEEP: "Deep Review" };
 
 /** `Review.status`. A RUNNING row past REVIEW_STALE_AFTER_MS reads as FAILED (effectiveReviewStatus). */
-export const REVIEW_STATUSES = ["RUNNING", "DONE", "FAILED"] as const;
+const REVIEW_STATUSES = ["RUNNING", "DONE", "FAILED"] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
 /** `Finding.severity`: the Flag scale (lib/flags.ts). */

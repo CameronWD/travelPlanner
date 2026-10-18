@@ -60,7 +60,7 @@ export function listsReviewTrip(permission: string): boolean {
 export const REVIEW_RUN_INSTRUCTION =
   "review_trip starts a Review, standard or deep. It runs in the background for a few minutes, so tell the person it has started and check it with get_review. Each one counts against the person's Review allowance and a trip runs one at a time, so start one only when they ask, and read an earlier one with list_reviews instead of starting another.";
 
-export function mcpInstructions(caller: McpCaller): string {
+function mcpInstructions(caller: McpCaller): string {
   return listsReviewTrip(caller.reviewPermission) ? `${MCP_INSTRUCTIONS} ${REVIEW_RUN_INSTRUCTION}` : MCP_INSTRUCTIONS;
 }
 

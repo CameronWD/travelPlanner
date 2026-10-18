@@ -30,7 +30,7 @@ import {
 } from "@/lib/review/types";
 
 /** `id` null: the account is gone, and `name` is FORMER_TRAVELLER_NAME. */
-export interface TravellerRef {
+interface TravellerRef {
   id: string | null;
   name: string;
 }

@@ -98,7 +98,7 @@ export function parseUndoPayload(raw: string | null | undefined): UndoPayload | 
  * action and saves the payload after. A claim older than this never finished
  * (a timeout killed the request), so Undo releases it back to OPEN.
  */
-export const APPLY_STALE_AFTER_MS = 5 * 60_000;
+const APPLY_STALE_AFTER_MS = 5 * 60_000;
 
 /** An APPLIED Finding whose Apply never saved its payload, and never will. */
 export function isStrandedApply(f: { state: string; undoPayload: string | null; stateAt: Date | null }, now: Date): boolean {

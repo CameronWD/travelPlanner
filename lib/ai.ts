@@ -44,7 +44,7 @@ export function aiModel(): string {
 }
 
 /** Spec 2026-10-17 R11: a Standard Review runs Claude Sonnet 5, a Deep Review Claude Opus 5. */
-export const DEFAULT_REVIEW_MODELS: Readonly<Record<ReviewKind, string>> = {
+const DEFAULT_REVIEW_MODELS: Readonly<Record<ReviewKind, string>> = {
   STANDARD: "claude-sonnet-5",
   DEEP: "claude-opus-5",
 };

@@ -11,7 +11,7 @@ import type { ReviewStatus } from "@/lib/review/types";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-export interface ShownReview {
+interface ShownReview {
   id: string;
   heading: string;
   byLine: string;

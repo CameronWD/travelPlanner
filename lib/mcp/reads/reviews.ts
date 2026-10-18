@@ -23,7 +23,7 @@ import type {
 } from "@/lib/review/types";
 import { DEPTH_OF_REVIEW_KIND, FIX_WITH_TOOL, type ReviewDepth } from "../vocab";
 
-export interface McpFinding {
+interface McpFinding {
   id: string;
   severity: FindingSeverity;
   category: FindingCategory;
