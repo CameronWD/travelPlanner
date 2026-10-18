@@ -122,6 +122,26 @@ describe.skipIf(process.env.INTEGRATION !== "1")("readPlan (real Postgres)", () 
     expect(rows.items.find((i) => i.id === "it-plan-lello")!.openingHours).toEqual(hours);
   });
 
+  it("an Item's Try list reads back parsed; a Surprise placeholder's never does", async () => {
+    const list = [{ id: "itpe1", text: "IT Francesinha", tried: false }];
+    await db.item.create({
+      data: { id: "it-plan-cafe", tripId: TRIP_ID, stopId: STOP_A, title: "IT Café Santiago", category: "FOOD", date: "2027-06-02", sortOrder: 0, tryList: JSON.stringify(list) },
+    });
+    await db.item.create({
+      data: {
+        id: "it-plan-surprise-tl", tripId: TRIP_ID, stopId: STOP_A, title: "IT Secret tasting", category: "FOOD", date: "2027-06-03", sortOrder: 1,
+        tryList: JSON.stringify([{ id: "itps1", text: "IT anniversary port", tried: false }]),
+        surprisePlannerId: OWNER, surpriseForIds: JSON.stringify([MEMBER]),
+      },
+    });
+    expect((await readPlan(TRIP_ID, OWNER, null)).items.find((i) => i.id === "it-plan-cafe")!.tryList).toEqual(list);
+    const memberPlan = await readPlan(TRIP_ID, MEMBER, null);
+    const surprised = memberPlan.items.find((i) => i.id === "it-plan-surprise-tl")!;
+    expect(surprised.tryList).toBeNull();
+    // Nowhere in the member's whole payload: not on the placeholder, not anywhere else.
+    expect(JSON.stringify(memberPlan)).not.toContain("IT anniversary port");
+  });
+
   it("a Surprise placeholder carries none of its planning facts to the surprised Traveller (R2-R4)", async () => {
     const span = [["10:00", "18:00"]];
     const hours = { week: { mon: span }, seasons: [], closed: [] };

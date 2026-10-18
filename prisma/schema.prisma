@@ -719,7 +719,8 @@ model Transport {
   // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — lib/enum-values.ts
   // BOOKING_STATES. Always the EFFECTIVE state: every writer stores
   // lib/booking-state.ts bookingStateWrite's result. bookingStateSet = the
-  // Traveller chose it; false = derived (a `reference` means BOOKED, else TO_BOOK).
+  // Traveller chose it; false = derived (a `reference` means BOOKED, else
+  // TO_BOOK, or NONE for a drive: mode CAR, lib/booking-state.ts transportBookingSubject).
   bookingState    String  @default("TO_BOOK")
   bookingStateSet Boolean @default(false)
   bookBy          String? // "YYYY-MM-DD" — read only while To book (lib/booking-state.ts activeBookBy)
@@ -803,9 +804,15 @@ model Item {
   refundable      Boolean? // null = not known
   // CONTEXT.md "Opening hours" (R4): JSON as String (schema convention),
   // validated by lib/validations/opening-hours.ts. Copied onto a placed copy
-  // (ideaCopyData) and written to the whole family (lib/opening-hours.ts
-  // openingHoursFamilyWhere), so reads never join through sourceItemId.
+  // (ideaCopyData) and written to the whole family (lib/item-family.ts), so
+  // reads never join through sourceItemId.
   openingHours    String?
+  // CONTEXT.md "Try list" (spec 2026-10-17 R6): JSON as String (schema
+  // convention), validated by lib/validations/try-list.ts; an empty list is
+  // stored as null. Shared like openingHours: copied onto a placed copy
+  // (ideaCopyData) and written to the whole family (lib/item-family.ts), so
+  // reads never join through sourceItemId.
+  tryList         String?
   sortOrder      Int     @default(0)
   sourceItemId   String?
   sourceMarkerId String?

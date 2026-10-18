@@ -78,7 +78,7 @@ describe("buildDuplicatePlan", () => {
       date: null, startTime: null, endTime: null, booking: null,
       lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", notes: "n",
       sortOrder: 0, hiddenFromShares: true,
-      openingHours: null,
+      openingHours: null, tryList: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
     });
   });
@@ -93,7 +93,30 @@ describe("buildDuplicatePlan", () => {
     for (const key of ["bookingState", "bookingStateSet", "bookBy", "slotTime", "arriveByMinutes", "refundable"]) {
       expect(plan.items[0].data).not.toHaveProperty(key);
     }
-    expect(plan.transports[0].data).not.toHaveProperty("bookingState");
+    // A Transport leg starts at its mode's default (I4): no reference is copied.
+    expect(plan.transports[0].data).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: false });
+    expect(plan.transports[0].data).not.toHaveProperty("bookBy");
+  });
+
+  it("a duplicated drive (a CAR leg) needs no booking (I4)", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, transports: [{ ...SOURCE.transports[0], mode: "CAR" }] }, "x");
+    expect(plan.transports[0].data).toMatchObject({ mode: "CAR", bookingState: "NONE", bookingStateSet: false });
+  });
+
+  // Spec 2026-10-17 R6: the Try list belongs to the thing to do, so a Duplicate
+  // keeps its entries — but a fresh Trip has tried nothing yet.
+  it("keeps an Item's Try list with every tick reset to untried", () => {
+    const list = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: true }, { id: "bbbb2222", text: "Lebkuchen", tried: false }]);
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: list }] }, "x");
+    expect(JSON.parse(plan.items[0].data.tryList!)).toEqual([
+      { id: "aaaa1111", text: "Drei im Weggla", tried: false },
+      { id: "bbbb2222", text: "Lebkuchen", tried: false },
+    ]);
+  });
+
+  it("an unreadable Try list is not copied", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: "not json" }] }, "x");
+    expect(plan.items[0].data.tryList).toBeNull();
   });
 
   it("carries a null countryCode through when the source item has none", () => {
@@ -133,6 +156,7 @@ describe("buildDuplicatePlan", () => {
       mode: "TRAIN", depPlace: "Roma Termini", arrPlace: "Firenze",
       depAt: null, arrAt: null, reference: null, notes: null,
       depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, sortOrder: 0,
+      bookingState: "TO_BOOK", bookingStateSet: false,
     });
   });
 

@@ -5,10 +5,10 @@ import { withOpeningHours } from "./opening-hours-stored";
 // Adapted from the D.2 brief to S's actual storage (d-as-built.md): the
 // column is a JSON string, not jsonb, so there is no "jsonb hands numeric
 // keys back as strings" concern, and readStoredOpeningHours/
-// storedOpeningHours/openingHoursFamilyWhere are S's parseOpeningHours/
-// serializeOpeningHours/openingHoursFamilyRoot/openingHoursFamilyWhere
+// storedOpeningHours/itemFamilyWhere are S's parseOpeningHours/
+// serializeOpeningHours/itemFamilyRoot/itemFamilyWhere
 // (already tested in lib/validations/opening-hours.test.ts and
-// lib/opening-hours.test.ts) — not re-tested here.
+// lib/item-family.test.ts) — not re-tested here.
 describe("withOpeningHours", () => {
   it("parses a row's column in place", () => {
     const stored = '{"week":{"mon":[["10:00","18:00"]]},"seasons":[],"closed":[]}';

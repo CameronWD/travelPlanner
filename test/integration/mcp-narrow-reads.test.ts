@@ -208,6 +208,29 @@ describe.skipIf(process.env.INTEGRATION !== "1")("MCP narrow reads (real Postgre
     expect(JSON.stringify([memberPlan, memberDay])).not.toContain("it-gift-dinner");
   });
 
+  it("get_item, get_trip_plan and get_day read a thing's Try list; a hidden Surprise's never leaves", async () => {
+    // lib/validations/try-list.ts's tryEntryIdSchema is /^[a-z0-9]{1,32}$/ (S's
+    // actual export), stricter than this file's usual "it-"-prefixed ids —
+    // lowercase/digits only, no hyphen.
+    const list = [{ id: "ittryw1", text: "IT Tawny 20 years", tried: false }];
+    await db.item.update({ where: { id: TOUR }, data: { tryList: JSON.stringify(list) } });
+    await db.item.update({ where: { id: TASTING }, data: { tryList: JSON.stringify(list) } });
+    await db.item.update({ where: { id: GIFT }, data: { tryList: JSON.stringify([{ id: "ittryg1", text: "IT gift-dinner cake", tried: false }]) } });
+
+    const plan = await as(OWNER)(() => loadTripPlanForMcp(TRIP_ID));
+    const porto = plan.stops.find((s) => s.id === PORTO)!;
+    expect(porto.days.find((d) => d.date === "2027-06-02")!.items.find((i) => i.id === TOUR)!.tryList).toEqual(list);
+    expect(porto.thingsToDo.find((t) => t.id === TASTING)!.tryList).toEqual(list);
+    expect((await as(OWNER)(() => loadItemForMcp(TOUR))).tryList).toEqual(list);
+    const day = await as(OWNER)(() => loadDayForMcp(TRIP_ID, "2027-06-02"));
+    if ("success" in day) throw new Error("expected a day");
+    expect(day.timeline).toContainEqual(expect.objectContaining({ kind: "item", item: expect.objectContaining({ id: TOUR, tryList: list }) }));
+
+    const memberPlan = await as(MEMBER)(() => loadTripPlanForMcp(TRIP_ID));
+    const memberDay = await as(MEMBER)(() => loadDayForMcp(TRIP_ID, "2027-06-03"));
+    expect(JSON.stringify([memberPlan, memberDay])).not.toContain("gift-dinner cake");
+  });
+
   it("marks each Changeover-day Item with its owning Stop in get_trip_plan, get_stop, get_day and get_item (R5)", async () => {
     // Created here, not in beforeEach, so the existing Changeover-day assertions keep their exact item lists.
     await db.item.create({ data: { id: FAREWELL, tripId: TRIP_ID, stopId: PORTO, title: "IT Farewell lunch", category: "FOOD", date: "2027-06-04", startTime: "12:00", sortOrder: 5 } });

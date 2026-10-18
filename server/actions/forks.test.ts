@@ -253,7 +253,9 @@ vi.mock("@/lib/trip-phase", () => ({
   computeTripPhase: computeTripPhaseMock,
 }));
 
-vi.mock("@/lib/dates", () => ({
+vi.mock("@/lib/dates", async () => ({
+  // The real date helpers (parseOpeningHours validates dates with them); only today is pinned.
+  ...(await vi.importActual<object>("@/lib/dates")),
   todayISO: todayISOMock,
 }));
 
@@ -261,6 +263,9 @@ vi.mock("@/lib/tz", () => ({
   todayISOInZone: todayISOInZoneMock,
   currentTripTimezone: currentTripTimezoneMock,
 }));
+
+const tripTodayISOMock = vi.hoisted(() => vi.fn(() => "2026-09-20"));
+vi.mock("@/lib/trip-today", () => ({ tripTodayISO: tripTodayISOMock }));
 
 vi.mock("@/lib/activity-record", () => ({
   recordActivity: recordActivityMock,
@@ -1356,6 +1361,15 @@ describe("getComparison", () => {
       expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     });
   });
+
+  it("measures every plan against the real plan's today (spec 2026-10-17 R7)", async () => {
+    forkFindManyMock.mockResolvedValue([{ id: "fork-a", name: "Fork A" }]);
+    stopsByPlan = { real: [{ id: "s-real", name: "Real", timezone: "Europe/Rome", arriveDate: "2026-10-01", departDate: "2026-10-04", sortOrder: 0, nights: null, pinned: false, country: null, lat: null, lng: null }] };
+    await getComparison("trip-1");
+    expect(tripTodayISOMock).toHaveBeenCalledWith([expect.objectContaining({ id: "s-real" })]);
+    expect(computePlanMetricsMock).toHaveBeenCalledTimes(2);
+    for (const call of computePlanMetricsMock.mock.calls) expect(call[0]).toEqual(expect.objectContaining({ today: "2026-09-20" }));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1614,6 +1628,39 @@ describe("getPromotionPreview", () => {
       await getPromotionPreview("fork-9");
 
       expect(diffMetricsMock).toHaveBeenCalledWith(realMetrics, forkMetrics);
+    });
+
+    // M5: the preview's Flag delta must match Compare, so it reads the same
+    // planning-Flag fields and the real plan's today on both sides.
+    it("reads Compare's planning-Flag fields, parses Opening hours, and counts both sides from the real plan's today", async () => {
+      const hours = '{"week":{"sun":[],"mon":[],"tue":[],"wed":[],"thu":[],"fri":[],"sat":[]},"seasons":[],"closed":["2026-10-02"]}';
+      const realStops = [{ id: "s1", name: "Porto", country: "PT", nights: 3, sortOrder: 0, arriveDate: "2026-10-01", departDate: "2026-10-04", pinned: false, lat: null, lng: null, timezone: "Europe/Lisbon" }];
+      stopFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => Promise.resolve(args.where.forkId === null ? realStops : []));
+      itemFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => Promise.resolve([
+        { id: `i-${args.where.forkId ?? "real"}`, stopId: "s1", date: "2026-10-02", startTime: null, endTime: null, lat: null, lng: null, category: "SIGHTSEEING",
+          title: "Museum", openingHours: hours, slotTime: "12:00", arriveByMinutes: 15, bookingState: "TO_BOOK", bookBy: "2026-09-25" },
+      ]));
+
+      await getPromotionPreview("fork-9");
+
+      for (const forkId of [null, "fork-9"]) {
+        expect(itemFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ forkId }),
+          select: expect.objectContaining({ title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true }),
+        }));
+        expect(transportFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ forkId }), select: expect.objectContaining({ bookingState: true, bookBy: true }),
+        }));
+        expect(accommodationFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+          where: expect.objectContaining({ forkId }), select: expect.objectContaining({ bookingState: true, bookBy: true }),
+        }));
+      }
+      expect(tripTodayISOMock).toHaveBeenCalledWith(realStops);
+      expect(computePlanMetricsMock).toHaveBeenCalledTimes(2);
+      for (const [input] of computePlanMetricsMock.mock.calls as [{ today?: string; items: { openingHours: unknown }[] }][]) {
+        expect(input.today).toBe("2026-09-20");
+        expect(input.items[0].openingHours).toEqual(expect.objectContaining({ closed: ["2026-10-02"] }));
+      }
     });
   });
 });

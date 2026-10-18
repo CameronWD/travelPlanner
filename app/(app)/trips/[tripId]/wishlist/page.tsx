@@ -23,6 +23,7 @@ import { tripEyebrow } from "@/lib/plan/plan-model";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
+import { parseTryList } from "@/lib/validations/try-list";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
@@ -96,6 +97,7 @@ export default async function WishlistPage({
             arriveByMinutes: true,
             refundable: true,
             openingHours: true,
+            tryList: true,
             notes: true,
             stopId: true,
             lat: true,
@@ -320,6 +322,7 @@ export default async function WishlistPage({
     arriveByMinutes: item.arriveByMinutes,
     refundable: item.refundable,
     openingHours: parseOpeningHours(item.openingHours),
+    tryList: parseTryList(item.tryList),
     notes: item.notes,
     stopId: item.stopId,
     stopName: item.stop?.name ?? null,

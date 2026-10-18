@@ -412,6 +412,25 @@ describe("flagCounts", () => {
       }),
     );
   });
+
+  it("counts the planning Flags (spec 2026-10-17 R7), counting book-by dates from the given today", () => {
+    const stops = [makeStop("nbg", { name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-09", timezone: "Europe/Berlin" })];
+    const closedTue = { week: { tue: [] }, seasons: [], closed: [] };
+    const items = [
+      { id: "i1", stopId: "nbg", date: "2026-12-08", startTime: null, endTime: null, lat: null, lng: null, category: "SIGHTSEEING", title: "Memorium", openingHours: closedTue },
+    ];
+    const accommodations = [{ id: "a1", stopId: "nbg", name: "Hotel Victoria", checkIn: "2026-12-06", checkOut: "2026-12-09", bookingState: "TO_BOOK", bookBy: "2026-11-28" }];
+    vi.mocked(detectFlags).mockClear();
+    computePlanMetrics({ ...emptyInput(), stops, items, accommodations, today: "2026-12-01" });
+    expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({
+      today: "2026-12-01",
+      stopNames: new Map([["nbg", "Nuremberg"]]),
+      items: [expect.objectContaining({ title: "Memorium", openingHours: closedTue })],
+      accommodations: [expect.objectContaining({ bookingState: "TO_BOOK", bookBy: "2026-11-28" })],
+    }));
+    const ids = vi.mocked(detectFlags).mock.results[0].value.map((f: { id: string }) => f.id);
+    expect(ids).toEqual(expect.arrayContaining(["item-closed-i1", "book-by-overdue-a1"]));
+  });
 });
 
 // ---------------------------------------------------------------------------

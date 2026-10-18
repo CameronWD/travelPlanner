@@ -43,6 +43,8 @@ export interface PlaceholderItem {
   arriveByMinutes: null;
   refundable: null;
   openingHours: null;
+  // Spec 2026-10-17 R6: no Try list either — its entries would give the Surprise away.
+  tryList: null;
   surprise: SurpriseView;
 }
 
@@ -196,6 +198,7 @@ export async function loadSurpriseVisibility(
       arriveByMinutes: null,
       refundable: null,
       openingHours: null,
+      tryList: null,
       surprise: views.items.get(i.id)!,
     }));
 

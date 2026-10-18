@@ -3,6 +3,7 @@
  * (the Stop, or the Item itself), and refuse a surprised viewer with
  * notFound() exactly as a non-member would be refused. Server-only; uses db.
  */
+import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { SURPRISE_SELECT, isSurprisedBy, surpriseState, type SurpriseColumns, type SurpriseOver } from "@/lib/surprise";
@@ -20,57 +21,64 @@ export type SurpriseRef =
  * Stop); `layers` are every live Surprise the thing is inside, so a Surprise
  * Item inside a Surprise Stop refuses a viewer surprised by either.
  */
+/** What the lookups read through: `db` by default, or a caller's transaction (lib/item-family.ts). */
+export type SurpriseClient = Pick<Prisma.TransactionClient, "stop" | "item" | "accommodation">;
+
 type Layer = { row: SurpriseColumns; over: SurpriseOver };
 type Hit = { root: SurpriseRoot; layers: Layer[] };
 
 const STOP_SELECT = { id: true, departDate: true, timezone: true, ...SURPRISE_SELECT } as const;
 
-async function stopRoot(stopId: string, now: Date): Promise<Hit | null> {
-  const stop = await db.stop.findUnique({ where: { id: stopId }, select: STOP_SELECT });
+async function stopRoot(stopId: string, now: Date, client: SurpriseClient = db): Promise<Hit | null> {
+  const stop = await client.stop.findUnique({ where: { id: stopId }, select: STOP_SELECT });
   if (!stop) return null;
   const over = { endDate: stop.departDate, timezone: stop.timezone };
   return surpriseState(stop, over, now) === "live" ? { root: { type: "STOP", id: stop.id }, layers: [{ row: stop, over }] } : null;
 }
 
-async function itemRoot(itemId: string, now: Date): Promise<Hit | null> {
-  const item = await db.item.findUnique({
+async function itemRoot(itemId: string, now: Date, client: SurpriseClient = db): Promise<Hit | null> {
+  const item = await client.item.findUnique({
     where: { id: itemId },
     select: { id: true, stopId: true, date: true, ...SURPRISE_SELECT, stop: { select: { timezone: true } } },
   });
   if (!item) return null;
   const over = { endDate: item.date, timezone: item.stop?.timezone ?? null };
-  const stopHit = item.stopId ? await stopRoot(item.stopId, now) : null;
+  const stopHit = item.stopId ? await stopRoot(item.stopId, now, client) : null;
   if (surpriseState(item, over, now) === "live") {
     return { root: { type: "ITEM", id: item.id }, layers: [{ row: item, over }, ...(stopHit?.layers ?? [])] };
   }
   return stopHit;
 }
 
-async function resolve(ref: SurpriseRef, now: Date): Promise<Hit | null> {
-  if ("stopId" in ref) return ref.stopId ? stopRoot(ref.stopId, now) : null;
-  if ("itemId" in ref) return itemRoot(ref.itemId, now);
+async function resolve(ref: SurpriseRef, now: Date, client: SurpriseClient = db): Promise<Hit | null> {
+  if ("stopId" in ref) return ref.stopId ? stopRoot(ref.stopId, now, client) : null;
+  if ("itemId" in ref) return itemRoot(ref.itemId, now, client);
   if ("accommodationId" in ref) {
-    const acc = await db.accommodation.findUnique({ where: { id: ref.accommodationId }, select: { stopId: true } });
-    return acc?.stopId ? stopRoot(acc.stopId, now) : null;
+    const acc = await client.accommodation.findUnique({ where: { id: ref.accommodationId }, select: { stopId: true } });
+    return acc?.stopId ? stopRoot(acc.stopId, now, client) : null;
   }
   if ("target" in ref) {
     const { targetType, targetId } = ref.target;
     if (!targetId) return null;
-    if (targetType === "STOP") return stopRoot(targetId, now);
-    if (targetType === "ITEM") return itemRoot(targetId, now);
-    if (targetType === "ACCOMMODATION") return resolve({ accommodationId: targetId }, now);
+    if (targetType === "STOP") return stopRoot(targetId, now, client);
+    if (targetType === "ITEM") return itemRoot(targetId, now, client);
+    if (targetType === "ACCOMMODATION") return resolve({ accommodationId: targetId }, now, client);
     return null;
   }
   const { ownerType, ownerId } = ref.costOwner;
   if (!ownerId) return null;
-  if (ownerType === "ITEM") return itemRoot(ownerId, now);
-  if (ownerType === "ACCOMMODATION") return resolve({ accommodationId: ownerId }, now);
+  if (ownerType === "ITEM") return itemRoot(ownerId, now, client);
+  if (ownerType === "ACCOMMODATION") return resolve({ accommodationId: ownerId }, now, client);
   return null;
 }
 
-/** The live Surprise the referenced thing is inside (the Stop, or the Item itself), or null. */
-export async function surpriseRootFor(ref: SurpriseRef, now = new Date()): Promise<SurpriseRoot | null> {
-  return (await resolve(ref, now))?.root ?? null;
+/**
+ * The live Surprise the referenced thing is inside (the Stop, or the Item
+ * itself), or null. `client` lets a caller inside a transaction keep the
+ * lookup on its own connection (lib/item-family.ts); default `db`.
+ */
+export async function surpriseRootFor(ref: SurpriseRef, now = new Date(), client: SurpriseClient = db): Promise<SurpriseRoot | null> {
+  return (await resolve(ref, now, client))?.root ?? null;
 }
 
 /** notFound() when `viewerId` is surprised by the Surprise the thing is inside; otherwise returns that root (or null) so the caller can stamp its Activity. */

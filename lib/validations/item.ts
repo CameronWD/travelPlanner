@@ -8,6 +8,7 @@ import { hhmm, isoDate } from "@/lib/validations/primitives";
 import { startFromSlot } from "@/lib/slot-time";
 import { arriveByMinutesSchema, bookBySchema, checkSlotFields, refundableSchema, slotTimeSchema } from "@/lib/validations/planning";
 import { openingHoursSchema } from "@/lib/validations/opening-hours";
+import { tryListInputSchema } from "@/lib/validations/try-list";
 
 /**
  * Zod schema for creating or updating an Item.
@@ -88,6 +89,11 @@ export const itemSchema = z
     surpriseForIds: z.array(z.string()).optional(),
     /** CONTEXT.md "Opening hours" — the place's weekly hours, seasons and closed dates. Omitted = keep; a PATCH null clears. */
     openingHours: openingHoursSchema.optional(),
+    /**
+     * CONTEXT.md "Try list" — the entries in order; an id keeps an entry and its
+     * tick (lib/try-list.ts applyTryListInput). Omitted = keep; a PATCH null clears.
+     */
+    tryList: tryListInputSchema.optional(),
 
     // --- Inline cost fields (all optional) ---
 

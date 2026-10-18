@@ -7,13 +7,16 @@
  * and returns a list of Flag objects describing potential issues.
  */
 
-import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, formatISODate } from "@/lib/dates";
+import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, formatISODate, formatDayLabel, parseISODate } from "@/lib/dates";
 import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
+import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
+import { defaultStartFromSlot } from "@/lib/slot-time";
+import { activeBookBy } from "@/lib/booking-state";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -24,6 +27,7 @@ type FlagTargetType =
   | "STOP"
   | "TRANSPORT"
   | "ACCOMMODATION"
+  | "ITEM"
   | "DAY"
   | "TRIP";
 
@@ -34,7 +38,7 @@ export interface Flag {
   targetType: FlagTargetType;
   /** Id of the entity this flag points to, if applicable. */
   targetId?: string;
-  /** For DAY flags: the ISO date string. */
+  /** For DAY flags: the ISO date string. For ITEM flags: the Item's day, when it has one. */
   date?: string;
   /** The Stop the plan editor opens to fix this (spec 2026-10-06 §F) — set where targetId isn't a Stop. */
   stopId?: string;
@@ -66,6 +70,9 @@ export interface FlagTransport {
   mode: string;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 export interface FlagAccommodation {
@@ -74,6 +81,9 @@ export interface FlagAccommodation {
   checkIn: string; // YYYY-MM-DD
   checkOut: string; // YYYY-MM-DD
   name: string;
+  /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 export interface FlagItem {
@@ -84,6 +94,16 @@ export interface FlagItem {
   endTime?: string | null; // HH:MM
   lat?: number | null;
   lng?: number | null;
+  /** The Item's title, for the planning Flags' wording (spec 2026-10-17 R7). */
+  title?: string | null;
+  /** CONTEXT.md "Opening hours", already parsed (lib/opening-hours-stored.ts withOpeningHours); read in the Stop's local time, like startTime. */
+  openingHours?: OpeningHours | null;
+  /** CONTEXT.md "Slot time": the ticket's time ("HH:mm") and how early to be there (minutes). */
+  slotTime?: string | null;
+  arriveByMinutes?: number | null;
+  /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
+  bookingState?: string | null;
+  bookBy?: string | null;
 }
 
 export interface DetectFlagsInput {
@@ -134,6 +154,20 @@ export interface DetectFlagsInput {
    * outside (dates, Transport) still flags as normal.
    */
   hiddenStopIds?: readonly string[];
+  /**
+   * Surprise (ADR 0051): Items the viewer may not see (a hidden root Item's
+   * placeholder, every Item inside a hidden Stop). The planning Flags
+   * (spec 2026-10-17 R7) never name them.
+   */
+  hiddenItemIds?: readonly string[];
+  /**
+   * The Trip's own today (lib/trip-today.ts tripTodayISO), "YYYY-MM-DD". The
+   * book-by and still-to-book Flags (spec 2026-10-17 R7) count from it;
+   * omitted, they stay silent.
+   */
+  today?: string | null;
+  /** Every Stop's name, rough ones included, so a leg to a rough Stop still names it. Omitted: the dated `stops`. */
+  stopNames?: ReadonlyMap<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -885,6 +919,287 @@ export function flagReturnLegAfterHardEnd(
 }
 
 // ---------------------------------------------------------------------------
+// Planning Flags (spec 2026-10-17 R7): what they may look at
+//
+// Plan placements only (a Wishlist idea has neither a Stop nor a day) and
+// nothing the viewer cannot see. Deliberately not `outsideHidden`: an Item of
+// a visible Stop on the Changeover day it shares with a hidden Stop still
+// flags. Placeholders are masked already (no hours, slot or booking), so the
+// id filter is a second line of defence.
+// ---------------------------------------------------------------------------
+
+function planningSubjects(
+  items: FlagItem[],
+  accommodations: FlagAccommodation[],
+  hiddenStops: ReadonlySet<string>,
+  hiddenItemIds: readonly string[] | undefined,
+): { items: FlagItem[]; accommodations: FlagAccommodation[] } {
+  const hiddenItems = new Set(hiddenItemIds ?? []);
+  return {
+    items: items.filter(
+      (i) => (i.stopId || i.date) && !hiddenItems.has(i.id) && !(i.stopId && hiddenStops.has(i.stopId)),
+    ),
+    accommodations: accommodations.filter((a) => !hiddenStops.has(a.stopId)),
+  };
+}
+
+function itemTitle(item: FlagItem): string | null {
+  return item.title?.trim() || null;
+}
+
+function itemTarget(item: FlagItem): Pick<Flag, "targetType" | "targetId" | "date" | "stopId"> {
+  return {
+    targetType: "ITEM",
+    targetId: item.id,
+    ...(item.date ? { date: item.date } : {}),
+    ...(item.stopId ? { stopId: item.stopId } : {}),
+  };
+}
+
+function itemFlag(item: FlagItem, id: string, severity: FlagSeverity, message: string): Flag {
+  return { id, severity, message, ...itemTarget(item) };
+}
+
+// ---------------------------------------------------------------------------
+// Rule 17: Closed that day (warning)
+//
+// The Item's day is closed by its Opening hours: a closed date, the governing
+// season's weekday, or the usual week's. Silent when the hours, the weekday
+// or the date is not known (hoursOn returns null).
+// ---------------------------------------------------------------------------
+
+const WEEKDAYS_PLURAL = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"] as const;
+
+function closedMessage(name: string, date: string, day: DayHours): string {
+  if (day.by === "closed-date") return `${name} is closed on ${formatDayLabel(date)}.`;
+  const weekdays = WEEKDAYS_PLURAL[parseISODate(date).getUTCDay()];
+  if (day.by === "season") {
+    return day.seasonLabel
+      ? `${name} is closed on ${weekdays} (${day.seasonLabel}).`
+      : `${name} is closed on ${weekdays} at that time of year.`;
+  }
+  return `${name} is closed on ${weekdays}.`;
+}
+
+export function flagClosedOnDay(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.date) continue;
+    const day = hoursOn(item.openingHours, item.date);
+    if (!day?.closed) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    flags.push(itemFlag(item, `item-closed-${item.id}`, "warning", closedMessage(name, item.date, day)));
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Rules 18–19: Before opening / After closing (warnings)
+//
+// Read in the Stop's local time on the Item's day. The governing span is the
+// first that has not closed by the Item's start:
+//   - start before it opens            → Before opening ("opens"/"reopens at")
+//   - no span left (start ≥ last close) → After closing ("this starts …")
+//   - an end after its close            → After closing ("this ends …")
+//   - no end, start within CLOSING_SOON_MIN of its close → After closing
+// An end at or before the start runs into the next day: no end check.
+// A closed day is Closed that day's job; an unknown day stays silent.
+// ---------------------------------------------------------------------------
+
+export const CLOSING_SOON_MIN = 30;
+
+const clock = (hhmm: string) => (hhmm === "24:00" ? "midnight" : hhmm);
+
+export function flagOutsideOpeningHours(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.date || !item.startTime) continue;
+    const day = hoursOn(item.openingHours, item.date);
+    if (!day || day.closed || day.spans.length === 0) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    const start = hhmmToMin(item.startTime);
+    const end = item.endTime ? hhmmToMin(item.endTime) : null;
+    const spans = day.spans.map(([open, close]) => ({ open, close, openMin: hhmmToMin(open), closeMin: hhmmToMin(close) }));
+    const at = spans.findIndex((s) => s.closeMin > start);
+    if (at === -1) {
+      const last = spans[spans.length - 1];
+      flags.push(itemFlag(item, `item-after-close-${item.id}`, "warning", `${name} closes at ${clock(last.close)}; this starts ${item.startTime}.`));
+      continue;
+    }
+    const span = spans[at];
+    if (start < span.openMin) {
+      const verb = at === 0 ? "opens" : "reopens";
+      flags.push(itemFlag(item, `item-before-open-${item.id}`, "warning", `${name} ${verb} at ${span.open}; this starts ${item.startTime}.`));
+    }
+    if (end !== null) {
+      if (end > start && end > span.closeMin) {
+        flags.push(itemFlag(item, `item-after-close-${item.id}`, "warning", `${name} closes at ${clock(span.close)}; this ends ${item.endTime}.`));
+      }
+    } else if (start >= span.openMin && span.closeMin - start <= CLOSING_SOON_MIN) {
+      const left = span.closeMin - start;
+      flags.push(itemFlag(item, `item-after-close-${item.id}`, "warning", `${name} closes at ${clock(span.close)}, ${left} minute${left === 1 ? "" : "s"} after this starts.`));
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Rule 20: Late for the slot (warning)
+//
+// The Item starts after its slot less the arrive-by margin (the same
+// "be there" time the Item form defaults the start to, clamped at 00:00).
+// Covers a start the Traveller moved, or a slot changed after the start was
+// defaulted (spec 2026-10-17, Branch 1 as built, C.2).
+// ---------------------------------------------------------------------------
+
+export function flagLateForSlot(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.startTime || !item.slotTime) continue;
+    const beThere = defaultStartFromSlot(item.slotTime, item.arriveByMinutes);
+    if (!beThere || hhmmToMin(item.startTime) <= hhmmToMin(beThere)) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    const message = item.arriveByMinutes
+      ? `${name} starts ${item.startTime}, but the ${item.slotTime} slot needs you there by ${beThere}.`
+      : `${name} starts ${item.startTime}, after its ${item.slotTime} slot.`;
+    flags.push(itemFlag(item, `item-late-slot-${item.id}`, "warning", message));
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Rule 21: Book by soon (info) / Overdue (warning)
+//
+// An Item, leg or stay still To book with a book-by date: overdue once the
+// date has passed (Trip-local today), soon within BOOK_BY_SOON_DAYS.
+// Nothing once the thing itself has happened (its day is past).
+// ---------------------------------------------------------------------------
+
+export const BOOK_BY_SOON_DAYS = 7;
+
+export interface BookingContext {
+  today: string;
+  stops: FlagStop[];
+  stopNames?: ReadonlyMap<string, string>;
+  home?: HomeBase | null;
+  homeTimezone?: string | null;
+}
+
+interface BookingSubjectRow {
+  id: string;
+  /** Named mid-sentence: an Item's title, a stay's name, "the train from Paris to Rome". */
+  label: string;
+  bookingState?: string | null;
+  bookBy?: string | null;
+  /** When it happens: an Item's day, a leg's local departure day, a check-in. */
+  when: string | null;
+  target: Pick<Flag, "targetType" | "targetId" | "date" | "stopId">;
+}
+
+const MODE_NOUN: Record<string, string> = { FLIGHT: "flight", TRAIN: "train", BUS: "bus", CAR: "drive", FERRY: "ferry", OTHER: "transport" };
+
+function legLabel(t: FlagTransport, names: ReadonlyMap<string, string>, home: HomeBase | null | undefined): string {
+  const end = (isHome: boolean | null | undefined, stopId: string | null | undefined) =>
+    isHome ? (home?.name ?? null) : stopId ? (names.get(stopId) ?? null) : null;
+  const from = end(t.depIsHome, t.fromStopId);
+  const to = end(t.arrIsHome, t.toStopId);
+  return `the ${MODE_NOUN[t.mode] ?? "transport"}${from ? ` from ${from}` : ""}${to ? ` to ${to}` : ""}`;
+}
+
+/** A leg's departure day in its own zone: the Home base's for a Home end, else its Stop's (lib/desktop-home-loader.ts reads it the same way). */
+function legDepartureDay(t: FlagTransport, stopById: Map<string, FlagStop>, homeTimezone: string | null | undefined): string | null {
+  const dep = toDate(t.depAt);
+  if (!dep) return null;
+  const from = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
+  const to = t.toStopId ? stopById.get(t.toStopId) : undefined;
+  return instantToZonedDateISO(dep, (t.depIsHome && homeTimezone) || from?.timezone || to?.timezone || "UTC");
+}
+
+function bookingSubjects(
+  items: FlagItem[],
+  transports: FlagTransport[],
+  accommodations: FlagAccommodation[],
+  ctx: BookingContext,
+): BookingSubjectRow[] {
+  const stopById = new Map(ctx.stops.map((s) => [s.id, s]));
+  const names = ctx.stopNames ?? new Map(ctx.stops.map((s) => [s.id, s.name]));
+  return [
+    ...items.map((i) => ({
+      id: i.id, label: itemTitle(i) ?? "a thing to do", bookingState: i.bookingState, bookBy: i.bookBy,
+      when: i.date ?? null, target: itemTarget(i),
+    })),
+    ...transports.map((t) => {
+      const stopId = t.fromStopId ?? t.toStopId;
+      return {
+        id: t.id, label: legLabel(t, names, ctx.home), bookingState: t.bookingState, bookBy: t.bookBy,
+        when: legDepartureDay(t, stopById, ctx.homeTimezone),
+        target: { targetType: "TRANSPORT" as const, targetId: t.id, ...(stopId ? { stopId } : {}) },
+      };
+    }),
+    ...accommodations.map((a) => ({
+      id: a.id, label: a.name, bookingState: a.bookingState, bookBy: a.bookBy, when: a.checkIn,
+      target: { targetType: "ACCOMMODATION" as const, targetId: a.id, stopId: a.stopId },
+    })),
+  ];
+}
+
+export function flagBookByDates(
+  input: { items: FlagItem[]; transports: FlagTransport[]; accommodations: FlagAccommodation[] } & BookingContext,
+): Flag[] {
+  const flags: Flag[] = [];
+  for (const s of bookingSubjects(input.items, input.transports, input.accommodations, input)) {
+    const bookBy = activeBookBy(s.bookingState, s.bookBy);
+    if (!bookBy) continue;
+    if (s.when && s.when < input.today) continue; // it has happened: nothing left to book
+    const day = formatDayLabel(bookBy);
+    const n = daysBetween(input.today, bookBy);
+    if (n < 0) {
+      flags.push({ id: `book-by-overdue-${s.id}`, severity: "warning", message: `Book ${s.label} now: its book-by date (${day}) has passed.`, ...s.target });
+    } else if (n <= BOOK_BY_SOON_DAYS) {
+      const message =
+        n === 0
+          ? `Book ${s.label} today: it's the book-by date.`
+          : `Book ${s.label} by ${n === 1 ? `tomorrow (${day})` : `${day}, in ${n} days`}.`;
+      flags.push({ id: `book-by-soon-${s.id}`, severity: "info", message, ...s.target });
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Rule 22: Still to book close to the day (info)
+//
+// A leg or stay still To book with no book-by date (a dated one is Rule 21's)
+// whose own day (local departure, check-in) is within
+// STILL_TO_BOOK_WITHIN_DAYS of today. Items are not included (spec R7: "a To
+// book leg or stay"); a leg with no departure time stays silent (the
+// unbooked-transport nudge covers it).
+// ---------------------------------------------------------------------------
+
+export const STILL_TO_BOOK_WITHIN_DAYS = 14;
+
+const dayFromToday = (n: number, date: string) =>
+  n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days (${formatDayLabel(date)})`;
+
+export function flagStillToBookSoon(
+  input: { transports: FlagTransport[]; accommodations: FlagAccommodation[] } & BookingContext,
+): Flag[] {
+  const flags: Flag[] = [];
+  for (const s of bookingSubjects([], input.transports, input.accommodations, input)) {
+    if (s.bookingState !== "TO_BOOK" || activeBookBy(s.bookingState, s.bookBy) || !s.when) continue;
+    const n = daysBetween(input.today, s.when);
+    if (n < 0 || n > STILL_TO_BOOK_WITHIN_DAYS) continue;
+    const when = dayFromToday(n, s.when);
+    const message =
+      s.target.targetType === "TRANSPORT"
+        ? `${s.label.charAt(0).toUpperCase()}${s.label.slice(1)} is still to book and leaves ${when}.`
+        : `${s.label} is still to book and you check in ${when}.`;
+    flags.push({ id: `still-to-book-${s.id}`, severity: "info", message, ...s.target });
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -905,6 +1220,11 @@ export function flagReturnLegAfterHardEnd(
  *   11. Trip deadline — return leg or hard end date (warning/info)
  *   12. Tight / impossible connections (warning/info)
  *   13. Missing connection between consecutive stops (info)
+ *   17. Closed that day (warning)
+ *   18–19. Before opening / After closing (warning)
+ *   20. Late for the slot (warning)
+ *   21. Book by soon (info) / Overdue (warning)
+ *   22. Still to book close to the day (info)
  */
 export function detectFlags({
   stops,
@@ -925,6 +1245,9 @@ export function detectFlags({
   homeFirstStop,
   homeLastStop,
   hiddenStopIds,
+  hiddenItemIds,
+  today,
+  stopNames,
 }: DetectFlagsInput): Flag[] {
   const hidden = new Set(hiddenStopIds ?? []);
   const hiddenStops = stops.filter((s) => hidden.has(s.id));
@@ -932,6 +1255,7 @@ export function detectFlags({
   const onHiddenDay = (f: Flag) =>
     f.date !== undefined && hiddenStops.some((s) => s.arriveDate <= f.date! && f.date! <= s.departDate);
   const outsideHidden = (flags: Flag[]) => (hiddenStops.length === 0 ? flags : flags.filter((f) => !onHiddenDay(f)));
+  const planning = planningSubjects(items, accommodations, hidden, hiddenItemIds);
   // Same last-Stop derivation flagMissingHomeConnection uses: the caller-supplied
   // override (all stops, dated + rough) when given, else the last of the
   // supplied `stops` by sortOrder.
@@ -967,5 +1291,15 @@ export function detectFlags({
     }),
     // ADR 0068: while the return leg IS the deadline this would compare the leg with itself.
     ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId, homeTimezone)),
+    // Spec 2026-10-17 R7: the planning Flags, on what the viewer can see.
+    ...flagClosedOnDay(planning.items),
+    ...flagOutsideOpeningHours(planning.items),
+    ...flagLateForSlot(planning.items),
+    ...(today
+      ? flagBookByDates({ items: planning.items, transports, accommodations: planning.accommodations, today, stops, stopNames, home, homeTimezone })
+      : []),
+    ...(today
+      ? flagStillToBookSoon({ transports, accommodations: planning.accommodations, today, stops, stopNames, home, homeTimezone })
+      : []),
   ];
 }

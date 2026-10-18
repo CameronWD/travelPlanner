@@ -62,6 +62,7 @@ vi.mock("@/server/actions/stops", () => ({}));
 vi.mock("@/lib/trip-projection-reads", () => ({
   getTripProjection: vi.fn(async () => ({ projectedEnd: null, hardEndDate: null, deadline: null })),
 }));
+vi.mock("@/lib/trip-today", () => ({ tripTodayISO: vi.fn(() => "2026-01-03") }));
 // `@/lib/chapters` and the `@/lib/dates` it depends on internally (isDateWithin)
 // are left REAL — pure, deterministic functions — so chapter grouping actually
 // reflects the gated `chapters` array built inside page.tsx. Mocking them
@@ -478,5 +479,22 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     const input = vi.mocked(buildBudget).mock.calls[0][0] as unknown as { accommodations: Array<Record<string, unknown>> };
     expect(input.accommodations).toEqual([{ id: "acc-1", stopId: "s1", checkIn: "2026-01-02", checkOut: "2026-01-04", name: "The Hideaway Inn" }]);
     expect(html).not.toContain("The Hideaway Inn");
+  });
+
+  it("hands the Trip's today and the hidden Items to the Flags (spec 2026-10-17 R7)", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip(BASE_TRIP),
+        stops: [DATED_STOP],
+        visibility: hiddenVisibility({ viewerId: "u1", placeholders: [placeholderItem({ id: "hid", stopId: "s1", date: "2026-01-03" })] }),
+      }),
+    );
+
+    render(await renderSummary());
+
+    const { detectFlags } = await import("@/lib/flags");
+    const { tripTodayISO } = await import("@/lib/trip-today");
+    expect(vi.mocked(tripTodayISO)).toHaveBeenCalledWith([expect.objectContaining({ id: "s1" })]);
+    expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ today: "2026-01-03", hiddenItemIds: ["hid"] }));
   });
 });

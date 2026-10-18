@@ -9,6 +9,8 @@ const {
   placeIdeaAtStop,
   addMarkerToWishlist,
   setOpeningHours,
+  setTryList,
+  tickTryEntry,
   setVote,
   clearVote,
   setDayTitle,
@@ -35,6 +37,8 @@ const {
   placeIdeaAtStop: vi.fn(),
   addMarkerToWishlist: vi.fn(),
   setOpeningHours: vi.fn(),
+  setTryList: vi.fn(),
+  tickTryEntry: vi.fn(),
   setVote: vi.fn(),
   clearVote: vi.fn(),
   setDayTitle: vi.fn(),
@@ -63,6 +67,8 @@ vi.mock("@/server/actions/items", () => ({
   placeIdeaAtStop,
   addMarkerToWishlist,
   setOpeningHours,
+  setTryList,
+  tickTryEntry,
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote, clearVote }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle }));
@@ -173,6 +179,8 @@ describe("plan write tools", () => {
         "add_thing_to_do",
         "update_thing_to_do",
         "set_opening_hours",
+        "set_try_list",
+        "tick_try_entry",
         "delete_thing_to_do",
         "schedule_thing_to_do",
         "unschedule_thing_to_do",
@@ -337,6 +345,74 @@ describe("plan write tools", () => {
       expect(r.isError).toBe(true);
       expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
       expect(setOpeningHours).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("set_try_list and tick_try_entry (R6)", () => {
+    const LIST = [{ id: "e1", text: "Lebkuchen", tried: true }];
+
+    it("set_try_list checks the real plan, saves through setTryList, and returns the item", async () => {
+      setTryList.mockResolvedValue({ success: true });
+      loadItemForMcp.mockResolvedValue({ id: ITEM_ID, tryList: LIST });
+      const c = await connectTestClient();
+      const r = await c.callTool({
+        name: "set_try_list",
+        arguments: { itemId: ITEM_ID, entries: [{ id: "e1", text: "Lebkuchen" }, { text: "Schäufele", tried: false }] },
+      });
+      expect(r.isError).toBeFalsy();
+      expect(itemFindUnique).toHaveBeenCalledWith({ where: { id: ITEM_ID, forkId: null }, select: { tripId: true } });
+      expect(setTryList).toHaveBeenCalledWith(ITEM_ID, [{ id: "e1", text: "Lebkuchen" }, { text: "Schäufele", tried: false }]);
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ item: { id: ITEM_ID, tryList: LIST } });
+    });
+
+    it("set_try_list with no entries clears the list", async () => {
+      setTryList.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "set_try_list", arguments: { itemId: ITEM_ID, entries: [] } });
+      expect(setTryList).toHaveBeenCalledWith(ITEM_ID, []);
+    });
+
+    it("set_try_list refuses a repeated id or 31 entries before calling anything", async () => {
+      const c = await connectTestClient();
+      const dup = await c.callTool({ name: "set_try_list", arguments: { itemId: ITEM_ID, entries: [{ id: "e1", text: "A" }, { id: "e1", text: "B" }] } });
+      expect(dup.isError).toBe(true);
+      const many = await c.callTool({ name: "set_try_list", arguments: { itemId: ITEM_ID, entries: Array.from({ length: 31 }, (_, i) => ({ text: `T${i}` })) } });
+      expect(many.isError).toBe(true);
+      expect(setTryList).not.toHaveBeenCalled();
+    });
+
+    it("tick_try_entry ticks by default, unticks with tried: false, and returns the item", async () => {
+      tickTryEntry.mockResolvedValue({ success: true });
+      loadItemForMcp.mockResolvedValue({ id: ITEM_ID, tryList: LIST });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "tick_try_entry", arguments: { itemId: ITEM_ID, entryId: "e1" } });
+      expect(tickTryEntry).toHaveBeenCalledWith(ITEM_ID, "e1", true);
+      expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({ item: { id: ITEM_ID, tryList: LIST } });
+      await c.callTool({ name: "tick_try_entry", arguments: { itemId: ITEM_ID, entryId: "e1", tried: false } });
+      expect(tickTryEntry).toHaveBeenLastCalledWith(ITEM_ID, "e1", false);
+    });
+
+    it("tick_try_entry on an entry that is gone reports the action's message", async () => {
+      tickTryEntry.mockResolvedValue({ success: false, errors: { tryList: ["That one is no longer on the list."] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "tick_try_entry", arguments: { itemId: ITEM_ID, entryId: "gone" } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("That one is no longer on the list.");
+    });
+
+    it("both, on a Fork's row, are not found and write nothing", async () => {
+      itemFindUnique.mockResolvedValue(null);
+      const c = await connectTestClient();
+      for (const [name, args] of [
+        ["set_try_list", { itemId: ITEM_ID, entries: [] }],
+        ["tick_try_entry", { itemId: ITEM_ID, entryId: "e1" }],
+      ] as const) {
+        const r = await c.callTool({ name, arguments: args });
+        expect(r.isError).toBe(true);
+        expect((r.content as { text: string }[])[0].text).toBe(NOT_FOUND_TEXT);
+      }
+      expect(setTryList).not.toHaveBeenCalled();
+      expect(tickTryEntry).not.toHaveBeenCalled();
     });
   });
 

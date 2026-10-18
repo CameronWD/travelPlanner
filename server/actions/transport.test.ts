@@ -367,6 +367,19 @@ describe("createTransport", () => {
     expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
+  it("a drive (CAR) with no reference is created No booking needed; with one, Booked; a chosen state is kept (I4)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-car" });
+    await createTransport("trip-1", { ...VALID_INPUT, mode: "CAR", reference: undefined });
+    expect(transportCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ mode: "CAR", bookingState: "NONE", bookingStateSet: false }) });
+    await createTransport("trip-1", { ...VALID_INPUT, mode: "CAR", reference: "HERTZ-123" });
+    expect(transportCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ bookingState: "BOOKED", bookingStateSet: false }) });
+    await createTransport("trip-1", { ...VALID_INPUT, mode: "CAR", reference: undefined, bookingState: "TO_BOOK" });
+    expect(transportCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ bookingState: "TO_BOOK", bookingStateSet: true }) });
+    await createTransport("trip-1", { ...VALID_INPUT, mode: "TRAIN", reference: undefined });
+    expect(transportCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ bookingState: "TO_BOOK", bookingStateSet: false }) });
+  });
+
   it("sets sortOrder = max + 1 when transports exist", async () => {
     transportFindFirstMock.mockResolvedValue({ sortOrder: 3 });
     transportCreateMock.mockResolvedValue({ id: "t-2" });
@@ -1236,6 +1249,22 @@ describe("updateTransport (PATCH, ADR 0075)", () => {
     const r = await updateTransport("t1", { bookingState: "TO_BOOK", bookBy: "May 1" });
     expect(r).toMatchObject({ success: false, errors: { bookBy: [expect.any(String)] } });
     expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("a mode change on an unchosen leg re-derives its state: TRAIN to CAR with no reference is No booking needed (I4)", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, reference: null, bookingState: "TO_BOOK" });
+    expect(await updateTransport("t1", { mode: "CAR" })).toEqual({ success: true });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ mode: "CAR", bookingState: "NONE", bookingStateSet: false }) }));
+    transportUpdateMock.mockClear();
+    transportFindUniqueMock.mockResolvedValue({ ...row, mode: "CAR", reference: null, bookingState: "NONE" });
+    await updateTransport("t1", { mode: "TRAIN" });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ bookingState: "TO_BOOK", bookingStateSet: false }) }));
+  });
+
+  it("a mode change keeps a state the Traveller chose (I4)", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, reference: null, bookingState: "TO_BOOK", bookingStateSet: true });
+    await updateTransport("t1", { mode: "CAR" });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ bookingState: "TO_BOOK", bookingStateSet: true }) }));
   });
 
   it("an endpoint refusal writes nothing", async () => {

@@ -34,6 +34,7 @@ const {
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
+  itemQueryRawMock,
   markerFindUniqueMock,
   getUserGlobeMock,
 } = vi.hoisted(() => {
@@ -56,10 +57,16 @@ const {
   // either call site is observable the same way.
   const itemUpdateMock = vi.fn();
   const itemUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  // CONTEXT.md "Try list": the family's rows are locked (SELECT … FOR UPDATE,
+  // raw SQL) and the family read runs on the transaction, so the fake tx has
+  // both. The family lookup shares itemFindManyMock with db.item.findMany.
+  const itemQueryRawMock = vi.fn().mockResolvedValue([]);
+  const itemFindManyMock = vi.fn().mockResolvedValue([]);
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
-        item: { delete: itemDeleteMock, update: itemUpdateMock, updateMany: itemUpdateManyMock },
+        item: { delete: itemDeleteMock, update: itemUpdateMock, updateMany: itemUpdateManyMock, findMany: itemFindManyMock },
+        $queryRaw: itemQueryRawMock,
         cost: {
           findMany: costFindManyMock,
           create: costCreateMock,
@@ -95,7 +102,7 @@ const {
     itemFindFirstMock: vi.fn(),
     // Opening hours (CONTEXT.md "Opening hours"; fix round 1): the family-
     // recipients lookup, before the Surprise boundary check narrows it.
-    itemFindManyMock: vi.fn().mockResolvedValue([]),
+    itemFindManyMock,
     itemCreateMock: vi.fn(),
     itemUpdateMock,
     itemUpdateManyMock,
@@ -115,6 +122,7 @@ const {
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
+    itemQueryRawMock,
     markerFindUniqueMock: vi.fn(),
     getUserGlobeMock: vi.fn(),
   };
@@ -229,8 +237,11 @@ import {
   addMarkerToWishlist,
   placeIdeaAtStop,
   setOpeningHours,
+  setTryList,
+  tickTryEntry,
 } from "./items";
 import { serializeOpeningHours } from "@/lib/validations/opening-hours";
+import { serializeTryList } from "@/lib/validations/try-list";
 import { recordActivity } from "@/lib/activity-record";
 
 const VALID_INPUT = {
@@ -940,6 +951,22 @@ describe("scheduleItem", () => {
     expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ openingHours: hours }) });
   });
 
+  it("carries the idea's Try list, ticks included, onto the placed copy (spec 2026-10-17 R6)", async () => {
+    const list = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: true }]);
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({
+        id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Christkindlesmarkt", category: "FOOD", tryList: list,
+      });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("item-1", { date: "2026-12-05" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tryList: list }) });
+  });
+
   it("rescheduling an already-placed item (date non-null) keeps in-place update", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" })
@@ -1517,6 +1544,24 @@ describe("placeIdeaAtStop", () => {
       .mockResolvedValueOnce(IDEA); // no openingHours on the row
     await placeIdeaAtStop("idea-1", "s1");
     expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ openingHours: null }) });
+  });
+
+  it("carries the idea's Try list onto the thing to do; none copies as null", async () => {
+    const list = JSON.stringify([{ id: "aaaa1111", text: "Lebkuchen", tried: false }]);
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ ...IDEA, tryList: list });
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ tryList: list }) });
+
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce(IDEA); // no tryList on the row
+    await placeIdeaAtStop("idea-1", "s1");
+    expect(itemCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ tryList: null }) });
   });
 
   it("refuses a Stop from another trip (no create)", async () => {
@@ -2477,7 +2522,7 @@ describe("Slot time with an end time and no start (R3, fix round 1)", () => {
 // itemUpdateManyMock are wired into the fake tx too (see the hoisted mocks).
 //
 // Fix round 1 (controller ruling): the family write now goes through
-// openingHoursFamilyRecipients, which reads the candidate ids via
+// itemFamilyRecipients (lib/item-family.ts), which reads the candidate ids via
 // db.item.findMany (itemFindManyMock) before excluding anything inside a
 // live Surprise, so the family updateMany targets `{ id: { in: [...] } }`
 // rather than the raw family `where` — itemFindManyMock stands in for the
@@ -2501,7 +2546,7 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     itemUpdateMock.mockResolvedValue(row);
     // The family's only other member, as db.item.findMany would return it
-    // (id only — openingHoursFamilyRecipients selects nothing else).
+    // (id only — itemFamilyRecipients (lib/item-family.ts) selects nothing else).
     itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]);
   });
 
@@ -2626,5 +2671,298 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
     itemCreateMock.mockResolvedValue({ id: "new-1", title: "Lello" });
     await createItem("trip-1", { ...VALID_INPUT, title: "Lello", openingHours: HOURS });
     expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ openingHours: STORED_HOURS }) });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Try list (CONTEXT.md Try list; spec 2026-10-17 R6)
+// ---------------------------------------------------------------------------
+
+// Adapted from task-T.3-brief.md to Section S's actual exports: ids are minted
+// inside lib/try-list.ts applyTryListInput (newTryEntryId is not injectable),
+// so a new entry's id is checked by shape, not by value.
+describe("Try list (CONTEXT.md Try list: shared by a thing to do and its placed copies)", () => {
+  const LIST = [
+    { id: "e1", text: "Lebkuchen", tried: true },
+    { id: "e2", text: "Drei im Weggla", tried: false },
+  ];
+  const STORED = serializeTryList(LIST);
+  const row = {
+    id: "copy-1", tripId: "trip-1", forkId: null, stopId: "stop-1", sourceItemId: "idea-1", title: "Nuremberg market", category: "FOOD",
+    date: "2027-12-02", startTime: null, endTime: null, address: null, link: null, booking: null, notes: null,
+    hiddenFromShares: false, openingHours: null, tryList: STORED,
+  };
+  const sqlOf = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
+  const written = (mock: typeof itemUpdateMock, n = 0) =>
+    JSON.parse((mock.mock.calls[n][0] as { data: { tryList: string } }).data.tryList) as unknown;
+  const freshId = expect.stringMatching(/^[a-z0-9]{8}$/);
+
+  beforeEach(() => {
+    itemFindUniqueMock.mockResolvedValue(row);
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    itemUpdateMock.mockResolvedValue(row);
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }]); // the family's other member
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: STORED }, { id: "idea-1", tryList: STORED }]);
+  });
+
+  it("updateItem merges the list onto the locked one and writes the row and its family", async () => {
+    expect(await updateItem("copy-1", { tryList: [{ id: "e2", text: "Drei im Weggla" }, { text: "Schäufele" }] })).toMatchObject({ success: true });
+    const sql = sqlOf(itemQueryRawMock.mock.calls[0]);
+    expect(sql).toMatch(/FOR UPDATE/);
+    expect(sql).toMatch(/ORDER BY "id"/);
+    expect(itemQueryRawMock.mock.calls[0].slice(1)).toEqual([expect.objectContaining({ values: ["copy-1", "idea-1"] })]);
+    expect(written(itemUpdateMock)).toEqual([
+      { id: "e2", text: "Drei im Weggla", tried: false },
+      { id: freshId, text: "Schäufele", tried: false },
+    ]);
+    const next = (itemUpdateMock.mock.calls[0][0] as { data: { tryList: string } }).data.tryList;
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: next } });
+    // The family read ran on the transaction, before the lock.
+    expect(itemFindManyMock.mock.invocationCallOrder[0]).toBeLessThan(itemQueryRawMock.mock.invocationCallOrder[0]);
+  });
+
+  it("an edit from a dialog opened before a tick keeps the tick (it reads the locked row, not the one it held)", async () => {
+    // The held row says e2 is untried; the locked row says the partner has just ticked it.
+    const ticked = serializeTryList([LIST[0], { ...LIST[1], tried: true }]);
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: ticked }, { id: "idea-1", tryList: ticked }]);
+    await updateItem("copy-1", { tryList: [{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Drei im Weggla (Bratwurst)" }] });
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "copy-1" },
+      data: expect.objectContaining({
+        tryList: serializeTryList([
+          { id: "e1", text: "Lebkuchen", tried: true },
+          { id: "e2", text: "Drei im Weggla (Bratwurst)", tried: true },
+        ]),
+      }),
+    });
+  });
+
+  it("updateItem that names no Try list leaves it, and the family, alone", async () => {
+    await updateItem("copy-1", { notes: "cash only" });
+    const call = itemUpdateMock.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty("tryList");
+    expect(itemQueryRawMock).not.toHaveBeenCalled();
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a notes-only edit never blocks on, or rewrites, a stored list that no longer parses", async () => {
+    itemFindUniqueMock.mockResolvedValue({ ...row, tryList: "not json" });
+    expect(await updateItem("copy-1", { notes: "cash only" })).toMatchObject({ success: true });
+    expect(itemUpdateMock.mock.calls[0][0]).not.toHaveProperty("data.tryList");
+  });
+
+  it("a save that also makes the Item a Surprise keeps its list and hours off the family (I1)", async () => {
+    setSurpriseMock.mockResolvedValue({ success: true });
+    await updateItem("copy-1", { tryList: [{ id: "e1", text: "Lebkuchen" }, { text: "Secret" }], surpriseForIds: ["partner-1"] });
+    expect(written(itemUpdateMock)).toEqual([LIST[0], { id: freshId, text: "Secret", tried: false }]);
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+    expect(itemQueryRawMock.mock.calls[0].slice(1)).toEqual([expect.objectContaining({ values: ["copy-1"] })]);
+  });
+
+  it("a save that also moves the Item into a live Surprise's Stop keeps its list and hours off the family (I1)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "hidden-stop", tripId: "trip-1", forkId: null });
+    surpriseRootForMock.mockImplementation(async (ref: { stopId?: string }) => (ref.stopId === "hidden-stop" ? { type: "STOP", id: "hidden-stop" } : null));
+    await updateItem("copy-1", {
+      stopId: "hidden-stop",
+      tryList: [{ id: "e1", text: "Lebkuchen" }],
+      openingHours: { week: { sun: [], mon: [], tue: [], wed: [], thu: [], fri: [], sat: [] }, seasons: [], closed: [] },
+    });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ stopId: "hidden-stop", tryList: serializeTryList([LIST[0]]) }) });
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem with hours only shares the hours, not the list", async () => {
+    await updateItem("copy-1", { openingHours: { week: { sun: [], mon: [], tue: [], wed: [], thu: [], fri: [], sat: [] }, seasons: [], closed: [] } });
+    expect(itemUpdateMock.mock.calls[0][0]).not.toHaveProperty("data.tryList");
+    expect(itemUpdateManyMock.mock.calls[0][0]).not.toHaveProperty("data.tryList");
+  });
+
+  it("updateItem with null clears the list for the family", async () => {
+    await updateItem("copy-1", { tryList: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: expect.objectContaining({ tryList: null }) });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: null } });
+  });
+
+  it("refuses a 31-entry list on the field and writes nothing", async () => {
+    const r = await updateItem("copy-1", { tryList: Array.from({ length: 31 }, (_, i) => ({ text: `Thing ${i}` })) });
+    expect(r).toMatchObject({ success: false, errors: { tryList: ["At most 30 things to try"] } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("updateItem records the edit after commit, against the locked list", async () => {
+    // The partner renamed e2 after the dialog's row was read: the Activity
+    // line starts from the locked list, so it names only this edit.
+    const renamed = serializeTryList([LIST[0], { ...LIST[1], text: "Weggla" }]);
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: renamed }, { id: "idea-1", tryList: renamed }]);
+    itemUpdateMock.mockResolvedValue({ ...row, tryList: serializeTryList([LIST[0], { ...LIST[1], text: "Weggla" }, { id: "e3", text: "Schäufele", tried: false }]) });
+    await updateItem("copy-1", { tryList: [{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Weggla" }, { text: "Schäufele" }] });
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    // `from` is the locked list ("Weggla"), not the pre-read row's ("Drei im Weggla").
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: [{ field: "tryList", label: "Try list", from: "Lebkuchen, Weggla", to: "Lebkuchen, Weggla, Schäufele" }],
+      }),
+    );
+    expect(transactionMock.mock.invocationCallOrder[0]).toBeLessThan((recordActivity as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
+  });
+
+  it("createItem stores a list given on create, with fresh ids, ticks as given", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "new-item", title: "Market" });
+    await createItem("trip-1", { title: "Market", category: "FOOD", tryList: [{ text: "Lebkuchen", tried: true }, { text: "Glühwein" }] });
+    const data = (itemCreateMock.mock.calls[0][0] as { data: { tryList: string } }).data;
+    expect(JSON.parse(data.tryList)).toEqual([
+      { id: freshId, text: "Lebkuchen", tried: true },
+      { id: freshId, text: "Glühwein", tried: false },
+    ]);
+  });
+
+  it("createItem with no list stores none", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "new-item", title: "Market" });
+    await createItem("trip-1", { title: "Market", category: "FOOD" });
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tryList: null }) });
+  });
+
+  it("setTryList writes only the list, shares it, records the edit, and revalidates the plan", async () => {
+    itemUpdateMock.mockResolvedValue({ ...row, tryList: serializeTryList([LIST[0]]) });
+    expect(await setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }])).toEqual({ success: true });
+    expect(sqlOf(itemQueryRawMock.mock.calls[0])).toMatch(/FOR UPDATE/);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: serializeTryList([LIST[0]]) } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: serializeTryList([LIST[0]]) } });
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "UPDATED", entityType: "ITEM", entityId: "copy-1" }));
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+  });
+
+  it("setTryList's Activity line reads as the list; a tick-only change carries no change (lib/activity-record drops it)", async () => {
+    itemUpdateMock.mockResolvedValue({ ...row, tryList: serializeTryList([...LIST, { id: "e3", text: "Schäufele", tried: false }]) });
+    await setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Drei im Weggla" }, { text: "Schäufele" }]);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: [{ field: "tryList", label: "Try list", from: "Lebkuchen, Drei im Weggla", to: "Lebkuchen, Drei im Weggla, Schäufele" }],
+      }),
+    );
+    vi.mocked(recordActivity).mockClear();
+    itemUpdateMock.mockResolvedValue({ ...row, tryList: serializeTryList([LIST[0], { ...LIST[1], tried: true }]) });
+    await setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Drei im Weggla", tried: true }]);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ changes: [] }));
+  });
+
+  it("setTryList with null clears the list for the family", async () => {
+    await setTryList("copy-1", null);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: null } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: null } });
+  });
+
+  it("setTryList checks access before writing, and a refused list writes nothing", async () => {
+    await setTryList("copy-1", null);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+    itemUpdateMock.mockClear();
+    expect(await setTryList("copy-1", [{ text: "" }])).toMatchObject({ success: false, errors: { tryList: expect.any(Array) } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("setTryList: when the family write throws, no Activity is recorded", async () => {
+    itemUpdateManyMock.mockRejectedValueOnce(new Error("boom"));
+    await expect(setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }])).rejects.toThrow("boom");
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
+  });
+
+  it("tickTryEntry ticks one entry on the locked list and writes the row and its family, with no Activity", async () => {
+    expect(await tickTryEntry("copy-1", "e2", true)).toEqual({ success: true });
+    const next = serializeTryList([LIST[0], { ...LIST[1], tried: true }]);
+    expect(sqlOf(itemQueryRawMock.mock.calls[0])).toMatch(/FOR UPDATE/);
+    expect(itemQueryRawMock.mock.calls[0].slice(1)).toEqual([expect.objectContaining({ values: ["copy-1", "idea-1"] })]);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: next } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: next } });
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+  });
+
+  it("tickTryEntry builds on the locked list, so a tick made meanwhile on another entry is kept", async () => {
+    const partnerTicked = serializeTryList([{ ...LIST[0], tried: false }, { ...LIST[1], tried: true }]);
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: partnerTicked }, { id: "idea-1", tryList: partnerTicked }]);
+    await tickTryEntry("copy-1", "e1", true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "copy-1" },
+      data: { tryList: serializeTryList([{ ...LIST[0], tried: true }, { ...LIST[1], tried: true }]) },
+    });
+  });
+
+  it("an untick writes the list with the entry untried", async () => {
+    await tickTryEntry("copy-1", "e1", false);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: serializeTryList([{ ...LIST[0], tried: false }, LIST[1]]) } });
+  });
+
+  it("a tick to the state it already has writes nothing", async () => {
+    expect(await tickTryEntry("copy-1", "e1", true)).toEqual({ success: true });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a tick on an entry that is gone is refused on the field", async () => {
+    expect(await tickTryEntry("copy-1", "gone", true)).toEqual({ success: false, errors: { tryList: ["That one is no longer on the list."] } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: null }, { id: "idea-1", tryList: null }]);
+    expect(await tickTryEntry("copy-1", "e1", true)).toMatchObject({ success: false });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("a tick reaches each family row on its own list: a diverged copy keeps its extra entry, a row without the entry is left alone (I2)", async () => {
+    itemFindManyMock.mockResolvedValue([{ id: "idea-1" }, { id: "revealed" }, { id: "other" }]);
+    const diverged = [...LIST, { id: "e9", text: "Feuerzangenbowle", tried: false }];
+    itemQueryRawMock.mockResolvedValue([
+      { id: "copy-1", tryList: STORED },
+      { id: "idea-1", tryList: STORED },
+      { id: "other", tryList: serializeTryList([{ id: "x1", text: "Something else", tried: false }]) },
+      { id: "revealed", tryList: serializeTryList(diverged) },
+    ]);
+    expect(await tickTryEntry("copy-1", "e2", true)).toEqual({ success: true });
+    const ticked = (list: typeof LIST) => serializeTryList(list.map((e) => (e.id === "e2" ? { ...e, tried: true } : e)));
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: ticked(LIST) } });
+    expect(itemUpdateManyMock).toHaveBeenCalledTimes(2);
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: ticked(LIST) } });
+    expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["revealed"] } }, data: { tryList: ticked(diverged) } });
+  });
+
+  it("a family row whose entry already has the tick is not written", async () => {
+    itemQueryRawMock.mockResolvedValue([
+      { id: "copy-1", tryList: STORED },
+      { id: "idea-1", tryList: serializeTryList([LIST[0], { ...LIST[1], tried: true }]) },
+    ]);
+    await tickTryEntry("copy-1", "e2", true);
+    expect(itemUpdateMock).toHaveBeenCalledTimes(1);
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a tick revalidates the plan on every outcome, so a stale page reconciles (I3)", async () => {
+    await tickTryEntry("copy-1", "e1", true); // unchanged: a partner already ticked it
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+    revalidateTripMock.mockClear();
+    await tickTryEntry("copy-1", "gone", true);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
+  });
+
+  it("tickTryEntry checks access before writing", async () => {
+    await tickTryEntry("copy-1", "e2", true);
+    expectAccessCheckedBeforeWrite(requireRowAccessMock, itemUpdateMock);
+  });
+
+  it("a tick on a Surprise row stays on it", async () => {
+    surpriseRootForMock.mockResolvedValue({ kind: "ITEM", id: "copy-1" });
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: STORED }]);
+    await tickTryEntry("copy-1", "e2", true);
+    expect(itemUpdateMock).toHaveBeenCalledTimes(1);
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("a Surprise row's list reaches only itself, and locks only itself", async () => {
+    surpriseRootForMock.mockResolvedValue({ kind: "ITEM", id: "copy-1" });
+    itemQueryRawMock.mockResolvedValue([{ id: "copy-1", tryList: STORED }]);
+    await setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }]);
+    expect(itemQueryRawMock.mock.calls[0].slice(1)).toEqual([expect.objectContaining({ values: ["copy-1"] })]);
+    expect(itemUpdateManyMock).not.toHaveBeenCalled();
   });
 });

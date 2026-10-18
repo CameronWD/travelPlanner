@@ -127,7 +127,7 @@ describe("buildDayModel (card 3.M)", () => {
   const item = (o: Partial<DayRows["items"][number]> & { id: string; date: string }) => ({
     title: `Item ${o.id}`, category: "SIGHTSEEING", startTime: null, endTime: null, sortOrder: 0, stopId: "s-stras",
     lat: null, lng: null, address: null, link: null, booking: null, bookingState: "NONE" as const, bookingStateSet: false,
-    bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null, ...o,
+    bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null, ...o,
   });
   const SURPRISED = { plannerId: "u-pat", plannerName: "Pat", forIds: ["u-viv"], forNames: ["Viv"], youAreSurprised: true };
   const HOTEL = {

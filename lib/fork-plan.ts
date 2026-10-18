@@ -4,7 +4,7 @@
  * a Fork (a faithful copy of the live arrangement).
  *
  * Rules (compare with buildDuplicatePlan in duplicate-trip.ts):
- *   KEEP  — dates, pinned, accommodations, estimated Costs, rateToHome, Booking state / book-by / Slot time / Opening hours
+ *   KEEP  — dates, pinned, accommodations, estimated Costs, rateToHome, Booking state / book-by / Slot time / Opening hours / Try list (with ticks)
  *   DROP  — paidAt, paidMinor from Costs; votes/notes/attachments (trip-wide)
  *   NULL  — sourceItemId (items) and ownerId (costs, remapped by the tx)
  *   ANCHOR — each leg's slot (sourceAnchorStopId, a SOURCE stop id; the tx
@@ -14,7 +14,7 @@
  * remaps FK relationships from the `sourceId` / `source*Id` keys.
  */
 
-import { effectiveBookingState } from "@/lib/booking-state";
+import { effectiveBookingState, transportBookingSubject } from "@/lib/booking-state";
 import { isOnTrip } from "@/lib/enum-values";
 import { orderPlanStops } from "@/lib/plan-order";
 import { creationAnchor } from "@/lib/transport-anchor";
@@ -140,6 +140,8 @@ interface ForkSourceItem {
   arriveByMinutes?: number | null;
   refundable?: boolean | null;
   openingHours?: string | null;
+  /** CONTEXT.md "Try list" (R6) — copied as stored, ticks included. */
+  tryList?: string | null;
 }
 
 interface ForkSourceCost {
@@ -272,6 +274,7 @@ export interface ForkPlan {
       arriveByMinutes: number | null;
       refundable: boolean | null;
       openingHours: string | null;
+      tryList: string | null;
     };
   }>;
   costs: Array<{
@@ -322,7 +325,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         mode: t.mode, depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,
         reference: t.reference, notes: t.notes, sortOrder: t.sortOrder,
-        bookingState: effectiveBookingState("TRANSPORT", t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
+        bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
       },
     })),
     accommodations: source.accommodations.map((a) => ({
@@ -347,6 +350,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         bookingState: effectiveBookingState("ITEM", it, it.booking), bookingStateSet: it.bookingStateSet ?? false, bookBy: it.bookBy ?? null,
         slotTime: it.slotTime ?? null, arriveByMinutes: it.arriveByMinutes ?? null, refundable: it.refundable ?? null,
         openingHours: it.openingHours ?? null,
+        tryList: it.tryList ?? null,
       },
     })),
     costs: source.costs.map((c) => ({

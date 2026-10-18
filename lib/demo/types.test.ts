@@ -5,6 +5,7 @@ import {
   planFlagInput,
   demoLegAnchorKeys,
   demoTripToggles,
+  demoBookingColumns,
   type DemoStop,
   type DemoPlan,
   type DemoTransport,
@@ -67,5 +68,19 @@ describe("demoTripToggles", () => {
     const chapter = {} as DemoTrip["chapters"][number];
     expect(demoTripToggles({ chapters: [chapter], forks: [] })).toEqual({ forksEnabled: false, chaptersEnabled: true });
     expect(demoTripToggles({ chapters: [], forks: [fork] })).toEqual({ forksEnabled: true, chaptersEnabled: false });
+  });
+});
+
+describe("demoBookingColumns (CONTEXT.md Booking state; spec 2026-10-17 R2)", () => {
+  it("derives the state from the reference, as every writer stores it", () => {
+    expect(demoBookingColumns("TRANSPORT", {}, "Blue Mountains Line")).toEqual({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
+    expect(demoBookingColumns("TRANSPORT", {}, null)).toEqual({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null });
+    expect(demoBookingColumns("DRIVE", {}, null)).toEqual({ bookingState: "NONE", bookingStateSet: false, bookBy: null });
+    expect(demoBookingColumns("ACCOMMODATION", {}, "HM-44821")).toEqual({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });
+    expect(demoBookingColumns("ITEM", {}, null)).toEqual({ bookingState: "NONE", bookingStateSet: false, bookBy: null });
+  });
+  it("a chosen state wins, and keeps its book-by date only while To book", () => {
+    expect(demoBookingColumns("ITEM", { bookingState: "TO_BOOK", bookBy: "2026-07-20" }, null)).toEqual({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2026-07-20" });
+    expect(demoBookingColumns("ITEM", { bookingState: "BOOKED", bookBy: "2026-07-20" }, null)).toEqual({ bookingState: "BOOKED", bookingStateSet: true, bookBy: null });
   });
 });

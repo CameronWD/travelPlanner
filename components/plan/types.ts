@@ -9,6 +9,7 @@ import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { SurpriseView } from "@/lib/surprise";
+import type { TryList } from "@/lib/try-list";
 
 export interface StopCardStop {
   id: string;
@@ -57,6 +58,8 @@ export interface ThingToDo {
   refundable?: boolean | null;
   /** CONTEXT.md "Opening hours" — the place's hours; null/absent = not known. */
   openingHours?: OpeningHours | null;
+  /** CONTEXT.md "Try list": things to try there, shared by an idea and its copies; null/absent = none. */
+  tryList?: TryList | null;
   notes?: string | null;
   stopId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
@@ -86,6 +89,7 @@ export function toItemCardItem(it: StopDayItem | ThingToDo): ItemCardItem {
     arriveByMinutes: it.arriveByMinutes ?? null,
     refundable: it.refundable ?? null,
     openingHours: it.openingHours ?? null,
+    tryList: it.tryList ?? null,
     notes: it.notes ?? null,
     stopId: it.stopId ?? null,
     hiddenFromShares: it.hiddenFromShares ?? false,

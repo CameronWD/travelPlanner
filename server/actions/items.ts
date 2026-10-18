@@ -1,6 +1,7 @@
 "use server";
 
 import { notFound } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
@@ -8,7 +9,7 @@ import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
-import { requireOutsideSurprise, surpriseRootFor } from "@/lib/surprise-guard";
+import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
@@ -29,7 +30,10 @@ import { ARRIVE_BY_NEEDS_SLOT_MESSAGE, arriveByMinutesSchema, slotTimeSchema } f
 import { resolveBookingWrite, defaultBookingFields, copiedBookingFields } from "@/lib/booking-state-patch";
 import { startFromSlot } from "@/lib/slot-time";
 import { openingHoursSchema, parseOpeningHours, serializeOpeningHours } from "@/lib/validations/opening-hours";
-import { openingHoursFamilyRoot, openingHoursFamilyWhere, type OpeningHours } from "@/lib/opening-hours";
+import type { OpeningHours } from "@/lib/opening-hours";
+import { itemFamilyRecipients, itemFamilyRecipientsForSave, writeItemFamily, type ItemFamilyData } from "@/lib/item-family";
+import { applyTryListInput, withEntryTried, type TryEntryInput } from "@/lib/try-list";
+import { parseTryList, serializeTryList, tryListInputSchema } from "@/lib/validations/try-list";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -212,6 +216,8 @@ export async function createItem(
       refundable: data.refundable ?? null,
       // CONTEXT.md "Opening hours" (R4): a create has no family yet, so nothing is shared.
       openingHours: serializeOpeningHours(data.openingHours),
+      // CONTEXT.md "Try list" (R6): a create has no family yet; every entry gets a fresh id.
+      tryList: serializeTryList(applyTryListInput(null, data.tryList ?? [])),
       ...booking,
     },
   });
@@ -422,17 +428,17 @@ export async function updateItem(
     countryCode = candidate?.countryCode?.toLowerCase() ?? null;
   }
 
-  // CONTEXT.md "Opening hours": computed before the write (a plain read, like
-  // the FX-rate resolve above — ADR 0007 keeps network/extra reads outside a
-  // transaction) only when the patch actually names the hours, so a patch
-  // that doesn't touch them never re-serialises `before.openingHours` (which
+  // The Item family's shared columns (lib/item-family.ts: CONTEXT.md "Opening
+  // hours", "Try list"), only for the columns the patch actually names, so a
+  // patch that doesn't touch them never re-serialises `before`'s value (which
   // may not even parse — fix round 1) back onto the row, and never re-touches
-  // the family. The family boundary never crosses a Surprise (fix round 1,
-  // CONTEXT.md "Surprise"; ADR 0072): openingHoursFamilyRecipients returns no
-  // one when the edited row is itself a live Surprise, and otherwise leaves
-  // out every row that is.
-  const openingHoursStored = patch.openingHours !== undefined ? serializeOpeningHours(data.openingHours) : undefined;
-  const openingHoursRecipients = patch.openingHours !== undefined ? await openingHoursFamilyRecipients(before) : [];
+  // the family. The hours are known now; the Try list is merged inside the
+  // transaction below, onto the list as it is under the family's row lock.
+  // itemFamilyRecipientsForSave never crosses a Surprise (ADR 0072), not
+  // even one this same save sets.
+  const familyData: ItemFamilyData = {};
+  if (patch.openingHours !== undefined) familyData.openingHours = serializeOpeningHours(data.openingHours);
+  const sharesWithFamily = Object.keys(familyData).length > 0 || patch.tryList !== undefined;
 
   const itemData = {
     stopId: data.stopId ?? null,
@@ -453,9 +459,6 @@ export async function updateItem(
     slotTime: data.slotTime ?? null,
     arriveByMinutes: data.arriveByMinutes ?? null,
     refundable: data.refundable ?? null,
-    // Omitted entirely when the patch didn't name the hours (fix round 1) —
-    // never present to re-serialise `before`'s value back onto the row.
-    ...(openingHoursStored !== undefined ? { openingHours: openingHoursStored } : {}),
     ...booking,
   };
 
@@ -467,22 +470,38 @@ export async function updateItem(
   // transaction whose other write could still roll back — that would leave
   // a phantom UPDATED entry for a family write that never actually landed
   // (lib/activity-guard.ts: "Activity is recorded only after the update
-  // succeeds"). So only the path that actually names the hours opens a
+  // succeeds"). So only the path that names a family column opens a
   // transaction (for its own row write plus the family's, atomically, per
   // fix round 1), and records the Activity itself, with `recordUpdate`,
   // only once that transaction has committed — exactly as `setOpeningHours`
-  // already does. The plain path (patch doesn't touch openingHours) needs
+  // already does. The plain path (patch names no family column) needs
   // no transaction and keeps using `auditedUpdate` as before: Fork silence
   // and the before/after comparison are `recordUpdate`'s, shared by both.
-  if (patch.openingHours !== undefined) {
-    const after = await db.$transaction(async (tx) => {
-      const updated = await tx.item.update({ where: { id: itemId }, data: itemData });
-      if (openingHoursRecipients.length > 0) {
-        await tx.item.updateMany({ where: { id: { in: openingHoursRecipients } }, data: { openingHours: openingHoursStored } });
+  //
+  // The family path reads the family on `tx` and locks every row of it in id
+  // order first (lockItemFamily), so it never interleaves with a tick or
+  // another family write. A Try list in the patch is merged onto the list
+  // read under that lock, so a tick made since the dialog opened is kept (the
+  // dialog never sends `tried`), and the Activity compares against that list.
+  if (sharesWithFamily) {
+    const { after, lockedTryList } = await db.$transaction(async (tx) => {
+      // A save that also makes the Item a Surprise, or moves it into a live
+      // Surprise's Stop, reaches only this row (I1): its Surprise lands after.
+      const recipients = await itemFamilyRecipientsForSave(before, { surpriseForIds: data.surpriseForIds, stopId: data.stopId }, tx);
+      const locked = (await lockItemFamily(tx, itemId, recipients)).get(itemId) ?? null;
+      // Only the family columns the patch named (fix round 1): `tryList` is
+      // set only when the patch names it, so writeItemFamily's key count
+      // never sees an undefined-valued key.
+      const shared: ItemFamilyData = { ...familyData };
+      if (patch.tryList !== undefined) {
+        shared.tryList = serializeTryList(applyTryListInput(parseTryList(locked), data.tryList ?? []));
       }
-      return updated;
+      const updated = await tx.item.update({ where: { id: itemId }, data: { ...itemData, ...shared } });
+      await writeItemFamily(tx, recipients, shared);
+      return { after: updated, lockedTryList: locked };
     });
-    await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+    const beforeForActivity = patch.tryList !== undefined ? { ...before, tryList: lockedTryList } : before;
+    await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before: beforeForActivity, after });
   } else {
     await auditedUpdate("ITEM", db.item, itemId, itemData, item.forkId ?? null, { before });
   }
@@ -554,42 +573,11 @@ export async function updateItem(
 }
 
 /**
- * The ids of `item`'s opening-hours family (CONTEXT.md "Opening hours") that
- * may actually receive a shared write: every other row sharing its place,
- * minus `item` itself, minus anything the family boundary must never cross.
- *
- * Fix round 1 (controller ruling): the hours family never crosses a
- * Surprise (CONTEXT.md "Surprise"; ADR 0072). If `item` is itself, right
- * now, inside a live Surprise — its own, or inherited from its Stop — the
- * write must reach only that row, so this returns no one at all (the
- * family is skipped). Otherwise every candidate that is itself inside a
- * live Surprise is left out of the list, so a visible edit never reaches a
- * hidden copy and a hidden copy's edit never reaches a visible row. Used by
- * both `updateItem` and `setOpeningHours`.
- */
-async function openingHoursFamilyRecipients(
-  item: { id: string; tripId: string; sourceItemId: string | null },
-): Promise<string[]> {
-  if (await surpriseRootFor({ itemId: item.id })) return [];
-  const root = openingHoursFamilyRoot(item);
-  const candidates = await db.item.findMany({
-    where: { ...openingHoursFamilyWhere(item.tripId, root), id: { not: item.id } },
-    select: { id: true },
-  });
-  const recipients: string[] = [];
-  for (const c of candidates) {
-    if (!(await surpriseRootFor({ itemId: c.id }))) recipients.push(c.id);
-  }
-  return recipients;
-}
-
-/**
  * Set (or, with null, clear) a thing's opening hours (CONTEXT.md "Opening
  * hours"), for it and every Item sharing its place: the Wishlist idea and
  * each copy placed from it, in any Plan — except across a Surprise boundary
- * (fix round 1; see `openingHoursFamilyRecipients`). Writes only the hours.
- * Unlike a full `updateItem`, it never re-geocodes the address. The MCP tool
- * `set_opening_hours` calls this.
+ * (lib/item-family.ts). Writes only the hours. Unlike a full `updateItem`, it
+ * never re-geocodes the address. The MCP tool `set_opening_hours` calls this.
  *
  * The edited row's own write is audited (it gets the Activity entry); the
  * updateMany that shares the value with the rest of the family is silent.
@@ -604,19 +592,111 @@ export async function setOpeningHours(itemId: string, hours: OpeningHours | null
   if (!before) notFound();
   const next = parsed.data.openingHours;
   const stored = serializeOpeningHours(next);
-  const recipients = await openingHoursFamilyRecipients(before);
 
   const after = await db.$transaction(async (tx) => {
+    // Locked like every family write, so it never deadlocks with a Try list tick.
+    const recipients = await itemFamilyRecipients(before, tx);
+    await lockItemFamily(tx, itemId, recipients);
     const updated = await tx.item.update({ where: { id: itemId }, data: { openingHours: stored } });
-    if (recipients.length > 0) {
-      await tx.item.updateMany({ where: { id: { in: recipients } }, data: { openingHours: stored } });
-    }
+    await writeItemFamily(tx, recipients, { openingHours: stored });
     return updated;
   });
   await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
 
   revalidateTrip(item.tripId, "plan");
   return { success: true };
+}
+
+/**
+ * Replace a thing's Try list (CONTEXT.md "Try list"); null or [] clears it.
+ * An entry's id keeps it and its tick unless `tried` is given
+ * (applyTryListInput). Writes only the list, for the thing and every Item
+ * sharing its place (never across a Surprise), under the family's row lock.
+ * It never re-geocodes, unlike a full updateItem. One UPDATED line on the
+ * edited Item, recorded after commit; a change that only moves ticks reads as
+ * no change (lib/activity.ts). The MCP tool `set_try_list` calls this.
+ */
+export async function setTryList(itemId: string, entries: TryEntryInput[] | null): Promise<ItemActionResult> {
+  const item = await requireItemAccess(itemId);
+  const parsed = z.object({ tryList: tryListInputSchema.nullable() }).safeParse({ tryList: entries });
+  if (!parsed.success) return validationResult(parsed.error);
+  const held = await db.item.findUnique({ where: { id: itemId } });
+  if (!held) notFound();
+
+  const { before, after } = await db.$transaction(async (tx) => {
+    const recipients = await itemFamilyRecipients(held, tx);
+    const locked = (await lockItemFamily(tx, itemId, recipients)).get(itemId) ?? null;
+    const stored = serializeTryList(applyTryListInput(parseTryList(locked), parsed.data.tryList ?? []));
+    const updated = await tx.item.update({ where: { id: itemId }, data: { tryList: stored } });
+    await writeItemFamily(tx, recipients, { tryList: stored });
+    return { before: { ...held, tryList: locked }, after: updated };
+  });
+  await recordUpdate("ITEM", { tripId: item.tripId, plan: item.forkId ?? null, entityId: itemId, before, after });
+
+  revalidateTrip(item.tripId, "plan");
+  return { success: true };
+}
+
+/**
+ * Tick (or untick) one entry of a thing's Try list (CONTEXT.md "Try list"),
+ * by its id: anyone on the Trip who can see the Item may. A read-modify-write
+ * under the family's row lock (lockItemFamily), so two Travellers ticking at
+ * once never lose a tick, and it reaches the Wishlist idea and every copy
+ * placed from it (never across a Surprise). Not Activity: like Packing ticks
+ * (ADR 0012 amendment 2026-10-11) it is bookkeeping done as you go, and the
+ * tick itself is what the partner sees. A tick to the state the entry already
+ * has (a double tap) succeeds with no write. The MCP tool `tick_try_entry`
+ * and the Day/Today checkboxes call this.
+ */
+export async function tickTryEntry(itemId: string, entryId: string, tried: boolean): Promise<ItemActionResult> {
+  const item = await requireItemAccess(itemId);
+  const held = await db.item.findUnique({ where: { id: itemId }, select: { id: true, tripId: true, sourceItemId: true } });
+  if (!held) notFound();
+
+  const outcome = await db.$transaction(async (tx) => {
+    const recipients = await itemFamilyRecipients(held, tx);
+    const locked = await lockItemFamily(tx, itemId, recipients);
+    const entry = parseTryList(locked.get(itemId) ?? null)?.find((e) => e.id === entryId);
+    if (!entry) return "gone" as const;
+    if (entry.tried === tried) return "unchanged" as const;
+    // Each row is ticked on its own list (I2): a revealed copy whose list has
+    // diverged keeps its other entries, and a row without this entry is left
+    // alone. Rows that land on the same list share one write.
+    const writes = new Map<string, string[]>();
+    for (const id of [itemId, ...recipients]) {
+      const list = parseTryList(locked.get(id) ?? null);
+      if (!list?.some((e) => e.id === entryId && e.tried !== tried)) continue;
+      const stored = serializeTryList(withEntryTried(list, entryId, tried));
+      if (id === itemId) await tx.item.update({ where: { id }, data: { tryList: stored } });
+      else if (stored !== null) writes.set(stored, [...(writes.get(stored) ?? []), id]);
+    }
+    for (const [stored, ids] of writes) await writeItemFamily(tx, ids, { tryList: stored });
+    return "ticked" as const;
+  });
+
+  // Every outcome refreshes the plan (I3): a tick that bounced back ("unchanged"
+  // after a partner's tick, or "gone") reconciles a stale page.
+  revalidateTrip(item.tripId, "plan");
+  if (outcome === "gone") return { success: false, errors: { tryList: ["That one is no longer on the list."] } };
+  return { success: true };
+}
+
+/**
+ * CONTEXT.md "Opening hours", "Try list": lock every row of the Item family
+ * (the edited row and its recipients) in id order, as stop-flow.ts locks a
+ * plan's Stops (ADR 0007), and return every locked row's stored Try list, by id. Every family write takes
+ * it first, so two writers on any rows of one family run one after the other
+ * (neither loses the other's tick) and, taking the rows in one order, never
+ * deadlock. Raw SQL because Prisma can't express SELECT … FOR UPDATE.
+ */
+async function lockItemFamily(tx: Prisma.TransactionClient, itemId: string, recipients: readonly string[]): Promise<Map<string, string | null>> {
+  const rows = await tx.$queryRaw<{ id: string; tryList: string | null }[]>`
+    SELECT "id", "tryList" FROM "Item"
+    WHERE "id" IN (${Prisma.join([itemId, ...recipients])})
+    ORDER BY "id"
+    FOR UPDATE
+  `;
+  return new Map(rows.map((r) => [r.id, r.tryList]));
 }
 
 /**
@@ -717,9 +797,9 @@ async function finishPlacedCopy({
 /**
  * The fields a copy-in placement always inherits from its source Wishlist
  * idea — source link, title/category, coordinates, address, link, notes, the
- * share-hidden flag and the place's Opening hours (spec 2026-10-17 R4: shared
- * by the family — each row holds a copy and writes go to all of them,
- * lib/opening-hours.ts openingHoursFamilyWhere). The idea's CHOSEN Booking
+ * share-hidden flag, the place's Opening hours and the Try list with its
+ * ticks (spec 2026-10-17 R4, R6: shared by the family — each row holds a copy
+ * and writes go to all of them, lib/item-family.ts). The idea's CHOSEN Booking
  * state carries over, with its book-by date while To book; an un-chosen
  * idea's copy re-derives without the reference (never copied), so it needs
  * no booking (lib/booking-state-patch.ts copiedBookingFields). The ticket's
@@ -747,6 +827,7 @@ function ideaCopyData(fullItem: {
   bookingState: string;
   bookingStateSet: boolean;
   bookBy: string | null;
+  tryList?: string | null;
 }) {
   return {
     sourceItemId: fullItem.id,
@@ -763,6 +844,9 @@ function ideaCopyData(fullItem: {
     // (review fix, Task 9).
     hiddenFromShares: fullItem.hiddenFromShares ?? false,
     openingHours: fullItem.openingHours ?? null,
+    // CONTEXT.md "Try list" (R6): shared by the family, ticks and all — the
+    // copy starts with the idea's list as it stands (lib/item-family.ts).
+    tryList: fullItem.tryList ?? null,
     // A ticket's facts follow the idea onto its placed copy (R3); scheduleItem
     // may override the slot and margin.
     slotTime: fullItem.slotTime ?? null,

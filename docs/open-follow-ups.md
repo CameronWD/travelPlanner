@@ -3273,7 +3273,7 @@ each is a one-file follow-up.
   changing the season count produces the same before/after Activity text.
 - **PM-02 · The opening-hours family recipients are read before the write's
   transaction.** `setOpeningHours` (`server/actions/items.ts` ~607) calls
-  `openingHoursFamilyRecipients(before)` ahead of `db.$transaction`, so a row
+  `itemFamilyRecipients(before)` (`lib/item-family.ts`) ahead of `db.$transaction`, so a row
   that joins or leaves the family between that read and the commit is
   harmless today (the set is small and stable) but not strictly correct.
 - **PM-03 · An overdue book-by shows the same as a future one.**
@@ -3292,3 +3292,56 @@ each is a one-file follow-up.
   `bookingState: null` ("back to automatic") on `update_accommodation`;
   `update_item` and `update_transport` take the same PATCH but have no
   equivalent test.
+
+## 2026-10-17 · Flags and Try lists (Branch 2) follow-ups (spec 2026-10-17-planning-model-and-review)
+
+Parked at Task Z's gate rather than fixed there — none block the branch;
+each is a one-file follow-up.
+
+- **FT-01 · An Item Flag opens the Item's day, not the Item's dialog.**
+  `flagHref` (`lib/next-steps.ts` ~80-84) sends an ITEM Flag with a date to
+  `/day/<date>` and an undated one to `/plan?stop=<id>`, because no URL in
+  the app opens an Item dialog yet (and `/plan?stop=` isn't read by the Plan
+  page either — PM-04). A real "open this Item" deep link is new UI, out of
+  R7's scope.
+- **FT-02 · Compare passes no `hiddenStopIds` or `hiddenItemIds` to
+  `detectFlags`.** `getComparison`'s `detectFlags` call (`lib/compare.ts`
+  ~380) is pre-existing and unchanged by Branch 2; the six new Flags are
+  silent on masked placeholders anyway (their fields are already nulled),
+  but a Surprise Stop's or Item's *real* Flags could still leak into a
+  Fork's count through this gap.
+- **FT-03 · `prisma/real/persist.ts` doesn't store Booking state.** Real-data
+  seeding writes `reference`/`confirmation`/`booking` (~243, ~266, ~291) but
+  never derives `bookingState`/`bookingStateSet` the way F.11's
+  `demoBookingColumns` now does for the demo persister
+  (`prisma/demo/persist.ts`). Branch 1's migration backfill already corrects
+  rows written through the app, so this only affects data loaded by this
+  script. A drive (a CAR leg) it loads is To book too, rather than the
+  No booking needed the app now derives (I4); `demoBookingColumns` with
+  `transportBookingSubject(t.mode)` is the fix.
+- **FT-04 · `get_wishlist` ideas carry no Try list or Opening hours.**
+  `WISHLIST_IDEA_SELECT` and `McpIdea` (`lib/mcp/reads/lists.ts` ~59-68)
+  don't select or expose `tryList`/`openingHours`, so Claude can't see or
+  mention either on a Wishlist idea until it's placed (`get_item`/`get_day`
+  do carry both).
+- **FT-05 · A family's recipients are read before the row lock.**
+  `itemFamilyRecipients(before, tx)` runs, then `lockItemFamily(tx, itemId,
+  recipients)` locks exactly that list (`server/actions/items.ts` ~487,
+  ~595, ~624, ~654) — a copy placed into (or taken out of) the family in the
+  gap between the two calls can miss a concurrent tick or edit. This widens
+  PM-02 (recipients read before the opening-hours transaction) to every
+  family writer now that the Try list shares the same lock.
+- **FT-06 · Other multi-row Item transactions don't take the family lock.**
+  Fork and Stop operations that touch many Item rows at once (for example
+  `server/actions/forks.ts` ~826's `tx.item.updateMany`), and `deleteItem`
+  (an idea delete locks its copies' rows too, via `sourceItemId` SetNull),
+  run outside `lockItemFamily`. A rare deadlock (Postgres error 40P01) is possible
+  against a concurrent tick or hours/Try-list edit on the same family;
+  Postgres aborts one side and the caller can retry, so this is an
+  availability nit, not a correctness one.
+- **FT-07 · An overnight Item that starts just before closing isn't
+  flagged.** `flagOutsideOpeningHours` (`lib/flags.ts` ~1013-1041) skips the
+  "After closing" check entirely once the Item has an end and `end <=
+  start` (the decided overnight rule, notes-F.md decision 8), so an Item
+  starting at 23:50 against a close at midnight raises nothing, unlike the
+  same start with no end at all.

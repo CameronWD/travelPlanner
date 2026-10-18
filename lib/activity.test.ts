@@ -668,3 +668,57 @@ describe("describeChanges: an Item's opening hours (CONTEXT.md Opening hours)", 
     expect(describeChanges("ITEM", { openingHours: stored }, { openingHours: again })).toEqual([]);
   });
 });
+
+describe("describeChanges: an Item's Try list (CONTEXT.md Try list)", () => {
+  const two = JSON.stringify([
+    { id: "e1", text: "Lebkuchen", tried: true },
+    { id: "e2", text: "Drei im Weggla", tried: false },
+  ]);
+
+  it("adding entries reads as the list before and after; none reads 'Not set'", () => {
+    expect(describeChanges("ITEM", { title: "Market", tryList: null }, { title: "Market", tryList: two })).toEqual([
+      { field: "tryList", label: "Try list", from: "Not set", to: "Lebkuchen, Drei im Weggla" },
+    ]);
+    const three = JSON.stringify([...JSON.parse(two), { id: "e3", text: "Schäufele", tried: false }]);
+    expect(describeChanges("ITEM", { tryList: two }, { tryList: three })).toEqual([
+      { field: "tryList", label: "Try list", from: "Lebkuchen, Drei im Weggla", to: "Lebkuchen, Drei im Weggla, Schäufele" },
+    ]);
+    expect(describeChanges("ITEM", { tryList: two }, { tryList: null })).toEqual([
+      { field: "tryList", label: "Try list", from: "Lebkuchen, Drei im Weggla", to: "Not set" },
+    ]);
+  });
+
+  it("a change that only moves ticks is no change (ticks are not Activity)", () => {
+    const ticked = JSON.stringify([
+      { id: "e1", text: "Lebkuchen", tried: false },
+      { id: "e2", text: "Drei im Weggla", tried: true },
+    ]);
+    expect(describeChanges("ITEM", { tryList: two }, { tryList: ticked })).toEqual([]);
+  });
+
+  it("a reorder or rename is a change", () => {
+    const reordered = JSON.stringify([
+      { id: "e2", text: "Drei im Weggla", tried: false },
+      { id: "e1", text: "Lebkuchen", tried: true },
+    ]);
+    expect(describeChanges("ITEM", { tryList: two }, { tryList: reordered })).toEqual([
+      { field: "tryList", label: "Try list", from: "Lebkuchen, Drei im Weggla", to: "Drei im Weggla, Lebkuchen" },
+    ]);
+  });
+
+  it("an unreadable stored value left as it is is no change (an unrelated edit records no Try list line)", () => {
+    expect(describeChanges("ITEM", { tryList: "not json" }, { tryList: "not json" })).toEqual([]);
+    expect(describeChanges("ITEM", { title: "Market", tryList: "not json" }, { title: "Market (cash only)", tryList: "not json" })).toEqual([
+      expect.objectContaining({ field: "title" }),
+    ]);
+    expect(describeChanges("ITEM", { tryList: two }, { tryList: "not json" })).toEqual([
+      { field: "tryList", label: "Try list", from: "Lebkuchen, Drei im Weggla", to: "Set" },
+    ]);
+  });
+
+  it("an unreadable stored value still reads as a change, as 'Set'", () => {
+    expect(describeChanges("ITEM", { tryList: "not json" }, { tryList: two })).toEqual([
+      { field: "tryList", label: "Try list", from: "Set", to: "Lebkuchen, Drei im Weggla" },
+    ]);
+  });
+});

@@ -106,18 +106,3 @@ export function hoursOn(oh: OpeningHours | null | undefined, dateISO: string): D
 export function isEmptyOpeningHours(oh: OpeningHours): boolean {
   return WEEKDAYS.every((d) => oh.week[d] === undefined) && oh.seasons.length === 0 && oh.closed.length === 0;
 }
-
-/**
- * Opening hours belong to the place, so a thing to do and the copies placed
- * from it share them. Each row holds its own copy (copied on place by
- * ideaCopyData), and a write goes to the whole family: the root (the source
- * idea, or the Item itself) and every Item placed from it. That way reads never
- * join, and a copy keeps its hours if the idea is deleted (sourceItemId SetNull).
- */
-export function openingHoursFamilyRoot(item: { id: string; sourceItemId: string | null }): string {
-  return item.sourceItemId ?? item.id;
-}
-
-export function openingHoursFamilyWhere(tripId: string, rootId: string) {
-  return { tripId, OR: [{ id: rootId }, { sourceItemId: rootId }] as [{ id: string }, { sourceItemId: string }] };
-}

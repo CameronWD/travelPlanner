@@ -37,4 +37,15 @@ describe("phase trips", () => {
     const modes = new Set<string>([buildFinalPrepTrip(today), buildTravellingTrip(today), buildPastTrip(today)].flatMap((t) => t.transports.map((x) => x.mode)));
     for (const m of ["TRAIN", "CAR", "FERRY", "BUS"]) expect(modes.has(m)).toBe(true);
   });
+
+  it("final-prep trip shows the planning Flags a Traveller would see (spec 2026-10-17 R7)", () => {
+    const t = buildFinalPrepTrip(today);
+    const ids = detectFlags(planFlagInput(t, { tripStart: t.startDate!, tripEnd: t.endDate!, today })).map((f) => f.id);
+    // A dinner still to book, due tomorrow.
+    expect(ids).toContain("book-by-soon-fp:item:darleys");
+    // Its trains and hotel carry references, so they read Booked: nothing still to book.
+    expect(ids.filter((id) => id.startsWith("still-to-book-"))).toEqual([]);
+    // Scenic World's hours fit its visit.
+    expect(ids.filter((id) => /^item-(closed|before-open|after-close|late-slot)-/.test(id))).toEqual([]);
+  });
 });
