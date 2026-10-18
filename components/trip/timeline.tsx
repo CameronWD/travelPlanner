@@ -38,6 +38,8 @@ import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { SlotFacts } from "@/components/trip/slot-facts";
 import { OpeningHoursLine } from "@/components/trip/opening-hours-line";
+import { TryListTicks } from "@/components/trip/try-list-ticks";
+import { triedLabel } from "@/lib/try-list";
 import type { ItemDirections } from "@/lib/day-map";
 
 const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
@@ -182,6 +184,7 @@ export function Timeline({
                 showUnschedule={unschedule}
                 editor={editor}
                 today={today}
+                tickable={isDay}
               />
             );
           default:
@@ -208,6 +211,7 @@ export function Timeline({
                   showUnschedule={unschedule}
                   editor={editor}
                   today={today}
+                  tickable={isDay}
                 />
               ))}
             </div>
@@ -438,6 +442,7 @@ function TimedItemRow({
   showUnschedule,
   editor,
   today,
+  tickable,
 }: {
   entry: ItemEntry;
   large?: boolean;
@@ -446,6 +451,7 @@ function TimedItemRow({
   showUnschedule?: boolean;
   editor?: DayEntryEditor;
   today?: boolean;
+  tickable?: boolean;
 }) {
   const { item } = entry;
   const timeLabel = item.endTime
@@ -462,6 +468,7 @@ function TimedItemRow({
         showUnschedule={showUnschedule}
         editor={editor}
         today={today}
+        tickable={tickable}
       />
     </DayRow>
   );
@@ -475,6 +482,7 @@ function UntimedItemRow({
   showUnschedule,
   editor,
   today,
+  tickable,
 }: {
   entry: ItemEntry;
   large?: boolean;
@@ -483,6 +491,7 @@ function UntimedItemRow({
   showUnschedule?: boolean;
   editor?: DayEntryEditor;
   today?: boolean;
+  tickable?: boolean;
 }) {
   const { item } = entry;
 
@@ -496,6 +505,7 @@ function UntimedItemRow({
         showUnschedule={showUnschedule}
         editor={editor}
         today={today}
+        tickable={tickable}
       />
     </DayRow>
   );
@@ -579,6 +589,7 @@ function DayItemBody({
   showUnschedule,
   editor,
   today,
+  tickable,
 }: {
   item: ItemEntry["item"];
   timeLabel: string | null | undefined;
@@ -587,10 +598,14 @@ function DayItemBody({
   showUnschedule?: boolean;
   editor?: DayEntryEditor;
   today?: boolean;
+  tickable?: boolean;
 }) {
   // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to open or move.
   const placeholder = item.surprise?.youAreSurprised ?? false;
   const editable = placeholder ? undefined : editor?.items[item.id];
+  // CONTEXT.md "Try list": the count everywhere; the Day view and Today tick it.
+  const tryList = placeholder ? null : (item.tryList ?? null);
+  const tryCount = triedLabel(tryList);
   return (
     <>
       <div className="flex min-h-7 min-w-0 items-center gap-1.5">
@@ -622,6 +637,7 @@ function DayItemBody({
         <SlotFacts item={item} />
         {item.address && <span className="min-w-0 break-words">{item.address}</span>}
         <OpeningHoursLine hours={item.openingHours} dateISO={item.date} today={today} />
+        {tryCount && !tickable && <span className="tabular-nums">{tryCount}</span>}
         {item.hiddenFromShares && (
           <span role="img" aria-label="Hidden from shares" title="Hidden from shares" className="shrink-0">
             <EyeOff className="size-3.5" aria-hidden="true" />
@@ -635,6 +651,7 @@ function DayItemBody({
           <ItemPhotoThumb src={item.photoUrl} alt={item.title} size="lg" />
         </div>
       )}
+      {tryCount && tickable && tryList && <TryListTicks itemId={item.id} itemTitle={item.title} list={tryList} />}
       <AttachmentLinks attachments={attachments} />
     </>
   );

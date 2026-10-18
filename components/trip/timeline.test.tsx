@@ -17,6 +17,7 @@ vi.mock("@/server/actions/items", () => ({
   unscheduleItem: vi.fn(),
   scheduleItem: vi.fn(),
   rescheduleItem: vi.fn(),
+  tickTryEntry: vi.fn(),
 }));
 // The day page's click-to-open island — stubbed so these tests see only
 // whether Timeline wraps a row title, and for which kind of entity.
@@ -1299,5 +1300,53 @@ describe("Opening hours on the Timeline", () => {
     };
     render(<Timeline day={day} variant="day" todayISO="2027-06-01" />);
     expect(screen.getByText("Closed today")).toBeInTheDocument();
+  });
+});
+
+describe("Try list on the Timeline (CONTEXT.md Try list)", () => {
+  const LIST = [
+    { id: "e1", text: "Lebkuchen", tried: true },
+    { id: "e2", text: "Drei im Weggla", tried: true },
+    { id: "e3", text: "Schäufele", tried: false },
+    { id: "e4", text: "Rauchbier", tried: false },
+    { id: "e5", text: "Glühwein", tried: false },
+  ];
+  const withList: DayPlan = {
+    ...dayPlan,
+    timedItems: [{ kind: "item", item: { ...dayPlan.timedItems[0]!.item, tryList: LIST } }],
+  };
+
+  it("the agenda shows '2/5 tried' and no checkboxes", () => {
+    render(<Timeline day={withList} variant="agenda" />);
+    expect(screen.getByText("2/5 tried")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("the Day variant lists every entry as a labelled checkbox under its count", () => {
+    render(<Timeline day={withList} variant="day" />);
+    expect(screen.getByText("Try list · 2/5 tried")).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: `Try list for ${ITEM_TITLE}` });
+    expect(within(list).getAllByRole("checkbox")).toHaveLength(5);
+    expect(within(list).getByRole("checkbox", { name: "Lebkuchen" })).toBeChecked();
+  });
+
+  it("an Item with no list, or an empty one, shows nothing", () => {
+    const empty: DayPlan = { ...dayPlan, timedItems: [{ kind: "item", item: { ...dayPlan.timedItems[0]!.item, tryList: [] } }] };
+    render(<Timeline day={empty} variant="day" />);
+    expect(screen.queryByText(/tried/)).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("a Surprise placeholder never shows one", () => {
+    const placeholder: DayPlan = {
+      ...dayPlan,
+      timedItems: [{
+        kind: "item",
+        item: { ...dayPlan.timedItems[0]!.item, title: "Surprise", tryList: LIST, surprise: { youAreSurprised: true } as never },
+      }],
+    };
+    render(<Timeline day={placeholder} variant="day" />);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByText(/tried/)).toBeNull();
   });
 });
