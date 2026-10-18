@@ -85,3 +85,12 @@ export type BookingState = (typeof BOOKING_STATES)[number];
 /** `FeedbackNote.status` — the lifecycle of a Feedback note (ADR 0040, amended 2026-09-29: NEEDS_REVIEW). */
 export const FEEDBACK_STATUSES = ["NEEDS_REVIEW", "OPEN", "DONE", "WONTFIX"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
+
+/**
+ * `User.reviewPermission` (spec 2026-10-17 R12, CONTEXT.md "Review"): who may
+ * start a Review. OFF (the default) shows no Review option anywhere and hides
+ * `review_trip` from Claude; LIMITED is capped by lib/review-permission.ts;
+ * UNLIMITED has no cap. Reading Reviews never depends on it.
+ */
+export const REVIEW_PERMISSIONS = ["OFF", "LIMITED", "UNLIMITED"] as const;
+export type ReviewPermission = (typeof REVIEW_PERMISSIONS)[number];

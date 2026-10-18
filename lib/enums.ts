@@ -9,6 +9,7 @@ import {
   MEMBER_ROLES,
   TARGET_TYPES,
   BOOKING_STATES,
+  REVIEW_PERMISSIONS,
 } from "./enum-values";
 
 /**
@@ -27,3 +28,4 @@ export const buyStateSchema = z.enum(BUY_STATES);
 export const memberRoleSchema = z.enum(MEMBER_ROLES);
 export const targetTypeSchema = z.enum(TARGET_TYPES);
 export const bookingStateSchema = z.enum(BOOKING_STATES);
+export const reviewPermissionSchema = z.enum(REVIEW_PERMISSIONS);
