@@ -25,22 +25,35 @@ export function draftFromTryList(list: TryList | null | undefined): TryListDraft
   return (list ?? []).map((e) => ({ key: e.id, id: e.id, text: e.text, tried: e.tried }));
 }
 
-export function tryListPayload(draft: readonly TryListDraftEntry[]): TryEntryInput[] {
-  return draft
+/**
+ * What the dialog sends. `pending` is text typed in "New thing to try" but not
+ * yet added: a save takes it as one more entry rather than dropping it (M6).
+ */
+export function tryListPayload(draft: readonly TryListDraftEntry[], pending = ""): TryEntryInput[] {
+  const entries = draft
     .map((e) => ({ ...(e.id !== undefined && { id: e.id }), text: e.text.trim() }))
     .filter((e) => e.text !== "");
+  const extra = pending.trim();
+  return extra && draft.length < MAX_TRY_ENTRIES ? [...entries, { text: extra }] : entries;
 }
+
+type MoveButton = "up" | "down";
 
 export function TryListEditor({
   value,
   onChange,
   disabled,
   error,
+  pending,
+  onPendingChange,
 }: {
   value: TryListDraftEntry[];
   onChange(next: TryListDraftEntry[]): void;
   disabled?: boolean;
   error?: string;
+  /** The "New thing to try" text, when the dialog holds it (so a save folds it in); else the editor keeps it. */
+  pending?: string;
+  onPendingChange?(text: string): void;
 }) {
   // Controlled like OpeningHoursEditor: once open (or opened by an error) it stays open.
   const [open, setOpen] = React.useState(Boolean(error));
@@ -49,8 +62,26 @@ export function TryListEditor({
     setSeenError(error);
     if (error && !open) setOpen(true);
   }
-  const [newText, setNewText] = React.useState("");
+  const [ownPending, setOwnPending] = React.useState("");
+  const newText = pending ?? ownPending;
+  const setNewText = onPendingChange ?? setOwnPending;
+  // A new entry's key is `new-N`; it can never collide with a saved entry's
+  // key (its id), because ids are [a-z0-9] only (no hyphen).
   const nextKey = React.useRef(0);
+  const idBase = React.useId();
+  const listRef = React.useRef<HTMLOListElement>(null);
+  // After a move, focus returns to the moved entry's button in its new place,
+  // or to the other move button if that one is now disabled (top or bottom).
+  const refocus = React.useRef<{ key: string; button: MoveButton } | null>(null);
+  React.useEffect(() => {
+    const want = refocus.current;
+    if (!want || !listRef.current) return;
+    refocus.current = null;
+    const find = (sel: string) => listRef.current!.querySelector<HTMLElement>(`[data-try-key="${CSS.escape(want.key)}"]${sel}`);
+    const other: MoveButton = want.button === "up" ? "down" : "up";
+    const candidates = [find(`[data-move="${want.button}"]`), find(`[data-move="${other}"]`), find("input")];
+    candidates.find((el) => el && !(el as HTMLButtonElement).disabled)?.focus();
+  }, [value]);
   const full = value.length >= MAX_TRY_ENTRIES;
   const count = tryListPayload(value).length;
 
@@ -67,6 +98,7 @@ export function TryListEditor({
     onChange(value.filter((_, j) => j !== i));
   }
   function move(i: number, by: -1 | 1) {
+    refocus.current = { key: value[i].key, button: by === -1 ? "up" : "down" };
     const next = [...value];
     [next[i], next[i + by]] = [next[i + by], next[i]];
     onChange(next);
@@ -83,24 +115,30 @@ export function TryListEditor({
       <div className="mt-3 flex flex-col gap-2">
         <p className="text-xs text-muted-foreground">Things to try, see or buy there. Tick them off on the day.</p>
         {value.length > 0 && (
-          <ol className="flex flex-col gap-1.5">
+          <ol ref={listRef} className="flex flex-col gap-1.5">
             {value.map((entry, i) => {
               const name = entry.text.trim() || `thing ${i + 1}`;
+              const triedId = `${idBase}-tried-${i}`;
               return (
                 <li key={entry.key} className="flex min-w-0 items-center gap-1">
                   <Input
                     aria-label={`Thing to try ${i + 1}`}
+                    aria-describedby={entry.tried ? triedId : undefined}
+                    data-try-key={entry.key}
                     value={entry.text}
                     maxLength={MAX_TRY_TEXT}
                     onChange={(e) => rename(i, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.preventDefault(); // never submits the Item dialog
+                    }}
                     disabled={disabled}
                     className="min-w-0 flex-1"
                   />
-                  {entry.tried && <span className="shrink-0 text-xs font-semibold text-muted-foreground">Tried</span>}
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Move ${name} up`} disabled={disabled || i === 0} onClick={() => move(i, -1)}>
+                  {entry.tried && <span id={triedId} className="shrink-0 text-xs font-semibold text-muted-foreground">Tried</span>}
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Move ${name} up`} data-try-key={entry.key} data-move="up" disabled={disabled || i === 0} onClick={() => move(i, -1)}>
                     <ChevronUp aria-hidden="true" />
                   </Button>
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Move ${name} down`} disabled={disabled || i === value.length - 1} onClick={() => move(i, 1)}>
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Move ${name} down`} data-try-key={entry.key} data-move="down" disabled={disabled || i === value.length - 1} onClick={() => move(i, 1)}>
                     <ChevronDown aria-hidden="true" />
                   </Button>
                   <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${name}`} disabled={disabled} onClick={() => remove(i)}>

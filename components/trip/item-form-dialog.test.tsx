@@ -1677,6 +1677,66 @@ describe("Try list (R6)", () => {
     expect(vi.mocked(createItem).mock.calls[0][1]).not.toHaveProperty("tryList");
   });
 
+  it("text typed in New thing to try but not added is saved with the list (M6)", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: LIST }} />);
+    await user.click(screen.getByText("Try list"));
+    await user.type(screen.getByLabelText("New thing to try"), "Schäufele");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).toHaveProperty("tryList", [
+      { id: "e1", text: "Lebkuchen" },
+      { id: "e2", text: "Drei im Weggla" },
+      { text: "Schäufele" },
+    ]);
+  });
+
+  it("text typed in New thing to try counts as a change: closing asks first (M6)", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={{ ...existingItem, tryList: LIST }} />);
+    await user.click(screen.getByText("Try list"));
+    await user.type(screen.getByLabelText("New thing to try"), "Schäufele");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("a reorder-only change sends the list", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: LIST }} />);
+    await user.click(screen.getByText("Try list"));
+    await user.click(screen.getByRole("button", { name: "Move Drei im Weggla up" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).toHaveProperty("tryList", [
+      { id: "e2", text: "Drei im Weggla" },
+      { id: "e1", text: "Lebkuchen" },
+    ]);
+  });
+
+  it("renaming an entry and back to its original text sends no tryList", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: LIST }} />);
+    await user.click(screen.getByText("Try list"));
+    const first = screen.getByLabelText("Thing to try 1");
+    await user.type(first, "x");
+    await user.type(first, "{Backspace}");
+    await user.type(screen.getByLabelText(/notes/i), "x");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).not.toHaveProperty("tryList");
+  });
+
+  it("an edit of an Item with no Try list sends no tryList", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, tryList: null }} />);
+    await user.type(screen.getByLabelText(/notes/i), "x");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).not.toHaveProperty("tryList");
+  });
+
   it("shows the server's Try list error in the editor", async () => {
     vi.mocked(updateItem).mockResolvedValueOnce({ success: false, errors: { tryList: ["A Try list holds up to 30 things"] } });
     const user = userEvent.setup();

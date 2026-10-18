@@ -577,9 +577,12 @@ function ItemForm({
   // CONTEXT.md "Try list": sent only when changed, like the hours, so an edit
   // that never loaded it can't wipe it. Ids, never ticks: a tick made while
   // the dialog is open survives the save.
+  // Text typed in "New thing to try" but not added is part of the list (M6):
+  // the save folds it in, and it makes the dialog dirty.
   const [tryDraft, setTryDraft] = React.useState(() => draftFromTryList(item?.tryList));
+  const [tryPending, setTryPending] = React.useState("");
   const [initialTryList] = React.useState(() => JSON.stringify(tryListPayload(draftFromTryList(item?.tryList))));
-  const tryList = tryListPayload(tryDraft);
+  const tryList = tryListPayload(tryDraft, tryPending);
   const tryListChanged = JSON.stringify(tryList) !== initialTryList;
   // CONTEXT.md Surprise: who this Item is a surprise for. Kept sorted so a tick and untick is no change.
   const surpriseOthers = members && currentUserId ? members.filter((m) => m.id !== currentUserId) : null;
@@ -918,7 +921,7 @@ function ItemForm({
             <OpeningHoursEditor value={openingHours} onChange={setOpeningHours} disabled={isPending} error={errors.openingHours?.[0]} />
           </div>
           <div className="sm:col-span-2">
-            <TryListEditor value={tryDraft} onChange={setTryDraft} disabled={isPending} error={errors.tryList?.[0]} />
+            <TryListEditor value={tryDraft} onChange={setTryDraft} pending={tryPending} onPendingChange={setTryPending} disabled={isPending} error={errors.tryList?.[0]} />
           </div>
         </>
       )}

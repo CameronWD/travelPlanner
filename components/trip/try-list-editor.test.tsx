@@ -1,5 +1,5 @@
 import * as React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TryListEditor, draftFromTryList, tryListPayload, type TryListDraftEntry } from "./try-list-editor";
@@ -26,6 +26,12 @@ describe("draftFromTryList / tryListPayload", () => {
     expect(tryListPayload(draft)).toEqual([{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Drei im Weggla" }]);
     expect(tryListPayload([...draft, { key: "k", text: "   ", tried: false }])).toHaveLength(2);
     expect(draftFromTryList(null)).toEqual([]);
+  });
+
+  it("folds non-blank pending text in as one more entry (M6); blank pending adds nothing", () => {
+    const draft = draftFromTryList(LIST);
+    expect(tryListPayload(draft, "  Schäufele ")).toEqual([{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Drei im Weggla" }, { text: "Schäufele" }]);
+    expect(tryListPayload(draft, "   ")).toHaveLength(2);
   });
 });
 
@@ -65,6 +71,47 @@ describe("TryListEditor", () => {
     expect(payload()).toEqual([{ id: "e2", text: "Bratwurst" }]);
     expect(screen.getByRole("button", { name: "Move Bratwurst up" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Move Bratwurst down" })).toBeDisabled();
+  });
+
+  it("announces a ticked entry as Tried on its input", async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={draftFromTryList(LIST)} />);
+    await user.click(screen.getByText("Try list"));
+    expect(screen.getByLabelText("Thing to try 1")).toHaveAccessibleDescription("Tried");
+    expect(screen.getByLabelText("Thing to try 2")).not.toHaveAccessibleDescription();
+  });
+
+  it("Enter in an entry's rename input never submits the dialog's form", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(<form onSubmit={onSubmit}><Harness initial={draftFromTryList(LIST)} /><button type="submit">Save</button></form>);
+    await user.click(screen.getByText("Try list"));
+    await user.type(screen.getByLabelText("Thing to try 2"), "!{Enter}");
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(payload()[1]).toEqual({ id: "e2", text: "Drei im Weggla!" });
+  });
+
+  it("after a move, focus follows the entry, or goes to its other move button when the clicked one is disabled", async () => {
+    const user = userEvent.setup();
+    const three = [...LIST, { id: "e3", text: "Glühwein", tried: false }];
+    render(<Harness initial={draftFromTryList(three)} />);
+    await user.click(screen.getByText("Try list"));
+    await user.click(screen.getByRole("button", { name: "Move Glühwein up" }));
+    expect(screen.getByRole("button", { name: "Move Glühwein up" })).toHaveFocus(); // now 2nd: still enabled
+    await user.click(screen.getByRole("button", { name: "Move Glühwein up" }));
+    expect(payload()[0]).toEqual({ id: "e3", text: "Glühwein" });
+    expect(screen.getByRole("button", { name: "Move Glühwein up" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move Glühwein down" })).toHaveFocus();
+  });
+
+  it("can hold its pending text for the dialog", async () => {
+    const user = userEvent.setup();
+    const onPendingChange = vi.fn();
+    render(<TryListEditor value={[]} onChange={() => {}} pending="Lebk" onPendingChange={onPendingChange} />);
+    await user.click(screen.getByText("Try list"));
+    expect(screen.getByLabelText("New thing to try")).toHaveValue("Lebk");
+    await user.type(screen.getByLabelText("New thing to try"), "u");
+    expect(onPendingChange).toHaveBeenLastCalledWith("Lebku");
   });
 
   it("stops adding at 30 and says so", async () => {
