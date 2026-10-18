@@ -15,6 +15,7 @@ import type { VoteLevel } from "@/lib/enum-values";
 import { BOOKING_STATE_LABELS } from "@/lib/booking-state-copy";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { openingHoursSummary } from "@/lib/opening-hours-display";
+import { sameTryEntries, tryListSummary, type TryList } from "@/lib/try-list";
 
 // ---------------------------------------------------------------------------
 // Vocab
@@ -89,6 +90,8 @@ interface FieldSpec {
   key: string;
   label: string;
   format?: FormatFn;
+  /** Both sides non-empty: true when they count as the same (default: equal after normaliseForComparison). */
+  same?: (before: unknown, after: unknown) => boolean;
 }
 
 /** Treat null / undefined / "" as "empty" for diffing purposes. */
@@ -155,6 +158,34 @@ function openingHoursFormat(value: unknown): string {
 }
 
 /**
+ * CONTEXT.md "Try list" (R6). `Item.tryList` is stored as a JSON string, so
+ * the snapshot values are that string (or null). Plain JSON.parse, not
+ * parseTryList, for the same client-safety reason as openingHoursFormat
+ * above. Display only: an unreadable value reads as "Set".
+ */
+function readTryList(value: unknown): TryList | null {
+  try {
+    const parsed: unknown = JSON.parse(value as string);
+    return Array.isArray(parsed) ? (parsed as TryList) : null;
+  } catch {
+    return null;
+  }
+}
+
+function tryListFormat(value: unknown): string {
+  if (isEmpty(value)) return "Not set";
+  const list = readTryList(value);
+  return list && list.length > 0 ? tryListSummary(list) : "Set";
+}
+
+/** A tick is not a list edit (ADR 0012 amendment: ticked as you go): the same entries in the same order are no change. */
+function sameTryList(before: unknown, after: unknown): boolean {
+  const b = readTryList(before);
+  const a = readTryList(after);
+  return b !== null && a !== null && sameTryEntries(b, a);
+}
+
+/**
  * Format a Date (or ISO string) as a readable UTC date-time like "3 Jul 2025, 14:00".
  * Null / undefined / "" → "—".
  */
@@ -210,6 +241,7 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "bookingState", label: "Booking", format: (v) => bookingStateFormat(v) },
     { key: "bookBy", label: "Book by", format: (v) => dateFormat(v) },
     { key: "openingHours", label: "Opening hours", format: (v) => openingHoursFormat(v) },
+    { key: "tryList", label: "Try list", format: (v) => tryListFormat(v), same: sameTryList },
   ],
   TRANSPORT: [
     {
@@ -305,8 +337,9 @@ export function describeChanges(
     // Both empty → no change
     if (bEmpty && aEmpty) continue;
 
-    // Both non-empty and equal → no change (normalise Dates to ISO strings first)
-    if (!bEmpty && !aEmpty && normaliseForComparison(bVal) === normaliseForComparison(aVal)) continue;
+    // Both non-empty and equal → no change (normalise Dates to ISO strings
+    // first, or the field's own `same`, e.g. a Try list ignores ticks)
+    if (!bEmpty && !aEmpty && (spec.same ? spec.same(bVal, aVal) : normaliseForComparison(bVal) === normaliseForComparison(aVal))) continue;
 
     // Determine which row to use as "context" for format (e.g. currency lookup).
     // For COST money fields we want to prefer the after row's currency if available.

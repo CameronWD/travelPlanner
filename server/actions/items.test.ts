@@ -2809,6 +2809,20 @@ describe("Try list (CONTEXT.md Try list: shared by a thing to do and its placed 
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
   });
 
+  it("setTryList's Activity line reads as the list; a tick-only change carries no change (lib/activity-record drops it)", async () => {
+    itemUpdateMock.mockResolvedValue({ ...row, tryList: serializeTryList([...LIST, { id: "e3", text: "Schäufele", tried: false }]) });
+    await setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Drei im Weggla" }, { text: "Schäufele" }]);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: [{ field: "tryList", label: "Try list", from: "Lebkuchen, Drei im Weggla", to: "Lebkuchen, Drei im Weggla, Schäufele" }],
+      }),
+    );
+    vi.mocked(recordActivity).mockClear();
+    itemUpdateMock.mockResolvedValue({ ...row, tryList: serializeTryList([LIST[0], { ...LIST[1], tried: true }]) });
+    await setTryList("copy-1", [{ id: "e1", text: "Lebkuchen" }, { id: "e2", text: "Drei im Weggla", tried: true }]);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ changes: [] }));
+  });
+
   it("setTryList with null clears the list for the family", async () => {
     await setTryList("copy-1", null);
     expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { tryList: null } });
