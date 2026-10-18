@@ -62,7 +62,7 @@ const paused = message({ stop_reason: "pause_turn", content: [{ type: "server_to
 const replies = (...ms: unknown[]) => {
   for (const m of ms) streamMock.mockReturnValueOnce({ finalMessage: () => Promise.resolve(m) });
 };
-const fails = (err: unknown) => streamMock.mockReturnValueOnce({ finalMessage: () => Promise.reject(err) });
+const fails = (err: unknown, currentMessage?: unknown) => streamMock.mockReturnValueOnce({ finalMessage: () => Promise.reject(err), currentMessage });
 const request = (kind: "STANDARD" | "DEEP" = "STANDARD", deadline = Date.now() + 60_000) =>
   callReviewModel({ kind, model: kind === "DEEP" ? "claude-opus-5" : "claude-sonnet-5", input: INPUT, deadline });
 const params = (call = 0) => streamMock.mock.calls[call][0] as Record<string, unknown> & { tools: Record<string, unknown>[]; messages: unknown[] };
@@ -195,10 +195,11 @@ describe("callReviewModel failures", () => {
   it("keeps a 4xx's own API message for the smoke script (a request-shape error, never the plan), capped", async () => {
     const { APIError } = await sdk();
     const err = Object.assign(new APIError(400, "400 Bad request"), {
-      error: { type: "error", error: { type: "invalid_request_error", message: "citations are not supported with strict tools" } },
+      error: { type: "error", error: { type: "invalid_request_error", message: "tools.0.max_uses: Extra inputs are not permitted" } },
     });
     fails(err);
-    expect(await request()).toMatchObject({ kind: "api_error", status: 400, apiMessage: "citations are not supported with strict tools" });
+    expect(await request()).toMatchObject({ kind: "api_error", status: 400, apiMessage: "tools.0.max_uses: Extra inputs are not permitted" });
+    expect(streamMock).toHaveBeenCalledTimes(1);
     fails(Object.assign(new APIError(400, "x"), { error: { error: { message: "y".repeat(900) } } }));
     expect((await request()) as { apiMessage: string }).toMatchObject({ apiMessage: "y".repeat(500) });
   });
@@ -216,8 +217,69 @@ describe("callReviewModel failures", () => {
     expect(await request()).toMatchObject({ kind: "busy", usage: { inputTokens: 8_000, webSearchRequests: 2 } });
   });
 
+  it("records what an aborted turn had already streamed, web searches included (final wave I3)", async () => {
+    const { APIUserAbortError } = await sdk();
+    const partial = { usage: { input_tokens: 9_000, output_tokens: 300, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, server_tool_use: { web_search_requests: 3, web_fetch_requests: 0 } } };
+    replies(paused);
+    fails(new APIUserAbortError(), partial);
+    expect(await request()).toEqual({
+      kind: "timeout",
+      usage: { inputTokens: 17_000, outputTokens: 1_500, cacheReadTokens: 500, cacheWriteTokens: 7_000, webSearchRequests: 5 },
+    });
+  });
+
+  it("records a broken turn's streamed usage too, and none when nothing streamed", async () => {
+    const { APIError } = await sdk();
+    fails(new APIError(529, "Overloaded"), { usage: { input_tokens: 4_000, output_tokens: 50, cache_read_input_tokens: null, cache_creation_input_tokens: null, server_tool_use: null } });
+    expect(await request()).toMatchObject({ kind: "busy", usage: { inputTokens: 4_000, outputTokens: 50, webSearchRequests: 0 } });
+    fails(new APIError(529, "Overloaded"));
+    expect(await request()).toEqual({ kind: "busy", usage: NO_TOKENS });
+  });
+
   it("makes no request once the deadline has passed", async () => {
     expect(await request("STANDARD", Date.now() - 1)).toEqual({ kind: "timeout", usage: NO_TOKENS });
     expect(streamMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("callReviewModel strict fallback (final wave Rec 2)", () => {
+  const citations400 = async (message = "tools.1: strict mode is not supported together with citations") => {
+    const { APIError } = await sdk();
+    return Object.assign(new APIError(400, "400 Bad request"), { error: { type: "error", error: { type: "invalid_request_error", message } } });
+  };
+
+  it("re-sends the request once without strict after a 400 about citations, and says so", async () => {
+    fails(await citations400());
+    replies(message());
+    const out = await request();
+    expect(out).toMatchObject({ kind: "ok", output: OUTPUT, strictDropped: true });
+    expect(streamMock).toHaveBeenCalledTimes(2);
+    expect(params(0).tools[1]).toMatchObject({ name: SUBMIT_REVIEW_TOOL, strict: true });
+    expect(params(1).tools[1]).toMatchObject({ name: SUBMIT_REVIEW_TOOL, input_schema: params(0).tools[1].input_schema });
+    expect(params(1).tools[1]).not.toHaveProperty("strict");
+    expect(params(1).tools[0]).toEqual(params(0).tools[0]);
+    expect(params(1).messages).toEqual(params(0).messages);
+  });
+
+  it("still validates the non-strict reply Finding by Finding", async () => {
+    fails(await citations400("citations cannot be used with strict tool use"));
+    replies(message({ content: [submit({ summary: OUTPUT.summary, findings: [{ category: "weather" }, OUTPUT.findings[0]] })] }));
+    expect(await request()).toMatchObject({ kind: "ok", output: { findings: [{ title: OUTPUT.findings[0].title }] }, strictDropped: true });
+  });
+
+  it("retries only once: a second refusal is the API error", async () => {
+    fails(await citations400());
+    fails(await citations400());
+    expect(await request()).toMatchObject({ kind: "api_error", status: 400, strictDropped: true });
+    expect(streamMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads the error's own message when the body has none, and leaves a strict run unmarked", async () => {
+    const { APIError } = await sdk();
+    fails(new APIError(400, "400 citations are incompatible with strict"));
+    replies(message());
+    expect(await request()).toMatchObject({ kind: "ok", strictDropped: true });
+    replies(message());
+    expect(await request()).not.toHaveProperty("strictDropped");
   });
 });

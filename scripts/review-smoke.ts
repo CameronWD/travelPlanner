@@ -14,9 +14,10 @@
  *
  * It sends exactly what the app sends (the same input shaping, prompt,
  * tools and checks), then prints the model, time, tokens, searches, cost,
- * outcome and each Finding as the app would store it. On an API error it
- * prints the API's own message (docs/DEPLOY.md "Enabling Reviews" says what
- * a 400 about citations means). It never touches a database and writes
+ * outcome and each Finding as the app would store it. It says which request
+ * path ran: strict submit_review, or the fallback without strict after a 400
+ * about citations (lib/review/call.ts STRICT_REFUSAL). On an API error it
+ * prints the API's own message (docs/DEPLOY.md "Enabling Reviews"). It never touches a database and writes
  * nothing. Exits 1 unless the outcome is ok, so a failed run can't be
  * mistaken for a pass.
  */
@@ -49,6 +50,11 @@ async function main(): Promise<void> {
   console.log(
     `Model ${model} (${kind}), ${seconds}s, tokens in/out ${u.inputTokens}/${u.outputTokens}, cache read/write ${u.cacheReadTokens}/${u.cacheWriteTokens}, ` +
       `searches ${u.webSearchRequests ?? 0}, cost ${cost === null ? "unknown (no price)" : `$${(cost / 1e6).toFixed(4)}`}`,
+  );
+  console.log(
+    outcome.strictDropped
+      ? "Request path: FALLBACK. The API refused strict submit_review beside web search citations (HTTP 400), so it was re-sent once without strict."
+      : "Request path: strict submit_review, as sent first.",
   );
   if (outcome.kind !== "ok") {
     const why =

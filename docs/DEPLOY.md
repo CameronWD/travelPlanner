@@ -742,26 +742,34 @@ search, whose results carry citations. That pairing has not been verified
 against the live API. The unit tests mock the SDK, so the smoke run is the
 only proof that the request shape is accepted.
 
+If the API refuses the pairing with a 400 whose message mentions citations
+or strict mode, `callReviewModel` re-sends that request once with `strict`
+removed from `submit_review` (`STRICT_REFUSAL` in `lib/review/call.ts`). The
+reply is still checked Finding by Finding by `parseReviewOutput`, so a bad
+Finding is dropped and a bad reply ends "unreadable". A citations conflict
+therefore heals itself, at the cost of one refused (unbilled) request per
+run. The gate stays: the smoke run is still the only proof that one of the
+two paths is accepted.
+
 1. Before the deploy, run both kinds on your machine, with the same
    `REVIEW_MODEL_STANDARD` / `REVIEW_MODEL_DEEP` values Production will use
    (or none, for the defaults):
    `ANTHROPIC_API_KEY=… npx tsx --conditions=react-server scripts/review-smoke.ts standard`
-   and the same with `deep`. Each prints the model, time, searches, cost and
-   the Findings it would store, then `PASS` or `FAIL` (it exits 1 on a
-   `FAIL`). For a real Trip, save a `get_trip_plan` result from your Claude
-   connection to a file and pass it as the second argument. Check that a run
-   finishes well inside 270 s: the job stops itself there ("This Review took
-   too long and stopped.").
-   - **`Outcome: api_error (HTTP 400: …citations…)`**, or any 400 whose
-     message mentions citations: the API refuses strict tool use alongside
-     web search citations, the same incompatibility the docs state for JSON
-     structured outputs. Every Review would fail ("Something went wrong, so
-     this Review stopped.") after a paid call. Do not deploy. It needs a code
-     change on the branch, not a setting: the likely fix is to drop
-     `strict: true` from `submit_review` in `lib/review/call.ts` (the reply
-     is still checked Finding by Finding by `parseReviewOutput`, so a bad
-     Finding is dropped and a bad reply ends "unreadable"). Then run both
-     kinds again.
+   and the same with `deep`. Each prints the model, time, searches, cost,
+   which request path ran, and the Findings it would store, then `PASS` or
+   `FAIL` (it exits 1 on a `FAIL`). For a real Trip, save a `get_trip_plan`
+   result from your Claude connection to a file and pass it as the second
+   argument. Check that a run finishes well inside 270 s: the job stops
+   itself there ("This Review took too long and stopped.").
+   - **`Request path: strict submit_review`** with `PASS`: the strict tool and
+     citations work together. Nothing else to do.
+   - **`Request path: FALLBACK`** with `PASS`: the API refused strict beside
+     citations, and the non-strict retry worked. Deployable: every Review
+     takes the same path. Worth noting, since the schema is then enforced
+     only by our own zod check, not by the API.
+   - **`Outcome: api_error (HTTP 400: …citations…)`** after `FALLBACK`: the
+     retry without strict was refused too. Do not deploy; it needs a code
+     change on the branch (likely a different structured-output approach).
    - Any other 400 names the parameter the API rejected. Also a no-deploy.
    - `busy` (429/5xx): try again in a few minutes. `timeout`: the run took
      over 270 s; try again, and if it repeats, the model is too slow for the
