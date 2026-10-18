@@ -35,4 +35,21 @@ describe("estimateCostMicroUsd", () => {
   it("returns null for a model with no price", () => {
     expect(estimateCostMicroUsd("claude-mystery-9", usage({ inputTokens: 1 }))).toBeNull();
   });
+
+  it("prices Sonnet 5 and Opus 5 (the Review models) flat, cache read at 10% and cache write at 1.25× input", () => {
+    // 1,000×2 + 100×10 + 2,000×0.20 + 500×2.50 = 4,650
+    expect(
+      estimateCostMicroUsd("claude-sonnet-5", usage({ inputTokens: 1_000, outputTokens: 100, cacheReadTokens: 2_000, cacheWriteTokens: 500 })),
+    ).toBe(4_650);
+    // 1,000×5 + 100×25 + 2,000×0.50 + 500×6.25 = 11,625
+    expect(
+      estimateCostMicroUsd("claude-opus-5", usage({ inputTokens: 1_000, outputTokens: 100, cacheReadTokens: 2_000, cacheWriteTokens: 500 })),
+    ).toBe(11_625);
+  });
+
+  it("adds US$10 per 1,000 web searches (10,000 µ$ each) on top of tokens", () => {
+    // 1,000×2 + 3 × 10,000 = 32,000
+    expect(estimateCostMicroUsd("claude-sonnet-5", usage({ inputTokens: 1_000, webSearchRequests: 3 }))).toBe(32_000);
+    expect(estimateCostMicroUsd("claude-sonnet-5", usage({ inputTokens: 1_000 }))).toBe(2_000);
+  });
 });
