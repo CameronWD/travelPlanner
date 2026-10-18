@@ -8,6 +8,9 @@
  * `set_opening_hours` (CONTEXT.md Opening hours, shared by an idea and its
  * placed copies) sets or clears a thing's opening hours.
  *
+ * `set_try_list` replaces a thing's Try list and `tick_try_entry` ticks one
+ * entry (CONTEXT.md Try list, shared by an idea and its placed copies).
+ *
  * Every write delegates to the same server actions the app itself uses
  * (`server/actions/items`, `votes`, `day-titles`, `notes`, `chapters`), which
  * already resolve to the acting Traveller inside a Claude connection (via
@@ -43,8 +46,11 @@ import {
   placeIdeaAtStop,
   addMarkerToWishlist,
   setOpeningHours,
+  setTryList,
+  tickTryEntry,
 } from "@/server/actions/items";
 import { openingHoursSchema } from "@/lib/validations/opening-hours";
+import { tryListInputSchema } from "@/lib/validations/try-list";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { setDayTitle } from "@/server/actions/day-titles";
 import { addNote, deleteNote } from "@/server/actions/notes";
@@ -207,6 +213,57 @@ export function registerPlanWriteTools(server: McpServer): void {
         async () => {
           await requireRealPlanRow("item", itemId);
           return setOpeningHours(itemId, hours ? { ...hours, ...(source && { source }) } : null);
+        },
+        async () => ({ item: await loadItemForMcp(itemId) }),
+      ),
+  );
+
+  server.registerTool(
+    "set_try_list",
+    {
+      title: "Set Try list",
+      description:
+        "Replaces a thing to do's Try list: the small list of things to try, see or buy while there (\"Drei im Weggla, Feuerzangenbowle, Lebkuchen\"). " +
+        "Pass every entry to keep, in order; an entry left out is removed. " +
+        "Give an entry its id (from get_item's tryList) to keep it and its tick; leave id out for a new entry. " +
+        "tried sets the tick; left out, an existing entry keeps its tick and a new one starts untried. " +
+        "Up to 30 entries, each 1 to 80 characters. Pass entries: [] to clear the list. " +
+        "The list belongs to the place, so the Wishlist idea and every copy placed from it get it too. It is not a Checklist.",
+      inputSchema: {
+        itemId: z.string(),
+        entries: tryListInputSchema.describe("The whole list, in order: { id?, text, tried? } each."),
+      },
+    },
+    ({ itemId, entries }) =>
+      runWrite(
+        "set_try_list",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return setTryList(itemId, entries);
+        },
+        async () => ({ item: await loadItemForMcp(itemId) }),
+      ),
+  );
+
+  server.registerTool(
+    "tick_try_entry",
+    {
+      title: "Tick Try list entry",
+      description:
+        "Ticks one entry of a thing to do's Try list as tried, by the entry's id from get_item's tryList; tried: false unticks it. " +
+        "Everyone on the trip sees the tick, on the thing and on every copy of it.",
+      inputSchema: {
+        itemId: z.string(),
+        entryId: z.string(),
+        tried: z.boolean().optional().describe("true (the default) ticks it; false unticks it."),
+      },
+    },
+    ({ itemId, entryId, tried }) =>
+      runWrite(
+        "tick_try_entry",
+        async () => {
+          await requireRealPlanRow("item", itemId);
+          return tickTryEntry(itemId, entryId, tried ?? true);
         },
         async () => ({ item: await loadItemForMcp(itemId) }),
       ),
