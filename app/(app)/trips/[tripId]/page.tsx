@@ -43,7 +43,7 @@ import { buildHomeMapStops } from "@/lib/home-map-stops";
 import { sortTheseOut, SORT_ROW_LIMIT_DESKTOP } from "@/lib/sort-these-out";
 import type { NextStep } from "@/lib/next-steps";
 import type { TripPhase } from "@/lib/trip-phase";
-import { latestReviewOpenCount } from "@/lib/review-reads";
+import { latestReviewOpenCount, runningReview } from "@/lib/review-reads";
 import { homeReviewLine } from "@/lib/review/view";
 import { ReviewHomeLine } from "@/components/trip/home/review-home-line";
 
@@ -104,7 +104,7 @@ export default async function TripHomePage({
       },
     })
     .then((row) => row);
-  const [trip, coverStopsRaw, myTrips, reminders, latest, slug] = await Promise.all([
+  const [trip, coverStopsRaw, myTrips, reminders, latest, running, slug] = await Promise.all([
     tripPromise,
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
@@ -119,6 +119,9 @@ export default async function TripHomePage({
     // Traveller may read every Review (R9); the count drops Findings a
     // Surprise hides from this viewer, as the tab does.
     latestReviewOpenCount(tripId),
+    // Spec 2026-10-18 A7: while a Review runs, Home says so instead of a
+    // stale count from before it started.
+    runningReview(tripId),
     tripSlugFor(tripId),
   ]);
   if (!trip) notFound();
@@ -127,10 +130,11 @@ export default async function TripHomePage({
   // route order must follow canonical plan order, not raw sortOrder.
   const coverStops = orderPlanStops(coverStopsRaw);
 
-  const reviewLine = homeReviewLine(latest, {
-    base: tripPath(slug),
-    timeZone: currentTripTimezone(orderPlanStops(trip.stops)),
-  });
+  const reviewLine = homeReviewLine(
+    latest,
+    { base: tripPath(slug), timeZone: currentTripTimezone(orderPlanStops(trip.stops)) },
+    running,
+  );
 
   // Same canonical order for the "current timezone" pick — trip.stops is
   // fetched by sortOrder, which no longer tracks date order under ADR 0038.

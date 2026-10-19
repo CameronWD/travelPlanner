@@ -62,7 +62,8 @@ vi.mock("@/lib/reminder-reads", () => ({
   listRemindersForTrip: vi.fn(async () => []),
 }));
 const latestReviewMock = vi.hoisted(() => vi.fn(async () => null as unknown));
-vi.mock("@/lib/review-reads", () => ({ latestReviewOpenCount: latestReviewMock }));
+const runningReviewMock = vi.hoisted(() => vi.fn(async () => null as unknown));
+vi.mock("@/lib/review-reads", () => ({ latestReviewOpenCount: latestReviewMock, runningReview: runningReviewMock }));
 vi.mock("@/components/trips/trip-cover", () => ({
   CoverArt: (props: Record<string, unknown>) => {
     coverArtMock(props);
@@ -205,6 +206,7 @@ beforeEach(() => {
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.tripMember.findMany.mockResolvedValue([]);
   latestReviewMock.mockResolvedValue(null);
+  runningReviewMock.mockResolvedValue(null);
   loaderData.current = {
     datedStops: [],
     planStops: [],
@@ -267,6 +269,16 @@ describe("Trip Home, composed with its layout", () => {
 
   it("shows no Review line when there is nothing open", async () => {
     await renderTripHome();
+    expect(screen.queryByRole("link", { name: /open from the/ })).toBeNull();
+  });
+
+  it("while a Review is running, Home's line says so and when to check back instead of a stale open count (spec 2026-10-18 A7)", async () => {
+    latestReviewMock.mockResolvedValue({ id: "r1", startedAt: new Date("2026-10-18T04:05:00Z"), openCount: 2 });
+    runningReviewMock.mockResolvedValue({ startedAt: new Date("2026-10-18T04:05:00Z") });
+    await renderTripHome();
+    expect(runningReviewMock).toHaveBeenCalledWith("trip-1");
+    const link = screen.getByRole("link", { name: "Review running, back around 04:10" });
+    expect(link).toHaveAttribute("href", "/trips/trip-1/reviews");
     expect(screen.queryByRole("link", { name: /open from the/ })).toBeNull();
   });
 

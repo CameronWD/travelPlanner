@@ -4,7 +4,8 @@ import type { Flag } from "@/lib/flags";
 import { REVIEW_MESSAGES } from "./messages";
 import {
   FINDING_CATEGORY_LABELS, REVIEW_KIND_LABELS, findingGoTo, findingStateLabel, formatReviewDay, formatReviewWhen,
-  failedReviewText, partitionFindings, homeReviewLine, reviewByLine, reviewingLine, sourceLink, suggestedFixLabel, toFindingCard, toHistoryRow,
+  failedReviewText, partitionFindings, homeReviewLine, reviewBackAround, reviewByLine, reviewingLine, sourceLink, suggestedFixLabel,
+  toFindingCard, toHistoryRow,
   type FindingCard, type FindingForView, type ReviewForView,
 } from "./view";
 
@@ -173,12 +174,22 @@ describe("partitionFindings (spec 2026-10-18 A1)", () => {
   });
 });
 
-describe("reviewingLine (R11)", () => {
-  it("names who started it by first name", () => {
-    expect(reviewingLine(CAM)).toBe("Reviewing… (started by Cam)");
+describe("reviewBackAround (spec 2026-10-18 A7)", () => {
+  it("is five minutes after the start, in the given zone", () => {
+    expect(reviewBackAround(new Date("2026-10-18T03:05:00Z"), "Europe/Berlin")).toBe("05:10");
+  });
+});
+
+describe("reviewingLine (R11, amended 2026-10-18 A7)", () => {
+  it("names who started it, when, and when to check back", () => {
+    expect(reviewingLine(CAM, AT, BNE)).toBe(
+      "Reviewing… started by Cam at 14:05. This takes a few minutes and keeps going if you leave. Check back around 14:10.",
+    );
   });
   it("a former Traveller is shown whole", () => {
-    expect(reviewingLine(FORMER)).toBe("Reviewing… (started by a former Traveller)");
+    expect(reviewingLine(FORMER, AT, BNE)).toBe(
+      "Reviewing… started by a former Traveller at 14:05. This takes a few minutes and keeps going if you leave. Check back around 14:10.",
+    );
   });
 });
 
@@ -232,5 +243,9 @@ describe("homeReviewLine (R10: Home shows 'N open from the <date> review')", () 
   it("nothing when there is no finished Review, or nothing is open", () => {
     expect(homeReviewLine(null, ctx)).toBeNull();
     expect(homeReviewLine(done(0), ctx)).toBeNull();
+  });
+  it("a running Review takes over, ahead of the open count, whatever the latest finished Review says (spec 2026-10-18 A7)", () => {
+    expect(homeReviewLine(null, ctx, { startedAt: AT })).toEqual({ text: "Review running, back around 14:10", href: "/trips/xmas/reviews" as Route });
+    expect(homeReviewLine(done(3), ctx, { startedAt: AT })).toEqual({ text: "Review running, back around 14:10", href: "/trips/xmas/reviews" as Route });
   });
 });

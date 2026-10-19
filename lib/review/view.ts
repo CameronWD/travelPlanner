@@ -61,6 +61,24 @@ export function formatReviewWhen(at: Date, timeZone: string): string {
   return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute}`;
 }
 
+/** "14:05". */
+function formatReviewClock(at: Date, timeZone: string): string {
+  const p = zonedParts(at, timeZone);
+  return `${p.hour}:${p.minute}`;
+}
+
+/**
+ * Spec 2026-10-18 A7: a display estimate for when to check back on a
+ * running Review, distinct from REVIEW_STALE_AFTER_MS (lib/review/types.ts),
+ * which is how long a run may go before it is treated as failed.
+ */
+export const REVIEW_BACK_AFTER_MS = 5 * 60_000;
+
+/** "14:10": five minutes after the Review started, in the Trip's zone. */
+export function reviewBackAround(startedAt: Date, timeZone: string): string {
+  return formatReviewClock(new Date(startedAt.getTime() + REVIEW_BACK_AFTER_MS), timeZone);
+}
+
 // ---------------------------------------------------------------------------
 // One Finding
 // ---------------------------------------------------------------------------
@@ -326,9 +344,13 @@ export function failedReviewText(error: string | null | undefined): string {
   return error ? `This Review didn't finish. ${error} Nothing on the trip was changed.` : "This Review didn't finish. Nothing on the trip was changed.";
 }
 
-/** Spec R11: the tab's line while a Review runs. */
-export function reviewingLine(startedBy: TravellerRefLike): string {
-  return `Reviewing… (started by ${firstName(startedBy)})`;
+/**
+ * Spec R11, amended 2026-10-18 A7: the tab's line while a Review runs. Says
+ * it keeps going if you leave (the run carries on server-side in `after()`,
+ * spec J) and gives a display estimate of when to check back.
+ */
+export function reviewingLine(startedBy: TravellerRefLike, startedAt: Date, timeZone: string): string {
+  return `Reviewing… started by ${firstName(startedBy)} at ${formatReviewClock(startedAt, timeZone)}. This takes a few minutes and keeps going if you leave. Check back around ${reviewBackAround(startedAt, timeZone)}.`;
 }
 
 /** The heading line for a shown Review: who ran it, and when. */
@@ -378,14 +400,21 @@ export function toHistoryRow(r: ReviewForView, ctx: { base: string; timeZone: st
   };
 }
 
-/** Spec R10: Home's "N open from the <date> review", or nothing. Takes the latest DONE Review's count (lib/review-reads.ts latestReviewOpenCount). */
+/**
+ * Spec R10: Home's "N open from the <date> review", or nothing. Takes the
+ * latest DONE Review's count (lib/review-reads.ts latestReviewOpenCount).
+ *
+ * Spec 2026-10-18 A7: `running` takes over ahead of that, whatever `review`
+ * says — while a Review is running, Home says so and when to check back,
+ * rather than a stale open count from before it started.
+ */
 export function homeReviewLine(
   review: { startedAt: Date; openCount: number } | null,
   ctx: { base: string; timeZone: string },
+  running?: { startedAt: Date } | null,
 ): { text: string; href: Route } | null {
+  const href = tripSubPath(ctx.base, "/reviews");
+  if (running) return { text: `Review running, back around ${reviewBackAround(running.startedAt, ctx.timeZone)}`, href };
   if (!review || review.openCount === 0) return null;
-  return {
-    text: `${review.openCount} open from the ${formatReviewDay(review.startedAt, ctx.timeZone)} review`,
-    href: tripSubPath(ctx.base, "/reviews"),
-  };
+  return { text: `${review.openCount} open from the ${formatReviewDay(review.startedAt, ctx.timeZone)} review`, href };
 }

@@ -39,9 +39,12 @@ export interface ReviewsPageModel {
   running: { id: string; line: string } | null;
   /**
    * The Trip's newest Review, whatever its status (the history's first row):
-   * ReviewPoller toasts its error when a run this tab watched ends FAILED.
+   * ReviewPoller toasts its error when a run this tab watched ends FAILED,
+   * or (spec 2026-10-18 A7) how many are left to deal with when it ends
+   * DONE — `openCount` is this row's own, which Task 6 made shown-state
+   * aware (FIXED/GONE are never counted as open).
    */
-  latestRun: { id: string; status: ReviewStatus; error: string | null } | null;
+  latestRun: { id: string; status: ReviewStatus; error: string | null; openCount: number } | null;
   shown: ShownReview | null;
   history: HistoryRow[];
 }
@@ -93,8 +96,8 @@ export async function loadReviewsPage(input: {
       running: running != null,
       allowance: reviewAllowance(permission, starts, now),
     }),
-    running: running ? { id: running.id, line: reviewingLine(running.startedBy) } : null,
-    latestRun: history[0] ? { id: history[0].id, status: history[0].status, error: history[0].error } : null,
+    running: running ? { id: running.id, line: reviewingLine(running.startedBy, running.startedAt, timeZone) } : null,
+    latestRun: history[0] ? { id: history[0].id, status: history[0].status, error: history[0].error, openCount: history[0].openCount } : null,
     shown: review
       ? {
           id: review.id,

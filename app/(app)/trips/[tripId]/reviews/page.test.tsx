@@ -36,7 +36,7 @@ import ReviewsPage, { maxDuration, metadata } from "./page";
 const base: ReviewsPageModel = {
   panel: { kind: "ready" },
   running: null,
-  latestRun: { id: "r2", status: "DONE", error: null },
+  latestRun: { id: "r2", status: "DONE", error: null, openCount: 2 },
   shown: {
     id: "r2", heading: "Standard Review", byLine: "Run by Cam, Sun 18 Oct, 14:05", status: "DONE",
     summary: "Two closures to plan around.", failure: null, open: [{ severity: "warning", heading: "Warnings", cards: [] }], dealtWith: [],
@@ -98,7 +98,7 @@ describe("the Reviews tab (R10)", () => {
   });
 
   it("while running: the line for everyone and the poll is on", async () => {
-    model.current = { ...base, running: { id: "r3", line: "Reviewing… (started by Cam)" }, latestRun: { id: "r3", status: "RUNNING", error: null } };
+    model.current = { ...base, running: { id: "r3", line: "Reviewing… (started by Cam)" }, latestRun: { id: "r3", status: "RUNNING", error: null, openCount: 0 } };
     await renderPage();
     expect(screen.getByRole("status")).toHaveTextContent("Reviewing… (started by Cam)");
     expect(screen.getByTestId("poller")).toHaveAttribute("data-active", "true");
