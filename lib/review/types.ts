@@ -108,6 +108,12 @@ export interface FindingDraft {
   origin: FindingOrigin;
   /** A restated Flag's own id (lib/flags.ts), so it matches itself across Reviews (lib/review/key.ts). */
   flagId?: string;
+  /**
+   * A restated Flag's own target, when the Finding is about something else
+   * (a retimed tight connection is about the later Item, spec 2026-10-18 A3).
+   * The key uses this, so the retarget never breaks history. Not stored.
+   */
+  flagTarget?: { targetType: FindingTargetType; targetId?: string };
 }
 
 /**

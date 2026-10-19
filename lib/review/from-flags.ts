@@ -7,9 +7,9 @@
  * (lib/review/key.ts). A drift test fails on a Flag id with no rule here.
  *
  * A tight connection with a retime is about the later Item and carries its fix
- * (spec 2026-10-18 A3). Its key (lib/review/key.ts) now has the ITEM target,
- * so the first Review after this ships raises existing tight-connection Findings
- * afresh (the DAY-keyed ones go No longer found) — a one-off.
+ * (spec 2026-10-18 A3). It still keys on the Flag's own day (`flagTarget`,
+ * lib/review/key.ts), so retimed or not it matches itself across Reviews and a
+ * Dismissal stays put, including on Findings stored before the retarget.
  */
 import type { Flag } from "@/lib/flags";
 import type { FindingCategory, FindingDraft } from "@/lib/review/types";
@@ -51,6 +51,7 @@ export function flagsToFindings(flags: readonly Flag[]): FindingDraft[] {
       ? {
           targetType: "ITEM" as const,
           targetId: f.retime.itemId,
+          flagTarget: { targetType: f.targetType, ...(f.targetId ? { targetId: f.targetId } : {}) },
           suggestedFix: { kind: "item.times" as const, itemId: f.retime.itemId, startTime: f.retime.startTime, endTime: f.retime.endTime },
         }
       : { targetType: f.targetType, ...(f.targetId ? { targetId: f.targetId } : {}) };

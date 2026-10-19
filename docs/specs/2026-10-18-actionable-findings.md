@@ -139,10 +139,12 @@ leaving the tab is safe; the page just never said so.
   against the Flags as everyone sees them (using the guarded
   `getTripProjection`), while the Review input reads the unguarded
   `loadTripProjection` as before.
-- **A3 Tight-connection re-target:** when the retimed Item's start is rounded
-  up to 5-minute boundaries, the Finding's key is re-keyed once (Finding id
-  stays, but key changes to match the new time). Matching across Reviews still
-  uses `flagId`.
+- **A3 Tight-connection re-target:** a retimed tight connection's Finding is
+  about the later Item (target ITEM, with the `item.times` fix), but its key
+  stays on the Flag's own day (`LOGISTICS|DAY|<date>|tight-<a>-<b>`, via the
+  draft's `flagTarget`). So it matches itself across Reviews whether or not a
+  retime is offered, a Dismissal stays put, and Findings stored before this
+  branch (DAY-keyed) match too.
 - **A1 Whole-Trip Finding go-to:** a live Finding with target type TRIP and no
   fix shows only Dismiss; its go-to button opens the plan ("Open in the plan").
 

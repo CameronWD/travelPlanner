@@ -22,6 +22,12 @@ describe("findingKey (R10: category + target)", () => {
     expect(before).not.toBe(after);
   });
 
+  it("a retargeted restated Flag keys on the Flag's own target (spec 2026-10-18 A3)", () => {
+    const retimed = findingKey({ category: "LOGISTICS", targetType: "ITEM", targetId: "b", date: "2026-12-08", flagId: "tight-a-b", flagTarget: { targetType: "DAY" } });
+    expect(retimed).toBe(findingKey({ category: "LOGISTICS", targetType: "DAY", date: "2026-12-08", flagId: "tight-a-b" }));
+    expect(retimed).toBe("LOGISTICS|DAY|2026-12-08|tight-a-b");
+  });
+
   it("the same category on a different target is a different key", () => {
     expect(findingKey({ category: "CLOSURE", targetType: "ITEM", targetId: "i1" })).not.toBe(findingKey({ category: "CLOSURE", targetType: "ITEM", targetId: "i2" }));
   });

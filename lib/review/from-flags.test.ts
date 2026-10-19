@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Flag } from "@/lib/flags";
 import { flagsToFindings } from "./from-flags";
+import { findingKey } from "./key";
 
 describe("flagsToFindings (R8: current Flags restated as Findings)", () => {
   it("keeps severity, target and message; the rule names the category and title", () => {
@@ -51,6 +52,14 @@ describe("flagsToFindings (R8: current Flags restated as Findings)", () => {
       retime: { itemId: "b", startTime: "12:35", endTime: "13:35" } }]);
     expect(d).toMatchObject({ targetType: "ITEM", targetId: "b", date: "2026-12-08", flagId: "tight-a-b",
       suggestedFix: { kind: "item.times", itemId: "b", startTime: "12:35", endTime: "13:35" } });
+  });
+
+  it("keys a tight connection on its day, with or without a retime, so history carries across (spec 2026-10-18 A3)", () => {
+    const flag = { id: "tight-a-b", severity: "warning", message: "Tight…", targetType: "DAY", date: "2026-12-08" } as const;
+    const [retimed] = flagsToFindings([{ ...flag, retime: { itemId: "b", startTime: "12:35", endTime: "13:35" } }]);
+    const [plain] = flagsToFindings([flag]);
+    expect(findingKey(retimed)).toBe(findingKey(plain));
+    expect(findingKey(retimed)).toBe("LOGISTICS|DAY|2026-12-08|tight-a-b");
   });
 
   it("keeps a tight connection with no retime about its day, with no fix", () => {
