@@ -13,6 +13,9 @@ import { isAiConfigured, reviewModel } from "@/lib/ai";
 import { db } from "@/lib/db";
 import { requireRowAccess, requireTripAccess } from "@/lib/guards";
 import { requireFindingAccess, type FindingAccess } from "@/lib/review-reads";
+import { offeredFix, shownState } from "@/lib/review/fixed";
+import { loadLiveFlags } from "@/lib/review/live-flags";
+import type { Flag } from "@/lib/flags";
 import { parseSuggestedFix } from "@/lib/review/schema";
 import {
   REVIEW_ACTION_COPY as COPY,
@@ -93,6 +96,18 @@ function bookingPatch(fix: { bookingState: BookingState; bookBy?: string | null 
   return { bookingState: fix.bookingState, ...(fix.bookBy !== undefined ? { bookBy: fix.bookBy } : {}) };
 }
 
+/**
+ * An Open restated Flag as the page shows it now (spec 2026-10-18 A4): FIXED
+ * once its Flag no longer fires, so a stale page can't Apply or Dismiss it,
+ * and the Flag firing now, whose retime an Apply must still match (A3). Only
+ * an Open FLAG Finding loads the live Flags.
+ */
+async function liveState(finding: FindingAccess["finding"]): Promise<{ fixed: boolean; liveFlag: Flag | null }> {
+  if (finding.origin !== "FLAG" || finding.state !== "OPEN") return { fixed: false, liveFlag: null };
+  const shown = shownState(finding, await loadLiveFlags(finding.tripId));
+  return { fixed: shown.state === "FIXED", liveFlag: shown.liveFlag };
+}
+
 /** R8: each fix kind is one existing action, run as the clicking Traveller. */
 async function runFix(fix: RowFix, row: FixRow): Promise<ActionResult> {
   switch (fix.kind) {
@@ -156,14 +171,19 @@ async function restoreSnapshot(fix: RowFix, before: FixSnapshot, current: FixRow
  * A refusal releases the claim and comes back as the action's own failure.
  * On success the touched fields, before and after, are saved for Undo.
  * A checklist fix (spec 2026-10-18 A2) takes the Traveller's `choice` too:
- * Need to pack or Need to buy, for a Packing fix. `already` is the toast
- * when the entry was there and nothing was added.
+ * Need to pack or Need to buy, for a Packing fix. `message` is the toast
+ * when nothing was added: the entry was there, or was only marked.
+ * A Finding that reads Fixed in the plan is refused as dealt with, and a
+ * tight connection's stored retime only applies while its Flag still
+ * proposes it (lib/review/fixed.ts offeredFix), as the reads show it.
  */
-export async function applyFinding(findingId: string, choice?: ChecklistChoice): Promise<ActionResult<{ already?: string }>> {
+export async function applyFinding(findingId: string, choice?: ChecklistChoice): Promise<ActionResult<{ message?: string }>> {
   const { user, finding, isLatest } = await requireFindingAccess(findingId);
   if (finding.state !== "OPEN") return formFail(COPY.handled, "handled");
   if (!isLatest) return formFail(COPY.replaced, "replaced");
-  const fix = parseSuggestedFix(finding.suggestedFix);
+  const live = await liveState(finding);
+  if (live.fixed) return formFail(COPY.handled, "handled");
+  const fix = offeredFix(parseSuggestedFix(finding.suggestedFix), live.liveFlag);
   // A fix only ever changes the Finding's own row (lib/review/fix.ts fixFitsTarget), as the reads show it.
   if (!fix || !fixFitsTarget(fix, finding)) return formFail(COPY.noFix, "no-fix");
   if (isChecklistFix(fix)) return applyChecklistFix(user.id, finding, fix, choice);
@@ -235,7 +255,7 @@ async function applyChecklistFix(
   finding: FindingAccess["finding"],
   fix: ChecklistFix,
   rawChoice: unknown,
-): Promise<ActionResult<{ already?: string }>> {
+): Promise<ActionResult<{ message?: string }>> {
   const choice = fix.list === "PRETRIP" ? "PACK" : CHECKLIST_CHOICES.find((c) => c === rawChoice);
   if (!choice) return formFail(CHECKLIST_FIX_COPY.choose, "invalid");
   const existing = await db.checklistItem.findMany({
@@ -261,11 +281,11 @@ async function applyChecklistFix(
       data: { undoPayload: JSON.stringify(payload) },
     });
 
-  let already: string | undefined;
+  let message: string | undefined;
   try {
     if (plan.kind === "already") {
       await savePayload({ fix, done: "none", itemId: plan.itemId, after: null });
-      already = plan.copy;
+      message = plan.copy;
     } else if (plan.kind === "mark") {
       const marked = await guarded(() => setBuyState(plan.itemId, "NEEDED"), COPY.gone);
       if (!marked.success) {
@@ -274,6 +294,7 @@ async function applyChecklistFix(
       }
       const row = await db.checklistItem.findUnique({ where: { id: plan.itemId }, select: { text: true, done: true, buy: true } });
       await savePayload({ fix, done: "marked", itemId: plan.itemId, after: row });
+      message = CHECKLIST_FIX_COPY.marked;
     } else {
       const added = await guarded(() => addChecklistItem(finding.tripId, { kind: fix.list, text: fix.text }), COPY.gone);
       if (!added.success) {
@@ -298,7 +319,7 @@ async function applyChecklistFix(
     throw err;
   }
   revalidateTrip(finding.tripId, "reviews");
-  return already ? ok({ already }) : ok();
+  return message ? ok({ message }) : ok();
 }
 
 /**
@@ -317,10 +338,12 @@ function landedStep(fix: RowFix, from: FixSnapshot, toDate: string | null | unde
   return { ...current, date: from.date };
 }
 
+/** Dismiss an Open Finding of the latest Review; one that reads Fixed in the plan is already dealt with (A4). */
 export async function dismissFinding(findingId: string): Promise<ActionResult> {
   const { user, finding, isLatest } = await requireFindingAccess(findingId);
   if (finding.state !== "OPEN") return formFail(COPY.handled, "handled");
   if (!isLatest) return formFail(COPY.replaced, "replaced");
+  if ((await liveState(finding)).fixed) return formFail(COPY.handled, "handled");
   const { count } = await db.finding.updateMany({
     where: { id: finding.id, state: "OPEN" },
     data: { state: "DISMISSED", stateById: user.id, stateAt: new Date() },
@@ -397,18 +420,19 @@ export async function undoFinding(findingId: string): Promise<ActionResult> {
 
 /**
  * Spec 2026-10-18 A2 Undo: take off the entry Apply added, or unmark the row
- * it marked, only while it is as Apply left it (decision 7: never overwrite
- * a tick or an edit since). When Apply added nothing, just reopen.
+ * it marked, only while it is as Apply left it, on the same list (decision 7:
+ * never overwrite a tick, an edit or a move since). When Apply added nothing,
+ * just reopen.
  */
 async function undoChecklistFix(finding: FindingAccess["finding"], payload: ChecklistUndoPayload): Promise<ActionResult> {
   const { done, itemId } = payload;
   if (done !== "none") {
     const row = itemId
-      ? await db.checklistItem.findUnique({ where: { id: itemId }, select: { tripId: true, text: true, done: true, buy: true } })
+      ? await db.checklistItem.findUnique({ where: { id: itemId }, select: { tripId: true, kind: true, text: true, done: true, buy: true } })
       : null;
     if (!row || row.tripId !== finding.tripId) return formFail(COPY.goneUndo, "gone");
     const a = payload.after;
-    if (!a || row.text !== a.text || row.done !== a.done || row.buy !== a.buy) return formFail(COPY.changed, "changed");
+    if (!a || row.kind !== payload.fix.list || row.text !== a.text || row.done !== a.done || row.buy !== a.buy) return formFail(COPY.changed, "changed");
   }
 
   const claimed = await db.finding.updateMany({

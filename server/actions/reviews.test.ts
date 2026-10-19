@@ -21,8 +21,10 @@ const h = vi.hoisted(() => {
     setBuyState: action(),
     deleteChecklistItem: action(),
     revalidateTrip: vi.fn(),
+    loadLiveFlags: vi.fn(async (): Promise<ReadonlyMap<string, unknown> | null> => null),
   };
 });
+vi.mock("@/lib/review/live-flags", () => ({ loadLiveFlags: h.loadLiveFlags }));
 vi.mock("@/lib/review-reads", () => ({ requireFindingAccess: h.requireFindingAccess }));
 vi.mock("@/lib/guards", () => ({ requireRowAccess: h.requireRowAccess }));
 vi.mock("@/server/actions/items", () => ({ updateItem: h.updateItem, rescheduleItem: h.rescheduleItem, setOpeningHours: h.setOpeningHours }));
@@ -53,7 +55,7 @@ function access(over: Record<string, unknown> = {}, isLatest = true) {
   h.requireFindingAccess.mockResolvedValue({
     user: { id: "u1" },
     isLatest,
-    finding: { id: "f1", reviewId: "r1", tripId: "t1", ...own, state: "OPEN", suggestedFix: null, undoPayload: null, stateById: null, stateAt: null, ...over },
+    finding: { id: "f1", reviewId: "r1", tripId: "t1", ...own, origin: "MODEL", key: "k", state: "OPEN", suggestedFix: null, undoPayload: null, stateById: null, stateAt: null, ...over },
   });
 }
 
@@ -510,18 +512,18 @@ describe("applyFinding of a checklist fix (spec 2026-10-18 A2)", () => {
   it("already on the list: adds nothing, Applies the Finding and says so", async () => {
     packing();
     mdb.checklistItem.findMany.mockResolvedValueOnce([{ id: "c1", text: "  umbrella ", done: false, buy: null }]);
-    expect(await applyFinding("f1", "PACK")).toEqual({ success: true, already: "Already on your packing list." });
+    expect(await applyFinding("f1", "PACK")).toEqual({ success: true, message: "Already on your packing list." });
     expect(h.addChecklistItem).not.toHaveBeenCalled();
     expect(h.setBuyState).not.toHaveBeenCalled();
     expect(savedPayload()).toEqual({ fix, done: "none", itemId: "c1", after: null });
     expect(h.revalidateTrip).toHaveBeenCalledWith("t1", "reviews");
   });
 
-  it("Need to buy with the entry there unmarked marks that row", async () => {
+  it("Need to buy with the entry there unmarked marks that row, and says so", async () => {
     packing();
     mdb.checklistItem.findMany.mockResolvedValueOnce([{ id: "c1", text: "Umbrella", done: true, buy: null }]);
     mdb.checklistItem.findUnique.mockResolvedValueOnce({ text: "Umbrella", done: true, buy: "NEEDED" });
-    expect(await applyFinding("f1", "BUY")).toEqual({ success: true });
+    expect(await applyFinding("f1", "BUY")).toEqual({ success: true, message: CHECKLIST_FIX_COPY.marked });
     expect(h.setBuyState).toHaveBeenCalledWith("c1", "NEEDED");
     expect(h.addChecklistItem).not.toHaveBeenCalled();
     expect(savedPayload()).toEqual({ fix, done: "marked", itemId: "c1", after: { text: "Umbrella", done: true, buy: "NEEDED" } });
@@ -574,7 +576,7 @@ describe("undoFinding of a checklist fix (spec 2026-10-18 A2)", () => {
     return undoPayload;
   };
   const ADDED = { done: "added", itemId: "c9", after: { text: "Umbrella", done: false, buy: "NEEDED" } };
-  const ROW = { id: "c9", tripId: "t1", text: "Umbrella", done: false, buy: "NEEDED" };
+  const ROW = { id: "c9", tripId: "t1", kind: "PACKING", text: "Umbrella", done: false, buy: "NEEDED" };
 
   it("takes off the entry Apply added, when untouched since, and reopens the Finding", async () => {
     const payload = applied(ADDED);
@@ -596,9 +598,17 @@ describe("undoFinding of a checklist fix (spec 2026-10-18 A2)", () => {
     expect(mdb.finding.updateMany).not.toHaveBeenCalled();
   });
 
+  it("refuses when the entry has moved to another list since, and changes nothing", async () => {
+    applied(ADDED);
+    mdb.checklistItem.findUnique.mockResolvedValueOnce({ ...ROW, kind: "PRETRIP" });
+    expect(await undoFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.changed, "changed"));
+    expect(h.deleteChecklistItem).not.toHaveBeenCalled();
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+  });
+
   it("unmarks the row Apply marked", async () => {
     applied({ done: "marked", itemId: "c1", after: { text: "Umbrella", done: true, buy: "NEEDED" } });
-    mdb.checklistItem.findUnique.mockResolvedValueOnce({ id: "c1", tripId: "t1", text: "Umbrella", done: true, buy: "NEEDED" });
+    mdb.checklistItem.findUnique.mockResolvedValueOnce({ id: "c1", tripId: "t1", kind: "PACKING", text: "Umbrella", done: true, buy: "NEEDED" });
     expect(await undoFinding("f1")).toEqual({ success: true });
     expect(h.setBuyState).toHaveBeenCalledWith("c1", null);
     expect(h.deleteChecklistItem).not.toHaveBeenCalled();
@@ -630,6 +640,61 @@ describe("undoFinding of a checklist fix (spec 2026-10-18 A2)", () => {
     expect(mdb.finding.updateMany).toHaveBeenLastCalledWith({
       where: { id: "f1", state: "OPEN", stateById: null },
       data: { state: "APPLIED", stateById: "u2", stateAt: STATE_AT, undoPayload: payload },
+    });
+  });
+});
+
+describe("Apply and Dismiss of a Finding that reads Fixed in the plan (spec 2026-10-18 A4)", () => {
+  const flagFinding = (over: Record<string, unknown> = {}) =>
+    access({ origin: "FLAG", key: "LOGISTICS|DAY|2027-06-02|empty-day-2027-06-02", targetType: "DAY", targetId: null, ...over });
+  const live = (...flags: { id: string; retime?: unknown }[]) => h.loadLiveFlags.mockResolvedValueOnce(new Map(flags.map((f) => [f.id, f])));
+
+  it("Dismiss is refused once its Flag no longer fires, without writing", async () => {
+    flagFinding();
+    live();
+    expect(await dismissFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.handled, "handled"));
+    expect(h.loadLiveFlags).toHaveBeenCalledWith("t1");
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("Dismiss goes ahead while its Flag still fires", async () => {
+    flagFinding();
+    live({ id: "empty-day-2027-06-02" });
+    expect(await dismissFinding("f1")).toEqual({ success: true });
+  });
+
+  it("Apply is refused once its Flag no longer fires, without claiming", async () => {
+    flagFinding({ suggestedFix: JSON.stringify({ kind: "checklist.add", list: "PRETRIP", text: "Pass" }), targetType: "TRIP" });
+    live();
+    expect(await applyFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.handled, "handled"));
+    expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+    expect(h.addChecklistItem).not.toHaveBeenCalled();
+  });
+
+  it("a model Finding never loads the live Flags", async () => {
+    access();
+    await dismissFinding("f1");
+    expect(h.loadLiveFlags).not.toHaveBeenCalled();
+  });
+
+  describe("a tight connection's stored retime (A3)", () => {
+    const fix = { kind: "item.times", itemId: "i1", startTime: "12:35", endTime: "13:35" };
+    const tight = () => access({ origin: "FLAG", key: "LOGISTICS|DAY|2027-06-02|tight-i0-i1", suggestedFix: JSON.stringify(fix) });
+
+    it("is refused once the live Flag proposes another time, without claiming", async () => {
+      tight();
+      live({ id: "tight-i0-i1", retime: { itemId: "i1", startTime: "12:50", endTime: "13:50" } });
+      expect(await applyFinding("f1")).toEqual(FORM(REVIEW_ACTION_COPY.noFix, "no-fix"));
+      expect(mdb.finding.updateMany).not.toHaveBeenCalled();
+      expect(h.updateItem).not.toHaveBeenCalled();
+    });
+
+    it("applies while the live Flag proposes the same one", async () => {
+      tight();
+      live({ id: "tight-i0-i1", retime: { itemId: "i1", startTime: "12:35", endTime: "13:35" } });
+      mdb.item.findUnique.mockResolvedValue(ITEM);
+      expect(await applyFinding("f1")).toEqual({ success: true });
+      expect(h.updateItem).toHaveBeenCalledWith("i1", { startTime: "12:35", endTime: "13:35" });
     });
   });
 });

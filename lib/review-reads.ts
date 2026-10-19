@@ -24,7 +24,7 @@ import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
 import { parseSuggestedFix } from "@/lib/review/schema";
 import { fixFitsTarget, fixTarget, isStrandedApply } from "@/lib/review/fix";
-import { shownState } from "@/lib/review/fixed";
+import { offeredFix, shownState } from "@/lib/review/fixed";
 import { loadLiveFlags } from "@/lib/review/live-flags";
 import {
   effectiveReviewStatus,
@@ -109,6 +109,9 @@ export interface FindingAccess {
     tripId: string;
     targetType: FindingTargetType;
     targetId: string | null;
+    /** With `key`, how Apply and Dismiss tell an Open restated Flag that reads Fixed in the plan now (A4). */
+    origin: FindingOrigin;
+    key: string;
     state: FindingState;
     suggestedFix: string | null;
     undoPayload: string | null;
@@ -190,9 +193,11 @@ function toFindingView(
   // A fix only touches the Finding's own row, except a checklist fix (never
   // a row): a stored row fix aimed elsewhere (written before that rule)
   // reads as none, Dismiss only. And a row a Surprise hides from this
-  // viewer never leaves the server.
-  const suggestedFix =
+  // viewer never leaves the server. A tight connection's stored retime is
+  // offered only while its live Flag still proposes it (offeredFix, A3).
+  const visibleFix =
     parsed && fixFitsTarget(parsed, f) && !(parsed && !isChecklistFix(parsed) && hiddenTargetIds.includes(fixTarget(parsed).id)) ? parsed : null;
+  const suggestedFix = offeredFix(visibleFix, shown.liveFlag);
   return {
     id: f.id,
     reviewId: f.reviewId,
@@ -344,7 +349,10 @@ export async function runningReview(tripId: string): Promise<ReviewSummary | nul
 export async function requireFindingAccess(findingId: string): Promise<FindingAccess> {
   const row = await db.finding.findUnique({
     where: { id: findingId },
-    select: { id: true, reviewId: true, tripId: true, targetType: true, targetId: true, state: true, suggestedFix: true, undoPayload: true, stateById: true, stateAt: true },
+    select: {
+      id: true, reviewId: true, tripId: true, targetType: true, targetId: true, origin: true, key: true, state: true,
+      suggestedFix: true, undoPayload: true, stateById: true, stateAt: true,
+    },
   });
   if (!row) notFound();
   const { user } = await requireTripAccess(row.tripId);
@@ -361,6 +369,8 @@ export async function requireFindingAccess(findingId: string): Promise<FindingAc
       tripId: row.tripId,
       targetType: row.targetType as FindingTargetType,
       targetId: row.targetId,
+      origin: row.origin as FindingOrigin,
+      key: row.key,
       state: row.state as FindingState,
       suggestedFix: row.suggestedFix,
       undoPayload: row.undoPayload,

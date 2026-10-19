@@ -48,9 +48,9 @@ export function FindingList({ open, dealtWith, actionable }: { open: FindingGrou
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">To deal with ({openCount})</h3>
           {open.map((g) => (
             <section key={g.severity} className="flex flex-col gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {g.heading} ({g.cards.length})
-              </h3>
+              </h4>
               <ul role="list" className="flex flex-col gap-2">
                 {/* Keyed by finding id: a row's optimistic override lives in its own
                     state, reconciled (not remounted) once the server's own state
@@ -99,7 +99,7 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
   const state = local ?? card.state;
   const stateLabel = local ? LOCAL_LABEL[local] : card.stateLabel;
 
-  const apply = useUndoableAction<{ id: string; choice?: ChecklistChoice }, { already?: string }>({
+  const apply = useUndoableAction<{ id: string; choice?: ChecklistChoice }, { message?: string }>({
     apply: () => setLocal("APPLIED"),
     persist: ({ id, choice }) => applyFinding(id, choice),
     revert: () => setLocal(null),
@@ -109,10 +109,10 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     // elsewhere may already have gone through, so the server, not a guessed
     // prior state, is the truth once we no longer trust our own optimism.
     revertUndo: () => setLocal(null),
-    // `already` (the checklist duplicate guard, A2) names what actually
-    // happened when nothing was added; otherwise a row fix "applies" and a
-    // checklist fix "adds".
-    done: (_i, r) => ({ title: r.already ?? (card.fix?.kind === "row" ? "Fix applied" : "Added"), description: card.title }),
+    // `message` (the checklist duplicate guard, A2) names what actually
+    // happened when nothing was added (already there, or only marked Need to
+    // buy); otherwise a row fix "applies" and a checklist fix "adds".
+    done: (_i, r) => ({ title: r.message ?? (card.fix?.kind === "row" ? "Fix applied" : "Added"), description: card.title }),
     failure: "Couldn't apply that fix. Nothing changed.",
   });
   const dismiss = useUndoableAction({
@@ -143,9 +143,10 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
   const Icon = sev.icon;
 
   const isOpen = actionable && state === "OPEN";
-  const showApply = isOpen && card.fix?.kind === "row" && card.canApply;
-  const showPacking = isOpen && card.fix?.kind === "packing";
-  const showPretrip = isOpen && card.fix?.kind === "pretrip";
+  const canApply = isOpen && card.canApply;
+  const showApply = canApply && card.fix?.kind === "row";
+  const showPacking = canApply && card.fix?.kind === "packing";
+  const showPretrip = canApply && card.fix?.kind === "pretrip";
   const goTo = card.goTo;
   const showDismiss = isOpen && card.canDismiss;
   const showUndo = (state === "APPLIED" || state === "DISMISSED") && card.canUndo;

@@ -22,6 +22,8 @@ export const CHECKLIST_FIX_COPY = {
   alreadyPacking: "Already on your packing list.",
   alreadyPretrip: "Already on your pre-trip checklist.",
   alreadyBoth: "Already on your lists.",
+  /** Need to buy found the entry there unmarked, and marked it: nothing was added. */
+  marked: "Marked Need to buy.",
   choose: "Choose Need to pack or Need to buy.",
 } as const;
 

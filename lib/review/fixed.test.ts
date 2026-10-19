@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Flag } from "@/lib/flags";
-import { shownState } from "./fixed";
+import type { SuggestedFix } from "./types";
+import { offeredFix, shownState } from "./fixed";
 
 describe("shownState (spec 2026-10-18 A4: Fixed in the plan)", () => {
   const flag = { id: "empty-day-2026-12-08", severity: "info", message: "", targetType: "DAY", date: "2026-12-08" } as Flag;
@@ -30,5 +31,27 @@ describe("shownState (spec 2026-10-18 A4: Fixed in the plan)", () => {
   ])("stays Open when %s has worsened into %s, with the worse Flag", (_from, to, k) => {
     const worse = { id: to, severity: "warning", message: "", targetType: "TRIP" } as Flag;
     expect(shownState({ origin: "FLAG", state: "OPEN", key: k }, new Map([[to, worse]]))).toEqual({ state: "OPEN", liveFlag: worse });
+  });
+});
+
+describe("offeredFix (spec 2026-10-18 A3: a tight connection's stored retime)", () => {
+  const fix: SuggestedFix = { kind: "item.times", itemId: "b", startTime: "12:35", endTime: "13:35" };
+  const tight = (retime?: Flag["retime"]) =>
+    ({ id: "tight-a-b", severity: "warning", message: "", targetType: "DAY", date: "2026-12-08", ...(retime ? { retime } : {}) }) as Flag;
+
+  it("offers the stored retime while the live Flag proposes the same one", () =>
+    expect(offeredFix(fix, tight({ itemId: "b", startTime: "12:35", endTime: "13:35" }))).toBe(fix));
+
+  it("offers nothing once the live Flag proposes another time, or none", () => {
+    expect(offeredFix(fix, tight({ itemId: "b", startTime: "12:50", endTime: "13:50" }))).toBeNull();
+    expect(offeredFix(fix, tight())).toBeNull();
+  });
+
+  it("leaves every other fix, and a Finding with no live Flag, alone", () => {
+    const note: SuggestedFix = { kind: "item.note", itemId: "b", append: "x" };
+    expect(offeredFix(note, tight())).toBe(note);
+    expect(offeredFix(fix, null)).toBe(fix);
+    expect(offeredFix(fix, { id: "item-closed-b", severity: "warning", message: "", targetType: "ITEM", targetId: "b" })).toBe(fix);
+    expect(offeredFix(null, tight())).toBeNull();
   });
 });

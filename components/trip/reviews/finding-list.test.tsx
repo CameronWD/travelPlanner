@@ -58,9 +58,10 @@ describe("FindingList (R8, R10, spec 2026-10-18 A1, A2, A5)", () => {
         dealtWith={[]}
       />,
     );
-    expect(screen.getByRole("heading", { name: "To deal with (2)" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Warnings (1)" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Notes (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "To deal with (2)" })).toBeInTheDocument();
+    // Severity groups sit under "To deal with", one level down.
+    expect(screen.getByRole("heading", { level: 4, name: "Warnings (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "Notes (1)" })).toBeInTheDocument();
     const r = within(row("Night train not booked"));
     expect(r.getByText("Sells out in December.")).toBeInTheDocument();
     expect(r.getByText("Suggested fix: Mark as to book")).toBeInTheDocument();
@@ -80,6 +81,29 @@ describe("FindingList (R8, R10, spec 2026-10-18 A1, A2, A5)", () => {
     capturedOnUndo!();
     await waitFor(() => expect(actions.undoFinding).toHaveBeenCalledWith("f1"));
     await waitFor(() => expect(within(row("Night train not booked")).getByText("Open")).toBeInTheDocument());
+  });
+
+  it("an Open row-fix card shows Apply, its go-to and Dismiss together", () => {
+    render(<FindingList actionable open={openGroups(card())} dealtWith={[]} />);
+    const r = within(row("Night train not booked"));
+    expect(r.getByRole("button", { name: "Apply: Night train not booked" })).toBeInTheDocument();
+    expect(r.getByRole("link", { name: "Open the day" })).toBeInTheDocument();
+    expect(r.getByRole("button", { name: "Dismiss: Night train not booked" })).toBeInTheDocument();
+  });
+
+  it("a Packing or Pre-trip card the server says can't apply shows no checklist buttons, only Dismiss", () => {
+    render(
+      <FindingList
+        actionable
+        open={openGroups(
+          card({ fix: { kind: "packing", label: "Add to the packing list: Umbrella" }, canApply: false }),
+          card({ id: "f2", title: "Rail pass", fix: { kind: "pretrip", label: "Add to the pre-trip checklist: Buy rail pass" }, canApply: false }),
+        )}
+        dealtWith={[]}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /Need to pack|Need to buy|Add to pre-trip checklist/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Dismiss: Rail pass" })).toBeInTheDocument();
   });
 
   it("a refused Apply puts it back to Open and says why", async () => {
@@ -143,7 +167,7 @@ describe("FindingList (R8, R10, spec 2026-10-18 A1, A2, A5)", () => {
   });
 
   it("a checklist Apply already on the list surfaces the server's own toast title", async () => {
-    actions.applyFinding.mockResolvedValue({ success: true, already: "Already on your packing list." });
+    actions.applyFinding.mockResolvedValue({ success: true, message: "Already on your packing list." });
     render(
       <FindingList
         actionable
@@ -154,6 +178,20 @@ describe("FindingList (R8, R10, spec 2026-10-18 A1, A2, A5)", () => {
     await userEvent.click(within(row("Night train not booked")).getByRole("button", { name: "Need to pack: Night train not booked" }));
     await waitFor(() => expect(within(row("Night train not booked")).getByText("Applied")).toBeInTheDocument());
     expect(capturedToast?.title).toBe("Already on your packing list.");
+  });
+
+  it("Need to buy that only marked an entry already there says so, not 'Added'", async () => {
+    actions.applyFinding.mockResolvedValue({ success: true, message: "Marked Need to buy." });
+    render(
+      <FindingList
+        actionable
+        open={openGroups(card({ fix: { kind: "packing", label: "Add to the packing list: Umbrella" } }))}
+        dealtWith={[]}
+      />,
+    );
+    await userEvent.click(within(row("Night train not booked")).getByRole("button", { name: "Need to buy: Night train not booked" }));
+    await waitFor(() => expect(within(row("Night train not booked")).getByText("Applied")).toBeInTheDocument());
+    expect(capturedToast?.title).toBe("Marked Need to buy.");
   });
 
   it("an Applied Finding keeps an Undo button after the toast, and says 'Fix undone'", async () => {
