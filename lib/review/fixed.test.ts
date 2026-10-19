@@ -23,4 +23,12 @@ describe("shownState (spec 2026-10-18 A4: Fixed in the plan)", () => {
     expect(shownState({ origin: "FLAG", state: "DISMISSED", key }, new Map()).state).toBe("DISMISSED");
     expect(shownState({ origin: "FLAG", state: "APPLIED", key }, new Map()).state).toBe("APPLIED");
   });
+
+  it.each([
+    ["book-by-soon-t1", "book-by-overdue-t1", "BOOKING|TRANSPORT|t1|book-by-soon-t1"],
+    ["hard-end-approaching", "hard-end-over", "LOGISTICS|TRIP|-|hard-end-approaching"],
+  ])("stays Open when %s has worsened into %s, with the worse Flag", (_from, to, k) => {
+    const worse = { id: to, severity: "warning", message: "", targetType: "TRIP" } as Flag;
+    expect(shownState({ origin: "FLAG", state: "OPEN", key: k }, new Map([[to, worse]]))).toEqual({ state: "OPEN", liveFlag: worse });
+  });
 });

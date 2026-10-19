@@ -117,7 +117,7 @@ export const FINDING_STATE_MEANING: Record<FindingShownState, string> = {
   APPLIED: "Applied, someone pressed Apply on it in the app",
   DISMISSED: "Dismissed, someone decided it doesn't matter. A later Review keeps it dismissed",
   GONE: "No longer found, a later Review didn't raise it again",
-  FIXED: "the app can see the problem is gone from the plan now (someone changed it). It is Open again if it comes back.",
+  FIXED: "the app can see the problem is gone from the plan now. It is Open again if it comes back.",
 };
 
 export const FINDING_SEVERITY_MEANING: Record<FindingSeverity, string> = {
