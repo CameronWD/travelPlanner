@@ -132,7 +132,7 @@ export default async function TripHomePage({
 
   const reviewLine = homeReviewLine(
     latest,
-    { base: tripPath(slug), timeZone: currentTripTimezone(orderPlanStops(trip.stops)) },
+    { base: tripPath(slug), timeZone: currentTripTimezone(orderPlanStops(trip.stops)), now: new Date() },
     running,
   );
 

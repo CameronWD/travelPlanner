@@ -79,6 +79,11 @@ export function reviewBackAround(startedAt: Date, timeZone: string): string {
   return formatReviewClock(new Date(startedAt.getTime() + REVIEW_BACK_AFTER_MS), timeZone);
 }
 
+/** That check-back time has come (spec 2026-10-18 A7): say it is nearly done, never name a time already past. */
+function pastBackAround(startedAt: Date, now: Date): boolean {
+  return now.getTime() >= startedAt.getTime() + REVIEW_BACK_AFTER_MS;
+}
+
 // ---------------------------------------------------------------------------
 // One Finding
 // ---------------------------------------------------------------------------
@@ -347,10 +352,12 @@ export function failedReviewText(error: string | null | undefined): string {
 /**
  * Spec R11, amended 2026-10-18 A7: the tab's line while a Review runs. Says
  * it keeps going if you leave (the run carries on server-side in `after()`,
- * spec J) and gives a display estimate of when to check back.
+ * spec J) and gives a display estimate of when to check back, or, once
+ * that time has come, that it should be done any moment.
  */
-export function reviewingLine(startedBy: TravellerRefLike, startedAt: Date, timeZone: string): string {
-  return `Reviewing… started by ${firstName(startedBy)} at ${formatReviewClock(startedAt, timeZone)}. This takes a few minutes and keeps going if you leave. Check back around ${reviewBackAround(startedAt, timeZone)}.`;
+export function reviewingLine(startedBy: TravellerRefLike, startedAt: Date, timeZone: string, now: Date): string {
+  const when = pastBackAround(startedAt, now) ? "Should be done any moment." : `Check back around ${reviewBackAround(startedAt, timeZone)}.`;
+  return `Reviewing… started by ${firstName(startedBy)} at ${formatReviewClock(startedAt, timeZone)}. This takes a few minutes and keeps going if you leave. ${when}`;
 }
 
 /** The heading line for a shown Review: who ran it, and when. */
@@ -406,15 +413,19 @@ export function toHistoryRow(r: ReviewForView, ctx: { base: string; timeZone: st
  *
  * Spec 2026-10-18 A7: `running` takes over ahead of that, whatever `review`
  * says — while a Review is running, Home says so and when to check back,
- * rather than a stale open count from before it started.
+ * rather than a stale open count from before it started ("nearly done" once
+ * that time has come).
  */
 export function homeReviewLine(
   review: { startedAt: Date; openCount: number } | null,
-  ctx: { base: string; timeZone: string },
+  ctx: { base: string; timeZone: string; now: Date },
   running?: { startedAt: Date } | null,
 ): { text: string; href: Route } | null {
   const href = tripSubPath(ctx.base, "/reviews");
-  if (running) return { text: `Review running, back around ${reviewBackAround(running.startedAt, ctx.timeZone)}`, href };
+  if (running) {
+    const when = pastBackAround(running.startedAt, ctx.now) ? "nearly done" : `back around ${reviewBackAround(running.startedAt, ctx.timeZone)}`;
+    return { text: `Review running, ${when}`, href };
+  }
   if (!review || review.openCount === 0) return null;
   return { text: `${review.openCount} open from the ${formatReviewDay(review.startedAt, ctx.timeZone)} review`, href };
 }

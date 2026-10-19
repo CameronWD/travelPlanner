@@ -4,7 +4,7 @@ import type { Flag } from "@/lib/flags";
 import { REVIEW_MESSAGES } from "./messages";
 import {
   FINDING_CATEGORY_LABELS, REVIEW_KIND_LABELS, findingGoTo, findingStateLabel, formatReviewDay, formatReviewWhen,
-  failedReviewText, partitionFindings, homeReviewLine, reviewBackAround, reviewByLine, reviewingLine, sourceLink, suggestedFixLabel,
+  failedReviewText, partitionFindings, homeReviewLine, REVIEW_BACK_AFTER_MS, reviewBackAround, reviewByLine, reviewingLine, sourceLink, suggestedFixLabel,
   toFindingCard, toHistoryRow,
   type FindingCard, type FindingForView, type ReviewForView,
 } from "./view";
@@ -181,15 +181,23 @@ describe("reviewBackAround (spec 2026-10-18 A7)", () => {
 });
 
 describe("reviewingLine (R11, amended 2026-10-18 A7)", () => {
+  const SOON = new Date(AT.getTime() + 60_000);
   it("names who started it, when, and when to check back", () => {
-    expect(reviewingLine(CAM, AT, BNE)).toBe(
+    expect(reviewingLine(CAM, AT, BNE, SOON)).toBe(
       "Reviewing… started by Cam at 14:05. This takes a few minutes and keeps going if you leave. Check back around 14:10.",
     );
   });
   it("a former Traveller is shown whole", () => {
-    expect(reviewingLine(FORMER, AT, BNE)).toBe(
+    expect(reviewingLine(FORMER, AT, BNE, SOON)).toBe(
       "Reviewing… started by a former Traveller at 14:05. This takes a few minutes and keeps going if you leave. Check back around 14:10.",
     );
+  });
+  it("once that time has come, never names a time already past", () => {
+    for (const now of [new Date(AT.getTime() + REVIEW_BACK_AFTER_MS), new Date(AT.getTime() + REVIEW_BACK_AFTER_MS + 30_000)]) {
+      expect(reviewingLine(CAM, AT, BNE, now)).toBe(
+        "Reviewing… started by Cam at 14:05. This takes a few minutes and keeps going if you leave. Should be done any moment.",
+      );
+    }
   });
 });
 
@@ -233,7 +241,7 @@ describe("failedReviewText (final wave I2)", () => {
 });
 
 describe("homeReviewLine (R10: Home shows 'N open from the <date> review')", () => {
-  const ctx = { base: "/trips/xmas", timeZone: BNE };
+  const ctx = { base: "/trips/xmas", timeZone: BNE, now: new Date(AT.getTime() + 60_000) };
   // The count comes from the reads (lib/review-reads.ts latestReviewOpenCount): the latest DONE Review only.
   const done = (openCount: number) => ({ startedAt: AT, openCount });
   it("the latest finished Review's Open count", () => {
@@ -247,5 +255,9 @@ describe("homeReviewLine (R10: Home shows 'N open from the <date> review')", () 
   it("a running Review takes over, ahead of the open count, whatever the latest finished Review says (spec 2026-10-18 A7)", () => {
     expect(homeReviewLine(null, ctx, { startedAt: AT })).toEqual({ text: "Review running, back around 14:10", href: "/trips/xmas/reviews" as Route });
     expect(homeReviewLine(done(3), ctx, { startedAt: AT })).toEqual({ text: "Review running, back around 14:10", href: "/trips/xmas/reviews" as Route });
+  });
+  it("a running Review past its check-back time says it is nearly done, not a time already past", () => {
+    const late = { ...ctx, now: new Date(AT.getTime() + REVIEW_BACK_AFTER_MS) };
+    expect(homeReviewLine(done(3), late, { startedAt: AT })).toEqual({ text: "Review running, nearly done", href: "/trips/xmas/reviews" as Route });
   });
 });

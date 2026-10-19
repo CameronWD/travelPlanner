@@ -96,7 +96,7 @@ export async function loadReviewsPage(input: {
       running: running != null,
       allowance: reviewAllowance(permission, starts, now),
     }),
-    running: running ? { id: running.id, line: reviewingLine(running.startedBy, running.startedAt, timeZone) } : null,
+    running: running ? { id: running.id, line: reviewingLine(running.startedBy, running.startedAt, timeZone, now) } : null,
     latestRun: history[0] ? { id: history[0].id, status: history[0].status, error: history[0].error, openCount: history[0].openCount } : null,
     shown: review
       ? {

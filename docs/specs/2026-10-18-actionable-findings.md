@@ -145,8 +145,18 @@ leaving the tab is safe; the page just never said so.
   draft's `flagTarget`). So it matches itself across Reviews whether or not a
   retime is offered, a Dismissal stays put, and Findings stored before this
   branch (DAY-keyed) match too.
-- **A1 Whole-Trip Finding go-to:** a live Finding with target type TRIP and no
-  fix shows only Dismiss; its go-to button opens the plan ("Open in the plan").
+- **A1 Go-to, as built:** nothing new is saved on a Finding. A restated Flag
+  that still fires takes its go-to from the live Flag (`flagHref`, with its
+  `connection` and `stopId`), so a Missing-connection Finding opens the
+  add-transport form while it fires. Every other Finding (the model's, or a
+  restated Flag that is dealt with or no longer fires) goes by its own target:
+  the day, the Stop, else the bare plan, so a dealt-with Missing-connection
+  Finding links to the bare plan. A whole-Trip Finding goes nowhere (Dismiss
+  only, when it has no fix) unless it restates a Flag that still fires; then it
+  opens where that Flag opens ("Open in the plan").
+- **A7 Past the check-back time:** once the estimate has passed while the run
+  goes on, Home reads "Review running, nearly done" and the tab "Should be done
+  any moment." instead of a time already gone.
 
 ## Not in this branch / follow-ups
 
@@ -156,5 +166,5 @@ leaving the tab is safe; the page just never said so.
 - More than one fix per Finding; standalone Shopping-list fixes.
 - Existing Findings are not backfilled: the new fixes and the retargeted
   tight-connection Finding appear from the next Review. A1's go-to and A4 apply
-  to existing Findings too (they are read-time), except that a Finding stored
-  before this branch has no saved `connection`/`stopId` and keeps today's link.
+  to existing Findings too (they are read-time): the go-to's
+  `connection`/`stopId` come from the live Flag, never from the stored Finding.

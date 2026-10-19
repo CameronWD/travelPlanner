@@ -274,12 +274,19 @@ describe("Trip Home, composed with its layout", () => {
 
   it("while a Review is running, Home's line says so and when to check back instead of a stale open count (spec 2026-10-18 A7)", async () => {
     latestReviewMock.mockResolvedValue({ id: "r1", startedAt: new Date("2026-10-18T04:05:00Z"), openCount: 2 });
-    runningReviewMock.mockResolvedValue({ startedAt: new Date("2026-10-18T04:05:00Z") });
+    // Started just now (real time), so the check-back time is still ahead.
+    runningReviewMock.mockResolvedValue({ startedAt: new Date() });
     await renderTripHome();
     expect(runningReviewMock).toHaveBeenCalledWith("trip-1");
-    const link = screen.getByRole("link", { name: "Review running, back around 04:10" });
+    const link = screen.getByRole("link", { name: /^Review running, back around \d\d:\d\d$/ });
     expect(link).toHaveAttribute("href", "/trips/trip-1/reviews");
     expect(screen.queryByRole("link", { name: /open from the/ })).toBeNull();
+  });
+
+  it("a running Review past its check-back time says it is nearly done", async () => {
+    runningReviewMock.mockResolvedValue({ startedAt: new Date(Date.now() - 6 * 60_000) });
+    await renderTripHome();
+    expect(screen.getByRole("link", { name: "Review running, nearly done" })).toHaveAttribute("href", "/trips/trip-1/reviews");
   });
 
   it("exposes the derived Phase as a hidden data-trip-phase marker (for the layout audit)", async () => {

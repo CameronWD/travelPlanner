@@ -75,13 +75,20 @@ describe("loadReviewsPage", () => {
   });
 
   it("a running Review: the line for everyone, and the panel is busy", async () => {
-    reads.runningReview.mockResolvedValue(review("r3", { status: "RUNNING", summary: null, finishedAt: null, startedAt: AT }));
+    // Two minutes before NOW (09:58 in Brisbane), so its check-back time is still ahead.
+    reads.runningReview.mockResolvedValue(review("r3", { status: "RUNNING", summary: null, finishedAt: null, startedAt: new Date("2026-10-17T23:58:00Z") }));
     const m = (await loadReviewsPage(input()))!;
     expect(m.running).toEqual({
       id: "r3",
-      line: "Reviewing… started by Cam at 14:05. This takes a few minutes and keeps going if you leave. Check back around 14:10.",
+      line: "Reviewing… started by Cam at 09:58. This takes a few minutes and keeps going if you leave. Check back around 10:03.",
     });
     expect(m.panel).toEqual({ kind: "busy" });
+  });
+
+  it("a running Review past its check-back time reads against the page's now (spec 2026-10-18 A7)", async () => {
+    reads.runningReview.mockResolvedValue(review("r3", { status: "RUNNING", summary: null, finishedAt: null, startedAt: new Date("2026-10-17T23:54:00Z") }));
+    const m = (await loadReviewsPage(input()))!;
+    expect(m.running?.line).toBe("Reviewing… started by Cam at 09:54. This takes a few minutes and keeps going if you leave. Should be done any moment.");
   });
 
   it("Off: the panel is hidden and counted runs are never read; reading still works", async () => {
