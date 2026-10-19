@@ -23,7 +23,9 @@ vi.mock("@/components/trip/reviews/review-poller", () => ({
   ),
 }));
 vi.mock("@/components/trip/reviews/finding-list", () => ({
-  FindingList: (p: { actionable: boolean; groups: unknown[] }) => <div data-testid="finding-list" data-actionable={String(p.actionable)} data-groups={p.groups.length} />,
+  FindingList: (p: { actionable: boolean; open: unknown[]; dealtWith: unknown[] }) => (
+    <div data-testid="finding-list" data-actionable={String(p.actionable)} data-open={p.open.length} data-dealt-with={p.dealtWith.length} />
+  ),
 }));
 vi.mock("@/components/trip/reviews/review-history", () => ({
   ReviewHistory: (p: { rows: unknown[] }) => <div data-testid="history" data-rows={p.rows.length} />,
@@ -34,10 +36,10 @@ import ReviewsPage, { maxDuration, metadata } from "./page";
 const base: ReviewsPageModel = {
   panel: { kind: "ready" },
   running: null,
-  latestRun: { id: "r2", status: "DONE", error: null },
+  latestRun: { id: "r2", status: "DONE", error: null, openCount: 2 },
   shown: {
     id: "r2", heading: "Standard Review", byLine: "Run by Cam, Sun 18 Oct, 14:05", status: "DONE",
-    summary: "Two closures to plan around.", failure: null, groups: [{ severity: "warning", heading: "Warnings", cards: [] }],
+    summary: "Two closures to plan around.", failure: null, open: [{ severity: "warning", heading: "Warnings", cards: [] }], dealtWith: [],
     openCount: 2, actionable: true, isLatest: true,
   },
   history: [{ id: "r2", href: "/trips/xmas/reviews?review=r2" as never, kindLabel: "Standard Review", byName: "Cam", when: "Sun 18 Oct, 14:05", line: "x", status: "DONE", current: true }],
@@ -96,7 +98,7 @@ describe("the Reviews tab (R10)", () => {
   });
 
   it("while running: the line for everyone and the poll is on", async () => {
-    model.current = { ...base, running: { id: "r3", line: "Reviewing… (started by Cam)" }, latestRun: { id: "r3", status: "RUNNING", error: null } };
+    model.current = { ...base, running: { id: "r3", line: "Reviewing… (started by Cam)" }, latestRun: { id: "r3", status: "RUNNING", error: null, openCount: 0 } };
     await renderPage();
     expect(screen.getByRole("status")).toHaveTextContent("Reviewing… (started by Cam)");
     expect(screen.getByTestId("poller")).toHaveAttribute("data-active", "true");
@@ -107,7 +109,7 @@ describe("the Reviews tab (R10)", () => {
 
   it("a Review that didn't finish says why, with no Findings list (final wave I2)", async () => {
     const failure = "This Review didn't finish. Claude was busy, so this Review stopped. Start it again in a few minutes. Nothing on the trip was changed.";
-    model.current = { ...base, shown: { ...base.shown!, status: "FAILED", summary: null, failure, groups: [], openCount: 0, actionable: false } };
+    model.current = { ...base, shown: { ...base.shown!, status: "FAILED", summary: null, failure, open: [], dealtWith: [], openCount: 0, actionable: false } };
     await renderPage();
     expect(screen.getByText(failure)).toBeInTheDocument();
     expect(screen.queryByTestId("finding-list")).toBeNull();

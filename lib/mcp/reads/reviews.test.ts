@@ -100,6 +100,13 @@ describe("Review reads for Claude (R13), over R's reads", () => {
     expect((await loadReviewForMcp("rev-1")).findings[0].stateBy).toBe("a former Traveller");
   });
 
+  it("a restated Flag that no longer fires reaches Claude as FIXED, the state R shows (spec 2026-10-18 A4)", async () => {
+    getReview.mockResolvedValue({ ...summary({ openCount: 0 }), findings: [finding({ origin: "FLAG", state: "FIXED", liveFlag: null, canApply: false, canDismiss: false })] });
+    const r = await loadReviewForMcp("rev-1");
+    expect(r.openFindings).toBe(0);
+    expect(r.findings[0]).toMatchObject({ state: "FIXED", origin: "FLAG" });
+  });
+
   it("get_review of a missing Review, or one on another trip, is not found", async () => {
     getReview.mockRejectedValue(nf());
     await expect(loadReviewForMcp("theirs")).rejects.toMatchObject({ digest: expect.stringContaining("NEXT_HTTP_ERROR_FALLBACK;404") });

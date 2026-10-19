@@ -6,7 +6,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 const toast = vi.hoisted(() => vi.fn());
 vi.mock("@/components/ui/use-toast", () => ({ toast }));
 
-import { REVIEW_FAILED_TITLE, REVIEW_POLL_MS, ReviewPoller } from "./review-poller";
+import { REVIEW_DONE_TITLE, REVIEW_FAILED_TITLE, REVIEW_POLL_MS, ReviewPoller } from "./review-poller";
 import { watchReview } from "./watched-reviews";
 
 beforeEach(() => {
@@ -73,10 +73,37 @@ describe("ReviewPoller toast (final wave I2: say why a watched run failed)", () 
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: BUSY }));
   });
 
-  it("stays quiet for an old failure in the history, and for a watched run that finished", () => {
+  it("stays quiet for an old failure in the history that this tab never watched", () => {
     render(<ReviewPoller active={false} runningId={null} latestRun={{ id: "rv-old", status: "FAILED", error: BUSY }} />);
+    expect(toast).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReviewPoller toast (spec 2026-10-18 A7: say how many are left once a watched run finishes)", () => {
+  it("toasts Review finished with the count once the run it saw running turns DONE", () => {
     const { rerender } = render(<ReviewPoller active runningId="rv-3" latestRun={{ id: "rv-3", status: "RUNNING", error: null }} />);
-    rerender(<ReviewPoller active={false} runningId={null} latestRun={{ id: "rv-3", status: "DONE", error: null }} />);
+    expect(toast).not.toHaveBeenCalled();
+    rerender(<ReviewPoller active={false} runningId={null} latestRun={{ id: "rv-3", status: "DONE", error: null, openCount: 7 }} />);
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledWith({ title: REVIEW_DONE_TITLE, description: "7 to deal with" });
+    // A later refresh with the same history doesn't toast again.
+    rerender(<ReviewPoller active={false} runningId={null} latestRun={{ id: "rv-3", status: "DONE", error: null, openCount: 7 }} />);
+    expect(toast).toHaveBeenCalledTimes(1);
+  });
+
+  it("says Nothing to deal with for zero, and 1 to deal with for one", () => {
+    const a = render(<ReviewPoller active runningId="rv-4" latestRun={{ id: "rv-4", status: "RUNNING", error: null }} />);
+    a.rerender(<ReviewPoller active={false} runningId={null} latestRun={{ id: "rv-4", status: "DONE", error: null, openCount: 0 }} />);
+    expect(toast).toHaveBeenCalledWith({ title: REVIEW_DONE_TITLE, description: "Nothing to deal with" });
+
+    toast.mockReset();
+    const b = render(<ReviewPoller active runningId="rv-5" latestRun={{ id: "rv-5", status: "RUNNING", error: null }} />);
+    b.rerender(<ReviewPoller active={false} runningId={null} latestRun={{ id: "rv-5", status: "DONE", error: null, openCount: 1 }} />);
+    expect(toast).toHaveBeenCalledWith({ title: REVIEW_DONE_TITLE, description: "1 to deal with" });
+  });
+
+  it("a run this tab never watched finishing DONE toasts nothing", () => {
+    render(<ReviewPoller active={false} runningId={null} latestRun={{ id: "rv-6", status: "DONE", error: null, openCount: 3 }} />);
     expect(toast).not.toHaveBeenCalled();
   });
 });

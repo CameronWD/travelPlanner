@@ -819,6 +819,49 @@ describe("flagTightConnections", () => {
     // Without a connecting transport → warning (50 km apart, 30-min gap)
     expect(flagTightConnections(items, [], OPTS)).toHaveLength(1);
   });
+
+  // ~1.5 km: A=(48.860,2.337), B=(48.8735,2.337) → 1.501 km → walk ≈ 20.02 min
+  // ~30 km:  A=(48.860,2.337), B=(49.130,2.337)  → 30.02 km → walk ≫ 30 min → drive ≈ 33.78 min
+
+  it("names the mode and offers to move the later Item, keeping its length", () => {
+    // prev ends 12:00, next starts 12:10 → gap = 10 min; walk ≈ 20.02 min → 10 < 20.02 → warning
+    const prev = makeItem({ id: "prev", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 });
+    const next = makeItem({ id: "next", date: "2026-07-02", startTime: "12:10", endTime: "13:10", lat: 48.8735, lng: 2.337 });
+    const flags = flagTightConnections([prev, next], [], OPTS);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].message).toMatch(/min walk/);
+    // Computed from the fixture's haversine distance (~1.5011 km → walk ≈ 20.015 min) via
+    // the helper's own formula: ceil((prevEnd + ceil(travel) + buffer) / 5) * 5.
+    // prevEnd=720, ceil(travel)=21, buffer=15 → ceil(756/5)*5=760 → "12:40"; length=60 → "13:40".
+    expect(flags[0].retime).toEqual({ itemId: "next", startTime: "12:40", endTime: "13:40" });
+  });
+
+  it("says drive when the distance is beyond walking", () => {
+    // ~30 km apart → walk ≫ 30 min → drive ≈ 33.78 min; gap = 30 min < 33.78 → warning
+    const prev = makeItem({ id: "prev", date: "2026-07-02", startTime: "11:00", endTime: "12:00", lat: 48.860, lng: 2.337 });
+    const next = makeItem({ id: "next", date: "2026-07-02", startTime: "12:30", endTime: "13:30", lat: 49.130, lng: 2.337 });
+    const flags = flagTightConnections([prev, next], [], OPTS);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].message).toMatch(/min drive/);
+  });
+
+  it("offers no retime when the later Item is Booked", () => {
+    const prev = makeItem({ id: "prev", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 });
+    const next = makeItem({ id: "next", date: "2026-07-02", startTime: "12:10", endTime: "13:10", lat: 48.8735, lng: 2.337, bookingState: "BOOKED" });
+    const flags = flagTightConnections([prev, next], [], OPTS);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].retime).toBeUndefined();
+  });
+
+  it("offers no retime when the move would run past midnight", () => {
+    // prev ends 22:50, next 23:00-23:45 → gap=10 < travel≈20.02 → warning;
+    // new start would be 23:30, length 45 min → end 24:15 → past 23:59 → no retime
+    const prev = makeItem({ id: "prev", date: "2026-07-02", startTime: "21:00", endTime: "22:50", lat: 48.860, lng: 2.337 });
+    const next = makeItem({ id: "next", date: "2026-07-02", startTime: "23:00", endTime: "23:45", lat: 48.8735, lng: 2.337 });
+    const flags = flagTightConnections([prev, next], [], OPTS);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].retime).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

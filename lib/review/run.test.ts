@@ -23,6 +23,7 @@ const USAGE = { inputTokens: 9_000, outputTokens: 1_500, cacheReadTokens: 0, cac
 const FLAG: Flag = { id: "item-closed-museum", severity: "warning", message: "Kyoto National Museum is closed that day.", targetType: "ITEM", targetId: "museum", date: "2026-11-02" };
 const INPUT: ReviewInput = {
   tripName: "Autumn in Kyoto", startDate: "2026-11-01", endDate: "2026-11-06", today: "2026-10-18", plan: "{}", flags: [FLAG],
+  checklists: '{"packing":[],"preTrip":[]}',
   targets: { STOP: new Set(["kyoto"]), ITEM: new Set(["museum", "kiyomizu"]), TRANSPORT: new Set(), ACCOMMODATION: new Set() },
 };
 const OUTPUT = {

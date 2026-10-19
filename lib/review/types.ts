@@ -46,6 +46,14 @@ export const FINDING_STATE_LABELS: Record<FindingState, string> = {
   GONE: "No longer found",
 };
 
+/**
+ * A Finding's state as shown (spec 2026-10-18 A4): the stored state, or
+ * FIXED for an Open restated Flag that no longer fires. Derived at read time
+ * from the live Flags (lib/review/fixed.ts), never stored.
+ */
+export type FindingShownState = FindingState | "FIXED";
+export const FINDING_SHOWN_STATE_LABELS: Record<FindingShownState, string> = { ...FINDING_STATE_LABELS, FIXED: "Fixed in the plan" };
+
 /** `Finding.origin`: a Flag restated (R8), or the model's own check. */
 export const FINDING_ORIGINS = ["FLAG", "MODEL"] as const;
 export type FindingOrigin = (typeof FINDING_ORIGINS)[number];
@@ -54,10 +62,16 @@ export type FindingOrigin = (typeof FINDING_ORIGINS)[number];
 export const FINDING_TARGET_TYPES = ["STOP", "ITEM", "TRANSPORT", "ACCOMMODATION", "DAY", "TRIP"] as const;
 export type FindingTargetType = (typeof FINDING_TARGET_TYPES)[number];
 
+/** The lists a checklist fix may add to (CONTEXT.md Checklist): never Shopping. */
+export const CHECKLIST_FIX_LISTS = ["PACKING", "PRETRIP"] as const;
+export type ChecklistFixList = (typeof CHECKLIST_FIX_LISTS)[number];
+
 /**
  * A fix that maps onto an existing action (R8 "Apply"). Validated by
  * lib/review/schema.ts suggestedFixSchema; applied by server/actions/reviews.ts.
  * Optional keys are left alone; `null` clears (the PATCH contract, ADR 0075).
+ * Every kind but `checklist.add` changes its Finding's own row (lib/review/fix.ts
+ * RowFix); `checklist.add` adds to a Checklist instead.
  */
 export type SuggestedFix =
   | { kind: "item.times"; itemId: string; startTime?: string | null; endTime?: string | null; date?: string }
@@ -65,7 +79,18 @@ export type SuggestedFix =
   | { kind: "transport.bookingState"; id: string; bookingState: BookingState; bookBy?: string | null }
   | { kind: "accommodation.bookingState"; id: string; bookingState: BookingState; bookBy?: string | null }
   | { kind: "item.openingHours"; itemId: string; hours: OpeningHours }
-  | { kind: "item.note"; itemId: string; append: string };
+  | { kind: "item.note"; itemId: string; append: string }
+  | { kind: "checklist.add"; list: ChecklistFixList; text: string };
+
+/** A `checklist.add` fix, narrowed out of SuggestedFix. */
+export type ChecklistFix = Extract<SuggestedFix, { kind: "checklist.add" }>;
+
+/** A fix that changes one row of the plan (everything but checklist.add). */
+export type RowFix = Exclude<SuggestedFix, { kind: "checklist.add" }>;
+
+export function isChecklistFix(fix: SuggestedFix): fix is ChecklistFix {
+  return fix.kind === "checklist.add";
+}
 
 /** One Finding before it is stored: a restated Flag (lib/review/from-flags.ts) or the model's. */
 export interface FindingDraft {
@@ -83,6 +108,12 @@ export interface FindingDraft {
   origin: FindingOrigin;
   /** A restated Flag's own id (lib/flags.ts), so it matches itself across Reviews (lib/review/key.ts). */
   flagId?: string;
+  /**
+   * A restated Flag's own target, when the Finding is about something else
+   * (a retimed tight connection is about the later Item, spec 2026-10-18 A3).
+   * The key uses this, so the retarget never breaks history. Not stored.
+   */
+  flagTarget?: { targetType: FindingTargetType; targetId?: string };
 }
 
 /**

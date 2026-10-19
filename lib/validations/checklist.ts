@@ -2,6 +2,9 @@ import { z } from "zod";
 import { checklistKindSchema } from "@/lib/enums";
 import { isoDate } from "@/lib/validations/primitives";
 
+/** The longest text a ChecklistItem's own `text` may hold. Also the limit for a Review's `checklist.add` fix (lib/review/schema.ts): the same field, written through a different door. */
+export const CHECKLIST_TEXT_MAX = 200;
+
 /**
  * Schema for creating or updating a ChecklistItem.
  *
@@ -16,7 +19,7 @@ export const checklistItemSchema = z.object({
     .string()
     .trim()
     .min(1, "Text is required")
-    .max(200, "Text must be 200 characters or fewer"),
+    .max(CHECKLIST_TEXT_MAX, `Text must be ${CHECKLIST_TEXT_MAX} characters or fewer`),
   dueDate: z
     .union([isoDate, z.literal("")])
     .optional()
@@ -39,7 +42,7 @@ export type ChecklistItemInput = z.input<typeof checklistItemSchema>;
 const checklistItemTextSchema = z
   .string()
   .trim()
-  .max(200, "Text must be 200 characters or fewer");
+  .max(CHECKLIST_TEXT_MAX, `Text must be ${CHECKLIST_TEXT_MAX} characters or fewer`);
 
 /**
  * Schema for addChecklistItems — bulk-adding ChecklistItems in one write
@@ -59,7 +62,7 @@ export const checklistItemUpdateSchema = z.object({
     .string()
     .trim()
     .min(1, "Text is required")
-    .max(200, "Text must be 200 characters or fewer")
+    .max(CHECKLIST_TEXT_MAX, `Text must be ${CHECKLIST_TEXT_MAX} characters or fewer`)
     .optional(),
   // On update, an omitted field (undefined) means "leave unchanged"; an empty
   // string is an explicit "clear this field" and maps to null.

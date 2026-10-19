@@ -4,8 +4,8 @@ import { countedReviewStarts, reviewPermissionOf } from "@/lib/review-permission
 import { reviewAllowance } from "@/lib/review-permission";
 import { runPanelState, type RunPanelState } from "@/lib/review/run-panel";
 import {
-  REVIEW_KIND_LABELS, failedReviewText, groupFindings, reviewByLine, reviewingLine, toFindingCard, toHistoryRow,
-  type FindingGroup, type HistoryRow,
+  REVIEW_KIND_LABELS, failedReviewText, partitionFindings, reviewByLine, reviewingLine, toFindingCard, toHistoryRow,
+  type FindingCard, type FindingGroup, type HistoryRow,
 } from "@/lib/review/view";
 import type { ReviewStatus } from "@/lib/review/types";
 
@@ -19,7 +19,8 @@ interface ShownReview {
   summary: string | null;
   /** A FAILED Review's line, naming why it stopped (final wave I2); null otherwise. */
   failure: string | null;
-  groups: FindingGroup[];
+  open: FindingGroup[];
+  dealtWith: FindingCard[];
   openCount: number;
   /**
    * The Trip's current, live Review: Apply/Dismiss show on its OPEN
@@ -38,9 +39,12 @@ export interface ReviewsPageModel {
   running: { id: string; line: string } | null;
   /**
    * The Trip's newest Review, whatever its status (the history's first row):
-   * ReviewPoller toasts its error when a run this tab watched ends FAILED.
+   * ReviewPoller toasts its error when a run this tab watched ends FAILED,
+   * or (spec 2026-10-18 A7) how many are left to deal with when it ends
+   * DONE — `openCount` is this row's own, which Task 6 made shown-state
+   * aware (FIXED/GONE are never counted as open).
    */
-  latestRun: { id: string; status: ReviewStatus; error: string | null } | null;
+  latestRun: { id: string; status: ReviewStatus; error: string | null; openCount: number } | null;
   shown: ShownReview | null;
   history: HistoryRow[];
 }
@@ -83,6 +87,7 @@ export async function loadReviewsPage(input: {
   const isLatest = review != null && latest != null && review.id === latest.id;
   const ctx = { base, timeZone };
   const cards = review ? review.findings.map((f) => toFindingCard(f, ctx)) : [];
+  const { open, dealtWith } = partitionFindings(cards);
 
   return {
     panel: runPanelState({
@@ -91,8 +96,8 @@ export async function loadReviewsPage(input: {
       running: running != null,
       allowance: reviewAllowance(permission, starts, now),
     }),
-    running: running ? { id: running.id, line: reviewingLine(running.startedBy) } : null,
-    latestRun: history[0] ? { id: history[0].id, status: history[0].status, error: history[0].error } : null,
+    running: running ? { id: running.id, line: reviewingLine(running.startedBy, running.startedAt, timeZone, now) } : null,
+    latestRun: history[0] ? { id: history[0].id, status: history[0].status, error: history[0].error, openCount: history[0].openCount } : null,
     shown: review
       ? {
           id: review.id,
@@ -101,7 +106,8 @@ export async function loadReviewsPage(input: {
           status: review.status,
           summary: review.summary,
           failure: review.status === "FAILED" ? failedReviewText(review.error) : null,
-          groups: groupFindings(cards),
+          open,
+          dealtWith,
           openCount: cards.filter((c) => c.state === "OPEN").length,
           actionable: isLatest && review.status === "DONE",
           isLatest,

@@ -22,7 +22,7 @@ const finding = (id: string, state: string, severity = "warning") => ({
 });
 const review = (id: string, o: Record<string, unknown> = {}) => ({
   id, tripId: "t1", kind: "STANDARD", model: "claude-sonnet-5", status: "DONE", summary: `Summary ${id}`, error: null,
-  startedAt: AT, finishedAt: AT, startedBy: CAM, findings: [], ...o,
+  startedAt: AT, finishedAt: AT, startedBy: CAM, findings: [], openCount: 0, ...o,
 });
 const input = (o: Partial<Parameters<typeof loadReviewsPage>[0]> = {}) => ({
   tripId: "t1", userId: "u1", base: "/trips/xmas", timeZone: "Australia/Brisbane", reviewId: null, now: NOW, ...o,
@@ -43,10 +43,17 @@ describe("loadReviewsPage", () => {
   it("shows the latest finished Review, actionable, with its groups and open count", async () => {
     const m = (await loadReviewsPage(input()))!;
     expect(m.shown).toMatchObject({ id: "r2", heading: "Standard Review", byLine: "Run by Cam, Sat 17 Oct, 14:05", openCount: 2, actionable: true, isLatest: true, summary: "Summary r2" });
-    expect(m.shown!.groups.map((g) => g.heading)).toEqual(["Warnings", "Notes"]);
+    expect(m.shown!.open.map((g) => g.heading)).toEqual(["Warnings", "Notes"]);
+    expect(m.shown!.dealtWith.map((c) => c.id)).toEqual(["b"]);
     expect(m.history.map((h) => [h.id, h.current])).toEqual([["r2", true], ["r1", false]]);
     expect(m.panel).toEqual({ kind: "ready" });
     expect(m.running).toBeNull();
+  });
+
+  it("latestRun.openCount comes from the history row (spec 2026-10-18 A7), not the shown Review's own open count", async () => {
+    reads.listReviews.mockResolvedValue([review("r2", { openCount: 5 }), review("r1")]);
+    const m = (await loadReviewsPage(input()))!;
+    expect(m.latestRun).toEqual({ id: "r2", status: "DONE", error: null, openCount: 5 });
   });
 
   it("?review= opens an older one read-only", async () => {
@@ -68,10 +75,20 @@ describe("loadReviewsPage", () => {
   });
 
   it("a running Review: the line for everyone, and the panel is busy", async () => {
-    reads.runningReview.mockResolvedValue(review("r3", { status: "RUNNING", summary: null, finishedAt: null }));
+    // Two minutes before NOW (09:58 in Brisbane), so its check-back time is still ahead.
+    reads.runningReview.mockResolvedValue(review("r3", { status: "RUNNING", summary: null, finishedAt: null, startedAt: new Date("2026-10-17T23:58:00Z") }));
     const m = (await loadReviewsPage(input()))!;
-    expect(m.running).toEqual({ id: "r3", line: "Reviewing… (started by Cam)" });
+    expect(m.running).toEqual({
+      id: "r3",
+      line: "Reviewing… started by Cam at 09:58. This takes a few minutes and keeps going if you leave. Check back around 10:03.",
+    });
     expect(m.panel).toEqual({ kind: "busy" });
+  });
+
+  it("a running Review past its check-back time reads against the page's now (spec 2026-10-18 A7)", async () => {
+    reads.runningReview.mockResolvedValue(review("r3", { status: "RUNNING", summary: null, finishedAt: null, startedAt: new Date("2026-10-17T23:54:00Z") }));
+    const m = (await loadReviewsPage(input()))!;
+    expect(m.running?.line).toBe("Reviewing… started by Cam at 09:54. This takes a few minutes and keeps going if you leave. Should be done any moment.");
   });
 
   it("Off: the panel is hidden and counted runs are never read; reading still works", async () => {
@@ -101,7 +118,7 @@ describe("loadReviewsPage", () => {
     reads.getReview.mockResolvedValue(review("r3", { status: "FAILED", summary: null, error }));
     const m = (await loadReviewsPage(input({ reviewId: "r3" })))!;
     expect(m.shown).toMatchObject({ status: "FAILED", failure: `This Review didn't finish. ${error} Nothing on the trip was changed.` });
-    expect(m.latestRun).toEqual({ id: "r3", status: "FAILED", error });
+    expect(m.latestRun).toEqual({ id: "r3", status: "FAILED", error, openCount: 0 });
     expect(m.history[0].line).toBe(`Didn't finish: ${error}`);
     // A finished one has no failure line.
     expect((await loadReviewsPage(input()))!.shown!.failure).toBeNull();

@@ -1,6 +1,6 @@
 import type { Category } from "@/lib/categories";
 import type { TransportMode, CostSettlement, ChecklistKind, VoteLevel, BookingState } from "@/lib/enum-values";
-import type { FindingCategory, FindingOrigin, FindingSeverity, FindingState, ReviewKind, SuggestedFix } from "@/lib/review/types";
+import type { FindingCategory, FindingOrigin, FindingSeverity, FindingShownState, ReviewKind, SuggestedFix } from "@/lib/review/types";
 
 /** Spec Part G — one source for the style rule, used by MCP_INSTRUCTIONS (Task 7) and the day prompts. */
 export const WRITING_STYLE =
@@ -111,12 +111,13 @@ export const FINDING_CATEGORY_MEANING: Record<FindingCategory, string> = {
   BOOKING: "something still to book, or booked for the wrong time",
 };
 
-/** CONTEXT.md Finding: the four states. */
-export const FINDING_STATE_MEANING: Record<FindingState, string> = {
+/** CONTEXT.md Finding: the four stored states, and FIXED, derived as it is read (spec 2026-10-18 A4). */
+export const FINDING_STATE_MEANING: Record<FindingShownState, string> = {
   OPEN: "Open, nobody has acted on it yet",
   APPLIED: "Applied, someone pressed Apply on it in the app",
   DISMISSED: "Dismissed, someone decided it doesn't matter. A later Review keeps it dismissed",
   GONE: "No longer found, a later Review didn't raise it again",
+  FIXED: "the app can see the problem is gone from the plan now. It is Open again if it comes back.",
 };
 
 export const FINDING_SEVERITY_MEANING: Record<FindingSeverity, string> = {
@@ -143,6 +144,8 @@ export const FIX_WITH_TOOL: Record<SuggestedFix["kind"], string> = {
   "item.openingHours": "set_opening_hours with the hours and the source page",
   // update_thing_to_do replaces notes whole, so the current ones are read first.
   "item.note": "update_thing_to_do, after you read the current notes with get_item: pass them back with the text added",
+  "checklist.add":
+    "add_checklist_item with the fix's list as kind and its text. For PACKING, ask whether they need to buy it, and if so set_need_to_buy on the new entry. Check get_checklists first: if it is already there, say so instead",
 };
 
 /**

@@ -41,7 +41,7 @@ describe("every app value has a meaning for Claude", () => {
     ["Refundable", REFUNDABLE_VALUES, REFUNDABLE_MEANING],
     ["Review depth", REVIEW_DEPTHS, REVIEW_DEPTH_MEANING],
     ["Finding category", FINDING_CATEGORIES, FINDING_CATEGORY_MEANING],
-    ["Finding state", FINDING_STATES, FINDING_STATE_MEANING],
+    ["Finding state, as shown", [...FINDING_STATES, "FIXED"], FINDING_STATE_MEANING],
     ["Finding severity", FINDING_SEVERITIES, FINDING_SEVERITY_MEANING],
     ["Finding origin", FINDING_ORIGINS, FINDING_ORIGIN_MEANING],
   ] as const)("%s", (_name, values, meaning) => {

@@ -19,7 +19,7 @@
  */
 import { getReview, listReviews, type FindingView, type ReviewSummary } from "@/lib/review-reads";
 import type {
-  FindingCategory, FindingOrigin, FindingSeverity, FindingState, FindingTargetType, ReviewStatus, SuggestedFix,
+  FindingCategory, FindingOrigin, FindingSeverity, FindingShownState, FindingTargetType, ReviewStatus, SuggestedFix,
 } from "@/lib/review/types";
 import { DEPTH_OF_REVIEW_KIND, FIX_WITH_TOOL, type ReviewDepth } from "../vocab";
 
@@ -27,7 +27,8 @@ interface McpFinding {
   id: string;
   severity: FindingSeverity;
   category: FindingCategory;
-  state: FindingState;
+  /** Shown: FIXED for a restated Flag that no longer fires (spec 2026-10-18 A4). */
+  state: FindingShownState;
   /** Who Applied or Dismissed it, by name ("a former Traveller" once their account is gone). */
   stateBy: string | null;
   stateAt: string | null;

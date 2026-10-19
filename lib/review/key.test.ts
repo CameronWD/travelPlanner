@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findingKey } from "./key";
+import { findingKey, flagIdOfKey } from "./key";
 
 describe("findingKey (R10: category + target)", () => {
   it("an Item, leg, stay or Stop is keyed by its id, not by its day", () => {
@@ -22,7 +22,23 @@ describe("findingKey (R10: category + target)", () => {
     expect(before).not.toBe(after);
   });
 
+  it("a retargeted restated Flag keys on the Flag's own target (spec 2026-10-18 A3)", () => {
+    const retimed = findingKey({ category: "LOGISTICS", targetType: "ITEM", targetId: "b", date: "2026-12-08", flagId: "tight-a-b", flagTarget: { targetType: "DAY" } });
+    expect(retimed).toBe(findingKey({ category: "LOGISTICS", targetType: "DAY", date: "2026-12-08", flagId: "tight-a-b" }));
+    expect(retimed).toBe("LOGISTICS|DAY|2026-12-08|tight-a-b");
+  });
+
   it("the same category on a different target is a different key", () => {
     expect(findingKey({ category: "CLOSURE", targetType: "ITEM", targetId: "i1" })).not.toBe(findingKey({ category: "CLOSURE", targetType: "ITEM", targetId: "i2" }));
+  });
+});
+
+describe("flagIdOfKey (spec 2026-10-18 A4)", () => {
+  it("reads a restated Flag's id back out of its key", () => {
+    expect(flagIdOfKey(findingKey({ category: "LOGISTICS", targetType: "DAY", date: "2026-12-08", flagId: "empty-day-2026-12-08" }))).toBe("empty-day-2026-12-08");
+  });
+
+  it("a model Finding's key has no Flag id", () => {
+    expect(flagIdOfKey(findingKey({ category: "CLOSURE", targetType: "ITEM", targetId: "i1" }))).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Flag } from "@/lib/flags";
 import { SAMPLE_PLAN, SAMPLE_TODAY } from "@/test/fixtures/review/sample-plan";
-import { collectReviewTargets, reviewInputFromPlan, reviewPlanJson } from "./input-shape";
+import { collectReviewTargets, reviewChecklistsJson, reviewInputFromPlan, reviewPlanJson, type ReviewChecklistEntry } from "./input-shape";
 
 const FLAG: Flag = { id: "still-to-book-train", severity: "info", message: "The train from Kyoto to Hakone is still to book.", targetType: "TRANSPORT", targetId: "train" };
 
@@ -55,5 +55,44 @@ describe("reviewInputFromPlan", () => {
     expect(input).toMatchObject({ tripName: "Autumn in Kyoto", startDate: "2026-11-01", endDate: "2026-11-06", today: "2026-10-18", flags: [FLAG] });
     expect(input.plan).toBe(reviewPlanJson(SAMPLE_PLAN));
     expect(input.targets.ITEM.has("museum")).toBe(true);
+  });
+
+  it("defaults to an empty Packing list and an empty Pre-trip checklist when none are given", () => {
+    const input = reviewInputFromPlan(SAMPLE_PLAN, [FLAG], SAMPLE_TODAY);
+    expect(input.checklists).toBe('{"packing":[],"preTrip":[]}');
+  });
+
+  it("carries the Checklists as reviewChecklistsJson would", () => {
+    const entries: ReviewChecklistEntry[] = [
+      { list: "PACKING", text: "Umbrella", ticked: false },
+      { list: "PRETRIP", text: "Buy the 3-day Kansai pass", ticked: true },
+    ];
+    const input = reviewInputFromPlan(SAMPLE_PLAN, [FLAG], SAMPLE_TODAY, entries);
+    expect(input.checklists).toBe(reviewChecklistsJson(entries));
+  });
+});
+
+describe("reviewChecklistsJson", () => {
+  it("groups entries by list, keeping each list's order", () => {
+    const entries: ReviewChecklistEntry[] = [
+      { list: "PACKING", text: "Umbrella", ticked: false },
+      { list: "PRETRIP", text: "Buy the 3-day Kansai pass", ticked: true },
+      { list: "PACKING", text: "Hiking boots", ticked: true },
+    ];
+    expect(JSON.parse(reviewChecklistsJson(entries))).toEqual({
+      packing: [
+        { text: "Umbrella", ticked: false },
+        { text: "Hiking boots", ticked: true },
+      ],
+      preTrip: [{ text: "Buy the 3-day Kansai pass", ticked: true }],
+    });
+  });
+
+  it("gives empty lists as [] when there is nothing on one or either list", () => {
+    expect(reviewChecklistsJson([])).toBe('{"packing":[],"preTrip":[]}');
+    expect(JSON.parse(reviewChecklistsJson([{ list: "PRETRIP", text: "Check passports", ticked: false }]))).toEqual({
+      packing: [],
+      preTrip: [{ text: "Check passports", ticked: false }],
+    });
   });
 });

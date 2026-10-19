@@ -116,7 +116,8 @@ describe("toFindingDrafts (spec 2026-10-17 R8)", () => {
   });
 
   it("turns each fix kind into R's SuggestedFix", () => {
-    const fixes: Array<[ModelFinding["suggestedFix"], SuggestedFix]> = [
+    // Row fixes only: checklist.add has its own describe block below (it carries no itemId/id).
+    const fixes: Array<[Exclude<ModelFinding["suggestedFix"], { kind: "checklist.add" } | null>, SuggestedFix]> = [
       [{ kind: "item.times", itemId: "museum", startTime: null, endTime: null, date: "2026-11-03" }, { kind: "item.times", itemId: "museum", date: "2026-11-03" }],
       [{ kind: "transport.bookingState", id: "train", bookingState: "TO_BOOK", bookBy: "2026-10-25" }, { kind: "transport.bookingState", id: "train", bookingState: "TO_BOOK", bookBy: "2026-10-25" }],
       [{ kind: "accommodation.bookingState", id: "ryokan", bookingState: "BOOKED", bookBy: null }, { kind: "accommodation.bookingState", id: "ryokan", bookingState: "BOOKED" }],
@@ -179,6 +180,37 @@ describe("toFindingDrafts (spec 2026-10-17 R8)", () => {
     expect(toFindingDrafts(out(finding({ title: "   " })), TARGETS)).toEqual([]);
     const many = Array.from({ length: MAX_MODEL_FINDINGS + 5 }, (_, i) => finding({ targetType: "TRIP", targetId: null, title: `T${i}` }));
     expect(toFindingDrafts(out(...many), TARGETS)).toHaveLength(MAX_MODEL_FINDINGS);
+  });
+});
+
+describe("toFindingDrafts: checklist.add (Task 3: the first fix that adds to a Checklist, not a row)", () => {
+  const raw = (over: Record<string, unknown> = {}) => ({
+    summary: "One thing.",
+    findings: [{
+      severity: "warning", category: "PACKING", targetType: "STOP", targetId: "kyoto", date: null,
+      title: "Cold nights", detail: "Pack warm layers.", source: null,
+      suggestedFix: { kind: "checklist.add", list: "packing", text: "Umbrella" }, ...over,
+    }],
+  });
+  const parsedOut = (over: Record<string, unknown> = {}) => {
+    const parsed = reviewOutputSchema.safeParse(raw(over));
+    if (!parsed.success) throw new Error("fixture should parse");
+    return parsed.data;
+  };
+
+  it("becomes a draft with the list upper-cased, on a STOP target", () => {
+    const [d] = toFindingDrafts(parsedOut(), TARGETS);
+    expect(d.suggestedFix).toEqual({ kind: "checklist.add", list: "PACKING", text: "Umbrella" });
+  });
+
+  it("keeps the fix on a TRIP target too (a checklist fix fits any Finding)", () => {
+    const [d] = toFindingDrafts(parsedOut({ targetType: "TRIP", targetId: null }), TARGETS);
+    expect(d.suggestedFix).toEqual({ kind: "checklist.add", list: "PACKING", text: "Umbrella" });
+  });
+
+  it("drops a checklist fix aimed at the Shopping list, keeping the Finding (Dismiss only)", () => {
+    const [d] = toFindingDrafts(parsedOut({ suggestedFix: { kind: "checklist.add", list: "SHOPPING", text: "Sunscreen" } }), TARGETS);
+    expect(d).not.toHaveProperty("suggestedFix");
   });
 });
 

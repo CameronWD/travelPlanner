@@ -1,16 +1,17 @@
 /**
  * The pure half of Apply and Undo (spec 2026-10-17 R8): which row a fix
  * touches, a snapshot of the fields it touches (taken before and after
- * Apply, stored as the Finding's undoPayload), and the copy the actions
+ * Apply, stored as the Finding's undoPayload; a checklist fix stores what
+ * it added or marked instead, spec 2026-10-18 A2), and the copy the actions
  * return. server/actions/reviews.ts runs the actions themselves.
  */
 import { z } from "zod";
 import { suggestedFixSchema } from "@/lib/review/schema";
-import type { SuggestedFix } from "@/lib/review/types";
+import { isChecklistFix, type ChecklistFix, type RowFix, type SuggestedFix } from "@/lib/review/types";
 
 export type FixTarget = { kind: "item" | "transport" | "accommodation"; id: string };
 
-export function fixTarget(fix: SuggestedFix): FixTarget {
+export function fixTarget(fix: RowFix): FixTarget {
   switch (fix.kind) {
     case "item.times":
     case "item.openingHours":
@@ -33,10 +34,13 @@ const TARGET_TYPE: Record<FixTarget["kind"], "ITEM" | "TRANSPORT" | "ACCOMMODATI
 
 /**
  * A fix only ever changes its Finding's own row (lib/review/model-output.ts
- * toSuggestedFix): same type, same id. A TRIP or DAY Finding has no row, so
- * no fix fits it. Reads and Apply treat a stored fix that doesn't fit as none.
+ * toSuggestedFix) — except a checklist fix, which adds to a list: same type,
+ * same id. A TRIP or DAY Finding has no row, so no row fix fits it, but a
+ * checklist fix fits any Finding, the Trip included. Reads and Apply treat a
+ * stored fix that doesn't fit as none.
  */
 export function fixFitsTarget(fix: SuggestedFix, finding: { targetType: string; targetId: string | null }): boolean {
+  if (isChecklistFix(fix)) return true;
   const target = fixTarget(fix);
   return TARGET_TYPE[target.kind] === finding.targetType && target.id === finding.targetId;
 }
@@ -61,7 +65,7 @@ const snapshotSchema = z.discriminatedUnion("kind", [
 ]);
 export type FixSnapshot = z.infer<typeof snapshotSchema>;
 
-export function snapshotFor(fix: SuggestedFix, row: FixRow): FixSnapshot {
+export function snapshotFor(fix: RowFix, row: FixRow): FixSnapshot {
   switch (fix.kind) {
     case "item.times":
       return { kind: "times", date: row.date ?? null, startTime: row.startTime ?? null, endTime: row.endTime ?? null };
@@ -89,13 +93,37 @@ export function appendedNote(notes: string | null, append: string): string {
   return current.trim() ? `${current}\n\n${append}` : append;
 }
 
-export interface UndoPayload {
-  fix: SuggestedFix;
+/** A row fix's Undo: the touched fields before and after Apply. */
+export interface RowUndoPayload {
+  fix: RowFix;
   before: FixSnapshot;
   after: FixSnapshot;
 }
 
-const undoPayloadSchema = z.strictObject({ fix: suggestedFixSchema, before: snapshotSchema, after: snapshotSchema });
+/** A checklist fix's Undo (spec 2026-10-18 A2). */
+export interface ChecklistUndoPayload {
+  fix: ChecklistFix;
+  /** What Apply did: added a new entry, marked an existing Packing entry Need to buy, or nothing (already there). */
+  done: "added" | "marked" | "none";
+  itemId: string | null;
+  /** The entry as Apply left it, so Undo never overwrites a later tick or edit. */
+  after: { text: string; done: boolean; buy: string | null } | null;
+}
+
+export type UndoPayload = RowUndoPayload | ChecklistUndoPayload;
+
+const rowUndoPayloadSchema = z.strictObject({
+  fix: suggestedFixSchema.refine((fix) => !isChecklistFix(fix)),
+  before: snapshotSchema,
+  after: snapshotSchema,
+});
+const checklistUndoPayloadSchema = z.strictObject({
+  fix: suggestedFixSchema.refine(isChecklistFix),
+  done: z.enum(["added", "marked", "none"]),
+  itemId: z.string().nullable(),
+  after: z.strictObject({ text: z.string(), done: z.boolean(), buy: z.string().nullable() }).nullable(),
+});
+const undoPayloadSchema = z.union([rowUndoPayloadSchema, checklistUndoPayloadSchema]);
 
 export function parseUndoPayload(raw: string | null | undefined): UndoPayload | null {
   if (!raw) return null;
@@ -106,7 +134,8 @@ export function parseUndoPayload(raw: string | null | undefined): UndoPayload | 
     return null;
   }
   const parsed = undoPayloadSchema.safeParse(json);
-  return parsed.success ? (parsed.data satisfies UndoPayload) : null;
+  // The refinements split `fix` by kind, which zod's types can't express.
+  return parsed.success ? (parsed.data as UndoPayload) : null;
 }
 
 /**
