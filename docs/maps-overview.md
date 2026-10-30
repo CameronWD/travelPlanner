@@ -231,9 +231,11 @@ clears it. Google's attribution shows as the list footer ("Google Maps").
 
 **Keyless behaviour.** Without `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`, or after
 Google refuses the key (`useMapsAuthFailed()`), the field is a plain text input
-with the hint "Suggestions aren't available — the place is looked up when you
+with the hint "Suggestions aren't available. The place is looked up when you
 save." The save still works: the server looks the text up (or saves without
-coordinates when it has no key either).
+coordinates when it has no key either). The Globe marker form is the exception:
+`createMarker` looks nothing up, so its hint is "Search isn't available right
+now. Drop a pin on the map to place it."
 
 **On save, in the server action**, never at render time. A save looks up only when
 no picked place came with it and the text changed or the row has no coordinates:
@@ -241,7 +243,7 @@ no picked place came with it and the text changed or the row has no coordinates:
 | Entity | Looked up |
 |---|---|
 | Stop | `"<name>, <country>"` → coords, `countryCode`, `placeId` |
-| Item | `locateVenue(title, address)` → coords, `placeId` |
+| Item | `locateVenue(title, address)` → coords, `placeId` (biased to the Stop's point) |
 | Accommodation | its `address` / name |
 | Transport | `depPlace` and `arrPlace` separately → 4 columns plus `depPlaceId` / `arrPlaceId` |
 | Trip home base | the home place name → coords, country, timezone |
@@ -249,9 +251,22 @@ no picked place came with it and the text changed or the row has no coordinates:
 Transport gets its own coordinates rather than its Stops', because a terminal is
 tens of kilometres from the city pin (ADR 0011).
 
-**Venue details and the Enterprise counter.** Item/Accommodation venue picks call
-the server action `venueDetailsForPick`, which fills opening hours and the link
-(only when empty) and business status. That is a Place Details **Enterprise**
+`locateVenue` runs Text Search and a Geocoding of the address side by side and
+keeps the venue only within 500 m of the address. A venue goes through unchecked
+only when Google answers that it has no result for the address (`ZERO_RESULTS`),
+or there is no address. A *failed* call (quota, HTTP error, 5 s timeout) on
+either side returns nothing, and the row saves without coordinates; a failure is
+never read as "the address doesn't exist". It reports whether the venue or the
+address matched (`matched: "venue" | "address"`). `lookUpPlace` / `lookUpVenue`
+return `{ status: "ok" | "miss" | "error" }` for callers that must tell the two
+apart (the backfill); `geocodePlaceDetailed` / `locateVenue` return the
+candidate or `null`.
+
+**Venue details and the Enterprise counter.** An Item pick of an establishment
+(the prediction's `types`, free with the suggestion, include `establishment` or
+`point_of_interest`) calls the server action `venueDetailsForPick`, which fills
+opening hours and the link (only when empty) and business status. A city or a
+bare street address skips it. That is a Place Details **Enterprise**
 call. Google's quota is per method, so one GetPlace cap (165/day) covers the
 Essentials picks, the server lookups and Enterprise together. Teepee holds
 Enterprise to **15/day** itself with `takeGoogleQuota("venue-details", 15)`
@@ -267,13 +282,30 @@ would otherwise reveal the venue.
 venues on the web.
 
 **Retroactively**, `npm run backfill:places` (`scripts/backfill-google-places.ts`)
-puts place IDs on rows that still carry OpenStreetMap coordinates. A dry run by
-default; `-- --execute` writes. Tolerance 1 km (Items, Accommodation, Transport
-ends, Markers) or 25 km (Stops, Home bases); rows with no address or name to
-look up are skipped (NO-ANCHOR); it aborts without `GOOGLE_MAPS_SERVER_KEY`. It
-fills Item hours, link and business status only when empty. It bypasses the app's
-15/day Enterprise counter by design, so the runbook raises the console quota for
-the hour (DEPLOY §4j). Not run inside `prisma migrate deploy`.
+puts place IDs on rows that still carry OpenStreetMap coordinates, in two steps:
+
+1. **Dry run** (the default). Looks every row up, prints it as
+   `kind id · "query" · old → new · km · VERDICT · [venue|address] matched address`,
+   and writes `backfill-places-plan.json` (git-ignored, in the working directory):
+   every row it would write, with the exact columns to set, what matched, and
+   whether Enterprise details will be fetched. Nothing else is written.
+2. **`-- --execute [plan file]`** applies exactly that file, with no location
+   lookups. It refuses a missing plan or one older than 24 hours, and skips any
+   row that changed since the plan (a place picked, a pin moved, a zone set), so
+   re-running it resumes.
+
+Verdicts: ACCEPT (within 1 km for Items, Accommodation, Transport ends and
+Markers; 25 km for Stops and Home bases), NEW (the row had no point), TOO-FAR,
+ADDRESS-ONLY (the row has a pin and only the address or area matched: an
+address match never replaces a pin), NO-MATCH, ERROR (the lookup failed;
+counted apart from NO-MATCH, and 5 in a row stop the run with no plan written)
+and NO-ANCHOR (nothing to look up; skipped). Only ACCEPT and NEW rows go in the
+plan. New Items and stays with no point are biased to their Stop's point; rough
+Stops get no timezone. Item hours, link and business status are fetched at
+execute time, only for venue matches against a real address, and fill only
+what is empty. It bypasses the app's 15/day Enterprise counter by design, so
+the runbook raises the console quotas for the hour (DEPLOY §4j). Not run inside
+`prisma migrate deploy`.
 
 
 ## 7. Directions — deep links, not a routing API (Travel times arrive in Branch 3)

@@ -621,9 +621,11 @@ other half.)
       fallback ("The map isn't available right now.", or "The map didn’t load"
       on the Your travels card and the Home tile) — not Google's grey "This page
       can't load Google Maps correctly" box. Put the quota back to the step 6 value afterwards.
-    - **Places picks** (with the real keys, one pick per field kind): a Stop /
-      region, an Item venue (confirm opening hours and the link fill), a Transport
-      end, and a Globe pin. Then open Billing → Reports for the project and confirm
+    - **Places picks** (with the real browser and server keys from steps 3 and 4,
+      in the `teepee` project whose billing you will read, not a dev key from
+      another project; one pick per field kind): a Stop / region, an Item venue
+      (confirm opening hours and the link fill), a Transport end, and a Globe pin.
+      Then open Billing → Reports for the `teepee` project and confirm
       **Autocomplete Session Usage** appears — proof that sessions terminate. If
       only "Autocomplete Requests" shows, every keystroke is billing per request:
       stop and fix before the push.
@@ -632,16 +634,33 @@ other half.)
       the desktop Home route tile (view chips, inset cards), in light and dark.
 12. **Backfill places** (last, after the deploy is live; moves existing rows onto
     Google place IDs and fills Item hours/links only where empty). Run against
-    the production database from your machine with the server key in the env:
-    1. Raise the Place Details (GetPlace) per-day quota from 165 to **300** for
-       the hour — the backfill's ~61 Enterprise and ~190 location lookups share
-       that one method cap. The script bypasses Teepee's 15/day Enterprise
-       counter by design, which is why the console quota is what holds it.
-    2. `npm run backfill:places` — a dry run. It prints each row's verdict and
-       writes nothing. Read the rows (rows with no address/name to look up are
-       skipped as NO-ANCHOR; moves beyond tolerance are flagged, not written).
-    3. `npm run backfill:places -- --execute` — writes the accepted and new rows.
-    4. Put the GetPlace quota back to 165.
+    the production database from your machine with the server key in the env.
+    Production on 2026-10-30: ~128 location rows, 61 venue Item families.
+    1. Raise the per-day quotas for the hour, sized for one dry run plus one
+       execute of its plan: **Geocoding 500/day** and **Place Details (GetPlace)
+       500/day**. Text Search (IDs only) is already 1,000. The dry run geocodes
+       every row and Text-Searches each Item, stay and Marker (with an
+       Essentials GetPlace per venue found); the execute makes no location
+       lookups, only the Enterprise GetPlace per planned venue Item (at most
+       61). The script bypasses Teepee's 15/day Enterprise counter by design,
+       which is why the console quotas are what hold it.
+    2. `npm run backfill:places` (the dry run). It prints every row as
+       `kind id · "query" · old → new · km · VERDICT · [venue|address] matched address`
+       and writes `backfill-places-plan.json` in the working directory
+       (git-ignored): the rows it would write, the exact columns, and which get
+       Enterprise details. It writes nothing to the database. Read the rows,
+       NEW ones especially (judge them by the matched address). Rows with
+       nothing to look up are NO-ANCHOR; moves beyond tolerance are TOO-FAR;
+       a pinned row where only the address matched is ADDRESS-ONLY; none of
+       these are in the plan. ERROR means Google refused the lookup: five in a
+       row stop the run with "Google is refusing lookups: check the
+       Geocoding/Places quotas." and no plan.
+    3. `npm run backfill:places -- --execute` applies exactly that plan file
+       (or pass a path after `--execute`). It refuses a plan older than 24 hours
+       and skips any row that changed since the plan, so if it stops (five
+       failed detail calls in a row stop it too), raising the quota and running
+       the same command resumes.
+    4. Put the Geocoding and GetPlace quotas back to 165. Delete the plan file.
 
 ## 5. GitHub Actions cron (reminder delivery)
 
