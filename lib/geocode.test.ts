@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { geocodePlaceDetailed, reverseGeocode, locateVenue, fetchVenueDetails, VENUE_GUARD_KM } from "./geocode";
+import { geocodePlaceDetailed, reverseGeocode, locateVenue, lookUpPlace, lookUpVenue, fetchVenueDetails, VENUE_GUARD_KM } from "./geocode";
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
@@ -45,12 +45,19 @@ function venueDetails(lat: number, lng: number) {
   };
 }
 
-function routeFetch(handlers: { geocode?: unknown; searchText?: unknown; details?: unknown }) {
+const FAIL = Symbol("fail");
+type Reply = unknown | typeof FAIL;
+
+function answer(body: Reply) {
+  return body === FAIL ? { ok: false, status: 503, json: async () => ({}) } : ok(body);
+}
+
+function routeFetch(handlers: { geocode?: Reply; searchText?: Reply; details?: Reply }) {
   fetchMock.mockImplementation(async (input: string) => {
     const url = String(input);
-    if (url.startsWith("https://maps.googleapis.com/maps/api/geocode/json")) return ok(handlers.geocode ?? { status: "ZERO_RESULTS", results: [] });
-    if (url === "https://places.googleapis.com/v1/places:searchText") return ok(handlers.searchText ?? {});
-    if (url.startsWith("https://places.googleapis.com/v1/places/")) return ok(handlers.details ?? {});
+    if (url.startsWith("https://maps.googleapis.com/maps/api/geocode/json")) return answer(handlers.geocode ?? { status: "ZERO_RESULTS", results: [] });
+    if (url === "https://places.googleapis.com/v1/places:searchText") return answer(handlers.searchText ?? {});
+    if (url.startsWith("https://places.googleapis.com/v1/places/")) return answer(handlers.details ?? {});
     throw new Error(`unexpected fetch ${url}`);
   });
 }
@@ -145,6 +152,32 @@ describe("geocodePlaceDetailed", () => {
   });
 });
 
+describe("lookUpPlace", () => {
+  it("tells a miss from a failure", async () => {
+    fetchMock.mockResolvedValueOnce(ok({ status: "OK", results: [PARIS] }));
+    expect(await lookUpPlace("Paris")).toMatchObject({ status: "ok", candidate: { placeId: "ChIJParis" } });
+
+    fetchMock.mockResolvedValueOnce(ok({ status: "ZERO_RESULTS", results: [] }));
+    expect(await lookUpPlace("Nowhere")).toEqual({ status: "miss" });
+
+    for (const status of ["OVER_QUERY_LIMIT", "OVER_DAILY_LIMIT", "REQUEST_DENIED", "UNKNOWN_ERROR"]) {
+      fetchMock.mockResolvedValueOnce(ok({ status, results: [] }));
+      expect(await lookUpPlace("Paris")).toEqual({ status: "error" });
+    }
+
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
+    expect(await lookUpPlace("Paris")).toEqual({ status: "error" });
+
+    fetchMock.mockRejectedValueOnce(new Error("network"));
+    expect(await lookUpPlace("Paris")).toEqual({ status: "error" });
+  });
+
+  it("an empty query is a miss and fetches nothing", async () => {
+    expect(await lookUpPlace("  ")).toEqual({ status: "miss" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("reverseGeocode", () => {
   it("reverseGeocode reads latlng", async () => {
     routeFetch({ geocode: { status: "OK", results: [PARIS] } });
@@ -192,6 +225,7 @@ describe("locateVenue", () => {
       countryCode: "jp",
       placeId: "ChIJVenue",
       address: "1F 1-22-7 Jinnan, Shibuya City, Tokyo 150-0041, Japan",
+      matched: "venue",
     });
   });
 
@@ -204,23 +238,71 @@ describe("locateVenue", () => {
     const c = await locateVenue("Ichiran", "1-22-7 Jinnan, Shibuya City");
     expect(c?.placeId).toBe("ChIJAddr");
     expect(c?.lat).toBe(35.6614);
+    expect(c?.matched).toBe("address");
   });
 
   it("returns the address result when Text Search finds nothing, and null when both miss", async () => {
     routeFetch({ geocode: { status: "OK", results: [SHIBUYA_ADDRESS] }, searchText: {} });
-    expect((await locateVenue("Nope", "1-22-7 Jinnan"))?.placeId).toBe("ChIJAddr");
+    expect(await locateVenue("Nope", "1-22-7 Jinnan")).toMatchObject({ placeId: "ChIJAddr", matched: "address" });
 
     routeFetch({ geocode: { status: "ZERO_RESULTS", results: [] }, searchText: { places: [] } });
     expect(await locateVenue("Nope", "Nowhere")).toBeNull();
   });
 
-  it("returns the venue unchecked when the address itself can't be geocoded", async () => {
+  it("returns the venue unchecked when Google has no result for the address (ZERO_RESULTS)", async () => {
     routeFetch({
       geocode: { status: "ZERO_RESULTS", results: [] },
       searchText: { places: [{ id: "ChIJVenue" }] },
       details: venueDetails(35.6615, 139.7005),
     });
-    expect((await locateVenue("Ichiran", "somewhere vague"))?.placeId).toBe("ChIJVenue");
+    expect(await locateVenue("Ichiran", "somewhere vague")).toMatchObject({ placeId: "ChIJVenue", matched: "venue" });
+  });
+
+  it("returns the venue unchecked when there is no address to check it against, without geocoding", async () => {
+    routeFetch({ searchText: { places: [{ id: "ChIJVenue" }] }, details: venueDetails(35.6615, 139.7005) });
+    expect(await locateVenue("Ichiran Shibuya", "  ")).toMatchObject({ placeId: "ChIJVenue", matched: "venue" });
+    expect(callsTo("https://maps.googleapis.com/maps/api/geocode/json")).toHaveLength(0);
+  });
+
+  it.each([
+    ["OVER_QUERY_LIMIT", { status: "OVER_QUERY_LIMIT", results: [] }],
+    ["REQUEST_DENIED", { status: "REQUEST_DENIED", results: [] }],
+    ["a 5xx", FAIL],
+  ])("returns null, never the unchecked venue, when the address lookup fails with %s", async (_label, geocode) => {
+    routeFetch({ geocode, searchText: { places: [{ id: "ChIJVenue" }] }, details: venueDetails(35.6615, 139.7005) });
+    expect(await locateVenue("Ichiran", "1-22-7 Jinnan")).toBeNull();
+    expect(await lookUpVenue("Ichiran", "1-22-7 Jinnan")).toEqual({ status: "error" });
+  });
+
+  it("returns null when the address lookup times out", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async (input: string, init: { signal: AbortSignal }) => {
+      const url = String(input);
+      if (url.startsWith("https://maps.googleapis.com/maps/api/geocode/json")) {
+        return new Promise((_resolve, reject) => init.signal.addEventListener("abort", () => reject(new Error("aborted"))));
+      }
+      if (url === "https://places.googleapis.com/v1/places:searchText") return ok({ places: [{ id: "ChIJVenue" }] });
+      return ok(venueDetails(35.6615, 139.7005));
+    });
+    const pending = locateVenue("Ichiran", "1-22-7 Jinnan");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(await pending).toBeNull();
+  });
+
+  it("a failed venue search is an error, not an address match", async () => {
+    routeFetch({ geocode: { status: "OK", results: [SHIBUYA_ADDRESS] }, searchText: FAIL });
+    expect(await lookUpVenue("Ichiran", "1-22-7 Jinnan")).toEqual({ status: "error" });
+    expect(await locateVenue("Ichiran", "1-22-7 Jinnan")).toBeNull();
+  });
+
+  it("a venue whose Place Details fails is an error", async () => {
+    routeFetch({ geocode: { status: "OK", results: [SHIBUYA_ADDRESS] }, searchText: { places: [{ id: "ChIJVenue" }] }, details: FAIL });
+    expect(await lookUpVenue("Ichiran", "1-22-7 Jinnan")).toEqual({ status: "error" });
+  });
+
+  it("lookUpVenue says miss when neither the venue nor the address is found", async () => {
+    routeFetch({ geocode: { status: "ZERO_RESULTS", results: [] }, searchText: {} });
+    expect(await lookUpVenue("Nope", "Nowhere")).toEqual({ status: "miss" });
   });
 
   it("locateVenue biases to near when given", async () => {

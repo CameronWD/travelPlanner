@@ -23,6 +23,23 @@ export interface GeoCandidate {
   address: string | null;
 }
 
+export interface VenueMatch extends GeoCandidate {
+  matched: "venue" | "address";
+}
+
+export type Lookup<T> = { status: "ok"; candidate: T } | { status: "miss" } | { status: "error" };
+
+const MISS = { status: "miss" } as const;
+const ERROR = { status: "error" } as const;
+
+function found(candidate: GeoCandidate | null): Lookup<GeoCandidate> {
+  return candidate ? { status: "ok", candidate } : MISS;
+}
+
+function candidateOf<T>(lookup: Lookup<T>): T | null {
+  return lookup.status === "ok" ? lookup.candidate : null;
+}
+
 export interface VenueDetails {
   openingHours: OpeningHours | null;
   website: string | null;
@@ -113,31 +130,35 @@ function buildCandidate(p: {
   };
 }
 
-async function geocode(params: Record<string, string>): Promise<GeoCandidate | null> {
+async function geocode(params: Record<string, string>): Promise<Lookup<GeoCandidate>> {
   const key = serverKey();
-  if (!key) return null;
+  if (!key) return ERROR;
   const url = new URL(GEOCODE_URL);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   url.searchParams.set("language", LANGUAGE);
   url.searchParams.set("key", key);
   const data = await fetchJson(url.toString());
-  if (!isRecord(data) || data.status !== "OK" || !Array.isArray(data.results)) return null;
+  if (!isRecord(data)) return ERROR;
+  if (data.status === "ZERO_RESULTS") return MISS;
+  if (data.status !== "OK" || !Array.isArray(data.results)) return ERROR;
   const first = data.results[0];
-  if (!isRecord(first)) return null;
+  if (!isRecord(first)) return MISS;
   const location = isRecord(first.geometry) && isRecord(first.geometry.location) ? first.geometry.location : {};
-  return buildCandidate({
-    lat: location.lat,
-    lng: location.lng,
-    address: first.formatted_address,
-    placeId: first.place_id,
-    types: first.types,
-    components: readComponents(first.address_components, "long_name", "short_name"),
-  });
+  return found(
+    buildCandidate({
+      lat: location.lat,
+      lng: location.lng,
+      address: first.formatted_address,
+      placeId: first.place_id,
+      types: first.types,
+      components: readComponents(first.address_components, "long_name", "short_name"),
+    }),
+  );
 }
 
-export async function geocodePlaceDetailed(query: string, opts: { near?: LatLng } = {}): Promise<GeoCandidate | null> {
+export async function lookUpPlace(query: string, opts: { near?: LatLng } = {}): Promise<Lookup<GeoCandidate>> {
   const address = query.trim();
-  if (!address) return null;
+  if (!address) return MISS;
   const params: Record<string, string> = { address };
   if (opts.near) {
     const { lat, lng } = opts.near;
@@ -146,8 +167,12 @@ export async function geocodePlaceDetailed(query: string, opts: { near?: LatLng 
   return geocode(params);
 }
 
+export async function geocodePlaceDetailed(query: string, opts: { near?: LatLng } = {}): Promise<GeoCandidate | null> {
+  return candidateOf(await lookUpPlace(query, opts));
+}
+
 export async function reverseGeocode(lat: number, lng: number): Promise<GeoCandidate | null> {
-  return geocode({ latlng: `${lat},${lng}` });
+  return candidateOf(await geocode({ latlng: `${lat},${lng}` }));
 }
 
 async function placeDetails(placeId: string, fieldMask: string, key: string): Promise<Record<string, unknown> | null> {
@@ -159,40 +184,50 @@ async function placeDetails(placeId: string, fieldMask: string, key: string): Pr
   return isRecord(data) && typeof data.id === "string" ? data : null;
 }
 
-async function findVenue(textQuery: string, near: LatLng | undefined, key: string): Promise<GeoCandidate | null> {
+async function findVenue(textQuery: string, near: LatLng | undefined, key: string): Promise<Lookup<GeoCandidate>> {
   const body = near
     ? { textQuery, locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: NEAR_BIAS_RADIUS_M } } }
     : { textQuery };
-  const found = await fetchJson(`${PLACES_URL}:searchText`, {
+  const search = await fetchJson(`${PLACES_URL}:searchText`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id" },
     body: JSON.stringify(body),
   });
-  const first = isRecord(found) && Array.isArray(found.places) ? found.places[0] : null;
-  if (!isRecord(first) || typeof first.id !== "string") return null;
+  if (!isRecord(search)) return ERROR;
+  const first = Array.isArray(search.places) ? search.places[0] : null;
+  if (!isRecord(first) || typeof first.id !== "string") return MISS;
   const place = await placeDetails(first.id, "id,location,formattedAddress,addressComponents", key);
-  if (!place) return null;
+  if (!place) return ERROR;
   const location = isRecord(place.location) ? place.location : {};
-  return buildCandidate({
-    lat: location.latitude,
-    lng: location.longitude,
-    address: place.formattedAddress,
-    placeId: place.id,
-    types: [],
-    components: readComponents(place.addressComponents, "longText", "shortText"),
-  });
+  return found(
+    buildCandidate({
+      lat: location.latitude,
+      lng: location.longitude,
+      address: place.formattedAddress,
+      placeId: place.id,
+      types: [],
+      components: readComponents(place.addressComponents, "longText", "shortText"),
+    }),
+  );
 }
 
-export async function locateVenue(title: string, address: string, opts: { near?: LatLng } = {}): Promise<GeoCandidate | null> {
+// Only Google answering "no such address" (or no address to ask about) lets a venue through unchecked; a failed lookup is not that answer.
+export async function lookUpVenue(title: string, address: string, opts: { near?: LatLng } = {}): Promise<Lookup<VenueMatch>> {
   const key = serverKey();
-  if (!key) return null;
+  if (!key) return ERROR;
   const textQuery = [title.trim(), address.trim()].filter(Boolean).join(", ");
-  if (!textQuery) return null;
-  const [venue, place] = await Promise.all([findVenue(textQuery, opts.near, key), geocodePlaceDetailed(address, opts)]);
-  if (!venue) return place;
-  // An address Google can't place gives nothing to check the venue against.
-  if (!place) return venue;
-  return haversineKm(venue, place) <= VENUE_GUARD_KM ? venue : place;
+  if (!textQuery) return MISS;
+  const [venue, place] = await Promise.all([findVenue(textQuery, opts.near, key), lookUpPlace(address, opts)]);
+  if (venue.status === "error" || place.status === "error") return ERROR;
+  if (venue.status === "miss") return place.status === "ok" ? { status: "ok", candidate: { ...place.candidate, matched: "address" } } : MISS;
+  if (place.status === "miss" || haversineKm(venue.candidate, place.candidate) <= VENUE_GUARD_KM) {
+    return { status: "ok", candidate: { ...venue.candidate, matched: "venue" } };
+  }
+  return { status: "ok", candidate: { ...place.candidate, matched: "address" } };
+}
+
+export async function locateVenue(title: string, address: string, opts: { near?: LatLng } = {}): Promise<VenueMatch | null> {
+  return candidateOf(await lookUpVenue(title, address, opts));
 }
 
 // The field mask has no address, and the Maps URL requires a query, so the place ID serves as both.
