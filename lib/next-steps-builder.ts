@@ -24,6 +24,7 @@ import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { TripDeadline } from "@/lib/trip-deadline";
 import type { SurpriseView } from "@/lib/surprise";
+import type { HopStopRow, Pt, TravelLookup } from "@/lib/travel-times/hops";
 
 export interface BuildTripNextStepsInput {
   tripBasePath: string;
@@ -61,6 +62,10 @@ export interface BuildTripNextStepsInput {
   surprisesToReveal?: SurpriseToReveal[];
   /** Cap on the ranked list (buildNextSteps defaults to 4); pass Infinity for all. */
   limit?: number;
+  /** Stored Travel times, every plan Stop as keyed, and the Home point (lib/flags.ts DetectFlagsInput); omitted → estimates. */
+  travel?: TravelLookup;
+  travelStops?: HopStopRow[];
+  homePoint?: Pt | null;
 }
 
 /** Pure: Flags + nudges → the ranked Next steps list. */
@@ -94,6 +99,9 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     hiddenItemIds: input.hiddenItemIds,
     today: input.today,
     stopNames: new Map(input.allStops.map((s) => [s.id, s.name])),
+    travel: input.travel,
+    travelStops: input.travelStops,
+    homePoint: input.homePoint,
   });
 
   return buildNextSteps({

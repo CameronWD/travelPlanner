@@ -24,7 +24,7 @@ export type TripRow = {
 };
 export type StopRow = {
   id: string; tripId: string; forkId: string | null; name: string; country: string | null; countryCode: string | null;
-  lat: number | null; lng: number | null; placeId: string | null; timezone: string | null; arriveDate: string | null; departDate: string | null;
+  lat: number | null; lng: number | null; placeId: string | null; timezone: string | null; localTravelMode: string | null; arriveDate: string | null; departDate: string | null;
   nights: number | null; pinned: boolean; sortOrder: number; notes: string | null; chapterId: string | null;
   chapterSortOrder: number; surprisePlannerId: string | null; surpriseRevealedAt: Date | null;
   createdAt: Date; updatedAt: Date;
@@ -84,7 +84,7 @@ export function trip(o: Partial<TripRow> = {}): TripRow {
 export function stop(o: Partial<StopRow> = {}): StopRow {
   return {
     id: "stop-1", tripId: "trip-1", forkId: null, name: "Lisbon", country: "Portugal", countryCode: "PT",
-    lat: 38.72, lng: -9.14, placeId: null, timezone: "Europe/Lisbon", arriveDate: "2026-11-01", departDate: "2026-11-04", nights: 3,
+    lat: 38.72, lng: -9.14, placeId: null, timezone: "Europe/Lisbon", localTravelMode: null, arriveDate: "2026-11-01", departDate: "2026-11-04", nights: 3,
     pinned: false, sortOrder: 0, notes: null, chapterId: null, chapterSortOrder: 0, surprisePlannerId: null,
     surpriseRevealedAt: null, createdAt: NOW, updatedAt: NOW, ...o,
   };

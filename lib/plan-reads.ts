@@ -45,6 +45,7 @@ const PLAN_STOP_SELECT = {
   lng: true,
   placeId: true,
   timezone: true,
+  localTravelMode: true,
   arriveDate: true,
   departDate: true,
   nights: true,

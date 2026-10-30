@@ -45,7 +45,10 @@ export async function readDayRows<X>(
 ): Promise<"missing" | "dateless" | { rows: DayRows; visibility: SurpriseVisibility; alongside: X }> {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { name: true, startDate: true, endDate: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, roundTrip: true },
+    select: {
+      name: true, startDate: true, endDate: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, roundTrip: true,
+      homeLat: true, homeLng: true, drivingWindingFactor: true, drivingAvgSpeedKph: true,
+    },
   });
   // The callers have already checked access; a missing row is a bad link.
   if (!trip) return "missing";
@@ -62,7 +65,7 @@ export async function readDayRows<X>(
       // Rough (date-less) Stops don't appear on a dated day.
       where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, country: true, countryCode: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true, lat: true, lng: true, placeId: true },
+      select: { id: true, name: true, country: true, countryCode: true, timezone: true, localTravelMode: true, arriveDate: true, departDate: true, sortOrder: true, lat: true, lng: true, placeId: true },
     })
     .then((rows) => rows);
 

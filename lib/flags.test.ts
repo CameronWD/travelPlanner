@@ -25,6 +25,9 @@ import {
   type FlagAccommodation,
   type FlagItem,
 } from "./flags";
+import { driveKey, hopKeys, planTravelKeys, type TravelLookup } from "@/lib/travel-times/hops";
+import { flagsToFindings } from "@/lib/review/from-flags";
+import { offeredFix } from "@/lib/review/fixed";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -861,6 +864,135 @@ describe("flagTightConnections", () => {
     const flags = flagTightConnections([prev, next], [], OPTS);
     expect(flags).toHaveLength(1);
     expect(flags[0].retime).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rules 10 and 12 read stored Travel times (Branch 3 Task 6)
+// ---------------------------------------------------------------------------
+
+describe("Travel times in the Flags", () => {
+  const NOW = new Date("2026-11-01T00:00:00Z");
+  const DAY = "2026-11-10";
+  const OPTS = { windingFactor: 1.5, avgSpeedKph: 80 };
+  const TEMPLE = { lat: 35.71477, lng: 139.79666 };
+  const BAR = { lat: 35.7056, lng: 139.7967 };
+  const SHRINE = { lat: 35.676, lng: 139.6993 };
+  const ok = (minutes: number) => ({ status: "OK" as const, minutes, distanceM: 1000, polyline: null });
+  const none = { status: "NONE" as const, minutes: null, distanceM: null, polyline: null };
+  const tokyo = (mode: string | null) =>
+    makeStop({ id: "tokyo", arriveDate: "2026-11-08", departDate: "2026-11-12", timezone: "Asia/Tokyo", lat: TEMPLE.lat, lng: TEMPLE.lng, localTravelMode: mode });
+  const pair = (to: { lat: number; lng: number }, nextStart = "12:10") => [
+    makeItem({ id: "a", stopId: "tokyo", date: DAY, startTime: "10:00", endTime: "12:00", lat: TEMPLE.lat, lng: TEMPLE.lng }),
+    makeItem({ id: "b", stopId: "tokyo", date: DAY, startTime: nextStart, endTime: "13:10", lat: to.lat, lng: to.lng }),
+  ];
+  const keyOf = (mode: "WALK" | "DRIVE" | "TRANSIT", to: { lat: number; lng: number }, departure: Date | null = null) =>
+    hopKeys(TEMPLE, to, mode === "WALK" ? "TRANSIT" : mode, departure, NOW).find((k) => k.startsWith(mode))!;
+  const tight = (items: FlagItem[], stop: FlagStop, lookup: TravelLookup) =>
+    flagTightConnections(items, [], { ...OPTS, lookup, travelStops: [stop] });
+
+  describe("Rule 12", () => {
+    it("uses a stored walk, unmarked, and retimes from it", () => {
+      const lookup: TravelLookup = new Map([[keyOf("WALK", BAR), ok(18)]]);
+      const [flag] = tight(pair(BAR), tokyo(null), lookup);
+      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~18 min walk.`);
+      expect(flag.retime).toEqual({ itemId: "b", startTime: "12:35", endTime: "13:35" });
+    });
+
+    it("uses a stored drive at a Stop whose Local travel mode is Drive", () => {
+      const lookup: TravelLookup = new Map([[keyOf("DRIVE", SHRINE), ok(25)]]);
+      const [flag] = tight(pair(SHRINE), tokyo("DRIVE"), lookup);
+      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~25 min drive.`);
+    });
+
+    it("uses stored public transport, keyed on the earlier Item's end in the Stop's zone", () => {
+      const departure = new Date(`${DAY}T12:00:00+09:00`);
+      const lookup: TravelLookup = new Map([[keyOf("TRANSIT", SHRINE, departure), ok(31)]]);
+      const [flag] = tight(pair(SHRINE), tokyo("TRANSIT"), lookup);
+      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min public transport.`);
+    });
+
+    it("falls back to the estimate, marked, when the stored row is NONE", () => {
+      const lookup: TravelLookup = new Map([[keyOf("DRIVE", SHRINE), none]]);
+      const [flag] = tight(pair(SHRINE), tokyo("DRIVE"), lookup);
+      expect(flag.message).toMatch(/but it's a ~\d+ min drive \(estimated\)\.$/);
+    });
+
+    it("falls back to the estimate, marked, when nothing is stored", () => {
+      const [flag] = tight(pair(BAR), tokyo(null), new Map());
+      expect(flag.message).toMatch(/but it's a ~\d+ min walk \(estimated\)\.$/);
+      const close = tight(pair(BAR, "12:25"), tokyo(null), new Map());
+      expect(close[0].message).toMatch(/^Cutting it close on .*: 25 min between activities, and it's a ~\d+ min walk \(estimated\)\.$/);
+    });
+
+    it("a masked viewer's flag resolves the hop that steps over the hidden Surprise", () => {
+      const items = [
+        makeItem({ id: "temple", stopId: "tokyo", date: DAY, startTime: "10:00", endTime: "12:00", lat: TEMPLE.lat, lng: TEMPLE.lng }),
+        makeItem({ id: "surprise", stopId: "tokyo", date: DAY, startTime: "12:05", endTime: "12:08" }),
+        makeItem({ id: "bar", stopId: "tokyo", date: DAY, startTime: "12:10", endTime: "13:10", lat: BAR.lat, lng: BAR.lng }),
+      ];
+      const stop = tokyo(null);
+      const keys = planTravelKeys({ items, stops: [stop], transports: [], home: null }, NOW);
+      expect(keys).toContain(keyOf("WALK", BAR));
+      const lookup: TravelLookup = new Map([...keys].map((k) => [k, ok(18)]));
+      const flags = detectFlags({
+        stops: [stop], transports: [], accommodations: [], items, tripStart: "2026-11-08", tripEnd: "2026-11-12",
+        hiddenItemIds: ["surprise"], travel: lookup,
+      });
+      const flag = flags.find((f) => f.id === "tight-temple-bar");
+      expect(flag?.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~18 min walk.`);
+    });
+
+    it("a Review's stored retime still matches the live Flag computed from the same lookup", () => {
+      const lookup: TravelLookup = new Map([[keyOf("WALK", BAR), ok(18)]]);
+      const [finding] = flagsToFindings(tight(pair(BAR), tokyo(null), lookup));
+      const fix = finding.suggestedFix ?? null;
+      expect(fix).toMatchObject({ kind: "item.times", itemId: "b", startTime: "12:35" });
+      expect(offeredFix(fix, tight(pair(BAR), tokyo(null), lookup)[0])).toBe(fix);
+      expect(offeredFix(fix, tight(pair(BAR), tokyo(null), new Map())[0])).toBeNull();
+    });
+  });
+
+  describe("Rule 10", () => {
+    const CHCH = { lat: -43.53, lng: 172.63 };
+    const QT = { lat: -45.03, lng: 168.66 };
+    const stop = (id: string, at: { lat: number; lng: number }, arriveDate: string) =>
+      makeStop({ id, arriveDate, departDate: arriveDate, timezone: "Pacific/Auckland", lat: at.lat, lng: at.lng });
+    const stops = [stop("a", CHCH, "2026-07-02"), stop("b", QT, "2026-07-03")];
+    const leg = makeTransport({ id: "t1", mode: "CAR", fromStopId: "a", toStopId: "b" });
+    const long = (lookup: TravelLookup, extra: Partial<Parameters<typeof flagLongDrivingDays>[2]> = {}, s = stops, t = [leg]) =>
+      flagLongDrivingDays(s, t, { ...OPTS, lookup, ...extra });
+
+    it("sums a stored drive, unmarked", () => {
+      const flags = long(new Map([[driveKey(CHCH, QT), ok(420)]]));
+      expect(flags).toHaveLength(1);
+      expect(flags[0].message).toBe("Long driving day on 2026-07-03: ~7h behind the wheel. Check it's doable.");
+      expect(long(new Map([[driveKey(CHCH, QT), ok(200)]]))).toEqual([]);
+    });
+
+    it("falls back to the estimate, marked, when the row is NONE or missing", () => {
+      for (const lookup of [new Map([[driveKey(CHCH, QT), none]]), new Map()] as TravelLookup[]) {
+        const [flag] = long(lookup);
+        expect(flag.message).toMatch(/behind the wheel \(estimated\)\. Check it's doable\.$/);
+      }
+    });
+
+    it("drives a Home-end leg from the Home point, on the destination's arrive date", () => {
+      const fromHome = makeTransport({ id: "t0", mode: "CAR", depIsHome: true, toStopId: "b" });
+      const lookup: TravelLookup = new Map([[driveKey(CHCH, QT), ok(360)]]);
+      const flags = long(lookup, { home: CHCH }, [stops[1]], [fromHome]);
+      expect(flags.map((f) => [f.date, f.message])).toEqual([
+        ["2026-07-03", "Long driving day on 2026-07-03: ~6h behind the wheel. Check it's doable."],
+      ]);
+      expect(long(lookup, { home: null }, [stops[1]], [fromHome])).toEqual([]);
+    });
+
+    it("drives from a typed departure point, not the Stop", () => {
+      const typed = { ...leg, depLat: -44, depLng: 170 };
+      expect(long(new Map([[driveKey({ lat: -44, lng: 170 }, QT), ok(400)]]), {}, stops, [typed])[0].message).toBe(
+        "Long driving day on 2026-07-03: ~6.7h behind the wheel. Check it's doable.",
+      );
+    });
   });
 });
 

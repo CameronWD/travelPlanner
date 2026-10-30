@@ -16,6 +16,8 @@ import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { readPlan } from "@/lib/plan-reads";
+import { homePointOf } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { type ActionResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
 import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
@@ -498,6 +500,9 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
   // Spec 2026-10-17 R7: every plan's book-by Flags count from the Trip's own
   // today, the real plan's (planData[0]), so the columns compare like with like.
   const today = tripTodayISO(planData[0].stops);
+  const travelByPlan = await Promise.all(
+    planData.map(({ stops, transports, items }) => loadTravelLookupFor({ items, stops, transports, home: homePointOf(shell) })),
+  );
 
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {
     const { stops, transports, accommodations, items, costs, exchangeRates } = planData[i];
@@ -525,6 +530,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
       trip: tripFields,
       exchangeRates,
       today,
+      travel: travelByPlan[i],
     });
     return { forkId, name, metrics };
   });

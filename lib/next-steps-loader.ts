@@ -36,6 +36,7 @@ import { tripHomeBase } from "@/lib/home-base";
 import { computeProjection } from "@/lib/trip-projection";
 import { buildTripNextSteps } from "@/lib/next-steps-builder";
 import { loadFlagRows } from "@/lib/flags-loader";
+import { homePointOf } from "@/lib/travel-times/hops";
 
 /**
  * Load a Trip's Next steps from scratch. `[]` when the trip has no dates yet,
@@ -117,5 +118,8 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
     hiddenItemIds: rows.hiddenItemIds,
     // The caller's today, the same one the phase gate above used.
     today,
+    travel: rows.travel,
+    travelStops: rows.allStops,
+    homePoint: homePointOf(rows.trip),
   });
 }

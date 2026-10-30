@@ -11,7 +11,21 @@ import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, form
 import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
-import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
+import { haversineKm, type LatLng } from "@/lib/geo";
+import {
+  byHopOrder,
+  hopInputs,
+  hopStopsById,
+  resolveDriveLeg,
+  resolveHop,
+  toHopItem,
+  toPlanTransport,
+  transportEnds,
+  type HopStopRow,
+  type Pt,
+  type ResolvedHop,
+  type TravelLookup,
+} from "@/lib/travel-times/hops";
 import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
@@ -61,6 +75,7 @@ export interface FlagStop {
   lat?: number | null;
   lng?: number | null;
   sortOrder: number;
+  localTravelMode?: string | null;
 }
 
 export interface FlagTransport {
@@ -72,6 +87,10 @@ export interface FlagTransport {
   mode: string;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depLat?: number | null;
+  depLng?: number | null;
+  arrLat?: number | null;
+  arrLng?: number | null;
   /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
   bookingState?: string | null;
   bookBy?: string | null;
@@ -94,6 +113,7 @@ export interface FlagItem {
   date?: string | null; // YYYY-MM-DD
   startTime?: string | null; // HH:MM
   endTime?: string | null; // HH:MM
+  sortOrder?: number | null;
   lat?: number | null;
   lng?: number | null;
   /** The Item's title, for the planning Flags' wording (spec 2026-10-17 R7). */
@@ -170,6 +190,12 @@ export interface DetectFlagsInput {
   today?: string | null;
   /** Every Stop's name, rough ones included, so a leg to a rough Stop still names it. Omitted: the dated `stops`. */
   stopNames?: ReadonlyMap<string, string>;
+  /** Stored Travel times (lib/travel-times/read.ts loadTravelLookupFor, from these same rows). Omitted: every hop is estimated. */
+  travel?: TravelLookup;
+  /** Every Stop of the plan, rough ones included, with its raw zone and Local travel mode, so hops key as the refresh keys them. Omitted: `stops`. */
+  travelStops?: HopStopRow[];
+  /** The Trip's Home point (homeLat/homeLng), for a car leg with a Home end. */
+  homePoint?: Pt | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -583,46 +609,68 @@ export function flagSpreadDays(items: FlagItem[]): Flag[] {
 // ---------------------------------------------------------------------------
 // Rule 10: Long driving day (warning)
 //
-// Accumulates total driving time per calendar day (in the destination stop's
-// timezone). Uses real dep→arr times when both are present; otherwise falls
-// back to estimateDriveMinutes. Only CAR legs are considered.
+// Accumulates total driving time per calendar day (in the destination's
+// timezone). Uses real dep→arr times when both are present; otherwise the
+// stored DRIVE Travel time between the leg's ends (lib/travel-times/hops.ts
+// transportEnds: a typed point, else the Stop, else Home), else the estimate.
+// Only CAR legs are considered.
 // ---------------------------------------------------------------------------
+
+type TravelOpts = {
+  windingFactor: number;
+  avgSpeedKph: number;
+  lookup?: TravelLookup;
+  travelStops?: HopStopRow[];
+};
+
+function estimatedSuffix(estimated: boolean): string {
+  return estimated ? " (estimated)" : "";
+}
 
 export function flagLongDrivingDays(
   stops: FlagStop[],
   transports: FlagTransport[],
-  opts: { windingFactor: number; avgSpeedKph: number },
+  opts: TravelOpts & { home?: Pt | null; homeTimezone?: string | null },
 ): Flag[] {
   const byId = new Map(stops.map((s) => [s.id, s]));
-  const minsByDate = new Map<string, number>();
+  const pointsById = hopStopsById(opts.travelStops ?? stops);
+  const lookup: TravelLookup = opts.lookup ?? new Map();
+  const byDate = new Map<string, { mins: number; estimated: boolean }>();
 
   for (const t of transports) {
     if (t.mode !== "CAR") continue;
+    const ends = transportEnds(toPlanTransport(t), pointsById, opts.home ?? null);
+    if (!ends) continue;
     const from = t.fromStopId ? byId.get(t.fromStopId) : undefined;
     const to = t.toStopId ? byId.get(t.toStopId) : undefined;
-    if (!from || !to || !hasCoords(from) || !hasCoords(to)) continue;
 
     const dep = toDate(t.depAt ?? null);
     const arr = toDate(t.arrAt ?? null);
-    const minutes =
+    const leg =
       dep && arr && arr.getTime() > dep.getTime()
-        ? (arr.getTime() - dep.getTime()) / 60000
-        : estimateDriveMinutes(haversineKm(from, to), opts);
+        ? { minutes: (arr.getTime() - dep.getTime()) / 60000, estimated: false }
+        : resolveDriveLeg(ends.from, ends.to, lookup, opts);
 
-    const driveDate = dep ? instantToZonedDateISO(dep, to.timezone) : to.arriveDate;
+    const arrivalZone = (t.arrIsHome && opts.homeTimezone) || to?.timezone || from?.timezone;
+    const driveDate = dep
+      ? instantToZonedDateISO(dep, arrivalZone ?? "UTC")
+      : t.arrIsHome
+        ? from?.departDate
+        : to?.arriveDate;
     if (!driveDate) continue;
 
-    minsByDate.set(driveDate, (minsByDate.get(driveDate) ?? 0) + minutes);
+    const day = byDate.get(driveDate) ?? { mins: 0, estimated: false };
+    byDate.set(driveDate, { mins: day.mins + leg.minutes, estimated: day.estimated || leg.estimated });
   }
 
   const flags: Flag[] = [];
-  for (const [date, mins] of minsByDate) {
+  for (const [date, { mins, estimated }] of byDate) {
     if (mins > LONG_DRIVE_DAY_THRESHOLD_MIN) {
       const hrs = Math.round((mins / 60) * 10) / 10;
       flags.push({
         id: `long-drive-${date}`,
         severity: "warning",
-        message: `Long driving day on ${date}: ~${hrs}h behind the wheel. Check it's doable.`,
+        message: `Long driving day on ${date}: ~${hrs}h behind the wheel${estimatedSuffix(estimated)}. Check it's doable.`,
         targetType: "DAY",
         date,
       });
@@ -635,16 +683,17 @@ export function flagLongDrivingDays(
 // Rule 12: Tight / impossible connections (warning / info)
 //
 // For consecutive same-day items that BOTH have startTime+endTime and lat+lng:
-// estimate travel time (walk if ≤ MAX_WALK_MIN at WALK_KMH, else drive via
-// estimateDriveMinutes); gap = nextStart − prevEnd minutes.
+// the hop's Travel time (lib/travel-times/hops.ts resolveHop: a stored walk,
+// drive or public transport time, else the estimate, said as "(estimated)");
+// gap = nextStart − prevEnd minutes.
 //   gap < travel                         → warning
 //   travel ≤ gap < travel + BUFFER       → info "tight"
 // One flag per offending pair, DAY-targeted.
 // ---------------------------------------------------------------------------
 
 export const TIGHT_CONNECTION_BUFFER_MIN = 15;
-const WALK_KMH = 4.5;
-const MAX_WALK_MIN = 30;
+
+const HOP_LABEL: Record<ResolvedHop["mode"], string> = { walk: "walk", drive: "drive", transit: "public transport" };
 
 function hhmmToMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -675,7 +724,7 @@ function tightRetime(
 export function flagTightConnections(
   items: FlagItem[],
   transports: FlagTransport[],
-  opts: { windingFactor: number; avgSpeedKph: number },
+  opts: TravelOpts,
 ): Flag[] {
   // Build a direction-agnostic set of stop pairs connected by a transport leg.
   const connectedStopPairs = new Set<string>();
@@ -685,6 +734,9 @@ export function flagTightConnections(
       connectedStopPairs.add(`${t.toStopId}-${t.fromStopId}`);
     }
   }
+  const stopsById = hopStopsById(opts.travelStops ?? []);
+  const planTransports = transports.map(toPlanTransport);
+  const lookup: TravelLookup = opts.lookup ?? new Map();
 
   // Collect fully-timed, located items grouped by date
   const byDate = new Map<
@@ -702,8 +754,9 @@ export function flagTightConnections(
 
   const flags: Flag[] = [];
   for (const [date, dayItems] of byDate) {
+    // Ties break as the refresh's hop order does, so each pair here is one it fetched.
     const sorted = [...dayItems].sort(
-      (a, b) => hhmmToMin(a.startTime) - hhmmToMin(b.startTime),
+      (a, b) => hhmmToMin(a.startTime) - hhmmToMin(b.startTime) || byHopOrder(a, b),
     );
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1];
@@ -720,11 +773,10 @@ export function flagTightConnections(
         continue;
       }
 
-      const km = haversineKm({ lat: prev.lat, lng: prev.lng }, { lat: next.lat, lng: next.lng });
-      const walkMin = (km / WALK_KMH) * 60;
-      const mode = walkMin <= MAX_WALK_MIN ? "walk" : "drive";
-      const travel = mode === "walk" ? walkMin : estimateDriveMinutes(km, opts);
-      const how = `a ~${Math.round(travel)} min ${mode}`;
+      const hop = hopInputs({ from: toHopItem(prev), to: toHopItem(next) }, { stopsById, planTransports })!;
+      const resolved = resolveHop(hop.from, hop.to, hop.localMode, hop.departure, lookup, opts);
+      const travel = resolved.minutes;
+      const how = `a ~${Math.round(travel)} min ${HOP_LABEL[resolved.mode]}${estimatedSuffix(resolved.estimated)}`;
       const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
       const retime = tightRetime(prev, next, travel);
       if (gap < travel) {
@@ -740,7 +792,7 @@ export function flagTightConnections(
         flags.push({
           id: `tight-${prev.id}-${next.id}`,
           severity: "info",
-          message: `Cutting it close on ${date}: ${Math.round(gap)} min between activities (${how}).`,
+          message: `Cutting it close on ${date}: ${Math.round(gap)} min between activities, and it's ${how}.`,
           targetType: "DAY",
           date,
           ...(retime ? { retime } : {}),
@@ -1276,6 +1328,9 @@ export function detectFlags({
   hiddenItemIds,
   today,
   stopNames,
+  travel,
+  travelStops,
+  homePoint,
 }: DetectFlagsInput): Flag[] {
   const hidden = new Set(hiddenStopIds ?? []);
   const hiddenStops = stops.filter((s) => hidden.has(s.id));
@@ -1292,6 +1347,12 @@ export function detectFlags({
     (stops.length > 0 ? [...stops].sort((a, b) => a.sortOrder - b.sortOrder)[stops.length - 1].id : null);
   const effectiveDeadline: TripDeadline | null =
     deadline !== undefined ? deadline : hardEndDate ? { kind: "hard-end", date: hardEndDate } : null;
+  const travelOpts: TravelOpts = {
+    windingFactor: drivingWindingFactor ?? 1.5,
+    avgSpeedKph: drivingAvgSpeedKph ?? 80,
+    lookup: travel,
+    travelStops: travelStops ?? stops,
+  };
   return [
     ...flagStopsWithoutAccommodation(insideVisible, accommodations),
     ...outsideHidden(flagEmptyDays(stops, transports, accommodations, items, tripStart, tripEnd, homeTimezone)),
@@ -1302,14 +1363,8 @@ export function detectFlags({
     ...outsideHidden(flagPackedDays(items)),
     ...flagRoughStops(roughStopCount ?? 0),
     ...outsideHidden(flagSpreadDays(items)),
-    ...outsideHidden(flagTightConnections(items, transports, {
-      windingFactor: drivingWindingFactor ?? 1.5,
-      avgSpeedKph: drivingAvgSpeedKph ?? 80,
-    })),
-    ...flagLongDrivingDays(stops, transports, {
-      windingFactor: drivingWindingFactor ?? 1.5,
-      avgSpeedKph: drivingAvgSpeedKph ?? 80,
-    }),
+    ...outsideHidden(flagTightConnections(items, transports, travelOpts)),
+    ...flagLongDrivingDays(stops, transports, { ...travelOpts, home: homePoint ?? null, homeTimezone }),
     ...flagHardEndDate(projectedEnd, effectiveDeadline),
     ...flagMissingConnections(stops, transports),
     ...flagAccommodationCoverageGaps(insideVisible, accommodations),

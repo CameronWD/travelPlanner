@@ -30,6 +30,7 @@ import type { OpeningHours } from "@/lib/opening-hours";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
+import { homePointOf, type TravelLookup } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -47,6 +48,7 @@ interface CompareStop {
   lat: number | null;
   lng: number | null;
   timezone: string;
+  localTravelMode?: string | null;
 }
 
 interface CompareTransport {
@@ -56,7 +58,12 @@ interface CompareTransport {
   toStopId: string | null;
   depAt: string | null;
   arrAt: string | null;
+  depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depLat?: number | null;
+  depLng?: number | null;
+  arrLat?: number | null;
+  arrLng?: number | null;
   bookingState?: string | null;
   bookBy?: string | null;
 }
@@ -77,6 +84,7 @@ interface CompareItem {
   date: string | null;
   startTime: string | null;
   endTime: string | null;
+  sortOrder?: number;
   lat: number | null;
   lng: number | null;
   category: string;
@@ -120,6 +128,8 @@ export interface PlanMetricsInput {
    * Omitted: those Flags stay silent.
    */
   today?: string;
+  /** Stored Travel times for this plan's rows (lib/travel-times/read.ts). Omitted: every hop is estimated. */
+  travel?: TravelLookup;
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +317,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       lat: s.lat,
       lng: s.lng,
       sortOrder: s.sortOrder,
+      localTravelMode: s.localTravelMode ?? null,
     }));
 
   const flagTransports: FlagTransport[] = transports.map((t) => ({
@@ -317,6 +328,11 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     depAt: t.depAt,
     arrAt: t.arrAt,
     arrIsHome: t.arrIsHome ?? false,
+    depIsHome: t.depIsHome ?? false,
+    depLat: t.depLat ?? null,
+    depLng: t.depLng ?? null,
+    arrLat: t.arrLat ?? null,
+    arrLng: t.arrLng ?? null,
     bookingState: t.bookingState ?? null,
     bookBy: t.bookBy ?? null,
   }));
@@ -337,6 +353,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     date: i.date,
     startTime: i.startTime,
     endTime: i.endTime,
+    sortOrder: i.sortOrder,
     lat: i.lat,
     lng: i.lng,
     title: i.title ?? null,
@@ -402,6 +419,9 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       homeLastStop,
       today,
       stopNames: new Map(stops.map((s) => [s.id, s.name])),
+      travel: input.travel,
+      travelStops: stops,
+      homePoint: homePointOf(trip),
     });
 
     for (const f of flags) {
