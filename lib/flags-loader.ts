@@ -92,8 +92,8 @@ export interface FlagsAssemblyInput {
    * and silently drop those Flags (TB-01).
    */
   today: string;
-  /** Stored Travel times for these rows (lib/travel-times/read.ts loadTravelLookupFor). Omitted: every hop is estimated. */
-  travel?: TravelLookup;
+  /** Stored Travel times for these rows (lib/travel-times/read.ts loadTravelLookupFor). Required; an empty Map estimates every hop. */
+  travel: TravelLookup;
 }
 
 /**

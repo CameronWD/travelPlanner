@@ -54,13 +54,13 @@ describe("buildTripNextSteps: the planning Flags (spec 2026-10-17 R7)", () => {
   const pass = { id: "i2", stopId: "nbg", date: null, title: "Tram pass", bookingState: "TO_BOOK", bookBy: "2026-12-03" };
 
   it("a closed day and a booking due become ranked steps that open where they are fixed", () => {
-    const steps = buildTripNextSteps({ ...base, items: [museum, pass], today: "2026-12-01" });
+    const steps = buildTripNextSteps({ travel: new Map(), ...base, items: [museum, pass], today: "2026-12-01" });
     expect(steps.find((s) => s.id === "item-closed-i1")).toMatchObject({ severity: "warning", source: "flag", href: "/trips/t/day/2026-12-08", title: "Memorium Nuremberg Trials is closed on Tuesdays." });
     expect(steps.find((s) => s.id === "book-by-soon-i2")).toMatchObject({ severity: "info", href: "/trips/t/plan?stop=nbg" });
   });
 
   it("nothing about an Item hidden from the viewer", () => {
-    const steps = buildTripNextSteps({ ...base, items: [museum], today: "2026-12-01", hiddenItemIds: ["i1"] });
+    const steps = buildTripNextSteps({ travel: new Map(), ...base, items: [museum], today: "2026-12-01", hiddenItemIds: ["i1"] });
     expect(steps.map((s) => s.id)).not.toContain("item-closed-i1");
   });
 });

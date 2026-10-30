@@ -508,13 +508,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
     const { stops, transports, accommodations, items, costs, exchangeRates } = planData[i];
 
     // Map DB rows to CompareStop/CompareTransport shapes.
-    // - timezone: DB is nullable; CompareStop requires string — fall back to "UTC".
-    // - depAt/arrAt: DB returns Date | null; CompareTransport requires string | null.
-    const compareStops = stops.map((s) => ({
-      ...s,
-      timezone: s.timezone ?? "UTC",
-    }));
-
+        // - depAt/arrAt: DB returns Date | null; CompareTransport requires string | null.
     const compareTransports = transports.map((t) => ({
       ...t,
       depAt: t.depAt instanceof Date ? t.depAt.toISOString() : (t.depAt ?? null),
@@ -522,7 +516,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
     }));
 
     const metrics = computePlanMetrics({
-      stops: compareStops,
+      stops,
       transports: compareTransports,
       accommodations,
       items,
@@ -555,12 +549,17 @@ export interface PromotionPreview {
 // The fields Compare's metrics read (lib/compare.ts; Compare takes them from
 // lib/plan-reads.ts), so the preview's Flag delta counts the planning Flags
 // (spec 2026-10-17 R7) exactly as Compare does.
+const PREVIEW_STOP_SELECT = {
+  id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true,
+  timezone: true, localTravelMode: true,
+} as const;
 const PREVIEW_TRANSPORT_SELECT = {
-  id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, arrIsHome: true, bookingState: true, bookBy: true,
+  id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true,
+  depLat: true, depLng: true, arrLat: true, arrLng: true, bookingState: true, bookBy: true,
 } as const;
 const PREVIEW_ACCOMMODATION_SELECT = { id: true, stopId: true, name: true, checkIn: true, checkOut: true, bookingState: true, bookBy: true } as const;
 const PREVIEW_ITEM_SELECT = {
-  id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true,
+  id: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, category: true,
   title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true,
 } as const;
 
@@ -587,12 +586,12 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     realStops, realTransports, realAccommodations, realItems, realCosts,
     forkStops, forkTransports, forkAccommodations, forkItems, forkCosts,
   ] = await Promise.all([
-    db.stop.findMany({ where: realWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
+    db.stop.findMany({ where: realWhere, select: PREVIEW_STOP_SELECT }),
     db.transport.findMany({ where: realWhere, select: { ...PREVIEW_TRANSPORT_SELECT, reference: true } }),
     db.accommodation.findMany({ where: { ...realWhere, ...v.where.accommodation }, select: { ...PREVIEW_ACCOMMODATION_SELECT, confirmation: true } }),
     db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE, ...v.where.item }, select: { ...PREVIEW_ITEM_SELECT, photoAttachmentId: true } }),
     db.cost.findMany({ where: { ...realWhere, ...v.where.cost }, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
-    db.stop.findMany({ where: forkWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
+    db.stop.findMany({ where: forkWhere, select: PREVIEW_STOP_SELECT }),
     db.transport.findMany({ where: forkWhere, select: PREVIEW_TRANSPORT_SELECT }),
     db.accommodation.findMany({ where: { ...forkWhere, ...v.where.accommodation }, select: PREVIEW_ACCOMMODATION_SELECT }),
     db.item.findMany({ where: { ...forkWhere, ...PLAN_PLACEMENT_WHERE, ...v.where.item }, select: PREVIEW_ITEM_SELECT }),
@@ -618,6 +617,11 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
         roundTrip: true,
+        homeName: true,
+        homeLat: true,
+        homeLng: true,
+        homeCountryCode: true,
+        homeTimezone: true,
       },
     }),
     db.exchangeRate.findMany({
@@ -694,10 +698,14 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     roundTrip: trip.roundTrip,
+    homeName: trip.homeName,
+    homeLat: trip.homeLat,
+    homeLng: trip.homeLng,
+    homeCountryCode: trip.homeCountryCode,
+    homeTimezone: trip.homeTimezone,
   };
 
-  const mapStop = (s: typeof realStops[number]) => ({ ...s, timezone: s.timezone ?? "UTC" });
-  const mapTransport = (t: { id: string; mode: string; fromStopId: string | null; toStopId: string | null; depAt: Date | string | null; arrAt: Date | string | null; arrIsHome?: boolean | null }) => ({
+  const mapTransport = <T extends { depAt: Date | string | null; arrAt: Date | string | null }>(t: T) => ({
     ...t,
     depAt: t.depAt instanceof Date ? t.depAt.toISOString() : (t.depAt ?? null),
     arrAt: t.arrAt instanceof Date ? t.arrAt.toISOString() : (t.arrAt ?? null),
@@ -706,9 +714,14 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
   const mapItem = <T extends { openingHours: string | null }>(i: T) => ({ ...i, openingHours: parseOpeningHours(i.openingHours) });
   // Both sides count from the Trip's own today, the real plan's, as Compare does.
   const today = tripTodayISO(realStops);
+  const home = homePointOf(trip);
+  const [realTravel, forkTravel] = await Promise.all([
+    loadTravelLookupFor({ items: realItems, stops: realStops, transports: realTransports, home }),
+    loadTravelLookupFor({ items: forkItems, stops: forkStops, transports: forkTransports, home }),
+  ]);
 
   const realPlanMetrics = computePlanMetrics({
-    stops: realStops.map(mapStop),
+    stops: realStops,
     transports: realTransports.map(mapTransport),
     accommodations: realAccommodations,
     items: realItems.map(mapItem),
@@ -716,10 +729,11 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     trip: tripFields,
     exchangeRates,
     today,
+    travel: realTravel,
   });
 
   const forkMetrics = computePlanMetrics({
-    stops: forkStops.map(mapStop),
+    stops: forkStops,
     transports: forkTransports.map(mapTransport),
     accommodations: forkAccommodations,
     items: forkItems.map(mapItem),
@@ -727,6 +741,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     trip: tripFields,
     exchangeRates,
     today,
+    travel: forkTravel,
   });
 
   const deltas = diffMetrics(realPlanMetrics, forkMetrics);

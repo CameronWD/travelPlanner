@@ -40,7 +40,8 @@ const makeStop = (
     pinned: boolean;
     lat: number | null;
     lng: number | null;
-    timezone: string;
+    timezone: string | null;
+    localTravelMode: string | null;
   }> = {},
 ) => {
   const nights = "nights" in overrides ? overrides.nights as number | null : 2;
@@ -55,7 +56,8 @@ const makeStop = (
     pinned: overrides.pinned ?? false,
     lat: overrides.lat ?? null,
     lng: overrides.lng ?? null,
-    timezone: overrides.timezone ?? "UTC",
+    timezone: overrides.timezone !== undefined ? overrides.timezone : "UTC",
+    localTravelMode: overrides.localTravelMode ?? null,
   };
 };
 
@@ -128,6 +130,7 @@ const emptyInput = (): PlanMetricsInput => ({
   costs: [],
   trip: makeTrip(),
   exchangeRates: [],
+  travel: new Map(),
 });
 
 // ---------------------------------------------------------------------------
@@ -341,6 +344,20 @@ describe("hardEndState", () => {
 // ---------------------------------------------------------------------------
 
 describe("flagCounts", () => {
+  it("reads Travel times against the Stop's raw zone: a null zone has no departure, so no TRANSIT row is read", () => {
+    const stop = makeStop("tokyo", { timezone: null, localTravelMode: "TRANSIT", arriveDate: "2026-07-01", departDate: "2026-07-03", lat: 35.71477, lng: 139.79666 });
+    const at = (id: string, lat: number, start: string, end: string) => ({
+      id, stopId: "tokyo", date: "2026-07-02", startTime: start, endTime: end, sortOrder: 0, lat, lng: 139.79666, category: "SIGHTSEEING",
+    });
+    const items = [at("a", 35.71477, "10:00", "12:00"), at("b", 35.74177, "12:30", "13:30")];
+    // The key a "UTC"-defaulted zone would make; the refresh never stores it for a zoneless Stop.
+    const utcKey = "TRANSIT|35.71477,139.79666|35.74177,139.79666|2026-07-02T12:00:00.000Z";
+    const input = { ...emptyInput(), stops: [stop], items };
+    const plain = computePlanMetrics(input);
+    const withRow = computePlanMetrics({ ...input, travel: new Map([[utcKey, { status: "OK" as const, minutes: 45, distanceM: 3000, polyline: null }]]) });
+    expect(withRow.flagCounts).toEqual(plain.flagCounts);
+  });
+
   it("returns zero counts for clean input", () => {
     const m = computePlanMetrics(emptyInput());
     expect(m.flagCounts.warning).toBe(0);
@@ -641,7 +658,7 @@ describe("diffMetrics", () => {
 
 describe("computePlanMetrics — legs", () => {
   it("emits one leg per transport whose endpoints both resolve, with resolved stop names", () => {
-    const metrics = computePlanMetrics({
+    const metrics = computePlanMetrics({ travel: new Map(),
       stops: [
         { id: "s1", name: "Rome", country: "IT", nights: 3, sortOrder: 0, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },
         { id: "s2", name: "Florence", country: "IT", nights: 2, sortOrder: 1, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },

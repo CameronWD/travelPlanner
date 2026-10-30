@@ -1265,6 +1265,17 @@ describe("getComparison", () => {
   });
 
   describe("metrics computation", () => {
+    it("hands computePlanMetrics each Stop's raw zone (null stays null) and the plan's Travel-time lookup", async () => {
+      stopsByPlan = { real: [{ id: "s-nozone", name: "Nowhere", country: null, nights: 2, sortOrder: 0, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: null, localTravelMode: null }] };
+      forkFindManyMock.mockResolvedValue([]);
+
+      await getComparison("trip-1");
+
+      const input = computePlanMetricsMock.mock.calls[0][0];
+      expect(input.stops[0].timezone).toBeNull();
+      expect(input.travel).toBeInstanceOf(Map);
+    });
+
     it("calls computePlanMetrics for each plan (real + each fork)", async () => {
       forkFindManyMock.mockResolvedValue([
         { id: "fork-A", name: "Variant A", sortOrder: 0 },

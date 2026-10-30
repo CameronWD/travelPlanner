@@ -190,8 +190,8 @@ export interface DetectFlagsInput {
   today?: string | null;
   /** Every Stop's name, rough ones included, so a leg to a rough Stop still names it. Omitted: the dated `stops`. */
   stopNames?: ReadonlyMap<string, string>;
-  /** Stored Travel times (lib/travel-times/read.ts loadTravelLookupFor, from these same rows). Omitted: every hop is estimated. */
-  travel?: TravelLookup;
+  /** Stored Travel times (lib/travel-times/read.ts loadTravelLookupFor, from these same rows). Required, so no assembler forgets it; an empty Map estimates every hop. */
+  travel: TravelLookup;
   /** Every Stop of the plan, rough ones included, with its raw zone and Local travel mode, so hops key as the refresh keys them. Omitted: `stops`. */
   travelStops?: HopStopRow[];
   /** The Trip's Home point (homeLat/homeLng), for a car leg with a Home end. */
@@ -693,7 +693,7 @@ export function flagLongDrivingDays(
 
 export const TIGHT_CONNECTION_BUFFER_MIN = 15;
 
-const HOP_LABEL: Record<ResolvedHop["mode"], string> = { walk: "walk", drive: "drive", transit: "public transport" };
+const HOP_LABEL: Record<ResolvedHop["mode"], string> = { walk: "walk", drive: "drive", transit: "trip by public transport" };
 
 function hhmmToMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -744,7 +744,7 @@ export function flagTightConnections(
     (FlagItem & { lat: number; lng: number; startTime: string; endTime: string })[]
   >();
   for (const it of items) {
-    if (!it.date || !it.startTime || !it.endTime || it.lat == null || it.lng == null) continue;
+    if (!it.date || !it.startTime || !it.endTime || !Number.isFinite(it.lat) || !Number.isFinite(it.lng)) continue;
     const arr = byDate.get(it.date) ?? [];
     arr.push(
       it as FlagItem & { lat: number; lng: number; startTime: string; endTime: string },
@@ -773,7 +773,8 @@ export function flagTightConnections(
         continue;
       }
 
-      const hop = hopInputs({ from: toHopItem(prev), to: toHopItem(next) }, { stopsById, planTransports })!;
+      const hop = hopInputs({ from: toHopItem(prev), to: toHopItem(next) }, { stopsById, planTransports });
+      if (!hop) continue;
       const resolved = resolveHop(hop.from, hop.to, hop.localMode, hop.departure, lookup, opts);
       const travel = resolved.minutes;
       const how = `a ~${Math.round(travel)} min ${HOP_LABEL[resolved.mode]}${estimatedSuffix(resolved.estimated)}`;

@@ -62,8 +62,8 @@ export interface BuildTripNextStepsInput {
   surprisesToReveal?: SurpriseToReveal[];
   /** Cap on the ranked list (buildNextSteps defaults to 4); pass Infinity for all. */
   limit?: number;
-  /** Stored Travel times, every plan Stop as keyed, and the Home point (lib/flags.ts DetectFlagsInput); omitted → estimates. */
-  travel?: TravelLookup;
+  /** Stored Travel times (required; an empty Map estimates), every plan Stop as keyed, and the Home point (lib/flags.ts DetectFlagsInput). */
+  travel: TravelLookup;
   travelStops?: HopStopRow[];
   homePoint?: Pt | null;
 }

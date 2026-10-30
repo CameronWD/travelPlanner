@@ -47,7 +47,7 @@ interface CompareStop {
   pinned: boolean;
   lat: number | null;
   lng: number | null;
-  timezone: string;
+  timezone: string | null;
   localTravelMode?: string | null;
 }
 
@@ -128,8 +128,8 @@ export interface PlanMetricsInput {
    * Omitted: those Flags stay silent.
    */
   today?: string;
-  /** Stored Travel times for this plan's rows (lib/travel-times/read.ts). Omitted: every hop is estimated. */
-  travel?: TravelLookup;
+  /** Stored Travel times for this plan's rows (lib/travel-times/read.ts). Required; an empty Map estimates every hop. */
+  travel: TravelLookup;
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +261,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   const budgetStops: BudgetStop[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
-    timezone: s.timezone,
+    timezone: s.timezone ?? "UTC",
   }));
 
   const budgetItems: BudgetItem[] = items.map((i) => ({
@@ -313,7 +313,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       name: s.name,
       arriveDate: s.arriveDate,
       departDate: s.departDate,
-      timezone: s.timezone,
+      timezone: s.timezone ?? "UTC",
       lat: s.lat,
       lng: s.lng,
       sortOrder: s.sortOrder,

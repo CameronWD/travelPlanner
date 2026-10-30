@@ -458,7 +458,7 @@ describe("detectFlags", () => {
       }),
     ];
 
-    const flags = detectFlags({
+    const flags = detectFlags({ travel: new Map(),
       stops,
       transports,
       accommodations,
@@ -485,7 +485,7 @@ describe("detectFlags", () => {
       departDate: "2026-07-02",
     });
 
-    const flags = detectFlags({
+    const flags = detectFlags({ travel: new Map(),
       stops: [stop],
       transports: [],
       accommodations: [],
@@ -909,7 +909,16 @@ describe("Travel times in the Flags", () => {
       const departure = new Date(`${DAY}T12:00:00+09:00`);
       const lookup: TravelLookup = new Map([[keyOf("TRANSIT", SHRINE, departure), ok(31)]]);
       const [flag] = tight(pair(SHRINE), tokyo("TRANSIT"), lookup);
-      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min public transport.`);
+      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min trip by public transport.`);
+    });
+
+    it("skips an Item whose coordinate is not a finite number, pairing its neighbours instead", () => {
+      const items = [
+        ...pair(BAR),
+        makeItem({ id: "nan", stopId: "tokyo", date: DAY, startTime: "12:05", endTime: "12:08", lat: Number.NaN, lng: 139.79 }),
+      ];
+      const flags = tight(items, tokyo(null), new Map([[keyOf("WALK", BAR), ok(18)]]));
+      expect(flags.map((f) => f.id)).toEqual(["tight-a-b"]);
     });
 
     it("keeps reading a stored public transport time after its departure has passed", () => {
@@ -920,7 +929,7 @@ describe("Travel times in the Flags", () => {
       const transit = hopKeys(TEMPLE, SHRINE, "TRANSIT", departure, afterwards, "read")[0];
       expect(keys).toContain(transit);
       const [flag] = tight(pair(SHRINE), stop, new Map([[transit, ok(31)]]));
-      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min public transport.`);
+      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min trip by public transport.`);
     });
 
     it("falls back to the estimate, marked, when the stored row is NONE", () => {
@@ -1142,7 +1151,7 @@ describe("flagMissingHomeConnection", () => {
       departDate: "2026-07-10",
       sortOrder: 1, // sortOrder 1 — NOT the global first
     });
-    const flags = detectFlags({
+    const flags = detectFlags({ travel: new Map(),
       stops: [datedStop],
       transports: [],
       accommodations: [makeAccom({ id: "a1", stopId: "paris", checkIn: "2026-07-06", checkOut: "2026-07-10" })],
@@ -1222,26 +1231,26 @@ describe("detectFlags — the Trip's deadline (ADR 0068)", () => {
   const ids = (flags: { id: string }[]) => flags.map((f) => f.id);
 
   it("checks the projected end against the return leg and silences return-after-hard-end", () => {
-    const flags = detectFlags({ ...base, deadline: { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT", homeward: true } });
+    const flags = detectFlags({ travel: new Map(), ...base, deadline: { kind: "return-leg", date: "2026-07-09", mode: "FLIGHT", homeward: true } });
     expect(ids(flags)).toContain("hard-end-over");
     expect(flags.find((f) => f.id === "hard-end-over")!.message).toContain("past your flight home");
     expect(ids(flags)).not.toContain("return-after-hard-end");
   });
 
   it("without a deadline input it falls back to the hard end date (legacy callers)", () => {
-    const flags = detectFlags(base);
+    const flags = detectFlags({ travel: new Map(), ...base });
     expect(ids(flags)).not.toContain("hard-end-over");
     expect(ids(flags)).not.toContain("hard-end-approaching");
     expect(ids(flags)).toContain("return-after-hard-end");
   });
 
   it("a hard-end deadline keeps return-after-hard-end live", () => {
-    const flags = detectFlags({ ...base, deadline: { kind: "hard-end", date: "2026-07-20" } });
+    const flags = detectFlags({ travel: new Map(), ...base, deadline: { kind: "hard-end", date: "2026-07-20" } });
     expect(ids(flags)).toContain("return-after-hard-end");
   });
 
   it("an explicit null deadline means no deadline flags at all", () => {
-    const flags = detectFlags({ ...base, deadline: null });
+    const flags = detectFlags({ travel: new Map(), ...base, deadline: null });
     expect(ids(flags)).not.toContain("hard-end-over");
     expect(ids(flags)).not.toContain("hard-end-approaching");
   });
@@ -1286,11 +1295,11 @@ describe("detectFlags — hiddenStopIds (Surprise)", () => {
   };
 
   it("a hidden Stop with no accommodation raises nothing; a visible one still does", () => {
-    const ids = detectFlags({ ...base, hiddenStopIds: ["paris"] }).map((f) => f.id);
+    const ids = detectFlags({ travel: new Map(), ...base, hiddenStopIds: ["paris"] }).map((f) => f.id);
     expect(ids).not.toContain("stop-no-accom-paris");
     expect(ids).toContain("stop-no-accom-rome");
     // Without the input, both fire as before.
-    const all = detectFlags(base).map((f) => f.id);
+    const all = detectFlags({ travel: new Map(), ...base }).map((f) => f.id);
     expect(all).toEqual(expect.arrayContaining(["stop-no-accom-paris", "stop-no-accom-rome"]));
   });
 
@@ -1299,7 +1308,7 @@ describe("detectFlags — hiddenStopIds (Surprise)", () => {
       makeAccom({ id: "a1", stopId: "paris", checkIn: "2026-07-01", checkOut: "2026-07-02" }),
       makeAccom({ id: "a2", stopId: "rome", checkIn: "2026-07-04", checkOut: "2026-07-05" }),
     ];
-    const ids = detectFlags({ ...base, accommodations, hiddenStopIds: ["paris"] }).map((f) => f.id);
+    const ids = detectFlags({ travel: new Map(), ...base, accommodations, hiddenStopIds: ["paris"] }).map((f) => f.id);
     expect(ids).not.toContain("accom-gap-paris");
     expect(ids).toContain("accom-gap-rome");
   });
@@ -1313,7 +1322,7 @@ describe("detectFlags — hiddenStopIds (Surprise)", () => {
       // 2026-07-06 (Rome, visible): the same
       ...Array.from({ length: 7 }, (_, i) => timed(`r${i}`, "2026-07-06", "10:00", "11:00", i, i)),
     ];
-    const flags = detectFlags({ ...base, items, hiddenStopIds: ["paris"] });
+    const flags = detectFlags({ travel: new Map(), ...base, items, hiddenStopIds: ["paris"] });
     const hiddenDays = flags.filter((f) => f.date && f.date >= "2026-07-01" && f.date <= "2026-07-04");
     expect(hiddenDays).toEqual([]);
     const ids = flags.map((f) => f.id);
