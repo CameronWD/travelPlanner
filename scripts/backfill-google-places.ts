@@ -16,10 +16,11 @@ import "./load-env";
 import { db } from "@/lib/db";
 import { fetchVenueDetails, geocodePlaceDetailed, hasServerKey, locateVenue, type GeoCandidate } from "@/lib/geocode";
 import type { LatLng } from "@/lib/geo";
-import { formatRow, verdict, type BackfillKind, type BackfillVerdict } from "@/lib/backfill-places";
+import { formatRow, hasAnchor, verdict, type BackfillKind, type BackfillVerdict } from "@/lib/backfill-places";
 import { itemFamilyRecipientsForSave, writeItemFamily } from "@/lib/item-family";
 import { serializeOpeningHours } from "@/lib/validations/opening-hours";
 import { safeWebHref } from "@/lib/url";
+import { resolveHomeTimezone, resolveStopTimezone } from "@/lib/tz-point";
 import { dbTargetLine } from "./lib/script-guards";
 
 const KINDS: BackfillKind[] = ["item", "stop", "accommodation", "transport-dep", "transport-arr", "marker", "home"];
@@ -29,14 +30,16 @@ interface Candidate {
   id: string;
   query: string;
   old: LatLng | null;
+  anchor: string;
   lookup: () => Promise<GeoCandidate | null>;
-  write: (found: GeoCandidate) => Promise<void>;
+  write: (found: GeoCandidate, v: BackfillVerdict) => Promise<void>;
 }
 
 const point = (lat: number | null, lng: number | null): LatLng | null => (lat != null && lng != null ? { lat, lng } : null);
 const join = (...parts: (string | null | undefined)[]) => parts.map((p) => p?.trim()).filter(Boolean).join(", ");
 
 let detailCalls = 0;
+const detailOutcomes = { filled: 0, empty: 0, failed: 0 };
 
 async function fillItemDetails(itemId: string, placeId: string): Promise<void> {
   const item = await db.item.findUnique({
@@ -46,7 +49,12 @@ async function fillItemDetails(itemId: string, placeId: string): Promise<void> {
   if (!item) return;
   detailCalls++;
   const details = await fetchVenueDetails(placeId);
-  if (!details) return;
+  if (!details) {
+    detailOutcomes.failed++;
+    throw new Error("Google returned no details");
+  }
+  if (!details.openingHours && !details.website && !details.businessStatus) detailOutcomes.empty++;
+  else detailOutcomes.filled++;
   const hours = item.openingHours ? null : serializeOpeningHours(details.openingHours);
   const link = item.link ? null : safeWebHref(details.website);
   await db.$transaction(async (tx) => {
@@ -73,7 +81,7 @@ async function collect(): Promise<Candidate[]> {
   const out: Candidate[] = [];
 
   const items = await db.item.findMany({
-    where: { placeId: null, OR: [{ address: { not: null } }, { lat: { not: null } }] },
+    where: { placeId: null, trip: { deletedAt: null }, OR: [{ address: { not: "" } }, { lat: { not: null } }] },
     select: { id: true, title: true, address: true, lat: true, lng: true },
   });
   for (const r of items) {
@@ -82,6 +90,7 @@ async function collect(): Promise<Candidate[]> {
       kind: "item",
       id: r.id,
       query: join(r.title, r.address),
+      anchor: r.address ?? "",
       old,
       lookup: () => locateVenue(r.title, r.address ?? "", { near: old ?? undefined }),
       write: async (f) => {
@@ -89,14 +98,19 @@ async function collect(): Promise<Candidate[]> {
           where: { id: r.id },
           data: { lat: f.lat, lng: f.lng, placeId: f.placeId, ...(f.countryCode ? { countryCode: f.countryCode } : {}) },
         });
-        if (f.placeId) await fillItemDetails(r.id, f.placeId);
+        if (!f.placeId) return;
+        try {
+          await fillItemDetails(r.id, f.placeId);
+        } catch (err) {
+          console.error(`  item ${r.id}: coordinates and place ID committed; details failed:`, err);
+        }
       },
     });
   }
 
   const stops = await db.stop.findMany({
-    where: { placeId: null },
-    select: { id: true, name: true, country: true, lat: true, lng: true },
+    where: { placeId: null, trip: { deletedAt: null } },
+    select: { id: true, name: true, country: true, timezone: true, lat: true, lng: true },
   });
   for (const r of stops) {
     const old = point(r.lat, r.lng);
@@ -105,19 +119,30 @@ async function collect(): Promise<Candidate[]> {
       kind: "stop",
       id: r.id,
       query,
+      anchor: query,
       old,
       lookup: () => geocodePlaceDetailed(query, { near: old ?? undefined }),
-      write: async (f) => {
+      write: async (f, v) => {
+        const timezone =
+          v === "new" && !r.timezone
+            ? resolveStopTimezone({ lat: f.lat, lng: f.lng, countryCode: f.countryCode, country: r.country })
+            : null;
         await db.stop.update({
           where: { id: r.id },
-          data: { lat: f.lat, lng: f.lng, placeId: f.placeId, ...(f.countryCode ? { countryCode: f.countryCode } : {}) },
+          data: {
+            lat: f.lat,
+            lng: f.lng,
+            placeId: f.placeId,
+            ...(f.countryCode ? { countryCode: f.countryCode } : {}),
+            ...(timezone ? { timezone } : {}),
+          },
         });
       },
     });
   }
 
   const stays = await db.accommodation.findMany({
-    where: { placeId: null, OR: [{ address: { not: null } }, { lat: { not: null } }] },
+    where: { placeId: null, trip: { deletedAt: null }, OR: [{ address: { not: "" } }, { lat: { not: null } }] },
     select: { id: true, name: true, address: true, lat: true, lng: true },
   });
   for (const r of stays) {
@@ -126,6 +151,7 @@ async function collect(): Promise<Candidate[]> {
       kind: "accommodation",
       id: r.id,
       query: join(r.name, r.address),
+      anchor: r.address ?? "",
       old,
       lookup: () => locateVenue(r.name, r.address ?? "", { near: old ?? undefined }),
       write: async (f) => {
@@ -135,7 +161,7 @@ async function collect(): Promise<Candidate[]> {
   }
 
   const transports = await db.transport.findMany({
-    where: { OR: [{ depPlace: { not: null }, depPlaceId: null }, { arrPlace: { not: null }, arrPlaceId: null }] },
+    where: { trip: { deletedAt: null }, OR: [{ depPlace: { not: null }, depPlaceId: null }, { arrPlace: { not: null }, arrPlaceId: null }] },
     select: { id: true, depPlace: true, depPlaceId: true, depLat: true, depLng: true, arrPlace: true, arrPlaceId: true, arrLat: true, arrLng: true },
   });
   for (const r of transports) {
@@ -145,6 +171,7 @@ async function collect(): Promise<Candidate[]> {
         kind: "transport-dep",
         id: r.id,
         query: place,
+        anchor: place,
         old: point(r.depLat, r.depLng),
         lookup: () => geocodePlaceDetailed(place),
         write: async (f) => {
@@ -158,6 +185,7 @@ async function collect(): Promise<Candidate[]> {
         kind: "transport-arr",
         id: r.id,
         query: place,
+        anchor: place,
         old: point(r.arrLat, r.arrLng),
         lookup: () => geocodePlaceDetailed(place),
         write: async (f) => {
@@ -168,7 +196,7 @@ async function collect(): Promise<Candidate[]> {
   }
 
   const markers = await db.marker.findMany({
-    where: { placeId: null },
+    where: { placeId: null, OR: [{ lat: { not: null } }, { city: { not: "" } }, { country: { not: "" } }] },
     select: { id: true, title: true, city: true, country: true, lat: true, lng: true },
   });
   for (const r of markers) {
@@ -177,6 +205,7 @@ async function collect(): Promise<Candidate[]> {
       kind: "marker",
       id: r.id,
       query: join(r.title, r.city, r.country),
+      anchor: join(r.city, r.country),
       old,
       lookup: () => locateVenue(r.title, join(r.city, r.country), { near: old ?? undefined }),
       write: async (f) => {
@@ -189,8 +218,8 @@ async function collect(): Promise<Candidate[]> {
   }
 
   const trips = await db.trip.findMany({
-    where: { homeName: { not: null }, homePlaceId: null },
-    select: { id: true, homeName: true, homeLat: true, homeLng: true },
+    where: { homeName: { not: null }, homePlaceId: null, deletedAt: null },
+    select: { id: true, homeName: true, homeTimezone: true, homeLat: true, homeLng: true },
   });
   for (const r of trips) {
     const name = r.homeName as string;
@@ -198,10 +227,24 @@ async function collect(): Promise<Candidate[]> {
       kind: "home",
       id: r.id,
       query: name,
+      anchor: name,
       old: point(r.homeLat, r.homeLng),
       lookup: () => geocodePlaceDetailed(name),
-      write: async (f) => {
-        await db.trip.update({ where: { id: r.id }, data: { homeLat: f.lat, homeLng: f.lng, homePlaceId: f.placeId } });
+      write: async (f, v) => {
+        const homeTimezone =
+          v === "new" && !r.homeTimezone
+            ? resolveHomeTimezone({ lat: f.lat, lng: f.lng, countryCode: f.countryCode })
+            : null;
+        await db.trip.update({
+          where: { id: r.id },
+          data: {
+            homeLat: f.lat,
+            homeLng: f.lng,
+            homePlaceId: f.placeId,
+            ...(f.countryCode ? { homeCountryCode: f.countryCode } : {}),
+            ...(homeTimezone ? { homeTimezone } : {}),
+          },
+        });
       },
     });
   }
@@ -220,31 +263,33 @@ async function main() {
 
   const candidates = await collect();
   const tally = new Map<BackfillKind, Record<"scanned" | BackfillVerdict, number>>(
-    KINDS.map((k) => [k, { scanned: 0, accept: 0, new: 0, "too-far": 0, "no-match": 0 }]),
+    KINDS.map((k) => [k, { scanned: 0, accept: 0, new: 0, "too-far": 0, "no-match": 0, "no-anchor": 0 }]),
   );
 
   for (const c of candidates) {
-    const found = await c.lookup();
-    const v = verdict(c.kind, c.old, found);
+    const anchored = hasAnchor(c.anchor, c.old);
+    const found = anchored ? await c.lookup() : null;
+    const v: BackfillVerdict = anchored ? verdict(c.kind, c.old, found) : "no-anchor";
     console.log(formatRow({ kind: c.kind, id: c.id, query: c.query, old: c.old, next: found, verdict: v }));
     const t = tally.get(c.kind)!;
     t.scanned++;
     t[v]++;
     if (execute && found && (v === "accept" || v === "new")) {
       try {
-        await c.write(found);
+        await c.write(found, v);
       } catch (err) {
-        console.error(`  write failed for ${c.kind} ${c.id}:`, err);
+        console.error(`  ${c.kind} ${c.id}: write failed, row left unchanged:`, err);
       }
     }
   }
 
-  console.log("\nkind · scanned / accept / new / too-far / no-match");
+  console.log("\nkind · scanned / accept / new / too-far / no-match / no anchor (skipped)");
   for (const k of KINDS) {
     const t = tally.get(k)!;
-    console.log(`${k} · ${t.scanned} / ${t.accept} / ${t.new} / ${t["too-far"]} / ${t["no-match"]}`);
+    console.log(`${k} · ${t.scanned} / ${t.accept} / ${t.new} / ${t["too-far"]} / ${t["no-match"]} / ${t["no-anchor"]}`);
   }
   console.log(`Enterprise detail calls: ${detailCalls}`);
+  console.log(`Item details: ${detailOutcomes.filled} filled / ${detailOutcomes.empty} empty / ${detailOutcomes.failed} failed`);
   if (!execute) console.log("\nDry run — re-run with --execute to apply.");
 }
 

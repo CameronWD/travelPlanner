@@ -1,10 +1,14 @@
 import { haversineKm, type LatLng } from "@/lib/geo";
 
 export type BackfillKind = "item" | "stop" | "accommodation" | "transport-dep" | "transport-arr" | "marker" | "home";
-export type BackfillVerdict = "accept" | "new" | "too-far" | "no-match";
+export type BackfillVerdict = "accept" | "new" | "too-far" | "no-match" | "no-anchor";
 
 export function toleranceKm(kind: BackfillKind): number {
   return kind === "stop" || kind === "home" ? 25 : 1;
+}
+
+export function hasAnchor(text: string | null | undefined, old: LatLng | null): boolean {
+  return old !== null || Boolean(text?.trim());
 }
 
 export function verdict(kind: BackfillKind, old: LatLng | null, next: LatLng | null): BackfillVerdict {
