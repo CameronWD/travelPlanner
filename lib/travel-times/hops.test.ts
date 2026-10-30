@@ -1,0 +1,259 @@
+import { describe, expect, it } from "vitest";
+import { estimateDriveMinutes, haversineKm } from "@/lib/geo";
+import {
+  dayHops,
+  effectiveLocalMode,
+  hopKeys,
+  itemDeparture,
+  pointKey,
+  resolveHop,
+  transportEnds,
+  type HopItem,
+  type TravelLookup,
+} from "./hops";
+
+const A = { lat: 35, lng: 135 };
+const NEAR = { lat: 35.01, lng: 135 };
+const FAR2 = { lat: 35.02, lng: 135 };
+const FAR = { lat: 35.1, lng: 135 };
+const OPTS = { windingFactor: 1.3, avgSpeedKph: 60 };
+const NOW = new Date("2026-11-01T00:00:00.000Z");
+
+function item(id: string, over: Partial<HopItem> = {}): HopItem {
+  return { id, date: "2026-11-02", startTime: null, endTime: null, sortOrder: 0, lat: 35, lng: 135, stopId: "s1", ...over };
+}
+
+function pairs(hops: { from: HopItem; to: HopItem }[]) {
+  return hops.map((h) => `${h.from.id}>${h.to.id}`);
+}
+
+function ok(minutes: number, distanceM = 1000, polyline: string | null = "abc") {
+  return { status: "OK" as const, minutes, distanceM, polyline };
+}
+
+describe("pointKey", () => {
+  it("rounds to 5 decimals", () => {
+    expect(pointKey({ lat: 35.123456789, lng: -0.1 })).toBe("35.12346,-0.10000");
+  });
+});
+
+describe("effectiveLocalMode", () => {
+  const stop = { id: "s1", localTravelMode: null };
+
+  it("keeps an explicit mode over a car leg", () => {
+    const car = [{ mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
+    expect(effectiveLocalMode({ id: "s1", localTravelMode: "TRANSIT" }, car)).toBe("TRANSIT");
+    expect(effectiveLocalMode({ id: "s1", localTravelMode: "DRIVE" }, [])).toBe("DRIVE");
+  });
+
+  it("infers DRIVE from a CAR leg leaving or arriving at the Stop", () => {
+    expect(effectiveLocalMode(stop, [{ mode: "CAR", fromStopId: "s1", toStopId: "s2" }])).toBe("DRIVE");
+    expect(effectiveLocalMode(stop, [{ mode: "CAR", fromStopId: "s0", toStopId: "s1" }])).toBe("DRIVE");
+  });
+
+  it("infers TRANSIT without a CAR leg at this Stop", () => {
+    expect(effectiveLocalMode(stop, [{ mode: "TRAIN", fromStopId: "s1", toStopId: "s2" }])).toBe("TRANSIT");
+    expect(effectiveLocalMode(stop, [{ mode: "CAR", fromStopId: "s2", toStopId: "s3" }])).toBe("TRANSIT");
+    expect(effectiveLocalMode(stop, [])).toBe("TRANSIT");
+  });
+
+  it("only looks at the plan's own Transports", () => {
+    const realPlan = [{ mode: "TRAIN", fromStopId: "s1", toStopId: "s2" }];
+    const forkPlan = [{ mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
+    expect(effectiveLocalMode(stop, realPlan)).toBe("TRANSIT");
+    expect(effectiveLocalMode(stop, forkPlan)).toBe("DRIVE");
+  });
+});
+
+describe("dayHops", () => {
+  it("never pairs Items across days (overnight)", () => {
+    const late = item("late", { date: "2026-11-02", startTime: "22:00", endTime: "23:30" });
+    const early = item("early", { date: "2026-11-03", startTime: "00:30", endTime: "01:30" });
+    expect(dayHops([late, early])).toEqual([]);
+  });
+
+  it("dedupes a pair both orders produce", () => {
+    const a = item("a", { startTime: "09:00", endTime: "10:00", sortOrder: 0 });
+    const b = item("b", { startTime: "11:00", endTime: "12:00", sortOrder: 1 });
+    expect(pairs(dayHops([a, b]))).toEqual(["a>b"]);
+  });
+
+  it("unions Day-map order with timed order when they differ", () => {
+    const a = item("a", { startTime: "09:00", endTime: "10:00", sortOrder: 0 });
+    const s = item("s", { startTime: "10:30", endTime: null, sortOrder: 1 });
+    const b = item("b", { startTime: "11:00", endTime: "12:00", sortOrder: 2 });
+    expect(pairs(dayHops([b, s, a]))).toEqual(["a>s", "s>b", "a>b"]);
+  });
+
+  it("puts untimed Items last in Day-map order, by sortOrder", () => {
+    const u2 = item("u2", { sortOrder: 2 });
+    const u1 = item("u1", { sortOrder: 1 });
+    const t = item("t", { startTime: "15:00", sortOrder: 9 });
+    expect(pairs(dayHops([u2, t, u1]))).toEqual(["t>u1", "u1>u2"]);
+  });
+
+  it("skips Items without a point or a date", () => {
+    const a = item("a", { startTime: "09:00", endTime: "10:00" });
+    const nowhere = item("nowhere", { startTime: "10:00", endTime: "10:30", lat: null, lng: null });
+    const undated = item("undated", { date: null, startTime: "10:15", endTime: "10:45" });
+    const b = item("b", { startTime: "11:00", endTime: "12:00" });
+    expect(pairs(dayHops([a, nowhere, undated, b]))).toEqual(["a>b"]);
+  });
+
+  it("keeps each day's hops separate", () => {
+    const a = item("a", { date: "2026-11-02", sortOrder: 0 });
+    const b = item("b", { date: "2026-11-02", sortOrder: 1 });
+    const c = item("c", { date: "2026-11-03", sortOrder: 0 });
+    const d = item("d", { date: "2026-11-03", sortOrder: 1 });
+    expect(pairs(dayHops([a, c, b, d]))).toEqual(["a>b", "c>d"]);
+  });
+});
+
+describe("transportEnds", () => {
+  const stops = new Map([
+    ["s1", { lat: 1, lng: 1 }],
+    ["s2", { lat: 2, lng: 2 }],
+    ["nowhere", { lat: null, lng: null }],
+  ]);
+  const HOME = { lat: 9, lng: 9 };
+  const car = { mode: "CAR", fromStopId: "s1", toStopId: "s2" };
+
+  it("ignores legs that are not CAR", () => {
+    expect(transportEnds({ ...car, mode: "TRAIN" }, stops, HOME)).toBeNull();
+  });
+
+  it("uses the Stops' points when the row has none", () => {
+    expect(transportEnds(car, stops, HOME)).toEqual({ from: { lat: 1, lng: 1 }, to: { lat: 2, lng: 2 } });
+  });
+
+  it("prefers a typed departure or arrival point over the Stop's", () => {
+    const t = { ...car, depLat: 1.5, depLng: 1.6, arrLat: 2.5, arrLng: 2.6 };
+    expect(transportEnds(t, stops, HOME)).toEqual({ from: { lat: 1.5, lng: 1.6 }, to: { lat: 2.5, lng: 2.6 } });
+  });
+
+  it("uses the Home point for a Home end", () => {
+    const fromHome = { mode: "CAR", fromStopId: null, toStopId: "s1", depIsHome: true };
+    expect(transportEnds(fromHome, stops, HOME)).toEqual({ from: HOME, to: { lat: 1, lng: 1 } });
+    const toHome = { mode: "CAR", fromStopId: "s2", toStopId: null, arrIsHome: true };
+    expect(transportEnds(toHome, stops, HOME)).toEqual({ from: { lat: 2, lng: 2 }, to: HOME });
+  });
+
+  it("is null when an end does not resolve", () => {
+    const fromHome = { mode: "CAR", fromStopId: null, toStopId: "s1", depIsHome: true };
+    expect(transportEnds(fromHome, stops, null)).toBeNull();
+    expect(transportEnds({ ...car, toStopId: "nowhere" }, stops, HOME)).toBeNull();
+    expect(transportEnds({ ...car, fromStopId: null }, stops, HOME)).toBeNull();
+  });
+});
+
+describe("hopKeys", () => {
+  const a = pointKey(A);
+  const near = pointKey(NEAR);
+  const far = pointKey(FAR2);
+
+  it("asks for a WALK row only under 2 km", () => {
+    expect(hopKeys(A, NEAR, "DRIVE", null, NOW)).toEqual([`WALK|${a}|${near}`, `DRIVE|${a}|${near}`]);
+    expect(hopKeys(A, FAR2, "DRIVE", null, NOW)).toEqual([`DRIVE|${a}|${far}`]);
+  });
+
+  it("floors a TRANSIT departure to 15 minutes", () => {
+    const dep = new Date("2026-11-02T09:14:59.000Z");
+    expect(hopKeys(A, FAR2, "TRANSIT", dep, NOW)).toEqual([`TRANSIT|${a}|${far}|2026-11-02T09:00:00.000Z`]);
+  });
+
+  it("asks for TRANSIT from now on, never for a past or missing departure", () => {
+    expect(hopKeys(A, FAR2, "TRANSIT", NOW, NOW)).toEqual([`TRANSIT|${a}|${far}|2026-11-01T00:00:00.000Z`]);
+    expect(hopKeys(A, FAR2, "TRANSIT", new Date(NOW.getTime() - 60_000), NOW)).toEqual([]);
+    expect(hopKeys(A, FAR2, "TRANSIT", null, NOW)).toEqual([]);
+    expect(hopKeys(A, NEAR, "TRANSIT", null, NOW)).toEqual([`WALK|${a}|${near}`]);
+  });
+});
+
+describe("resolveHop", () => {
+  const walkKey = `WALK|${pointKey(A)}|${pointKey(NEAR)}`;
+  const driveKey = `DRIVE|${pointKey(A)}|${pointKey(NEAR)}`;
+  const nearKm = haversineKm(A, NEAR);
+
+  it("is a walk when the WALK row is 20 min or less", () => {
+    const lookup: TravelLookup = new Map([[walkKey, ok(20, 1400, "walkline")], [driveKey, ok(5)]]);
+    expect(resolveHop(A, NEAR, "DRIVE", null, lookup, OPTS)).toEqual({
+      minutes: 20,
+      distanceKm: 1.4,
+      mode: "walk",
+      estimated: false,
+      polyline: "walkline",
+    });
+  });
+
+  it("takes the local mode when the walk is 21 min", () => {
+    const lookup: TravelLookup = new Map([[walkKey, ok(21)], [driveKey, ok(6, 1800, "driveline")]]);
+    expect(resolveHop(A, NEAR, "DRIVE", null, lookup, OPTS)).toEqual({
+      minutes: 6,
+      distanceKm: 1.8,
+      mode: "drive",
+      estimated: false,
+      polyline: "driveline",
+    });
+  });
+
+  it("finds rows stored under the keys hopKeys asked for (TRANSIT)", () => {
+    const dep = new Date("2026-11-02T09:07:00.000Z");
+    const keys = hopKeys(A, NEAR, "TRANSIT", dep, NOW);
+    const lookup: TravelLookup = new Map([[keys[0], ok(30)], [keys[1], ok(12, 1500, "bus")]]);
+    expect(resolveHop(A, NEAR, "TRANSIT", dep, lookup, OPTS)).toEqual({
+      minutes: 12,
+      distanceKm: 1.5,
+      mode: "transit",
+      estimated: false,
+      polyline: "bus",
+    });
+  });
+
+  it("estimates exactly as today when the local row is NONE or ERROR", () => {
+    const estimate = { minutes: (nearKm / 4.5) * 60, distanceKm: nearKm, mode: "walk", estimated: true, polyline: null };
+    for (const status of ["NONE", "ERROR"] as const) {
+      const lookup: TravelLookup = new Map([[driveKey, { status, minutes: null, distanceM: null, polyline: null }]]);
+      expect(resolveHop(A, NEAR, "DRIVE", null, lookup, OPTS)).toEqual(estimate);
+    }
+  });
+
+  it("estimates a drive beyond a 30 min walk", () => {
+    const km = haversineKm(A, FAR);
+    expect(resolveHop(A, FAR, "TRANSIT", null, new Map(), OPTS)).toEqual({
+      minutes: estimateDriveMinutes(km, OPTS),
+      distanceKm: km,
+      mode: "drive",
+      estimated: true,
+      polyline: null,
+    });
+  });
+
+  it("falls back to the estimate when the walk is long and no local row exists", () => {
+    const lookup: TravelLookup = new Map([[walkKey, ok(25)]]);
+    const hop = resolveHop(A, NEAR, "DRIVE", null, lookup, OPTS);
+    expect(hop).toMatchObject({ mode: "walk", estimated: true });
+    expect(hop.minutes).toBeCloseTo((nearKm / 4.5) * 60, 10);
+  });
+
+  it("ignores a TRANSIT row when the hop has no departure", () => {
+    const hop = resolveHop(A, FAR2, "TRANSIT", null, new Map(), OPTS);
+    expect(hop.estimated).toBe(true);
+  });
+
+  it("does not use a WALK row at 2 km or more", () => {
+    const lookup: TravelLookup = new Map([[`WALK|${pointKey(A)}|${pointKey(FAR2)}`, ok(19)]]);
+    expect(resolveHop(A, FAR2, "DRIVE", null, lookup, OPTS).estimated).toBe(true);
+  });
+});
+
+describe("itemDeparture", () => {
+  it("is the Item's date and end time in the Stop's zone", () => {
+    const it2 = item("a", { date: "2026-11-02", endTime: "10:00" });
+    expect(itemDeparture(it2, "Asia/Tokyo")?.toISOString()).toBe("2026-11-02T01:00:00.000Z");
+  });
+
+  it("is null without a date or end time", () => {
+    expect(itemDeparture(item("a", { endTime: null }), "Asia/Tokyo")).toBeNull();
+    expect(itemDeparture(item("a", { date: null, endTime: "10:00" }), "Asia/Tokyo")).toBeNull();
+  });
+});
