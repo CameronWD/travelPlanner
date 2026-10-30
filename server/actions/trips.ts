@@ -103,15 +103,15 @@ export async function createTrip(
     homeTimezone: string | null;
   } | null = null;
   const trimmedHome = rawHomeName?.trim();
-  if (trimmedHome && homeLat !== undefined && homeLng !== undefined) {
-    const resolvedCountryCode = homeCountryCode ?? null;
+  const homePick = pickedPlace({ placeId: homePlaceId, lat: homeLat, lng: homeLng, countryCode: homeCountryCode });
+  if (trimmedHome && homePick) {
     homeFields = {
       homeName: trimmedHome,
-      homeLat,
-      homeLng,
-      homeCountryCode: resolvedCountryCode,
-      homePlaceId: homePlaceId ?? null,
-      homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: homeLat, lng: homeLng, countryCode: resolvedCountryCode }),
+      homeLat: homePick.lat,
+      homeLng: homePick.lng,
+      homeCountryCode: homePick.countryCode,
+      homePlaceId: homePick.placeId,
+      homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: homePick.lat, lng: homePick.lng, countryCode: homePick.countryCode }),
     };
   } else if (trimmedHome) {
     const geo = await geocodePlaceDetailed(trimmedHome);

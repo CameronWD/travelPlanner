@@ -1310,7 +1310,7 @@ describe("updateStop (PATCH, ADR 0075)", () => {
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
     expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lat: 43.77, lng: 11.25, placeId: "florence-id" }) }));
   });
-  it("a typed rename that says where is looked up and stores the found place ID; a miss on a rough Stop keeps the old place", async () => {
+  it("a typed rename that says where is looked up and stores the found place ID; a miss on a rough Stop keeps the old point but drops its place ID", async () => {
     stopFindUniqueMock.mockResolvedValue({ ...held, placeId: "rome-id" });
     chapterFindUniqueMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
     stopUpdateMock.mockResolvedValue({});
@@ -1321,7 +1321,7 @@ describe("updateStop (PATCH, ADR 0075)", () => {
     await updateStop("s1", { name: "Nowhere", country: "Italy" });
     const data = stopUpdateMock.mock.calls.at(-1)![0].data;
     expect(data).not.toHaveProperty("lat");
-    expect(data).not.toHaveProperty("placeId");
+    expect(data).toMatchObject({ name: "Nowhere", placeId: null });
   });
   it("a scheduled Stop's lookup miss clears the place ID with the point", async () => {
     stopFindUniqueMock.mockResolvedValue({ ...held, placeId: "rome-id", nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "Europe/Rome", chapterId: null });
@@ -1329,6 +1329,14 @@ describe("updateStop (PATCH, ADR 0075)", () => {
     geocodePlaceDetailedMock.mockResolvedValue(null);
     await updateStop("s1", { name: "Nowhere", country: "Italy" });
     expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lat: null, lng: null, placeId: null }) }));
+  });
+  it("a name-only rename keeps the point (today's rule) and drops the place ID", async () => {
+    stopFindUniqueMock.mockResolvedValue({ ...held, placeId: "rome-id" });
+    chapterFindUniqueMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { name: "Roma" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ name: "Roma", lat: 41.9, lng: 12.5, placeId: null }) }));
   });
   it("the form's save of an unchanged scheduled Stop looks nothing up and keeps its place", async () => {
     stopFindUniqueMock.mockResolvedValue({ ...held, placeId: "rome-id", nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "Europe/Rome", chapterId: null });

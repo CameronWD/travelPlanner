@@ -100,16 +100,25 @@ describe("toCreateInput", () => {
     expect(input).not.toHaveProperty("roughMonth");
     expect(input).not.toHaveProperty("startDate");
   });
-  it("a picked home sends its coordinates; a typed one only its name", () => {
-    expect(toCreateInput(draftReducer(named(), { type: "pick-home", place: PORTLAND }))).toMatchObject({ homeName: "Portland", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us", homeCurrency: "USD" });
+  it("a picked home sends its place ID and coordinates; a typed one only its name", () => {
+    expect(toCreateInput(draftReducer(named(), { type: "pick-home", place: { ...PORTLAND, placeId: "portland-id" } })))
+      .toMatchObject({ homeName: "Portland", homePlaceId: "portland-id", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us", homeCurrency: "USD" });
     const typed = toCreateInput(named({ homeName: "Somewhere" }));
     expect(typed).toMatchObject({ homeName: "Somewhere" });
     expect(typed).not.toHaveProperty("homeLat");
   });
+  it("a pick without a place ID sends only the name, for the server to look up (coordinates come only with a place ID)", () => {
+    const input = toCreateInput(draftReducer(named(), { type: "pick-home", place: PORTLAND }));
+    expect(input).toMatchObject({ homeName: "Portland", homeCurrency: "USD" });
+    expect(input).not.toHaveProperty("homeLat");
+    expect(input).not.toHaveProperty("homeCountryCode");
+    const past = toCreateInput(named({ past: true, startDate: "2026-07-01", endDate: "2026-07-10", stops: [{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp" }] }));
+    expect(past.stops).toEqual([{ name: "Kyoto", countryCode: "jp" }]);
+  });
   it("past mode sends stops and no home", () => {
-    const d = named({ past: true, startDate: "2026-07-01", endDate: "2026-07-10", homeName: "Sydney", stops: [{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp" }, { name: "Nara" }] });
+    const d = named({ past: true, startDate: "2026-07-01", endDate: "2026-07-10", homeName: "Sydney", stops: [{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp", placeId: "kyoto-id" }, { name: "Nara" }] });
     const input = toCreateInput(d);
-    expect(input.stops).toEqual([{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp" }, { name: "Nara" }]);
+    expect(input.stops).toEqual([{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp", placeId: "kyoto-id" }, { name: "Nara" }]);
     expect(input).not.toHaveProperty("homeName");
   });
   it("threads fromShareToken", () => {

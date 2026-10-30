@@ -265,7 +265,8 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await userEvent.click(screen.getByRole("button", { name: /Add trip/ }));
     await waitFor(() =>
       expect(createTrip).toHaveBeenCalledWith(
-        { name: "Kansai", homeCurrency: "AUD", startDate: "2026-08-01", endDate: "2026-08-10", stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }] },
+        // A pick with no place ID (until the Google field lands) sends its name; the server looks it up.
+        { name: "Kansai", homeCurrency: "AUD", startDate: "2026-08-01", endDate: "2026-08-10", stops: [{ name: "Kyoto", countryCode: "jp" }] },
         null,
         null,
       ),
@@ -289,7 +290,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await heading("Got a photo for it?");
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     await waitFor(() =>
-      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Portland", homeCurrency: "USD", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us" }), null, null),
+      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Portland", homeCurrency: "USD" }), null, null),
     );
     // Let the submit transition finish before the test ends (and the tree unmounts):
     // an in-flight create left pending across tests hangs this vitest/happy-dom/React 19 setup.

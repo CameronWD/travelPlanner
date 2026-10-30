@@ -70,6 +70,19 @@ describe("mergeStopPatch", () => {
     expect(mergeStopPatch(located, { name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, countryCode: "it" }))
       .toMatchObject({ lat: 41.9, placeId: "rome-id" });
   });
+  it("a name-only rename keeps the point but not the place ID", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "rome-id" }, { name: "Roma" });
+    expect(m).toMatchObject({ name: "Roma", lat: 41.9, lng: 12.5 });
+    expect(m).not.toHaveProperty("placeId");
+  });
+  it("a place ID differing only in case is a new place", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "ChIJabc" }, { placeId: "ChIJABC", lat: 41.9, lng: 12.5 });
+    expect(m).toMatchObject({ placeId: "ChIJABC" });
+  });
+  it("a name differing only by surrounding spaces is not a rename", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "rome-id" }, { mode: "rough", name: "Rome ", country: "Italy", nights: 2 });
+    expect(m).toMatchObject({ lat: 41.9, placeId: "rome-id" });
+  });
   it("the form's save of a typed rename says where, so the save re-looks it up", () => {
     const m = mergeStopPatch({ ...rough, placeId: "rome-id" }, { mode: "rough", name: "Florence", country: "Italy", nights: 3 });
     expect(m).not.toHaveProperty("lat");

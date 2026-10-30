@@ -30,14 +30,19 @@ const tripFields = {
   roundTrip: z.boolean().optional(),
 };
 
-const roughStopInput = z.object({
-  name: z.string().trim().min(1, "Place name is required").max(120, "Place name must be 120 characters or fewer"),
-  lat: latitude.optional(),
-  lng: longitude.optional(),
-  countryCode: countryCode.optional(),
-  placeId: placeId.optional(),
-  nights: z.number().int().min(0).max(366).optional(),
-});
+const roughStopInput = z
+  .object({
+    name: z.string().trim().min(1, "Place name is required").max(120, "Place name must be 120 characters or fewer"),
+    lat: latitude.optional(),
+    lng: longitude.optional(),
+    countryCode: countryCode.optional(),
+    placeId: placeId.optional(),
+    nights: z.number().int().min(0).max(366).optional(),
+  })
+  .refine((d) => d.placeId != null || (d.lat === undefined && d.lng === undefined), {
+    message: "Coordinates only come with a picked place",
+    path: ["lat"],
+  });
 
 /** The most Stops New trip creates — typed places, or a Route copy's. */
 export const MAX_NEW_TRIP_STOPS = 30;
@@ -49,8 +54,14 @@ const createOnlyFields = {
   fromShareToken: z.string().trim().min(1).max(200).optional(),
 };
 
-function withDateRules<T extends z.ZodType<{ startDate?: string; endDate?: string; hardEndDate?: string }>>(schema: T) {
+function withTripRules<
+  T extends z.ZodType<{ startDate?: string; endDate?: string; hardEndDate?: string; homePlaceId?: string; homeLat?: number; homeLng?: number }>,
+>(schema: T) {
   return schema
+    .refine((d) => d.homePlaceId != null || (d.homeLat === undefined && d.homeLng === undefined), {
+      message: "Coordinates only come with a picked place",
+      path: ["homeLat"],
+    })
     .refine((d) => d.startDate == null || d.endDate == null || d.endDate >= d.startDate, {
       message: "End date must be on or after the start date",
       path: ["endDate"],
@@ -61,8 +72,8 @@ function withDateRules<T extends z.ZodType<{ startDate?: string; endDate?: strin
     });
 }
 
-export const tripSchema = withDateRules(z.object(tripFields));
+export const tripSchema = withTripRules(z.object(tripFields));
 export type TripInput = z.infer<typeof tripSchema>;
 
-export const createTripSchema = withDateRules(z.object({ ...tripFields, ...createOnlyFields }));
+export const createTripSchema = withTripRules(z.object({ ...tripFields, ...createOnlyFields }));
 export type CreateTripInput = z.infer<typeof createTripSchema>;

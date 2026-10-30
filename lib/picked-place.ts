@@ -9,6 +9,7 @@ export interface PickedPlace {
   lng: number;
   /** ISO 3166-1 alpha-2, lower-case (as Stop.countryCode stores it). */
   countryCode?: string;
+  placeId?: string;
 }
 
 export function toPickedPlace(c: GeoCandidate): PickedPlace | null {

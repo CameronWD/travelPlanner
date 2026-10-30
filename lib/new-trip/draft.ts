@@ -13,6 +13,7 @@ interface DraftStop {
   lat?: number;
   lng?: number;
   countryCode?: string;
+  placeId?: string;
 }
 
 export interface Draft {
@@ -120,14 +121,21 @@ export function toCreateInput(d: Draft, extra?: { fromShareToken?: string }): Cr
     ...(exact && d.startDate && d.endDate ? { startDate: d.startDate, endDate: d.endDate } : {}),
     ...(!d.past && d.dateMode === "rough" && d.roughMonth ? { roughMonth: d.roughMonth } : {}),
     ...(!d.past && home ? { homeName: home } : {}),
-    ...(!d.past && home && d.homePlace
-      ? { homeLat: d.homePlace.lat, homeLng: d.homePlace.lng, ...(d.homePlace.countryCode ? { homeCountryCode: d.homePlace.countryCode } : {}) }
+    // Coordinates go only with a place ID (the server refuses them alone); a
+    // pick without one sends its name and the server looks it up.
+    ...(!d.past && home && d.homePlace?.placeId
+      ? {
+          homePlaceId: d.homePlace.placeId,
+          homeLat: d.homePlace.lat,
+          homeLng: d.homePlace.lng,
+          ...(d.homePlace.countryCode ? { homeCountryCode: d.homePlace.countryCode } : {}),
+        }
       : {}),
     ...(d.past && d.stops.length
       ? {
           stops: d.stops.map((s) => ({
             name: s.name,
-            ...(s.lat !== undefined && s.lng !== undefined ? { lat: s.lat, lng: s.lng } : {}),
+            ...(s.placeId && s.lat !== undefined && s.lng !== undefined ? { placeId: s.placeId, lat: s.lat, lng: s.lng } : {}),
             ...(s.countryCode ? { countryCode: s.countryCode } : {}),
           })),
         }

@@ -92,15 +92,18 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
   // Forms resend the whole Stop, so only a value that differs from the row's
   // says where — else every save of an unchanged place would re-bill a lookup.
   // A sent country says where on a rename too: typing a new name re-locates.
-  const same = (v: unknown) => (v === "" || v === undefined ? null : typeof v === "string" ? v.toLowerCase() : v);
-  const differs = (sent: unknown, row: unknown) => sent !== undefined && same(sent) !== same(row);
-  const renamed = patch.name !== undefined && patch.name !== current.name;
+  // Text compares trimmed and case-blind (zod trims later); a place ID is case-sensitive.
+  const text = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase() || null : (v ?? null));
+  const differs = (sent: unknown, row: unknown) => sent !== undefined && text(sent) !== text(row);
+  const renamed = differs(patch.name, current.name);
+  const newPlaceId = patch.placeId !== undefined && (patch.placeId || null) !== current.placeId;
   const saysWhere =
     (patch.country !== undefined && (renamed || differs(patch.country, current.country))) ||
-    [differs(patch.countryCode, current.countryCode), differs(patch.lat, current.lat), differs(patch.lng, current.lng), differs(patch.placeId, current.placeId)].some(Boolean);
+    [differs(patch.countryCode, current.countryCode), differs(patch.lat, current.lat), differs(patch.lng, current.lng), newPlaceId].some(Boolean);
+  // A rename that keeps the point (today's rule) is no longer that place: its ID goes.
   const point = saysWhere
     ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined, placeId: patch.placeId ?? undefined }
-    : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: current.placeId ?? undefined };
+    : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: renamed ? undefined : (current.placeId ?? undefined) };
   const notes = patched(patch.notes, current.notes);
   const place = {
     name: patch.name ?? current.name,

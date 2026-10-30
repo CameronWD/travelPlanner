@@ -420,8 +420,9 @@ export async function updateStop(
       }
     }
 
-    // On a geocode miss, omit lat/lng/placeId from the update so we don't clobber previously-good
-    // coordinates — unlike create paths which write explicit null.
+    // On a geocode miss, omit lat/lng from the update so we don't clobber previously-good
+    // coordinates — unlike create paths which write explicit null. The place ID still
+    // goes: the kept point is no longer known to be that place.
     // ADR 0073: the lone-Stop rule runs in the same transaction as the update.
     let updated;
     try {
@@ -432,7 +433,8 @@ export async function updateStop(
             name,
             country: country ?? null,
             countryCode: updateRoughCountryCode,
-            ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng, placeId: updateRoughPlaceId } : {}),
+            ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng } : {}),
+            placeId: updateRoughPlaceId,
             nights,
             chapterId: chapterId ?? null,
             notes: notes ?? null,
