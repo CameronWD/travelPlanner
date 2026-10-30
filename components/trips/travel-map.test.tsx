@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { hueHex } from "@/lib/map/palette";
 
 const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
@@ -10,6 +10,7 @@ const hoisted = vi.hoisted(() => ({ theme: "light" as "light" | "dark" }));
 vi.mock("@/components/ui/theme-provider", () => ({ useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => "/trips", useSearchParams: () => new URLSearchParams() }));
 
+import { resetMapsAuthForTests } from "@/components/map/maps-auth";
 import { TravelMap, type TravelMapTrip } from "./travel-map";
 
 const europe: TravelMapTrip = { id: "t1", name: "Europe", hue: "coral", when: "upcoming", points: [{ lat: 51.5, lng: -0.12, name: "London" }, { lat: 41.9, lng: 12.5, name: "Rome" }] };
@@ -19,6 +20,7 @@ const pinHtmls = () => screen.getAllByTestId("marker").map((m) => m.querySelecto
 
 beforeEach(() => {
   mock.reset();
+  resetMapsAuthForTests();
   hoisted.theme = "light";
   vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
   vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
@@ -101,9 +103,10 @@ describe("TravelMap", () => {
   });
 
   it("calls onFail when Google refuses the key", () => {
-    mock.status.current = "AUTH_FAILURE";
     const onFail = vi.fn();
     render(<TravelMap trips={[europe]} filterTripId={null} variant="desktop" onFail={onFail} />);
+    expect(onFail).not.toHaveBeenCalled();
+    act(() => window.gm_authFailure!());
     expect(onFail).toHaveBeenCalled();
   });
 

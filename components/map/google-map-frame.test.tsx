@@ -6,6 +6,7 @@ const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock
 vi.mock("@vis.gl/react-google-maps", () => mock.module);
 
 import { GoogleMapFrame } from "./google-map-frame";
+import { resetMapsAuthForTests } from "./maps-auth";
 import { HtmlPin } from "./html-pin";
 import { MapPolyline } from "./map-polyline";
 import { MapUnavailable } from "./map-unavailable";
@@ -21,6 +22,7 @@ beforeEach(() => {
   mock.reset();
   vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
   vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+  resetMapsAuthForTests();
   delete window.gm_authFailure;
 });
 
@@ -55,6 +57,18 @@ describe("GoogleMapFrame", () => {
     expect(props.clickableIcons).toBe(false);
   });
 
+  it("starts on a world view when the caller gives no camera", () => {
+    render(<GoogleMapFrame fallback={FALLBACK} dark={false} />);
+    expect(last(mock.recorded.map)).toMatchObject({ defaultCenter: { lat: 20, lng: 0 }, defaultZoom: 2 });
+  });
+
+  it("lets the caller's camera and controls win over the defaults", () => {
+    render(
+      <GoogleMapFrame fallback={FALLBACK} dark={false} mapProps={{ defaultCenter: { lat: 1, lng: 2 }, defaultZoom: 5, zoomControl: false }} />,
+    );
+    expect(last(mock.recorded.map)).toMatchObject({ defaultCenter: { lat: 1, lng: 2 }, defaultZoom: 5, zoomControl: false });
+  });
+
   it("remounts the map in the dark scheme when dark flips", () => {
     const { rerender } = render(<GoogleMapFrame fallback={FALLBACK} dark={false} />);
     rerender(<GoogleMapFrame fallback={FALLBACK} dark />);
@@ -87,15 +101,40 @@ describe("GoogleMapFrame", () => {
     expect(onFail).toHaveBeenCalledTimes(1);
   });
 
-  it("restores a previous gm_authFailure on unmount", () => {
+  it("falls back at once when Google refused the key before this frame mounted", () => {
+    const first = render(<GoogleMapFrame fallback={FALLBACK} dark={false} />);
+    act(() => window.gm_authFailure!());
+    first.unmount();
+    const onFail = vi.fn();
+    render(<GoogleMapFrame fallback={FALLBACK} dark={false} onFail={onFail} />);
+    expect(screen.getByText("No map today")).toBeInTheDocument();
+    expect(screen.queryByTestId("gmap")).not.toBeInTheDocument();
+    expect(onFail).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back in every mounted frame on one gm_authFailure", () => {
+    render(
+      <>
+        <GoogleMapFrame fallback={<p>First fallback</p>} dark={false} />
+        <GoogleMapFrame fallback={<p>Second fallback</p>} dark={false} />
+      </>,
+    );
+    expect(screen.getAllByTestId("gmap")).toHaveLength(2);
+    act(() => window.gm_authFailure!());
+    expect(screen.getByText("First fallback")).toBeInTheDocument();
+    expect(screen.getByText("Second fallback")).toBeInTheDocument();
+    expect(screen.queryByTestId("gmap")).not.toBeInTheDocument();
+  });
+
+  it("still calls a gm_authFailure handler installed before it", () => {
     const previous = vi.fn();
     window.gm_authFailure = previous;
     const { unmount } = render(<GoogleMapFrame fallback={FALLBACK} dark={false} />);
-    expect(window.gm_authFailure).not.toBe(previous);
+    unmount();
+    render(<GoogleMapFrame fallback={FALLBACK} dark={false} />);
     act(() => window.gm_authFailure!());
     expect(previous).toHaveBeenCalledTimes(1);
-    unmount();
-    expect(window.gm_authFailure).toBe(previous);
+    expect(screen.getByText("No map today")).toBeInTheDocument();
   });
 
   it("falls back when a child throws", () => {
@@ -256,6 +295,16 @@ describe("useFitBounds", () => {
     mock.map.getZoom.mockReturnValue(19);
     onIdle();
     expect(mock.map.setZoom).toHaveBeenCalledWith(14);
+  });
+
+  it("drops a pending maxZoom clamp when the points change or it unmounts", () => {
+    const remove = vi.fn();
+    mock.map.addListener.mockReturnValue({ remove });
+    const { rerender, unmount } = render(<Probe points={[{ lat: 1, lng: 2 }, { lat: 1.001, lng: 2.001 }]} maxZoom={14} />);
+    rerender(<Probe points={[{ lat: 3, lng: 4 }, { lat: 3.001, lng: 4.001 }]} maxZoom={14} />);
+    expect(remove).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(remove).toHaveBeenCalledTimes(2);
   });
 
   it("does not refit when the same points arrive as a new array", () => {

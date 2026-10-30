@@ -11,12 +11,7 @@ import {
 } from "@vis.gl/react-google-maps";
 import { cn } from "@/lib/cn";
 import { mapsConfig } from "@/lib/map/google-config";
-
-declare global {
-  interface Window {
-    gm_authFailure?: () => void;
-  }
-}
+import { useMapsAuthFailed } from "./maps-auth";
 
 export interface GoogleMapFrameProps {
   fallback: React.ReactNode;
@@ -25,10 +20,12 @@ export interface GoogleMapFrameProps {
   style?: React.CSSProperties;
   role?: string;
   "aria-label"?: string;
-  mapProps?: Omit<MapProps, "mapId" | "colorScheme">;
+  mapProps?: Omit<MapProps, "mapId" | "colorScheme" | "style">;
   onFail?: () => void;
   children?: React.ReactNode;
 }
+
+const WORLD_CENTER = { lat: 20, lng: 0 };
 
 // With a refused key, a client-side navigation mounts markers on a dead Maps library and they throw.
 class MapBoundary extends React.Component<
@@ -47,34 +44,19 @@ class MapBoundary extends React.Component<
   }
 }
 
-// Google reports a refused key or referrer only through this global; the vis.gl wrapper never surfaces it.
-function useGmAuthFailure(onFail: () => void) {
-  const report = React.useEffectEvent(onFail);
-  React.useEffect(() => {
-    const previous = window.gm_authFailure;
-    const handler = () => {
-      previous?.();
-      report();
-    };
-    window.gm_authFailure = handler;
-    return () => {
-      if (window.gm_authFailure === handler) window.gm_authFailure = previous;
-    };
-  }, []);
-}
-
 function FailureWatch({ onFail }: { onFail: () => void }) {
   const status = useApiLoadingStatus();
-  useGmAuthFailure(onFail);
   React.useEffect(() => {
-    if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) onFail();
+    if (status === APILoadingStatus.FAILED) onFail();
   }, [status, onFail]);
   return null;
 }
 
 export function GoogleMapFrame({ fallback, dark, className, style, role, "aria-label": ariaLabel, mapProps, onFail, children }: GoogleMapFrameProps) {
   const config = mapsConfig();
-  const [failed, setFailed] = React.useState(false);
+  const authFailed = useMapsAuthFailed();
+  const [renderFailed, setFailed] = React.useState(false);
+  const failed = renderFailed || authFailed;
   const unavailable = !config || failed;
   const reportFail = React.useEffectEvent(() => onFail?.());
   React.useEffect(() => {
@@ -98,6 +80,8 @@ export function GoogleMapFrame({ fallback, dark, className, style, role, "aria-l
               key={dark ? "dark" : "light"}
               mapId={config.mapId}
               colorScheme={dark ? ColorScheme.DARK : ColorScheme.LIGHT}
+              defaultCenter={WORLD_CENTER}
+              defaultZoom={2}
               disableDefaultUI
               zoomControl
               clickableIcons={false}

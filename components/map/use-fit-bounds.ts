@@ -7,7 +7,7 @@ export function useFitBounds(points: google.maps.LatLngLiteral[], opts: { paddin
   const map = useMap();
   const signature = points.map((p) => `${p.lat},${p.lng}`).join(";");
 
-  const fit = useEffectEvent((target: google.maps.Map) => {
+  const fit = useEffectEvent((target: google.maps.Map): google.maps.MapsEventListener | undefined => {
     const { padding = 40, maxZoom } = opts;
     if (points.length === 0) return;
     if (points.length === 1) {
@@ -25,9 +25,12 @@ export function useFitBounds(points: google.maps.LatLngLiteral[], opts: { paddin
       const zoom = target.getZoom();
       if (zoom !== undefined && zoom > maxZoom) target.setZoom(maxZoom);
     });
+    return listener;
   });
 
   useEffect(() => {
-    if (map) fit(map);
+    if (!map) return;
+    const listener = fit(map);
+    return () => listener?.remove();
   }, [map, signature]);
 }

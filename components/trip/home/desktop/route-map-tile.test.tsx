@@ -14,6 +14,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: hoisted.push }) }));
 
 const { RouteMapTile } = await import("./route-map-tile");
+const { resetMapsAuthForTests } = await import("@/components/map/maps-auth");
 
 const EUROPE: [string, number, number, string][] = [
   ["Paris", 48.8566, 2.3522, "fr"],
@@ -45,6 +46,7 @@ const STOPS: RouteMapTileStop[] = [
 
 beforeEach(() => {
   mock.reset();
+  resetMapsAuthForTests();
   hoisted.push.mockReset();
   vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
   vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
@@ -166,9 +168,9 @@ describe("RouteMapTile", () => {
   });
 
   it("shows a compact error panel inside the tile when Google refuses the key", async () => {
-    mock.status.current = "AUTH_FAILURE";
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
+    act(() => window.gm_authFailure!());
     expect(await screen.findByRole("heading", { level: 3, name: "The map didn’t load" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
     spy.mockRestore();
