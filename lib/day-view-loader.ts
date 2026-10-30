@@ -101,7 +101,7 @@ export interface DayViewData {
   /** The Day map's model (CONTEXT.md "Day map"); the panel stays collapsed until opened. */
   dayMap: DayMapModel;
   attachmentsByTarget: Record<string, AttachmentView[]>;
-  stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number }>;
+  stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number; lat?: number | null; lng?: number | null }>;
   /** Day ideas — every phase (ADR 0044 amendment). */
   ideas: ReturnType<typeof dayIdeasRows>;
   /** Planned-day nearby rail (unchanged behaviour). */
@@ -253,7 +253,7 @@ function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[]) {
     itemsByDate,
     windowDates,
     editorBase,
-    stopOptions: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate, timezone: s.timezone, sortOrder: s.sortOrder })),
+    stopOptions: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate, timezone: s.timezone, sortOrder: s.sortOrder, lat: s.lat, lng: s.lng })),
     line: stopLine({
       days: windowDates,
       stops: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),

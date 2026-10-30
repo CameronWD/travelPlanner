@@ -1823,6 +1823,15 @@ describe("ItemFormDialog address search", () => {
     expect(patch.openingHours).toBeUndefined();
   });
 
+  it("a pick sends no businessStatus when venueDetailsForPick answers null for it", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: null, website: null, businessStatus: null });
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await waitFor(() => expect(venueDetailsForPick).toHaveBeenCalled());
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1].businessStatus).toBeUndefined();
+  });
+
   it("a pick sends the businessStatus venueDetailsForPick answered", async () => {
     vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: null, website: null, businessStatus: "CLOSED_TEMPORARILY" });
     render(<ItemFormDialog {...baseProps} />);

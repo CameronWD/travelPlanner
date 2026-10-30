@@ -4,8 +4,8 @@ import { vi, describe, it, expect } from "vitest";
 import { DayAddMenu } from "./day-add-menu";
 
 vi.mock("@/components/trip/item-form-dialog", () => ({
-  ItemFormDialog: (p: { open: boolean; defaultStopId?: string | null; defaultDate?: string }) =>
-    p.open ? <div data-testid="item-dialog">{p.defaultStopId}|{p.defaultDate}</div> : null,
+  ItemFormDialog: (p: { open: boolean; defaultStopId?: string | null; defaultDate?: string; stops: { lat?: number | null; lng?: number | null }[] }) =>
+    p.open ? <div data-testid="item-dialog" data-near={`${p.stops[0]?.lat}|${p.stops[0]?.lng}`}>{p.defaultStopId}|{p.defaultDate}</div> : null,
 }));
 vi.mock("@/components/trip/transport-form-dialog", () => ({
   TransportFormDialog: (p: { open: boolean; defaultFromStopId?: string; defaultToStopId?: string; defaultDate?: string; settingsHref?: string }) =>
@@ -31,6 +31,12 @@ describe("DayAddMenu (spec 2026-10-13 D5)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Something to do" }));
     expect(screen.getByTestId("item-dialog")).toHaveTextContent("s1|2026-11-04");
+  });
+  it("Something to do hands the Item dialog the Stop's coordinates for the suggestions bias", async () => {
+    render(<DayAddMenu {...base} stopOptions={[{ ...base.stopOptions[0], lat: -16.92, lng: 145.77 }]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Something to do" }));
+    expect(screen.getByTestId("item-dialog")).toHaveAttribute("data-near", "-16.92|145.77");
   });
   it("A flight opens the Transport dialog with day-derived endpoints, the date and the settings link", async () => {
     render(<DayAddMenu {...base} />);
