@@ -11,6 +11,7 @@ import { TIMEZONES } from "@/lib/tz";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { DateField } from "@/components/ui/date-field";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -58,6 +59,8 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
   const [homeName, setHomeName] = React.useState(defaultValues.homeName ?? "");
   const [homeTimezone, setHomeTimezone] = React.useState(defaultValues.homeTimezone ?? "");
   const [homeTimezoneTouched, setHomeTimezoneTouched] = React.useState(false);
+  // A Home base picked in THIS form session; an unchanged save never resends the Trip's own place.
+  const [homePick, setHomePick] = React.useState<PickedPlace | null>(null);
 
   function fieldError(name: string): string | undefined {
     return errors[name]?.[0];
@@ -77,7 +80,8 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       endDate: data.get("endDate") as string,
       hardEndDate: data.get("hardEndDate") as string,
       homeCurrency: data.get("homeCurrency") as string,
-      homeName: data.get("homeName") as string,
+      homeName,
+      ...(homePick && { homePlaceId: homePick.placeId, homeLat: homePick.lat, homeLng: homePick.lng, ...(homePick.countryCode && { homeCountryCode: homePick.countryCode }) }),
       homeTimezone: homeTimezoneTouched ? homeTimezone : "",
       roundTrip: data.get("roundTrip") === "on",
     };
@@ -191,11 +195,16 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         error={fieldError("homeName")}
         description="Where this trip departs from and returns to. Leave blank if you'd rather not set one."
       >
-        <Input
-          name="homeName"
+        <PlaceCombobox
+          kind="region"
           value={homeName}
-          onChange={(e) => setHomeName(e.target.value)}
+          onValueChange={(t) => {
+            setHomeName(t);
+            setHomePick(null);
+          }}
+          onPick={setHomePick}
           placeholder="e.g. Sydney"
+          aria-label="Home base"
           disabled={isPending}
         />
       </Field>

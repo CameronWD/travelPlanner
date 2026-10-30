@@ -11,6 +11,7 @@ export interface MarkerView {
   city: string | null;
   country: string | null;
   countryCode: string | null;
+  placeId?: string | null;
 }
 
 /** A Globe member for the sharing UI. */

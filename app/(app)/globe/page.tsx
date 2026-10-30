@@ -23,7 +23,7 @@ export default async function GlobePage({
       orderBy: { createdAt: "desc" },
       select: {
         id: true, title: true, category: true, note: true, link: true, timing: true,
-        lat: true, lng: true, city: true, country: true, countryCode: true,
+        lat: true, lng: true, city: true, country: true, countryCode: true, placeId: true,
       },
     }),
     db.globeMember.findMany({

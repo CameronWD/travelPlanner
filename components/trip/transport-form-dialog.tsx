@@ -9,6 +9,7 @@ import { AppLink } from "@/components/navigation/app-link";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -55,6 +56,20 @@ import { transportBookingSubject } from "@/lib/booking-state";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface EndPick {
+  placeId: string;
+  lat: number;
+  lng: number;
+}
+
+function nearStop(stop?: StopOption) {
+  return stop?.lat != null && stop.lng != null ? { lat: stop.lat, lng: stop.lng } : undefined;
+}
+
+function endPick(p: PickedPlace): EndPick {
+  return { placeId: p.placeId, lat: p.lat, lng: p.lng };
+}
 
 export interface StopOption {
   id: string;
@@ -403,14 +418,23 @@ function TransportForm({
   // Re-picking the SAME Stop keeps the point; changing to a different Stop,
   // or away from a Stop entirely (Home/none/place), clears it — the point
   // belongs to the specific Stop selection, not the endpoint in general.
+  // A point picked in THIS dialog session; an unchanged save never resends the row's own place.
+  const [depPick, setDepPick] = React.useState<EndPick | null>(null);
+  const [arrPick, setArrPick] = React.useState<EndPick | null>(null);
   const handleFromChange = (next: LocationValue) => {
     const sameStop = next.kind === "stop" && fromValue.kind === "stop" && next.stopId === fromValue.stopId;
-    if (!sameStop) setDepPoint("");
+    if (!sameStop) {
+      setDepPoint("");
+      setDepPick(null);
+    }
     setFromValue(next);
   };
   const handleToChange = (next: LocationValue) => {
     const sameStop = next.kind === "stop" && toValue.kind === "stop" && next.stopId === toValue.stopId;
-    if (!sameStop) setArrPoint("");
+    if (!sameStop) {
+      setArrPoint("");
+      setArrPick(null);
+    }
     setToValue(next);
   };
 
@@ -498,9 +522,9 @@ function TransportForm({
         case "home":
           return { fromStopId: undefined, depIsHome: true, depPlace: undefined };
         case "stop":
-          return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: depPoint.trim() || undefined };
+          return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: depPoint.trim() || undefined, ...(depPoint.trim() && depPick && { depPlaceId: depPick.placeId, depLat: depPick.lat, depLng: depPick.lng }) };
         case "place":
-          return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name };
+          return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name, ...(fromValue.placeId && fromValue.lat !== undefined && fromValue.lng !== undefined && { depPlaceId: fromValue.placeId, depLat: fromValue.lat, depLng: fromValue.lng }) };
         default:
           return { fromStopId: undefined, depIsHome: false, depPlace: undefined };
       }
@@ -512,9 +536,9 @@ function TransportForm({
         case "home":
           return { toStopId: undefined, arrIsHome: true, arrPlace: undefined };
         case "stop":
-          return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: arrPoint.trim() || undefined };
+          return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: arrPoint.trim() || undefined, ...(arrPoint.trim() && arrPick && { arrPlaceId: arrPick.placeId, arrLat: arrPick.lat, arrLng: arrPick.lng }) };
         case "place":
-          return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name };
+          return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name, ...(toValue.placeId && toValue.lat !== undefined && toValue.lng !== undefined && { arrPlaceId: toValue.placeId, arrLat: toValue.lat, arrLng: toValue.lng }) };
         default:
           return { toStopId: undefined, arrIsHome: false, arrPlace: undefined };
       }
@@ -601,10 +625,17 @@ function TransportForm({
         />
         {fromValue.kind === "stop" && (
           <Field label="Departure point" className="mt-2">
-            <Input
+            <PlaceCombobox
+              kind="venue"
               value={depPoint}
-              onChange={(e) => setDepPoint(e.target.value)}
+              onValueChange={(t) => {
+                setDepPoint(t);
+                setDepPick(null);
+              }}
+              onPick={(p) => setDepPick(endPick(p))}
+              rankNear={nearStop(fromStopRecord)}
               placeholder="e.g. Gare du Nord, optional"
+              aria-label="Departure point"
               disabled={isPending}
             />
           </Field>
@@ -624,10 +655,17 @@ function TransportForm({
         />
         {toValue.kind === "stop" && (
           <Field label="Arrival point" className="mt-2">
-            <Input
+            <PlaceCombobox
+              kind="venue"
               value={arrPoint}
-              onChange={(e) => setArrPoint(e.target.value)}
+              onValueChange={(t) => {
+                setArrPoint(t);
+                setArrPick(null);
+              }}
+              onPick={(p) => setArrPick(endPick(p))}
+              rankNear={nearStop(toStopRecord)}
               placeholder="e.g. St Pancras, optional"
+              aria-label="Arrival point"
               disabled={isPending}
             />
           </Field>

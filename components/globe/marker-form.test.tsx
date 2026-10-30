@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
@@ -9,11 +9,13 @@ vi.mock("@/server/actions/attachments", () => ({
   deleteAttachment: vi.fn(),
 }));
 
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+
 vi.mock("@/server/actions/globe", () => ({
   createMarker: vi.fn().mockResolvedValue({ success: true }),
   updateMarker: vi.fn().mockResolvedValue({ success: true }),
   deleteMarker: vi.fn().mockResolvedValue({ success: true }),
-  searchPlacesAction: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
   reverseGeocodeAction: vi.fn().mockResolvedValue(null),
 }));
 
@@ -21,7 +23,7 @@ vi.mock("@/components/ui/use-toast", () => ({
   toast: vi.fn(),
 }));
 
-import { createMarker, deleteMarker, searchPlacesAction } from "@/server/actions/globe";
+import { createMarker, updateMarker, deleteMarker, reverseGeocodeAction } from "@/server/actions/globe";
 import { toast } from "@/components/ui/use-toast";
 import { MarkerForm } from "./marker-form";
 import type { MarkerView } from "./types";
@@ -38,6 +40,7 @@ const existingMarker: MarkerView = {
   city: "Tokyo",
   country: "Japan",
   countryCode: "jp",
+  placeId: "ChIJTower",
 };
 
 const baseProps = {
@@ -149,92 +152,76 @@ describe("MarkerForm — edit mode", () => {
   });
 });
 
-describe("MarkerForm — place search feedback", () => {
-  beforeEach(() => vi.clearAllMocks());
+describe("MarkerForm — place search", () => {
+  const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto Prefecture, Japan", lat: 35.01, lng: 135.76, countryCode: "jp", country: "Japan" };
+  const search = () => screen.getByRole("combobox", { name: "Place search" });
+  const titleField = () => screen.getByPlaceholderText(/tokyo tower/i);
 
-  it("shows an 'unavailable' message when the search request errors", async () => {
+  async function pickKyoto(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(search(), "Kyo");
+    await screen.findByRole("option", { name: /Kyoto/ });
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(search()).toHaveValue("Kyoto"));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+    mock.places.predictions = [KYOTO];
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("a pick fills title, coordinates and placeId", async () => {
     const user = userEvent.setup();
-    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "error" });
     render(<MarkerForm {...baseProps} />);
-
-    await user.type(screen.getByLabelText("Place search"), "Tokyo");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-
-    expect(await screen.findByText(/temporarily unavailable/i)).toBeInTheDocument();
+    await pickKyoto(user);
+    expect(titleField()).toHaveValue("Kyoto");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() =>
+      expect(createMarker).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Kyoto", lat: 35.01, lng: 135.76, city: "Kyoto Prefecture", country: "Japan", countryCode: "jp", placeId: "ChIJKyoto" }),
+      ),
+    );
   });
 
-  it("shows a 'no matches' message when the search succeeds with zero results", async () => {
+  it("a pick leaves a title the Traveller already typed", async () => {
     const user = userEvent.setup();
-    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [] });
     render(<MarkerForm {...baseProps} />);
-
-    await user.type(screen.getByLabelText("Place search"), "zzzz");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-
-    expect(await screen.findByText(/no matching places/i)).toBeInTheDocument();
+    await user.type(titleField(), "Temples");
+    await pickKyoto(user);
+    expect(titleField()).toHaveValue("Temples");
   });
 
-  it("lists candidates and selecting one fills the title", async () => {
+  it("editing only the note keeps the Marker's placeId and coordinates", async () => {
     const user = userEvent.setup();
-    vi.mocked(searchPlacesAction).mockResolvedValue({
-      status: "ok",
-      candidates: [
-        { name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp", placeId: null, address: null },
-      ],
+    render(<MarkerForm {...baseProps} marker={existingMarker} />);
+    await user.type(screen.getByPlaceholderText(/anything worth noting/i), "Go at dusk");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() =>
+      expect(updateMarker).toHaveBeenCalledWith(
+        "marker-1",
+        expect.objectContaining({ note: "Go at dusk", placeId: "ChIJTower", lat: 35.6585805, lng: 139.7454329 }),
+      ),
+    );
+  });
+
+  it("keyless, Place search is a plain field", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    render(<MarkerForm {...baseProps} />);
+    expect(screen.getByLabelText("Place search")).not.toHaveAttribute("role", "combobox");
+    expect(screen.getByText(/Suggestions aren't available/)).toBeInTheDocument();
+  });
+
+  it("a dropped pin prefills from reverseGeocodeAction and stores its placeId", async () => {
+    vi.mocked(reverseGeocodeAction).mockResolvedValue({
+      name: "Tokyo Tower, Japan", lat: 35.65, lng: 139.74, city: "Tokyo", country: "Japan", countryCode: "jp", placeId: "ChIJDrop", address: null,
     });
-    render(<MarkerForm {...baseProps} />);
-
-    await user.type(screen.getByLabelText("Place search"), "Kyoto");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-    await user.click(await screen.findByRole("button", { name: /kyoto, japan/i }));
-
-    // Title input (placeholder "e.g. Tokyo Tower") is now populated.
-    expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Kyoto");
-  });
-
-  it("overwrites the title when a different candidate is selected", async () => {
     const user = userEvent.setup();
-    vi.mocked(searchPlacesAction).mockResolvedValue({
-      status: "ok",
-      candidates: [{ name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp", placeId: null, address: null }],
-    });
-    render(<MarkerForm {...baseProps} />);
-
-    const search = screen.getByLabelText("Place search");
-    await user.type(search, "Kyoto");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-    await user.click(await screen.findByRole("button", { name: /kyoto, japan/i }));
-    expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Kyoto");
-
-    // Change your mind: search again and pick a different place.
-    vi.mocked(searchPlacesAction).mockResolvedValue({
-      status: "ok",
-      candidates: [{ name: "Osaka, Japan", lat: 34.69, lng: 135.5, city: "Osaka", country: "Japan", countryCode: "jp", placeId: null, address: null }],
-    });
-    await user.clear(search);
-    await user.type(search, "Osaka");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-    await user.click(await screen.findByRole("button", { name: /osaka, japan/i }));
-    expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Osaka");
-  });
-
-  it("clears the 'no matches' message once the user edits the query again", async () => {
-    const user = userEvent.setup();
-    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [] });
-    render(<MarkerForm {...baseProps} />);
-
-    const search = screen.getByLabelText("Place search");
-    await user.type(search, "zzzz");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-    expect(await screen.findByText(/no matching places/i)).toBeInTheDocument();
-
-    // The input is disabled while the search transition is pending; under load
-    // that pending flag can outlive the commit that renders the message, so
-    // wait for the field to be interactive again before typing — otherwise
-    // userEvent silently drops the keystroke into a disabled input.
-    await waitFor(() => expect(search).toBeEnabled());
-    await user.type(search, "x"); // editing the query should clear the message
-    expect(screen.queryByText(/no matching places/i)).not.toBeInTheDocument();
+    render(<MarkerForm {...baseProps} prefill={{ lat: 35.65, lng: 139.74 }} />);
+    await waitFor(() => expect(titleField()).toHaveValue("Tokyo Tower"));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(createMarker).toHaveBeenCalledWith(expect.objectContaining({ placeId: "ChIJDrop", city: "Tokyo" })));
   });
 });
 
@@ -245,7 +232,6 @@ describe("MarkerForm — initialQuery (spec 2026-10-05 §H)", () => {
     render(<MarkerForm {...baseProps} initialQuery="Ireland" />);
     expect(screen.getByLabelText("Place search")).toHaveValue("Ireland");
     expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("");
-    expect(searchPlacesAction).not.toHaveBeenCalled();
   });
 
   it("ignores initialQuery when editing — the marker's own title seeds the search", () => {

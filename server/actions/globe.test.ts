@@ -40,7 +40,6 @@ vi.mock("@/lib/globe", async (importOriginal) => {
 });
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("@/lib/geocode", () => ({
-  searchPlaces: vi.fn(),
   reverseGeocode: vi.fn(),
 }));
 const { revalidateGlobeMock } = vi.hoisted(() => ({ revalidateGlobeMock: vi.fn() }));
