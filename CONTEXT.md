@@ -207,8 +207,16 @@ The one card on the **Day view** that says what that day's weather is like at th
 _Avoid_: Forecast (only one of the things it may show), widget, weather tile
 
 **Day map**:
-An on-demand map of a single day's plan — its located Items as a numbered route in time order, with tonight's Accommodation and the day's Transport points marked. Available on both the Day view and the Travelling **Home**, collapsed until opened. It offers one-tap **directions** out to an external maps app (the whole day's route, or a single hop between Items) but never computes travel time itself, and plots only what has coordinates.
+An on-demand map of a single day's plan — its located Items as a numbered route in time order, with tonight's Accommodation and the day's Transport points marked. Available on both the Day view and the Travelling **Home**, collapsed until opened. It offers one-tap **directions** out to an external maps app (the whole day's route, or a single hop between Items), draws each hop along its **Travel time**'s route where one is known, and plots only what has coordinates.
 _Avoid_: Route map (that's the whole-Trip map shown in the Summary)
+
+**Travel time**:
+How long one hop takes — between consecutive located Items on a day, or along a car **Transport** leg — with its distance, the way it is travelled (walk, drive or public transport) and the route itself. Looked up from real routing when the plan changes and kept, so every **Flag**, **Finding** and map reads the same number; where none has been looked up yet, a straight-line guess stands in and is shown as *estimated*.
+_Avoid_: Drive estimate (that is the stand-in, not the thing), journey time, leg time, distance
+
+**Local travel mode**:
+How the Travellers get about while based at a **Stop** — **Drive** or **Public transport** — used for any hop there too long to walk. Guessed from the Stop (Drive when a car **Transport** arrives or leaves, Public transport otherwise) and changeable per Stop. A hop short enough to walk is walked whatever the Stop's Local travel mode.
+_Avoid_: Getting around (that is a **Category**), transport mode (that is a **Transport**'s), travel mode
 
 **Day ideas**:
 The menu a **Day view** offers when the day is **free-form** (no scheduled Items): the candidates the Travellers already collected, each one tap from being scheduled onto the day. Drawn only from the Travellers' own pools — never fetched from outside: the current Stop's dateless **things to do** first, then **Wishlist** ideas near the Stop (~30km) and Wishlist ideas whose country matches the Stop's (located or not). The Day view shows the first three and offers the rest on request. Offered in every **Phase** — while planning, an empty day is exactly where a saved idea wants slotting in — and the plan editor is unaffected. On a day that has plans the menu stays out of the way as the existing collapsed nearby-Wishlist section (tight 1.5km matching against the day's plan). Scheduling from it uses the normal copy-in placement (ADR 0019).
