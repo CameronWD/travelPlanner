@@ -291,8 +291,10 @@ puts place IDs on rows that still carry OpenStreetMap coordinates, in two steps:
    whether Enterprise details will be fetched. Nothing else is written.
 2. **`-- --execute [plan file]`** applies exactly that file, with no location
    lookups. It refuses a missing plan or one older than 24 hours, and skips any
-   row that changed since the plan (a place picked, a pin moved, a zone set), so
-   re-running it resumes.
+   row that changed since the plan (a place picked, a pin moved, a zone set, or
+   the text it was looked up by edited), so re-running it resumes; Items whose
+   details failed are retried (they still hold the planned place ID and no
+   business status). A dry run deletes any earlier plan before it starts.
 
 Verdicts: ACCEPT (within 1 km for Items, Accommodation, Transport ends and
 Markers; 25 km for Stops and Home bases), NEW (the row had no point), TOO-FAR,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PLAN_FILE,
+  anchorColumns,
   errorStreak,
   formatRow,
   hasAnchor,
@@ -129,6 +130,18 @@ describe("plannedSet", () => {
   });
 });
 
+describe("anchorColumns", () => {
+  it("names the text each kind is looked up by", () => {
+    expect(anchorColumns("item")).toEqual(["title", "address"]);
+    expect(anchorColumns("accommodation")).toEqual(["name", "address"]);
+    expect(anchorColumns("stop")).toEqual(["name", "country"]);
+    expect(anchorColumns("transport-dep")).toEqual(["depPlace"]);
+    expect(anchorColumns("transport-arr")).toEqual(["arrPlace"]);
+    expect(anchorColumns("marker")).toEqual(["title", "city", "country"]);
+    expect(anchorColumns("home")).toEqual(["homeName"]);
+  });
+});
+
 describe("planned timezones", () => {
   const tokyo = { ...FOUND, lat: 35.68, lng: 139.76 };
 
@@ -178,6 +191,7 @@ describe("readPlan", () => {
         address: "1F 1-22-7 Jinnan",
         old: null,
         set: { lat: 35.66, lng: 139.7, placeId: "ChIJVenue", countryCode: "jp" },
+        was: { title: "Ichiran", address: "Shibuya" },
         details: true,
       },
     ],
@@ -210,5 +224,12 @@ describe("readPlan", () => {
     expect(readPlan(JSON.stringify(bad), now)).toMatchObject({ ok: false });
     const missing = { ...plan, rows: [{ ...plan.rows[0], set: { lat: 1, lng: 2 } }] };
     expect(readPlan(JSON.stringify(missing), now)).toMatchObject({ ok: false });
+  });
+
+  it("refuses a row whose captured anchor text isn't exactly its kind's", () => {
+    const extra = { ...plan, rows: [{ ...plan.rows[0], was: { title: "Ichiran", address: "Shibuya", notes: "x" } }] };
+    expect(readPlan(JSON.stringify(extra), now)).toMatchObject({ ok: false });
+    const short = { ...plan, rows: [{ ...plan.rows[0], was: { title: "Ichiran" } }] };
+    expect(readPlan(JSON.stringify(short), now)).toMatchObject({ ok: false });
   });
 });

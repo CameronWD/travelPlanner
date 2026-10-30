@@ -10,55 +10,29 @@
  * new) to the plan file, with the exact columns to set. Nothing else is
  * written. --execute applies exactly that file, with no location lookups;
  * it refuses a missing plan or one older than 24 hours, and skips a row that
- * changed since the plan. Item opening hours, link and business status are
- * fetched at execute time, only for planned venue matches, and fill only
+ * changed since the plan (its place, point or looked-up text). Re-running it
+ * resumes, retrying details that failed. Item opening hours, link and
+ * business status are fetched at execute time, only for planned venue
+ * matches, and fill only
  * what is empty; hours go to the Item family and never cross a Surprise.
  * Enterprise detail calls bypass the app's daily cap (takeGoogleQuota), so
  * raise the console quotas first. No Activity rows.
  */
 import "./load-env";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { db } from "@/lib/db";
-import { hasServerKey, lookUpPlace, lookUpVenue, type GeoCandidate, type Lookup, type VenueMatch } from "@/lib/geocode";
+import { hasServerKey, lookUpPlace, lookUpVenue } from "@/lib/geocode";
 import type { LatLng } from "@/lib/geo";
-import {
-  KINDS,
-  PLAN_FILE,
-  errorStreak,
-  formatRow,
-  hasAnchor,
-  needsDetails,
-  plannedHomeTimezone,
-  plannedSet,
-  plannedStopTimezone,
-  readPlan,
-  verdict,
-  type BackfillKind,
-  type BackfillVerdict,
-  type Plan,
-  type PlanRow,
-} from "@/lib/backfill-places";
-import { applyPlanRow, fillItemDetails } from "@/lib/backfill-places-apply";
+import { PLAN_FILE, needsDetails, plannedHomeTimezone, plannedSet, plannedStopTimezone, readPlan, type Out } from "@/lib/backfill-places";
+import { dryRun, type Candidate } from "@/lib/backfill-places-dry-run";
+import { executePlan } from "@/lib/backfill-places-apply";
 import { dbTargetLine } from "./lib/script-guards";
 
-const REFUSING = "Google is refusing lookups: check the Geocoding/Places quotas.";
-
-type Found = GeoCandidate | VenueMatch;
-
-interface Candidate {
-  kind: BackfillKind;
-  id: string;
-  query: string;
-  old: LatLng | null;
-  anchor: string;
-  lookup: () => Promise<Lookup<Found>>;
-  plan: (found: Found, v: BackfillVerdict) => Pick<PlanRow, "set" | "details">;
-}
+const terminal: Out = { log: (line) => console.log(line), error: (line) => console.error(line) };
 
 const point = (lat: number | null, lng: number | null): LatLng | null => (lat != null && lng != null ? { lat, lng } : null);
 const join = (...parts: (string | null | undefined)[]) => parts.map((p) => p?.trim()).filter(Boolean).join(", ");
-const matchedOf = (f: Found) => ("matched" in f ? f.matched : undefined);
 
 async function collect(): Promise<Candidate[]> {
   const out: Candidate[] = [];
@@ -76,6 +50,7 @@ async function collect(): Promise<Candidate[]> {
       query: join(r.title, r.address),
       anchor: r.address ?? "",
       old,
+      was: { title: r.title, address: r.address },
       lookup: () => lookUpVenue(r.title, r.address ?? "", { near: near ?? undefined }),
       plan: (f) => ({ set: plannedSet("item", f), details: needsDetails("item", r.address, f) }),
     });
@@ -94,6 +69,7 @@ async function collect(): Promise<Candidate[]> {
       query,
       anchor: query,
       old,
+      was: { name: r.name, country: r.country },
       lookup: () => lookUpPlace(query, { near: old ?? undefined }),
       plan: (f, v) => ({ set: plannedSet("stop", f, plannedStopTimezone(r, v, f)), details: false }),
     });
@@ -112,6 +88,7 @@ async function collect(): Promise<Candidate[]> {
       query: join(r.name, r.address),
       anchor: r.address ?? "",
       old,
+      was: { name: r.name, address: r.address },
       lookup: () => lookUpVenue(r.name, r.address ?? "", { near: near ?? undefined }),
       plan: (f) => ({ set: plannedSet("accommodation", f), details: false }),
     });
@@ -123,8 +100,8 @@ async function collect(): Promise<Candidate[]> {
   });
   for (const r of transports) {
     const ends = [
-      { kind: "transport-dep" as const, place: r.depPlace, placeId: r.depPlaceId, old: point(r.depLat, r.depLng) },
-      { kind: "transport-arr" as const, place: r.arrPlace, placeId: r.arrPlaceId, old: point(r.arrLat, r.arrLng) },
+      { kind: "transport-dep" as const, column: "depPlace", place: r.depPlace, placeId: r.depPlaceId, old: point(r.depLat, r.depLng) },
+      { kind: "transport-arr" as const, column: "arrPlace", place: r.arrPlace, placeId: r.arrPlaceId, old: point(r.arrLat, r.arrLng) },
     ];
     for (const end of ends) {
       const place = end.place;
@@ -135,6 +112,7 @@ async function collect(): Promise<Candidate[]> {
         query: place,
         anchor: place,
         old: end.old,
+        was: { [end.column]: place },
         lookup: () => lookUpPlace(place),
         plan: (f) => ({ set: plannedSet(end.kind, f), details: false }),
       });
@@ -153,6 +131,7 @@ async function collect(): Promise<Candidate[]> {
       query: join(r.title, r.city, r.country),
       anchor: join(r.city, r.country),
       old,
+      was: { title: r.title, city: r.city, country: r.country },
       lookup: () => lookUpVenue(r.title, join(r.city, r.country), { near: old ?? undefined }),
       plan: (f) => ({ set: plannedSet("marker", f), details: false }),
     });
@@ -170,6 +149,7 @@ async function collect(): Promise<Candidate[]> {
       query: name,
       anchor: name,
       old: point(r.homeLat, r.homeLng),
+      was: { homeName: name },
       lookup: () => lookUpPlace(name),
       plan: (f, v) => ({ set: plannedSet("home", f, plannedHomeTimezone(r, v, f)), details: false }),
     });
@@ -178,53 +158,17 @@ async function collect(): Promise<Candidate[]> {
   return out;
 }
 
-async function dryRun(planPath: string) {
+async function runDry(planPath: string) {
   console.log(dbTargetLine(process.env, true));
   if (!hasServerKey()) {
     console.error("GOOGLE_MAPS_SERVER_KEY is not set; nothing to look up. Aborting.");
     process.exitCode = 1;
     return;
   }
-
-  const candidates = await collect();
-  const tally = new Map(KINDS.map((k) => [k, { scanned: 0, accept: 0, new: 0, "too-far": 0, "address-only": 0, "no-match": 0, error: 0, "no-anchor": 0 }]));
-  const streak = errorStreak();
-  const rows: PlanRow[] = [];
-
-  for (const c of candidates) {
-    const anchored = hasAnchor(c.anchor, c.old);
-    const result = anchored ? await c.lookup() : null;
-    const found = result?.status === "ok" ? result.candidate : null;
-    const matched = found ? matchedOf(found) : undefined;
-    const v: BackfillVerdict = !result ? "no-anchor" : result.status === "error" ? "error" : verdict(c.kind, c.old, found && { ...found, matched });
-    console.log(formatRow({ kind: c.kind, id: c.id, query: c.query, old: c.old, next: found && { ...found, matched }, verdict: v }));
-    const t = tally.get(c.kind)!;
-    t.scanned++;
-    t[v]++;
-    if (result && streak.record(result.status === "error")) {
-      console.error(`\n${REFUSING}\nStopped after 5 failed lookups in a row. No plan written.`);
-      process.exitCode = 1;
-      return;
-    }
-    if (found && (v === "accept" || v === "new")) {
-      rows.push({ kind: c.kind, id: c.id, query: c.query, verdict: v, matched: matched ?? null, address: found.address, old: c.old, ...c.plan(found, v) });
-    }
-  }
-
-  console.log("\nkind · scanned / accept / new / too-far / address-only / no-match / error / no anchor (skipped)");
-  for (const k of KINDS) {
-    const t = tally.get(k)!;
-    console.log(`${k} · ${t.scanned} / ${t.accept} / ${t.new} / ${t["too-far"]} / ${t["address-only"]} / ${t["no-match"]} / ${t.error} / ${t["no-anchor"]}`);
-  }
-
-  const plan: Plan = { version: 1, createdAt: new Date().toISOString(), rows };
-  writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
-  const details = rows.filter((r) => r.details).length;
-  console.log(`\nPlan: ${rows.length} rows to write, ${details} Enterprise detail calls at execute. Written to ${planPath}`);
-  console.log("Read it, then apply it within 24 hours: npm run backfill:places -- --execute");
+  if (!(await dryRun(await collect(), planPath, terminal))) process.exitCode = 1;
 }
 
-async function execute(planPath: string) {
+async function runExecute(planPath: string) {
   console.log(dbTargetLine(process.env, false));
   let text: string | null = null;
   try {
@@ -244,49 +188,15 @@ async function execute(planPath: string) {
     process.exitCode = 1;
     return;
   }
-
-  const counts = { written: 0, changed: 0, failed: 0 };
-  const details = { calls: 0, filled: 0, empty: 0, failed: 0 };
-  const streak = errorStreak();
-
-  for (const row of rows) {
-    let outcome: "written" | "changed";
-    try {
-      outcome = await applyPlanRow(row);
-    } catch (err) {
-      counts.failed++;
-      console.error(`${row.kind} ${row.id}: write failed, row left unchanged:`, err);
-      continue;
-    }
-    counts[outcome]++;
-    if (outcome === "changed") {
-      console.log(`${row.kind} ${row.id} · SKIPPED · changed since the plan (or already written)`);
-      continue;
-    }
-    console.log(`${row.kind} ${row.id} · WRITTEN`);
-    const placeId = row.set.placeId;
-    if (!row.details || typeof placeId !== "string") continue;
-    details.calls++;
-    const filled = await fillItemDetails(row.id, placeId).catch(() => "failed" as const);
-    details[filled]++;
-    if (filled === "failed") console.error(`  item ${row.id}: coordinates and place ID committed; details failed`);
-    if (streak.record(filled === "failed")) {
-      console.error(`\n${REFUSING}\nStopped after 5 failed detail calls in a row. Re-run the same command to resume: rows already written are skipped.`);
-      process.exitCode = 1;
-      break;
-    }
-  }
-
-  console.log(`\nRows: ${counts.written} written / ${counts.changed} skipped (changed since the plan) / ${counts.failed} failed`);
-  console.log(`Enterprise detail calls: ${details.calls} (${details.filled} filled / ${details.empty} empty / ${details.failed} failed)`);
+  if (!(await executePlan(rows, terminal)).ok) process.exitCode = 1;
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const at = args.indexOf("--execute");
-  if (at === -1) return dryRun(path.resolve(PLAN_FILE));
+  if (at === -1) return runDry(path.resolve(PLAN_FILE));
   const named = args[at + 1];
-  return execute(path.resolve(named && !named.startsWith("--") ? named : PLAN_FILE));
+  return runExecute(path.resolve(named && !named.startsWith("--") ? named : PLAN_FILE));
 }
 
 main()

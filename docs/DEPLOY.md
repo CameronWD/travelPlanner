@@ -654,12 +654,18 @@ other half.)
        a pinned row where only the address matched is ADDRESS-ONLY; none of
        these are in the plan. ERROR means Google refused the lookup: five in a
        row stop the run with "Google is refusing lookups: check the
-       Geocoding/Places quotas." and no plan.
+       Geocoding/Places quotas." and no plan (an earlier plan file is deleted).
+       Give `[address]` matches on NEW Items a second look: the Item had no
+       pin, so the point is only the address or area, not the venue.
+       To skip a row, delete it from backfill-places-plan.json before
+       --execute (the file is re-validated).
     3. `npm run backfill:places -- --execute` applies exactly that plan file
        (or pass a path after `--execute`). It refuses a plan older than 24 hours
-       and skips any row that changed since the plan, so if it stops (five
-       failed detail calls in a row stop it too), raising the quota and running
-       the same command resumes.
+       and skips any row that changed since the plan (its place, point, or the
+       name/address it was looked up by). If it stops (five failed detail calls
+       in a row stop it too), raise the quota and run the same command: written
+       rows are skipped and Items whose details failed (listed at the end) are
+       retried.
     4. Put the Geocoding and GetPlace quotas back to 165. Delete the plan file.
 
 ## 5. GitHub Actions cron (reminder delivery)

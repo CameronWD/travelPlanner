@@ -11,6 +11,12 @@ export const KINDS: BackfillKind[] = ["item", "stop", "accommodation", "transpor
 export const PLAN_FILE = "backfill-places-plan.json";
 export const MAX_PLAN_AGE_MS = 24 * 60 * 60 * 1000;
 export const MAX_CONSECUTIVE_ERRORS = 5;
+export const REFUSING = "Google is refusing lookups: check the Geocoding/Places quotas.";
+
+export interface Out {
+  log(line: string): void;
+  error(line: string): void;
+}
 
 export function toleranceKm(kind: BackfillKind): number {
   return kind === "stop" || kind === "home" ? 25 : 1;
@@ -68,6 +74,20 @@ const SET_COLUMNS: Record<BackfillKind, readonly string[]> = {
   home: ["homeLat", "homeLng", "homePlaceId", "homeCountryCode", "homeTimezone"],
 };
 
+const ANCHOR_COLUMNS: Record<BackfillKind, readonly string[]> = {
+  item: ["title", "address"],
+  accommodation: ["name", "address"],
+  stop: ["name", "country"],
+  "transport-dep": ["depPlace"],
+  "transport-arr": ["arrPlace"],
+  marker: ["title", "city", "country"],
+  home: ["homeName"],
+};
+
+export function anchorColumns(kind: BackfillKind): readonly string[] {
+  return ANCHOR_COLUMNS[kind];
+}
+
 export function planColumns(kind: BackfillKind): { lat: string; lng: string; placeId: string; timezone: string | null } {
   const [lat, lng, placeId] = SET_COLUMNS[kind];
   const timezone = kind === "stop" ? "timezone" : kind === "home" ? "homeTimezone" : null;
@@ -115,10 +135,15 @@ const planRowSchema = z
     address: z.string().nullable(),
     old: latLng.nullable(),
     set: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+    was: z.record(z.string(), z.string().nullable()),
     details: z.boolean(),
   })
   .refine((r) => Object.keys(r.set).every((k) => SET_COLUMNS[r.kind].includes(k)), "a row sets a column its kind doesn't own")
-  .refine((r) => SET_COLUMNS[r.kind].slice(0, 3).every((k) => k in r.set), "a row is missing its point or place ID");
+  .refine((r) => SET_COLUMNS[r.kind].slice(0, 3).every((k) => k in r.set), "a row is missing its point or place ID")
+  .refine(
+    (r) => Object.keys(r.was).length === ANCHOR_COLUMNS[r.kind].length && ANCHOR_COLUMNS[r.kind].every((k) => k in r.was),
+    "a row's captured text doesn't match its kind",
+  );
 
 const planSchema = z.object({
   version: z.literal(1),
