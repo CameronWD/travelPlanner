@@ -241,6 +241,29 @@ export function dayMapHops(
   return hops;
 }
 
+export function withDayMapHops(
+  dayMap: DayMapModel,
+  rows: {
+    items: HopItemRow[];
+    stops: HopStopRow[];
+    transports: (HopTransportRow & { id: string })[];
+    trip: { drivingWindingFactor: number; drivingAvgSpeedKph: number };
+  },
+  date: string,
+  lookup: TravelLookup,
+): DayMapModel {
+  return {
+    ...dayMap,
+    hops: dayMapHops(dayMap, {
+      dayItems: rows.items.filter((it) => it.date === date),
+      stops: rows.stops,
+      transports: rows.transports,
+      lookup,
+      estimateOpts: { windingFactor: rows.trip.drivingWindingFactor, avgSpeedKph: rows.trip.drivingAvgSpeedKph },
+    }),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Per-item directions helper
 // ---------------------------------------------------------------------------

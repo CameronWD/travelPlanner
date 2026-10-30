@@ -66,7 +66,11 @@ function DayRoute({ routePoints, hops }: { routePoints: DayMapPoint[]; hops: Day
     const bed = routePoints[0]?.kind === "accommodation" && routePoints[1] ? [{ key: "bed", path: [path[0], path[1]], polyline: null }] : [];
     return [
       ...bed,
-      ...hops.map((h) => ({ key: `${h.fromId}>${h.toId}`, path: [at.get(h.fromId)!, at.get(h.toId)!], polyline: h.polyline })),
+      ...hops.flatMap((h) => {
+        const from = at.get(h.fromId);
+        const to = at.get(h.toId);
+        return from && to ? [{ key: `${h.fromId}>${h.toId}`, path: [from, to], polyline: h.polyline }] : [];
+      }),
     ];
   }, [hops, routePoints, path]);
   if (!legs) return <MapPolyline path={path} color={ROUTE_COLOR} weight={3} opacity={0.7} dashed />;

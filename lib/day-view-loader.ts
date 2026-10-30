@@ -19,7 +19,7 @@ import { addDays, daysBetween, formatDayLabel } from "@/lib/dates";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { dayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
+import { withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import type { NearbyResult } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
 import { homePointOf, type TravelLookup } from "@/lib/travel-times/hops";
@@ -449,16 +449,7 @@ function projectDayView(
     planCount: ordered.entries.length + ordered.anytime.length,
     editor,
     itemDirections: model.itemDirections,
-    dayMap: {
-      ...model.dayMap,
-      hops: dayMapHops(model.dayMap, {
-        dayItems: rows.items.filter((it) => it.date === date),
-        stops: rows.stops,
-        transports: rows.transports,
-        lookup: shared.travel,
-        estimateOpts: { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph },
-      }),
-    },
+    dayMap: withDayMapHops(model.dayMap, rows, date, shared.travel),
     attachmentsByTarget: model.attachmentsByTarget,
     stopOptions: shared.stopOptions,
     ideas,
