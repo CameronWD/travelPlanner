@@ -60,6 +60,7 @@ import { usePlanEditor } from "@/components/plan/use-plan-editor";
 import { suggestResultToast } from "@/lib/suggest-toast";
 import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
+import { effectiveLocalMode } from "@/lib/travel-times/hops";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
@@ -1994,6 +1995,7 @@ export function ItineraryManager({
           forkId={forkId ?? null}
           attachments={attachmentsByStopId?.get(editingStop.id) ?? []}
           loneOnDatedTrip={isLoneOnDatedTrip(stops.length, tripStartDate, tripEndDate)}
+          inferredLocalMode={effectiveLocalMode({ id: editingStop.id, localTravelMode: null }, transports)}
         />
       )}
 

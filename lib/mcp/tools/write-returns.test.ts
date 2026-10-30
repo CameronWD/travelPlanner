@@ -23,7 +23,7 @@ const { ok, row } = vi.hoisted(() => {
 vi.mock("@/server/actions/trips", () => ({ createTrip: ok(), updateTrip: ok(), setTripHardEndDate: ok() }));
 vi.mock("@/server/actions/stops", () => ({
   createStop: ok(), updateStop: ok(), deleteStop: ok(), previewStopDeletion: ok(), moveStop: ok(), setStopDates: ok(),
-  firmUpTrip: ok(), toggleStopPin: ok(), makeStopRough: ok(), setStopNotes: ok(), setStopNights: ok(),
+  firmUpTrip: ok(), toggleStopPin: ok(), makeStopRough: ok(), setStopNotes: ok(), setStopLocalTravelMode: ok(), setStopNights: ok(),
 }));
 vi.mock("@/server/actions/chapters", () => ({ assignStopToChapter: ok(), createChapter: ok(), updateChapter: ok() }));
 vi.mock("@/server/actions/surprise", () => ({ setSurprise: ok(), revealSurprise: ok() }));
@@ -116,6 +116,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   set_stop_pinned: { stopId: "stop-1", pinned: true },
   make_stop_rough: { stopId: "stop-1" },
   set_stop_notes: { stopId: "stop-1", notes: "Ferry at 9" },
+  set_local_travel_mode: { stopId: "stop-1", mode: "drive" },
   firm_up_trip: { tripId: "trip-1" },
   assign_stop_to_chapter: { stopId: "stop-1", chapterId: null },
   set_surprise: { kind: "STOP", id: "stop-1" },

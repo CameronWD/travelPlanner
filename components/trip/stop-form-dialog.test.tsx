@@ -177,6 +177,46 @@ describe("StopFormDialog", () => {
       }));
     });
 
+    describe("Local travel mode", () => {
+      const open = async (user: ReturnType<typeof userEvent.setup>) =>
+        user.click(screen.getByRole("combobox", { name: /local travel mode/i }));
+
+      it("shows the inferred Automatic option, Drive or Public transport", async () => {
+        const user = userEvent.setup();
+        const { unmount } = render(<StopFormDialog {...baseProps} stop={LONDON} inferredLocalMode="DRIVE" />);
+        expect(screen.getByRole("combobox", { name: /local travel mode/i })).toHaveTextContent("Automatic (Drive)");
+        await open(user);
+        expect(await screen.findByRole("option", { name: "Public transport" })).toBeInTheDocument();
+        expect(screen.queryByRole("option", { name: "Automatic (Public transport)" })).toBeNull();
+        unmount();
+        render(<StopFormDialog {...baseProps} stop={LONDON} inferredLocalMode="TRANSIT" />);
+        expect(screen.getByRole("combobox", { name: /local travel mode/i })).toHaveTextContent("Automatic (Public transport)");
+      });
+
+      it("choosing Drive sends DRIVE; choosing Automatic again sends null", async () => {
+        const user = userEvent.setup();
+        const { unmount } = render(<StopFormDialog {...baseProps} stop={LONDON} />);
+        await open(user);
+        await user.click(await screen.findByRole("option", { name: "Drive" }));
+        await user.click(screen.getByRole("button", { name: /save changes/i }));
+        expect(updateStop).toHaveBeenLastCalledWith("stop-1", expect.objectContaining({ localTravelMode: "DRIVE" }));
+        unmount();
+        render(<StopFormDialog {...baseProps} stop={{ ...LONDON, localTravelMode: "DRIVE" }} />);
+        expect(screen.getByRole("combobox", { name: /local travel mode/i })).toHaveTextContent("Drive");
+        await open(user);
+        await user.click(await screen.findByRole("option", { name: /^Automatic/ }));
+        await user.click(screen.getByRole("button", { name: /save changes/i }));
+        expect(updateStop).toHaveBeenLastCalledWith("stop-1", expect.objectContaining({ localTravelMode: null }));
+      });
+
+      it("an unchanged Automatic Stop sends null, so nothing flips", async () => {
+        const user = userEvent.setup();
+        render(<StopFormDialog {...baseProps} stop={LONDON} />);
+        await user.click(screen.getByRole("button", { name: /save changes/i }));
+        expect(updateStop).toHaveBeenLastCalledWith("stop-1", expect.objectContaining({ localTravelMode: null }));
+      });
+    });
+
     it("a new Stop's pick sends its place ID, and typing after it drops the place", async () => {
       maps.places.predictions = [KYOTO];
       const user = userEvent.setup();

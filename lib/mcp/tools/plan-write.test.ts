@@ -130,6 +130,7 @@ vi.mock("@/server/actions/stops", () => ({
   toggleStopPin: vi.fn(),
   makeStopRough: vi.fn(),
   setStopNotes: vi.fn(),
+  setStopLocalTravelMode: vi.fn(),
   setStopNights: vi.fn(),
 }));
 

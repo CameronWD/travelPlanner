@@ -88,7 +88,7 @@ export function parseHopKey(key: string): { mode: TravelMode; from: Pt; to: Pt; 
 
 export function effectiveLocalMode(
   stop: { id: string; localTravelMode: string | null },
-  transports: { mode: string; fromStopId: string | null; toStopId: string | null }[],
+  transports: { mode: string; fromStopId?: string | null; toStopId?: string | null }[],
 ): LocalMode {
   if (stop.localTravelMode === "DRIVE" || stop.localTravelMode === "TRANSIT") return stop.localTravelMode;
   const drives = transports.some(

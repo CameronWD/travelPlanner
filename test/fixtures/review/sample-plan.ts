@@ -26,7 +26,7 @@ export const SAMPLE_PLAN: McpTripPlan = {
   stops: [
     {
       id: "kyoto", name: "Kyoto", countryCode: "jp", rough: false, nights: 4, arriveDate: "2026-11-01", departDate: "2026-11-05",
-      pinned: false, chapterId: null, timezone: "Asia/Tokyo",
+      pinned: false, chapterId: null, timezone: "Asia/Tokyo", localTravelMode: "public_transport", localTravelModeSet: false,
       notes: "Ask the ryokan if they can hold our bags on the last day. Still waiting to hear back.",
       accommodations: [
         {
@@ -57,7 +57,7 @@ export const SAMPLE_PLAN: McpTripPlan = {
     },
     {
       id: "secret", name: "Hakone", countryCode: "jp", rough: false, nights: 1, arriveDate: "2026-11-05", departDate: "2026-11-06",
-      pinned: false, chapterId: null, notes: null, timezone: "Asia/Tokyo", accommodations: [], thingsToDo: [], days: [], files: [], surprise: SURPRISE,
+      pinned: false, chapterId: null, notes: null, timezone: "Asia/Tokyo", localTravelMode: "public_transport", localTravelModeSet: false, accommodations: [], thingsToDo: [], days: [], files: [], surprise: SURPRISE,
     },
   ],
   transports: [
