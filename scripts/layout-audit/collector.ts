@@ -38,7 +38,7 @@ export interface RawCollect {
   elementCount: number;
   /** Up to 5 elements with the largest right edge beyond viewport.w. */
   widest: RawEl[];
-  spills: (RawEl & { containerSel: string; containerRect: Rect; inHScroller: boolean; inLeaflet: boolean })[];
+  spills: (RawEl & { containerSel: string; containerRect: Rect; inHScroller: boolean; inMap: boolean })[];
   /** Text clipped with no way to read it. Two sources:
    * - own box: an element with text whose own overflow / ellipsis /
    *   line-clamp cuts it (scroll* and client* are its own);
@@ -62,7 +62,7 @@ export interface RawCollect {
     kind: "interactive" | "text";
     ancestorIdx: number[];
     stackOk: boolean;
-    inLeaflet: boolean;
+    inMap: boolean;
     layer?: string;
   })[];
   /** Only filled when viewport.w <= 430. */
@@ -342,7 +342,7 @@ export const COLLECTOR_SCRIPT = `
       containerSel: container ? selOf(container) : "viewport",
       containerRect: cRect,
       inHScroller: inHScroller(el.parentElement),
-      inLeaflet: !!el.closest(".leaflet-container"),
+      inMap: !!el.closest(".tp-map"),
     }));
   }
   widestAll.sort((a, b) => b.right - a.right || b.depth - a.depth);
@@ -385,8 +385,8 @@ export const COLLECTOR_SCRIPT = `
   // One entry per clipping container (its first overrunning text block), and
   // nothing for a container the own-box pass already reported. Skipped:
   // containers under 8px tall (collapsed disclosures, height animations) and
-  // Leaflet (markers panned out of the map pane are clipped by design; the
-  // spec excludes Leaflet panes for the same reason in the spill check).
+  // the map (pins panned out of the viewport are clipped by design; the spill
+  // check excludes the map for the same reason).
   const vClipDone = new Set();
   for (const v of vis) {
     if (clipped.length >= LIST_CAP) break;
@@ -398,7 +398,7 @@ export const COLLECTOR_SCRIPT = `
     if (oy !== "hidden" && oy !== "clip") continue;
     const cr = container.getBoundingClientRect();
     if (cr.height < 8) continue;
-    if (el.closest(".leaflet-container")) continue;
+    if (el.closest(".tp-map")) continue;
     const cRect = docRect(cr);
     const over = Math.max(v.rect.y + v.rect.h - (cRect.y + cRect.h), cRect.y - v.rect.y);
     if (over <= 2) continue;
@@ -458,7 +458,7 @@ export const COLLECTOR_SCRIPT = `
       kind: interactive ? "interactive" : "text",
       ancestorIdx: ancestorIdx,
       stackOk: stackOk,
-      inLeaflet: !!el.closest(".leaflet-container"),
+      inMap: !!el.closest(".tp-map"),
       layer: layerOf(el),
     }));
   }
