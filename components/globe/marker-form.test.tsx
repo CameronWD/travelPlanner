@@ -223,7 +223,8 @@ describe("MarkerForm — place search", () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     render(<MarkerForm {...baseProps} />);
     expect(screen.getByLabelText("Place search")).not.toHaveAttribute("role", "combobox");
-    expect(screen.getByText(/Suggestions aren't available/)).toBeInTheDocument();
+    expect(screen.getByText("Search isn't available right now. Drop a pin on the map to place it.")).toBeInTheDocument();
+    expect(screen.queryByText(/looked up when you save/)).not.toBeInTheDocument();
   });
 
   it("a dropped pin prefills from reverseGeocodeAction and stores its placeId", async () => {

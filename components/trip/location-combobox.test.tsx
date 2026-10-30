@@ -49,7 +49,7 @@ describe("LocationCombobox", () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     const onChange = renderCombo();
     await userEvent.click(screen.getByRole("button", { name: /^To/ }));
-    expect(screen.getByText(/Suggestions aren't available/)).toBeInTheDocument();
+    expect(screen.getByText("Suggestions aren't available. The place is looked up when you save.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Sydney/ }));
     expect(onChange).toHaveBeenCalledWith({ kind: "home" });
   });

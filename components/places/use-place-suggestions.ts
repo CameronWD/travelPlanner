@@ -9,6 +9,8 @@ export type PlaceKind = "region" | "venue" | "any";
 export type PlaceSuggestion = { id: string; mainText: string; secondaryText: string };
 export type SuggestionStatus = "idle" | "loading" | "ok" | "empty" | "error";
 
+export const PLACE_FIELD_HINT = "Suggestions aren't available. The place is looked up when you save.";
+
 const DEBOUNCE_MS = 350;
 const MIN_CHARS = 3;
 const NEAR_RADIUS_M = 50_000;
@@ -84,7 +86,7 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
       clear();
       return;
     }
-    setQuery(text);
+    setQuery(text.trim());
   }
 
   function reset() {
@@ -119,6 +121,7 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
       ...(countryCode ? { countryCode } : {}),
       placeId: place.id || prediction.placeId,
       ...(place.formattedAddress ? { address: place.formattedAddress } : {}),
+      ...(prediction.types?.length ? { types: prediction.types } : {}),
     };
   }
 

@@ -5,7 +5,7 @@ import { APIProvider } from "@vis.gl/react-google-maps";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { usePlaceSuggestions } from "@/components/places/use-place-suggestions";
+import { PLACE_FIELD_HINT, usePlaceSuggestions } from "@/components/places/use-place-suggestions";
 import { placesBrowserKey } from "@/lib/map/google-config";
 
 // ---------------------------------------------------------------------------
@@ -118,8 +118,6 @@ interface OptionsProps {
   select: (v: LocationValue) => void;
 }
 
-const HINT = "Suggestions aren't available — the place is looked up when you save.";
-
 function LocationOptions({ query, setQuery, filteredStops, homeBaseName, disabled, select }: OptionsProps) {
   const { available, suggestions, search, pick, reset } = usePlaceSuggestions({ kind: "any" });
   const typed = query.trim();
@@ -203,7 +201,7 @@ function LocationOptions({ query, setQuery, filteredStops, homeBaseName, disable
           <p translate="no" className="text-right text-[11px] font-semibold text-muted-foreground">Google Maps</p>
         </>
       )}
-      {available ? null : <p className="text-[13px] font-semibold text-muted-foreground">{HINT}</p>}
+      {available ? null : <p className="text-[13px] font-semibold text-muted-foreground">{PLACE_FIELD_HINT}</p>}
     </div>
   );
 }

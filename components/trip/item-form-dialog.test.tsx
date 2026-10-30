@@ -1754,7 +1754,7 @@ describe("Try list (R6)", () => {
 
 
 describe("ItemFormDialog address search", () => {
-  const ICHIRAN = { placeId: "ChIJIchiran", mainText: "Ichiran Shibuya", secondaryText: "Tokyo", lat: 35.66, lng: 139.7, formattedAddress: "1-22-7 Jinnan, Shibuya, Tokyo", countryCode: "jp", country: "Japan" };
+  const ICHIRAN = { placeId: "ChIJIchiran", mainText: "Ichiran Shibuya", secondaryText: "Tokyo", lat: 35.66, lng: 139.7, formattedAddress: "1-22-7 Jinnan, Shibuya, Tokyo", countryCode: "jp", country: "Japan", types: ["restaurant", "food", "point_of_interest", "establishment"] };
   const HOURS = { week: { mon: [["11:00", "22:00"]] as [string, string][] }, seasons: [], closed: [] };
   const address = () => screen.getByRole("combobox", { name: "Address" });
   const link = () => screen.getByLabelText("Link");
@@ -1799,6 +1799,21 @@ describe("ItemFormDialog address search", () => {
       expect.objectContaining({ link: "https://ichiran.test", businessStatus: "OPERATIONAL", openingHours: HOURS }),
       undefined,
     );
+  });
+
+  it.each([
+    ["a city", { placeId: "ChIJTokyo", mainText: "Tokyo", secondaryText: "Japan", lat: 35.68, lng: 139.76, formattedAddress: "Tokyo, Japan", countryCode: "jp", country: "Japan", types: ["locality", "political"] }],
+    ["a street address", { placeId: "ChIJStreet", mainText: "1-22-7 Jinnan", secondaryText: "Shibuya, Tokyo", lat: 35.66, lng: 139.7, formattedAddress: "1-22-7 Jinnan, Shibuya, Tokyo", countryCode: "jp", country: "Japan", types: ["street_address"] }],
+  ])("picking %s saves its place without asking for venue details", async (_label, place) => {
+    mock.places.predictions = [place];
+    render(<ItemFormDialog {...baseProps} />);
+    await userEvent.type(address(), place.mainText.slice(0, 4));
+    await screen.findByRole("option", { name: new RegExp(place.mainText) });
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(address()).toHaveValue(place.formattedAddress));
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1]).toMatchObject({ placeId: place.placeId, lat: place.lat, lng: place.lng });
+    expect(venueDetailsForPick).not.toHaveBeenCalled();
   });
 
   it("when venueDetailsForPick answers null the pick still saves its place and fills nothing", async () => {

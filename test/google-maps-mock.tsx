@@ -40,6 +40,7 @@ export type FakePrediction = {
   countryCode?: string;
   country?: string;
   components?: { longText: string; shortText: string; types: string[] }[];
+  types?: string[];
 };
 
 function withoutChildren(props: Props) {
@@ -111,6 +112,7 @@ export function createGoogleMapsMock() {
           mainText: { text: p.mainText },
           secondaryText: p.secondaryText === undefined ? null : { text: p.secondaryText },
           text: { text: [p.mainText, p.secondaryText].filter(Boolean).join(", ") },
+          types: p.types ?? [],
           toPlace: () => fakePlace(p),
         },
       })),

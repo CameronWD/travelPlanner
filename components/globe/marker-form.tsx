@@ -184,6 +184,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
               placeholder="Search for a place…"
               aria-label="Place search"
               disabled={busy}
+              unavailableHint="Search isn't available right now. Drop a pin on the map to place it."
             />
 
             {/* Pin-drop geocode hint — shown while background reverse-geocode is resolving */}

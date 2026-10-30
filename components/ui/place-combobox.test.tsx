@@ -13,7 +13,7 @@ import { PlaceCombobox, type PickedPlace } from "./place-combobox";
 
 const SYD_AU = { placeId: "ChIJSydAu", mainText: "Sydney", secondaryText: "NSW, Australia", lat: -33.87, lng: 151.21, formattedAddress: "Sydney NSW, Australia", countryCode: "au", country: "Australia" };
 const SYD_CA = { placeId: "ChIJSydCa", mainText: "Sydney", secondaryText: "NS, Canada", lat: 46.14, lng: -60.19, formattedAddress: "Sydney, NS, Canada", countryCode: "ca", country: "Canada" };
-const HINT = "Suggestions aren't available — the place is looked up when you save.";
+const HINT = "Suggestions aren't available. The place is looked up when you save.";
 
 const submitted = vi.fn();
 const outerKey = vi.fn();

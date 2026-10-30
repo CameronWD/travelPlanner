@@ -4,10 +4,7 @@ import { expect, it } from "vitest";
 import { copyScanFiles, scanSource } from "./helpers/copy-scan";
 
 /** Spec 2026-10-08 §K. Each entry needs a reason a reviewer would accept. */
-const ALLOWLIST: { file: string; includes: string; reason: string }[] = [
-  { file: "components/ui/place-combobox.tsx", includes: "Suggestions aren't available", reason: "Hint wording fixed verbatim by the Places spec (2026-10-30)" },
-  { file: "components/trip/location-combobox.tsx", includes: "Suggestions aren't available", reason: "Hint wording fixed verbatim by the Places spec (2026-10-30)" },
-];
+const ALLOWLIST: { file: string; includes: string; reason: string }[] = [];
 
 const root = path.resolve(__dirname, "..");
 const violations = copyScanFiles(root)

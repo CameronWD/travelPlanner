@@ -12,4 +12,10 @@ export interface PickedPlace {
   country?: string;
   placeId: string;
   address?: string;
+  /** Google's place types, from the prediction (free). */
+  types?: string[];
+}
+
+export function isEstablishment(p: PickedPlace): boolean {
+  return Boolean(p.types?.some((t) => t === "establishment" || t === "point_of_interest"));
 }

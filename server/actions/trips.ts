@@ -90,6 +90,7 @@ export async function createTrip(
         country: s.country,
         lat: s.lat ?? undefined,
         lng: s.lng ?? undefined,
+        placeId: s.placeId ?? undefined,
         nights: s.nights,
       }))
     : parsed.data.stops;

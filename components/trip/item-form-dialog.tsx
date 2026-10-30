@@ -54,6 +54,7 @@ import { cn } from "@/lib/cn";
 import { travellerFirstName, type TravellerLike } from "@/lib/traveller";
 import type { StopOption } from "@/lib/plan-entity-views";
 import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
+import { isEstablishment } from "@/lib/picked-place";
 import { venueDetailsForPick } from "@/server/actions/venue-details";
 
 export type { StopOption };
@@ -615,6 +616,7 @@ function ItemForm({
     setAddress(p.address ?? p.name);
     if (onSubmitOverride) return;
     setPick({ placeId: p.placeId, lat: p.lat, lng: p.lng, ...(p.countryCode && { countryCode: p.countryCode }) });
+    if (!isEstablishment(p)) return;
     const details = await venueDetailsForPick(tripId, p.placeId).catch(() => null);
     if (token !== pickToken.current || !details) return;
     if (details.openingHours && hoursEmpty(latest.current.openingHours)) {

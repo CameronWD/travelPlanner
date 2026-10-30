@@ -48,6 +48,15 @@ describe("usePlaceSuggestions", () => {
     expect(mock.places.requests[0].input).toBe("Kyo");
   });
 
+  it("a trailing space does not send the same input again", async () => {
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    act(() => result.current.search("Kyo"));
+    await waitFor(() => expect(mock.places.requests).toHaveLength(1));
+    act(() => result.current.search("Kyo "));
+    await new Promise((r) => setTimeout(r, 400));
+    expect(mock.places.requests).toHaveLength(1);
+  });
+
   it("biases to near within 50 km", async () => {
     const { result } = renderHook(() => usePlaceSuggestions({ kind: "venue", near: { lat: 35, lng: 135.7 } }));
     act(() => result.current.search("Ichiran"));
@@ -153,6 +162,12 @@ describe("usePlaceSuggestions", () => {
       ],
     });
     expect(picked.city).toBe("London");
+  });
+
+  it("a pick carries the prediction's place types, which cost nothing", async () => {
+    const picked = await pickOne({ placeId: "ChIJIc", mainText: "Ichiran", lat: 35.66, lng: 139.7, types: ["restaurant", "establishment"] });
+    expect(picked).toMatchObject({ types: ["restaurant", "establishment"] });
+    expect(mock.places.fetchFields).toHaveBeenCalledWith({ fields: ["id", "location", "formattedAddress", "addressComponents"] });
   });
 
   it("a country pick has the country and no city", async () => {

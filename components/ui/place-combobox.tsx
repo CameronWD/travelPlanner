@@ -5,7 +5,7 @@ import { APIProvider } from "@vis.gl/react-google-maps";
 import { m } from "motion/react";
 import { LayoutMotion } from "@/components/ui/layout-motion";
 import { useFieldControl } from "@/components/ui/field";
-import { usePlaceSuggestions, type PlaceKind, type PlaceSuggestion } from "@/components/places/use-place-suggestions";
+import { PLACE_FIELD_HINT, usePlaceSuggestions, type PlaceKind, type PlaceSuggestion } from "@/components/places/use-place-suggestions";
 import { placesBrowserKey } from "@/lib/map/google-config";
 import type { PickedPlace } from "@/lib/picked-place";
 
@@ -23,9 +23,8 @@ export interface PlaceComboboxProps {
   id?: string;
   "aria-label"?: string;
   disabled?: boolean;
+  unavailableHint?: string;
 }
-
-const HINT = "Suggestions aren't available — the place is looked up when you save.";
 
 export function PlaceCombobox(props: PlaceComboboxProps) {
   const apiKey = placesBrowserKey();
@@ -38,7 +37,7 @@ export function PlaceCombobox(props: PlaceComboboxProps) {
   );
 }
 
-function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, kind = "region", autoFocus, id, "aria-label": ariaLabel = "Place", disabled }: PlaceComboboxProps) {
+function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, kind = "region", autoFocus, id, "aria-label": ariaLabel = "Place", disabled, unavailableHint = PLACE_FIELD_HINT }: PlaceComboboxProps) {
   const listId = React.useId();
   const hintId = React.useId();
   const field = useFieldControl();
@@ -171,7 +170,7 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
         <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">No places found. Keep typing, or use it as written.</p>
       ) : null}
       {available ? null : (
-        <p id={hintId} className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">{HINT}</p>
+        <p id={hintId} className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">{unavailableHint}</p>
       )}
     </div>
   );

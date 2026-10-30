@@ -759,7 +759,7 @@ describe("createTrip", () => {
     routeStopsFromShareMock.mockResolvedValue({
       linkId: "link-1",
       tripName: "Christmas in Europe",
-      stops: [{ name: "London", country: "England", lat: 51.5, lng: -0.1, nights: 5 }],
+      stops: [{ name: "London", country: "England", placeId: "ChIJLondon", lat: 51.5, lng: -0.1, nights: 5 }],
     });
 
     const r = await createTrip({
@@ -777,7 +777,7 @@ describe("createTrip", () => {
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tripId: "trip-9", name: "London", country: "England", countryCode: null,
-        lat: 51.5, lng: -0.1, nights: 5, arriveDate: null, departDate: null,
+        lat: 51.5, lng: -0.1, placeId: "ChIJLondon", nights: 5, arriveDate: null, departDate: null,
       }),
     });
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
