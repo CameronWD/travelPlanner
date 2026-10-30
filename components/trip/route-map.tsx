@@ -273,7 +273,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
           const encoded = legPaths?.[`${coordStops[i].id}>${stop.id}`];
           const opacity = i < travelled ? 0.9 : 0.7;
           return encoded ? (
-            <MapPolyline key={`leg-${stop.id}`} encodedPath={encoded} color={legColour(stop.sortOrder, isDark)} weight={3} opacity={opacity} />
+            <MapPolyline key={`leg-${stop.id}`} encodedPath={encoded} color={legColour(stop.sortOrder, isDark)} weight={3} opacity={opacity} dashed={i >= travelled} />
           ) : (
             <Leg
               key={`leg-${stop.id}`}

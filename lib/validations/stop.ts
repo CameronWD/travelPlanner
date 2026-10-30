@@ -2,7 +2,8 @@ import { z } from "zod";
 import { isoDate, placeId } from "@/lib/validations/primitives";
 // ISO 3166-1 alpha-2 from a picked place; stored lower-case like the geocoder's (Stop.countryCode).
 const countryCode = z.string().trim().regex(/^[a-zA-Z]{2}$/, "Country code must be two letters").transform((c) => c.toLowerCase()).optional();
-const localTravelMode = z.enum(["DRIVE", "TRANSIT"]).nullable().optional();
+export const localTravelModeSchema = z.object({ localTravelMode: z.enum(["DRIVE", "TRANSIT"]).nullable() });
+const localTravelMode = localTravelModeSchema.shape.localTravelMode.optional();
 const name = z.string().trim().min(1, "Stop name is required").max(120, "Stop name must be 120 characters or fewer");
 
 const roughStopSchema = z.object({

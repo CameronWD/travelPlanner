@@ -274,7 +274,7 @@ export function resolveHop(
   const walkMin = (km / ESTIMATE_WALK_KMH) * 60;
   return walkMin <= ESTIMATE_MAX_WALK_MIN
     ? { minutes: walkMin, distanceKm: km, mode: "walk", estimated: true, polyline: null }
-    : { minutes: estimateDriveMinutes(km, estimateOpts), distanceKm: km, mode: "drive", estimated: true, polyline: null };
+    : { minutes: estimateDriveMinutes(km, estimateOpts), distanceKm: km, mode: localMode === "TRANSIT" ? "transit" : "drive", estimated: true, polyline: null };
 }
 
 export function resolveDriveLeg(

@@ -777,7 +777,8 @@ export function flagTightConnections(
       if (!hop) continue;
       const resolved = resolveHop(hop.from, hop.to, hop.localMode, hop.departure, lookup, opts);
       const travel = resolved.minutes;
-      const how = `a ~${Math.round(travel)} min ${HOP_LABEL[resolved.mode]}${estimatedSuffix(resolved.estimated)}`;
+      const label = resolved.estimated && resolved.mode === "transit" ? "trip" : HOP_LABEL[resolved.mode];
+      const how = `a ~${Math.round(travel)} min ${label}${estimatedSuffix(resolved.estimated)}`;
       const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
       const retime = tightRetime(prev, next, travel);
       if (gap < travel) {

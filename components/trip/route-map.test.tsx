@@ -407,6 +407,15 @@ describe("RouteMap legPaths", () => {
     expect(straight.geodesic).toBe(true);
   });
 
+  it("draws a road leg not yet travelled dashed, like a straight one", () => {
+    render(<RouteMap stops={THREE} legPaths={{ "s2>s3": ENCODED }} progress={{ stage: "during", currentStopId: "s2" }} />);
+    const [travelled, road] = lines();
+    expect(travelled.icons).toEqual([]);
+    expect(road.path).toHaveLength(3);
+    expect(road.strokeOpacity).toBe(0);
+    expect(road.icons).not.toEqual([]);
+  });
+
   it("ignores paths for legs it does not draw", () => {
     render(<RouteMap stops={STOPS} legPaths={{ "s2>s1": ENCODED }} />);
     expect(lines()[0].path).toHaveLength(2);

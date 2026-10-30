@@ -23,6 +23,7 @@ import { readDayRows } from "@/lib/day-reads";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from "@/test/helpers/surprise-visibility";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
+import { ITEM_HOP_ORDER } from "@/lib/travel-times/hops";
 
 type Where = Record<string, unknown>;
 const TRIP = { name: "Paris week", startDate: "2026-12-04", endDate: "2026-12-10", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: null, chaptersEnabled: true, roundTrip: true };
@@ -67,6 +68,13 @@ describe("readDayRows (card 3.M)", () => {
     });
     expect(db.item.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tripId: "trip-1", forkId: null, stopId: { not: null }, date: null } }),
+    );
+  });
+
+  it("orders the dated Items as the Travel time refresh does, so Day-map ties pair the same hops", async () => {
+    await readDayRows("trip-1", "u-1", none);
+    expect(db.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ date: { not: null } }), orderBy: [...ITEM_HOP_ORDER] }),
     );
   });
 

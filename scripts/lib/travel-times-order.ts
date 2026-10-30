@@ -12,3 +12,7 @@ export function parseRefreshArgs(args: string[]): { execute: boolean; cap?: numb
   if (raw === undefined || !/^[1-9]\d*$/.test(raw)) return { error: "--cap needs a positive whole number, e.g. --cap 500." };
   return { execute, cap: Number(raw) };
 }
+
+export function googleRefusing(run: { fetched: number; failed: number }): boolean {
+  return run.failed > 0 && run.fetched === 0;
+}

@@ -81,6 +81,17 @@ describe("loadDayForMcp", () => {
       ]);
     });
 
+    it("an estimated hop at a Public-transport Stop is public_transport, estimated, with the estimate's minutes", async () => {
+      const items = [at("c", C, "11:00"), at("d", D, "12:00")];
+      readDayRows.mockResolvedValue({ rows: hopRows(items), visibility: {}, alongside: [] });
+      const atDrive = await loadDayForMcp("trip-1", "2027-06-02");
+      readDayRows.mockResolvedValue({ rows: { ...rows, stops: [{ ...rows.stops[0], localTravelMode: "TRANSIT" }], items }, visibility: {}, alongside: [] });
+      const atTransit = await loadDayForMcp("trip-1", "2027-06-02");
+      if ("success" in atDrive || "success" in atTransit) throw new Error("expected a day");
+      expect(atTransit.hops).toEqual([{ ...atDrive.hops[0], mode: "public_transport", estimated: true }]);
+      expect(atDrive.hops[0]).toMatchObject({ mode: "drive", estimated: true });
+    });
+
     it("steps over a Surprise the viewer is not in on, and never names it", async () => {
       readDayRows.mockResolvedValue({
         rows: hopRows([at("a", A, "09:00"), itemRow({ id: "hidden", title: "Surprise", startTime: "10:00", surprise: surprised }), at("c", C, "11:00")]),

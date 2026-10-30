@@ -839,13 +839,16 @@ describe("flagTightConnections", () => {
     expect(flags[0].retime).toEqual({ itemId: "next", startTime: "12:40", endTime: "13:40" });
   });
 
-  it("says drive when the distance is beyond walking", () => {
+  it("says drive when the distance is beyond walking at a Drive Stop, and trip where the hop's mode is public transport", () => {
     // ~30 km apart → walk ≫ 30 min → drive ≈ 33.78 min; gap = 30 min < 33.78 → warning
-    const prev = makeItem({ id: "prev", date: "2026-07-02", startTime: "11:00", endTime: "12:00", lat: 48.860, lng: 2.337 });
-    const next = makeItem({ id: "next", date: "2026-07-02", startTime: "12:30", endTime: "13:30", lat: 49.130, lng: 2.337 });
-    const flags = flagTightConnections([prev, next], [], OPTS);
+    const prev = makeItem({ id: "prev", stopId: "paris", date: "2026-07-02", startTime: "11:00", endTime: "12:00", lat: 48.860, lng: 2.337 });
+    const next = makeItem({ id: "next", stopId: "paris", date: "2026-07-02", startTime: "12:30", endTime: "13:30", lat: 49.130, lng: 2.337 });
+    const paris = makeStop({ id: "paris", arriveDate: "2026-07-01", departDate: "2026-07-03", localTravelMode: "DRIVE" });
+    const flags = flagTightConnections([prev, next], [], { ...OPTS, travelStops: [paris] });
     expect(flags).toHaveLength(1);
-    expect(flags[0].message).toMatch(/min drive/);
+    expect(flags[0].message).toMatch(/~34 min drive \(estimated\)\.$/);
+    // No Stop: the local mode is inferred as public transport, so the drive-speed estimate is only "a trip".
+    expect(flagTightConnections([prev, next].map((i) => ({ ...i, stopId: null })), [], OPTS)[0].message).toMatch(/~34 min trip \(estimated\)\.$/);
   });
 
   it("offers no retime when the later Item is Booked", () => {
@@ -936,6 +939,13 @@ describe("Travel times in the Flags", () => {
       const lookup: TravelLookup = new Map([[keyOf("DRIVE", SHRINE), none]]);
       const [flag] = tight(pair(SHRINE), tokyo("DRIVE"), lookup);
       expect(flag.message).toMatch(/but it's a ~\d+ min drive \(estimated\)\.$/);
+    });
+
+    it("calls an estimate at a Public-transport Stop a trip, not a drive, keeping its minutes", () => {
+      const [flag] = tight(pair(SHRINE), tokyo("TRANSIT"), new Map());
+      const [atDrive] = tight(pair(SHRINE), tokyo("DRIVE"), new Map());
+      const minutes = atDrive.message.match(/~(\d+) min drive \(estimated\)\.$/)![1];
+      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~${minutes} min trip (estimated).`);
     });
 
     it("falls back to the estimate, marked, when nothing is stored", () => {

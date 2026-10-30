@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { stopSchema, type StopInput } from "@/lib/validations/stop";
+import { localTravelModeSchema, stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { resolveStopTimezone } from "@/lib/tz-point";
 import { mergeStopPatch, type StopPatch } from "@/lib/stop-patch";
@@ -1222,7 +1222,9 @@ export async function setStopNotes(stopId: string, notes: string): Promise<StopA
 
 export async function setStopLocalTravelMode(stopId: string, mode: "DRIVE" | "TRANSIT" | null): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
-  await auditedUpdate("STOP", db.stop, stopId, { localTravelMode: mode }, stop.forkId);
+  const parsed = localTravelModeSchema.safeParse({ localTravelMode: mode });
+  if (!parsed.success) return validationResult(parsed.error);
+  await auditedUpdate("STOP", db.stop, stopId, parsed.data, stop.forkId);
   revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }

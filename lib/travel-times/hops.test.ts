@@ -297,12 +297,23 @@ describe("resolveHop", () => {
     }
   });
 
-  it("estimates a drive beyond a 30 min walk", () => {
+  it("estimates a drive beyond a 30 min walk at a Drive Stop", () => {
+    const km = haversineKm(A, FAR);
+    expect(resolveHop(A, FAR, "DRIVE", null, new Map(), OPTS)).toEqual({
+      minutes: estimateDriveMinutes(km, OPTS),
+      distanceKm: km,
+      mode: "drive",
+      estimated: true,
+      polyline: null,
+    });
+  });
+
+  it("calls the estimate beyond a 30 min walk public transport at a Public-transport Stop, keeping its minutes", () => {
     const km = haversineKm(A, FAR);
     expect(resolveHop(A, FAR, "TRANSIT", null, new Map(), OPTS)).toEqual({
       minutes: estimateDriveMinutes(km, OPTS),
       distanceKm: km,
-      mode: "drive",
+      mode: "transit",
       estimated: true,
       polyline: null,
     });

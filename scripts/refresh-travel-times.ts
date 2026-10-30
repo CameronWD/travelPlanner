@@ -9,7 +9,8 @@
  * Trips still to come, under way or undated go first, finished ones last.
  * --execute refreshes each Trip until a pass fetches nothing or Google's app
  * quota for the day (ROUTES_DAILY_CAP, or --cap) refuses; it stops at the first refusal,
- * and the rest fill on a later run or after their next plan write.
+ * and the rest fill on a later run or after their next plan write. It also stops when
+ * every call in a pass failed (Google refusing: console quota, 429s).
  */
 import "./load-env";
 import { db } from "@/lib/db";
@@ -17,7 +18,7 @@ import { formatISODate } from "@/lib/dates";
 import { hasServerKey } from "@/lib/google-fetch";
 import { refreshTripTravelTimes, type RefreshCounts } from "@/lib/travel-times/refresh";
 import { dbTargetLine } from "./lib/script-guards";
-import { parseRefreshArgs, refreshOrder } from "./lib/travel-times-order";
+import { googleRefusing, parseRefreshArgs, refreshOrder } from "./lib/travel-times-order";
 
 async function main() {
   const args = parseRefreshArgs(process.argv.slice(2));
@@ -49,19 +50,28 @@ async function main() {
     }
 
     const sum: RefreshCounts = { wanted: 0, fetched: 0, skippedQuota: 0, failed: 0 };
+    let refusing = false;
     for (let pass = 0; ; pass++) {
       const run = await refreshTripTravelTimes(trip.id, { dailyCap: cap });
       if (pass === 0) sum.wanted = run.wanted;
       sum.fetched += run.fetched;
       sum.failed += run.failed;
       sum.skippedQuota = run.skippedQuota;
-      if (run.skippedQuota > 0 || run.fetched === 0) break;
+      refusing = googleRefusing(run);
+      if (refusing || run.skippedQuota > 0 || run.fetched === 0) break;
     }
     console.log(`${trip.name} (${trip.id}): wanted ${sum.wanted}, fetched ${sum.fetched}, failed ${sum.failed}, skipped (quota) ${sum.skippedQuota}`);
     total.wanted += sum.wanted;
     total.fetched += sum.fetched;
     total.failed += sum.failed;
     total.skippedQuota += sum.skippedQuota;
+    if (refusing) {
+      console.error(
+        "Every Routes call in the last pass failed: Google is refusing (check the console quota and for 429s). Stopped; fix that and run again (the keys that failed retry after their 24 h cooldown).",
+      );
+      process.exitCode = 1;
+      break;
+    }
     if (sum.skippedQuota > 0) {
       console.log("Daily Routes quota reached: the remaining Trips fill on a later run.");
       break;

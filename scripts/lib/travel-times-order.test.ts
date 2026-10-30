@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRefreshArgs, refreshOrder } from "./travel-times-order";
+import { googleRefusing, parseRefreshArgs, refreshOrder } from "./travel-times-order";
 
 describe("refreshOrder", () => {
   it("puts upcoming, current and undated Trips first, finished Trips last, otherwise keeping the order given", () => {
@@ -26,5 +26,21 @@ describe("parseRefreshArgs", () => {
     for (const args of [["--cap", "500"], ["--execute", "--cap"], ["--execute", "--cap", "0"], ["--execute", "--cap", "abc"], ["--execute", "--cap", "1.5"], ["--execute", "--cap", "-3"]]) {
       expect(parseRefreshArgs(args)).toHaveProperty("error");
     }
+  });
+});
+
+describe("googleRefusing", () => {
+  const run = (fetched: number, failed: number, skippedQuota = 0) => ({ wanted: fetched + failed + skippedQuota, fetched, failed, skippedQuota });
+
+  it("is true when every call a pass made failed", () => {
+    expect(googleRefusing(run(0, 40))).toBe(true);
+    expect(googleRefusing(run(0, 1))).toBe(true);
+  });
+
+  it("is false when any call succeeded, or no call was made", () => {
+    expect(googleRefusing(run(1, 39))).toBe(false);
+    expect(googleRefusing(run(40, 0))).toBe(false);
+    expect(googleRefusing(run(0, 0))).toBe(false);
+    expect(googleRefusing(run(0, 0, 12))).toBe(false);
   });
 });

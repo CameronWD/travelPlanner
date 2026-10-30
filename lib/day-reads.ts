@@ -26,6 +26,7 @@ import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { withTryList } from "@/lib/try-list-stored";
 import type { DayRows } from "@/lib/day-view-model";
 import type { BookingState } from "@/lib/enum-values";
+import { ITEM_HOP_ORDER } from "@/lib/travel-times/hops";
 
 export interface DayReadContext {
   tripId: string;
@@ -73,7 +74,7 @@ export async function readDayRows<X>(
     stopRows,
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
-      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+      orderBy: [...ITEM_HOP_ORDER],
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
         lat: true, lng: true, placeId: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,

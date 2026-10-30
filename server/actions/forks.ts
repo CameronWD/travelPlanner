@@ -507,8 +507,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {
     const { stops, transports, accommodations, items, costs, exchangeRates } = planData[i];
 
-    // Map DB rows to CompareStop/CompareTransport shapes.
-        // - depAt/arrAt: DB returns Date | null; CompareTransport requires string | null.
+    // depAt/arrAt: DB returns Date | null; CompareTransport requires string | null.
     const compareTransports = transports.map((t) => ({
       ...t,
       depAt: t.depAt instanceof Date ? t.depAt.toISOString() : (t.depAt ?? null),
