@@ -47,6 +47,7 @@ interface ForkSourceStop {
   country: string | null;
   lat: number | null;
   lng: number | null;
+  placeId?: string | null;
   timezone: string | null;
   arriveDate: string | null;
   departDate: string | null;
@@ -75,6 +76,8 @@ interface ForkSourceTransport {
   depLng: number | null;
   arrLat: number | null;
   arrLng: number | null;
+  depPlaceId?: string | null;
+  arrPlaceId?: string | null;
   reference: string | null;
   notes: string | null;
   sortOrder: number;
@@ -97,6 +100,7 @@ interface ForkSourceAccommodation {
   notes: string | null;
   lat: number | null;
   lng: number | null;
+  placeId?: string | null;
   /** CONTEXT.md "Booking state" (spec 2026-10-17 R2) — optional so older-shaped rows still build. */
   bookingState?: string | null;
   bookingStateSet?: boolean | null;
@@ -113,6 +117,8 @@ interface ForkSourceItem {
   endTime: string | null;
   lat: number | null;
   lng: number | null;
+  placeId?: string | null;
+  businessStatus?: string | null;
   address: string | null;
   link: string | null;
   booking: string | null;
@@ -191,6 +197,7 @@ export interface ForkPlan {
       country: string | null;
       lat: number | null;
       lng: number | null;
+      placeId: string | null;
       timezone: string | null;
       arriveDate: string | null;
       departDate: string | null;
@@ -219,6 +226,8 @@ export interface ForkPlan {
       depLng: number | null;
       arrLat: number | null;
       arrLng: number | null;
+      depPlaceId: string | null;
+      arrPlaceId: string | null;
       reference: string | null;
       notes: string | null;
       sortOrder: number;
@@ -240,6 +249,7 @@ export interface ForkPlan {
       notes: string | null;
       lat: number | null;
       lng: number | null;
+      placeId: string | null;
       bookingState: string;
       bookingStateSet: boolean;
       bookBy: string | null;
@@ -257,6 +267,8 @@ export interface ForkPlan {
       endTime: string | null;
       lat: number | null;
       lng: number | null;
+      placeId: string | null;
+      businessStatus: string | null;
       address: string | null;
       link: string | null;
       booking: string | null;
@@ -311,7 +323,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       sourceId: s.id,
       sourceChapterId: s.chapterId,
       data: {
-        name: s.name, country: s.country, lat: s.lat, lng: s.lng, timezone: s.timezone,
+        name: s.name, country: s.country, lat: s.lat, lng: s.lng, placeId: s.placeId ?? null, timezone: s.timezone,
         arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned,
         sortOrder: s.sortOrder, chapterSortOrder: s.chapterSortOrder, notes: s.notes,
         surprisePlannerId: s.surprisePlannerId ?? null, surpriseForIds: s.surpriseForIds ?? null,
@@ -324,6 +336,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       data: {
         mode: t.mode, depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,
+        depPlaceId: t.depPlaceId ?? null, arrPlaceId: t.arrPlaceId ?? null,
         reference: t.reference, notes: t.notes, sortOrder: t.sortOrder,
         bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
       },
@@ -333,7 +346,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       data: {
         name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut,
         checkInTime: a.checkInTime ?? null, checkOutTime: a.checkOutTime ?? null,
-        confirmation: a.confirmation, notes: a.notes, lat: a.lat, lng: a.lng,
+        confirmation: a.confirmation, notes: a.notes, lat: a.lat, lng: a.lng, placeId: a.placeId ?? null,
         bookingState: effectiveBookingState("ACCOMMODATION", a, a.confirmation), bookingStateSet: a.bookingStateSet ?? false, bookBy: a.bookBy ?? null,
       },
     })),
@@ -342,7 +355,8 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       sourcePhotoAttachmentId: it.photoAttachmentId ?? null,
       data: {
         title: it.title, category: it.category, date: it.date, startTime: it.startTime, endTime: it.endTime,
-        lat: it.lat, lng: it.lng, address: it.address, link: it.link, booking: it.booking,
+        lat: it.lat, lng: it.lng, placeId: it.placeId ?? null, businessStatus: it.businessStatus ?? null,
+        address: it.address, link: it.link, booking: it.booking,
         notes: it.notes, sortOrder: it.sortOrder, sourceItemId: null,
         hiddenFromShares: it.hiddenFromShares ?? false,
         surprisePlannerId: it.surprisePlannerId ?? null, surpriseForIds: it.surpriseForIds ?? null,

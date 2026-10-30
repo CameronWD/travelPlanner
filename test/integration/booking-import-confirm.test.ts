@@ -21,6 +21,7 @@ vi.mock("@/lib/geocode", async (orig) => ({
   ...(await orig<typeof import("@/lib/geocode")>()),
   geocodePlace: vi.fn(async () => null),
   geocodePlaceDetailed: vi.fn(async () => null),
+  locateVenue: vi.fn(async () => null),
 }));
 
 import { db } from "@/lib/db";

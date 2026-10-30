@@ -9,7 +9,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 const NOT_FOUND = () => Object.assign(new Error("NOT_FOUND"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw NOT_FOUND(); }, redirect: () => { throw new Error("NEXT_REDIRECT"); } }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null) }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null), locateVenue: vi.fn(async () => null) }));
 vi.mock("@/lib/money/fx", () => ({ resolveRateForTrip: vi.fn(async () => ({ rate: 1, persist: null })), persistRate: vi.fn(async () => undefined) }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
 // The real guards (lib/guards.ts requireRowAccess, lib/surprise-guard.ts) run:

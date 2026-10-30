@@ -9,7 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 // and the model's field names are `week`/`closed`/`source`.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null) }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null), locateVenue: vi.fn(async () => null) }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
 vi.mock("@/lib/guards", async () => {
   // Fix round 1: the Fork-copy integration case below calls createFork,

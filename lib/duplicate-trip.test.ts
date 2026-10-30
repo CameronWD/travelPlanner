@@ -59,7 +59,7 @@ describe("buildDuplicatePlan", () => {
     const plan = buildDuplicatePlan(SOURCE, "x");
     const rome = plan.stops.find((s) => s.sourceId === "s1")!;
     expect(rome.data).toEqual({
-      name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, timezone: "Europe/Rome",
+      name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, placeId: null, timezone: "Europe/Rome",
       arriveDate: null, departDate: null, nights: 3, pinned: false,
       sortOrder: 0, chapterSortOrder: 0, notes: "near station",
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
@@ -76,7 +76,7 @@ describe("buildDuplicatePlan", () => {
     expect(col.data).toEqual({
       title: "Colosseum", category: "SIGHTSEEING",
       date: null, startTime: null, endTime: null, booking: null,
-      lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", notes: "n",
+      lat: 41.89, lng: 12.49, countryCode: "it", placeId: null, businessStatus: null, address: "Rome", link: "x", notes: "n",
       sortOrder: 0, hiddenFromShares: true,
       openingHours: null, tryList: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
@@ -155,7 +155,7 @@ describe("buildDuplicatePlan", () => {
     expect(t.data).toEqual({
       mode: "TRAIN", depPlace: "Roma Termini", arrPlace: "Firenze",
       depAt: null, arrAt: null, reference: null, notes: null,
-      depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, sortOrder: 0,
+      depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, depPlaceId: null, arrPlaceId: null, sortOrder: 0,
       bookingState: "TO_BOOK", bookingStateSet: false,
     });
   });
@@ -187,5 +187,19 @@ describe("buildDuplicatePlan", () => {
       "x",
     );
     expect(plan.transports.map((x) => x.sourceAnchorStopId)).toEqual(["s1", null, "s2", "s3"]);
+  });
+
+  it("keeps every copied row's place ID; a missing one copies as null", () => {
+    const plan = buildDuplicatePlan({
+      ...SOURCE,
+      stops: [{ ...SOURCE.stops[0], placeId: "rome-id" }, SOURCE.stops[1]],
+      items: [{ ...SOURCE.items[0], placeId: "colosseum-id", businessStatus: "OPERATIONAL" }, SOURCE.items[1]],
+      transports: [{ ...SOURCE.transports[0], depPlaceId: "termini-id", arrPlaceId: "smn-id" }],
+    }, "x");
+    expect(plan.stops[0].data.placeId).toBe("rome-id");
+    expect(plan.stops[1].data.placeId).toBeNull();
+    expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL" });
+    expect(plan.items[1].data).toMatchObject({ placeId: null, businessStatus: null });
+    expect(plan.transports[0].data).toMatchObject({ depPlaceId: "termini-id", arrPlaceId: "smn-id" });
   });
 });
