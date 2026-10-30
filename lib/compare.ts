@@ -25,12 +25,11 @@ import {
   type BudgetAccommodation,
   type BudgetTransport,
 } from "@/lib/money/budget";
-import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
-import { homePointOf, type TravelLookup } from "@/lib/travel-times/hops";
+import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type TravelLookup } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -465,24 +464,14 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     legs.push({ fromName: from.name, toName: to.name, mode: t.mode });
   }
 
+  const estimateOpts = { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph };
+  const carTransports = new Map(transports.map((t) => [t.id, t]));
   let drivingMinutes = 0;
-
-  for (const t of transports) {
-    if (t.mode !== "CAR") continue;
-    if (!t.fromStopId || !t.toStopId) continue;
-    const from = stopById.get(t.fromStopId);
-    const to = stopById.get(t.toStopId);
-    if (!from || !to) continue;
-    if (from.lat == null || from.lng == null || to.lat == null || to.lng == null) continue;
-    if (!isFinite(from.lat) || !isFinite(from.lng) || !isFinite(to.lat) || !isFinite(to.lng)) continue;
-
-    const fromLatLng: LatLng = { lat: from.lat, lng: from.lng };
-    const toLatLng: LatLng = { lat: to.lat, lng: to.lng };
-    const km = haversineKm(fromLatLng, toLatLng);
-    drivingMinutes += estimateDriveMinutes(km, {
-      windingFactor: trip.drivingWindingFactor,
-      avgSpeedKph: trip.drivingAvgSpeedKph,
-    });
+  for (const leg of carLegs(transports.map(toPlanTransport), hopStopsById(stops), homePointOf(trip))) {
+    const t = carTransports.get(leg.transportId);
+    const dep = t?.depAt ? new Date(t.depAt).getTime() : NaN;
+    const arr = t?.arrAt ? new Date(t.arrAt).getTime() : NaN;
+    drivingMinutes += arr > dep ? (arr - dep) / 60000 : resolveDriveLeg(leg.from, leg.to, input.travel, estimateOpts).minutes;
   }
 
   return {

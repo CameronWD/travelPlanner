@@ -149,7 +149,7 @@ export interface ItineraryTransport {
   /** Costs attached to this transport */
   costs?: CostRow[];
   /** Precomputed offline drive estimate; present only for Car legs without real times. */
-  driveEstimate?: { minutes: number; roadKm: number } | null;
+  driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
 }
 
 export interface ItineraryChapter {

@@ -78,7 +78,7 @@ export interface TransportCardTransport {
   /** IANA timezone of toStop (used for arr time display) */
   toStopTimezone?: string | null;
   /** Precomputed offline drive estimate; present only for Car legs without real times. */
-  driveEstimate?: { minutes: number; roadKm: number } | null;
+  driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
 }
 
 export interface AccommodationCardAccommodation {

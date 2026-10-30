@@ -11,7 +11,9 @@ import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enum-values";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
-import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
+import { estimateRoadKm } from "@/lib/geo";
+import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { summarizePlan } from "@/lib/plan-overview";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { VariantBanner } from "@/components/trip/variant-banner";
@@ -286,14 +288,14 @@ export default async function TripPlanPage({
     ),
   );
 
-  // Build a coord lookup by stop id so transport leg estimates can fall back
-  // to linked stop coordinates when the transport has no typed dep/arr place.
-  const stopCoordsById = new Map<string, { lat: number; lng: number }>();
-  for (const s of stops) {
-    if (s.lat != null && s.lng != null) {
-      stopCoordsById.set(s.id, { lat: s.lat, lng: s.lng });
-    }
-  }
+  const windingFactor = trip.drivingWindingFactor ?? 1.5;
+  const travel = await loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports, home: homePointOf(trip) });
+  const driveLegs = new Map(
+    carLegs(transports.map(toPlanTransport), hopStopsById(rows.stops), homePointOf(trip)).map((leg) => [
+      leg.transportId,
+      resolveDriveLeg(leg.from, leg.to, travel, { windingFactor, avgSpeedKph: trip.drivingAvgSpeedKph ?? 80 }),
+    ]),
+  );
 
   const tripStartDate = trip?.startDate ?? undefined;
   const tripEndDate = trip?.endDate ?? undefined;
@@ -424,40 +426,14 @@ export default async function TripPlanPage({
               }))}
               initialTransports={transports.map((t) => {
                 const hasTimes = t.depAt != null && t.arrAt != null;
-                // Resolve coordinates: transport's own dep/arr coords take priority;
-                // fall back to the linked stop's coords when the transport has no
-                // typed place (so stop-linked legs get estimates the same way the
-                // long-driving-day flag does).
-                const fromCoord =
-                  t.depLat != null && t.depLng != null
-                    ? { lat: t.depLat, lng: t.depLng }
-                    : t.fromStopId != null
-                      ? (stopCoordsById.get(t.fromStopId) ?? null)
-                      : null;
-                const toCoord =
-                  t.arrLat != null && t.arrLng != null
-                    ? { lat: t.arrLat, lng: t.arrLng }
-                    : t.toStopId != null
-                      ? (stopCoordsById.get(t.toStopId) ?? null)
-                      : null;
-                const coords =
-                  fromCoord != null && toCoord != null
-                    ? { from: fromCoord, to: toCoord }
-                    : null;
+                const leg = driveLegs.get(t.id);
                 const driveEstimate =
-                  t.mode === "CAR" && !hasTimes && coords
-                    ? (() => {
-                        const km = haversineKm(coords.from, coords.to);
-                        return {
-                          minutes: Math.round(
-                            estimateDriveMinutes(km, {
-                              windingFactor: trip?.drivingWindingFactor ?? 1.5,
-                              avgSpeedKph: trip?.drivingAvgSpeedKph ?? 80,
-                            }),
-                          ),
-                          roadKm: Math.round(estimateRoadKm(km, trip?.drivingWindingFactor ?? 1.5)),
-                        };
-                      })()
+                  t.mode === "CAR" && !hasTimes && leg
+                    ? {
+                        minutes: Math.round(leg.minutes),
+                        roadKm: Math.round(leg.estimated ? estimateRoadKm(leg.distanceKm, windingFactor) : leg.distanceKm),
+                        estimated: leg.estimated,
+                      }
                     : null;
                 return {
                   ...t,

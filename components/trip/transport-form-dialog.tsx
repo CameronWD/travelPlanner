@@ -822,7 +822,7 @@ function TransportForm({
           <div className="tp-rise-in flex items-center justify-between gap-2 rounded-[14px] border-2 border-border bg-card px-3 py-2 text-sm text-muted-foreground">
             <span>
               {transport?.driveEstimate
-                ? `~${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km`
+                ? `${transport.driveEstimate.estimated ? "~" : ""}${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km${transport.driveEstimate.estimated ? " (estimated)" : ""}`
                 : "The drive estimate will show once it's saved."}
             </span>
             <button

@@ -36,9 +36,9 @@ describe("legLabel", () => {
   });
 
   it("a car with no times reads Drive with the drive estimate", () => {
-    const l = legLabel({ mode: "CAR", fromStopId: "r", toStopId: "f", driveEstimate: { minutes: 200, roadKm: 240 } }, STOPS);
-    expect(l).toMatchObject({ icon: Car, label: "Drive", sub: "~3h 20m · 240 km" });
-    expect(l.accessibleName).toBe("Drive from Rome to Florence, ~3h 20m · 240 km. Edit.");
+    const l = legLabel({ mode: "CAR", fromStopId: "r", toStopId: "f", driveEstimate: { minutes: 200, roadKm: 240, estimated: true } }, STOPS);
+    expect(l).toMatchObject({ icon: Car, label: "Drive", sub: "~3h 20m · 240 km (estimated)" });
+    expect(l.accessibleName).toBe("Drive from Rome to Florence, ~3h 20m · 240 km (estimated). Edit.");
   });
 
   it("a car with no times and no estimate falls back to the change-over date", () => {

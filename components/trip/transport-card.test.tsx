@@ -47,10 +47,18 @@ describe("TransportCard drive estimate", () => {
   it("shows the drive estimate when present and there are no real times", () => {
     render(
       <TransportCard
-        transport={{ ...base, driveEstimate: { minutes: 75, roadKm: 100 } }}
+        transport={{ ...base, driveEstimate: { minutes: 75, roadKm: 100, estimated: true } }}
       />,
     );
     expect(screen.getByText(/≈.*100 km/)).toBeInTheDocument();
+  });
+
+  it("says estimated only when the drive time is an estimate", () => {
+    const { rerender } = render(<TransportCard transport={{ ...base, driveEstimate: { minutes: 75, roadKm: 100, estimated: true } }} />);
+    expect(screen.getByText(/\(estimated\)/)).toBeInTheDocument();
+    rerender(<TransportCard transport={{ ...base, driveEstimate: { minutes: 75, roadKm: 100, estimated: false } }} />);
+    expect(screen.getByText(/100 km/)).toBeInTheDocument();
+    expect(screen.queryByText(/estimated/)).not.toBeInTheDocument();
   });
 
   it("hides the estimate when real dep/arr times give a duration", () => {
@@ -60,7 +68,7 @@ describe("TransportCard drive estimate", () => {
           ...base,
           depAt: new Date("2026-07-03T09:00:00Z"),
           arrAt: new Date("2026-07-03T10:30:00Z"),
-          driveEstimate: { minutes: 75, roadKm: 100 },
+          driveEstimate: { minutes: 75, roadKm: 100, estimated: true },
         }}
       />,
     );
