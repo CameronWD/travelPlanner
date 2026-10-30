@@ -35,6 +35,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("TravelTime store (real Postgre
   afterAll(async () => {
     await clean();
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
+    await db.user.deleteMany({ where: { id: USER } });
   });
 
   it("upserts idempotently and moves fetchedAt on an overwrite", async () => {

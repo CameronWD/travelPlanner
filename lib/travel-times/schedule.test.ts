@@ -4,11 +4,13 @@ const m = vi.hoisted(() => ({
   after: vi.fn(),
   refresh: vi.fn(),
   hasServerKey: vi.fn(() => true),
+  importFails: false,
 }));
 vi.mock("next/server", () => ({ after: m.after }));
 vi.mock("@/lib/google-fetch", () => ({ hasServerKey: m.hasServerKey }));
 vi.mock("./refresh", () => ({ refreshTripTravelTimes: m.refresh }));
 
+import { afterEach } from "vitest";
 import { scheduleTravelTimes } from "./schedule";
 
 function deferred() {
@@ -22,7 +24,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.hasServerKey.mockReturnValue(true);
   m.after.mockImplementation(() => undefined);
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe("scheduleTravelTimes", () => {
   it("defers the refresh until after the response", async () => {
@@ -70,6 +74,8 @@ describe("scheduleTravelTimes", () => {
     m.refresh.mockRejectedValueOnce(new Error("boom")).mockResolvedValue(undefined);
     scheduleTravelTimes("t1");
     await expect(m.after.mock.calls[0][0]()).resolves.toBeUndefined();
+    expect(console.error).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith("[travel-times] refresh failed for trip t1:", "boom");
     scheduleTravelTimes("t1");
     await m.after.mock.calls[1][0]();
     expect(m.refresh).toHaveBeenCalledTimes(2);
@@ -87,5 +93,30 @@ describe("scheduleTravelTimes", () => {
     m.hasServerKey.mockReturnValue(false);
     scheduleTravelTimes("t1");
     expect(m.after).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleTravelTimes when the refresh module fails to load", () => {
+  it("does not keep the failed import: the next schedule loads it again", async () => {
+    vi.resetModules();
+    let loads = 0;
+    vi.doMock("./refresh", () => {
+      loads++;
+      if (m.importFails) throw new Error("module failed to load");
+      return { refreshTripTravelTimes: m.refresh };
+    });
+    m.importFails = true;
+    const fresh = await import("./schedule");
+    m.refresh.mockResolvedValue(undefined);
+    fresh.scheduleTravelTimes("t9");
+    await expect(m.after.mock.calls[0][0]()).resolves.toBeUndefined();
+    expect(m.refresh).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledTimes(1);
+
+    m.importFails = false;
+    fresh.scheduleTravelTimes("t9");
+    await m.after.mock.calls[1][0]();
+    expect(m.refresh).toHaveBeenCalledWith("t9");
+    expect(loads).toBe(2);
   });
 });
