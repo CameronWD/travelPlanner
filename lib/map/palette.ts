@@ -1,7 +1,7 @@
 import type { Hue } from "@/lib/hues";
 
 /**
- * Blessed hex values for Leaflet. divIcon markers are HTML strings and polylines take a colour
+ * Blessed hex values for the map. Pin markers are HTML strings and polylines take a colour
  * string, so Tailwind can't reach them. This is the ONLY lib file allowed hex literals; each
  * value mirrors a token in app/globals.css (comment = token). Keep them in step.
  */

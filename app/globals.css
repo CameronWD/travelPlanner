@@ -33,8 +33,10 @@
 
 /* Kit InfoWindow shell. Google's default is a white card in both themes, which leaves the
    token-coloured popup text unreadable in dark mode. Card surface, 2px ink outline, hard shadow;
-   the tail and the close button follow the same tokens. */
-.tp-map .gm-style-iw-c {
+   the tail and the close button follow the same tokens. The tail is a clip-path triangle, so a border or
+   box-shadow on it is clipped away: the hard shadow rides on its container as a drop-shadow instead.
+   `.gm-style` in every selector outranks Google's own `.gm-style .gm-style-iw-*` rules, which it injects at runtime. */
+.tp-map .gm-style .gm-style-iw-c {
   background: hsl(var(--card));
   color: hsl(var(--foreground));
   border: 2px solid hsl(var(--border));
@@ -42,24 +44,25 @@
   box-shadow: var(--shadow-1);
   font-family: var(--font-sans);
 }
-.tp-map .gm-style-iw-d {
+.tp-map .gm-style .gm-style-iw-d {
   color: hsl(var(--foreground));
 }
-.tp-map .gm-style-iw-tc::after {
-  background: hsl(var(--card));
-  border: 2px solid hsl(var(--border));
-  box-shadow: var(--shadow-1);
+.tp-map .gm-style .gm-style-iw-tc {
+  filter: drop-shadow(3px 3px 0 hsl(var(--shadow-ink)));
 }
-.tp-map .gm-style-iw-chr button.gm-ui-hover-effect {
+.tp-map .gm-style .gm-style-iw-tc::after {
+  background: hsl(var(--card));
+}
+.tp-map .gm-style .gm-style-iw-chr button.gm-ui-hover-effect {
   color: hsl(var(--muted-foreground));
 }
-.tp-map .gm-style-iw-chr button.gm-ui-hover-effect > span {
+.tp-map .gm-style .gm-style-iw-chr button.gm-ui-hover-effect > span {
   background-color: hsl(var(--muted-foreground));
 }
-.tp-map .gm-style-iw-chr button.gm-ui-hover-effect:hover > span {
+.tp-map .gm-style .gm-style-iw-chr button.gm-ui-hover-effect:hover > span {
   background-color: hsl(var(--foreground));
 }
-.tp-map .gm-style-iw-chr button.gm-ui-hover-effect:focus-visible {
+.tp-map .gm-style .gm-style-iw-chr button.gm-ui-hover-effect:focus-visible {
   outline: 3px solid hsl(var(--ring));
   outline-offset: -3px;
 }

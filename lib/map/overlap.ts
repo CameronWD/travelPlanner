@@ -6,7 +6,7 @@
  *
  * Single-linkage, so a chain of close pins becomes one group. Groups come back
  * in the order of their first member; ids inside a group keep input order.
- * PURE — no Leaflet.
+ * PURE — no map library.
  */
 export interface ScreenPoint {
   id: string;

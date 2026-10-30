@@ -15,9 +15,9 @@ export interface ChapterColourMeta {
   dotClass: string;
   /** Chapter band rail (8px) on the plan editor. */
   railClass: string;
-  /** Hex for Leaflet, light theme. */
+  /** Hex for the map, light theme. */
   swatch: string;
-  /** Hex for Leaflet, dark theme. */
+  /** Hex for the map, dark theme. */
   swatchDark: string;
 }
 

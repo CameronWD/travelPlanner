@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { DayMapPanel } from "./day-map-panel";
 import type { DayMapModel } from "@/lib/day-map";
 
-// Mock the Leaflet child so jsdom never tries to render a real map.
+// Mock the map child so jsdom never tries to render a real map.
 vi.mock("./day-map", () => ({
   DayMap: () => <div data-testid="day-map" />,
 }));
