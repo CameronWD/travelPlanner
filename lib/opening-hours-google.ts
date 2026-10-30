@@ -20,6 +20,36 @@ const clock = (min: number): string =>
 
 const weekMinute = (t: GoogleTime): number => t.day * DAY_MIN + t.hour * 60 + t.minute;
 
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+function parseTime(raw: unknown): GoogleTime | null {
+  if (!isRecord(raw)) return null;
+  const { day = 0, hour = 0, minute = 0 } = raw;
+  if (typeof day !== "number" || typeof hour !== "number" || typeof minute !== "number") return null;
+  if (!Number.isInteger(day) || !Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (day < 0 || day > 6 || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return { day, hour, minute };
+}
+
+// Places API (New) is proto3 JSON: zero-valued day/hour/minute may be omitted.
+export function parseGooglePeriods(raw: unknown): GooglePeriod[] | null {
+  if (!Array.isArray(raw)) return null;
+  const periods: GooglePeriod[] = [];
+  for (const entry of raw) {
+    if (!isRecord(entry)) return null;
+    const open = parseTime(entry.open);
+    if (!open) return null;
+    if (entry.close === undefined || entry.close === null) {
+      periods.push({ open });
+      continue;
+    }
+    const close = parseTime(entry.close);
+    if (!close) return null;
+    periods.push({ open, close });
+  }
+  return periods;
+}
+
 export function openingHoursFromGoogle(periods: GooglePeriod[] | null | undefined, source?: string): OpeningHours | null {
   if (!periods || periods.length === 0) return null;
 
@@ -29,7 +59,8 @@ export function openingHoursFromGoogle(periods: GooglePeriod[] | null | undefine
     let end: number;
     if (period.close) {
       end = weekMinute(period.close);
-      if (end <= start) end += WEEK_MIN;
+      if (end === start) return null;
+      if (end < start) end += WEEK_MIN;
     } else if (start === 0) {
       end = WEEK_MIN;
     } else {

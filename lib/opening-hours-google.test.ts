@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openingHoursFromGoogle, type GooglePeriod } from "./opening-hours-google";
+import { openingHoursFromGoogle, parseGooglePeriods, type GooglePeriod } from "./opening-hours-google";
 import { openingHoursSchema } from "@/lib/validations/opening-hours";
 
 const p = (d: number, h: number, m: number, cd: number, ch: number, cm: number): GooglePeriod => ({
@@ -84,5 +84,57 @@ describe("openingHoursFromGoogle", () => {
     const src = "https://www.google.com/maps/search/?api=1&query=ChIJ&query_place_id=ChIJ";
     expect(check([p(1, 9, 0, 1, 17, 0)], src)?.source).toBe(src);
     expect(check([p(1, 9, 0, 1, 17, 0)])).not.toHaveProperty("source");
+  });
+
+  it("a period whose open equals its close is null, not a week-long wrap", () => {
+    expect(check([p(1, 9, 0, 1, 9, 0)])).toBeNull();
+  });
+
+  it("splits a multi-midnight span across three days", () => {
+    const r = check([p(5, 20, 0, 0, 2, 0)]);
+    expect(r?.week.fri).toEqual([["20:00", "24:00"]]);
+    expect(r?.week.sat).toEqual([["00:00", "24:00"]]);
+    expect(r?.week.sun).toEqual([["00:00", "02:00"]]);
+    expect(r?.week.mon).toEqual([]);
+  });
+
+  it("collapses duplicate periods", () => {
+    expect(check([p(1, 9, 0, 1, 17, 0), p(1, 9, 0, 1, 17, 0)])?.week.mon).toEqual([["09:00", "17:00"]]);
+  });
+
+  it("gives the same result for out-of-order periods", () => {
+    const ordered = [p(1, 9, 0, 1, 12, 0), p(1, 14, 0, 1, 18, 0), p(3, 10, 0, 3, 16, 0)];
+    expect(check([ordered[2], ordered[0], ordered[1]])).toEqual(check(ordered));
+  });
+});
+
+describe("parseGooglePeriods", () => {
+  it("treats an omitted minute as 0", () => {
+    const periods = parseGooglePeriods([{ open: { day: 1, hour: 9 }, close: { day: 1, hour: 17 } }]);
+    expect(check(periods!)?.week.mon).toEqual([["09:00", "17:00"]]);
+  });
+
+  it("treats an omitted day as Sunday", () => {
+    const periods = parseGooglePeriods([{ open: { hour: 10 }, close: { hour: 14 } }]);
+    expect(check(periods!)?.week.sun).toEqual([["10:00", "14:00"]]);
+  });
+
+  it("reads the 24/7 open-only period with everything omitted", () => {
+    const periods = parseGooglePeriods([{ open: {} }]);
+    expect(check(periods!)?.week.sat).toEqual([["00:00", "24:00"]]);
+  });
+
+  it("a period missing open → null", () => {
+    expect(parseGooglePeriods([{ close: { day: 1, hour: 17 } }])).toBeNull();
+  });
+
+  it("a non-number field → null", () => {
+    expect(parseGooglePeriods([{ open: { day: 1, hour: "9" }, close: { day: 1, hour: 17 } }])).toBeNull();
+    expect(parseGooglePeriods([{ open: { day: 1, hour: 9 }, close: { day: 1, hour: null } }])).toBeNull();
+  });
+
+  it("non-array input → null", () => {
+    expect(parseGooglePeriods(undefined)).toBeNull();
+    expect(parseGooglePeriods({})).toBeNull();
   });
 });
