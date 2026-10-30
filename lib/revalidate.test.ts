@@ -2,10 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+const scheduleMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/travel-times/schedule", () => ({ scheduleTravelTimes: scheduleMock }));
 
 import { SCOPE_PAGES, SCOPE_TABLES, revalidateAccount, revalidateAllTripHomes, revalidateTrip, revalidateTripsList, type TripPage } from "./revalidate";
 
-beforeEach(() => revalidatePathMock.mockClear());
+beforeEach(() => {
+  revalidatePathMock.mockClear();
+  scheduleMock.mockClear();
+});
 
 describe("revalidateTrip", () => {
   it("money revalidates the pages that read Costs, by id path, once each", () => {
@@ -30,6 +35,16 @@ describe("revalidateTrip", () => {
     revalidatePathMock.mockClear();
     revalidateTrip("t1", "trip");
     expect(revalidatePathMock.mock.calls).toEqual([["/trips/t1", "layout"], ["/trips"]]);
+  });
+  it("a write that can change a hop schedules the Trip's travel times, once", () => {
+    revalidateTrip("t1", "plan", "money");
+    revalidateTrip("t2", "trip");
+    revalidateTrip("t3", "travellers");
+    expect(scheduleMock.mock.calls).toEqual([["t1"], ["t2"], ["t3"]]);
+  });
+  it("money, lists, journal and reviews writes schedule nothing", () => {
+    revalidateTrip("t1", "money", "lists", "journal", "reviews");
+    expect(scheduleMock).not.toHaveBeenCalled();
   });
   it("account is root-layout-wide; the trips list is one path", () => {
     revalidateAccount();
