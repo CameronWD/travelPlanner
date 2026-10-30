@@ -2,28 +2,49 @@
  * One-time backfill of Google place IDs onto rows that still carry
  * OpenStreetMap coordinates (Branch 2, Places).
  *
- *   npm run backfill:places              # dry run (default)
- *   npm run backfill:places -- --execute # write accept/new rows
+ *   npm run backfill:places                          # dry run: looks up, prints, writes the plan file
+ *   npm run backfill:places -- --execute [plan.json] # applies that plan (default ./backfill-places-plan.json)
  *
- * Every row is looked up with the same server helpers the app uses and printed
- * with its verdict. Only `accept` (the new point is within tolerance of the old
- * one) and `new` (the row had no point) are written. Item opening hours, link
- * and business status are filled only when empty; hours go to the Item family
- * and never cross a Surprise. Enterprise detail calls bypass the app's daily
- * cap (takeGoogleQuota), so raise the console quota first. No Activity rows.
+ * The dry run looks every row up with the same server helpers the app uses,
+ * prints it with its verdict and writes the rows it would change (accept and
+ * new) to the plan file, with the exact columns to set. Nothing else is
+ * written. --execute applies exactly that file, with no location lookups;
+ * it refuses a missing plan or one older than 24 hours, and skips a row that
+ * changed since the plan. Item opening hours, link and business status are
+ * fetched at execute time, only for planned venue matches, and fill only
+ * what is empty; hours go to the Item family and never cross a Surprise.
+ * Enterprise detail calls bypass the app's daily cap (takeGoogleQuota), so
+ * raise the console quotas first. No Activity rows.
  */
 import "./load-env";
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { db } from "@/lib/db";
-import { fetchVenueDetails, geocodePlaceDetailed, hasServerKey, locateVenue, type GeoCandidate } from "@/lib/geocode";
+import { hasServerKey, lookUpPlace, lookUpVenue, type GeoCandidate, type Lookup, type VenueMatch } from "@/lib/geocode";
 import type { LatLng } from "@/lib/geo";
-import { formatRow, hasAnchor, verdict, type BackfillKind, type BackfillVerdict } from "@/lib/backfill-places";
-import { itemFamilyRecipientsForSave, writeItemFamily } from "@/lib/item-family";
-import { serializeOpeningHours } from "@/lib/validations/opening-hours";
-import { safeWebHref } from "@/lib/url";
-import { resolveHomeTimezone, resolveStopTimezone } from "@/lib/tz-point";
+import {
+  KINDS,
+  PLAN_FILE,
+  errorStreak,
+  formatRow,
+  hasAnchor,
+  needsDetails,
+  plannedHomeTimezone,
+  plannedSet,
+  plannedStopTimezone,
+  readPlan,
+  verdict,
+  type BackfillKind,
+  type BackfillVerdict,
+  type Plan,
+  type PlanRow,
+} from "@/lib/backfill-places";
+import { applyPlanRow, fillItemDetails } from "@/lib/backfill-places-apply";
 import { dbTargetLine } from "./lib/script-guards";
 
-const KINDS: BackfillKind[] = ["item", "stop", "accommodation", "transport-dep", "transport-arr", "marker", "home"];
+const REFUSING = "Google is refusing lookups: check the Geocoding/Places quotas.";
+
+type Found = GeoCandidate | VenueMatch;
 
 interface Candidate {
   kind: BackfillKind;
@@ -31,86 +52,38 @@ interface Candidate {
   query: string;
   old: LatLng | null;
   anchor: string;
-  lookup: () => Promise<GeoCandidate | null>;
-  write: (found: GeoCandidate, v: BackfillVerdict) => Promise<void>;
+  lookup: () => Promise<Lookup<Found>>;
+  plan: (found: Found, v: BackfillVerdict) => Pick<PlanRow, "set" | "details">;
 }
 
 const point = (lat: number | null, lng: number | null): LatLng | null => (lat != null && lng != null ? { lat, lng } : null);
 const join = (...parts: (string | null | undefined)[]) => parts.map((p) => p?.trim()).filter(Boolean).join(", ");
-
-let detailCalls = 0;
-const detailOutcomes = { filled: 0, empty: 0, failed: 0 };
-
-async function fillItemDetails(itemId: string, placeId: string): Promise<void> {
-  const item = await db.item.findUnique({
-    where: { id: itemId },
-    select: { id: true, tripId: true, sourceItemId: true, stopId: true, openingHours: true, link: true },
-  });
-  if (!item) return;
-  detailCalls++;
-  const details = await fetchVenueDetails(placeId);
-  if (!details) {
-    detailOutcomes.failed++;
-    throw new Error("Google returned no details");
-  }
-  if (!details.openingHours && !details.website && !details.businessStatus) detailOutcomes.empty++;
-  else detailOutcomes.filled++;
-  const hours = item.openingHours ? null : serializeOpeningHours(details.openingHours);
-  const link = item.link ? null : safeWebHref(details.website);
-  await db.$transaction(async (tx) => {
-    await tx.item.update({
-      where: { id: item.id },
-      data: {
-        ...(hours ? { openingHours: hours } : {}),
-        ...(link ? { link } : {}),
-        ...(details.businessStatus ? { businessStatus: details.businessStatus } : {}),
-      },
-    });
-    if (!hours) return;
-    const recipients = await itemFamilyRecipientsForSave(item, { stopId: item.stopId }, tx);
-    if (recipients.length === 0) return;
-    const empty = await tx.item.findMany({
-      where: { id: { in: recipients }, openingHours: null },
-      select: { id: true },
-    });
-    await writeItemFamily(tx, empty.map((r) => r.id), { openingHours: hours });
-  });
-}
+const matchedOf = (f: Found) => ("matched" in f ? f.matched : undefined);
 
 async function collect(): Promise<Candidate[]> {
   const out: Candidate[] = [];
 
   const items = await db.item.findMany({
     where: { placeId: null, trip: { deletedAt: null }, OR: [{ address: { not: "" } }, { lat: { not: null } }] },
-    select: { id: true, title: true, address: true, lat: true, lng: true },
+    select: { id: true, title: true, address: true, lat: true, lng: true, stop: { select: { lat: true, lng: true } } },
   });
   for (const r of items) {
     const old = point(r.lat, r.lng);
+    const near = old ?? (r.stop ? point(r.stop.lat, r.stop.lng) : null);
     out.push({
       kind: "item",
       id: r.id,
       query: join(r.title, r.address),
       anchor: r.address ?? "",
       old,
-      lookup: () => locateVenue(r.title, r.address ?? "", { near: old ?? undefined }),
-      write: async (f) => {
-        await db.item.update({
-          where: { id: r.id },
-          data: { lat: f.lat, lng: f.lng, placeId: f.placeId, ...(f.countryCode ? { countryCode: f.countryCode } : {}) },
-        });
-        if (!f.placeId) return;
-        try {
-          await fillItemDetails(r.id, f.placeId);
-        } catch (err) {
-          console.error(`  item ${r.id}: coordinates and place ID committed; details failed:`, err);
-        }
-      },
+      lookup: () => lookUpVenue(r.title, r.address ?? "", { near: near ?? undefined }),
+      plan: (f) => ({ set: plannedSet("item", f), details: needsDetails("item", r.address, f) }),
     });
   }
 
   const stops = await db.stop.findMany({
     where: { placeId: null, trip: { deletedAt: null } },
-    select: { id: true, name: true, country: true, timezone: true, lat: true, lng: true },
+    select: { id: true, name: true, country: true, timezone: true, arriveDate: true, lat: true, lng: true },
   });
   for (const r of stops) {
     const old = point(r.lat, r.lng);
@@ -121,42 +94,26 @@ async function collect(): Promise<Candidate[]> {
       query,
       anchor: query,
       old,
-      lookup: () => geocodePlaceDetailed(query, { near: old ?? undefined }),
-      write: async (f, v) => {
-        const timezone =
-          v === "new" && !r.timezone
-            ? resolveStopTimezone({ lat: f.lat, lng: f.lng, countryCode: f.countryCode, country: r.country })
-            : null;
-        await db.stop.update({
-          where: { id: r.id },
-          data: {
-            lat: f.lat,
-            lng: f.lng,
-            placeId: f.placeId,
-            ...(f.countryCode ? { countryCode: f.countryCode } : {}),
-            ...(timezone ? { timezone } : {}),
-          },
-        });
-      },
+      lookup: () => lookUpPlace(query, { near: old ?? undefined }),
+      plan: (f, v) => ({ set: plannedSet("stop", f, plannedStopTimezone(r, v, f)), details: false }),
     });
   }
 
   const stays = await db.accommodation.findMany({
     where: { placeId: null, trip: { deletedAt: null }, OR: [{ address: { not: "" } }, { lat: { not: null } }] },
-    select: { id: true, name: true, address: true, lat: true, lng: true },
+    select: { id: true, name: true, address: true, lat: true, lng: true, stop: { select: { lat: true, lng: true } } },
   });
   for (const r of stays) {
     const old = point(r.lat, r.lng);
+    const near = old ?? point(r.stop.lat, r.stop.lng);
     out.push({
       kind: "accommodation",
       id: r.id,
       query: join(r.name, r.address),
       anchor: r.address ?? "",
       old,
-      lookup: () => locateVenue(r.name, r.address ?? "", { near: old ?? undefined }),
-      write: async (f) => {
-        await db.accommodation.update({ where: { id: r.id }, data: { lat: f.lat, lng: f.lng, placeId: f.placeId } });
-      },
+      lookup: () => lookUpVenue(r.name, r.address ?? "", { near: near ?? undefined }),
+      plan: (f) => ({ set: plannedSet("accommodation", f), details: false }),
     });
   }
 
@@ -165,32 +122,21 @@ async function collect(): Promise<Candidate[]> {
     select: { id: true, depPlace: true, depPlaceId: true, depLat: true, depLng: true, arrPlace: true, arrPlaceId: true, arrLat: true, arrLng: true },
   });
   for (const r of transports) {
-    if (r.depPlace && !r.depPlaceId) {
-      const place = r.depPlace;
+    const ends = [
+      { kind: "transport-dep" as const, place: r.depPlace, placeId: r.depPlaceId, old: point(r.depLat, r.depLng) },
+      { kind: "transport-arr" as const, place: r.arrPlace, placeId: r.arrPlaceId, old: point(r.arrLat, r.arrLng) },
+    ];
+    for (const end of ends) {
+      const place = end.place;
+      if (!place || end.placeId) continue;
       out.push({
-        kind: "transport-dep",
+        kind: end.kind,
         id: r.id,
         query: place,
         anchor: place,
-        old: point(r.depLat, r.depLng),
-        lookup: () => geocodePlaceDetailed(place),
-        write: async (f) => {
-          await db.transport.update({ where: { id: r.id }, data: { depLat: f.lat, depLng: f.lng, depPlaceId: f.placeId } });
-        },
-      });
-    }
-    if (r.arrPlace && !r.arrPlaceId) {
-      const place = r.arrPlace;
-      out.push({
-        kind: "transport-arr",
-        id: r.id,
-        query: place,
-        anchor: place,
-        old: point(r.arrLat, r.arrLng),
-        lookup: () => geocodePlaceDetailed(place),
-        write: async (f) => {
-          await db.transport.update({ where: { id: r.id }, data: { arrLat: f.lat, arrLng: f.lng, arrPlaceId: f.placeId } });
-        },
+        old: end.old,
+        lookup: () => lookUpPlace(place),
+        plan: (f) => ({ set: plannedSet(end.kind, f), details: false }),
       });
     }
   }
@@ -207,13 +153,8 @@ async function collect(): Promise<Candidate[]> {
       query: join(r.title, r.city, r.country),
       anchor: join(r.city, r.country),
       old,
-      lookup: () => locateVenue(r.title, join(r.city, r.country), { near: old ?? undefined }),
-      write: async (f) => {
-        await db.marker.update({
-          where: { id: r.id },
-          data: { lat: f.lat, lng: f.lng, placeId: f.placeId, ...(f.countryCode ? { countryCode: f.countryCode } : {}) },
-        });
-      },
+      lookup: () => lookUpVenue(r.title, join(r.city, r.country), { near: old ?? undefined }),
+      plan: (f) => ({ set: plannedSet("marker", f), details: false }),
     });
   }
 
@@ -229,32 +170,16 @@ async function collect(): Promise<Candidate[]> {
       query: name,
       anchor: name,
       old: point(r.homeLat, r.homeLng),
-      lookup: () => geocodePlaceDetailed(name),
-      write: async (f, v) => {
-        const homeTimezone =
-          v === "new" && !r.homeTimezone
-            ? resolveHomeTimezone({ lat: f.lat, lng: f.lng, countryCode: f.countryCode })
-            : null;
-        await db.trip.update({
-          where: { id: r.id },
-          data: {
-            homeLat: f.lat,
-            homeLng: f.lng,
-            homePlaceId: f.placeId,
-            ...(f.countryCode ? { homeCountryCode: f.countryCode } : {}),
-            ...(homeTimezone ? { homeTimezone } : {}),
-          },
-        });
-      },
+      lookup: () => lookUpPlace(name),
+      plan: (f, v) => ({ set: plannedSet("home", f, plannedHomeTimezone(r, v, f)), details: false }),
     });
   }
 
   return out;
 }
 
-async function main() {
-  const execute = process.argv.includes("--execute");
-  console.log(dbTargetLine(process.env, !execute));
+async function dryRun(planPath: string) {
+  console.log(dbTargetLine(process.env, true));
   if (!hasServerKey()) {
     console.error("GOOGLE_MAPS_SERVER_KEY is not set; nothing to look up. Aborting.");
     process.exitCode = 1;
@@ -262,35 +187,106 @@ async function main() {
   }
 
   const candidates = await collect();
-  const tally = new Map<BackfillKind, Record<"scanned" | BackfillVerdict, number>>(
-    KINDS.map((k) => [k, { scanned: 0, accept: 0, new: 0, "too-far": 0, "no-match": 0, "no-anchor": 0 }]),
-  );
+  const tally = new Map(KINDS.map((k) => [k, { scanned: 0, accept: 0, new: 0, "too-far": 0, "address-only": 0, "no-match": 0, error: 0, "no-anchor": 0 }]));
+  const streak = errorStreak();
+  const rows: PlanRow[] = [];
 
   for (const c of candidates) {
     const anchored = hasAnchor(c.anchor, c.old);
-    const found = anchored ? await c.lookup() : null;
-    const v: BackfillVerdict = anchored ? verdict(c.kind, c.old, found) : "no-anchor";
-    console.log(formatRow({ kind: c.kind, id: c.id, query: c.query, old: c.old, next: found, verdict: v }));
+    const result = anchored ? await c.lookup() : null;
+    const found = result?.status === "ok" ? result.candidate : null;
+    const matched = found ? matchedOf(found) : undefined;
+    const v: BackfillVerdict = !result ? "no-anchor" : result.status === "error" ? "error" : verdict(c.kind, c.old, found && { ...found, matched });
+    console.log(formatRow({ kind: c.kind, id: c.id, query: c.query, old: c.old, next: found && { ...found, matched }, verdict: v }));
     const t = tally.get(c.kind)!;
     t.scanned++;
     t[v]++;
-    if (execute && found && (v === "accept" || v === "new")) {
-      try {
-        await c.write(found, v);
-      } catch (err) {
-        console.error(`  ${c.kind} ${c.id}: write failed, row left unchanged:`, err);
-      }
+    if (result && streak.record(result.status === "error")) {
+      console.error(`\n${REFUSING}\nStopped after 5 failed lookups in a row. No plan written.`);
+      process.exitCode = 1;
+      return;
+    }
+    if (found && (v === "accept" || v === "new")) {
+      rows.push({ kind: c.kind, id: c.id, query: c.query, verdict: v, matched: matched ?? null, address: found.address, old: c.old, ...c.plan(found, v) });
     }
   }
 
-  console.log("\nkind · scanned / accept / new / too-far / no-match / no anchor (skipped)");
+  console.log("\nkind · scanned / accept / new / too-far / address-only / no-match / error / no anchor (skipped)");
   for (const k of KINDS) {
     const t = tally.get(k)!;
-    console.log(`${k} · ${t.scanned} / ${t.accept} / ${t.new} / ${t["too-far"]} / ${t["no-match"]} / ${t["no-anchor"]}`);
+    console.log(`${k} · ${t.scanned} / ${t.accept} / ${t.new} / ${t["too-far"]} / ${t["address-only"]} / ${t["no-match"]} / ${t.error} / ${t["no-anchor"]}`);
   }
-  console.log(`Enterprise detail calls: ${detailCalls}`);
-  console.log(`Item details: ${detailOutcomes.filled} filled / ${detailOutcomes.empty} empty / ${detailOutcomes.failed} failed`);
-  if (!execute) console.log("\nDry run — re-run with --execute to apply.");
+
+  const plan: Plan = { version: 1, createdAt: new Date().toISOString(), rows };
+  writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
+  const details = rows.filter((r) => r.details).length;
+  console.log(`\nPlan: ${rows.length} rows to write, ${details} Enterprise detail calls at execute. Written to ${planPath}`);
+  console.log("Read it, then apply it within 24 hours: npm run backfill:places -- --execute");
+}
+
+async function execute(planPath: string) {
+  console.log(dbTargetLine(process.env, false));
+  let text: string | null = null;
+  try {
+    text = readFileSync(planPath, "utf8");
+  } catch {
+    text = null;
+  }
+  const read = readPlan(text, new Date());
+  if (!read.ok) {
+    console.error(`${planPath}: ${read.error}`);
+    process.exitCode = 1;
+    return;
+  }
+  const { rows } = read.plan;
+  if (rows.some((r) => r.details) && !hasServerKey()) {
+    console.error("GOOGLE_MAPS_SERVER_KEY is not set and the plan fetches venue details. Aborting.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const counts = { written: 0, changed: 0, failed: 0 };
+  const details = { calls: 0, filled: 0, empty: 0, failed: 0 };
+  const streak = errorStreak();
+
+  for (const row of rows) {
+    let outcome: "written" | "changed";
+    try {
+      outcome = await applyPlanRow(row);
+    } catch (err) {
+      counts.failed++;
+      console.error(`${row.kind} ${row.id}: write failed, row left unchanged:`, err);
+      continue;
+    }
+    counts[outcome]++;
+    if (outcome === "changed") {
+      console.log(`${row.kind} ${row.id} · SKIPPED · changed since the plan (or already written)`);
+      continue;
+    }
+    console.log(`${row.kind} ${row.id} · WRITTEN`);
+    const placeId = row.set.placeId;
+    if (!row.details || typeof placeId !== "string") continue;
+    details.calls++;
+    const filled = await fillItemDetails(row.id, placeId).catch(() => "failed" as const);
+    details[filled]++;
+    if (filled === "failed") console.error(`  item ${row.id}: coordinates and place ID committed; details failed`);
+    if (streak.record(filled === "failed")) {
+      console.error(`\n${REFUSING}\nStopped after 5 failed detail calls in a row. Re-run the same command to resume: rows already written are skipped.`);
+      process.exitCode = 1;
+      break;
+    }
+  }
+
+  console.log(`\nRows: ${counts.written} written / ${counts.changed} skipped (changed since the plan) / ${counts.failed} failed`);
+  console.log(`Enterprise detail calls: ${details.calls} (${details.filled} filled / ${details.empty} empty / ${details.failed} failed)`);
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const at = args.indexOf("--execute");
+  if (at === -1) return dryRun(path.resolve(PLAN_FILE));
+  const named = args[at + 1];
+  return execute(path.resolve(named && !named.startsWith("--") ? named : PLAN_FILE));
 }
 
 main()
