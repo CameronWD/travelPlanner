@@ -1,14 +1,12 @@
-import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { createLeafletMock } from "@/test/leaflet-mock";
-import { cartoTiles } from "@/lib/map/tiles";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { pinHtml } from "@/lib/map/pins";
 import { stopHex } from "@/lib/stop-colours";
 
-const hoisted = vi.hoisted(() => ({
-  leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,
-  theme: "light" as "light" | "dark",
-}));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+
+const hoisted = vi.hoisted(() => ({ theme: "light" as "light" | "dark" }));
 
 vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }),
@@ -21,18 +19,24 @@ const STOPS = [
   { id: "s2", name: "Kyoto", lat: 35.01, lng: 135.77, arriveDate: "2026-01-04", departDate: "2026-01-07", sortOrder: 1 },
 ];
 
+const THREE = [
+  ...STOPS,
+  { id: "s3", name: "Osaka", lat: 34.69, lng: 135.5, arriveDate: "2026-01-07", departDate: "2026-01-09", sortOrder: 2 },
+];
+
+const CHAPTERED = [{ ...STOPS[0], chapterName: "Japan" }, STOPS[1]];
+const HOME = { name: "Sydney", lat: -33.87, lng: 151.21 };
+const EMOJI = /\p{Extended_Pictographic}/u;
+
+const pinHtmls = () => screen.getAllByTestId("marker").map((m) => m.querySelector(".tp-map-pin")!.innerHTML);
+const lines = () => mock.recorded.polylines.map((p) => p.options);
+
 beforeEach(() => {
-  hoisted.leaflet = createLeafletMock();
+  mock.reset();
   hoisted.theme = "light";
-  vi.clearAllMocks();
-  // The component dynamically import()s "leaflet" inside its effect. Vitest
-  // caches a module's resolution after the first import within a test file,
-  // so a hoisted `vi.mock` factory would only ever run once for this whole
-  // file — every test after the first would silently resolve the FIRST
-  // test's mock instance instead of its own. `vi.doMock` re-registers the
-  // factory before each test so the next dynamic import picks up the
-  // current `hoisted.leaflet`.
-  vi.doMock("leaflet", () => hoisted.leaflet!.module);
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+  return () => vi.unstubAllEnvs();
 });
 
 describe("routeFitPoints (LA-042)", () => {
@@ -58,174 +62,22 @@ describe("routeFitPoints (LA-042)", () => {
   });
 });
 
-describe("RouteMap theme handling", () => {
-  it("builds the map once with the light tiles", async () => {
-    render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(false).url);
+describe("RouteMap on Google", () => {
+  it("shows the stop list under the unavailable copy when there is no maps config", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
+    const { container } = render(<RouteMap stops={STOPS} />);
+    expect(screen.getByText("The map isn't available right now.")).toBeInTheDocument();
+    expect(container.querySelector("[data-map-fallback]")).not.toBeNull();
+    expect(screen.getByText("Tokyo")).toBeInTheDocument();
+    expect(screen.getByText("Kyoto")).toBeInTheDocument();
+    expect(screen.queryByTestId("gmap")).toBeNull();
   });
 
-  it("builds the map with the dark tiles when mounted in dark mode", async () => {
-    hoisted.theme = "dark";
-    render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(true).url);
-  });
-
-  it("does NOT destroy and rebuild the map when the theme flips", async () => {
-    const { rerender } = render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const mapInstance = hoisted.leaflet!.maps[0];
-
-    hoisted.theme = "dark";
-    rerender(<RouteMap stops={STOPS} />);
-
-    await waitFor(() =>
-      expect(hoisted.leaflet!.tileLayers[0].setUrl).toHaveBeenCalledWith(
-        cartoTiles(true).url,
-      ),
-    );
-    expect(mapInstance.remove).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.maps).toHaveLength(1);
-  });
-
-  it("a theme=\"light\" override builds with the light tiles even in dark mode (spec 2026-10-01 §A)", async () => {
-    hoisted.theme = "dark";
-    render(<RouteMap stops={STOPS} theme="light" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(false).url);
-  });
-
-  it("a theme=\"light\" override holds when the app theme flips while mounted (Review Focus 5)", async () => {
-    const { rerender } = render(<RouteMap stops={STOPS} theme="light" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    hoisted.theme = "dark";
-    rerender(<RouteMap stops={STOPS} theme="light" />);
-    // Give the setUrl effect a tick to run if it were going to.
-    await new Promise((r) => setTimeout(r, 0));
-    expect(hoisted.leaflet!.tileLayers[0].setUrl).not.toHaveBeenCalledWith(cartoTiles(true).url);
-  });
-
-  it("renders the text fallback, not a map, with fewer than two located stops", async () => {
+  it("renders the text fallback, not a map, with fewer than two located stops", () => {
     render(<RouteMap stops={[STOPS[0]]} />);
-
-    expect(
-      screen.getByText("Add coordinates to your stops to see the route map."),
-    ).toBeInTheDocument();
-
-    // Map construction happens inside `import("leaflet").then(...)`, so
-    // `maps` reads 0 synchronously after ANY render — including one that IS
-    // building a map, just asynchronously. Flush microtasks so a pending
-    // `import(...).then(...)` chain would have had the chance to run and
-    // push into `maps` by now. Without this, the assertion below can't tell
-    // "no map was built" apart from "map not built yet".
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(hoisted.leaflet!.maps).toHaveLength(0);
-  });
-
-  it("still rebuilds when a stop's coordinates actually change", async () => {
-    const { rerender } = render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-
-    // Same stop count as STOPS (2) — only a coordinate changes. This isolates
-    // the derived stops-signature dependency: if that dependency were
-    // dropped, this rerender would not re-trigger the init effect and `maps`
-    // would stay at length 1.
-    rerender(
-      <RouteMap stops={[STOPS[0], { ...STOPS[1], lat: 35.5 }]} />,
-    );
-
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
-  });
-
-  it("pops only a newly added stop's pin on the rebuild (MOTION.md P11)", async () => {
-    const { rerender } = render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const html = (i: number) => (hoisted.leaflet!.markers[i].options.icon as { html: string }).html;
-    // The first build is the page's own entrance, not an addition.
-    expect(html(0)).not.toContain("tp-pop");
-    expect(html(1)).not.toContain("tp-pop");
-
-    const FLORENCE = { id: "s3", name: "Florence", lat: 43.77, lng: 11.25, arriveDate: "2026-01-07", departDate: "2026-01-09", sortOrder: 2 };
-    rerender(<RouteMap stops={[...STOPS, FLORENCE]} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
-    // Popped on an inner wrapper: Leaflet positions the icon element itself with a transform.
-    expect(html(2)).not.toContain("tp-pop");
-    expect(html(3)).not.toContain("tp-pop");
-    expect(html(4)).toContain('class="tp-pop"');
-  });
-});
-
-describe("RouteMap bounded world (feedback cmuhsyae2000004l0d19tlzr2)", () => {
-  it("bounds the map so a wide, zoomed-out tile can't repeat the world", async () => {
-    render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].options).toMatchObject({
-      worldCopyJump: false,
-      maxBounds: [[-85, -180], [85, 180]],
-      maxBoundsViscosity: 1,
-      minZoom: 1,
-    });
-  });
-
-  it("sets noWrap on the tile layer so tiles don't repeat horizontally", async () => {
-    render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].options).toMatchObject({ noWrap: true });
-  });
-
-  it("clamps the zoom up to 1 when fitBounds leaves it below the minimum", async () => {
-    hoisted.leaflet!.setNextMapZoom(0);
-    render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].setZoom).toHaveBeenCalledWith(1);
-  });
-
-  it("leaves the zoom alone when fitBounds already leaves it at or above the minimum", async () => {
-    render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].setZoom).not.toHaveBeenCalled();
-  });
-
-  it("renders a 16/9 aspect ratio instead of a fixed height when aspect is given", async () => {
-    render(<RouteMap stops={STOPS} aspect="16/9" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const frame = screen.getByLabelText("Trip route map");
-    expect(frame.style.aspectRatio).toBe("16 / 9");
-    expect(frame.style.height).toBe("");
-  });
-
-  it("renders a 4/3 aspect ratio instead of a fixed height when aspect is given", async () => {
-    render(<RouteMap stops={STOPS} aspect="4/3" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const frame = screen.getByLabelText("Trip route map");
-    expect(frame.style.aspectRatio).toBe("4 / 3");
-    expect(frame.style.height).toBe("");
-  });
-
-  it("still renders a fixed height when aspect is not given", async () => {
-    render(<RouteMap stops={STOPS} height={200} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const frame = screen.getByLabelText("Trip route map");
-    expect(frame.style.height).toBe("200px");
-    expect(frame.style.aspectRatio).toBe("");
-  });
-});
-
-describe("RouteMap kit frame", () => {
-  it("draws its own kit frame (2px outline, hard shadow) — callers must not wrap it in a Card", async () => {
-    render(<RouteMap stops={STOPS} />);
-    // Let the async map build finish inside this test, so its pending
-    // import("leaflet") can't resolve against the next test's fresh mock.
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const frame = screen.getByLabelText("Trip route map");
-    expect(frame.className).toMatch(/\bborder-2\b/);
-    expect(frame.className).toMatch(/\bshadow-hard-2\b/);
-    expect(frame.className).not.toMatch(/\bshadow-soft\b/);
-    expect(frame.className.split(/\s+/)).not.toContain("border");
-    // .tp-map opts into the kit zoom control (globals.css), as the Globe does.
-    expect(frame.className.split(/\s+/)).toContain("tp-map");
+    expect(screen.getByText("Add coordinates to your stops to see the route map.")).toBeInTheDocument();
+    expect(screen.queryByTestId("gmap")).toBeNull();
   });
 
   it("the no-coordinates fallback is a dashed kit frame", () => {
@@ -233,106 +85,209 @@ describe("RouteMap kit frame", () => {
     const frame = container.firstElementChild as HTMLElement;
     expect(frame.className).toMatch(/\bborder-2\b/);
     expect(frame.className).toMatch(/\bborder-dashed\b/);
-    expect(frame.className.split(/\s+/)).not.toContain("border");
   });
-});
 
-describe("RouteMap onStopClick (Task 15 — Jump list / mini map pin jumps)", () => {
-  it("calls onStopClick with the stop id when its pin is clicked", async () => {
-    const onStopClick = vi.fn();
-    render(<RouteMap stops={STOPS} onStopClick={onStopClick} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(0));
-    const click = hoisted.leaflet!.markers[0].on.mock.calls.find((c: unknown[]) => c[0] === "click")![1] as () => void;
-    click();
-    expect(onStopClick).toHaveBeenCalledWith("s1");
+  it("draws one numbered pin per located stop", () => {
+    render(<RouteMap stops={THREE} />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(3);
+    expect(mock.recorded.markers.map((m) => m.position)).toEqual([
+      { lat: 35.68, lng: 139.76 },
+      { lat: 35.01, lng: 135.77 },
+      { lat: 34.69, lng: 135.5 },
+    ]);
   });
-});
 
-describe("RouteMap kit pins and popups", () => {
-  const HEX = /#[0-9a-f]{3,8}\b/i;
-  const EMOJI = /\p{Extended_Pictographic}/u;
-  const iconHtml = (m: { options: Record<string, unknown> }) =>
-    (m.options.icon as { html: string }).html;
-  const popup = (m: { bindPopup: ReturnType<typeof vi.fn> }) =>
-    m.bindPopup.mock.calls[0] as [string, { className?: string } | undefined];
-
-  const CHAPTERED = [
-    { ...STOPS[0], chapterName: "Japan" },
-    STOPS[1],
-  ];
-  const HOME = { name: "Sydney", lat: -33.87, lng: 151.21 };
-
-  it("uses the shared pinHtml stop pin, numbered, in the Stop's own colour (as the calendar)", async () => {
+  it("uses the shared pinHtml stop pin, numbered, in the Stop's own colour", () => {
     render(<RouteMap stops={CHAPTERED} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const [first, second] = hoisted.leaflet!.markers;
-    expect(iconHtml(first)).toBe(pinHtml({ variant: "stop", fill: stopHex(0), label: "1", dark: false }));
-    expect(iconHtml(second)).toBe(pinHtml({ variant: "stop", fill: stopHex(1), label: "2", dark: false }));
-    expect(iconHtml(second)).not.toMatch(/221,\s*83%/);
+    expect(pinHtmls()).toEqual([
+      pinHtml({ variant: "stop", fill: stopHex(0), label: "1", dark: false }),
+      pinHtml({ variant: "stop", fill: stopHex(1), label: "2", dark: false }),
+    ]);
   });
 
-  it("uses the dark stop hex in dark mode", async () => {
+  it("uses the dark stop hex in dark mode", () => {
     hoisted.theme = "dark";
     render(<RouteMap stops={CHAPTERED} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    expect(iconHtml(hoisted.leaflet!.markers[0])).toBe(
-      pinHtml({ variant: "stop", fill: stopHex(0, true), label: "1", dark: true }),
-    );
+    expect(pinHtmls()[0]).toBe(pinHtml({ variant: "stop", fill: stopHex(0, true), label: "1", dark: true }));
+    expect(mock.recorded.map.at(-1)).toMatchObject({ colorScheme: "DARK" });
   });
 
-  it("colours each route line by its destination Stop", async () => {
-    render(<RouteMap stops={CHAPTERED} />);
-    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThan(0));
-    expect(String(hoisted.leaflet!.polylines[0].options.color)).toBe(stopHex(1));
-  });
-
-  it("the home pin is the pinHtml home variant — no emoji", async () => {
-    render(<RouteMap stops={STOPS} home={HOME} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
-    const home = hoisted.leaflet!.markers[2];
-    expect(iconHtml(home)).toBe(pinHtml({ variant: "home", label: "H", dark: false }));
-    for (const m of hoisted.leaflet!.markers) expect(iconHtml(m)).not.toMatch(EMOJI);
-  });
-
-  it("recolours pins in place when the theme flips", async () => {
+  it("re-renders pins dark and remounts the map when the theme flips", () => {
     const { rerender } = render(<RouteMap stops={CHAPTERED} home={HOME} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
+    expect(mock.recorded.mapMounts).toBe(1);
     hoisted.theme = "dark";
     rerender(<RouteMap stops={CHAPTERED} home={HOME} />);
-    const [first, , home] = hoisted.leaflet!.markers;
-    await waitFor(() =>
-      expect(first.setIcon).toHaveBeenCalledWith(
-        expect.objectContaining({
-          html: pinHtml({ variant: "stop", fill: stopHex(0, true), label: "1", dark: true }),
-        }),
-      ),
-    );
-    expect(home.setIcon).toHaveBeenCalledWith(
-      expect.objectContaining({ html: pinHtml({ variant: "home", label: "H", dark: true }) }),
-    );
-    expect(hoisted.leaflet!.maps).toHaveLength(1);
+    expect(mock.recorded.mapMounts).toBe(2);
+    expect(pinHtmls()).toEqual([
+      pinHtml({ variant: "stop", fill: stopHex(0, true), label: "1", dark: true }),
+      pinHtml({ variant: "stop", fill: stopHex(1, true), label: "2", dark: true }),
+      pinHtml({ variant: "home", label: "H", dark: true }),
+    ]);
   });
 
-  it("binds every popup to the kit shell with token classes, no hex", async () => {
-    render(<RouteMap stops={CHAPTERED} home={HOME} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
-    for (const m of hoisted.leaflet!.markers) {
-      const [html, opts] = popup(m);
-      expect(opts).toEqual({ className: "tp-map-popup" });
-      expect(html).not.toMatch(HEX);
-      expect(html).not.toMatch(/style=/);
-      expect(html).not.toMatch(EMOJI);
-    }
-    expect(popup(hoisted.leaflet!.markers[0])[0]).toMatch(/text-muted-foreground/);
-    expect(popup(hoisted.leaflet!.markers[2])[0]).toContain("Home base");
+  it("a theme=\"light\" override draws light even in dark mode, and holds when the app theme flips", () => {
+    hoisted.theme = "dark";
+    const { rerender } = render(<RouteMap stops={CHAPTERED} theme="light" />);
+    expect(mock.recorded.map.at(-1)).toMatchObject({ colorScheme: "LIGHT" });
+    expect(pinHtmls()[0]).toBe(pinHtml({ variant: "stop", fill: stopHex(0), label: "1", dark: false }));
+    hoisted.theme = "light";
+    rerender(<RouteMap stops={CHAPTERED} theme="light" />);
+    hoisted.theme = "dark";
+    rerender(<RouteMap stops={CHAPTERED} theme="light" />);
+    expect(mock.recorded.mapMounts).toBe(1);
   });
 
-  it("route lines carry no raw hex or old blue default", async () => {
+  it("pops only a newly added stop's pin (MOTION.md P11)", () => {
+    const { rerender } = render(<RouteMap stops={STOPS} />);
+    expect(pinHtmls().join("")).not.toContain("tp-pop");
+    const FLORENCE = { id: "s3", name: "Florence", lat: 43.77, lng: 11.25, arriveDate: "2026-01-07", departDate: "2026-01-09", sortOrder: 2 };
+    rerender(<RouteMap stops={[...STOPS, FLORENCE]} />);
+    const html = pinHtmls();
+    expect(html[0]).not.toContain("tp-pop");
+    expect(html[1]).not.toContain("tp-pop");
+    expect(html[2]).toContain('class="tp-pop"');
+  });
+
+  it("fits the stops, not the far-away home", () => {
+    render(<RouteMap stops={STOPS} home={HOME} />);
+    expect(mock.map.fitBounds).toHaveBeenCalledTimes(1);
+    const bounds = mock.map.fitBounds.mock.calls[0][0] as { points: unknown[] };
+    expect(bounds.points).toEqual([
+      { lat: 35.68, lng: 139.76 },
+      { lat: 35.01, lng: 135.77 },
+    ]);
+  });
+});
+
+describe("RouteMap sizing and frame", () => {
+  const frame = () => screen.getByTestId("gmap").parentElement as HTMLElement;
+
+  it("renders a 16/9 aspect ratio instead of a fixed height when aspect is given", () => {
+    render(<RouteMap stops={STOPS} aspect="16/9" />);
+    expect(frame().style.aspectRatio).toBe("16 / 9");
+    expect(frame().style.height).toBe("");
+  });
+
+  it("renders a 4/3 aspect ratio instead of a fixed height when aspect is given", () => {
+    render(<RouteMap stops={STOPS} aspect="4/3" />);
+    expect(frame().style.aspectRatio).toBe("4 / 3");
+  });
+
+  it("renders a fixed height when aspect is not given", () => {
+    render(<RouteMap stops={STOPS} height={200} />);
+    expect(frame().style.height).toBe("200px");
+    expect(frame().style.aspectRatio).toBe("");
+  });
+
+  it("defaults to 360px tall", () => {
+    render(<RouteMap stops={STOPS} />);
+    expect(frame().style.height).toBe("360px");
+  });
+
+  it("draws its own kit frame (2px outline, hard shadow)", () => {
+    render(<RouteMap stops={STOPS} />);
+    expect(frame().className).toMatch(/\bborder-2\b/);
+    expect(frame().className).toMatch(/\bshadow-hard-2\b/);
+    expect(frame().className.split(/\s+/)).not.toContain("border");
+    expect(screen.getByTestId("gmap").className.split(/\s+/)).toContain("tp-map");
+    expect(screen.getByLabelText("Trip route map")).toBeInTheDocument();
+  });
+
+  it("frameClassName replaces the default frame and the fixed height", () => {
+    render(<RouteMap stops={STOPS} frameClassName="h-[200px] lg:h-[400px] rounded-3xl shadow-hard-4" />);
+    expect(frame().className).toMatch(/rounded-3xl/);
+    expect(frame().className).not.toMatch(/rounded-lg|shadow-hard-2|shadow-soft/);
+    expect(frame().getAttribute("style") ?? "").not.toMatch(/height/);
+  });
+});
+
+describe("RouteMap onStopClick", () => {
+  it("calls onStopClick with the stop id when its pin is clicked", () => {
+    const onStopClick = vi.fn();
+    render(<RouteMap stops={STOPS} onStopClick={onStopClick} />);
+    fireEvent.click(screen.getAllByTestId("marker")[0]);
+    expect(onStopClick).toHaveBeenCalledWith("s1");
+  });
+
+  it("opens the stop's popup with its name, chapter and dates", () => {
+    render(<RouteMap stops={CHAPTERED} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getAllByTestId("marker")[0]);
+    const popup = screen.getByRole("dialog");
+    expect(popup).toHaveTextContent("Tokyo");
+    expect(popup).toHaveTextContent("Japan");
+  });
+});
+
+describe("RouteMap kit pins and legs", () => {
+  it("colours each route line by its destination Stop", () => {
+    render(<RouteMap stops={CHAPTERED} />);
+    expect(lines()).toHaveLength(1);
+    expect(lines()[0].strokeColor).toBe(stopHex(1));
+  });
+
+  it("draws every leg geodesic", () => {
+    render(<RouteMap stops={THREE} home={HOME} showReturn />);
+    expect(mock.recorded.polylines.length).toBeGreaterThan(0);
+    for (const p of mock.recorded.polylines) expect(p.options.geodesic).toBe(true);
+  });
+
+  it("draws the home pin and its legs only with home", () => {
+    const { unmount } = render(<RouteMap stops={STOPS} />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(2);
+    expect(lines()).toHaveLength(1);
+    unmount();
+    mock.reset();
+    render(<RouteMap stops={STOPS} home={HOME} />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(3);
+    expect(pinHtmls()[2]).toBe(pinHtml({ variant: "home", label: "H", dark: false }));
+    for (const h of pinHtmls()) expect(h).not.toMatch(EMOJI);
+    expect(lines()).toHaveLength(2);
+  });
+
+  it("adds the return leg only with showReturn", () => {
+    render(<RouteMap stops={STOPS} home={HOME} showReturn />);
+    expect(lines()).toHaveLength(3);
+    const last = lines()[2].path as { lat: number; lng: number }[];
+    expect(last[0]).toEqual({ lat: 35.01, lng: 135.77 });
+    expect(last[1]).toEqual({ lat: HOME.lat, lng: HOME.lng });
+  });
+
+  it("route lines carry no raw hex or old blue default", () => {
     render(<RouteMap stops={CHAPTERED} home={HOME} showReturn />);
-    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThan(0));
-    for (const pl of hoisted.leaflet!.polylines) {
-      expect(String(pl.options.color)).not.toMatch(/374151|221,\s*83%/);
-    }
+    for (const l of lines()) expect(String(l.strokeColor)).not.toMatch(/374151|221,\s*83%/);
+  });
+});
+
+describe("RouteMap progress (SHARE.md §5)", () => {
+  it("draws travelled legs solid and the rest dashed during the trip", () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    const [first, second] = lines();
+    expect(first.icons).toEqual([]);
+    expect(second.icons).not.toEqual([]);
+  });
+
+  it("marks the current stop with a bigger haloed pin and a They're here tag", () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    const here = pinHtmls().filter((h) => h.includes("They're here"));
+    expect(here).toHaveLength(1);
+    expect(here[0]).toContain("shadow-[0_0_0_6px_hsl(var(--coral)/0.35)]");
+    expect(here[0]).toContain("tp-pin-pop");
+    expect(here[0]).toContain("tp-tag-drop");
+  });
+
+  it("a theme flip redraws the here pin without replaying its entrance", () => {
+    const { rerender } = render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    hoisted.theme = "dark";
+    rerender(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    const redrawn = pinHtmls().find((h) => h.includes("They're here"))!;
+    expect(redrawn).not.toMatch(/tp-pin-pop|tp-tag-drop/);
+  });
+
+  it("draws every leg solid after the trip, with no tag", () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "after" }} />);
+    expect(lines().every((l) => (l.icons as unknown[]).length === 0)).toBe(true);
+    expect(pinHtmls().some((h) => h.includes("They're here"))).toBe(false);
   });
 });
 
@@ -348,179 +303,5 @@ describe("travelledLegCount (SHARE.md §5)", () => {
   });
   it("after: every leg", () => {
     expect(travelledLegCount(ids, { stage: "after" })).toBe(3);
-  });
-});
-
-const THREE = [
-  ...STOPS,
-  { id: "s3", name: "Osaka", lat: 34.69, lng: 135.5, arriveDate: "2026-01-07", departDate: "2026-01-09", sortOrder: 2 },
-];
-
-it("draws travelled legs solid and the rest dashed during the trip", async () => {
-  render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-  await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
-  const [first, second] = hoisted.leaflet!.polylines;
-  expect(first.options.dashArray).toBeUndefined();
-  expect(second.options.dashArray).toBe("6 4");
-});
-
-it("marks the current stop with a bigger haloed pin and a They're here tag", async () => {
-  render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-  await waitFor(() => expect(hoisted.leaflet!.markers.length).toBe(3));
-  const htmls = hoisted.leaflet!.L.divIcon.mock.calls.map((c) => (c[0] as { html: string }).html);
-  expect(htmls.filter((h) => h.includes("They're here"))).toHaveLength(1);
-  expect(htmls.find((h) => h.includes("They're here"))).toContain("shadow-[0_0_0_6px_hsl(var(--coral)/0.35)]");
-});
-
-describe("share motion (MOTION.md S5)", () => {
-  const html = (h: string) => h.includes("They're here");
-  const divIconHtmls = () => hoisted.leaflet!.L.divIcon.mock.calls.map((c) => (c[0] as { html: string }).html);
-
-  it("during: travelled legs draw in; the rest stay dashed with no draw", async () => {
-    render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
-    const [first, second] = hoisted.leaflet!.polylines;
-    expect(first.options.className).toBe("tp-leg-draw");
-    expect(second.options.className).toBeUndefined();
-  });
-
-  it("after: legs are solid but don't draw in", async () => {
-    render(<RouteMap stops={THREE} progress={{ stage: "after" }} />);
-    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
-    expect(hoisted.leaflet!.polylines.every((p) => p.options.className === undefined)).toBe(true);
-  });
-
-  it("during: the here pin pops and its tag drops in after it", async () => {
-    render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBe(3));
-    const here = divIconHtmls().find(html)!;
-    expect(here).toContain("tp-pin-pop");
-    expect(here).toContain("tp-tag-drop");
-  });
-
-  it("a theme flip redraws the here pin without replaying its entrance", async () => {
-    const { rerender } = render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBe(3));
-    hoisted.theme = "dark";
-    rerender(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-    const here = hoisted.leaflet!.markers[1];
-    await waitFor(() => expect(here.setIcon).toHaveBeenCalled());
-    const redrawn = (here.setIcon.mock.calls.at(-1)![0] as { html: string }).html;
-    expect(redrawn).toContain("They're here");
-    expect(redrawn).not.toMatch(/tp-pin-pop|tp-tag-drop/);
-  });
-});
-
-it("draws every leg solid after the trip, with no tag", async () => {
-  render(<RouteMap stops={THREE} progress={{ stage: "after" }} />);
-  await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThanOrEqual(2));
-  expect(hoisted.leaflet!.polylines.every((p) => p.options.dashArray === undefined)).toBe(true);
-  const htmls = hoisted.leaflet!.L.divIcon.mock.calls.map((c) => (c[0] as { html: string }).html);
-  expect(htmls.some((h) => h.includes("They're here"))).toBe(false);
-});
-
-it("frameClassName replaces the default frame and the fixed height", async () => {
-  render(<RouteMap stops={STOPS} frameClassName="h-[200px] lg:h-[400px] rounded-3xl shadow-hard-4" />);
-  const frame = await screen.findByLabelText("Trip route map");
-  expect(frame.className).toMatch(/rounded-3xl/);
-  expect(frame.className).not.toMatch(/rounded-lg|shadow-hard-2|shadow-soft/);
-  expect(frame.getAttribute("style") ?? "").not.toMatch(/height/);
-  // Let the build effect's import("leaflet").then(...) settle before the test
-  // ends. Without this, that pending microtask resolves during the NEXT
-  // test instead — observed to occasionally race that test's own fresh
-  // `vi.doMock("leaflet", ...)` registration and leak the real module in.
-  await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-});
-
-describe("RouteMap resize (spec 2026-10-04 §C)", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  /** A controllable ResizeObserver: records what each instance observes so a test can fire its callback. */
-  function stubResizeObserver() {
-    const instances: FakeResizeObserver[] = [];
-    class FakeResizeObserver {
-      observed: Element[] = [];
-      disconnect = vi.fn();
-      constructor(public cb: ResizeObserverCallback) {
-        instances.push(this);
-      }
-      observe(el: Element) {
-        this.observed.push(el);
-      }
-      unobserve() {}
-      fire() {
-        this.cb([], this as unknown as ResizeObserver);
-      }
-    }
-    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
-    return instances;
-  }
-
-  it("tells Leaflet to re-measure when its frame resizes, and stops observing on unmount", async () => {
-    const observers = stubResizeObserver();
-    const { unmount } = render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const map = hoisted.leaflet!.maps[0];
-
-    expect(observers).toHaveLength(1);
-    expect(observers[0].observed).toEqual([screen.getByLabelText("Trip route map")]);
-    expect(map.invalidateSize).not.toHaveBeenCalled();
-
-    observers[0].fire();
-    expect(map.invalidateSize).toHaveBeenCalledTimes(1);
-
-    unmount();
-    expect(observers[0].disconnect).toHaveBeenCalled();
-  });
-
-  it("a rebuild disconnects the old observer and binds a new one to the new map", async () => {
-    const observers = stubResizeObserver();
-    const { rerender } = render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-
-    rerender(<RouteMap stops={[STOPS[0], { ...STOPS[1], lat: 35.5 }]} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
-
-    expect(observers).toHaveLength(2);
-    expect(observers[0].disconnect).toHaveBeenCalled();
-    observers[1].fire();
-    expect(hoisted.leaflet!.maps[1].invalidateSize).toHaveBeenCalledTimes(1);
-    expect(hoisted.leaflet!.maps[0].invalidateSize).not.toHaveBeenCalled();
-  });
-
-  // Final fix 9: the build waits on import("leaflet"); a cleanup that runs
-  // first must leave that pending build with nothing to do.
-  it("unmounted before Leaflet loads: builds no map and no observer", async () => {
-    const observers = stubResizeObserver();
-    const { unmount } = render(<RouteMap stops={STOPS} />);
-    unmount();
-    await import("leaflet");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(hoisted.leaflet!.maps).toHaveLength(0);
-    expect(observers).toHaveLength(0);
-  });
-
-  it("a rebuild before Leaflet loads builds only the new map, with one observer", async () => {
-    const observers = stubResizeObserver();
-    const { rerender } = render(<RouteMap stops={STOPS} />);
-    rerender(<RouteMap stops={[STOPS[0], { ...STOPS[1], lat: 35.5 }]} />);
-    // Two import()s racing a fresh vi.doMock can hand the second the real
-    // module (see travel-map.test.tsx's Strict Mode case), so wait on the
-    // container's Leaflet stamp, which both set, rather than on the mock.
-    const frame = screen.getByLabelText("Trip route map") as HTMLElement & { _leaflet_id?: unknown };
-    await waitFor(() => expect(frame._leaflet_id).toBeTruthy());
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    // The first build's stops never reach a map — and nothing builds on the
-    // container twice ("Map container is already initialized").
-    expect(hoisted.leaflet!.markers.map((m) => m.latlng)).not.toContainEqual([35.01, 135.77]);
-    expect(hoisted.leaflet!.maps.length).toBeLessThanOrEqual(1);
-    expect(observers).toHaveLength(1);
-  });
-
-  it("still builds the map where ResizeObserver doesn't exist", async () => {
-    vi.stubGlobal("ResizeObserver", undefined);
-    render(<RouteMap stops={STOPS} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalled();
   });
 });
