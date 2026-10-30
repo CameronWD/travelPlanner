@@ -310,9 +310,9 @@ the runbook raises the console quotas for the hour (DEPLOY §4j). Not run inside
 `prisma migrate deploy`.
 
 
-## 7. Directions — deep links, not a routing API (Travel times arrive in Branch 3)
+## 7. Directions and Travel times
 
-`lib/map/maps.ts` builds URLs; nothing calls a routing or distance-matrix service.
+`lib/map/maps.ts` builds URLs for the external-maps deep links (no API call). Real Travel times come from the Routes API, below.
 
 ```ts
 mapsUrl({ lat, lng, address, label })            // → google.com/maps/search/?api=1&query=…
@@ -326,17 +326,52 @@ resolves, so callers just conditionally render the link. Apple degrades a
 multi-stop route to first→last because it doesn't reliably support intermediate
 waypoints — documented at the function, not discovered at runtime.
 
-**Travel time is computed offline**, in pure code, from `lib/geo.ts`:
+**The estimate** (the fallback when no real time is stored), pure code from `lib/geo.ts`:
 
 ```ts
 haversineKm(a, b)                                             // great-circle km
 estimateDriveMinutes(km, { windingFactor, avgSpeedKph })      // km × factor ÷ speed
 ```
 
-`windingFactor` and `avgSpeedKph` are per-trip settings. It's a hint, not an
-ETA — and it costs nothing, needs no key, and works offline. A real routing API
-would slot behind the same `estimateDriveMinutes` seam if accuracy ever
-justifies the key/cost/rate-limit burden.
+`windingFactor` and `avgSpeedKph` are per-trip settings. It is a hint, not an
+ETA, costs nothing and needs no key; it stands in wherever a real time has not
+been looked up, and is shown as "(estimated)".
+
+### 7.1 Travel times (Routes API)
+
+- **Hops** (`lib/travel-times/hops.ts`, pure). A hop is two consecutive located
+  Items on a day, or a car Transport leg. The way it is travelled: under 2 km
+  walk; a walk of 20 minutes or less stays a walk; anything longer uses the
+  Stop's **Local travel mode** (Drive or Public transport, guessed from the
+  Stop's Transport, set on the Stop form or by MCP `set_local_travel_mode`).
+  Car legs are DRIVE only.
+- **Keys.** Each hop has a key `MODE|lat,lng|lat,lng` (5-decimal points; public transport adds its departure, rounded to 15 minutes) into
+  the global `TravelTime` cache: status OK (minutes, distance, polyline), NONE
+  (no route exists) or ERROR (retried after a 24 h cooldown). It is global, not
+  per Trip, so identical hops share one lookup.
+- **Read vs fetch.** Readers (`lib/travel-times/read.ts`) only read the cache
+  and fall back to the estimate; they never call Google. Fetching is
+  narrower: public-transport hops are only fetched within 90 days of departure
+  (read mode loads any departure that is already stored).
+- **Refresh trigger.** `revalidateTrip` schedules the job with `after()`
+  (`lib/travel-times/refresh.ts`) so a save never waits on Google. The operator
+  script `npm run travel-times:refresh` (dry run by default, `-- --execute`;
+  upcoming Trips first) covers what the hook cannot: points moved by the places
+  backfill, Trips beyond 90 days, failed lookups.
+- **Cost guard.** One Compute Routes (Essentials mask) call per key; TRANSIT
+  also bills Essentials. At most 40 calls per run, 4 concurrent, each gated by
+  `takeGoogleQuota("routes", 165)` (the day counter, same as DEPLOY §4j's
+  quota). Past it, hops stay estimated.
+- **Surprise views.** The real plan is refreshed first, then each Traveller's
+  Surprise view of it: a hidden Surprise Item reaches readers as a placeholder
+  with no coordinates, so its hops are stepped over and never named or looked up
+  for a Traveller who is not in on it.
+- **Readers.** Flags (long driving day and tight-connection / retime checks),
+  Compare, the promote preview, the Plan page's drive estimate, Day map hop lines
+  (Day view and the Travelling Home), Route map car legs (Summary, Share, the
+  Plan mini map), and MCP `get_day` hops.
+- **No key.** Without `GOOGLE_MAPS_SERVER_KEY` the job does nothing and every
+  reader shows estimates; nothing errors.
 
 ## 8. Testing
 

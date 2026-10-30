@@ -293,6 +293,12 @@ is collected here, after all three branches are merged.
 7. Backfill (DEPLOY §4j step 12): raise the GetPlace quota to 300 for the hour,
    `npm run backfill:places` (dry run) → Cam reads the rows →
    `npm run backfill:places -- --execute` → put the quota back.
+8. Travel times (DEPLOY §4j step 13): raise the Routes quota to 500 for the hour,
+   `npm run travel-times:refresh` (dry run, shows the keys per Trip) →
+   `npm run travel-times:refresh -- --execute` → put the quota back to 165. The
+   backfill moves points without the after-save hook, so this fills what it
+   would have. Check one real Day: solid route lines, a tight-connection Flag
+   without "(estimated)".
 
 ## Not in this work / follow-ups
 

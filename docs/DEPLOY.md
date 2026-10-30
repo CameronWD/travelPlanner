@@ -570,7 +570,7 @@ other half.)
    |---|---|---|
    | Maps JavaScript — Dynamic Maps | 10,000 | 150 |
    | Geocoding (Essentials) | 10,000 | 165 |
-   | Routes — Compute Routes (Essentials) | 10,000 | 165 |
+   | Routes — Compute Routes (Essentials; covers walk, drive and public transport) | 10,000 | 165 |
    | Places — Place Details (GetPlace, one cap) | 10,000 | 165 |
    | Places — Autocomplete ("Autocomplete Requests") | 10,000 | 165 |
    | Places — Text Search (IDs only — free) | unlimited | 1,000 (runaway cap) |
@@ -667,6 +667,22 @@ other half.)
        rows are skipped and Items whose details failed (listed at the end) are
        retried.
     4. Put the Geocoding and GetPlace quotas back to 165. Delete the plan file.
+13. **Fill Travel times** (last, after the places backfill: the backfill moves
+    points without running the after-save hook that normally looks Travel times
+    up, so every existing Trip starts with estimates).
+    1. Raise **Routes (Compute Routes Essentials)** to **500/day** for the hour.
+    2. `npm run travel-times:refresh` (dry run). It prints the keys it would look
+       up per Trip, upcoming Trips first, and calls nothing.
+    3. `npm run travel-times:refresh -- --execute` looks them up. Each run is
+       capped at 40 calls; if keys remain, run the same command again.
+    4. Put Routes back to 165.
+    5. **Check.** Open one real Day with a Day map: the hops draw as solid route
+       lines, and a tight-connection Flag reads without "(estimated)".
+
+    Maintenance: public-transport times for Trips more than 90 days out, and
+    lookups that failed, only fill on a later edit or an operator run. Run
+    `npm run travel-times:refresh -- --execute` occasionally (e.g. monthly) if
+    you want them filled sooner.
 
 ## 5. GitHub Actions cron (reminder delivery)
 
