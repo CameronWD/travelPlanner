@@ -11,19 +11,20 @@
  * (components/globe/globe-map.tsx). This is personal, derived, and shows
  * only real-plan Trips the Traveller is actually on.
  *
- * Client-only (Leaflet touches the DOM); loaded via TravelMapLoader
+ * Client-only (Google's Maps library touches the DOM); loaded via TravelMapLoader
  * (ssr:false), matching components/trip/route-map.tsx / components/globe/
  * globe-map.tsx.
  */
 
-import { useEffect, useRef, useState } from "react";
-import "leaflet/dist/leaflet.css";
+import { useEffect, useMemo } from "react";
+import { useMap } from "@vis.gl/react-google-maps";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map/tiles";
-import { applyLeafletIconDefaults } from "@/lib/map/icons";
+import { GoogleMapFrame } from "@/components/map/google-map-frame";
+import { HtmlPin } from "@/components/map/html-pin";
+import { MapPolyline } from "@/components/map/map-polyline";
+import { useFitBounds } from "@/components/map/use-fit-bounds";
 import { pinHtml } from "@/lib/map/pins";
 import { hueHex, mapInk } from "@/lib/map/palette";
-import type { Hue } from "@/lib/hues";
 import type { TravelMapTrip } from "@/lib/trips/trip-views";
 
 export type { TravelMapTrip };
@@ -33,19 +34,35 @@ export interface TravelMapProps {
   /** null = every trip. */
   filterTripId: string | null;
   variant: "desktop" | "mobile";
-  /** Called once if Leaflet fails to load or the map fails to build. */
+  /** Called once if Google's Maps library can't load or the map fails to build. */
   onFail?: () => void;
 }
 
-const WORLD: [[number, number], number] = [[20, 0], 1];
+const WORLD = { center: { lat: 20, lng: 0 }, zoom: 1 };
 
-function pointIcon(L: typeof import("leaflet"), hue: Hue, dark: boolean, size: number, desktop: boolean) {
-  return L.divIcon({
-    html: pinHtml({ variant: "stop", fill: hueHex(hue, dark), dark, size, shadow: desktop }),
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
+function FitTravels({ points }: { points: google.maps.LatLngLiteral[] }) {
+  const map = useMap();
+  useFitBounds(points, { padding: 40 });
+  const empty = points.length === 0;
+  useEffect(() => {
+    if (!map || !empty) return;
+    map.setCenter(WORLD.center);
+    map.setZoom(WORLD.zoom);
+  }, [map, empty]);
+  return null;
+}
+
+function TripLayer({ trip, dark, size, desktop }: { trip: TravelMapTrip; dark: boolean; size: number; desktop: boolean }) {
+  const path = useMemo(() => trip.points.map((p) => ({ lat: p.lat, lng: p.lng })), [trip.points]);
+  const html = pinHtml({ variant: "stop", fill: hueHex(trip.hue, dark), dark, size, shadow: desktop });
+  return (
+    <>
+      {path.length >= 2 && <MapPolyline path={path} color={mapInk(dark).ink} weight={1.5} opacity={1} dashed geodesic />}
+      {path.map((position, i) => (
+        <HtmlPin key={i} position={position} html={html} />
+      ))}
+    </>
+  );
 }
 
 /**
@@ -55,117 +72,32 @@ function pointIcon(L: typeof import("leaflet"), hue: Hue, dark: boolean, size: n
  * base (the loader never includes it). Done trips draw at full opacity.
  */
 export function TravelMap({ trips, filterTripId, variant, onFail }: TravelMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leafletMapRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tileLayerRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const overlaysRef = useRef<{ L: typeof import("leaflet"); layers: any[] } | null>(null);
-  /** `${filterTripId}|${dataKey}` as of the last fit — a theme-only redraw must not re-fit. */
-  const lastFitKeyRef = useRef<string | null>(null);
-  const [ready, setReady] = useState(false);
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const pin = variant === "mobile" ? 14 : 20;
-  const shown = filterTripId ? trips.filter((t) => t.id === filterTripId) : trips;
-  const dataKey = shown.map((t) => `${t.id}:${t.hue}:${t.points.length}`).join("|");
+  const size = variant === "mobile" ? 14 : 20;
+  const shown = useMemo(() => (filterTripId ? trips.filter((t) => t.id === filterTripId) : trips), [trips, filterTripId]);
+  const points = useMemo(() => shown.flatMap((t) => t.points.map((p) => ({ lat: p.lat, lng: p.lng }))), [shown]);
 
-  // Build once. Does NOT draw — that's the redraw effect's job below, so the
-  // first draw always sees the render's current props instead of whatever
-  // was current when the async `import("leaflet")` was kicked off.
-  //
-  // Strict Mode double-invokes this effect (mount → cleanup → mount) before
-  // the async import ever resolves, so both invocations' `.then` can land.
-  // `cancelled` (matching components/globe/globe-map.tsx's selected-marker
-  // effect) makes the first invocation's `.then` a no-op once its own
-  // cleanup has fired, so only the second, still-live invocation builds a
-  // map — never two, and never a rebuild on an already-initialised container.
-  useEffect(() => {
-    if (!mapRef.current || leafletMapRef.current) return;
-    let cancelled = false;
-    import("leaflet")
-      .then((leaflet) => {
-        try {
-          if (cancelled || leafletMapRef.current || !mapRef.current) return;
-          const L = leaflet.default ?? leaflet;
-          applyLeafletIconDefaults(L);
-          const map = L.map(mapRef.current, {
-            zoomControl: false,
-            scrollWheelZoom: false,
-            dragging: true,
-            attributionControl: false,
-            worldCopyJump: false,
-            maxBounds: [
-              [-85, -180],
-              [85, 180],
-            ],
-            maxBoundsViscosity: 1,
-            minZoom: 1,
-          });
-          leafletMapRef.current = map;
-          const tiles = cartoTiles(isDark);
-          tileLayerRef.current = L
-            .tileLayer(tiles.url, { subdomains: tiles.subdomains, maxZoom: tiles.maxZoom, noWrap: true })
-            .addTo(map);
-          overlaysRef.current = { L, layers: [] };
-          setReady(true);
-        } catch {
-          if (!cancelled) onFail?.();
-        }
-      })
-      .catch(() => {
-        if (!cancelled) onFail?.();
-      });
-    return () => {
-      cancelled = true;
-      leafletMapRef.current?.remove();
-      leafletMapRef.current = null;
-      overlaysRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function draw() {
-    const map = leafletMapRef.current;
-    const o = overlaysRef.current;
-    if (!map || !o) return;
-    for (const layer of o.layers) layer.remove();
-    o.layers = [];
-    const k = mapInk(isDark);
-    const desktop = variant === "desktop";
-    const all: [number, number][] = [];
-    for (const trip of shown) {
-      const latlngs = trip.points.map((p) => [p.lat, p.lng] as [number, number]);
-      all.push(...latlngs);
-      if (latlngs.length >= 2) {
-        o.layers.push(o.L.polyline(latlngs, { color: k.ink, weight: 1.5, opacity: 1, dashArray: "6 5" }).addTo(map));
-      }
-      for (const [lat, lng] of latlngs) {
-        o.layers.push(o.L.marker([lat, lng], { icon: pointIcon(o.L, trip.hue, isDark, pin, desktop), keyboard: false }).addTo(map));
-      }
-    }
-    // Pan/zoom must survive a theme-only toggle — only re-fit when the
-    // filter or the underlying data actually changed.
-    const fitKey = `${filterTripId}|${dataKey}`;
-    if (lastFitKeyRef.current !== fitKey) {
-      lastFitKeyRef.current = fitKey;
-      if (all.length > 0) {
-        map.fitBounds(o.L.latLngBounds(all), { padding: [40, 40] });
-        if (map.getZoom() < 1) map.setZoom(1);
-      } else {
-        map.setView(...WORLD);
-      }
-    }
-  }
-
-  // Redraw on data / filter / theme change (theme swaps tiles in place; the map is never rebuilt).
-  useEffect(() => {
-    if (!ready || !leafletMapRef.current) return;
-    tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
-    draw();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, isDark, filterTripId, dataKey, pin]);
-
-  return <div ref={mapRef} className="tp-map absolute inset-0 bg-map-fill" aria-label="Your travels map" />;
+  return (
+    <GoogleMapFrame
+      role="region"
+      aria-label="Your travels map"
+      dark={isDark}
+      fallback={null}
+      onFail={onFail}
+      className="absolute inset-0 bg-map-fill"
+      mapProps={{
+        defaultCenter: WORLD.center,
+        defaultZoom: WORLD.zoom,
+        minZoom: 1,
+        gestureHandling: "cooperative",
+        restriction: { latLngBounds: { north: 85, south: -85, west: -180, east: 180 }, strictBounds: false },
+      }}
+    >
+      <FitTravels points={points} />
+      {shown.map((trip) => (
+        <TripLayer key={trip.id} trip={trip} dark={isDark} size={size} desktop={variant === "desktop"} />
+      ))}
+    </GoogleMapFrame>
+  );
 }

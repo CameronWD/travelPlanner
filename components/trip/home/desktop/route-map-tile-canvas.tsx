@@ -1,10 +1,9 @@
 "use client";
 
 /**
- * The Leaflet half of the desktop Home Route map tile (route-map-tile.tsx owns
- * the chips, inset cards, attribution and error boundary). Leaflet itself is
- * only ever loaded by a dynamic import() inside an effect, so nothing here
- * touches `window` during SSR.
+ * The map half of the desktop Home Route map tile (route-map-tile.tsx owns
+ * the chips, inset cards, attribution and error boundary). A failed or
+ * keyless map throws into that boundary, which draws the tile's error panel.
  *
  * Pins: 30px numbered stickers in each Stop's own colour (lib/stop-colours →
  * lib/map/palette hex). After every fit/zoom, pins closer than 32px on screen
@@ -12,16 +11,16 @@
  * Clicking a Stop pin opens the Plan at that Stop (`#stop-<id>`).
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useMap } from "@vis.gl/react-google-maps";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map/tiles";
+import { GoogleMapFrame } from "@/components/map/google-map-frame";
+import { HtmlPin } from "@/components/map/html-pin";
+import { MapPolyline } from "@/components/map/map-polyline";
 import { hueHex, routeStyles } from "@/lib/map/palette";
-import { pinHtml, pinSize } from "@/lib/map/pins";
+import { pinHtml } from "@/lib/map/pins";
 import { mergeOverlapping } from "@/lib/map/overlap";
-import { escapeHtml } from "@/lib/escape-html";
 import type { Hue } from "@/lib/hues";
-
-import "leaflet/dist/leaflet.css";
 
 interface CanvasStop {
   id: string;
@@ -45,181 +44,156 @@ export interface RouteMapTileCanvasProps {
   onPinClick: (stopId: string) => void;
 }
 
-const PIN_PX = 30;
 const MERGE_PX = 32;
-const FIT_PADDING: [number, number] = [48, 48];
+const FIT_PADDING = 48;
+const FOCUS_ZOOM = 7;
+const FIRST_ZOOM = 2;
 
-type L = typeof import("leaflet");
+const WORLD_RESTRICTION = {
+  latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
+  strictBounds: false,
+};
 
-export function RouteMapTileCanvas({ stops, mainIds, view, focus, onPinClick }: RouteMapTileCanvasProps) {
-  const elRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<unknown>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ctxRef = useRef<{ L: L; map: any; tiles: any; line: any[]; markers: any[] } | null>(null);
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
+// Only distances between pins matter, so Web Mercator at the current zoom is enough — no projection object needed.
+function toScreen(lat: number, lng: number, zoom: number) {
+  const scale = 256 * 2 ** zoom;
+  const sin = Math.min(Math.max(Math.sin((lat * Math.PI) / 180), -0.9999), 0.9999);
+  return {
+    x: ((lng + 180) / 360) * scale,
+    y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
+  };
+}
 
-  // Latest props for Leaflet callbacks registered once.
-  // Synced in a layout effect, which runs before every passive effect below.
-  const live = useRef({ stops, mainIds, view, isDark, onPinClick });
-  useLayoutEffect(() => {
-    live.current = { stops, mainIds, view, isDark, onPinClick };
+function FitView({ stops, mainIds, view }: { stops: CanvasStop[]; mainIds: string[]; view: MapView }) {
+  const map = useMap();
+  const set = view === "whole" ? stops : stops.filter((s) => mainIds.includes(s.id));
+  const points = (set.length > 0 ? set : stops).map((s) => ({ lat: s.lat, lng: s.lng }));
+  const signature = points.map((p) => `${p.lat},${p.lng}`).join(";");
+
+  const fit = useEffectEvent((target: google.maps.Map) => {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      target.setCenter(points[0]);
+      target.setZoom(FOCUS_ZOOM);
+      return;
+    }
+    const bounds = new google.maps.LatLngBounds();
+    for (const p of points) bounds.extend(p);
+    target.fitBounds(bounds, FIT_PADDING);
   });
 
-  function drawPins() {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    const { L: lf, map } = ctx;
-    const { stops: all, isDark: dark } = live.current;
-    for (const m of ctx.markers) m.remove();
-    ctx.markers = [];
+  useEffect(() => {
+    if (map) fit(map);
+  }, [map, view, signature]);
+  return null;
+}
 
-    const byId = new Map(all.map((s) => [s.id, s] as const));
-    const screen = all.map((s) => {
-      const p = map.latLngToContainerPoint([s.lat, s.lng]);
-      return { id: s.id, x: p.x, y: p.y };
-    });
-    for (const group of mergeOverlapping(screen, MERGE_PX)) {
-      const members = group.ids.map((id) => byId.get(id)!);
-      if (members.length === 1) {
-        const s = members[0];
-        const marker = lf
-          .marker([s.lat, s.lng], {
-            icon: lf.divIcon({
-              html: pinHtml({ variant: "stop", fill: hueHex(s.stopColour, dark), label: String(s.number), dark, size: PIN_PX }),
-              className: "",
-              iconSize: [PIN_PX, PIN_PX],
-              iconAnchor: [PIN_PX / 2, PIN_PX / 2],
-            }),
-            title: `${s.number}. ${s.name}`,
-            alt: `${s.number}. ${s.name}`,
-            keyboard: true,
-          })
-          .addTo(map);
-        marker.on("click", () => live.current.onPinClick(s.id));
-        ctx.markers.push(marker);
-      } else {
-        const size = pinSize("cluster");
+function FocusStop({ stops, focus }: { stops: CanvasStop[]; focus: { id: string; seq: number } | null }) {
+  const map = useMap();
+  const pan = useEffectEvent((target: google.maps.Map, id: string) => {
+    const s = stops.find((x) => x.id === id);
+    if (!s) return;
+    target.setCenter({ lat: s.lat, lng: s.lng });
+    target.setZoom(FOCUS_ZOOM);
+  });
+  useEffect(() => {
+    if (map && focus) pan(map, focus.id);
+  }, [map, focus]);
+  return null;
+}
+
+function RouteLine({ stops, dark }: { stops: CanvasStop[]; dark: boolean }) {
+  const path = useMemo(() => stops.map((s) => ({ lat: s.lat, lng: s.lng })), [stops]);
+  const styles = routeStyles(dark);
+  return (
+    <>
+      <MapPolyline path={path} color={styles.casing.color} weight={styles.casing.weight} opacity={styles.casing.opacity} zIndex={1} />
+      <MapPolyline path={path} color={styles.line.color} weight={styles.line.weight} opacity={styles.line.opacity} zIndex={2} />
+    </>
+  );
+}
+
+function Pins({ stops, dark, onPinClick }: { stops: CanvasStop[]; dark: boolean; onPinClick: (stopId: string) => void }) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(FIRST_ZOOM);
+
+  useEffect(() => {
+    if (!map) return;
+    const sync = () => setZoom(map.getZoom() ?? FIRST_ZOOM);
+    sync();
+    const listener = map.addListener("zoom_changed", sync);
+    return () => listener.remove();
+  }, [map]);
+
+  const groups = useMemo(() => {
+    const byId = new Map(stops.map((s) => [s.id, s] as const));
+    const screen = stops.map((s) => ({ id: s.id, ...toScreen(s.lat, s.lng, zoom) }));
+    return mergeOverlapping(screen, MERGE_PX).map((g) => g.ids.map((id) => byId.get(id)!));
+  }, [stops, zoom]);
+
+  return (
+    <>
+      {groups.map((members) => {
+        if (members.length === 1) {
+          const s = members[0];
+          return (
+            <HtmlPin
+              key={s.id}
+              position={{ lat: s.lat, lng: s.lng }}
+              html={pinHtml({ variant: "stop", fill: hueHex(s.stopColour, dark), label: String(s.number), dark, size: 30 })}
+              title={`${s.number}. ${s.name}`}
+              onClick={() => onPinClick(s.id)}
+            />
+          );
+        }
         const lat = members.reduce((a, s) => a + s.lat, 0) / members.length;
         const lng = members.reduce((a, s) => a + s.lng, 0) / members.length;
-        const names = members.map((s) => escapeHtml(s.name)).join(", ");
-        const marker = lf
-          .marker([lat, lng], {
-            icon: lf.divIcon({
-              html: pinHtml({ variant: "cluster", label: String(members.length), dark }),
-              className: "",
-              iconSize: [size, size],
-              iconAnchor: [size / 2, size / 2],
-            }),
-            title: `${members.length} stops: ${names}`,
-            alt: `${members.length} stops`,
-            keyboard: true,
-          })
-          .addTo(map);
-        marker.on("click", () => {
-          map.fitBounds(lf.latLngBounds(members.map((s): [number, number] => [s.lat, s.lng])), { padding: FIT_PADDING });
-        });
-        ctx.markers.push(marker);
-      }
-    }
-  }
+        return (
+          <HtmlPin
+            key={`cluster:${members.map((s) => s.id).join(",")}`}
+            position={{ lat, lng }}
+            html={pinHtml({ variant: "cluster", label: String(members.length), dark })}
+            title={`${members.length} stops: ${members.map((s) => s.name).join(", ")}`}
+            onClick={() => {
+              if (!map) return;
+              const bounds = new google.maps.LatLngBounds();
+              for (const s of members) bounds.extend({ lat: s.lat, lng: s.lng });
+              map.fitBounds(bounds, FIT_PADDING);
+            }}
+          />
+        );
+      })}
+    </>
+  );
+}
 
-  function drawLine() {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    for (const l of ctx.line) l.remove?.();
-    ctx.line = [];
-    const { stops: all, view: v, isDark: dark } = live.current;
-    // The cluster view is pins only; Route and Whole trip draw the route.
-    if (v === "cluster" || all.length < 2) return;
-    const styles = routeStyles(dark);
-    const latlngs = all.map((s): [number, number] => [s.lat, s.lng]);
-    ctx.line.push(ctx.L.polyline(latlngs, { ...styles.casing }).addTo(ctx.map));
-    ctx.line.push(ctx.L.polyline(latlngs, { ...styles.line }).addTo(ctx.map));
-  }
+export function RouteMapTileCanvas({ stops, mainIds, view, focus, onPinClick }: RouteMapTileCanvasProps) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const [failed, setFailed] = useState(false);
 
-  function fit() {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    const { stops: all, mainIds: main, view: v } = live.current;
-    const set = v === "whole" ? all : all.filter((s) => main.includes(s.id));
-    const points = (set.length > 0 ? set : all).map((s): [number, number] => [s.lat, s.lng]);
-    if (points.length === 0) return;
-    if (points.length === 1) ctx.map.setView(points[0], 7);
-    else ctx.map.fitBounds(ctx.L.latLngBounds(points), { padding: FIT_PADDING });
-  }
+  if (failed) throw new Error("The map is unavailable");
 
-  // Build the map once per set of Stops.
-  const signature = stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.stopColour}:${s.number}`).join("|");
-  useEffect(() => {
-    if (!elRef.current || ctxRef.current) return;
-    let cancelled = false;
-    import("leaflet")
-      .then((leaflet) => {
-        if (cancelled || !elRef.current) return;
-        const lf: L = (leaflet as { default?: L }).default ?? (leaflet as L);
-        const map = lf.map(elRef.current, {
-          zoomControl: false,
-          scrollWheelZoom: false,
-          // Attribution is drawn by the tile itself, restyled (spec §6).
-          attributionControl: false,
-          worldCopyJump: false,
-          maxBounds: [
-            [-85, -180],
-            [85, 180],
-          ],
-          maxBoundsViscosity: 1,
-          minZoom: 1,
-        });
-        const t = cartoTiles(live.current.isDark);
-        const tiles = lf
-          .tileLayer(t.url, { subdomains: t.subdomains, maxZoom: t.maxZoom, noWrap: true })
-          .addTo(map);
-        ctxRef.current = { L: lf, map, tiles, line: [], markers: [] };
-        map.on("zoomend", drawPins);
-        drawLine();
-        fit();
-        drawPins();
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e ?? new Error("Map failed to load"));
-      });
-    return () => {
-      cancelled = true;
-      ctxRef.current?.map.remove();
-      ctxRef.current = null;
-    };
-    // Rebuild only when the plotted Stops change (see RouteMap for the same pattern).
-  }, [signature]);
-
-  // Chip changes: redraw the route line and refit.
-  useEffect(() => {
-    drawLine();
-    fit();
-    drawPins();
-  }, [view]);
-
-  // Inset card clicked: pan to that Stop.
-  useEffect(() => {
-    if (!focus) return;
-    const s = stops.find((x) => x.id === focus.id);
-    if (s) ctxRef.current?.map.setView([s.lat, s.lng], 7);
-    drawPins();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus?.id, focus?.seq]);
-
-  // Theme flip: swap tiles and recolour in place — no rebuild.
-  useEffect(() => {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    ctx.tiles.setUrl(cartoTiles(isDark).url);
-    drawLine();
-    drawPins();
-  }, [isDark]);
-
-  // Rethrow async failures (e.g. the Leaflet chunk failed to load) into the
-  // tile's error boundary — after every hook, so hook order never changes.
-  if (error) throw error;
-
-  return <div ref={elRef} role="region" aria-label="Trip route map" className="tp-map absolute inset-0 isolate z-0 bg-canvas" />;
+  return (
+    <GoogleMapFrame
+      role="region"
+      aria-label="Trip route map"
+      dark={isDark}
+      fallback={null}
+      onFail={() => setFailed(true)}
+      className="absolute inset-0 isolate z-0 bg-canvas"
+      mapProps={{
+        defaultCenter: { lat: 20, lng: 0 },
+        defaultZoom: FIRST_ZOOM,
+        minZoom: 1,
+        gestureHandling: "cooperative",
+        restriction: WORLD_RESTRICTION,
+      }}
+    >
+      <FitView stops={stops} mainIds={mainIds} view={view} />
+      <FocusStop stops={stops} focus={focus} />
+      {view !== "cluster" && stops.length >= 2 && <RouteLine stops={stops} dark={isDark} />}
+      <Pins stops={stops} dark={isDark} onPinClick={onPinClick} />
+    </GoogleMapFrame>
+  );
 }
