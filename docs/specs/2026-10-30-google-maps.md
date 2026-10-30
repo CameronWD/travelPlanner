@@ -272,8 +272,14 @@ is collected here, after all three branches are merged.
    the DEPLOY runbook, and puts them in `.env.local`; the merged `main` is
    checked locally with real maps.
 2. Vercel env vars (Production + Preview), quotas, budget alert.
-3. Push `main` → deploy.
-4. Backfill dry run → Cam reads → real run.
+3. Over-quota check (DEPLOY §4j step 11): with a dev key, set the Dynamic Maps
+   daily quota very low, load past it, and confirm the app's fallback appears,
+   not Google's grey error box.
+4. Attribution check (DEPLOY §4j step 11): Google's logo and attribution row is
+   not covered on the Your travels card or the desktop Home tile, in both
+   themes.
+5. Push `main` → deploy.
+6. Backfill dry run → Cam reads → real run.
 
 ## Not in this work / follow-ups
 

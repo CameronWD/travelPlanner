@@ -577,8 +577,13 @@ other half.)
 
    Re-read Google's pricing page for the current free allowances before typing
    numbers; the rule is the source of truth, the table is today's arithmetic.
-   Quota exhaustion degrades, it never fails: maps show their fallback list,
-   Travel times fall back to estimates, saves succeed without coordinates.
+   Quota exhaustion is meant to degrade, never fail: maps show their fallback,
+   Travel times fall back to estimates, saves succeed without coordinates. For
+   the maps that is expected but unverified — step 11 checks it.
+
+   Every map mount is likely a billable Dynamic Maps load: each page view with a
+   map, each theme flip (the map remounts in the new scheme), and the Plan's mini
+   map and its Route map dialog separately.
 7. **Budget alert.** Billing → Budgets & alerts on the billing account: alerts at $1
    and $5.
 8. **Env vars.** In Vercel (Settings → Environment Variables), for **Production and
@@ -596,6 +601,15 @@ other half.)
     map shows the fallback with a key set, the usual cause is a referrer that does not
     match the host (Google refuses the key; the app lands on the fallback rather than
     breaking) — check the browser console for `RefererNotAllowedMapError`.
+11. **Pre-push checks** (with a dev key, locally):
+    - **Over quota.** Set the Dynamic Maps per-day quota on the dev key's project
+      very low (e.g. 2), load maps past it, and confirm each map shows the app's
+      fallback ("The map isn't available right now.", or "The map didn’t load"
+      on the Your travels card and the Home tile) — not Google's grey "This page
+      can't load Google Maps correctly" box. Put the quota back to the step 6 value afterwards.
+    - **Attribution.** Confirm Google's logo and attribution row is not covered
+      on the Your travels card (title pill, chips, "Open Globe →" pill) and on
+      the desktop Home route tile (view chips, inset cards), in light and dark.
 
 ## 5. GitHub Actions cron (reminder delivery)
 

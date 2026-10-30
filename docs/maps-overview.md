@@ -52,6 +52,7 @@ are in DEPLOY.md §4j.
 │  lib/map/palette.ts  pin / chapter palette                          │
 │  lib/map/overlap.ts  overlapping-pin offsets                        │
 │  lib/map/google-config.ts  env -> { apiKey, mapId } | null          │
+│  lib/map/world.ts    WORLD_RESTRICTION for the world-view maps      │
 │  lib/day-map.ts      the day's point model + route order            │
 │  lib/route-map.ts    home-base point extraction                     │
 │  lib/geo-cluster.ts  clustering                                     │
@@ -72,6 +73,7 @@ are in DEPLOY.md §4j.
 │  components/map/map-polyline.tsx      lines                         │
 │  components/map/use-fit-bounds.ts     fit / single-point zoom       │
 │  components/map/map-unavailable.tsx   fallback copy                 │
+│  components/map/maps-auth.ts          remembers a refused key       │
 │  components/trip/route-map.tsx     trip route: numbered stops       │
 │  components/trip/day-map.tsx       one day: items + hotel + transit │
 │  components/trip/wishlist-map.tsx  category pins for one trip       │
@@ -103,23 +105,54 @@ wraps `APIProvider` + `Map`. It:
 
 - reads config via `mapsConfig()`; with no config it renders `fallback`;
 - sets `disableDefaultUI` and turns `zoomControl` on, `clickableIcons={false}`
-  (a caller opts back into other controls through `mapProps`);
+  (a caller opts back into other controls, or out of zoom, through `mapProps` —
+  Your travels and the desktop Home tile turn zoom off: it would sit under their
+  overlays);
+- starts on a world view (`defaultCenter` `{ lat: 20, lng: 0 }`, `defaultZoom`
+  2) unless `mapProps` gives a camera — vis.gl warns on every render without one;
 - puts `className`/`style` on a **wrapper** div (the caller must size it — it is
   0px tall otherwise) and `tp-map` on the map root;
-- falls back on `APILoadingStatus.FAILED` / `AUTH_FAILURE`, on
-  `window.gm_authFailure` (a key Google refuses, e.g. a wrong referrer on a
-  preview host), and on any render error inside the map (an error boundary —
-  markers can throw on a dead library after a client-side navigation);
+- falls back on `APILoadingStatus.FAILED`, on a key Google refuses (e.g. a wrong
+  referrer on a preview host), and on any render error inside the map (an error
+  boundary — markers can throw on a dead library after a client-side navigation);
 - calls `onFail` once per mount on any failure, including "no config".
 
-Never pass `mapId` or `colorScheme` — the frame owns them.
+**A refused key is remembered for the page.** Google reports it only by calling
+`window.gm_authFailure`, once per page load, and vis.gl 1.10.1 never sets
+`APILoadingStatus.AUTH_FAILURE` (the constant exists; nothing assigns it).
+`components/map/maps-auth.ts` installs one handler (chaining any previous one),
+keeps a module-level flag and notifies subscribers; `useMapsAuthFailed()` reads
+it. So a frame mounted after a client-side navigation falls back at once
+instead of waiting for a call that already happened. Branch 2's Places forms
+are to read the same hook. Tests call
+`resetMapsAuthForTests()` in `beforeEach`.
+
+Never pass `mapId`, `colorScheme` or `style` in `mapProps` — the frame owns the
+first two, and vis.gl drops `style` once the map has a `className`.
 
 ### 4.2 Theme
 
 The map's `colorScheme` is read only when the map is created, so a theme flip
-**remounts** the map (keyed on `dark`) and it comes back in the new scheme with
+needs a new map. Two things make that happen: vis.gl itself recreates the
+`google.maps.Map` instance when `colorScheme` changes (it is in the deps of the
+effect that builds the map), and the frame also keys the `<Map>` on `dark`, so
+the whole subtree remounts — every pin, line and fit hook runs its effects from
+scratch against the new instance, and the map comes back in the new scheme with
 pins recoloured. Share pages keep their forced `theme` override
 (`RouteMapProps.theme`). One Map ID carries both light and dark styles.
+
+**A theme flip does not keep the camera.** The remount refits the map to its
+data. Carrying the camera across would take more than dropping the `key`:
+vis.gl's saved-camera restore only fires when the `mapId` changes, not the
+scheme, and every fit or pan (`useFitBounds`, the Home tile's `FitView`, the
+Globe's `FitInitial` and `PanToSelected`) runs again on a new map instance, so
+each would also have to skip itself on an instance change.
+
+**Don't turn on `reuseMaps` casually.** It hands a pooled map instance to the
+next `<Map>` with the same Map ID and scheme. vis.gl only `setOptions` the new
+owner's props, so any option the new owner doesn't set (`restriction`,
+`minZoom`, …) stays from the previous owner, and listeners it did not remove are
+not cleared.
 
 ### 4.3 Pins
 
@@ -129,9 +162,11 @@ It is centre-anchored; `children` become the InfoWindow content, shown while
 `open`. The pin wrapper carries `tp-map-pin` — the stable DOM hook tests and the
 audit scripts look for.
 
-**Pin and InfoWindow HTML is raw HTML, so every interpolated value goes through
-`escapeHtml` (`lib/escape-html.ts`)** — place names and titles are user input.
-Popups stay width-clamped for mobile.
+InfoWindow content is React children, so React escapes it. Pin HTML is a raw
+string set with `dangerouslySetInnerHTML`, so **pin builders interpolate only
+numbers, hex colours and fixed letters (`H`, `T`) — never user text**; a name
+belongs in the marker's `title` or the popup. Popups stay width-clamped for
+mobile.
 
 ### 4.4 Lines
 
@@ -276,7 +311,7 @@ justifies the key/cost/rate-limit burden.
 ## 8. Testing
 
 - **Pure `lib/` modules have real unit tests** — `geo`, `map/maps`, `day-map`,
-  `geocode`, `nearby`, `route-sketch`, `escape-html`, `map/pins`,
+  `geocode`, `nearby`, `route-sketch`, `map/pins`,
   `map/google-config`. That is where the logic lives.
 - **No test loads real Google Maps.** The `@vis.gl/react-google-maps` module is
   swapped for `createGoogleMapsMock()` from `test/google-maps-mock.tsx`:
@@ -321,8 +356,13 @@ the page still works from data already in the page, and deep links still render.
 3. **Referrer restrictions bite on previews.** A host that doesn't match a key
    referrer makes Google refuse the key (`gm_authFailure`); the frame lands on the
    fallback rather than an error page.
-4. **Quota exhaustion degrades.** Per-day quotas (DEPLOY.md §4j) are set below the
-   free allowance, so hitting one means the fallback list, not a bill.
+4. **Quota exhaustion should degrade — unverified.** Per-day quotas (DEPLOY.md
+   §4j) are set below the free allowance, so hitting one should mean the fallback,
+   not a bill. That the fallback appears (rather than Google's grey error box) is
+   expected but not yet verified: we don't know whether Google routes an
+   over-quota Dynamic Maps load through `gm_authFailure`. DEPLOY.md §4j step 11
+   checks it before the push. Every map mount is a billable Dynamic Maps load,
+   including a theme-flip remount and the Plan's mini map plus its dialog.
 5. **The InfoWindow theme is ours.** `app/globals.css` restyles Google's
    InfoWindow under `.tp-map`; Google's own rules have higher specificity than a
    bare class, so the overrides are scoped to `.tp-map .gm-style`.
@@ -348,9 +388,10 @@ To stand this up in another Next.js App Router project:
    Map ID with light and dark styles (see DEPLOY.md §4j); set
    `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`.
 3. Copy `lib/map/google-config.ts` and the `components/map/` files
-   (`google-map-frame`, `html-pin`, `map-polyline`, `use-fit-bounds`,
-   `map-unavailable`), plus the `.tp-map` rules in `app/globals.css`.
-4. Copy `lib/map/pins.ts` (category -> colour) and `lib/escape-html.ts`.
+   (`google-map-frame`, `maps-auth`, `html-pin`, `map-polyline`,
+   `use-fit-bounds`, `map-unavailable`), plus the `.tp-map` rules in
+   `app/globals.css`.
+4. Copy `lib/map/pins.ts` (category -> colour) and `lib/map/world.ts`.
 5. Copy `components/ui/map-loader.tsx` if a page needs an `ssr:false` seam.
 6. Copy `lib/map/maps.ts` for the deep links, `lib/geo.ts` for distance and drive
    estimates.

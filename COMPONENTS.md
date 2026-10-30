@@ -29,7 +29,7 @@ See also: **`docs/adr/0026-shared-ui-conventions.md`** (extraction decisions) an
 | `<SectionHeader>` | `components/ui/section-header.tsx` | Icon + `h3` heading + optional count + optional right-aligned action slot. |
 | `createMapLoader<P>` | `components/ui/map-loader.tsx` | Factory: wraps a map component in `next/dynamic({ ssr:false })`. Returns a typed loader component. |
 | `<GoogleMapFrame>` | `components/map/google-map-frame.tsx` | The one frame every map renders in: loads Google Maps, remounts on theme flip, lands on `fallback` when Google is unavailable. Pair with `<HtmlPin>`, `<MapPolyline>`, `useFitBounds`, `<MapUnavailable>`. |
-| `escapeHtml(s)` | `lib/escape-html.ts` | Escapes `&<>"'`. MANDATORY for any user value interpolated into pin or InfoWindow HTML. |
+| `useMapsAuthFailed()` | `components/map/maps-auth.ts` | `true` once Google has refused the key on this page (`gm_authFailure` fires once per load). Anything that loads Google reads it to land on its fallback. |
 | `pinHex(category)` | `lib/map/pins.ts` | Category → map-pin hex (Tailwind-500 shade), falling back to OTHER. |
 | `useDeleteWithConfirm` | `components/ui/use-delete-with-confirm.ts` | Confirm-then-delete. Composes `useConfirm` + `useServerAction`. Returns `{ requestDelete, isPending, dialog }`. |
 | `<InlineCostFields>` | `components/money/cost-fields/inline-cost-fields.tsx` | The inline Cost fields (cost amount, Settlement, Paid, paid amount, date paid) for the transport, accommodation and item form dialogs and the CostEditor; state from `useCostFields`. |
@@ -188,8 +188,9 @@ A map is a client component built on `GoogleMapFrame`. Give the frame a size
 one (`*-map-loader.tsx`). Rules:
 
 1. Pins are the existing `pinHtml(...)` strings mounted in an Advanced Marker
-   by `HtmlPin`; every user value in that HTML or in InfoWindow HTML goes
-   through `escapeHtml`.
+   by `HtmlPin`. Pin HTML is raw, so it interpolates only numbers, hex colours
+   and fixed letters — never user text; names go in `title` or the popup
+   (React children).
 2. Never pass `tp-map` or `mapId`/`colorScheme` yourself — the frame owns them.
    Theme is the `dark` prop; a flip remounts the map.
 3. Call `useFitBounds` from a component rendered **inside** the frame.
