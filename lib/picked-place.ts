@@ -6,6 +6,10 @@ export interface PickedPlace {
   lng: number;
   /** ISO 3166-1 alpha-2, lower-case (as Stop.countryCode stores it). */
   countryCode?: string;
+  /** Locality, else postal town, else the county or state — what a Marker or Stop calls its city. */
+  city?: string;
+  /** Country in full ("Japan"). */
+  country?: string;
   placeId: string;
   address?: string;
 }

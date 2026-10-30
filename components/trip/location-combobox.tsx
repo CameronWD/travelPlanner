@@ -24,7 +24,6 @@ export interface LocationComboboxProps {
   onChange: (v: LocationValue) => void;
   stops: { id: string; name: string }[];
   homeBaseName?: string | null;
-  tripId?: string;
   disabled?: boolean;
   "data-testid"?: string;
 }

@@ -153,7 +153,8 @@ describe("MarkerForm — edit mode", () => {
 });
 
 describe("MarkerForm — place search", () => {
-  const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto Prefecture, Japan", lat: 35.01, lng: 135.76, countryCode: "jp", country: "Japan" };
+  const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto Prefecture, Japan", lat: 35.01, lng: 135.76, countryCode: "jp", country: "Japan", components: [{ longText: "Kyoto", shortText: "Kyoto", types: ["locality", "political"] }] };
+  const OSAKA = { placeId: "ChIJOsaka", mainText: "Osaka", secondaryText: "Osaka Prefecture, Japan", lat: 34.69, lng: 135.5, countryCode: "jp", country: "Japan" };
   const search = () => screen.getByRole("combobox", { name: "Place search" });
   const titleField = () => screen.getByPlaceholderText(/tokyo tower/i);
 
@@ -180,9 +181,21 @@ describe("MarkerForm — place search", () => {
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
       expect(createMarker).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Kyoto", lat: 35.01, lng: 135.76, city: "Kyoto Prefecture", country: "Japan", countryCode: "jp", placeId: "ChIJKyoto" }),
+        expect.objectContaining({ title: "Kyoto", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp", placeId: "ChIJKyoto" }),
       ),
     );
+  });
+
+  it("a second pick replaces a title the first pick filled", async () => {
+    const user = userEvent.setup();
+    render(<MarkerForm {...baseProps} />);
+    await pickKyoto(user);
+    mock.places.predictions = [OSAKA];
+    await user.clear(search());
+    await user.type(search(), "Osa");
+    await screen.findByRole("option", { name: /Osaka/ });
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(titleField()).toHaveValue("Osaka"));
   });
 
   it("a pick leaves a title the Traveller already typed", async () => {

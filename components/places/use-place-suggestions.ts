@@ -15,6 +15,8 @@ const NEAR_RADIUS_M = 50_000;
 const PICK_FIELDS = ["id", "location", "formattedAddress", "addressComponents"];
 
 type Found = { suggestions: PlaceSuggestion[]; status: SuggestionStatus };
+const CITY_TYPES = ["locality", "postal_town", "administrative_area_level_2", "administrative_area_level_1"];
+
 const NOTHING: Found = { suggestions: [], status: "idle" };
 
 // Google abbreviates some countries in the secondary text ("OR, USA"); forms take the country from its last part.
@@ -104,12 +106,16 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
     const name = prediction.mainText?.text ?? prediction.text.text;
     const country = place.addressComponents?.find((c) => c.types.includes("country"));
     const region = regionWithCountry(name, prediction.secondaryText?.text, country?.longText ?? undefined);
+    const cityType = CITY_TYPES.find((t) => place.addressComponents?.some((c) => c.types.includes(t)));
+    const city = cityType ? place.addressComponents?.find((c) => c.types.includes(cityType))?.longText : undefined;
     const countryCode = country?.shortText?.toLowerCase();
     return {
       name,
       ...(region ? { region } : {}),
       lat: place.location.lat(),
       lng: place.location.lng(),
+      ...(city ? { city } : {}),
+      ...(country?.longText ? { country: country.longText } : {}),
       ...(countryCode ? { countryCode } : {}),
       placeId: place.id || prediction.placeId,
       ...(place.formattedAddress ? { address: place.formattedAddress } : {}),

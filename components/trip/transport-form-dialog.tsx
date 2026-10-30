@@ -619,7 +619,6 @@ function TransportForm({
           onChange={handleFromChange}
           stops={stops}
           homeBaseName={homeBaseName}
-          tripId={tripId}
           disabled={isPending}
           data-testid="from-combobox"
         />
@@ -649,7 +648,6 @@ function TransportForm({
           onChange={handleToChange}
           stops={stops}
           homeBaseName={homeBaseName}
-          tripId={tripId}
           disabled={isPending}
           data-testid="to-combobox"
         />

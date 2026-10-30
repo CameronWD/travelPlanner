@@ -109,6 +109,58 @@ describe("usePlaceSuggestions", () => {
     expect(picked).not.toHaveProperty("region");
   });
 
+  async function pickOne(prediction: Record<string, unknown>) {
+    mock.places.predictions = [prediction as never];
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "any" }));
+    act(() => result.current.search("abc"));
+    await waitFor(() => expect(result.current.suggestions).toHaveLength(1));
+    let picked: { city?: string; country?: string } | null = null;
+    await act(async () => {
+      picked = await result.current.pick(prediction.placeId as string);
+    });
+    return picked!;
+  }
+
+  it("a locality pick carries its city and country", async () => {
+    const picked = await pickOne({
+      placeId: "ChIJKy", mainText: "Kyoto", secondaryText: "Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, countryCode: "jp", country: "Japan",
+      components: [
+        { longText: "Kyoto", shortText: "Kyoto", types: ["locality", "political"] },
+        { longText: "Kyoto Prefecture", shortText: "Kyoto Prefecture", types: ["administrative_area_level_1", "political"] },
+      ],
+    });
+    expect(picked).toMatchObject({ city: "Kyoto", country: "Japan" });
+  });
+
+  it("a venue pick takes its city from the locality, not the ward", async () => {
+    const picked = await pickOne({
+      placeId: "ChIJTt", mainText: "Tokyo Tower", secondaryText: "Minato City, Tokyo, Japan", lat: 35.65, lng: 139.74, countryCode: "jp", country: "Japan",
+      components: [
+        { longText: "Minato City", shortText: "Minato City", types: ["sublocality_level_1", "sublocality", "political"] },
+        { longText: "Tokyo", shortText: "Tokyo", types: ["locality", "political"] },
+      ],
+    });
+    expect(picked).toMatchObject({ city: "Tokyo", country: "Japan" });
+  });
+
+  it("falls back to the postal town, then the county, then the state", async () => {
+    const picked = await pickOne({
+      placeId: "ChIJPt", mainText: "Pub", lat: 51, lng: 0, countryCode: "gb", country: "United Kingdom",
+      components: [
+        { longText: "Greater London", shortText: "Greater London", types: ["administrative_area_level_2"] },
+        { longText: "England", shortText: "England", types: ["administrative_area_level_1"] },
+        { longText: "London", shortText: "London", types: ["postal_town"] },
+      ],
+    });
+    expect(picked.city).toBe("London");
+  });
+
+  it("a country pick has the country and no city", async () => {
+    const picked = await pickOne({ placeId: "ChIJIe", mainText: "Ireland", lat: 53, lng: -8, countryCode: "ie", country: "Ireland" });
+    expect(picked.country).toBe("Ireland");
+    expect(picked).not.toHaveProperty("city");
+  });
+
   it("reset starts a new session", async () => {
     const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
     act(() => result.current.search("Kyo"));

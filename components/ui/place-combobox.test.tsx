@@ -128,7 +128,7 @@ describe("PlaceCombobox", () => {
     await waitFor(() => expect(onPick).toHaveBeenCalledTimes(1));
     expect(mock.places.fetchFields).toHaveBeenCalledTimes(1);
     expect(mock.places.fetchFields).toHaveBeenCalledWith({ fields: ["id", "location", "formattedAddress", "addressComponents"] });
-    expect(onPick).toHaveBeenCalledWith({ name: "Sydney", region: "NSW, Australia", lat: -33.87, lng: 151.21, countryCode: "au", placeId: "ChIJSydAu", address: "Sydney NSW, Australia" });
+    expect(onPick).toHaveBeenCalledWith({ name: "Sydney", region: "NSW, Australia", lat: -33.87, lng: 151.21, country: "Australia", countryCode: "au", placeId: "ChIJSydAu", address: "Sydney NSW, Australia" });
     expect(submitted).not.toHaveBeenCalled();
     expect(input()).toHaveValue("Sydney");
     expect(screen.queryByRole("listbox")).toBeNull();

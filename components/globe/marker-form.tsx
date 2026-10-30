@@ -55,11 +55,6 @@ interface ResolvedPlace {
   placeId: string | null;
 }
 
-function cityAndCountry(region?: string) {
-  const parts = (region ?? "").split(",").map((p) => p.trim()).filter(Boolean);
-  return { city: parts.length > 1 ? parts[0] : null, country: parts.length ? parts[parts.length - 1] : null };
-}
-
 export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, onSaved, globeId, attachments }: MarkerFormProps) {
   const isEdit = !!marker;
 
@@ -79,6 +74,8 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
         : null,
   );
   const [query, setQuery] = useState(marker?.title ?? initialQuery ?? "");
+  // The title a pick filled in; a later pick may replace it, but never a title the Traveller typed.
+  const pickedTitle = useRef<string | null>(null);
   const [resolvingPlace, setResolvingPlace] = useState(false);
 
   // Save flow — create or update
@@ -154,9 +151,10 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
   }, [prefill, marker]);
 
   const choosePlace = (p: PickedPlace) => {
-    const { city, country } = cityAndCountry(p.region);
-    setTitle((t) => t || p.name);
-    setPlace({ lat: p.lat, lng: p.lng, city, country, countryCode: p.countryCode ?? null, placeId: p.placeId });
+    const earlier = pickedTitle.current;
+    pickedTitle.current = p.name;
+    setTitle((t) => (t === "" || t === earlier ? p.name : t));
+    setPlace({ lat: p.lat, lng: p.lng, city: p.city ?? null, country: p.country ?? null, countryCode: p.countryCode ?? null, placeId: p.placeId });
   };
 
   // Resolved location caption: "Tokyo, Japan"
