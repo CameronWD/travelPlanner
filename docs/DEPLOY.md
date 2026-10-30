@@ -673,16 +673,28 @@ other half.)
     1. Raise the console quota for **Routes (Compute Routes Essentials)** to
        **500/day** for the hour. The app also counts Routes calls itself and
        stops at 165/day, so the run below passes `--cap 500` to lift that too.
-    2. `npm run travel-times:refresh` (dry run). It prints the keys it would look
-       up per Trip, upcoming Trips first, and calls nothing.
+    2. `npm run travel-times:refresh` (dry run). It prints how many keys each
+       Trip needs (a count, not the keys), upcoming Trips first, and calls
+       nothing.
     3. `npm run travel-times:refresh -- --execute --cap 500` looks them up.
        Each Trip is refreshed in passes of up to 40 calls until a pass fetches
        nothing or the day's cap is reached; only if the cap stops it, run the
-       same command again (after the quota allows).
-    4. Put the console Routes quota back to 165. The app's own cap is back to
-       165 on the next normal run (`--cap` is never used outside this script).
-    5. **Check.** Open one real Day with a Day map: the hops draw as solid route
-       lines, and a tight-connection Flag reads without "(estimated)".
+       same command again (after the quota allows). If every call in a pass
+       fails (Google refusing: the console quota, or 429s), the run stops with
+       an error instead of moving on to the next Trip: fix the quota and run it
+       again (the keys that failed retry after their 24 h cooldown).
+    4. Put the console Routes quota back to 165. `--cap` only lifts the app's
+       cap for this script's run, but the run's calls still count against the
+       app's own counter for that UTC day, which is now past 165. So for the
+       rest of that UTC day, saves in the app look nothing up and their new hops
+       stay estimated; they fill on the next save (or operator run) after
+       midnight UTC. That is expected.
+    5. **Check.** Open one real Day with a Day map: pick a day within the next
+       90 days with timed Items, or one on a Drive Stop. Its hops draw as solid
+       route lines, and a tight-connection Flag reads without "(estimated)".
+       Public-transport hops on a day more than 90 days out, or after an
+       untimed Item (no departure to look up), stay dashed by design unless a
+       real short walk covers them.
 
     Maintenance: public-transport times for Trips more than 90 days out, and
     lookups that failed (retried only after their 24 h cooldown), only fill on a
