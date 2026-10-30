@@ -248,13 +248,14 @@ describe("refreshTripTravelTimes", () => {
       transports: [
         transport({ forkId: null, mode: "TRAIN", fromStopId: "real", toStopId: "realB" }),
         transport({ forkId: "f1", mode: "CAR", fromStopId: "fork", toStopId: "forkB" }),
+        transport({ forkId: "f1", mode: "CAR", fromStopId: "real", toStopId: "forkB" }),
       ],
     });
 
     await refreshTripTravelTimes("t1", { now: NOW });
 
-    expect([...table.keys()].sort()).toEqual([driveKey(FAR(3), FAR(4)), driveKey(FAR(10), FAR(20))].sort());
     expect(table.has(driveKey(FAR(1), FAR(2)))).toBe(false);
+    expect([...table.keys()].sort()).toEqual([driveKey(FAR(3), FAR(4)), driveKey(FAR(10), FAR(20))].sort());
   });
 
   it("a car leg from the Home base uses the Home point, a typed point beats the Stop's", async () => {
