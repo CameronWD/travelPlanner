@@ -12,6 +12,7 @@ const {
   requirePlanAccessMock,
   revalidateTripMock,
   geocodePlaceDetailedMock,
+  locateVenueMock,
   itemFindUniqueMock,
   itemFindFirstMock,
   itemFindManyMock,
@@ -98,6 +99,7 @@ const {
     })),
     revalidateTripMock: vi.fn(),
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue(null),
+    locateVenueMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
     itemFindFirstMock: vi.fn(),
     // Opening hours (CONTEXT.md "Opening hours"; fix round 1): the family-
@@ -160,7 +162,7 @@ vi.mock("@/lib/guards", () => ({
   requireRowAccess: requireRowAccessMock,
 }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock, locateVenue: locateVenueMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
@@ -500,10 +502,10 @@ describe("createItem", () => {
     expect(itemCreateMock).not.toHaveBeenCalled();
   });
 
-  it("geocodes the address when present and stores coords", async () => {
+  it("locates the address when present and stores coords", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
-    geocodePlaceDetailedMock.mockResolvedValue({
+    locateVenueMock.mockResolvedValue({
       lat: 48.8566,
       lng: 2.3522,
       city: "Paris",
@@ -518,30 +520,30 @@ describe("createItem", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
-    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Eiffel Tower, Paris");
+    expect(locateVenueMock).toHaveBeenCalledOnce();
+    expect(locateVenueMock).toHaveBeenCalledWith("Visit the Museum", "Eiffel Tower, Paris", { near: undefined });
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ lat: 48.8566, lng: 2.3522, countryCode: "fr" }),
     });
   });
 
-  it("does not call geocode and stores null coords/countryCode when no address", async () => {
+  it("looks nothing up and stores null coords/countryCode when no address", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
 
     const result = await createItem("trip-1", VALID_INPUT);
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(locateVenueMock).not.toHaveBeenCalled();
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ lat: null, lng: null, countryCode: null }),
     });
   });
 
-  it("still creates the item when geocode returns null (null coords/countryCode)", async () => {
+  it("still creates the item when the lookup finds nothing (null coords/countryCode)", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
-    geocodePlaceDetailedMock.mockResolvedValue(null);
+    locateVenueMock.mockResolvedValue(null);
 
     const result = await createItem("trip-1", {
       ...VALID_INPUT,
@@ -549,16 +551,16 @@ describe("createItem", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
+    expect(locateVenueMock).toHaveBeenCalledOnce();
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ lat: null, lng: null, countryCode: null }),
     });
   });
 
-  it("lowercases an uppercase countryCode from the geocoder", async () => {
+  it("lowercases an uppercase countryCode from the lookup", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
-    geocodePlaceDetailedMock.mockResolvedValue({
+    locateVenueMock.mockResolvedValue({
       lat: 48.8566,
       lng: 2.3522,
       city: "Paris",
@@ -696,10 +698,10 @@ describe("updateItem", () => {
     expect(itemUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("geocodes address on update when address is present", async () => {
+  it("locates a new address on update", async () => {
     itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
     itemUpdateMock.mockResolvedValue({});
-    geocodePlaceDetailedMock.mockResolvedValue({
+    locateVenueMock.mockResolvedValue({
       lat: 51.5074,
       lng: -0.1278,
       city: "London",
@@ -714,8 +716,8 @@ describe("updateItem", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
-    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("London Eye, London");
+    expect(locateVenueMock).toHaveBeenCalledOnce();
+    expect(locateVenueMock).toHaveBeenCalledWith("Visit the Museum", "London Eye, London", { near: undefined });
     expect(itemUpdateMock).toHaveBeenCalledWith({
       where: { id: "item-1" },
       data: expect.objectContaining({ lat: 51.5074, lng: -0.1278, countryCode: "gb" }),
@@ -729,7 +731,7 @@ describe("updateItem", () => {
     const result = await updateItem("item-1", VALID_INPUT);
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(locateVenueMock).not.toHaveBeenCalled();
     expect(itemUpdateMock).toHaveBeenCalledWith({
       where: { id: "item-1" },
       data: expect.objectContaining({ lat: null, lng: null, countryCode: null }),
@@ -2129,6 +2131,178 @@ describe("addMarkerToWishlist", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Google place on save: a pick wins, a lookup runs only when the address changed
+// ---------------------------------------------------------------------------
+
+describe("Item place on save (Google)", () => {
+  const PICK = { placeId: "ichiran-id", lat: 35.6614, lng: 139.7006, countryCode: "JP", businessStatus: "OPERATIONAL" as const };
+  const STOP = { id: "stop-1", tripId: "trip-1", forkId: null, timezone: "Asia/Tokyo", lat: 35.68, lng: 139.76 };
+  const FOUND = { name: "Ichiran Shibuya", lat: 35.661, lng: 139.701, city: "Tokyo", country: "Japan", countryCode: "JP", placeId: "found-id", address: "1-22-7 Jinnan, Shibuya" };
+
+  it("createItem with a picked place stores placeId and coordinates and looks nothing up", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    const result = await createItem("trip-1", { ...VALID_INPUT, address: "1-22-7 Jinnan, Shibuya", ...PICK });
+
+    expect(result.success).toBe(true);
+    expect(locateVenueMock).not.toHaveBeenCalled();
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ placeId: "ichiran-id", lat: 35.6614, lng: 139.7006, countryCode: "jp", businessStatus: "OPERATIONAL" }),
+    });
+  });
+
+  it("createItem with only an address calls locateVenue near the Stop and stores its placeId", async () => {
+    stopFindUniqueMock.mockResolvedValue(STOP);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+    locateVenueMock.mockResolvedValue(FOUND);
+
+    await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1", address: "Shibuya" });
+
+    expect(locateVenueMock).toHaveBeenCalledWith("Visit the Museum", "Shibuya", { near: { lat: 35.68, lng: 139.76 } });
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ placeId: "found-id", lat: 35.661, lng: 139.701, countryCode: "jp", businessStatus: null }),
+    });
+  });
+
+  it("createItem whose lookup finds nothing saves without a place", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+    locateVenueMock.mockResolvedValue(null);
+
+    const result = await createItem("trip-1", { ...VALID_INPUT, address: "Nowhere" });
+
+    expect(result.success).toBe(true);
+    expect(locateVenueMock).toHaveBeenCalledWith("Visit the Museum", "Nowhere", { near: undefined });
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ placeId: null, lat: null, lng: null, countryCode: null, businessStatus: null }),
+    });
+  });
+
+  describe("updateItem", () => {
+    const row = {
+      id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", title: "Colosseum", category: "SIGHTSEEING",
+      date: null, startTime: null, endTime: null, address: "Piazza del Colosseo, Rome", link: null, booking: null, notes: null,
+      hiddenFromShares: false, bookingState: "NONE", bookingStateSet: false, bookBy: null,
+      lat: 41.8902, lng: 12.4922, countryCode: "it", placeId: "colosseum-id", businessStatus: "OPERATIONAL",
+    };
+    beforeEach(() => {
+      itemFindUniqueMock.mockResolvedValue(row);
+      stopFindUniqueMock.mockResolvedValue({ ...STOP, lat: 41.9, lng: 12.5 });
+      itemUpdateMock.mockResolvedValue(row);
+    });
+
+    it("updateItem with an unchanged address calls no lookup and keeps the place", async () => {
+      await updateItem("item-1", { notes: "bring water" });
+      await updateItem("item-1", { title: "Colosseum", category: "SIGHTSEEING", address: "Piazza del Colosseo, Rome", notes: "bring water" });
+
+      expect(locateVenueMock).not.toHaveBeenCalled();
+      expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+      for (const [call] of itemUpdateMock.mock.calls) {
+        expect(call.data).toMatchObject({ lat: 41.8902, lng: 12.4922, countryCode: "it", placeId: "colosseum-id", businessStatus: "OPERATIONAL" });
+      }
+    });
+
+    it("updateItem with a changed address re-locates and clears businessStatus", async () => {
+      locateVenueMock.mockResolvedValue(FOUND);
+
+      await updateItem("item-1", { address: "Via Sacra, Rome" });
+
+      expect(locateVenueMock).toHaveBeenCalledWith("Colosseum", "Via Sacra, Rome", { near: { lat: 41.9, lng: 12.5 } });
+      expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ placeId: "found-id", lat: 35.661, lng: 139.701, countryCode: "jp", businessStatus: null }),
+      }));
+    });
+
+    it("a changed address the lookup can't find clears the old place", async () => {
+      locateVenueMock.mockResolvedValue(null);
+
+      await updateItem("item-1", { address: "Somewhere else" });
+
+      expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ placeId: null, lat: null, lng: null, countryCode: null, businessStatus: null }),
+      }));
+    });
+
+    it("a new pick with the same address is stored and looks nothing up", async () => {
+      await updateItem("item-1", { address: "Piazza del Colosseo, Rome", placeId: "other-id", lat: 41.89, lng: 12.49, businessStatus: "CLOSED_TEMPORARILY" });
+
+      expect(locateVenueMock).not.toHaveBeenCalled();
+      expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ placeId: "other-id", lat: 41.89, lng: 12.49, countryCode: null, businessStatus: "CLOSED_TEMPORARILY" }),
+      }));
+    });
+
+    it("an unchanged address on a row with no coordinates is looked up", async () => {
+      itemFindUniqueMock.mockResolvedValue({ ...row, lat: null, lng: null, placeId: null, businessStatus: null });
+      locateVenueMock.mockResolvedValue(FOUND);
+
+      await updateItem("item-1", { notes: "x" });
+
+      expect(locateVenueMock).toHaveBeenCalledOnce();
+      expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ placeId: "found-id" }) }));
+    });
+
+    it("clearing the address clears the place", async () => {
+      await updateItem("item-1", { address: null });
+
+      expect(locateVenueMock).not.toHaveBeenCalled();
+      expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ address: null, placeId: null, lat: null, lng: null, countryCode: null, businessStatus: null }),
+      }));
+    });
+
+    it("an update that only changes placeId records no Activity field line", async () => {
+      itemUpdateMock.mockResolvedValue({ ...row, placeId: "other-id", lat: 41.89, lng: 12.49, businessStatus: null });
+
+      await updateItem("item-1", { address: "Piazza del Colosseo, Rome", placeId: "other-id", lat: 41.89, lng: 12.49 });
+
+      expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "UPDATED", changes: [] }));
+    });
+  });
+
+  it("placing an idea keeps its placeId and businessStatus", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Ichiran", category: "FOOD", lat: 35.66, lng: 139.7, placeId: "ichiran-id", businessStatus: "OPERATIONAL" });
+    stopFindFirstMock.mockResolvedValue({ id: "s1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await placeIdeaAtStop("idea-1", "s1");
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sourceItemId: "idea-1", placeId: "ichiran-id", businessStatus: "OPERATIONAL" }),
+    });
+  });
+
+  it("scheduling an idea keeps its placeId", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Ichiran", category: "FOOD", placeId: "ichiran-id" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("idea-1", { date: "2026-07-02" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ placeId: "ichiran-id", businessStatus: null }) });
+  });
+
+  it("a Marker pulled into the Wishlist keeps its placeId", async () => {
+    markerFindUniqueMock.mockResolvedValue({ ...MARKER, placeId: "tower-id" });
+    itemFindFirstMock.mockResolvedValueOnce(null).mockResolvedValueOnce({ sortOrder: 0 });
+    itemCreateMock.mockResolvedValue({ id: "i1", title: "Tokyo Tower" });
+
+    await addMarkerToWishlist("m1", "t1");
+
+    expect(markerFindUniqueMock).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ placeId: true }) }));
+    expect(itemCreateMock.mock.calls[0][0].data).toMatchObject({ placeId: "tower-id" });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Surprise (CONTEXT.md): the write guard
 // ---------------------------------------------------------------------------
 
@@ -2604,7 +2778,7 @@ describe("opening hours (CONTEXT.md Opening hours: shared by a thing to do and i
     expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { openingHours: STORED_HOURS } });
     expect(itemUpdateManyMock).toHaveBeenCalledTimes(1);
     expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
-    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(locateVenueMock).not.toHaveBeenCalled();
   });
 
   it("setOpeningHours checks access before writing", async () => {
@@ -2832,7 +3006,7 @@ describe("Try list (CONTEXT.md Try list: shared by a thing to do and its placed 
     expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { id: { in: ["idea-1"] } }, data: { tryList: serializeTryList([LIST[0]]) } });
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "UPDATED", entityType: "ITEM", entityId: "copy-1" }));
     expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan");
-    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(locateVenueMock).not.toHaveBeenCalled();
   });
 
   it("setTryList's Activity line reads as the list; a tick-only change carries no change (lib/activity-record drops it)", async () => {

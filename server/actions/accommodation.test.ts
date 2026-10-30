@@ -126,7 +126,7 @@ vi.mock("@/lib/guards", () => ({
   requireRowAccess: requireRowAccessMock,
 }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceMock }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
@@ -369,7 +369,7 @@ describe("createAccommodation", () => {
   it("geocodes address on create and stores coords", async () => {
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accCreateMock.mockResolvedValue({ id: "acc-1" });
-    geocodePlaceMock.mockResolvedValue({ lat: 48.8566, lng: 2.3522 });
+    geocodePlaceMock.mockResolvedValue({ lat: 48.8566, lng: 2.3522, placeId: "rivoli-id" });
 
     const result = await createAccommodation({
       ...VALID_INPUT,
@@ -380,8 +380,18 @@ describe("createAccommodation", () => {
     expect(geocodePlaceMock).toHaveBeenCalledOnce();
     expect(geocodePlaceMock).toHaveBeenCalledWith("Rue de Rivoli, Paris");
     expect(accCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({ lat: 48.8566, lng: 2.3522 }),
+      data: expect.objectContaining({ lat: 48.8566, lng: 2.3522, placeId: "rivoli-id" }),
     });
+  });
+
+  it("with a picked place stores placeId and coordinates and looks nothing up", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accCreateMock.mockResolvedValue({ id: "acc-1" });
+
+    await createAccommodation({ ...VALID_INPUT, address: "Rue de Rivoli, Paris", placeId: "hotel-id", lat: 48.86, lng: 2.34 });
+
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(accCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ placeId: "hotel-id", lat: 48.86, lng: 2.34 }) });
   });
 
   it("does not call geocode and stores null coords when no address", async () => {
@@ -500,7 +510,7 @@ describe("updateAccommodation", () => {
     accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accUpdateMock.mockResolvedValue({});
-    geocodePlaceMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278 });
+    geocodePlaceMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278, placeId: "baker-id" });
 
     const result = await updateAccommodation("acc-1", {
       ...VALID_INPUT,
@@ -512,7 +522,7 @@ describe("updateAccommodation", () => {
     expect(geocodePlaceMock).toHaveBeenCalledWith("Baker Street, London");
     expect(accUpdateMock).toHaveBeenCalledWith({
       where: { id: "acc-1" },
-      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278 }),
+      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278, placeId: "baker-id" }),
     });
   });
 
@@ -954,7 +964,31 @@ describe("updateAccommodation (PATCH, ADR 0075)", () => {
   });
   it("explicit null clears notes and address", async () => {
     await updateAccommodation("acc-1", { notes: null, address: null });
-    expect(accUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notes: null, address: null, lat: null, lng: null }) }));
+    expect(accUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notes: null, address: null, lat: null, lng: null, placeId: null }) }));
+  });
+  it("an unchanged address calls no lookup and keeps the place", async () => {
+    accFindUniqueMock.mockResolvedValue({ ...row, placeId: "roma-id" });
+    await updateAccommodation("acc-1", { name: "Hilton Garden Inn" });
+    await updateAccommodation("acc-1", { name: "Hilton Garden Inn", address: "1 Via Roma" });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    for (const [call] of accUpdateMock.mock.calls) expect(call.data).toMatchObject({ lat: 41.9, lng: 12.5, placeId: "roma-id" });
+  });
+  it("a changed address is looked up and replaces the place", async () => {
+    accFindUniqueMock.mockResolvedValue({ ...row, placeId: "roma-id" });
+    geocodePlaceMock.mockResolvedValue({ lat: 41.8, lng: 12.4, placeId: "corso-id", countryCode: "it" });
+    await updateAccommodation("acc-1", { address: "2 Via del Corso" });
+    expect(geocodePlaceMock).toHaveBeenCalledWith("2 Via del Corso");
+    expect(accUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lat: 41.8, lng: 12.4, placeId: "corso-id" }) }));
+  });
+  it("an unchanged address on a row with no coordinates is looked up", async () => {
+    accFindUniqueMock.mockResolvedValue({ ...row, lat: null, lng: null });
+    await updateAccommodation("acc-1", { notes: "x" });
+    expect(geocodePlaceMock).toHaveBeenCalledWith("1 Via Roma");
+  });
+  it("a picked place is stored and looks nothing up", async () => {
+    await updateAccommodation("acc-1", { address: "1 Via Roma", placeId: "hilton-id", lat: 41.91, lng: 12.51 });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(accUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lat: 41.91, lng: 12.51, placeId: "hilton-id" }) }));
   });
   it("costMinor-only on a paid owned Cost keeps it paid (passes the real schema)", async () => {
     costFindManyMock.mockResolvedValue([{ id: "c1", costMinor: 9000, currency: "EUR", paidMinor: 9000, paidAt: new Date("2026-04-15T00:00:00Z") }]);

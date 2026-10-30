@@ -134,7 +134,7 @@ vi.mock("@/lib/guards", () => ({
 }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/geocode", () => ({
-  geocodePlace: geocodePlaceMock,
+  geocodePlaceDetailed: geocodePlaceMock,
   searchPlacesWithStatus: searchPlacesWithStatusMock,
 }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
@@ -452,8 +452,8 @@ describe("createTransport", () => {
     transportCreateMock.mockResolvedValue({ id: "t-1" });
     // dep first, then arr
     geocodePlaceMock
-      .mockResolvedValueOnce({ lat: 51.5074, lng: -0.1278 })
-      .mockResolvedValueOnce({ lat: 48.8566, lng: 2.3522 });
+      .mockResolvedValueOnce({ lat: 51.5074, lng: -0.1278, placeId: "lhr-id" })
+      .mockResolvedValueOnce({ lat: 48.8566, lng: 2.3522, placeId: "cdg-id" });
 
     const result = await createTransport("trip-1", {
       mode: "FLIGHT",
@@ -469,8 +469,10 @@ describe("createTransport", () => {
       data: expect.objectContaining({
         depLat: 51.5074,
         depLng: -0.1278,
+        depPlaceId: "lhr-id",
         arrLat: 48.8566,
         arrLng: 2.3522,
+        arrPlaceId: "cdg-id",
       }),
     });
   });
@@ -495,6 +497,19 @@ describe("createTransport", () => {
         arrLat: null,
         arrLng: null,
       }),
+    });
+  });
+
+  it("a picked end stores its place ID and coordinates and looks nothing up", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+
+    await createTransport("trip-1", { mode: "FLIGHT", depPlace: "Heathrow", depPlaceId: "lhr-id", depLat: 51.47, depLng: -0.45, arrPlace: "Paris CDG" });
+
+    expect(geocodePlaceMock).toHaveBeenCalledTimes(1);
+    expect(geocodePlaceMock).toHaveBeenCalledWith("Paris CDG");
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ depLat: 51.47, depLng: -0.45, depPlaceId: "lhr-id", arrPlaceId: null }),
     });
   });
 
@@ -1219,6 +1234,43 @@ describe("updateTransport (PATCH, ADR 0075)", () => {
       depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"), reference: "FR 9514",
     }) });
     expect(transportFindUniqueMock).toHaveBeenCalledTimes(2); // guard + held row; auditedUpdate does not re-read
+  });
+
+  it("an unchanged point calls no lookup and keeps its place", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, depLat: 41.9, depLng: 12.5, depPlaceId: "termini-id" });
+    await updateTransport("t1", { reference: "FR 9514" });
+    await updateTransport("t1", { mode: "TRAIN", fromStopId: "stop-a", depPlace: "Roma Termini", toStopId: "stop-b", arrPlace: "" });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    for (const [call] of transportUpdateMock.mock.calls) {
+      expect(call.data).toMatchObject({ depLat: 41.9, depLng: 12.5, depPlaceId: "termini-id", arrLat: null, arrLng: null, arrPlaceId: null });
+    }
+  });
+
+  it("a changed point is looked up and replaces its place; the other end is kept", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, depLat: 41.9, depLng: 12.5, depPlaceId: "termini-id", arrPlace: "Napoli Centrale", arrLat: 40.85, arrLng: 14.27, arrPlaceId: "napoli-id" });
+    geocodePlaceMock.mockResolvedValue({ lat: 41.87, lng: 12.51, placeId: "tiburtina-id" });
+    await updateTransport("t1", { depPlace: "Roma Tiburtina" });
+    expect(geocodePlaceMock).toHaveBeenCalledTimes(1);
+    expect(geocodePlaceMock).toHaveBeenCalledWith("Roma Tiburtina");
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      depLat: 41.87, depLng: 12.51, depPlaceId: "tiburtina-id", arrLat: 40.85, arrLng: 14.27, arrPlaceId: "napoli-id",
+    }) }));
+  });
+
+  it("a picked point is stored and looks nothing up", async () => {
+    await updateTransport("t1", { depPlace: "Roma Tiburtina", depPlaceId: "tiburtina-id", depLat: 41.87, depLng: 12.51 });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      depPlace: "Roma Tiburtina", depLat: 41.87, depLng: 12.51, depPlaceId: "tiburtina-id",
+    }) }));
+  });
+
+  it("a Home end clears its place ID", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, depLat: 41.9, depLng: 12.5, depPlaceId: "termini-id" });
+    await updateTransport("t1", { depIsHome: true, fromStopId: null, depPlace: null });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      depIsHome: true, depPlace: null, depLat: null, depLng: null, depPlaceId: null,
+    }) }));
   });
 
   it("explicit null clears the notes and the departure point", async () => {

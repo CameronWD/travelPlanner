@@ -71,4 +71,9 @@ describe("markerToWishlistItemData", () => {
   it("carries a null countryCode through when the marker has none", () => {
     expect(markerToWishlistItemData(marker({ countryCode: null })).countryCode).toBeNull();
   });
+
+  it("carries the Marker's place ID", () => {
+    expect(markerToWishlistItemData({ ...marker(), placeId: "tower-id" }).placeId).toBe("tower-id");
+    expect(markerToWishlistItemData(marker()).placeId).toBeNull();
+  });
 });

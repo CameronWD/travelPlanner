@@ -7,7 +7,8 @@ import {
   accommodationSchema,
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
-import { geocodePlace } from "@/lib/geocode";
+import { geocodePlaceDetailed } from "@/lib/geocode";
+import { pickedPlace, placeForSave } from "@/lib/place-save";
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
@@ -88,14 +89,7 @@ export async function createAccommodation(
   }
   await requireOutsideSurprise(user.id, { stopId: stop.id });
 
-  // Best-effort geocode from address
-  let lat: number | null = null;
-  let lng: number | null = null;
-  if (data.address) {
-    const coords = await geocodePlace(data.address);
-    lat = coords?.lat ?? null;
-    lng = coords?.lng ?? null;
-  }
+  const { place } = await placeForSave({ text: data.address ?? null, pick: pickedPlace(data), lookUp: geocodePlaceDetailed });
 
   const created = await db.accommodation.create({
     data: {
@@ -110,8 +104,9 @@ export async function createAccommodation(
       checkOutTime: data.checkOutTime ?? null,
       confirmation: data.confirmation ?? null,
       notes: data.notes ?? null,
-      lat,
-      lng,
+      lat: place.lat,
+      lng: place.lng,
+      placeId: place.placeId,
       ...booking,
     },
   });
@@ -175,8 +170,8 @@ export async function updateAccommodation(
   const inlineCost = completeInlineCost(patch, owned);
   if (inlineCost && "success" in inlineCost) return inlineCost;
 
-  // The current values omit lat/lng: the point is geocoded from `address`,
-  // never read from the input.
+  // The current values omit the place (placeId, lat/lng): only a pick in the
+  // patch carries one; else the row's is kept or the address is looked up below.
   const parsed = accommodationSchema.safeParse({
     ...applyPatch<AccommodationInput>(
       {
@@ -215,14 +210,12 @@ export async function updateAccommodation(
   }
   await requireOutsideSurprise(acc.viewerId, { stopId: stop.id });
 
-  // Best-effort geocode from address
-  let lat: number | null = null;
-  let lng: number | null = null;
-  if (data.address) {
-    const coords = await geocodePlace(data.address);
-    lat = coords?.lat ?? null;
-    lng = coords?.lng ?? null;
-  }
+  const { place } = await placeForSave({
+    text: data.address ?? null,
+    pick: pickedPlace(data),
+    before: { text: before.address, place: { lat: before.lat, lng: before.lng, countryCode: null, placeId: before.placeId } },
+    lookUp: geocodePlaceDetailed,
+  });
 
   await auditedUpdate("ACCOMMODATION", db.accommodation, accommodationId, {
     stopId: data.stopId,
@@ -234,8 +227,9 @@ export async function updateAccommodation(
     checkOutTime: data.checkOutTime ?? null,
     confirmation: data.confirmation ?? null,
     notes: data.notes ?? null,
-    lat,
-    lng,
+    lat: place.lat,
+    lng: place.lng,
+    placeId: place.placeId,
     ...booking,
   }, acc.forkId ?? null, { before });
 

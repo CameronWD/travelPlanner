@@ -7,7 +7,9 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
-import { geocodePlaceDetailed } from "@/lib/geocode";
+import { locateVenue } from "@/lib/geocode";
+import { pickedPlace, placeForSave, pointOf } from "@/lib/place-save";
+import type { LatLng } from "@/lib/geo";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
@@ -15,7 +17,6 @@ import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
-import type { MarkerView } from "@/components/globe/types";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { applyPatch, type Patch } from "@/lib/patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
@@ -141,10 +142,11 @@ export async function createItem(
 
   // Validate stopId belongs to this trip and the same plan
   let stopTimezone: string | null = null;
+  let near: LatLng | undefined;
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
-      select: { id: true, tripId: true, forkId: true, timezone: true },
+      select: { id: true, tripId: true, forkId: true, timezone: true, lat: true, lng: true },
     });
     if (!stop || stop.tripId !== tripId || stop.forkId !== plan) {
       return {
@@ -154,6 +156,7 @@ export async function createItem(
     }
     await requireOutsideSurprise(user.id, { stopId: data.stopId });
     stopTimezone = stop.timezone ?? null;
+    near = pointOf(stop);
   }
 
   // "Surprise for…" (CONTEXT.md Surprise) is checked before the write, so a
@@ -180,16 +183,11 @@ export async function createItem(
   });
   const sortOrder = (maxItem?.sortOrder ?? -1) + 1;
 
-  // Best-effort geocode from address
-  let lat: number | null = null;
-  let lng: number | null = null;
-  let countryCode: string | null = null;
-  if (data.address) {
-    const candidate = await geocodePlaceDetailed(data.address);
-    lat = candidate?.lat ?? null;
-    lng = candidate?.lng ?? null;
-    countryCode = candidate?.countryCode?.toLowerCase() ?? null;
-  }
+  const { place, source } = await placeForSave({
+    text: data.address ?? null,
+    pick: pickedPlace(data),
+    lookUp: (address) => locateVenue(data.title, address, { near }),
+  });
 
   const created = await db.item.create({
     data: {
@@ -205,9 +203,8 @@ export async function createItem(
       link: data.link ?? null,
       booking: data.booking ?? null,
       notes: data.notes ?? null,
-      lat,
-      lng,
-      countryCode,
+      ...place,
+      businessStatus: source === "pick" ? (data.businessStatus ?? null) : null,
       sortOrder,
       hiddenFromShares: data.hiddenFromShares ?? false,
       // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
@@ -293,7 +290,7 @@ export async function addMarkerToWishlist(
     where: { id: markerId },
     select: {
       id: true, globeId: true, title: true, category: true, note: true, link: true,
-      timing: true, lat: true, lng: true, city: true, country: true, countryCode: true,
+      timing: true, lat: true, lng: true, city: true, country: true, countryCode: true, placeId: true,
     },
   });
   if (!marker || marker.globeId !== globe.id) {
@@ -314,7 +311,7 @@ export async function addMarkerToWishlist(
   });
   const sortOrder = (maxItem?.sortOrder ?? -1) + 1;
 
-  const seed = markerToWishlistItemData(marker as unknown as MarkerView);
+  const seed = markerToWishlistItemData(marker);
   const created = await db.item.create({
     data: {
       tripId,
@@ -327,6 +324,7 @@ export async function addMarkerToWishlist(
       lat: seed.lat,
       lng: seed.lng,
       countryCode: seed.countryCode,
+      placeId: seed.placeId,
       address: seed.address,
       link: seed.link,
       notes: seed.notes,
@@ -372,8 +370,9 @@ export async function updateItem(
   const inlineCost = completeInlineCost(patch, owned);
   if (inlineCost && "success" in inlineCost) return inlineCost;
 
-  // The current values omit lat/lng/countryCode: the point is geocoded from
-  // `address`, never read from the input.
+  // The current values omit the place (placeId, lat/lng, countryCode,
+  // businessStatus): only a pick in the patch carries one; else the row's is
+  // kept or the address is looked up below.
   const parsed = itemSchema.safeParse({
     ...applyPatch<ItemInput>(
       {
@@ -403,10 +402,11 @@ export async function updateItem(
   if ("success" in booking) return booking;
 
   // Validate stopId belongs to this trip and to the item's own plan.
+  let near: LatLng | undefined;
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
-      select: { id: true, tripId: true, forkId: true },
+      select: { id: true, tripId: true, forkId: true, lat: true, lng: true },
     });
     if (!stop || stop.tripId !== item.tripId || stop.forkId !== item.forkId) {
       return {
@@ -415,18 +415,20 @@ export async function updateItem(
       };
     }
     await requireOutsideSurprise(item.viewerId, { stopId: data.stopId });
+    near = pointOf(stop);
   }
 
-  // Best-effort geocode from address
-  let lat: number | null = null;
-  let lng: number | null = null;
-  let countryCode: string | null = null;
-  if (data.address) {
-    const candidate = await geocodePlaceDetailed(data.address);
-    lat = candidate?.lat ?? null;
-    lng = candidate?.lng ?? null;
-    countryCode = candidate?.countryCode?.toLowerCase() ?? null;
-  }
+  const { place, source } = await placeForSave({
+    text: data.address ?? null,
+    pick: pickedPlace(data),
+    before: {
+      text: before.address,
+      place: { lat: before.lat, lng: before.lng, countryCode: before.countryCode, placeId: before.placeId },
+    },
+    lookUp: (address) => locateVenue(data.title, address, { near }),
+  });
+  const businessStatus =
+    source === "pick" ? (data.businessStatus ?? null) : source === "kept" ? before.businessStatus : null;
 
   // The Item family's shared columns (lib/item-family.ts: CONTEXT.md "Opening
   // hours", "Try list"), only for the columns the patch actually names, so a
@@ -451,9 +453,8 @@ export async function updateItem(
     link: data.link ?? null,
     booking: data.booking ?? null,
     notes: data.notes ?? null,
-    lat,
-    lng,
-    countryCode,
+    ...place,
+    businessStatus,
     hiddenFromShares: data.hiddenFromShares ?? false,
     // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
     slotTime: data.slotTime ?? null,
@@ -816,6 +817,8 @@ function ideaCopyData(fullItem: {
   lat: number | null;
   lng: number | null;
   countryCode: string | null;
+  placeId?: string | null;
+  businessStatus?: string | null;
   address: string | null;
   link: string | null;
   notes: string | null;
@@ -836,6 +839,8 @@ function ideaCopyData(fullItem: {
     lat: fullItem.lat ?? null,
     lng: fullItem.lng ?? null,
     countryCode: fullItem.countryCode ?? null,
+    placeId: fullItem.placeId ?? null,
+    businessStatus: fullItem.businessStatus ?? null,
     address: fullItem.address ?? null,
     link: fullItem.link ?? null,
     notes: fullItem.notes ?? null,

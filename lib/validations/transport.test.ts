@@ -173,4 +173,16 @@ describe("transportSchema — Google place", () => {
   it("rejects an overlong place ID", () => {
     expect(transportSchema.safeParse({ ...VALID_BASE, depPlaceId: "x".repeat(301) }).success).toBe(false);
   });
+  it("accepts a picked end (place ID + coordinates)", () => {
+    const r = transportSchema.safeParse({ ...VALID_BASE, depPlaceId: "a", depLat: 51.5, depLng: -0.1, arrPlaceId: "b", arrLat: 48.8, arrLng: 2.3 });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toMatchObject({ depLat: 51.5, depLng: -0.1, arrLat: 48.8, arrLng: 2.3 });
+  });
+  it("rejects an end's coordinates without its place ID", () => {
+    expect(transportSchema.safeParse({ ...VALID_BASE, depLat: 51.5, depLng: -0.1 }).success).toBe(false);
+    expect(transportSchema.safeParse({ ...VALID_BASE, depPlaceId: "a", arrLat: 48.8, arrLng: 2.3 }).success).toBe(false);
+  });
+  it("rejects out-of-range end coordinates", () => {
+    expect(transportSchema.safeParse({ ...VALID_BASE, depPlaceId: "a", depLat: 91, depLng: 0 }).success).toBe(false);
+  });
 });
