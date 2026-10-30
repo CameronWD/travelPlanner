@@ -19,7 +19,9 @@ const LOGISTICS_CHECK =
   "(2) Getting there: from the previous place, give the options that apply (walk, metro or train, bus or tram, car or taxi) with a rough time for each, recommend one, and check the gap allows for it. " +
   "(3) Opening hours: start from the thing's openingHours (get_item or get_trip_plan) when Teepee has them, then check them for that date and weekday, including seasonal and holiday closures, and whether booking is needed. Save hours you have confirmed with set_opening_hours, giving the page as source. " +
   "(4) Fixed times: check the day's Transport (local times from get_trip_plan), check-out and check-in fit, with a buffer for airports and stations. " +
-  "Mark each point verified (say how: web search) or unverified. Use the day's hops for travel between things: real ones come from routing; estimated ones are straight-line guesses, so say so.";
+  "Mark each point verified (say how: web search) or unverified. " +
+  "Read get_day for each date you plan or check: its hops are the travel between things. Real ones come from routing; estimated ones are straight-line guesses, so say so. " +
+  "If a hop is missing or estimated and it matters, say so; never invent travel times.";
 
 export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
@@ -77,7 +79,7 @@ export function registerPrompts(server: McpServer): void {
             type: "text" as const,
             text:
               `Plan ${date} on trip ${tripId}${brief ? `, what I'd like: ${brief}` : ""}. ` +
-              "First read get_trip_plan (the Stop for that date, what's already on the day, Transport in local time, check-in and check-out), get_wishlist (ideas and Votes, favour must-dos) and list_attachments (tickets we already have for that day). " +
+              `First read get_trip_plan (the Stop for that date, Transport in local time, check-in and check-out), read get_day for ${date} (what's already on the day and its hops), get_wishlist (ideas and Votes, favour must-dos) and list_attachments (tickets we already have for that day). ` +
               "Draft a timed itinerary that fits around the Transport and check-in/out times. Then run this logistics check on the draft and fix what fails: " +
               LOGISTICS_CHECK +
               " Propose the itinerary with the getting-there options between stops, the check results, and a suggested Day title. Change nothing until I agree. " +
@@ -105,7 +107,7 @@ export function registerPrompts(server: McpServer): void {
           content: {
             type: "text" as const,
             text:
-              `Check ${date} on trip ${tripId}: read get_trip_plan (what's on the day, Transport in local time, check-in and check-out) and list_attachments (tickets for that day), then run this logistics check on the day as it stands: ` +
+              `Check ${date} on trip ${tripId}: read get_trip_plan (Transport in local time, check-in and check-out), read get_day for ${date} (what's on the day and its hops) and list_attachments (tickets for that day), then run this logistics check on the day as it stands: ` +
               LOGISTICS_CHECK +
               " List the problems you find with suggested fixes, including better getting-there options. Change nothing until I agree. " +
               CHECK_FACTS +

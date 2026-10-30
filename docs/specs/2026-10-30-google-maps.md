@@ -259,8 +259,9 @@ speed) marked **estimated**:
 
 ### T5. Claude connection
 
-- Day and plan reads carry each hop's minutes, way of travelling, distance and
-  real/estimated.
+- Day reads (`get_day`) carry each hop's minutes, way of travelling, distance
+  and real/estimated; `get_trip_plan` stays hop-free. The plan-day and
+  check-day prompts read `get_day` for the date and never invent a travel time.
 - The plan-day and check-day prompts and `docs/connect-claude.md` gain one
   line: look venues up on the web; give a full street address.
 - Claude triggers no Google call directly: no place search tool, no place-ID
@@ -294,7 +295,7 @@ is collected here, after all three branches are merged.
    `npm run backfill:places` (dry run) → Cam reads the rows →
    `npm run backfill:places -- --execute` → put the quota back.
 8. Travel times (DEPLOY §4j step 13): raise the Routes quota to 500 for the hour,
-   `npm run travel-times:refresh` (dry run, shows the keys per Trip) →
+   `npm run travel-times:refresh` (dry run, shows how many keys each Trip needs) →
    `npm run travel-times:refresh -- --execute --cap 500` → put the console quota
    back to 165. The
    backfill moves points without the after-save hook, so this fills what it
@@ -307,6 +308,9 @@ is collected here, after all three branches are merged.
 - Per-hop override of the way a hop is travelled.
 - Hometracker's quota caps (hometracker repo).
 - The compliance refresh cron (G1's revisit trigger).
+- A time-based Travel times trigger: a daily step on the existing GitHub
+  Actions cron that refreshes Trips whose dates cross into the 90-day
+  public-transport window and retries expired ERROR rows, under the normal cap.
 - Phone, rating, photos, reviews from Places.
 
 ## Hand-off from Branch 1 (as built, 2026-10-30)
