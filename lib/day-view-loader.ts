@@ -19,9 +19,11 @@ import { addDays, daysBetween, formatDayLabel } from "@/lib/dates";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import type { DayMapModel, ItemDirections } from "@/lib/day-map";
+import { withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import type { NearbyResult } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
+import { homePointOf, type TravelLookup } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { daylight, utcHmToZone, type DaylightView } from "@/lib/daylight";
 import { getDayWeather, type DayWeather } from "@/lib/weather";
 import { getWeatherTheme, type WeatherTheme } from "@/lib/weather/theme";
@@ -199,7 +201,8 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
   if (read === "dateless" || read.alongside === null) return dates.map((d) => (wellFormed(d) ? ("dateless" as const) : ("invalid" as const)));
 
   const { rows, alongside } = read;
-  const shared = shareAcrossDays(tripId, rows, alongside.costs);
+  const travel = await loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip) });
+  const shared = shareAcrossDays(tripId, rows, alongside.costs, travel);
   return dates.map((d): DayResult => {
     if (!wellFormed(d)) return "invalid";
     const date = clampDate(d, rows.startDate, rows.endDate);
@@ -216,7 +219,7 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
 }
 
 /** What every day of one window shares — built once per getDays call. */
-function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[]) {
+function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[], travel: TravelLookup) {
   const { trip, stops, items, transports } = rows;
   const stopById = new Map(stops.map((s) => [s.id, s]));
   const costsByOwner: Record<string, CostRow[]> = {};
@@ -250,6 +253,7 @@ function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[]) {
   };
   return {
     today: tripTodayISO(stops),
+    travel,
     stopById,
     itemsByDate,
     windowDates,
@@ -400,9 +404,9 @@ function projectDayView(
   const feasibility = flagTightConnections(
     items
       .filter((it) => it.date === date)
-      .map((it) => ({ id: it.id, stopId: it.stopId, date: it.date, startTime: it.startTime, endTime: it.endTime, lat: it.lat, lng: it.lng })),
+      .map((it) => ({ id: it.id, stopId: it.stopId, date: it.date, startTime: it.startTime, endTime: it.endTime, sortOrder: it.sortOrder, lat: it.lat, lng: it.lng })),
     transports.map((t) => ({ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, mode: t.mode })),
-    { windingFactor: 1.5, avgSpeedKph: 80 },
+    { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph, lookup: shared.travel, travelStops: rows.stops },
   ).map((f) => ({ severity: f.severity, message: f.message }));
 
   const stopTimezone = dayStop?.timezone ?? "UTC";
@@ -445,7 +449,7 @@ function projectDayView(
     planCount: ordered.entries.length + ordered.anytime.length,
     editor,
     itemDirections: model.itemDirections,
-    dayMap: model.dayMap,
+    dayMap: withDayMapHops(model.dayMap, rows, date, shared.travel),
     attachmentsByTarget: model.attachmentsByTarget,
     stopOptions: shared.stopOptions,
     ideas,

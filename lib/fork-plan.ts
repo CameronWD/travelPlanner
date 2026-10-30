@@ -56,6 +56,7 @@ interface ForkSourceStop {
   sortOrder: number;
   chapterSortOrder: number;
   notes: string | null;
+  localTravelMode?: string | null;
   surprisePlannerId?: string | null;
   surpriseForIds?: string | null;
   surpriseRevealedAt?: Date | null;
@@ -206,6 +207,7 @@ export interface ForkPlan {
       sortOrder: number;
       chapterSortOrder: number;
       notes: string | null;
+      localTravelMode: string | null;
       surprisePlannerId: string | null;
       surpriseForIds: string | null;
       surpriseRevealedAt: Date | null;
@@ -325,7 +327,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       data: {
         name: s.name, country: s.country, lat: s.lat, lng: s.lng, placeId: s.placeId ?? null, timezone: s.timezone,
         arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned,
-        sortOrder: s.sortOrder, chapterSortOrder: s.chapterSortOrder, notes: s.notes,
+        sortOrder: s.sortOrder, chapterSortOrder: s.chapterSortOrder, notes: s.notes, localTravelMode: s.localTravelMode ?? null,
         surprisePlannerId: s.surprisePlannerId ?? null, surpriseForIds: s.surpriseForIds ?? null,
         surpriseRevealedAt: s.surpriseRevealedAt ?? null,
       },

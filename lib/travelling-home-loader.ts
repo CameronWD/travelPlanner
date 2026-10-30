@@ -26,6 +26,9 @@ import { db } from "@/lib/db";
 import { tripTodayISO } from "@/lib/trip-today";
 import { effectiveTodayISO, type TransportDepartureEntry } from "@/lib/itinerary";
 import { buildDayModel } from "@/lib/day-view-model";
+import { withDayMapHops } from "@/lib/day-map";
+import { homePointOf } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { readDayRows } from "@/lib/day-reads";
 import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
@@ -81,6 +84,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const today = tripTodayISO(stops);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
   const day = buildDayModel(rows, effectiveDate);
+  const travel = await loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip) });
 
   // Placeholders are hidden from this viewer, so never theirs to reveal.
   const revealNudges = userId
@@ -175,7 +179,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     spend,
     homeCurrency,
     upcomingPayments,
-    dayMapModel: day.dayMap,
+    dayMapModel: withDayMapHops(day.dayMap, rows, effectiveDate, travel),
     itemDirections: day.itemDirections,
     freeForm: day.freeForm,
     thingsToDo: day.thingsToDo,

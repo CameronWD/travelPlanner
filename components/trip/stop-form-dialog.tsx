@@ -36,7 +36,8 @@ import type { ProposedStopInput } from "@/lib/booking-import/types";
 
 const NO_CHAPTER = "__none__";
 /** An edit's empty fields are clears (ADR 0075). Not the point: an unpicked place is re-geocoded, never cleared. */
-const STOP_CLEARABLE = ["country", "notes", "chapterId"] as const;
+const STOP_CLEARABLE = ["country", "notes", "chapterId", "localTravelMode"] as const;
+const AUTOMATIC = "__auto__";
 
 export interface StopFormDialogProps {
   tripId: string;
@@ -63,6 +64,8 @@ export interface StopFormDialogProps {
    * the Trip's dates — no Exact dates / Roughly toggle, scheduled mode only.
    */
   loneOnDatedTrip?: boolean;
+  /** What Automatic means for this Stop: Drive when a Car Transport touches it, else Public transport. */
+  inferredLocalMode?: "DRIVE" | "TRANSIT";
   /** Booking import (Proposal mode): seeds a NEW record's fields. Ignored when editing a saved one. */
   initialValues?: Partial<ProposedStopInput>;
   /** Proposal mode: told the would-be input on every change (live preview). */
@@ -98,6 +101,7 @@ export function StopFormDialog({
   forkId,
   attachments,
   loneOnDatedTrip,
+  inferredLocalMode,
   initialValues,
   onDraftChange,
   onSubmitOverride,
@@ -124,6 +128,7 @@ export function StopFormDialog({
         forkId={forkId}
         attachments={attachments}
         loneOnDatedTrip={loneOnDatedTrip}
+        inferredLocalMode={inferredLocalMode}
         initialValues={initialValues}
         onDraftChange={onDraftChange}
         onSubmitOverride={onSubmitOverride}
@@ -152,6 +157,7 @@ interface StopFormProps {
   forkId?: string | null;
   attachments?: AttachmentView[];
   loneOnDatedTrip?: boolean;
+  inferredLocalMode?: "DRIVE" | "TRANSIT";
   initialValues?: Partial<ProposedStopInput>;
   onDraftChange?: (input: ProposedStopInput) => void;
   onSubmitOverride?: (input: ProposedStopInput) => Promise<ActionResult>;
@@ -171,6 +177,7 @@ function StopForm({
   forkId,
   attachments,
   loneOnDatedTrip = false,
+  inferredLocalMode = "TRANSIT",
   initialValues,
   onDraftChange,
   onSubmitOverride,
@@ -212,15 +219,20 @@ function StopForm({
     stop?.departDate ?? proposed?.departDate ?? (lockedScheduled ? tripEndDate : undefined) ?? defaultDepartDate ?? "",
   );
   const [notes, setNotes] = React.useState(stop?.notes ?? proposed?.notes ?? "");
+  const [localMode, setLocalMode] = React.useState<string>(
+    stop?.localTravelMode === "DRIVE" || stop?.localTravelMode === "TRANSIT" ? stop.localTravelMode : AUTOMATIC,
+  );
   // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
-  useFormDirty({ mode, name, country, timezone, nights, chapterId, arriveDate, departDate, notes });
+  useFormDirty({ mode, name, country, timezone, nights, chapterId, arriveDate, departDate, notes, localMode });
   const pickedPoint = picked
     ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}), ...(picked.placeId ? { placeId: picked.placeId } : {}) }
     : {};
 
   // The would-be create/update input, exactly as typed.
   function buildInput(): StopInput {
+    const localTravelMode: { localTravelMode?: "DRIVE" | "TRANSIT" } =
+      localMode === "DRIVE" || localMode === "TRANSIT" ? { localTravelMode: localMode } : {};
     let input: StopInput;
     if (mode === "rough") {
       const parsedNights = Number.parseInt(nights, 10);
@@ -232,6 +244,7 @@ function StopForm({
         nights: Number.isFinite(parsedNights) ? parsedNights : 0,
         notes: notes.trim() || undefined,
         ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
+        ...localTravelMode,
       };
     } else {
       input = {
@@ -243,6 +256,7 @@ function StopForm({
         arriveDate,
         departDate,
         notes: notes.trim() || undefined,
+        ...localTravelMode,
       };
     }
     return input;
@@ -435,6 +449,23 @@ function StopForm({
             />
           </div>
         </>
+      )}
+
+      {onSubmitOverride ? null : (
+        <Field label="Local travel mode">
+          <Select value={localMode} onValueChange={setLocalMode} disabled={isPending}>
+            <SelectTrigger aria-label="Local travel mode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={AUTOMATIC}>
+                {inferredLocalMode === "DRIVE" ? "Automatic (Drive)" : "Automatic (Public transport)"}
+              </SelectItem>
+              <SelectItem value="DRIVE">Drive</SelectItem>
+              <SelectItem value="TRANSIT">Public transport</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
       )}
 
       {/* Notes */}

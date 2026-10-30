@@ -16,8 +16,8 @@ import { WRITING_STYLE, CHECK_FACTS } from "./vocab";
 const PROMPT_TOOLS: Record<string, string[]> = {
   "review-plan": ["get_trip_plan", "get_flags", "get_budget"],
   "pack-for": ["get_trip_plan", "get_checklists", "add_checklist_item", "set_need_to_buy"],
-  "plan-day": ["get_trip_plan", "get_wishlist", "list_attachments", "schedule_thing_to_do", "add_thing_to_do", "set_day_title"],
-  "check-day": ["get_trip_plan", "list_attachments"],
+  "plan-day": ["get_trip_plan", "get_day", "get_wishlist", "list_attachments", "schedule_thing_to_do", "add_thing_to_do", "set_day_title"],
+  "check-day": ["get_trip_plan", "get_day", "list_attachments"],
 };
 
 /** Prompts that need a date argument alongside tripId. */
@@ -76,6 +76,19 @@ describe("MCP prompts", () => {
       expect(t).toContain("full street address");
       expect(t).toContain("web search");
       expect(t).not.toContain("search_places");
+    }
+  });
+
+  it("plan-day and check-day read the day's hops from get_day, never from get_trip_plan, and never invent travel times", async () => {
+    const c = await connectTestClient();
+    for (const name of ["plan-day", "check-day"]) {
+      const r = await c.getPrompt({ name, arguments: { tripId: "t1", date: "2026-12-18" } });
+      const t = textOf(r.messages[0]);
+      expect(t).not.toContain("no routing data");
+      expect(t).toContain("read get_day for 2026-12-18");
+      expect(t).toContain("Read get_day for each date you plan or check: its hops are the travel between things. Real ones come from routing; estimated ones are straight-line guesses, so say so.");
+      expect(t).toContain("If a hop is missing or estimated and it matters, say so; never invent travel times.");
+      expect(t).not.toMatch(/get_trip_plan \([^)]*hops/);
     }
   });
 

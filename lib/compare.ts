@@ -25,11 +25,11 @@ import {
   type BudgetAccommodation,
   type BudgetTransport,
 } from "@/lib/money/budget";
-import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
+import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type TravelLookup } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -46,7 +46,8 @@ interface CompareStop {
   pinned: boolean;
   lat: number | null;
   lng: number | null;
-  timezone: string;
+  timezone: string | null;
+  localTravelMode?: string | null;
 }
 
 interface CompareTransport {
@@ -56,7 +57,12 @@ interface CompareTransport {
   toStopId: string | null;
   depAt: string | null;
   arrAt: string | null;
+  depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depLat?: number | null;
+  depLng?: number | null;
+  arrLat?: number | null;
+  arrLng?: number | null;
   bookingState?: string | null;
   bookBy?: string | null;
 }
@@ -77,6 +83,7 @@ interface CompareItem {
   date: string | null;
   startTime: string | null;
   endTime: string | null;
+  sortOrder?: number;
   lat: number | null;
   lng: number | null;
   category: string;
@@ -120,6 +127,8 @@ export interface PlanMetricsInput {
    * Omitted: those Flags stay silent.
    */
   today?: string;
+  /** Stored Travel times for this plan's rows (lib/travel-times/read.ts). Required; an empty Map estimates every hop. */
+  travel: TravelLookup;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +260,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   const budgetStops: BudgetStop[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
-    timezone: s.timezone,
+    timezone: s.timezone ?? "UTC",
   }));
 
   const budgetItems: BudgetItem[] = items.map((i) => ({
@@ -303,10 +312,11 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       name: s.name,
       arriveDate: s.arriveDate,
       departDate: s.departDate,
-      timezone: s.timezone,
+      timezone: s.timezone ?? "UTC",
       lat: s.lat,
       lng: s.lng,
       sortOrder: s.sortOrder,
+      localTravelMode: s.localTravelMode ?? null,
     }));
 
   const flagTransports: FlagTransport[] = transports.map((t) => ({
@@ -317,6 +327,11 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     depAt: t.depAt,
     arrAt: t.arrAt,
     arrIsHome: t.arrIsHome ?? false,
+    depIsHome: t.depIsHome ?? false,
+    depLat: t.depLat ?? null,
+    depLng: t.depLng ?? null,
+    arrLat: t.arrLat ?? null,
+    arrLng: t.arrLng ?? null,
     bookingState: t.bookingState ?? null,
     bookBy: t.bookBy ?? null,
   }));
@@ -337,6 +352,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     date: i.date,
     startTime: i.startTime,
     endTime: i.endTime,
+    sortOrder: i.sortOrder,
     lat: i.lat,
     lng: i.lng,
     title: i.title ?? null,
@@ -402,6 +418,9 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       homeLastStop,
       today,
       stopNames: new Map(stops.map((s) => [s.id, s.name])),
+      travel: input.travel,
+      travelStops: stops,
+      homePoint: homePointOf(trip),
     });
 
     for (const f of flags) {
@@ -445,24 +464,14 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     legs.push({ fromName: from.name, toName: to.name, mode: t.mode });
   }
 
+  const estimateOpts = { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph };
+  const carTransports = new Map(transports.map((t) => [t.id, t]));
   let drivingMinutes = 0;
-
-  for (const t of transports) {
-    if (t.mode !== "CAR") continue;
-    if (!t.fromStopId || !t.toStopId) continue;
-    const from = stopById.get(t.fromStopId);
-    const to = stopById.get(t.toStopId);
-    if (!from || !to) continue;
-    if (from.lat == null || from.lng == null || to.lat == null || to.lng == null) continue;
-    if (!isFinite(from.lat) || !isFinite(from.lng) || !isFinite(to.lat) || !isFinite(to.lng)) continue;
-
-    const fromLatLng: LatLng = { lat: from.lat, lng: from.lng };
-    const toLatLng: LatLng = { lat: to.lat, lng: to.lng };
-    const km = haversineKm(fromLatLng, toLatLng);
-    drivingMinutes += estimateDriveMinutes(km, {
-      windingFactor: trip.drivingWindingFactor,
-      avgSpeedKph: trip.drivingAvgSpeedKph,
-    });
+  for (const leg of carLegs(transports.map(toPlanTransport), hopStopsById(stops), homePointOf(trip))) {
+    const t = carTransports.get(leg.transportId);
+    const dep = t?.depAt ? new Date(t.depAt).getTime() : NaN;
+    const arr = t?.arrAt ? new Date(t.arrAt).getTime() : NaN;
+    drivingMinutes += arr > dep ? (arr - dep) / 60000 : resolveDriveLeg(leg.from, leg.to, input.travel, estimateOpts).minutes;
   }
 
   return {

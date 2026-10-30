@@ -1317,13 +1317,13 @@ describe("transport sheet (PLAN.md §7.5): Car drive estimate and Add times", ()
           fromStopId: "rom",
           toStopId: "flo",
           sortOrder: 0,
-          driveEstimate: { minutes: 95, roadKm: 120 },
+          driveEstimate: { minutes: 95, roadKm: 120, estimated: true },
         }}
         open
         onOpenChange={vi.fn()}
       />,
     );
-    expect(screen.getByText("~1h 35m · 120 km")).toBeInTheDocument();
+    expect(screen.getByText("~1h 35m · 120 km (estimated)")).toBeInTheDocument();
   });
 
   it("Add times reveals the Leaves/Arrives fields on a Car leg", async () => {

@@ -31,6 +31,8 @@ import type { TripProjection } from "@/lib/trip-projection";
 import { tripHomeBase } from "@/lib/home-base";
 import { tripTodayISO } from "@/lib/trip-today";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
+import { ITEM_HOP_ORDER, homePointOf, type TravelLookup } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import {
   detectFlags,
   type Flag,
@@ -57,6 +59,7 @@ interface RawAllStopRow {
   nights?: number | null;
   /** Dates fixed by a real booking/event; ripple never moves it; optional — see `nights` above. */
   pinned?: boolean;
+  localTravelMode?: string | null;
 }
 
 export interface FlagsAssemblyInput {
@@ -89,6 +92,8 @@ export interface FlagsAssemblyInput {
    * and silently drop those Flags (TB-01).
    */
   today: string;
+  /** Stored Travel times for these rows (lib/travel-times/read.ts loadTravelLookupFor). Required; an empty Map estimates every hop. */
+  travel: TravelLookup;
 }
 
 /**
@@ -110,6 +115,7 @@ export function flagsFromRows({
   hiddenStopIds,
   hiddenItemIds,
   today,
+  travel,
 }: FlagsAssemblyInput): Flag[] {
   const stops = allStops.filter((s) => s.arriveDate !== null);
   const roughStops = allStops.filter((s) => s.arriveDate === null);
@@ -144,6 +150,9 @@ export function flagsFromRows({
     hiddenItemIds,
     today,
     stopNames: new Map(allStops.map((s) => [s.id, s.name])),
+    travel,
+    travelStops: allStops,
+    homePoint: homePointOf(trip),
   });
 }
 
@@ -176,6 +185,7 @@ const FLAG_STOP_SELECT = {
   sortOrder: true,
   nights: true,
   pinned: true,
+  localTravelMode: true,
 } as const;
 
 const FLAG_TRANSPORT_SELECT = {
@@ -187,6 +197,10 @@ const FLAG_TRANSPORT_SELECT = {
   mode: true,
   depIsHome: true,
   arrIsHome: true,
+  depLat: true,
+  depLng: true,
+  arrLat: true,
+  arrLng: true,
   bookingState: true,
   bookBy: true,
 } as const;
@@ -208,6 +222,7 @@ const FLAG_ITEM_SELECT = {
   date: true,
   startTime: true,
   endTime: true,
+  sortOrder: true,
   lat: true,
   lng: true,
   title: true,
@@ -230,6 +245,8 @@ export type FlagRows = {
   hiddenItemIds: readonly string[];
   /** The Trip's own today, from this Plan's Stops (lib/trip-today.ts). */
   today: string;
+  /** Stored Travel times for exactly the hops these rows make (lib/travel-times/read.ts). */
+  travel: TravelLookup;
 };
 
 /**
@@ -268,6 +285,7 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
     }),
     db.item.findMany({
       where: { tripId, ...planScope(plan), ...v.where.item },
+      orderBy: [...ITEM_HOP_ORDER],
       select: FLAG_ITEM_SELECT,
     }),
   ]);
@@ -286,9 +304,11 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
       date: p.date,
       startTime: p.startTime,
       endTime: p.endTime,
+      sortOrder: p.sortOrder,
       lat: null,
       lng: null,
     }));
+  const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip) });
 
   return {
     trip,
@@ -302,6 +322,7 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
     hiddenStopIds: v.hiddenStopIds,
     hiddenItemIds: v.hiddenItemIds,
     today: tripTodayISO(allStops),
+    travel,
   };
 }
 
@@ -319,6 +340,7 @@ export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[]
     hiddenStopIds: rows.hiddenStopIds,
     hiddenItemIds: rows.hiddenItemIds,
     today: rows.today,
+    travel: rows.travel,
   });
 }
 

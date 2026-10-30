@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
+import { decodePolyline } from "@/lib/travel-times/polyline";
 
 export interface MapPolylineProps {
-  path: google.maps.LatLngLiteral[];
+  path?: google.maps.LatLngLiteral[];
+  encodedPath?: string;
   color: string;
   weight: number;
   opacity?: number;
@@ -13,8 +15,9 @@ export interface MapPolylineProps {
   zIndex?: number;
 }
 
-export function MapPolyline({ path, color, weight, opacity, dashed = false, geodesic = false, zIndex }: MapPolylineProps) {
+export function MapPolyline({ path: straight, encodedPath, color, weight, opacity, dashed = false, geodesic = false, zIndex }: MapPolylineProps) {
   const map = useMap();
+  const path = useMemo(() => (encodedPath ? decodePolyline(encodedPath) : (straight ?? [])), [encodedPath, straight]);
   const lineRef = useRef<google.maps.Polyline | null>(null);
 
   useEffect(() => {

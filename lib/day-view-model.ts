@@ -156,9 +156,10 @@ export const forecastOpensOn = (dateISO: string) => formatDayLabel(addDays(dateI
 interface DayTripRow {
   name: string; startDate: string | null; endDate: string | null; homeCurrency: string;
   homeName: string | null; homeTimezone: string | null; chaptersEnabled: boolean; roundTrip: boolean;
+  homeLat: number | null; homeLng: number | null; drivingWindingFactor: number; drivingAvgSpeedKph: number;
 }
 interface DayStopRow {
-  id: string; name: string; country: string | null; countryCode: string | null; timezone: string | null;
+  id: string; name: string; country: string | null; countryCode: string | null; timezone: string | null; localTravelMode: string | null;
   arriveDate: string | null; departDate: string | null; sortOrder: number; lat: number | null; lng: number | null; placeId: string | null;
   surprise: SurpriseView | null;
 }

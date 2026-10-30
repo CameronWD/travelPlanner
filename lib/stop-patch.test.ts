@@ -116,4 +116,13 @@ describe("mergeStopPatch", () => {
       mode: "rough", name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: "old notes", nights: 4, chapterId: "chap-1",
     });
   });
+
+  it("carries the Local travel mode: kept when unsent, replaced when sent, cleared by null", () => {
+    const moded = { ...rough, localTravelMode: "DRIVE" };
+    expect(mergeStopPatch(moded, { notes: "x" })).toMatchObject({ localTravelMode: "DRIVE" });
+    expect(mergeStopPatch(moded, { localTravelMode: "TRANSIT" })).toMatchObject({ localTravelMode: "TRANSIT" });
+    const cleared = mergeStopPatch(moded, { localTravelMode: null });
+    expect(cleared).not.toHaveProperty("localTravelMode", "DRIVE");
+    expect(mergeStopPatch({ ...scheduled, localTravelMode: "TRANSIT" }, { notes: "x" })).toMatchObject({ mode: "scheduled", localTravelMode: "TRANSIT" });
+  });
 });

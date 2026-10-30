@@ -91,7 +91,8 @@ vi.mock("@/lib/itinerary", async (importOriginal) => {
     dayHasEntries: actual.dayHasEntries,
   };
 });
-vi.mock("@/lib/day-map", () => ({ buildDayMapModel: vi.fn(), buildItemDirections: vi.fn() }));
+vi.mock("@/lib/day-map", () => ({ buildDayMapModel: vi.fn(), buildItemDirections: vi.fn(), withDayMapHops: (m: unknown) => m }));
+vi.mock("@/lib/travel-times/read", () => ({ loadTravelLookupFor: async () => new Map() }));
 vi.mock("@/lib/nearby", () => ({ nearbyWishlistItems: vi.fn(), dayIdeasWishlist: dayIdeasWishlistMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForDate: vi.fn() }));
 vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: vi.fn() }));

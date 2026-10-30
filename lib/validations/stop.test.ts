@@ -154,4 +154,15 @@ describe("stopSchema — Google place", () => {
   it("rejects an empty placeId", () => {
     expect(stopSchema.safeParse({ ...VALID, placeId: "" }).success).toBe(false);
   });
+
+  it("takes a Local travel mode of DRIVE, TRANSIT or none on a rough or scheduled Stop", () => {
+    const rough = { mode: "rough" as const, name: "Rome", nights: 2 };
+    for (const base of [VALID, rough]) {
+      expect(stopSchema.safeParse({ ...base, localTravelMode: "TRANSIT" }).success).toBe(true);
+      expect(stopSchema.safeParse({ ...base, localTravelMode: "DRIVE" }).success).toBe(true);
+      expect(stopSchema.safeParse({ ...base, localTravelMode: null }).success).toBe(true);
+      expect(stopSchema.safeParse({ ...base }).success).toBe(true);
+      expect(stopSchema.safeParse({ ...base, localTravelMode: "WALK" }).success).toBe(false);
+    }
+  });
 });

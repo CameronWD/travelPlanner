@@ -15,6 +15,9 @@ vi.mock("@/lib/day-reads", () => ({ readDayRows }));
 // for lack of a DATABASE_URL.
 vi.mock("@/lib/db", () => ({ db: { stop: { findMany: stopFindMany } } }));
 
+const { loadTravelLookupFor } = vi.hoisted(() => ({ loadTravelLookupFor: vi.fn() }));
+vi.mock("@/lib/travel-times/read", () => ({ loadTravelLookupFor }));
+
 import type { DayRows } from "@/lib/day-view-model";
 import { loadDayForMcp } from "./day";
 
@@ -25,10 +28,10 @@ const itemRow = (o: Partial<DayRows["items"][number]>): DayRows["items"][number]
   bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, ...o,
 });
 const rows: DayRows = {
-  trip: { name: "Porto", startDate: "2027-06-01", endDate: "2027-06-04", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane", chaptersEnabled: false, roundTrip: true },
+  trip: { name: "Porto", startDate: "2027-06-01", endDate: "2027-06-04", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane", chaptersEnabled: false, roundTrip: true, homeLat: null, homeLng: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80 },
   startDate: "2027-06-01",
   endDate: "2027-06-04",
-  stops: [{ id: "s1", name: "Porto", country: "Portugal", countryCode: "pt", timezone: "Europe/Lisbon", arriveDate: "2027-06-01", departDate: "2027-06-04", sortOrder: 0, lat: null, lng: null, placeId: null, surprise: null }],
+  stops: [{ id: "s1", name: "Porto", country: "Portugal", countryCode: "pt", timezone: "Europe/Lisbon", localTravelMode: null, arriveDate: "2027-06-01", departDate: "2027-06-04", sortOrder: 0, lat: null, lng: null, placeId: null, surprise: null }],
   items: [
     itemRow({ id: "tour", title: "Port lodge tour", startTime: "10:00" }),
     itemRow({ id: "market", title: "Bolhão market" }),
@@ -48,6 +51,58 @@ describe("loadDayForMcp", () => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
     readDayRows.mockResolvedValue({ rows, visibility: {}, alongside: [{ id: "s1", name: "Porto" }] });
+    loadTravelLookupFor.mockResolvedValue(new Map());
+  });
+
+  describe("hops", () => {
+    const A = { lat: 41.14, lng: -8.61 };
+    const B = { lat: 41.142, lng: -8.612 };
+    const C = { lat: 41.2, lng: -8.7 };
+    const D = { lat: 41.5, lng: -8.9 };
+    const at = (id: string, p: { lat: number; lng: number }, startTime: string, o: Partial<DayRows["items"][number]> = {}) =>
+      itemRow({ id, title: id, startTime, lat: p.lat, lng: p.lng, ...o });
+    const hopRows = (items: DayRows["items"]): DayRows => ({ ...rows, stops: [{ ...rows.stops[0], localTravelMode: "DRIVE" }], items });
+    const ok = (minutes: number, distanceM: number) => ({ status: "OK", minutes, distanceM, polyline: null });
+
+    it("carries a real walk, a real drive and an estimated hop", async () => {
+      readDayRows.mockResolvedValue({ rows: hopRows([at("a", A, "09:00"), at("b", B, "10:00"), at("c", C, "11:00"), at("d", D, "12:00")]), visibility: {}, alongside: [] });
+      loadTravelLookupFor.mockResolvedValue(
+        new Map([
+          [`WALK|${A.lat.toFixed(5)},${A.lng.toFixed(5)}|${B.lat.toFixed(5)},${B.lng.toFixed(5)}`, ok(4, 300)],
+          [`DRIVE|${B.lat.toFixed(5)},${B.lng.toFixed(5)}|${C.lat.toFixed(5)},${C.lng.toFixed(5)}`, ok(15, 9000)],
+        ]),
+      );
+      const day = await loadDayForMcp("trip-1", "2027-06-02");
+      if ("success" in day) throw new Error("expected a day");
+      expect(day.hops).toEqual([
+        { fromItemId: "a", toItemId: "b", minutes: 4, mode: "walk", distanceKm: 0.3, estimated: false },
+        { fromItemId: "b", toItemId: "c", minutes: 15, mode: "drive", distanceKm: 9, estimated: false },
+        expect.objectContaining({ fromItemId: "c", toItemId: "d", mode: "drive", estimated: true }),
+      ]);
+    });
+
+    it("an estimated hop at a Public-transport Stop is public_transport, estimated, with the estimate's minutes", async () => {
+      const items = [at("c", C, "11:00"), at("d", D, "12:00")];
+      readDayRows.mockResolvedValue({ rows: hopRows(items), visibility: {}, alongside: [] });
+      const atDrive = await loadDayForMcp("trip-1", "2027-06-02");
+      readDayRows.mockResolvedValue({ rows: { ...rows, stops: [{ ...rows.stops[0], localTravelMode: "TRANSIT" }], items }, visibility: {}, alongside: [] });
+      const atTransit = await loadDayForMcp("trip-1", "2027-06-02");
+      if ("success" in atDrive || "success" in atTransit) throw new Error("expected a day");
+      expect(atTransit.hops).toEqual([{ ...atDrive.hops[0], mode: "public_transport", estimated: true }]);
+      expect(atDrive.hops[0]).toMatchObject({ mode: "drive", estimated: true });
+    });
+
+    it("steps over a Surprise the viewer is not in on, and never names it", async () => {
+      readDayRows.mockResolvedValue({
+        rows: hopRows([at("a", A, "09:00"), itemRow({ id: "hidden", title: "Surprise", startTime: "10:00", surprise: surprised }), at("c", C, "11:00")]),
+        visibility: {},
+        alongside: [],
+      });
+      const day = await loadDayForMcp("trip-1", "2027-06-02");
+      if ("success" in day) throw new Error("expected a day");
+      expect(day.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual([["a", "c"]]);
+      expect(JSON.stringify(day.hops)).not.toContain("hidden");
+    });
   });
 
   it("reads the day as the Day view assembles it, the viewer's Surprise masking included", async () => {

@@ -135,6 +135,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "reorderStops",
     "restoreStops",
     "setStopDates",
+    "setStopLocalTravelMode",
     "setStopNights",
     "setStopNotes",
     "toggleStopPin",

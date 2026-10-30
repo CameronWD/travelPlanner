@@ -14,7 +14,7 @@ export interface LegTransport {
   toStopId?: string | null;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
-  driveEstimate?: { minutes: number; roadKm: number } | null;
+  driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
 }
 
 export interface LegStop {
@@ -77,7 +77,7 @@ export function legLabel(
       spoken = `${spokenDay(dep.dateISO)} ${dep.time}`;
     }
   } else if (isCar && t.driveEstimate) {
-    sub = `~${formatDuration(t.driveEstimate.minutes)} · ${t.driveEstimate.roadKm} km`;
+    sub = `${t.driveEstimate.estimated ? "~" : ""}${formatDuration(t.driveEstimate.minutes)} · ${t.driveEstimate.roadKm} km${t.driveEstimate.estimated ? " (estimated)" : ""}`;
     spoken = sub;
   } else {
     const day = from?.departDate ?? to?.arriveDate ?? null;

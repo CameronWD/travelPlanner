@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { scheduleTravelTimes } from "@/lib/travel-times/schedule";
 
 /**
  * Every write's cache invalidation (spec 2026-10-14 card 2.E, decision Q6;
@@ -40,7 +41,11 @@ export const SCOPE_TABLES: Record<TripScope, readonly string[]> = {
   reviews: ["review", "finding"],
 };
 
+/** The writes that can change a hop: the plan, the Home base, or who is on the Trip (Surprise views). */
+const TRAVEL_TIME_SCOPES: readonly TripScope[] = ["plan", "trip", "travellers"];
+
 export function revalidateTrip(tripId: string, ...scopes: [TripScope, ...TripScope[]]): void {
+  if (scopes.some((s) => TRAVEL_TIME_SCOPES.includes(s))) scheduleTravelTimes(tripId);
   const base = `/trips/${tripId}`;
   if (scopes.some((s) => SCOPE_PAGES[s] === "layout")) {
     revalidatePath(base, "layout");

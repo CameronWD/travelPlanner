@@ -122,7 +122,7 @@ it("forecastOpensOn is 15 days before", () => expect(forecastOpensOn("2027-01-02
 
 describe("buildDayModel (card 3.M)", () => {
   const stop = (o: Partial<DayRows["stops"][number]> & { id: string; name: string; arriveDate: string; departDate: string; sortOrder: number }) => ({
-    country: "France", countryCode: "FR", timezone: "Europe/Paris", lat: 48.57, lng: 7.75, placeId: null, surprise: null, ...o,
+    country: "France", countryCode: "FR", timezone: "Europe/Paris", localTravelMode: null, lat: 48.57, lng: 7.75, placeId: null, surprise: null, ...o,
   });
   const item = (o: Partial<DayRows["items"][number]> & { id: string; date: string }) => ({
     title: `Item ${o.id}`, category: "SIGHTSEEING", startTime: null, endTime: null, sortOrder: 0, stopId: "s-stras",
@@ -137,7 +137,7 @@ describe("buildDayModel (card 3.M)", () => {
   };
   function rows(over: Partial<DayRows> = {}): DayRows {
     return {
-      trip: { name: "Xmas", startDate: "2026-12-04", endDate: "2026-12-20", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: null, chaptersEnabled: true, roundTrip: true },
+      trip: { name: "Xmas", startDate: "2026-12-04", endDate: "2026-12-20", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: null, chaptersEnabled: true, roundTrip: true, homeLat: null, homeLng: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80 },
       startDate: "2026-12-04",
       endDate: "2026-12-20",
       stops: [

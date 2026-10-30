@@ -61,7 +61,7 @@ describe("buildDuplicatePlan", () => {
     expect(rome.data).toEqual({
       name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, placeId: null, timezone: "Europe/Rome",
       arriveDate: null, departDate: null, nights: 3, pinned: false,
-      sortOrder: 0, chapterSortOrder: 0, notes: "near station",
+      sortOrder: 0, chapterSortOrder: 0, notes: "near station", localTravelMode: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
     });
     expect(rome.sourceChapterId).toBe("ch1");
@@ -201,5 +201,11 @@ describe("buildDuplicatePlan", () => {
     expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL" });
     expect(plan.items[1].data).toMatchObject({ placeId: null, businessStatus: null });
     expect(plan.transports[0].data).toMatchObject({ depPlaceId: "termini-id", arrPlaceId: "smn-id" });
+  });
+
+  it("keeps a Stop's Local travel mode; none copies as null", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, stops: [{ ...SOURCE.stops[0], localTravelMode: "TRANSIT" }, SOURCE.stops[1]] }, "x");
+    expect(plan.stops[0].data.localTravelMode).toBe("TRANSIT");
+    expect(plan.stops[1].data.localTravelMode).toBeNull();
   });
 });

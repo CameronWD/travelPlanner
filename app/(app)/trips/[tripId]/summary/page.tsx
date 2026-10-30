@@ -16,6 +16,8 @@ import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
+import { homePointOf, routeLegPaths } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { tripTodayISO } from "@/lib/trip-today";
 import { homeMapPoint } from "@/lib/route-map";
 import { computeProjection } from "@/lib/trip-projection";
@@ -246,6 +248,7 @@ export default async function SummaryPage({
   // The projection is computed from Stops/Transports already read above (spec
   // 2026-10-06 §C) — never `getTripProjection`, which would re-read them.
   const projection = computeProjection({ trip, stops: allStops, transports });
+  const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip) });
 
   // lib/flags-loader.ts's `flagsFromRows` is the same detectFlags input
   // assembly `get_flags`'s loadFlags uses, run here against rows this page
@@ -263,6 +266,7 @@ export default async function SummaryPage({
     hiddenItemIds: v.hiddenItemIds,
     // The Trip's own today (every surface's, lib/trip-today.ts): the book-by Flags count from it.
     today: tripTodayISO(allStops),
+    travel,
   });
 
   // ---------------------------------------------------------------------------
@@ -435,7 +439,7 @@ export default async function SummaryPage({
       <section aria-labelledby="map-heading">
         <SectionHeading id="map-heading" icon={MapPin} title="Route" />
         {/* RouteMap is client-only via dynamic import */}
-        <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
+        <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} legPaths={routeLegPaths(datedStops, transports, travel, homePointOf(trip))} />
       </section>
 
       {/* ── Stops overview ── */}

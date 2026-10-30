@@ -155,7 +155,7 @@ describe("flagsFromRows", () => {
   const PROJECTION = { projectedEnd: "2026-01-11", hardEndDate: "2026-01-10", deadline: null };
 
   it("does no I/O — assembles detectFlags' input straight from the given rows and projection", () => {
-    flagsFromRows({
+    flagsFromRows({ travel: new Map(),
       trip: BASE_TRIP,
       allStops: [{ id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 }],
       transports: [],
@@ -184,7 +184,7 @@ describe("flagsFromRows", () => {
   });
 
   it("passes the Trip's homeTimezone through to detectFlags (spec 2026-10-14)", () => {
-    flagsFromRows({
+    flagsFromRows({ travel: new Map(),
       trip: { ...BASE_TRIP, homeTimezone: "Australia/Brisbane" },
       allStops: [],
       transports: [],
@@ -215,6 +215,7 @@ describe("flagsFromRows", () => {
       hiddenStopIds: [], // loadFlags passes the viewer's (none hidden here)
       hiddenItemIds: [],
       today: "2026-01-01",
+      travel: new Map(),
     });
     expect(detectFlags.mock.calls[0][0]).toEqual(fromLoadFlags);
   });
@@ -274,7 +275,7 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
     const rows = await loadFlagRows(TRIP_ID, "u-viewer");
     expect(rows?.items).toEqual([
       VISIBLE,
-      { id: "hid", stopId: "s1", category: "OTHER", date: "2026-01-03", startTime: "10:00", endTime: "12:00", lat: null, lng: null },
+      { id: "hid", stopId: "s1", category: "OTHER", date: "2026-01-03", startTime: "10:00", endTime: "12:00", sortOrder: 0, lat: null, lng: null },
     ]);
   });
 
@@ -299,7 +300,7 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
     const rows = await loadFlagRows(TRIP_ID, "u-viewer");
     const badge = flagsForRows(rows!, projection);
     // The Summary page: readPlan's items (visible rows + mergePlanItems' placeholders).
-    const summary = flagsFromRows({
+    const summary = flagsFromRows({ travel: new Map(),
       trip: BASE_TRIP,
       allStops: [STOP],
       transports: [],
@@ -362,7 +363,7 @@ describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 20
   });
 
   it("flagsFromRows hands today, the hidden Items and every Stop's name (rough included) to detectFlags, reading no clock", () => {
-    flagsFromRows({
+    flagsFromRows({ travel: new Map(),
       trip: BASE_TRIP,
       allStops: [
         { id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 },

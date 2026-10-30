@@ -17,6 +17,7 @@ import { parseTryList } from "@/lib/validations/try-list";
 import type { TryList } from "@/lib/try-list";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
+import { effectiveLocalMode } from "@/lib/travel-times/hops";
 import type { McpFileRef } from "./attachments";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -140,6 +141,10 @@ export interface McpStop {
   pinned: boolean;
   chapterId: string | null;
   notes: string | null;
+  /** How Travel times are worked out at this Stop: the chosen mode, else the inferred one (Drive when a Car Transport touches it). */
+  localTravelMode: "drive" | "public_transport";
+  /** True when a Traveller chose the mode; false while it is inferred. */
+  localTravelModeSet: boolean;
   /** IANA zone, or null while the Stop is rough (no timezone set yet). */
   timezone: string | null;
   accommodations: McpAccommodation[];
@@ -236,6 +241,7 @@ export const MCP_ACCOMMODATION_SELECT = {
 const MCP_STOP_FIELDS = {
   id: true, name: true, countryCode: true, timezone: true, arriveDate: true, departDate: true,
   nights: true, pinned: true, chapterId: true, notes: true, sortOrder: true,
+  localTravelMode: true,
 } as const;
 
 /** A Stop with its Accommodation; `accommodationWhere` is the Surprise fragment (`v.where.accommodation`). */
@@ -280,6 +286,7 @@ export interface McpStopRow {
   id: string; name: string; countryCode: string | null; timezone: string | null;
   arriveDate: string | null; departDate: string | null; nights: number | null; pinned: boolean;
   chapterId: string | null; notes: string | null; sortOrder: number;
+  localTravelMode: string | null;
   accommodations: AccommodationRow[];
   /** maskSurpriseStops' view, null for a Stop that is no Surprise. */
   surprise: SurpriseView | null;
@@ -428,8 +435,10 @@ export function buildMcpStops(input: {
   filesFor: FilesFor;
   /** Every real-plan Stop's name, for `owningStop` (R5); a hidden Surprise Stop keeps its name (its shell). */
   stopNameById: ReadonlyMap<string, string>;
+  /** The real plan's Transports: a Car leg at a Stop makes its inferred mode Drive. */
+  planTransports: { mode: string; fromStopId: string | null; toStopId: string | null }[];
 }): { stops: McpStop[]; coveredItemIds: Set<string> } {
-  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor, stopNameById } = input;
+  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor, stopNameById, planTransports } = input;
   const openStops = stops.filter((s) => !hiddenStopIds.has(s.id));
 
   const thingsToDoByStopId = new Map<string, McpThingToDo[]>();
@@ -455,6 +464,8 @@ export function buildMcpStops(input: {
       id: stop.id, name: stop.name, countryCode: stop.countryCode, rough, nights: stop.nights,
       arriveDate: stop.arriveDate, departDate: stop.departDate, pinned: stop.pinned, chapterId: stop.chapterId,
       notes: stop.notes, timezone: stop.timezone,
+      localTravelMode: effectiveLocalMode(stop, planTransports) === "DRIVE" ? "drive" : "public_transport",
+      localTravelModeSet: stop.localTravelMode !== null,
       accommodations: stop.accommodations.map((a) => toMcpAccommodation(a, filesFor)),
       thingsToDo: thingsToDoByStopId.get(stop.id) ?? [],
       days,

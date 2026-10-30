@@ -14,6 +14,7 @@ const {
   toggleStopPin,
   makeStopRough,
   setStopNotes,
+  setStopLocalTravelMode,
   setStopNights,
   assignStopToChapter,
   requireTripAccess,
@@ -43,6 +44,7 @@ const {
   toggleStopPin: vi.fn(),
   makeStopRough: vi.fn(),
   setStopNotes: vi.fn(),
+  setStopLocalTravelMode: vi.fn(),
   setStopNights: vi.fn(),
   assignStopToChapter: vi.fn(),
   requireTripAccess: vi.fn(),
@@ -72,6 +74,7 @@ vi.mock("@/server/actions/stops", () => ({
   toggleStopPin,
   makeStopRough,
   setStopNotes,
+  setStopLocalTravelMode,
   setStopNights,
 }));
 vi.mock("@/server/actions/chapters", () => ({ assignStopToChapter }));
@@ -188,6 +191,7 @@ describe("trip and stop write tools", () => {
         "set_stop_pinned",
         "make_stop_rough",
         "set_stop_notes",
+        "set_local_travel_mode",
         "firm_up_trip",
         "assign_stop_to_chapter",
         "set_surprise",
@@ -465,6 +469,19 @@ describe("trip and stop write tools", () => {
     expect(assignStopToChapter).toHaveBeenCalledWith(STOP_ID, null);
   });
 
+  it("set_local_travel_mode maps drive, public_transport and automatic to DRIVE, TRANSIT and null", async () => {
+    setStopLocalTravelMode.mockResolvedValue({ success: true });
+    const c = await connectTestClient();
+    await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "drive" } });
+    expect(setStopLocalTravelMode).toHaveBeenLastCalledWith(STOP_ID, "DRIVE");
+    await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "public_transport" } });
+    expect(setStopLocalTravelMode).toHaveBeenLastCalledWith(STOP_ID, "TRANSIT");
+    await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "automatic" } });
+    expect(setStopLocalTravelMode).toHaveBeenLastCalledWith(STOP_ID, null);
+    const bad = await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "walk" } });
+    expect(bad.isError).toBe(true);
+  });
+
   it("set_stop_dates refuses a date that matches the format but is not a calendar date, and never calls the action", async () => {
     const c = await connectTestClient();
     const r = await c.callTool({
@@ -598,6 +615,7 @@ describe("trip and stop write tools", () => {
       ["set_stop_pinned", { stopId: "fork-stop", pinned: true }, () => toggleStopPin],
       ["make_stop_rough", { stopId: "fork-stop" }, () => makeStopRough],
       ["set_stop_notes", { stopId: "fork-stop", notes: "x" }, () => setStopNotes],
+      ["set_local_travel_mode", { stopId: "fork-stop", mode: "drive" }, () => setStopLocalTravelMode],
       ["assign_stop_to_chapter", { stopId: "fork-stop", chapterId: null }, () => assignStopToChapter],
       ["add_stop", { tripId: TRIP_ID, afterStopId: "fork-stop", name: "Rome", countryCode: "it", nights: 2 }, () => createStop],
     ];

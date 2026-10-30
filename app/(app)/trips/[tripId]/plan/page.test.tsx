@@ -19,6 +19,7 @@ const mockDb = vi.hoisted(() => ({
   attachment: { findMany: vi.fn() },
   note: { findMany: vi.fn() },
   dayTitle: { findMany: vi.fn() },
+  travelTime: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
@@ -179,6 +180,7 @@ beforeEach(() => {
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.note.findMany.mockResolvedValue([]);
   mockDb.dayTitle.findMany.mockResolvedValue([]);
+  mockDb.travelTime.findMany.mockResolvedValue([]);
 });
 
 async function renderPlan() {
@@ -260,7 +262,7 @@ describe("Plan overview sticky aside (LA-038)", () => {
     expect(aside.className).toBe(PLAN_ASIDE_CLASS);
     expect([...aside.children].map((c) => c.firstElementChild!.getAttribute("data-testid"))).toEqual(["map-button", "fit-tile", "jump-list"]);
     // Spec 2026-10-04 §C: a button card, not a map tile — it needs no far-home pill.
-    expect(Object.keys(railCapture.mapButton!).sort()).toEqual(["home", "stops"]);
+    expect(Object.keys(railCapture.mapButton!).sort()).toEqual(["home", "legPaths", "stops"]);
     expect(PLAN_ASIDE_CLASS).toContain("lg:sticky");
     expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(aside.parentElement!.className).toBe(PLAN_GRID_CLASS);
@@ -384,6 +386,26 @@ describe("Plan page with stops (LA-038)", () => {
   // Task 5 (CONTEXT.md "Day title", spec §H): the loader resolves DayTitle
   // rows against the plan's Stops and passes a plain object (not a Map) down
   // to ItineraryManager, so it serialises to the client.
+  it("a Car leg without times gets the stored DRIVE time and road km, else a flagged estimate", async () => {
+    const A = { lat: 41.9, lng: 12.5 };
+    const B = { lat: 43.77, lng: 11.25 };
+    scenario.stops = [
+      { ...STOP, id: "s1", ...A },
+      { ...STOP, id: "s2", name: "Florence", sortOrder: 1, ...B },
+    ];
+    scenario.transports = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2", depAt: null, arrAt: null, sortOrder: 0 }];
+
+    await renderPlan();
+    expect(itineraryManagerCapture.props?.initialTransports).toMatchObject([{ driveEstimate: { estimated: true } }]);
+
+    const key = `DRIVE|${A.lat.toFixed(5)},${A.lng.toFixed(5)}|${B.lat.toFixed(5)},${B.lng.toFixed(5)}`;
+    mockDb.travelTime.findMany.mockResolvedValue([{ key, status: "OK", minutes: 190, distanceM: 275400, polyline: null }]);
+    await renderPlan();
+    expect(itineraryManagerCapture.props?.initialTransports).toMatchObject([
+      { driveEstimate: { minutes: 190, roadKm: 275, estimated: false } },
+    ]);
+  });
+
   it("loads Day titles for the plan's stops and passes a plain dayTitles object to ItineraryManager", async () => {
     scenario.stops = [STOP];
     mockDb.dayTitle.findMany.mockResolvedValue([

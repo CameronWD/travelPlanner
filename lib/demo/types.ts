@@ -132,6 +132,8 @@ export function planFlagInput(plan: DemoPlan, opts: PlanFlagOpts): DetectFlagsIn
     homeLastStop: last ? { id: last.key, name: last.name } : null,
     today: opts.today ?? null,
     stopNames: new Map(plan.stops.map((s) => [s.key, s.name])),
+    // Demo plans are never stored, so no Travel time exists for them.
+    travel: new Map(),
   };
 }
 

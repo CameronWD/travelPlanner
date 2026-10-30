@@ -51,6 +51,8 @@ import { buildUpcomingPayments, type UpcomingPayment } from "@/lib/money/upcomin
 import { buildStillToBook, type StillToBookRow } from "@/lib/still-to-book";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { instantToZonedDateISO } from "@/lib/tz";
+import { ITEM_HOP_ORDER, homePointOf } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 
 const COST_SELECT = {
   id: true,
@@ -166,7 +168,7 @@ async function load(
       orderBy: { sortOrder: "asc" },
       select: {
         id: true, name: true, country: true, countryCode: true, lat: true, lng: true, timezone: true,
-        arriveDate: true, departDate: true, sortOrder: true, nights: true, pinned: true,
+        arriveDate: true, departDate: true, sortOrder: true, nights: true, pinned: true, localTravelMode: true,
       },
     }),
     db.transport.findMany({
@@ -181,6 +183,10 @@ async function load(
         arrAt: true,
         depIsHome: true,
         arrIsHome: true,
+        depLat: true,
+        depLng: true,
+        arrLat: true,
+        arrLng: true,
         anchorStopId: true,
         bookingState: true,
         bookBy: true,
@@ -192,6 +198,7 @@ async function load(
     }),
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, ...v.where.item },
+      orderBy: [...ITEM_HOP_ORDER],
       select: {
         id: true,
         title: true,
@@ -200,6 +207,7 @@ async function load(
         date: true,
         startTime: true,
         endTime: true,
+        sortOrder: true,
         lat: true,
         lng: true,
         bookingState: true,
@@ -243,7 +251,7 @@ async function load(
       .filter((p) => p.forkId === null && p.date !== null)
       .map((p) => ({
         id: p.id, title: p.title, stopId: p.stopId, category: p.category, date: p.date,
-        startTime: p.startTime, endTime: p.endTime, lat: p.lat, lng: p.lng,
+        startTime: p.startTime, endTime: p.endTime, sortOrder: p.sortOrder, lat: p.lat, lng: p.lng,
       })),
   ];
   const roughStopCount = allStopsRaw.filter((s) => s.arriveDate === null).length;
@@ -351,6 +359,7 @@ async function load(
       stops: allStopsRaw,
       transports,
     });
+    const travel = await loadTravelLookupFor({ items: itemRows, stops: allStopsRaw, transports, home: homePointOf(trip) });
     steps = buildTripNextSteps({
       tripBasePath: base,
       phase,
@@ -378,6 +387,9 @@ async function load(
       today,
       surprisesToReveal: surprisesToReveal({ views: v.views, viewerId, today, stops: allStopsRaw, items: itemRows }),
       limit: Number.POSITIVE_INFINITY,
+      travel,
+      travelStops: allStopsRaw,
+      homePoint: homePointOf(trip),
     });
   } else {
     // Sketching: no dates, so no Flags (they need a day window) — only the

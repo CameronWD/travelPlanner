@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess, isTripOwnerOrAdmin } from "@/lib/guards";
-import { stopSchema, type StopInput } from "@/lib/validations/stop";
+import { localTravelModeSchema, stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { resolveStopTimezone } from "@/lib/tz-point";
 import { mergeStopPatch, type StopPatch } from "@/lib/stop-patch";
@@ -208,6 +208,7 @@ export async function createStop(
             lng: lng ?? null,
             placeId,
             notes: notes ?? null,
+            localTravelMode: parsed.data.localTravelMode ?? null,
             pinned: false,
             sortOrder,
           },
@@ -238,6 +239,7 @@ export async function createStop(
           placeId,
           countryCode: derivedCountryCode,
           notes: notes ?? null,
+          localTravelMode: parsed.data.localTravelMode ?? null,
           chapterId: null,
           chapterSortOrder: 0,
           pinned: false,
@@ -312,6 +314,7 @@ export async function createStop(
           lng: appendRough?.lng ?? null,
           placeId: appendRough?.placeId ?? null,
           notes: notes ?? null,
+          localTravelMode: parsed.data.localTravelMode ?? null,
           pinned: false,
           sortOrder,
         },
@@ -350,6 +353,7 @@ export async function createStop(
         placeId: appendPlace?.placeId ?? null,
         countryCode: appendCountryCode,
         notes: notes ?? null,
+        localTravelMode: parsed.data.localTravelMode ?? null,
         pinned: false,
         sortOrder,
       },
@@ -438,6 +442,7 @@ export async function updateStop(
             nights,
             chapterId: chapterId ?? null,
             notes: notes ?? null,
+            localTravelMode: parsed.data.localTravelMode ?? null,
             arriveDate: null,
             departDate: null,
             timezone: null,
@@ -491,6 +496,7 @@ export async function updateStop(
         placeId,
         countryCode: parsed.data.countryCode ?? updateCountryCode,
         notes: notes ?? null,
+        localTravelMode: parsed.data.localTravelMode ?? null,
       },
     });
     // ADR 0038: the form edit shifts this stop's own payload only (no
@@ -1210,6 +1216,15 @@ export async function setStopNotes(stopId: string, notes: string): Promise<StopA
   const stop = await requireStopAccess(stopId);
   const trimmed = notes.trim();
   await auditedUpdate("STOP", db.stop, stopId, { notes: trimmed === "" ? null : trimmed }, stop.forkId);
+  revalidateTrip(stop.tripId, "plan");
+  return { success: true };
+}
+
+export async function setStopLocalTravelMode(stopId: string, mode: "DRIVE" | "TRANSIT" | null): Promise<StopActionResult> {
+  const stop = await requireStopAccess(stopId);
+  const parsed = localTravelModeSchema.safeParse({ localTravelMode: mode });
+  if (!parsed.success) return validationResult(parsed.error);
+  await auditedUpdate("STOP", db.stop, stopId, parsed.data, stop.forkId);
   revalidateTrip(stop.tripId, "plan");
   return { success: true };
 }

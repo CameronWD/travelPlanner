@@ -84,14 +84,14 @@ describe("detectFlags: the planning Flags are Surprise-aware and plan-only (R7)"
       item({ id: "in-secret", stopId: "secret", openingHours: closedTue }),
       item({ id: "visible", openingHours: closedTue }),
     ];
-    expect(closedIds(detectFlags({ ...base, items, hiddenStopIds: ["secret"], hiddenItemIds: ["hidden-root"] }))).toEqual(["item-closed-visible"]);
+    expect(closedIds(detectFlags({ travel: new Map(), ...base, items, hiddenStopIds: ["secret"], hiddenItemIds: ["hidden-root"] }))).toEqual(["item-closed-visible"]);
     // Without the inputs, all three flag.
-    expect(closedIds(detectFlags({ ...base, items }))).toHaveLength(3);
+    expect(closedIds(detectFlags({ travel: new Map(), ...base, items }))).toHaveLength(3);
   });
 
   it("an Item of a visible Stop on the Changeover day it shares with a hidden Stop still flags", () => {
     const items = [item({ id: "visible", stopId: "nbg", date: "2026-12-08", openingHours: closedTue })];
-    expect(closedIds(detectFlags({ ...base, items, hiddenStopIds: ["secret"] }))).toEqual(["item-closed-visible"]);
+    expect(closedIds(detectFlags({ travel: new Map(), ...base, items, hiddenStopIds: ["secret"] }))).toEqual(["item-closed-visible"]);
   });
 });
 
@@ -178,7 +178,7 @@ describe("flagLateForSlot (Late for the slot, warning)", () => {
     const nbg = stop({ id: "nbg", arriveDate: "2026-12-06", departDate: "2026-12-09" });
     const items = [item({ id: "gift", slotTime: "12:00", arriveByMinutes: 15, startTime: "11:50" })];
     const ids = (hiddenItemIds?: string[]) =>
-      detectFlags({ stops: [nbg], transports: [], accommodations: [], items, tripStart: "2026-12-06", tripEnd: "2026-12-09", hiddenItemIds })
+      detectFlags({ travel: new Map(), stops: [nbg], transports: [], accommodations: [], items, tripStart: "2026-12-06", tripEnd: "2026-12-09", hiddenItemIds })
         .map((f) => f.id).filter((id) => id.startsWith("item-late-slot-"));
     expect(ids()).toEqual(["item-late-slot-gift"]);
     expect(ids(["gift"])).toEqual([]);
@@ -244,8 +244,8 @@ describe("flagBookByDates (Book by soon, info / Overdue, warning)", () => {
     const accommodations = [stay({ id: "a-secret", stopId: "munich", ...toBook, bookBy: "2026-11-28" })];
     const transports = [leg({ id: "t-rough", toStopId: "rough", ...toBook, bookBy: "2026-12-03" })];
     const bookIds = (flags: { id: string }[]) => flags.map((f) => f.id).filter((id) => id.startsWith("book-by-"));
-    expect(bookIds(detectFlags({ ...base, items, accommodations, transports }))).toEqual([]); // no today
-    const flags = detectFlags({
+    expect(bookIds(detectFlags({ travel: new Map(), ...base, items, accommodations, transports }))).toEqual([]); // no today
+    const flags = detectFlags({ travel: new Map(),
       ...base, items, accommodations, transports, today,
       hiddenItemIds: ["gift"], hiddenStopIds: ["munich"], stopNames: new Map([["nbg", "Nuremberg"], ["munich", "Munich"], ["rough", "Somewhere"]]),
     });
@@ -297,7 +297,7 @@ describe("flagStillToBookSoon (Still to book close to the day, info)", () => {
   });
 
   it("detectFlags: never an Item; never a stay inside a hidden Stop", () => {
-    const flags = detectFlags({
+    const flags = detectFlags({ travel: new Map(),
       stops: [nbg, munich], tripStart: "2026-12-06", tripEnd: "2026-12-12", today, hiddenStopIds: ["munich"], transports: [],
       items: [item({ id: "i1", date: "2026-12-07", bookingState: "TO_BOOK" })],
       accommodations: [stay({ id: "a-nbg" }), stay({ id: "a-secret", stopId: "munich", checkIn: "2026-12-09", checkOut: "2026-12-12" })],

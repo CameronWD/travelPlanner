@@ -178,9 +178,13 @@ export function TransportCard({
             </div>
           )}
           {!duration && t.driveEstimate && (
-            <div className="flex items-center gap-1" title="Rough offline estimate">
+            <div className="flex items-center gap-1" title={t.driveEstimate.estimated ? "Rough offline estimate" : "Driving time from Google"}>
               <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-              <span>≈ {formatDuration(t.driveEstimate.minutes)} · ~{t.driveEstimate.roadKm} km</span>
+              <span>
+                {t.driveEstimate.estimated
+                  ? `≈ ${formatDuration(t.driveEstimate.minutes)} · ~${t.driveEstimate.roadKm} km (estimated)`
+                  : `${formatDuration(t.driveEstimate.minutes)} · ${t.driveEstimate.roadKm} km`}
+              </span>
             </div>
           )}
         </div>

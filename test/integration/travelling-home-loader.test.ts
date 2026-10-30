@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { addDays, todayISO } from "@/lib/dates";
 import { loadTravellingHome } from "@/lib/travelling-home-loader";
 import { getDays } from "@/lib/day-view-loader";
+import { driveKey } from "@/lib/travel-times/hops";
 
 // Real Postgres (npm run test:integration). Card 3.M's promise: Today (the
 // Travelling Home) and the Day view assemble the same day from the same read,
@@ -61,5 +62,32 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Today and the Day view agree (
     // The Opera night carries its Surprise view on both: the member's placeholder is surprised, the planner's is not.
     const opera = [...home.dayPlan!.timedItems, ...home.dayPlan!.untimedItems].find((e) => e.item.startTime === "19:30");
     expect(opera?.item.surprise).toEqual(expect.objectContaining({ plannerId: PLANNER, youAreSurprised: viewer === MEMBER }));
+  });
+
+  it("draws the Today Day map with hops: a stored route solid, a missing one estimated", async () => {
+    const A = { lat: 48.2, lng: 16.37 };
+    const B = { lat: 48.4, lng: 16.6 };
+    const C = { lat: 48.6, lng: 16.8 };
+    await db.stop.update({ where: { id: STOP_ID }, data: { localTravelMode: "DRIVE" } });
+    await db.item.deleteMany({ where: { tripId: TRIP_ID } });
+    await db.item.createMany({
+      data: [
+        { tripId: TRIP_ID, stopId: STOP_ID, title: "IT A", category: "SIGHTSEEING", date: today, startTime: "09:00", sortOrder: 0, ...A },
+        { tripId: TRIP_ID, stopId: STOP_ID, title: "IT B", category: "SIGHTSEEING", date: today, startTime: "11:00", sortOrder: 1, ...B },
+        { tripId: TRIP_ID, stopId: STOP_ID, title: "IT C", category: "SIGHTSEEING", date: today, startTime: "13:00", sortOrder: 2, ...C },
+      ],
+    });
+    const key = driveKey(A, B);
+    await db.travelTime.upsert({
+      where: { key },
+      update: { status: "OK", minutes: 30, distanceM: 30000, polyline: "_p~iF~ps|U" },
+      create: { key, mode: "DRIVE", status: "OK", minutes: 30, distanceM: 30000, polyline: "_p~iF~ps|U" },
+    });
+    const home = await loadTravellingHome(TRIP_ID, PLANNER).finally(() => db.travelTime.deleteMany({ where: { key } }));
+    if (home.kind !== "dated") throw new Error(home.kind);
+    expect(home.dayMapModel.hops?.map((h) => [h.polyline, h.estimated])).toEqual([
+      ["_p~iF~ps|U", false],
+      [null, true],
+    ]);
   });
 });

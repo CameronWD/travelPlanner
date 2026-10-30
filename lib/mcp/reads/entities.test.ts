@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   readMcpNotes: vi.fn(),
   itemFindFirst: vi.fn(),
   transportFindUnique: vi.fn(),
+  transportFindMany: vi.fn(),
   tripFindUnique: vi.fn(),
   stopFindMany: vi.fn(),
   stopFindFirst: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock("@/lib/day-titles-loader", () => ({ loadDayTitles: m.loadDayTitles }));
 vi.mock("@/lib/db", () => ({
   db: {
     item: { findFirst: m.itemFindFirst, findMany: m.itemFindMany },
-    transport: { findUnique: m.transportFindUnique },
+    transport: { findUnique: m.transportFindUnique, findMany: m.transportFindMany },
     trip: { findUnique: m.tripFindUnique },
     stop: { findMany: m.stopFindMany, findFirst: m.stopFindFirst },
     accommodation: { findFirst: m.accommodationFindFirst },
@@ -154,7 +155,7 @@ describe("loadChapterForMcp / loadTripSummaryForMcp", () => {
 describe("readMcpStops / loadStopForMcp", () => {
   const porto = {
     id: "s1", name: "Porto", countryCode: "pt", timezone: "Europe/Lisbon", arriveDate: "2027-06-01", departDate: "2027-06-04",
-    nights: null, pinned: false, chapterId: null, notes: "Port lodges", sortOrder: 0,
+    nights: null, pinned: false, chapterId: null, notes: "Port lodges", sortOrder: 0, localTravelMode: null,
     accommodations: [{ id: "a1", name: "Casa", address: null, checkIn: "2027-06-01", checkOut: "2027-06-04", confirmation: null, notes: null }],
   };
   beforeEach(() => {
@@ -174,6 +175,17 @@ describe("readMcpStops / loadStopForMcp", () => {
     );
     m.loadDayTitles.mockResolvedValue(new Map([["2027-06-04", { title: "Changeover", stopId: "s2" }]]));
     m.loadTripAttachments.mockResolvedValue({ attachments: [], byOwner: new Map() });
+    m.transportFindMany.mockResolvedValue([]);
+  });
+
+  it("reads the effective local travel mode from the plan's Transports, and whether it was chosen", async () => {
+    expect(await loadStopForMcp("s1")).toMatchObject({ localTravelMode: "public_transport", localTravelModeSet: false });
+    m.transportFindMany.mockResolvedValue([{ mode: "CAR", fromStopId: "s1", toStopId: "s2" }]);
+    expect(await loadStopForMcp("s1")).toMatchObject({ localTravelMode: "drive", localTravelModeSet: false });
+    m.stopFindMany.mockImplementation(async (args: { select: Record<string, unknown> }) =>
+      "accommodations" in args.select ? [{ ...porto, localTravelMode: "TRANSIT" }] : [],
+    );
+    expect(await loadStopForMcp("s1")).toMatchObject({ localTravelMode: "public_transport", localTravelModeSet: true });
   });
 
   it("builds the Stop with its Accommodation, things to do and days, titles resolved across overlapping neighbours", async () => {

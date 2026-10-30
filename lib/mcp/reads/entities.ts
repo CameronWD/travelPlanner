@@ -189,7 +189,7 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
         .filter((id): id is string => !!id && !alreadyNamed.has(id)),
     ),
   ];
-  const [dayTitles, files, extraNames] = await Promise.all([
+  const [dayTitles, files, extraNames, planTransports] = await Promise.all([
     loadDayTitles(neighbours),
     loadTripAttachments(tripId, v, {
       targetIds: [
@@ -202,12 +202,13 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
     extraStopIds.length === 0
       ? Promise.resolve([])
       : db.stop.findMany({ where: { tripId, ...REAL_PLAN, id: { in: extraStopIds } }, select: { id: true, name: true } }),
+    db.transport.findMany({ where: { tripId, ...REAL_PLAN }, select: { mode: true, fromStopId: true, toStopId: true } }),
   ]);
   const stopNameById = new Map([...alreadyNamed, ...extraNames.map((s): [string, string] => [s.id, s.name])]);
 
   return buildMcpStops({
     stops, thingsToDo, datedItems, dayTitles, hiddenStopIds: hidden,
-    itemView: (id) => v.views.items.get(id) ?? null, filesFor: filesFrom(files), stopNameById,
+    itemView: (id) => v.views.items.get(id) ?? null, filesFor: filesFrom(files), stopNameById, planTransports,
   }).stops;
 }
 

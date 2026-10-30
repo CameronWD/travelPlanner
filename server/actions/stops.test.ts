@@ -292,6 +292,7 @@ import {
   toggleStopPin,
   makeStopRough,
   setStopNotes,
+  setStopLocalTravelMode,
   setStopNights,
 } from "./stops";
 import { recomputeChapterSpans, shiftStopPayloadTx, scheduleLoneStopTx } from "./stop-flow";
@@ -2250,6 +2251,63 @@ describe("setStopNotes", () => {
     stopUpdateMock.mockResolvedValue({ id: "s1", tripId: "t1", notes: null });
     await setStopNotes("s1", "   ");
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { notes: null } });
+  });
+});
+
+describe("local travel mode writes", () => {
+  const held = { id: "s1", tripId: "trip-1", forkId: null, sortOrder: 0, pinned: false, name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: null, nights: 2, arriveDate: null, departDate: null, timezone: null, chapterId: null, localTravelMode: null };
+
+  it("createStop writes localTravelMode on every path (rough and scheduled, append and insert), null when unset", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "n1" });
+    await createStop("trip-1", { ...VALID_INPUT, localTravelMode: "DRIVE" });
+    await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2, localTravelMode: "TRANSIT" });
+    await createStop("trip-1", VALID_INPUT);
+    const modes = stopCreateMock.mock.calls.map((c) => c[0].data.localTravelMode);
+    expect(modes).toEqual(["DRIVE", "TRANSIT", null]);
+  });
+
+  it("updateStop writes a chosen mode on a rough and a scheduled Stop, and null when the patch clears it", async () => {
+    stopUpdateMock.mockResolvedValue({});
+    stopFindUniqueMock.mockResolvedValue(held);
+    await updateStop("s1", { localTravelMode: "DRIVE" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ localTravelMode: "DRIVE" }) });
+    stopFindUniqueMock.mockResolvedValue({ ...held, nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "Europe/Rome", localTravelMode: "DRIVE" });
+    await updateStop("s1", { localTravelMode: "TRANSIT" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ localTravelMode: "TRANSIT" }) });
+    await updateStop("s1", { localTravelMode: null });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ localTravelMode: null }) });
+  });
+
+  it("an edit that does not name the mode keeps it, and a resent value changes nothing", async () => {
+    stopUpdateMock.mockResolvedValue({});
+    stopFindUniqueMock.mockResolvedValue({ ...held, localTravelMode: "DRIVE" });
+    await updateStop("s1", { notes: "x" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ localTravelMode: "DRIVE" }) });
+    await updateStop("s1", { localTravelMode: "DRIVE" });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ localTravelMode: "DRIVE" }) });
+    stopFindUniqueMock.mockResolvedValue(held);
+    await updateStop("s1", { localTravelMode: null });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: expect.objectContaining({ localTravelMode: null }) });
+  });
+
+  it("setStopLocalTravelMode writes the mode or null and revalidates", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    stopUpdateMock.mockResolvedValue({ id: "s1", tripId: "t1" });
+    expect(await setStopLocalTravelMode("s1", "TRANSIT")).toEqual({ success: true });
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: { localTravelMode: "TRANSIT" } });
+    await setStopLocalTravelMode("s1", null);
+    expect(stopUpdateMock).toHaveBeenLastCalledWith({ where: { id: "s1" }, data: { localTravelMode: null } });
+    expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan");
+  });
+
+  it("setStopLocalTravelMode refuses a mode outside DRIVE, TRANSIT or null with a field error and writes nothing", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    const r = await setStopLocalTravelMode("s1", "WALK" as "DRIVE");
+    expect(r.success).toBe(false);
+    expect(!r.success && r.errors.localTravelMode).toEqual([expect.any(String)]);
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(revalidateTripMock).not.toHaveBeenCalled();
   });
 });
 

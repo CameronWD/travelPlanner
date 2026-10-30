@@ -106,7 +106,7 @@ export async function loadTripPlanView(tripId: string, viewerId: string | null):
 
   const built = buildMcpStops({
     stops, thingsToDo: thingsToDoItems, datedItems, dayTitles, hiddenStopIds,
-    itemView: (id) => v.views.items.get(id) ?? null, filesFor, stopNameById,
+    itemView: (id) => v.views.items.get(id) ?? null, filesFor, stopNameById, planTransports: transportsRaw,
   });
 
   const tzById = new Map(stops.map((s) => [s.id, s.timezone]));

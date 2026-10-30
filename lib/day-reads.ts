@@ -26,6 +26,7 @@ import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { withTryList } from "@/lib/try-list-stored";
 import type { DayRows } from "@/lib/day-view-model";
 import type { BookingState } from "@/lib/enum-values";
+import { ITEM_HOP_ORDER } from "@/lib/travel-times/hops";
 
 export interface DayReadContext {
   tripId: string;
@@ -45,7 +46,10 @@ export async function readDayRows<X>(
 ): Promise<"missing" | "dateless" | { rows: DayRows; visibility: SurpriseVisibility; alongside: X }> {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { name: true, startDate: true, endDate: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, roundTrip: true },
+    select: {
+      name: true, startDate: true, endDate: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, roundTrip: true,
+      homeLat: true, homeLng: true, drivingWindingFactor: true, drivingAvgSpeedKph: true,
+    },
   });
   // The callers have already checked access; a missing row is a bad link.
   if (!trip) return "missing";
@@ -62,7 +66,7 @@ export async function readDayRows<X>(
       // Rough (date-less) Stops don't appear on a dated day.
       where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, country: true, countryCode: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true, lat: true, lng: true, placeId: true },
+      select: { id: true, name: true, country: true, countryCode: true, timezone: true, localTravelMode: true, arriveDate: true, departDate: true, sortOrder: true, lat: true, lng: true, placeId: true },
     })
     .then((rows) => rows);
 
@@ -70,7 +74,7 @@ export async function readDayRows<X>(
     stopRows,
     db.item.findMany({
       where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item },
-      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+      orderBy: [...ITEM_HOP_ORDER],
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
         lat: true, lng: true, placeId: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,

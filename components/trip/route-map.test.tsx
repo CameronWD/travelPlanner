@@ -389,3 +389,35 @@ describe("travelledLegCount (SHARE.md §5)", () => {
     expect(travelledLegCount(ids, { stage: "after" })).toBe(3);
   });
 });
+
+describe("RouteMap legPaths", () => {
+  const ENCODED = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
+
+  it("draws a leg with a path solid and in full, and keeps the other legs straight", () => {
+    setMatchMedia(false);
+    render(<RouteMap stops={THREE} legPaths={{ "s1>s2": ENCODED }} progress={{ stage: "during", currentStopId: "s2" }} />);
+    const [road, straight] = lines();
+    expect(lines()).toHaveLength(2);
+    expect(road.path).toHaveLength(3);
+    expect(road.strokeOpacity).toBeGreaterThan(0);
+    expect(road.geodesic).toBe(false);
+    expect(road.strokeColor).toBe(stopHex(1));
+    expect(straight.path).toHaveLength(2);
+    expect(straight.strokeOpacity).toBe(0);
+    expect(straight.geodesic).toBe(true);
+  });
+
+  it("draws a road leg not yet travelled dashed, like a straight one", () => {
+    render(<RouteMap stops={THREE} legPaths={{ "s2>s3": ENCODED }} progress={{ stage: "during", currentStopId: "s2" }} />);
+    const [travelled, road] = lines();
+    expect(travelled.icons).toEqual([]);
+    expect(road.path).toHaveLength(3);
+    expect(road.strokeOpacity).toBe(0);
+    expect(road.icons).not.toEqual([]);
+  });
+
+  it("ignores paths for legs it does not draw", () => {
+    render(<RouteMap stops={STOPS} legPaths={{ "s2>s1": ENCODED }} />);
+    expect(lines()[0].path).toHaveLength(2);
+  });
+});

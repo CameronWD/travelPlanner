@@ -639,6 +639,7 @@ model Stop {
   chapterId        String? // explicit chapter membership while rough
   chapterSortOrder Int     @default(0) // order within the chapter while rough
   notes            String?
+  localTravelMode  String? // "DRIVE" | "TRANSIT" — how Items here are reached beyond a walk; null = inferred
 
   // CONTEXT.md "Surprise" (spec 2026-10-12-tc-12). Null plannerId = not a
   // Surprise. forIds is a JSON array of User ids (schema convention: JSON as
@@ -1541,4 +1542,18 @@ model GoogleUsage {
   count Int    @default(0)
 
   @@id([day, sku])
+}
+
+// Global cache of Google Routes results (spec 2026-10-30-google-maps, Branch 3).
+// key = mode|lat,lng|lat,lng (TRANSIT adds |departureISO). No tripId, no Item
+// ids: a row reveals nothing about any plan. status OK carries the numbers;
+// NONE = Google found no route; ERROR = cooldown marker after a failed call.
+model TravelTime {
+  key       String   @id
+  mode      String
+  status    String
+  minutes   Int?
+  distanceM Int?
+  polyline  String?
+  fetchedAt DateTime @default(now()) @updatedAt
 }

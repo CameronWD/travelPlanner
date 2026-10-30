@@ -52,6 +52,7 @@ import {
   makeStopRough,
   setStopNotes,
   setStopNights,
+  setStopLocalTravelMode,
 } from "@/server/actions/stops";
 // Not server/actions/stops's same-named export: that one appends to a
 // chapter's rough order only and skips the chapters.ts overlap/validation
@@ -413,6 +414,25 @@ export function registerTripStopWriteTools(server: McpServer): void {
         async () => {
           await requireRealPlanRow("stop", stopId);
           return setStopNotes(stopId, notes);
+        },
+        async () => ({ stop: await loadStopForMcp(stopId) }),
+      ),
+  );
+
+  server.registerTool(
+    "set_local_travel_mode",
+    {
+      title: "Set local travel mode",
+      description:
+        "Sets how Travel times are worked out around a Stop: drive, public_transport, or automatic (public transport unless a Car Transport touches the Stop).",
+      inputSchema: { stopId: z.string(), mode: z.enum(["drive", "public_transport", "automatic"]) },
+    },
+    ({ stopId, mode }) =>
+      runWrite(
+        "set_local_travel_mode",
+        async () => {
+          await requireRealPlanRow("stop", stopId);
+          return setStopLocalTravelMode(stopId, mode === "drive" ? "DRIVE" : mode === "public_transport" ? "TRANSIT" : null);
         },
         async () => ({ stop: await loadStopForMcp(stopId) }),
       ),

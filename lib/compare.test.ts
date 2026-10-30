@@ -40,7 +40,8 @@ const makeStop = (
     pinned: boolean;
     lat: number | null;
     lng: number | null;
-    timezone: string;
+    timezone: string | null;
+    localTravelMode: string | null;
   }> = {},
 ) => {
   const nights = "nights" in overrides ? overrides.nights as number | null : 2;
@@ -55,7 +56,8 @@ const makeStop = (
     pinned: overrides.pinned ?? false,
     lat: overrides.lat ?? null,
     lng: overrides.lng ?? null,
-    timezone: overrides.timezone ?? "UTC",
+    timezone: overrides.timezone !== undefined ? overrides.timezone : "UTC",
+    localTravelMode: overrides.localTravelMode ?? null,
   };
 };
 
@@ -68,6 +70,7 @@ const makeTransport = (
     depAt: string | null;
     arrAt: string | null;
     arrIsHome: boolean | null;
+    depIsHome: boolean | null;
   }> = {},
 ) => ({
   id,
@@ -77,6 +80,7 @@ const makeTransport = (
   depAt: overrides.depAt ?? null,
   arrAt: overrides.arrAt ?? null,
   arrIsHome: overrides.arrIsHome ?? false,
+  depIsHome: overrides.depIsHome ?? false,
 });
 
 const makeCost = (
@@ -111,7 +115,11 @@ const makeTrip = (overrides: Partial<{
   homeCurrency: string;
   drivingWindingFactor: number;
   drivingAvgSpeedKph: number;
+  homeLat: number | null;
+  homeLng: number | null;
 }> = {}) => ({
+  homeLat: overrides.homeLat ?? null,
+  homeLng: overrides.homeLng ?? null,
   startDate: overrides.startDate ?? "2026-07-01",
   hardEndDate: overrides.hardEndDate ?? null,
   homeCurrency: overrides.homeCurrency ?? "USD",
@@ -128,6 +136,7 @@ const emptyInput = (): PlanMetricsInput => ({
   costs: [],
   trip: makeTrip(),
   exchangeRates: [],
+  travel: new Map(),
 });
 
 // ---------------------------------------------------------------------------
@@ -341,6 +350,20 @@ describe("hardEndState", () => {
 // ---------------------------------------------------------------------------
 
 describe("flagCounts", () => {
+  it("reads Travel times against the Stop's raw zone: a null zone has no departure, so no TRANSIT row is read", () => {
+    const stop = makeStop("tokyo", { timezone: null, localTravelMode: "TRANSIT", arriveDate: "2026-07-01", departDate: "2026-07-03", lat: 35.71477, lng: 139.79666 });
+    const at = (id: string, lat: number, start: string, end: string) => ({
+      id, stopId: "tokyo", date: "2026-07-02", startTime: start, endTime: end, sortOrder: 0, lat, lng: 139.79666, category: "SIGHTSEEING",
+    });
+    const items = [at("a", 35.71477, "10:00", "12:00"), at("b", 35.74177, "12:30", "13:30")];
+    // The key a "UTC"-defaulted zone would make; the refresh never stores it for a zoneless Stop.
+    const utcKey = "TRANSIT|35.71477,139.79666|35.74177,139.79666|2026-07-02T12:00:00.000Z";
+    const input = { ...emptyInput(), stops: [stop], items };
+    const plain = computePlanMetrics(input);
+    const withRow = computePlanMetrics({ ...input, travel: new Map([[utcKey, { status: "OK" as const, minutes: 45, distanceM: 3000, polyline: null }]]) });
+    expect(withRow.flagCounts).toEqual(plain.flagCounts);
+  });
+
   it("returns zero counts for clean input", () => {
     const m = computePlanMetrics(emptyInput());
     expect(m.flagCounts.warning).toBe(0);
@@ -536,6 +559,48 @@ describe("drivingMinutes", () => {
     expect(m.drivingMinutes).toBeLessThan(600);
   });
 
+  const london = { lat: 51.507, lng: -0.127 };
+  const paris = { lat: 48.856, lng: 2.352 };
+  const carInput = (extra: Partial<PlanMetricsInput> = {}): PlanMetricsInput => ({
+    ...emptyInput(),
+    stops: [
+      makeStop("london", { ...london, sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-03" }),
+      makeStop("paris", { ...paris, sortOrder: 1, arriveDate: "2026-07-03", departDate: "2026-07-05" }),
+    ],
+    transports: [makeTransport("t1", { mode: "CAR", fromStopId: "london", toStopId: "paris" })],
+    ...extra,
+  });
+
+  it("uses a stored DRIVE time for a CAR leg, else the estimate", () => {
+    const key = `DRIVE|${london.lat.toFixed(5)},${london.lng.toFixed(5)}|${paris.lat.toFixed(5)},${paris.lng.toFixed(5)}`;
+    const travel = new Map([[key, { status: "OK" as const, minutes: 333, distanceM: 460000, polyline: null }]]);
+    expect(computePlanMetrics(carInput({ travel })).drivingMinutes).toBe(333);
+    expect(computePlanMetrics(carInput()).drivingMinutes).toBeGreaterThan(200);
+  });
+
+  it("counts a CAR leg from the Home base", () => {
+    const input = carInput({
+      trip: makeTrip({ homeLat: 51.0, homeLng: 0.0 }),
+      transports: [makeTransport("t1", { mode: "CAR", depIsHome: true, toStopId: "paris" })],
+    });
+    expect(computePlanMetrics(input).drivingMinutes).toBeGreaterThan(200);
+  });
+
+  it("a CAR leg with real dep and arr times counts that duration", () => {
+    const input = carInput({
+      transports: [
+        makeTransport("t1", {
+          mode: "CAR",
+          fromStopId: "london",
+          toStopId: "paris",
+          depAt: "2026-07-03T08:00:00Z",
+          arrAt: "2026-07-03T10:00:00Z",
+        }),
+      ],
+    });
+    expect(computePlanMetrics(input).drivingMinutes).toBe(120);
+  });
+
   it("returns 0 for non-CAR transports or missing coords", () => {
     const input: PlanMetricsInput = {
       ...emptyInput(),
@@ -641,7 +706,7 @@ describe("diffMetrics", () => {
 
 describe("computePlanMetrics — legs", () => {
   it("emits one leg per transport whose endpoints both resolve, with resolved stop names", () => {
-    const metrics = computePlanMetrics({
+    const metrics = computePlanMetrics({ travel: new Map(),
       stops: [
         { id: "s1", name: "Rome", country: "IT", nights: 3, sortOrder: 0, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },
         { id: "s2", name: "Florence", country: "IT", nights: 2, sortOrder: 1, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },

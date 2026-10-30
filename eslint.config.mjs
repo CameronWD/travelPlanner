@@ -89,6 +89,8 @@ export const SURPRISE_VISIBILITY_READERS = [
   "lib/desktop-home-loader.ts",
   "lib/past-home-loader.ts",
   "lib/flags-loader.ts",
+  // Reads every plan's Items to fetch the hops each Traveller's masked day needs (the Items' points never leave it).
+  "lib/travel-times/refresh.ts",
   "lib/digest-dispatch.ts",
   "lib/activity-reads.ts",
   "lib/reminder-reads.ts",
