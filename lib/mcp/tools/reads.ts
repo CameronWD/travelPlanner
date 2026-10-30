@@ -28,7 +28,6 @@ import { todayISO } from "@/lib/dates";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { listRemindersForTrip } from "@/lib/reminder-reads";
-import { findPlaces } from "@/server/actions/places";
 import { activityLine, viaLabel, type ActivityEntityType, type ActivityVerb } from "@/lib/activity";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadTripPlanForMcp } from "../reads/trip-plan";
@@ -406,16 +405,5 @@ export function registerReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     () => runTool("list_globe_markers", () => loadGlobeMarkers()),
-  );
-
-  server.registerTool(
-    "search_places",
-    {
-      title: "Search places",
-      description: "Use before adding a Stop or Item to get coordinates and a country code.",
-      inputSchema: { query: z.string().min(2) },
-      annotations: { readOnlyHint: true },
-    },
-    ({ query }) => runTool("search_places", () => findPlaces(query)),
   );
 }

@@ -16,8 +16,8 @@ import { WRITING_STYLE, CHECK_FACTS } from "./vocab";
 const PROMPT_TOOLS: Record<string, string[]> = {
   "review-plan": ["get_trip_plan", "get_flags", "get_budget"],
   "pack-for": ["get_trip_plan", "get_checklists", "add_checklist_item", "set_need_to_buy"],
-  "plan-day": ["get_trip_plan", "get_wishlist", "list_attachments", "search_places", "schedule_thing_to_do", "add_thing_to_do", "set_day_title"],
-  "check-day": ["get_trip_plan", "list_attachments", "search_places"],
+  "plan-day": ["get_trip_plan", "get_wishlist", "list_attachments", "schedule_thing_to_do", "add_thing_to_do", "set_day_title"],
+  "check-day": ["get_trip_plan", "list_attachments"],
 };
 
 /** Prompts that need a date argument alongside tripId. */
@@ -65,6 +65,17 @@ describe("MCP prompts", () => {
         expect(text).toContain(toolName);
         expect(registered.has(toolName)).toBe(true);
       }
+    }
+  });
+
+  it("plan-day and check-day ask for a full street address from a web search and never mention search_places", async () => {
+    const c = await connectTestClient();
+    for (const name of ["plan-day", "check-day"]) {
+      const r = await c.getPrompt({ name, arguments: { tripId: "t1", date: "2026-12-18" } });
+      const t = textOf(r.messages[0]);
+      expect(t).toContain("full street address");
+      expect(t).toContain("web search");
+      expect(t).not.toContain("search_places");
     }
   });
 
