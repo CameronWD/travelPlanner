@@ -60,7 +60,7 @@ export function TonightCard({
   }
 
   const mapHref = tonight.address
-    ? mapsUrl({ lat: tonight.lat, lng: tonight.lng, address: tonight.address, label: tonight.name })
+    ? mapsUrl({ lat: tonight.lat, lng: tonight.lng, address: tonight.address, label: tonight.name, placeId: tonight.placeId })
     : null;
   const confirmation = tonight.confirmation;
   function copyConfirmation() {

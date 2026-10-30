@@ -30,6 +30,7 @@ export interface StopCardStop {
   notes?: string | null;
   lat?: number | null;
   lng?: number | null;
+  placeId?: string | null;
   sortOrder: number;
   /** CONTEXT.md "Surprise" — the live Surprise this Stop is; null/absent = none. */
   surprise?: SurpriseView | null;

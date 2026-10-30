@@ -159,12 +159,12 @@ interface DayTripRow {
 }
 interface DayStopRow {
   id: string; name: string; country: string | null; countryCode: string | null; timezone: string | null;
-  arriveDate: string | null; departDate: string | null; sortOrder: number; lat: number | null; lng: number | null;
+  arriveDate: string | null; departDate: string | null; sortOrder: number; lat: number | null; lng: number | null; placeId?: string | null;
   surprise: SurpriseView | null;
 }
 interface DayItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
-  sortOrder: number; stopId: string | null; lat: number | null; lng: number | null; address: string | null;
+  sortOrder: number; stopId: string | null; lat: number | null; lng: number | null; placeId?: string | null; address: string | null;
   link: string | null; booking: string | null; notes: string | null; hiddenFromShares: boolean;
   photoAttachmentId: string | null; surprise: SurpriseView | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state). */
@@ -179,13 +179,14 @@ interface DayItemRow {
 interface DayTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depPlace: string | null; arrPlace: string | null;
   depAt: Date | null; arrAt: Date | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
+  depPlaceId?: string | null; arrPlaceId?: string | null;
   reference: string | null; notes: string | null; sortOrder: number; anchorStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
   bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
 }
 interface DayAccommodationRow {
   id: string; stopId: string; name: string; address: string | null; checkIn: string; checkOut: string;
   checkInTime: string | null; checkOutTime: string | null; confirmation: string | null; notes: string | null;
-  lat: number | null; lng: number | null;
+  lat: number | null; lng: number | null; placeId?: string | null;
   bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
 }
 interface DayWishlistRow { id: string; title: string; category: string; lat: number | null; lng: number | null; countryCode: string | null }
@@ -311,11 +312,11 @@ export function buildDayModel(rows: DayRows, date: string): DayModel {
 
   const accommodations = rows.accommodations.filter((a) => a.checkIn <= date && a.checkOut >= date);
   const tonight = accommodations.find((a) => a.checkOut > date) ?? null;
-  const bed = tonight ? { id: tonight.id, name: tonight.name, lat: tonight.lat, lng: tonight.lng, address: tonight.address } : null;
+  const bed = tonight ? { id: tonight.id, name: tonight.name, lat: tonight.lat, lng: tonight.lng, address: tonight.address, placeId: tonight.placeId } : null;
 
   const dayItems = rows.items
     .filter((i) => i.date === date)
-    .map((i) => ({ id: i.id, title: i.title, lat: i.lat, lng: i.lng, address: i.address, startTime: i.startTime, sortOrder: i.sortOrder }));
+    .map((i) => ({ id: i.id, title: i.title, lat: i.lat, lng: i.lng, placeId: i.placeId, address: i.address, startTime: i.startTime, sortOrder: i.sortOrder }));
   const legIds = new Set((dayPlan?.transportEntries ?? []).map((e) => e.transport.id));
   const dayMap = buildDayMapModel({
     date,
@@ -323,7 +324,7 @@ export function buildDayModel(rows: DayRows, date: string): DayModel {
     accommodation: bed,
     transports: rows.transports
       .filter((t) => legIds.has(t.id))
-      .map((t) => ({ id: t.id, depPlace: t.depPlace, arrPlace: t.arrPlace, depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng })),
+      .map((t) => ({ id: t.id, depPlace: t.depPlace, arrPlace: t.arrPlace, depLat: t.depLat, depLng: t.depLng, depPlaceId: t.depPlaceId, arrLat: t.arrLat, arrLng: t.arrLng, arrPlaceId: t.arrPlaceId })),
   });
 
   // Nearby Wishlist rail: the day's located Items + tonight's bed.

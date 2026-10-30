@@ -94,7 +94,7 @@ describe("buildMcpStops", () => {
 const placeholder = (o: { id?: string; forkId?: string | null } = {}) => ({
   id: "p1", tripId: "t", forkId: null, stopId: "s1", date: "2027-06-01", startTime: "19:00", endTime: null,
   title: "Surprise" as const, category: "OTHER" as const, address: null, link: null, booking: null, notes: null,
-  lat: null, lng: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
+  lat: null, lng: null, placeId: null, businessStatus: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
   sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null,
   slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, surprise: surpriseView,
   ...o,

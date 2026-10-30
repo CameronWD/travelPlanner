@@ -26,7 +26,7 @@ function pointPinHtml(point: DayMapPoint, dark: boolean): string {
 const linkClass = "text-primary hover:underline";
 
 function OpenInMaps({ point }: { point: DayMapPoint }) {
-  const google = mapsUrl({ lat: point.lat, lng: point.lng, label: point.label });
+  const google = mapsUrl({ lat: point.lat, lng: point.lng, label: point.label, placeId: point.placeId });
   const apple = appleMapsUrl({ lat: point.lat, lng: point.lng, label: point.label });
   if (!google && !apple) return null;
   return (

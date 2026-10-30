@@ -220,6 +220,7 @@ export async function PhaseTravelling({
                         lng={tonightAccom.lng}
                         address={tonightAccom.address}
                         label={tonightAccom.name}
+                        placeId={tonightAccom.placeId}
                         className="shrink-0 text-foreground"
                       />
                     </div>
@@ -229,6 +230,7 @@ export async function PhaseTravelling({
                       lat={tonightAccom.lat}
                       lng={tonightAccom.lng}
                       label={tonightAccom.name}
+                      placeId={tonightAccom.placeId}
                       className="mt-1 text-[13px] font-semibold text-foreground"
                     />
                   )}
@@ -264,6 +266,7 @@ export async function PhaseTravelling({
                   <MapLink
                     lat={stopLocated.lat}
                     lng={stopLocated.lng}
+                    placeId={stopLocated.placeId}
                     label={
                       effectiveStop.country
                         ? `${effectiveStop.name}, ${effectiveStop.country}`

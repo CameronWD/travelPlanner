@@ -109,7 +109,7 @@ export function AccommodationCard({
                     fire via the label-only fallback — no coordinate guard
                     needed here, unlike stop-card.tsx's country line. */}
                 <span {...highlightAttrs(highlight, "address", "truncate")}>{a.address}</span>
-                <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-foreground/80" />
+                <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="ml-0.5 text-foreground/80" />
               </div>
             )}
           </div>

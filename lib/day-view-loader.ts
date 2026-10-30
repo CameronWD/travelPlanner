@@ -118,6 +118,7 @@ export interface DayViewData {
     notes: string | null;
     lat: number | null;
     lng: number | null;
+    placeId?: string | null;
   } | null;
   strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine };
   journal: {
@@ -295,7 +296,7 @@ function projectDayView(
       ? {
           id: bed.id, name: bed.name, nightOf: tonightNight, checkOut: bed.checkOut, address: bed.address,
           confirmation: bed.confirmation, checkInTime: bed.checkInTime, checkOutTime: bed.checkOutTime,
-          notes: bed.notes, lat: bed.lat, lng: bed.lng,
+          notes: bed.notes, lat: bed.lat, lng: bed.lng, placeId: bed.placeId,
         }
       : null;
 

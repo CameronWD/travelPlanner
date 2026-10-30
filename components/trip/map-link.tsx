@@ -8,6 +8,7 @@ export interface MapLinkProps {
   lng?: number | null;
   address?: string | null;
   label?: string | null;
+  placeId?: string | null;
   className?: string;
 }
 
@@ -15,8 +16,8 @@ export interface MapLinkProps {
  * A subtle map-pin link that opens in Google Maps.
  * Renders nothing when there is no location to link to.
  */
-export function MapLink({ lat, lng, address, label, className }: MapLinkProps) {
-  const href = mapsUrl({ lat, lng, address, label });
+export function MapLink({ lat, lng, address, label, placeId, className }: MapLinkProps) {
+  const href = mapsUrl({ lat, lng, address, label, placeId });
   if (!href) return null;
 
   const ariaLabel = label
