@@ -670,17 +670,23 @@ other half.)
 13. **Fill Travel times** (last, after the places backfill: the backfill moves
     points without running the after-save hook that normally looks Travel times
     up, so every existing Trip starts with estimates).
-    1. Raise **Routes (Compute Routes Essentials)** to **500/day** for the hour.
+    1. Raise the console quota for **Routes (Compute Routes Essentials)** to
+       **500/day** for the hour. The app also counts Routes calls itself and
+       stops at 165/day, so the run below passes `--cap 500` to lift that too.
     2. `npm run travel-times:refresh` (dry run). It prints the keys it would look
        up per Trip, upcoming Trips first, and calls nothing.
-    3. `npm run travel-times:refresh -- --execute` looks them up. Each run is
-       capped at 40 calls; if keys remain, run the same command again.
-    4. Put Routes back to 165.
+    3. `npm run travel-times:refresh -- --execute --cap 500` looks them up.
+       Each Trip is refreshed in passes of up to 40 calls until a pass fetches
+       nothing or the day's cap is reached; only if the cap stops it, run the
+       same command again (after the quota allows).
+    4. Put the console Routes quota back to 165. The app's own cap is back to
+       165 on the next normal run (`--cap` is never used outside this script).
     5. **Check.** Open one real Day with a Day map: the hops draw as solid route
        lines, and a tight-connection Flag reads without "(estimated)".
 
     Maintenance: public-transport times for Trips more than 90 days out, and
-    lookups that failed, only fill on a later edit or an operator run. Run
+    lookups that failed (retried only after their 24 h cooldown), only fill on a
+    later edit or an operator run. Run
     `npm run travel-times:refresh -- --execute` occasionally (e.g. monthly) if
     you want them filled sooner.
 

@@ -359,9 +359,9 @@ been looked up, and is shown as "(estimated)".
   upcoming Trips first) covers what the hook cannot: points moved by the places
   backfill, Trips beyond 90 days, failed lookups.
 - **Cost guard.** One Compute Routes (Essentials mask) call per key; TRANSIT
-  also bills Essentials. At most 40 calls per run, 4 concurrent, each gated by
+  also bills Essentials. At most 40 calls per pass of one Trip refresh (the operator script loops passes until one fetches nothing or the day's cap stops it), 4 concurrent, each gated by
   `takeGoogleQuota("routes", 165)` (the day counter, same as DEPLOY §4j's
-  quota). Past it, hops stay estimated.
+  quota; only the operator script can lift it, with `--cap`). Past it, hops stay estimated.
 - **Surprise views.** The real plan is refreshed first, then each Traveller's
   Surprise view of it: a hidden Surprise Item reaches readers as a placeholder
   with no coordinates, so its hops are stepped over and never named or looked up

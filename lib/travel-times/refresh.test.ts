@@ -132,6 +132,13 @@ describe("refreshTripTravelTimes", () => {
     expect(m.takeGoogleQuota).toHaveBeenCalledWith("routes", 165);
   });
 
+  it("passes an operator dailyCap override to the quota counter", async () => {
+    plan({ items: [item({ id: "a", at: TEMPLE, start: "10:00", end: "12:00" }), item({ id: "b", at: DINNER, start: "12:30", end: "14:00" })] });
+    await refreshTripTravelTimes("t1", { now: NOW, dailyCap: 500 });
+    expect(m.takeGoogleQuota).toHaveBeenCalledWith("routes", 500);
+    expect(m.takeGoogleQuota).not.toHaveBeenCalledWith("routes", 165);
+  });
+
   it("never fetches a TRANSIT key whose departure is past or more than 90 days ahead", async () => {
     plan({
       items: [

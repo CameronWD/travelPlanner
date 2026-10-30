@@ -4,10 +4,11 @@
  *
  *   npm run travel-times:refresh              # dry run: how many keys each Trip needs; no Routes calls, no writes
  *   npm run travel-times:refresh -- --execute # fetches them
+ *   npm run travel-times:refresh -- --execute --cap 500 # same, with the app's daily Routes cap raised to 500
  *
  * Trips still to come, under way or undated go first, finished ones last.
  * --execute refreshes each Trip until a pass fetches nothing or Google's app
- * quota for the day (ROUTES_DAILY_CAP) refuses; it stops at the first refusal,
+ * quota for the day (ROUTES_DAILY_CAP, or --cap) refuses; it stops at the first refusal,
  * and the rest fill on a later run or after their next plan write.
  */
 import "./load-env";
@@ -16,10 +17,16 @@ import { formatISODate } from "@/lib/dates";
 import { hasServerKey } from "@/lib/google-fetch";
 import { refreshTripTravelTimes, type RefreshCounts } from "@/lib/travel-times/refresh";
 import { dbTargetLine } from "./lib/script-guards";
-import { refreshOrder } from "./lib/travel-times-order";
+import { parseRefreshArgs, refreshOrder } from "./lib/travel-times-order";
 
 async function main() {
-  const execute = process.argv.slice(2).includes("--execute");
+  const args = parseRefreshArgs(process.argv.slice(2));
+  if ("error" in args) {
+    console.error(args.error);
+    process.exitCode = 1;
+    return;
+  }
+  const { execute, cap } = args;
   console.log(dbTargetLine(process.env, !execute));
   if (execute && !hasServerKey()) {
     console.error("GOOGLE_MAPS_SERVER_KEY is not set: nothing can be fetched.");
@@ -43,7 +50,7 @@ async function main() {
 
     const sum: RefreshCounts = { wanted: 0, fetched: 0, skippedQuota: 0, failed: 0 };
     for (let pass = 0; ; pass++) {
-      const run = await refreshTripTravelTimes(trip.id);
+      const run = await refreshTripTravelTimes(trip.id, { dailyCap: cap });
       if (pass === 0) sum.wanted = run.wanted;
       sum.fetched += run.fetched;
       sum.failed += run.failed;

@@ -91,7 +91,7 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
   return fetchOrder(keysByPlan);
 }
 
-export async function refreshTripTravelTimes(tripId: string, opts: { now?: Date; dryRun?: boolean } = {}): Promise<RefreshCounts> {
+export async function refreshTripTravelTimes(tripId: string, opts: { now?: Date; dryRun?: boolean; dailyCap?: number } = {}): Promise<RefreshCounts> {
   const now = opts.now ?? new Date();
   const counts: RefreshCounts = { wanted: 0, fetched: 0, skippedQuota: 0, failed: 0 };
   const keys = await wantedKeys(tripId, now);
@@ -129,7 +129,7 @@ export async function refreshTripTravelTimes(tripId: string, opts: { now?: Date;
     while (!refused) {
       const next = queue.shift();
       if (next === undefined) return;
-      if (!(await takeGoogleQuota("routes", ROUTES_DAILY_CAP))) {
+      if (!(await takeGoogleQuota("routes", opts.dailyCap ?? ROUTES_DAILY_CAP))) {
         refused = true;
         return;
       }
