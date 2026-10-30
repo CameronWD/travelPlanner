@@ -1,32 +1,14 @@
 "use client";
 
-/**
- * Leaflet-powered map for a wishlist.
- *
- * Client-only (uses window / DOM). Rendered lazily inside WishlistMapLoader
- * so Leaflet only loads when the map is needed.
- *
- * Renders:
- *   - A category-coloured divIcon marker per wishlist item
- *   - Fits bounds to all items
- *   - On marker click calls props.onSelect(item.id)
- */
-
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useTheme } from "@/components/ui/theme-provider";
-import { cartoTiles } from "@/lib/map/tiles";
-import { escapeHtml } from "@/lib/escape-html";
-import { pinHex, pinHtml, pinSize } from "@/lib/map/pins";
-import { applyLeafletIconDefaults } from "@/lib/map/icons";
-
-// Leaflet CSS imported here; the bundle includes it once.
-import "leaflet/dist/leaflet.css";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import { GoogleMapFrame } from "@/components/map/google-map-frame";
+import { HtmlPin } from "@/components/map/html-pin";
+import { MapUnavailable } from "@/components/map/map-unavailable";
+import { useFitBounds } from "@/components/map/use-fit-bounds";
+import { pinHex, pinHtml } from "@/lib/map/pins";
 
 export interface WishlistMapItem {
   id: string;
@@ -41,139 +23,15 @@ export interface WishlistMapProps {
   onSelect: (id: string) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Marker style helpers
-// ---------------------------------------------------------------------------
-
-function categoryIcon(
-  L: typeof import("leaflet"),
-  category: string,
-  dark: boolean,
-): import("leaflet").DivIcon {
-  const size = pinSize("category");
-  return L.divIcon({
-    html: pinHtml({ variant: "category", fill: pinHex(category, dark), dark }),
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -(size / 2 + 2)],
-  });
+function FitItems({ items }: { items: WishlistMapItem[] }) {
+  useFitBounds(items, { padding: 40 });
+  return null;
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export function WishlistMap({ items, onSelect }: WishlistMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leafletMapRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tileLayerRef = useRef<any>(null);
-  // Ref map: item id → Leaflet Marker instance, so a theme flip can recolour
-  // markers in place (setIcon) instead of tearing the map down.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markerInstancesRef = useRef<Map<string, any>>(new Map());
-
   const { theme } = useTheme();
   const isDark = theme === "dark";
-
-  useEffect(() => {
-    if (items.length === 0) return;
-    if (!mapRef.current) return;
-    // Avoid double-init in React strict mode
-    if (leafletMapRef.current) return;
-
-    let map: import("leaflet").Map | null = null;
-
-    import("leaflet").then((leaflet) => {
-      const L = leaflet.default ?? leaflet;
-
-      applyLeafletIconDefaults(L);
-
-      if (!mapRef.current) return;
-
-      map = L.map(mapRef.current, { zoomControl: true });
-      leafletMapRef.current = map;
-
-      const mapInstance = map;
-
-      // CARTO basemap tiles (Positron / Dark Matter), theme-aware.
-      const tiles = cartoTiles(isDark);
-      tileLayerRef.current = L
-        .tileLayer(tiles.url, {
-          attribution: tiles.attribution,
-          subdomains: tiles.subdomains,
-          maxZoom: tiles.maxZoom,
-        })
-        .addTo(mapInstance);
-
-      // Place a marker per wishlist item
-      markerInstancesRef.current.clear();
-      for (const item of items) {
-        const icon = categoryIcon(L, item.category, isDark);
-        const popupHtml = `<div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
-          <strong style="font-size:14px">${escapeHtml(item.title)}</strong>
-        </div>`;
-
-        const marker = L.marker([item.lat, item.lng], { icon })
-          .addTo(mapInstance)
-          .bindPopup(popupHtml);
-
-        // Primary contract: click on marker calls onSelect
-        marker.on("click", () => {
-          onSelect(item.id);
-        });
-        markerInstancesRef.current.set(item.id, marker);
-      }
-
-      // Fit bounds to all items
-      const allLatLngs: [number, number][] = items.map((p) => [p.lat, p.lng]);
-      const bounds = L.latLngBounds(allLatLngs);
-      mapInstance.fitBounds(bounds, { padding: [40, 40] });
-    });
-
-    const markerInstances = markerInstancesRef.current;
-    return () => {
-      if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
-      }
-      markerInstances.clear();
-    };
-    // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
-    // the map, so depending on the theme would rebuild it (losing pan/zoom) on
-    // every toggle. The separate setUrl effect below swaps tiles in place, and
-    // the recolour effect below that updates marker icons in place.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    items.length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    items.map((p) => `${p.id}:${p.lat},${p.lng}`).join("|"),
-  ]);
-
-  // Swap basemap tiles when the theme flips, without rebuilding the map.
-  useEffect(() => {
-    tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
-  }, [isDark]);
-
-  // Recolour existing markers in place when the theme flips. Uses `setIcon`
-  // rather than remove-and-recreate, so a currently-open popup and the
-  // viewport (pan/zoom) are both left alone -- only the icon's own colours
-  // change. No-ops on the very first render (before the init effect above has
-  // asynchronously created the map and populated markerInstancesRef).
-  useEffect(() => {
-    const map = leafletMapRef.current;
-    if (!map) return;
-    import("leaflet").then((leaflet) => {
-      const L = leaflet.default ?? leaflet;
-      for (const item of items) {
-        const instance = markerInstancesRef.current.get(item.id);
-        instance?.setIcon(categoryIcon(L, item.category, isDark));
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark, items.map((p) => `${p.id}:${p.category}`).join("|")]);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   if (items.length === 0) {
     return (
@@ -186,10 +44,32 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
   }
 
   return (
-    <div
-      ref={mapRef}
-      className="tp-map h-52 w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2 sm:h-[360px]"
+    <GoogleMapFrame
+      role="region"
       aria-label="Wishlist map"
-    />
+      dark={isDark}
+      fallback={<MapUnavailable />}
+      className="h-52 w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2 sm:h-[360px]"
+    >
+      <FitItems items={items} />
+      {items.map((item) => (
+        <HtmlPin
+          key={item.id}
+          position={{ lat: item.lat, lng: item.lng }}
+          html={pinHtml({ variant: "category", fill: pinHex(item.category, isDark), dark: isDark })}
+          title={item.title}
+          onClick={() => {
+            setOpenId(item.id);
+            onSelect(item.id);
+          }}
+          open={openId === item.id}
+          onClose={() => setOpenId(null)}
+        >
+          <div className="min-w-[min(140px,80vw)] max-w-[min(240px,90vw)] leading-normal">
+            <strong className="text-sm">{item.title}</strong>
+          </div>
+        </HtmlPin>
+      ))}
+    </GoogleMapFrame>
   );
 }
