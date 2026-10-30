@@ -32,7 +32,7 @@ describe("PrivacyPage", () => {
     expect(screen.getByText(/Cloudflare R2/)).toBeInTheDocument();
     expect(screen.getAllByText(/Vercel/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Neon/)).toBeInTheDocument();
-    expect(screen.getByText(/OpenStreetMap \(Nominatim\) and Photon \(komoot\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Google Places and Geocoding/)).toBeInTheDocument();
     expect(screen.getByText("Google Maps")).toBeInTheDocument();
     expect(screen.getAllByText(/Resend/).length).toBeGreaterThan(0);
   });
@@ -56,12 +56,11 @@ describe("PrivacyPage", () => {
     }
   });
 
-  // ADR 0069: the as-you-type place search goes to Photon.
-  it("says which geocoder sees what is typed", async () => {
+  it("says what the place lookup does", async () => {
     render(await PrivacyPage());
-    expect(
-      screen.getByText(/Photon for\s*as-you-type search, Nominatim when a place is saved/),
-    ).toBeInTheDocument();
+    const item = screen.getByText("Google Places and Geocoding").closest("li")!.textContent!.replace(/\s+/g, " ");
+    expect(item).toContain("turn place names and addresses you type into places on the map");
+    expect(item).toContain("fill a venue\u2019s opening hours and website when you pick it");
   });
 
   it("discloses access requests from people who never get an account", async () => {

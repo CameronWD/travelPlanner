@@ -722,3 +722,13 @@ describe("describeChanges: an Item's Try list (CONTEXT.md Try list)", () => {
     ]);
   });
 });
+
+describe("describeChanges: Google place IDs are not edits (like lat/lng)", () => {
+  it("a change to placeId, businessStatus or a Transport end's place ID records no field line", () => {
+    const place = { lat: 1, lng: 2, placeId: "a", businessStatus: "OPERATIONAL", depPlaceId: "a", arrPlaceId: "a", homePlaceId: "a" };
+    const moved = { lat: 3, lng: 4, placeId: "b", businessStatus: "CLOSED_PERMANENTLY", depPlaceId: "b", arrPlaceId: "b", homePlaceId: "b" };
+    for (const type of ["ITEM", "STOP", "ACCOMMODATION", "TRANSPORT"] as const) {
+      expect(describeChanges(type, place, moved)).toEqual([]);
+    }
+  });
+});

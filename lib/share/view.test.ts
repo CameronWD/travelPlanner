@@ -218,7 +218,7 @@ describe("shareSections (SHARE.md §1 order)", () => {
 });
 
 describe("rough Stops on Share (ADR 0073)", () => {
-  const rough = { id: "r", name: "Bali", country: "Indonesia", lat: null, lng: null, sortOrder: 2, timezone: "UTC", arriveDate: null, departDate: null, nights: 4 };
+  const rough = { id: "r", name: "Bali", country: "Indonesia", placeId: null, lat: null, lng: null, sortOrder: 2, timezone: "UTC", arriveDate: null, departDate: null, nights: 4 };
   const dated = { ...rough, id: "d", sortOrder: 1, arriveDate: "2026-11-04", departDate: "2026-11-05", nights: null };
   it("scheduledShareStops keeps only dated Stops", () => {
     expect(scheduledShareStops([rough, dated]).map((s) => s.id)).toEqual(["d"]);

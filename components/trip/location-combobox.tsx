@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { APIProvider } from "@vis.gl/react-google-maps";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { searchPlacesAction } from "@/server/actions/transport";
-import type { GeoCandidate } from "@/lib/geocode";
+import { PLACE_FIELD_HINT, usePlaceSuggestions } from "@/components/places/use-place-suggestions";
+import { placesBrowserKey } from "@/lib/map/google-config";
 
 // ---------------------------------------------------------------------------
 // Exported types
@@ -15,7 +16,7 @@ export type LocationValue =
   | { kind: "none" }
   | { kind: "home" }
   | { kind: "stop"; stopId: string; name: string }
-  | { kind: "place"; name: string };
+  | { kind: "place"; name: string; placeId?: string; lat?: number; lng?: number };
 
 export interface LocationComboboxProps {
   label: string;
@@ -23,7 +24,6 @@ export interface LocationComboboxProps {
   onChange: (v: LocationValue) => void;
   stops: { id: string; name: string }[];
   homeBaseName?: string | null;
-  tripId: string;
   disabled?: boolean;
   "data-testid"?: string;
 }
@@ -55,14 +55,12 @@ export function LocationCombobox({
   onChange,
   stops,
   homeBaseName,
-  tripId,
   disabled,
   "data-testid": testId,
 }: LocationComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
-  const [searchPending, startSearchTransition] = useTransition();
+  const apiKey = placesBrowserKey();
 
   const currentDisplay = displayText(value, homeBaseName);
 
@@ -76,29 +74,14 @@ export function LocationCombobox({
     onChange(next);
     setOpen(false);
     setQuery("");
-    setCandidates([]);
   };
 
-  const runSearch = () => {
-    const q = query.trim();
-    if (q.length < 2) return;
-    startSearchTransition(async () => {
-      const res = await searchPlacesAction(tripId, q);
-      if (res.status === "ok") {
-        setCandidates(res.candidates);
-      } else {
-        setCandidates([]);
-      }
-    });
-  };
+  const optionProps: OptionsProps = { query, setQuery, stops, filteredStops, homeBaseName, disabled, select };
 
   return (
     <Popover open={open} onOpenChange={(next) => {
       setOpen(next);
-      if (!next) {
-        setQuery("");
-        setCandidates([]);
-      }
+      if (!next) setQuery("");
     }}>
       <PopoverTrigger asChild>
         <Button
@@ -113,90 +96,112 @@ export function LocationCombobox({
       </PopoverTrigger>
 
       <PopoverContent align="start" className="w-80 p-3">
-        <div className="flex flex-col gap-2">
-          {/* Search input */}
-          <Input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setCandidates([]);
-            }}
-            onKeyDown={(e) => e.key === "Enter" && runSearch()}
-            placeholder="Type to filter or search…"
-            disabled={disabled}
-          />
+        {apiKey ? (
+          <APIProvider apiKey={apiKey}>
+            <LocationOptions {...optionProps} />
+          </APIProvider>
+        ) : (
+          <LocationOptions {...optionProps} />
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
-          {/* Quick options */}
-          <ul className="flex flex-col gap-0.5">
-            {/* None option */}
-            <li>
-              <button
-                type="button"
-                className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted text-muted-foreground"
-                onClick={() => select({ kind: "none" })}
-              >
-                None
-              </button>
-            </li>
+interface OptionsProps {
+  query: string;
+  setQuery: (q: string) => void;
+  stops: { id: string; name: string }[];
+  filteredStops: { id: string; name: string }[];
+  homeBaseName?: string | null;
+  disabled?: boolean;
+  select: (v: LocationValue) => void;
+}
 
-            {/* Home option */}
-            {homeBaseName && (
-              <li>
-                <button
-                  type="button"
-                  className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={() => select({ kind: "home" })}
-                >
-                  🏠 {homeBaseName}
-                </button>
-              </li>
-            )}
+function LocationOptions({ query, setQuery, filteredStops, homeBaseName, disabled, select }: OptionsProps) {
+  const { available, suggestions, search, pick, reset } = usePlaceSuggestions({ kind: "any" });
+  const typed = query.trim();
 
-            {/* Stops */}
-            {filteredStops.map((stop) => (
-              <li key={stop.id}>
-                <button
-                  type="button"
-                  className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={() => select({ kind: "stop", stopId: stop.id, name: stop.name })}
-                >
-                  {stop.name}
+  async function choose(id: string) {
+    const place = await pick(id);
+    if (place) select({ kind: "place", name: place.name, placeId: place.placeId, lat: place.lat, lng: place.lng });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Input
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          search(e.target.value);
+        }}
+        onFocus={reset}
+        placeholder="Type to filter or search…"
+        disabled={disabled}
+      />
+      {/* Quick options */}
+      <ul className="flex flex-col gap-0.5">
+        {/* None option */}
+        <li>
+          <button
+            type="button"
+            className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted text-muted-foreground"
+            onClick={() => select({ kind: "none" })}
+          >
+            None
+          </button>
+        </li>
+
+        {/* Home option */}
+        {homeBaseName && (
+          <li>
+            <button
+              type="button"
+              className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
+              onClick={() => select({ kind: "home" })}
+            >
+              🏠 {homeBaseName}
+            </button>
+          </li>
+        )}
+
+        {/* Stops */}
+        {filteredStops.map((stop) => (
+          <li key={stop.id}>
+            <button
+              type="button"
+              className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
+              onClick={() => select({ kind: "stop", stopId: stop.id, name: stop.name })}
+            >
+              {stop.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+
+      {typed && (
+        <Button type="button" variant="outline" onClick={() => select({ kind: "place", name: typed })} className="w-full">
+          Use &ldquo;{typed}&rdquo; as a place
+        </Button>
+      )}
+
+      {available && suggestions.length > 0 && (
+        <>
+          <ul aria-label="Places" className="flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1 max-h-48 overflow-y-auto">
+            {suggestions.map((s) => (
+              <li key={s.id}>
+                <button type="button" className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => void choose(s.id)}>
+                  <span className="block truncate font-bold">{s.mainText}</span>
+                  {s.secondaryText ? <span className="block truncate text-xs text-muted-foreground">{s.secondaryText}</span> : null}
                 </button>
               </li>
             ))}
           </ul>
-
-          {/* Search button (shown when query ≥ 2 chars) */}
-          {query.trim().length >= 2 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={runSearch}
-              disabled={searchPending || disabled}
-              className="w-full"
-            >
-              Search &ldquo;{query.trim()}&rdquo;
-            </Button>
-          )}
-
-          {/* Candidate results */}
-          {candidates.length > 0 && (
-            <ul className="flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1 max-h-48 overflow-y-auto">
-              {candidates.map((c, i) => (
-                <li key={i}>
-                  <button
-                    type="button"
-                    className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
-                    onClick={() => select({ kind: "place", name: c.name })}
-                  >
-                    {c.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+          <p translate="no" className="text-right text-[11px] font-semibold text-muted-foreground">Google Maps</p>
+        </>
+      )}
+      {available ? null : <p className="text-[13px] font-semibold text-muted-foreground">{PLACE_FIELD_HINT}</p>}
+    </div>
   );
 }

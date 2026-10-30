@@ -7,12 +7,12 @@ import type { ImportContext, ProposalBase, Proposal, StopProposal } from "@/lib/
 import { previewStopMap } from "@/lib/booking-import/preview";
 
 // The form dialogs' server actions (as their own tests mock them), so nothing reaches a database.
+vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/server/actions/transport", () => ({ createTransport: vi.fn(), updateTransport: vi.fn() }));
 vi.mock("@/server/actions/accommodation", () => ({ createAccommodation: vi.fn(), updateAccommodation: vi.fn() }));
 vi.mock("@/server/actions/items", () => ({ createItem: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn() }));
 vi.mock("@/server/actions/item-photo", () => ({ setItemPhoto: vi.fn(), removeItemPhoto: vi.fn() }));
 vi.mock("@/server/actions/stops", () => ({ createStop: vi.fn(), updateStop: vi.fn() }));
-vi.mock("@/server/actions/places", () => ({ findPlaces: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), deleteAttachment: vi.fn() }));
 vi.mock("@/server/actions/notes", () => ({ createNote: vi.fn(), deleteNote: vi.fn() }));
 vi.mock("@/server/actions/costs", () => ({ createCost: vi.fn(), updateCost: vi.fn(), deleteCost: vi.fn() }));

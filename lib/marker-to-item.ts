@@ -7,6 +7,7 @@ export interface WishlistItemSeed {
   lat: number | null;
   lng: number | null;
   countryCode: string | null;
+  placeId: string | null;
   address: string | null;
   link: string | null;
   notes: string | null;
@@ -20,7 +21,7 @@ export interface WishlistItemSeed {
  *   "(when: …)" so the loose wish-timing isn't lost (the Item has no timing
  *   field). The copy is thereafter independent of the Marker.
  */
-export function markerToWishlistItemData(marker: MarkerView): WishlistItemSeed {
+export function markerToWishlistItemData(marker: MarkerView & { placeId?: string | null }): WishlistItemSeed {
   const address =
     [marker.city, marker.country].filter((v): v is string => Boolean(v)).join(", ") || null;
 
@@ -36,6 +37,7 @@ export function markerToWishlistItemData(marker: MarkerView): WishlistItemSeed {
     lat: marker.lat,
     lng: marker.lng,
     countryCode: marker.countryCode ?? null,
+    placeId: marker.placeId ?? null,
     address,
     link: marker.link,
     notes,

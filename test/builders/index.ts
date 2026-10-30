@@ -24,7 +24,7 @@ export type TripRow = {
 };
 export type StopRow = {
   id: string; tripId: string; forkId: string | null; name: string; country: string | null; countryCode: string | null;
-  lat: number | null; lng: number | null; timezone: string | null; arriveDate: string | null; departDate: string | null;
+  lat: number | null; lng: number | null; placeId: string | null; timezone: string | null; arriveDate: string | null; departDate: string | null;
   nights: number | null; pinned: boolean; sortOrder: number; notes: string | null; chapterId: string | null;
   chapterSortOrder: number; surprisePlannerId: string | null; surpriseRevealedAt: Date | null;
   createdAt: Date; updatedAt: Date;
@@ -32,7 +32,7 @@ export type StopRow = {
 export type TransportRow = {
   id: string; tripId: string; forkId: string | null; mode: string; fromStopId: string | null; toStopId: string | null;
   anchorStopId: string | null; depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null;
-  depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; depIsHome: boolean;
+  depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; depPlaceId: string | null; arrPlaceId: string | null; depIsHome: boolean;
   arrIsHome: boolean; reference: string | null; bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
   notes: string | null; sortOrder: number; createdAt: Date; updatedAt: Date;
 };
@@ -40,7 +40,7 @@ export type StayRow = {
   id: string; tripId: string; forkId: string | null; stopId: string; name: string; address: string | null;
   checkIn: string; checkOut: string; checkInTime: string | null; checkOutTime: string | null; confirmation: string | null;
   bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
-  notes: string | null; lat: number | null; lng: number | null; createdAt: Date; updatedAt: Date;
+  notes: string | null; lat: number | null; lng: number | null; placeId: string | null; createdAt: Date; updatedAt: Date;
 };
 export type ItemRow = {
   id: string; tripId: string; forkId: string | null; stopId: string | null; date: string | null; title: string;
@@ -52,7 +52,7 @@ export type ItemRow = {
   openingHours: string | null;
   /** CONTEXT.md "Try list" (R6) — the stored JSON string column; null = no list. */
   tryList: string | null;
-  notes: string | null; lat: number | null; lng: number | null; countryCode: string | null;
+  notes: string | null; lat: number | null; lng: number | null; placeId: string | null; businessStatus: string | null; countryCode: string | null;
   hiddenFromShares: boolean; sortOrder: number; photoAttachmentId: string | null; sourceItemId: string | null;
   surprisePlannerId: string | null; surpriseRevealedAt: Date | null; createdAt: Date; updatedAt: Date;
 };
@@ -84,7 +84,7 @@ export function trip(o: Partial<TripRow> = {}): TripRow {
 export function stop(o: Partial<StopRow> = {}): StopRow {
   return {
     id: "stop-1", tripId: "trip-1", forkId: null, name: "Lisbon", country: "Portugal", countryCode: "PT",
-    lat: 38.72, lng: -9.14, timezone: "Europe/Lisbon", arriveDate: "2026-11-01", departDate: "2026-11-04", nights: 3,
+    lat: 38.72, lng: -9.14, placeId: null, timezone: "Europe/Lisbon", arriveDate: "2026-11-01", departDate: "2026-11-04", nights: 3,
     pinned: false, sortOrder: 0, notes: null, chapterId: null, chapterSortOrder: 0, surprisePlannerId: null,
     surpriseRevealedAt: null, createdAt: NOW, updatedAt: NOW, ...o,
   };
@@ -93,7 +93,7 @@ export function transport(o: Partial<TransportRow> = {}): TransportRow {
   return {
     id: "tr-1", tripId: "trip-1", forkId: null, mode: "TRAIN", fromStopId: "stop-1", toStopId: "stop-2", anchorStopId: "stop-1",
     depPlace: null, arrPlace: null, depAt: new Date("2026-11-04T09:00:00Z"), arrAt: new Date("2026-11-04T12:30:00Z"),
-    depLat: null, depLng: null, arrLat: null, arrLng: null, depIsHome: false, arrIsHome: false, reference: null,
+    depLat: null, depLng: null, arrLat: null, arrLng: null, depPlaceId: null, arrPlaceId: null, depIsHome: false, arrIsHome: false, reference: null,
     bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null, notes: null, sortOrder: 0, createdAt: NOW, updatedAt: NOW, ...o,
   };
 }
@@ -101,7 +101,7 @@ export function stay(o: Partial<StayRow> = {}): StayRow {
   return {
     id: "acc-1", tripId: "trip-1", forkId: null, stopId: "stop-1", name: "Hotel Avenida", address: null,
     checkIn: "2026-11-01", checkOut: "2026-11-04", checkInTime: null, checkOutTime: null, confirmation: null,
-    bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null, notes: null, lat: null, lng: null,
+    bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null, notes: null, lat: null, lng: null, placeId: null,
     createdAt: NOW, updatedAt: NOW, ...o,
   };
 }
@@ -111,7 +111,7 @@ export function item(o: Partial<ItemRow> = {}): ItemRow {
     category: "SIGHTSEEING", startTime: "10:00", endTime: "11:30", address: null, link: null, booking: null,
     bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null,
     openingHours: null, tryList: null,
-    notes: null, lat: null, lng: null, countryCode: null,
+    notes: null, lat: null, lng: null, placeId: null, businessStatus: null, countryCode: null,
     hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
     sourceItemId: null, surprisePlannerId: null, surpriseRevealedAt: null, createdAt: NOW, updatedAt: NOW, ...o,
   };

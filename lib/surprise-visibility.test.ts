@@ -198,6 +198,8 @@ describe("loadSurpriseVisibility", () => {
       notes: null,
       lat: null,
       lng: null,
+      placeId: null,
+      businessStatus: null,
       countryCode: null,
       hiddenFromShares: false,
       sortOrder: 3,
@@ -215,6 +217,17 @@ describe("loadSurpriseVisibility", () => {
       tryList: null,
     });
     expect(p.surprise.youAreSurprised).toBe(true);
+  });
+
+  it("a surprised Traveller's placeholder carries no placeId or businessStatus", async () => {
+    itemFindManyMock.mockResolvedValueOnce([{ ...liveItemRow(), placeId: "ChIJsecret", businessStatus: "OPERATIONAL" }]);
+
+    const v = await loadSurpriseVisibility(TRIP_ID, "sam", { now: NOW });
+    const p = v.placeholderItems[0]!;
+
+    expect(p.placeId).toBeNull();
+    expect(p.businessStatus).toBeNull();
+    expect(JSON.stringify(p)).not.toContain("ChIJsecret");
   });
 
   it("case 5b: the placeholder carries the root Item's real hiddenFromShares, selected by the pre-query", async () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -10,8 +10,8 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
-const findPlaces = vi.hoisted(() => vi.fn());
-vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
+const maps = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => maps.module);
 import { createStop, updateStop } from "@/server/actions/stops";
 
 import { StopFormDialog } from "./stop-form-dialog";
@@ -25,8 +25,10 @@ const baseProps = {
 describe("StopFormDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    findPlaces.mockResolvedValue({ status: "ok", candidates: [] });
+    maps.reset();
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("submitting with empty name calls createStop with name '' (no client-side guard — validation is server-side)", async () => {
     // The component has no client-side empty-name guard: it passes the raw value
@@ -153,26 +155,45 @@ describe("StopFormDialog", () => {
   });
 
   describe("place search on edit (spec 2026-10-06 §L)", () => {
+    const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp", country: "Japan" };
     const LONDON = {
       id: "stop-1", name: "London", country: "United Kingdom", timezone: "Europe/London",
       arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, chapterId: null, sortOrder: 0, notes: null, lat: 51.5, lng: -0.12,
     };
 
-    it("a pick sets name, country, point and timezone", async () => {
-      findPlaces.mockResolvedValue({ status: "ok", candidates: [
-        { name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" },
-      ] });
+    it("a pick sets name, country, point, place ID and timezone", async () => {
+      maps.places.predictions = [KYOTO];
       const user = userEvent.setup();
       render(<StopFormDialog {...baseProps} stop={LONDON} />);
       const place = screen.getByPlaceholderText(/e\.g\. london/i);
       await user.clear(place);
       await user.type(place, "Kyo");
       await user.click(await screen.findByRole("option", { name: /Kyoto/ }));
+      await waitFor(() => expect(place).toHaveValue("Kyoto"));
       expect(screen.getByPlaceholderText(/e\.g\. united kingdom/i)).toHaveValue("Japan");
       await user.click(screen.getByRole("button", { name: /save changes/i }));
       expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({
-        mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", timezone: "Asia/Tokyo",
+        mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", placeId: "ChIJKyoto", timezone: "Asia/Tokyo",
       }));
+    });
+
+    it("a new Stop's pick sends its place ID, and typing after it drops the place", async () => {
+      maps.places.predictions = [KYOTO];
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.type(place, "Kyo");
+      await user.click(await screen.findByRole("option", { name: /Kyoto/ }));
+      await waitFor(() => expect(place).toHaveValue("Kyoto"));
+      await user.click(screen.getByRole("button", { name: /add stop/i }));
+      expect(createStop).toHaveBeenLastCalledWith("trip-1", expect.objectContaining({ name: "Kyoto", placeId: "ChIJKyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }), undefined);
+
+      await user.type(place, " Station");
+      await user.click(screen.getByRole("button", { name: /add stop/i }));
+      const input = vi.mocked(createStop).mock.calls.at(-1)![1];
+      expect(input).toEqual(expect.objectContaining({ name: "Kyoto Station" }));
+      expect(input).not.toHaveProperty("placeId");
+      expect(input).not.toHaveProperty("lat");
     });
 
     it("typing without picking sends no point, so the save re-geocodes as before", async () => {
@@ -185,18 +206,18 @@ describe("StopFormDialog", () => {
       const input = vi.mocked(updateStop).mock.calls[0][1];
       expect(input).toEqual(expect.objectContaining({ name: "Leeds" }));
       expect(input).not.toHaveProperty("lat");
+      expect(input).not.toHaveProperty("placeId");
     });
 
     it("editing Country after a pick drops the picked point, so the save re-geocodes", async () => {
-      findPlaces.mockResolvedValue({ status: "ok", candidates: [
-        { name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" },
-      ] });
+      maps.places.predictions = [KYOTO];
       const user = userEvent.setup();
       render(<StopFormDialog {...baseProps} stop={LONDON} />);
       const place = screen.getByPlaceholderText(/e\.g\. london/i);
       await user.clear(place);
       await user.type(place, "Kyo");
       await user.click(await screen.findByRole("option", { name: /Kyoto/ }));
+      await waitFor(() => expect(place).toHaveValue("Kyoto"));
       const country = screen.getByPlaceholderText(/e\.g\. united kingdom/i);
       await user.clear(country);
       await user.type(country, "China");
@@ -206,6 +227,7 @@ describe("StopFormDialog", () => {
       expect(input).not.toHaveProperty("lat");
       expect(input).not.toHaveProperty("lng");
       expect(input).not.toHaveProperty("countryCode");
+      expect(input).not.toHaveProperty("placeId");
     });
 
     it("an edit that empties Notes and Country, or picks No chapter on a rough Stop, sends them as null (PATCH)", async () => {
@@ -225,16 +247,17 @@ describe("StopFormDialog", () => {
       expect(updateStop).toHaveBeenLastCalledWith("stop-2", expect.objectContaining({ mode: "rough", chapterId: null }));
     });
 
-    const BRISBANE = { name: "Brisbane, Queensland, Australia", lat: -27.47, lng: 153.03, city: "Brisbane", country: "Australia", countryCode: "au" };
+    const BRISBANE = { placeId: "ChIJBrisbane", mainText: "Brisbane", secondaryText: "QLD, Australia", lat: -27.47, lng: 153.03, formattedAddress: "Brisbane QLD, Australia", countryCode: "au", country: "Australia" };
 
     it("a pick previews the zone at the picked point once the lookup loads (F3)", async () => {
-      findPlaces.mockResolvedValue({ status: "ok", candidates: [BRISBANE] });
+      maps.places.predictions = [BRISBANE];
       const user = userEvent.setup();
       render(<StopFormDialog {...baseProps} stop={LONDON} />);
       const place = screen.getByPlaceholderText(/e\.g\. london/i);
       await user.clear(place);
       await user.type(place, "Bris");
       await user.click(await screen.findByRole("option", { name: /Brisbane/ }));
+      await waitFor(() => expect(place).toHaveValue("Brisbane"));
       // Radix mirrors every TIMEZONES label into a hidden, aria-hidden native
       // <select> (for browser autofill) that `getByText` can't tell apart
       // from the visible trigger, so the trigger is found by role instead —
@@ -246,18 +269,19 @@ describe("StopFormDialog", () => {
       });
       await user.click(screen.getByRole("button", { name: /save changes/i }));
       expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({
-        name: "Brisbane", countryCode: "au", lat: -27.47, lng: 153.03, timezone: "Australia/Brisbane",
+        name: "Brisbane", countryCode: "au", lat: -27.47, lng: 153.03, placeId: "ChIJBrisbane", timezone: "Australia/Brisbane",
       }));
     });
 
     it("a lookup still in flight never overwrites a zone typed into the Country field after the pick", async () => {
-      findPlaces.mockResolvedValue({ status: "ok", candidates: [BRISBANE] });
+      maps.places.predictions = [BRISBANE];
       const user = userEvent.setup();
       render(<StopFormDialog {...baseProps} stop={LONDON} />);
       const place = screen.getByPlaceholderText(/e\.g\. london/i);
       await user.clear(place);
       await user.type(place, "Bris");
       await user.click(await screen.findByRole("option", { name: /Brisbane/ }));
+      await waitFor(() => expect(place).toHaveValue("Brisbane"));
       const country = screen.getByPlaceholderText(/e\.g\. united kingdom/i);
       await user.clear(country);
       await user.type(country, "Japan");

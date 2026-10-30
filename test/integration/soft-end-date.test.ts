@@ -6,8 +6,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("@/lib/geocode", () => ({
-  geocodePlace: vi.fn(async () => null),
   geocodePlaceDetailed: vi.fn(async () => null),
+  locateVenue: vi.fn(async () => null),
 }));
 vi.mock("@/lib/money/fx", () => ({
   resolveRateForTrip: vi.fn(async () => ({ rate: 1, persist: null })),

@@ -4,6 +4,7 @@ import { bookBySchema } from "@/lib/validations/planning";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { WALL_TIME_RE } from "@/lib/wall-time";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { placeId } from "@/lib/validations/primitives";
 
 /**
  * A transport time as submitted. Two shapes survive parsing:
@@ -53,6 +54,14 @@ export const transportSchema = z.object({
   depPlace: z.string().trim().optional(),
   /** Free-text arrival place name. */
   arrPlace: z.string().trim().optional(),
+
+  /** A picked Google place per end; an end's coordinates only come with it (refined below). */
+  depPlaceId: placeId.optional(),
+  depLat: z.number().min(-90).max(90).optional(),
+  depLng: z.number().min(-180).max(180).optional(),
+  arrPlaceId: placeId.optional(),
+  arrLat: z.number().min(-90).max(90).optional(),
+  arrLng: z.number().min(-180).max(180).optional(),
 
   /** Departure instant (datetime-local or ISO string → stored as Date). */
   depAt: isoDatetime,
@@ -109,6 +118,14 @@ export const transportSchema = z.object({
   .refine((data) => !(data.paidAt && data.paidMinor == null), {
     message: "Enter what you paid",
     path: ["paidMinor"],
+  })
+  .refine((data) => data.depPlaceId != null || (data.depLat === undefined && data.depLng === undefined), {
+    message: "Coordinates only come with a picked place",
+    path: ["depLat"],
+  })
+  .refine((data) => data.arrPlaceId != null || (data.arrLat === undefined && data.arrLng === undefined), {
+    message: "Coordinates only come with a picked place",
+    path: ["arrLat"],
   });
 
 export type TransportInput = z.infer<typeof transportSchema>;

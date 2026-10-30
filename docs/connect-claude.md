@@ -91,7 +91,6 @@ It can read:
   Images come back up to 3 MB, a PDF's text up to 10 MB, and a scanned PDF
   with no text layer can't be read
 - Globe Markers (read-only)
-- place search, for choosing Stop and Item locations
 
 It can change:
 
@@ -180,6 +179,9 @@ so you don't have to describe the task from scratch each time:
   builds it once you agree.
 - **check-day**: runs that same logistics check against a day already
   planned, and suggests fixes.
+
+Claude researches venues on the web and passes full street addresses;
+Teepee finds the venue from the address.
 
 Opening hours and travel times come from Claude's own web search, not from
 anything stored in TEEPEE, so turn web search on in your Claude client for

@@ -5,7 +5,7 @@
  *
  * Table covers every officially-assigned ISO 3166-1 alpha-2 code (countries
  * and dependent territories), plus a small number of practically-necessary
- * extras that real-world geocoders (e.g. Nominatim) return even though they
+ * extras that real-world geocoders return even though they
  * are not part of the "officially assigned" ISO list:
  *   - "xk" (Kosovo) — user-assigned, but ubiquitous in geocoding data.
  *

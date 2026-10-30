@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // nothing else. Only the Next/auth boundary, the network and Activity are mocked.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); }, redirect: vi.fn() }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null) }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: vi.fn(async () => null), locateVenue: vi.fn(async () => null) }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
 vi.mock("@/lib/guards", async () => ({
   isTripOwnerOrAdmin: (await import("@/lib/access")).isTripOwnerOrAdmin,

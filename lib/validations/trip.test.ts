@@ -194,19 +194,25 @@ describe("createTripSchema — New trip flow fields", () => {
     expect(createTripSchema.safeParse({ ...base, roughMonth: "2027-4" }).success).toBe(false);
   });
   it("accepts rough stops with optional coordinates, lower-casing the country", () => {
-    const r = createTripSchema.parse({ ...base, stops: [{ name: " Kyoto ", lat: 35.01, lng: 135.77, countryCode: "JP" }, { name: "Nara" }] });
-    expect(r.stops).toEqual([{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }, { name: "Nara" }]);
+    const r = createTripSchema.parse({ ...base, stops: [{ name: " Kyoto ", lat: 35.01, lng: 135.77, countryCode: "JP", placeId: "kyoto-id" }, { name: "Nara" }] });
+    expect(r.stops).toEqual([{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp", placeId: "kyoto-id" }, { name: "Nara" }]);
   });
   it("caps stops at 30", () => {
     const stops = Array.from({ length: 31 }, (_, i) => ({ name: `P${i}` }));
     expect(createTripSchema.safeParse({ ...base, stops }).success).toBe(false);
   });
   it("rejects an out-of-range latitude", () => {
-    expect(createTripSchema.safeParse({ ...base, stops: [{ name: "X", lat: 91, lng: 0 }] }).success).toBe(false);
+    expect(createTripSchema.safeParse({ ...base, stops: [{ name: "X", lat: 91, lng: 0, placeId: "x" }] }).success).toBe(false);
   });
   it("accepts picked home coordinates", () => {
-    const r = createTripSchema.parse({ ...base, homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "AU" });
+    const r = createTripSchema.parse({ ...base, homeName: "Sydney", homePlaceId: "syd", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "AU" });
     expect(r).toMatchObject({ homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+  });
+  it("accepts homePlaceId", () => {
+    expect(createTripSchema.parse({ ...base, homeName: "Sydney", homePlaceId: "abc123" }).homePlaceId).toBe("abc123");
+  });
+  it("rejects an overlong homePlaceId", () => {
+    expect(createTripSchema.safeParse({ ...base, homePlaceId: "x".repeat(301) }).success).toBe(false);
   });
   it("threads fromShareToken through", () => {
     expect(createTripSchema.parse({ ...base, fromShareToken: "tok" }).fromShareToken).toBe("tok");
@@ -216,11 +222,25 @@ describe("createTripSchema — New trip flow fields", () => {
     expect(r.success).toBe(false);
   });
   it("tripSchema (Settings) strips the create-only fields", () => {
-    const r = tripSchema.parse({ ...base, roughMonth: "2027-04", stops: [{ name: "x" }], homeLat: 1, fromShareToken: "t" });
+    const r = tripSchema.parse({ ...base, roughMonth: "2027-04", stops: [{ name: "x" }], fromShareToken: "t" });
     expect(r).not.toHaveProperty("roughMonth");
     expect(r).not.toHaveProperty("stops");
-    expect(r).not.toHaveProperty("homeLat");
     expect(r).not.toHaveProperty("fromShareToken");
+  });
+  it("tripSchema (Settings) accepts a picked Home base", () => {
+    const r = tripSchema.parse({ ...base, homeName: "Sydney", homePlaceId: "abc", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "AU" });
+    expect(r).toMatchObject({ homePlaceId: "abc", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+  });
+  it("rejects Home coordinates without homePlaceId, on create and in Settings", () => {
+    expect(createTripSchema.safeParse({ ...base, homeName: "Sydney", homeLat: -33.87, homeLng: 151.21 }).success).toBe(false);
+    expect(tripSchema.safeParse({ ...base, homeName: "Sydney", homeLat: -33.87, homeLng: 151.21 }).success).toBe(false);
+  });
+  it("rejects a rough stop's coordinates without its placeId", () => {
+    expect(createTripSchema.safeParse({ ...base, stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77 }] }).success).toBe(false);
+  });
+  it("carries a picked rough stop's placeId", () => {
+    const r = createTripSchema.parse({ ...base, stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, placeId: "kyoto-id" }] });
+    expect(r.stops?.[0]).toMatchObject({ placeId: "kyoto-id" });
   });
 });
 

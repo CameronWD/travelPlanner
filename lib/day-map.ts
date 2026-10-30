@@ -21,6 +21,7 @@ export interface DayMapPoint {
   label: string;
   order?: number;
   address?: string | null;
+  placeId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,7 @@ export interface DayMapItemInput {
   startTime?: string | null;
   sortOrder: number;
   address?: string | null;
+  placeId?: string | null;
 }
 
 export interface DayMapAccommodationInput {
@@ -43,6 +45,7 @@ export interface DayMapAccommodationInput {
   lat?: number | null;
   lng?: number | null;
   address?: string | null;
+  placeId?: string | null;
 }
 
 export interface DayMapTransportInput {
@@ -51,8 +54,10 @@ export interface DayMapTransportInput {
   arrPlace?: string | null;
   depLat?: number | null;
   depLng?: number | null;
+  depPlaceId?: string | null;
   arrLat?: number | null;
   arrLng?: number | null;
+  arrPlaceId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +111,7 @@ export function buildDayMapModel(input: {
     label: item.title,
     order: idx + 1,
     address: item.address,
+    placeId: item.placeId,
   }));
 
   // ------------------------------------------------------------------
@@ -120,6 +126,7 @@ export function buildDayMapModel(input: {
       lng: accommodation.lng as number,
       label: accommodation.name,
       address: accommodation.address,
+      placeId: accommodation.placeId,
     };
   }
 
@@ -135,6 +142,7 @@ export function buildDayMapModel(input: {
         lat: transport.depLat as number,
         lng: transport.depLng as number,
         label: transport.depPlace ?? "Departure",
+        placeId: transport.depPlaceId,
       });
     }
     if (isLocated(transport.arrLat, transport.arrLng)) {
@@ -144,6 +152,7 @@ export function buildDayMapModel(input: {
         lat: transport.arrLat as number,
         lng: transport.arrLng as number,
         label: transport.arrPlace ?? "Arrival",
+        placeId: transport.arrPlaceId,
       });
     }
   }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mergeStopPatch, LONE_DATE, NIGHTS_REQUIRED, TIMEZONE_ON_ROUGH } from "./stop-patch";
 import { UNCHOSEN_TIMEZONE } from "@/lib/tz";
 
-const rough = { name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, notes: "old notes", nights: 2, arriveDate: null, departDate: null, timezone: null, chapterId: "chap-1" };
+const rough = { name: "Rome", country: "Italy", countryCode: "it", lat: 41.9, lng: 12.5, placeId: null, notes: "old notes", nights: 2, arriveDate: null, departDate: null, timezone: null, chapterId: "chap-1" };
 const scheduled = { ...rough, nights: null, arriveDate: "2026-05-01", departDate: "2026-05-04", timezone: "Europe/Rome", chapterId: null };
 
 describe("mergeStopPatch", () => {
@@ -56,6 +56,37 @@ describe("mergeStopPatch", () => {
     expect(m).toMatchObject({ country: "France" });
     expect(m).not.toHaveProperty("lat");
     expect(m).not.toHaveProperty("countryCode");
+  });
+  it("the place ID follows the point: the row's with it, only the patch's when it says where", () => {
+    const located = { ...rough, placeId: "rome-id" };
+    expect(mergeStopPatch(located, { notes: "x" })).toMatchObject({ lat: 41.9, placeId: "rome-id" });
+    expect(mergeStopPatch(located, { country: "France" })).not.toHaveProperty("placeId");
+    expect(mergeStopPatch(located, { placeId: "paris-id", lat: 48.86, lng: 2.35 })).toMatchObject({ placeId: "paris-id", lat: 48.86 });
+  });
+  it("the form's save of an unchanged place keeps the row's point and place ID (no re-lookup)", () => {
+    const located = { ...rough, placeId: "rome-id" };
+    expect(mergeStopPatch(located, { mode: "rough", name: "Rome", country: "Italy", nights: 3, chapterId: null, notes: "x" }))
+      .toMatchObject({ lat: 41.9, lng: 12.5, countryCode: "it", placeId: "rome-id" });
+    expect(mergeStopPatch(located, { name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, countryCode: "it" }))
+      .toMatchObject({ lat: 41.9, placeId: "rome-id" });
+  });
+  it("a name-only rename keeps the point but not the place ID", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "rome-id" }, { name: "Roma" });
+    expect(m).toMatchObject({ name: "Roma", lat: 41.9, lng: 12.5 });
+    expect(m).not.toHaveProperty("placeId");
+  });
+  it("a place ID differing only in case is a new place", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "ChIJabc" }, { placeId: "ChIJABC", lat: 41.9, lng: 12.5 });
+    expect(m).toMatchObject({ placeId: "ChIJABC" });
+  });
+  it("a name differing only by surrounding spaces is not a rename", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "rome-id" }, { mode: "rough", name: "Rome ", country: "Italy", nights: 2 });
+    expect(m).toMatchObject({ lat: 41.9, placeId: "rome-id" });
+  });
+  it("the form's save of a typed rename says where, so the save re-looks it up", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "rome-id" }, { mode: "rough", name: "Florence", country: "Italy", nights: 3 });
+    expect(m).not.toHaveProperty("lat");
+    expect(m).not.toHaveProperty("placeId");
   });
   it("the form's rough save with No chapter and emptied notes clears both", () => {
     const m = mergeStopPatch(rough, { mode: "rough", name: "Rome", country: "Italy", nights: 2, chapterId: null, notes: null });

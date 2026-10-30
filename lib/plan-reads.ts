@@ -43,6 +43,7 @@ const PLAN_STOP_SELECT = {
   countryCode: true,
   lat: true,
   lng: true,
+  placeId: true,
   timezone: true,
   arriveDate: true,
   departDate: true,
@@ -66,10 +67,12 @@ const PLAN_TRANSPORT_SELECT = {
   depAt: true,
   depLat: true,
   depLng: true,
+  depPlaceId: true,
   arrPlace: true,
   arrAt: true,
   arrLat: true,
   arrLng: true,
+  arrPlaceId: true,
   reference: true,
   bookingState: true,
   bookingStateSet: true,
@@ -96,6 +99,7 @@ export const PLAN_ACCOMMODATION_SELECT = {
   notes: true,
   lat: true,
   lng: true,
+  placeId: true,
 } as const;
 
 const PLAN_ITEM_SELECT = {
@@ -122,6 +126,7 @@ const PLAN_ITEM_SELECT = {
   stopId: true,
   lat: true,
   lng: true,
+  placeId: true,
   hiddenFromShares: true,
   photoAttachmentId: true,
   sortOrder: true,

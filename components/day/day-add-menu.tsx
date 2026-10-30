@@ -15,7 +15,7 @@ export type DayAddMenuProps = {
   slug: string;
   date: string;
   stop: { id: string; arriveDate: string; departDate: string } | null;
-  stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number }>;
+  stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number; lat?: number | null; lng?: number | null }>;
   homeCurrency: string;
   homeBaseName: string | null;
   homeTimezone?: string | null;

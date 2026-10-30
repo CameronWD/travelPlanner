@@ -12,11 +12,13 @@ vi.mock("@/server/actions/attachments", () => ({
   deleteAttachment: vi.fn(),
 }));
 
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+
 vi.mock("@/server/actions/globe", () => ({
   createMarker: vi.fn().mockResolvedValue({ success: true }),
   updateMarker: vi.fn().mockResolvedValue({ success: true }),
   deleteMarker: vi.fn().mockResolvedValue({ success: true }),
-  searchPlacesAction: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
   reverseGeocodeAction: vi.fn().mockResolvedValue(null),
 }));
 
@@ -24,32 +26,34 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 const { globeRefresh } = vi.hoisted(() => ({ globeRefresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: globeRefresh }) }));
 
-import { searchPlacesAction, deleteMarker } from "@/server/actions/globe";
+import { deleteMarker } from "@/server/actions/globe";
 import { toast } from "@/components/ui/use-toast";
 import { GlobeView } from "./globe-view";
 
-const candidate = (name: string, city: string) => ({
-  name,
-  lat: 1,
-  lng: 2,
-  city,
-  country: "Japan",
-  countryCode: "jp",
-});
+const place = (mainText: string) => ({ placeId: `id-${mainText}`, mainText, secondaryText: "Japan", lat: 1, lng: 2, countryCode: "jp", country: "Japan" });
+
+async function pickPlace(user: ReturnType<typeof userEvent.setup>, query: string, name: string) {
+  mock.places.predictions = [place(name)];
+  await user.type(screen.getByRole("combobox", { name: "Place search" }), query);
+  await screen.findByRole("option", { name: new RegExp(name) });
+  await user.keyboard("{Enter}");
+}
 
 describe("GlobeView — reopening Add Marker", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("starts a fresh form each time Add Marker is reopened after a save", async () => {
     const user = userEvent.setup();
     render(<GlobeView markers={[]} members={[]} />);
 
     // 1. Open Add, search, pick Kyoto → title fills.
-    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [candidate("Kyoto, Japan", "Kyoto")] });
     await user.click(screen.getByRole("button", { name: /add marker/i }));
-    await user.type(screen.getByLabelText("Place search"), "Kyoto");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-    await user.click(await screen.findByRole("button", { name: /kyoto, japan/i }));
+    await pickPlace(user, "Kyo", "Kyoto");
     expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Kyoto");
 
     // 2. Save it — dialog closes.
@@ -64,10 +68,7 @@ describe("GlobeView — reopening Add Marker", () => {
     expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("");
 
     // 4. Search a new place, pick Osaka → title must update to the new place.
-    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [candidate("Osaka, Japan", "Osaka")] });
-    await user.type(screen.getByLabelText("Place search"), "Osaka");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
-    await user.click(await screen.findByRole("button", { name: /osaka, japan/i }));
+    await pickPlace(user, "Osa", "Osaka");
     expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Osaka");
   });
 });

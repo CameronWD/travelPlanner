@@ -52,6 +52,7 @@ export type ShareStop = {
   id: string;
   name: string;
   country: string | null;
+  placeId: string | null;
   lat: number | null;
   lng: number | null;
   timezone: string;
@@ -73,6 +74,7 @@ export async function loadShareStops(tripId: string): Promise<ShareStop[]> {
       id: true,
       name: true,
       country: true,
+      placeId: true,
       lat: true,
       lng: true,
       timezone: true,

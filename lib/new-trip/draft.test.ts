@@ -3,10 +3,13 @@ import {
   emptyDraft, draftReducer, validateStep, clampStep, toCreateInput, errorStep, stepErrorsFrom,
   whenLine, isDirty, serializeDraft, parseDraft, initDraft, MAX_STOPS, type Draft,
 } from "./draft";
+import type { PickedPlace } from "@/lib/picked-place";
 
 const TODAY = "2026-09-30";
-const PORTLAND = { name: "Portland", region: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us" };
-const HANOI = { name: "Hanoi", region: "Vietnam", lat: 21.03, lng: 105.85, countryCode: "vn" };
+const PORTLAND = { name: "Portland", region: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us", placeId: "portland-id" };
+// A draft stored before picks carried place IDs.
+const STORED_PORTLAND = { name: "Portland", region: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us" } as unknown as PickedPlace;
+const HANOI = { name: "Hanoi", region: "Vietnam", lat: 21.03, lng: 105.85, countryCode: "vn", placeId: "hanoi-id" };
 const named = (over: Partial<Draft> = {}): Draft => ({ ...emptyDraft(false), name: "Kyoto", ...over });
 
 describe("draftReducer", () => {
@@ -100,16 +103,25 @@ describe("toCreateInput", () => {
     expect(input).not.toHaveProperty("roughMonth");
     expect(input).not.toHaveProperty("startDate");
   });
-  it("a picked home sends its coordinates; a typed one only its name", () => {
-    expect(toCreateInput(draftReducer(named(), { type: "pick-home", place: PORTLAND }))).toMatchObject({ homeName: "Portland", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us", homeCurrency: "USD" });
+  it("a picked home sends its place ID and coordinates; a typed one only its name", () => {
+    expect(toCreateInput(draftReducer(named(), { type: "pick-home", place: PORTLAND })))
+      .toMatchObject({ homeName: "Portland", homePlaceId: "portland-id", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us", homeCurrency: "USD" });
     const typed = toCreateInput(named({ homeName: "Somewhere" }));
     expect(typed).toMatchObject({ homeName: "Somewhere" });
     expect(typed).not.toHaveProperty("homeLat");
   });
+  it("a pick without a place ID sends only the name, for the server to look up (coordinates come only with a place ID)", () => {
+    const input = toCreateInput(draftReducer(named(), { type: "pick-home", place: STORED_PORTLAND }));
+    expect(input).toMatchObject({ homeName: "Portland", homeCurrency: "USD" });
+    expect(input).not.toHaveProperty("homeLat");
+    expect(input).not.toHaveProperty("homeCountryCode");
+    const past = toCreateInput(named({ past: true, startDate: "2026-07-01", endDate: "2026-07-10", stops: [{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp" }] }));
+    expect(past.stops).toEqual([{ name: "Kyoto", countryCode: "jp" }]);
+  });
   it("past mode sends stops and no home", () => {
-    const d = named({ past: true, startDate: "2026-07-01", endDate: "2026-07-10", homeName: "Sydney", stops: [{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp" }, { name: "Nara" }] });
+    const d = named({ past: true, startDate: "2026-07-01", endDate: "2026-07-10", homeName: "Sydney", stops: [{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp", placeId: "kyoto-id" }, { name: "Nara" }] });
     const input = toCreateInput(d);
-    expect(input.stops).toEqual([{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp" }, { name: "Nara" }]);
+    expect(input.stops).toEqual([{ name: "Kyoto", lat: 35, lng: 135.7, countryCode: "jp", placeId: "kyoto-id" }, { name: "Nara" }]);
     expect(input).not.toHaveProperty("homeName");
   });
   it("threads fromShareToken", () => {

@@ -94,3 +94,7 @@ accurate ETAs (handling winding NZ mountain roads properly) remains deferred. It
 would slot behind the same `estimateDriveMinutes` seam, but reintroduces the
 network coupling + key/cache/cost this ADR avoided, so it would warrant its own
 ADR superseding this section when/if pursued.
+
+## Amendment (2026-10-30): Google is the geocoder
+
+Google Geocoding and Places now do the geocoding this ADR describes, and the place ID is stored beside the coordinates (ADR 0076).

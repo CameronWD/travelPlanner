@@ -1,7 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripDetailsForm } from "./trip-details-form";
+
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
 
 const updateMock = vi.fn();
 const setForksEnabledMock = vi.fn();
@@ -309,3 +312,50 @@ describe("Home base timezone picker", () => {
   });
 });
 
+
+describe("Home base place picks", () => {
+  const SYDNEY = { placeId: "ChIJSydney", mainText: "Sydney", secondaryText: "New South Wales, Australia", lat: -33.87, lng: 151.21, countryCode: "au", country: "Australia" };
+  const values = { name: "Trip", startDate: "", endDate: "", hardEndDate: "", homeCurrency: "AUD", homeName: "Perth" };
+
+  beforeEach(() => {
+    updateMock.mockReset().mockResolvedValue({ success: true });
+    mock.reset();
+    mock.places.predictions = [SYDNEY];
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("picking a Home base sends homePlaceId and coordinates", async () => {
+    render(<TripDetailsForm tripId="t1" defaultValues={values} />);
+    const field = screen.getByRole("combobox", { name: "Home base" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "Syd");
+    await screen.findByRole("option", { name: /Sydney/ });
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(field).toHaveValue("Sydney"));
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ homeName: "Sydney", homePlaceId: "ChIJSydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" })),
+    );
+  });
+
+  it("an unchanged Home base never resends a place, and typing after a pick drops it", async () => {
+    render(<TripDetailsForm tripId="t1" defaultValues={values} />);
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock.mock.calls[0][1]).not.toHaveProperty("homePlaceId");
+
+    const field = screen.getByRole("combobox", { name: "Home base" });
+    await waitFor(() => expect(field).toBeEnabled());
+    await userEvent.clear(field);
+    await userEvent.type(field, "Syd");
+    await screen.findByRole("option", { name: /Sydney/ });
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(field).toHaveValue("Sydney"));
+    await userEvent.type(field, "x");
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(2));
+    expect(updateMock.mock.calls[1][1]).toMatchObject({ homeName: "Sydneyx" });
+    expect(updateMock.mock.calls[1][1]).not.toHaveProperty("homePlaceId");
+  });
+});

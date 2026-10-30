@@ -351,3 +351,18 @@ describe("buildItemDirections", () => {
     expect(dirs["i2"].google).toContain("48.85");
   });
 });
+
+describe("place ids in the Day map", () => {
+  it("carries Item, stay and Transport place ids onto points, and into the hop link", () => {
+    const model = buildDayMapModel({
+      date: "2026-06-10",
+      items: [{ id: "i1", title: "Ramen", lat: 1, lng: 1, sortOrder: 0, placeId: "ITEM" }],
+      accommodation: { id: "a1", name: "Hotel", lat: 2, lng: 2, placeId: "STAY" },
+      transports: [{ id: "t1", depLat: 3, depLng: 3, depPlaceId: "DEP", arrLat: 4, arrLng: 4, arrPlaceId: "ARR" }],
+    });
+    expect(model.points.map((p) => p.placeId)).toEqual(["ITEM", "STAY", "DEP", "ARR"]);
+    const hop = new URL(buildItemDirections(model)["i1"].google!).searchParams;
+    expect(hop.get("origin_place_id")).toBe("STAY");
+    expect(hop.get("destination_place_id")).toBe("ITEM");
+  });
+});

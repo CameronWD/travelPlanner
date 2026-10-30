@@ -11,7 +11,7 @@ vi.mock("@/components/ui/place-combobox", () => ({
     return (
       <div>
         <input aria-label="Place" value={p.value} onChange={(e) => p.onValueChange(e.target.value)} />
-        <button type="button" onClick={() => p.onPick({ name: "Florence", region: "Tuscany, Italy", lat: 43.77, lng: 11.25, countryCode: "it" })}>pick Florence</button>
+        <button type="button" onClick={() => p.onPick({ name: "Florence", region: "Tuscany, Italy", lat: 43.77, lng: 11.25, countryCode: "it", placeId: "ChIJFlorence" })}>pick Florence</button>
       </div>
     );
   },
@@ -123,7 +123,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
     await userEvent.click(screen.getByRole("button", { name: "Add Florence" }));
     expect(createStop).toHaveBeenCalledTimes(1);
-    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it", chapterId: null }, undefined, "rom");
+    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it", placeId: "ChIJFlorence", chapterId: null }, undefined, "rom");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -136,10 +136,19 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(createStop).toHaveBeenCalledTimes(1);
     expect(createStop).toHaveBeenCalledWith(
       "t1",
-      { mode: "scheduled", name: "Florence", country: "Italy", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25, countryCode: "it" },
+      { mode: "scheduled", name: "Florence", country: "Italy", timezone: "UTC", arriveDate: "2026-12-22", departDate: "2026-12-24", lat: 43.77, lng: 11.25, countryCode: "it", placeId: "ChIJFlorence" },
       "fork-1",
       "rom",
     );
+  });
+
+  it("typing after a pick drops its place, so the save looks the text up", async () => {
+    render(<AddStopSheet {...base} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Roughly" }));
+    await userEvent.click(screen.getByRole("button", { name: "pick Florence" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Place" }), "a");
+    await userEvent.click(screen.getByRole("button", { name: "Add Florencea" }));
+    expect(createStop).toHaveBeenCalledWith("t1", { mode: "rough", name: "Florencea", nights: 3, chapterId: null }, undefined, "rom");
   });
 
   it("free text submits the name alone, and a failed save shows the error and stays open", async () => {

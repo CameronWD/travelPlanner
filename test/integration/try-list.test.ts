@@ -9,7 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 // minted by lib/try-list.ts applyTryListInput; messages are S's).
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null) }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: vi.fn(async () => null), locateVenue: vi.fn(async () => null) }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
 vi.mock("@/lib/guards", async () => {
   // Spread the real module rather than hand-rolling every export lib/guards.ts has.

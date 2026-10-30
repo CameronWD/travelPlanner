@@ -12,9 +12,10 @@
  *    row's — unless the patch says where (TU-02) or the row has none — and
  *    is otherwise UNCHOSEN_TIMEZONE, so `updateStop` derives it from the
  *    final point and country (`resolveStopTimezone`, F3).
- *  - The point (lat/lng/countryCode) is the row's unless the patch says
- *    where (country, countryCode, lat or lng); then only the patch's point
- *    counts and `updateStop` geocodes a missing one.
+ *  - The point (lat/lng/countryCode/placeId) is the row's unless the patch
+ *    says where (a country, countryCode, lat, lng or placeId that differs
+ *    from the row's, or a country sent with a new name); then only the
+ *    patch's point counts and `updateStop` geocodes a missing one.
  *  - The Chapter (rough only): the patch's (`null` = none), else the row's.
  *
  * The refusals name tool fields; no form can send them (spec 3.L notes).
@@ -31,6 +32,7 @@ export type StopPatch = {
   name?: string;
   country?: string | null;
   countryCode?: string | null;
+  placeId?: string | null;
   lat?: number | null;
   lng?: number | null;
   notes?: string | null;
@@ -45,6 +47,7 @@ export type StopPatchRow = {
   name: string;
   country: string | null;
   countryCode: string | null;
+  placeId: string | null;
   lat: number | null;
   lng: number | null;
   notes: string | null;
@@ -86,10 +89,21 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
     if (mismatch) return mismatch;
   }
 
-  const saysWhere = [patch.country, patch.countryCode, patch.lat, patch.lng].some((v) => v !== undefined);
+  // Forms resend the whole Stop, so only a value that differs from the row's
+  // says where — else every save of an unchanged place would re-bill a lookup.
+  // A sent country says where on a rename too: typing a new name re-locates.
+  // Text compares trimmed and case-blind (zod trims later); a place ID is case-sensitive.
+  const text = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase() || null : (v ?? null));
+  const differs = (sent: unknown, row: unknown) => sent !== undefined && text(sent) !== text(row);
+  const renamed = differs(patch.name, current.name);
+  const newPlaceId = patch.placeId !== undefined && (patch.placeId || null) !== current.placeId;
+  const saysWhere =
+    (patch.country !== undefined && (renamed || differs(patch.country, current.country))) ||
+    [differs(patch.countryCode, current.countryCode), differs(patch.lat, current.lat), differs(patch.lng, current.lng), newPlaceId].some(Boolean);
+  // A rename that keeps the point (today's rule) is no longer that place: its ID goes.
   const point = saysWhere
-    ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined }
-    : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined };
+    ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined, placeId: patch.placeId ?? undefined }
+    : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: renamed ? undefined : (current.placeId ?? undefined) };
   const notes = patched(patch.notes, current.notes);
   const place = {
     name: patch.name ?? current.name,

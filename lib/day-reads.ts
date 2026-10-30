@@ -62,7 +62,7 @@ export async function readDayRows<X>(
       // Rough (date-less) Stops don't appear on a dated day.
       where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, country: true, countryCode: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true, lat: true, lng: true },
+      select: { id: true, name: true, country: true, countryCode: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true, lat: true, lng: true, placeId: true },
     })
     .then((rows) => rows);
 
@@ -73,7 +73,7 @@ export async function readDayRows<X>(
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
-        lat: true, lng: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
+        lat: true, lng: true, placeId: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
         slotTime: true, arriveByMinutes: true, refundable: true, openingHours: true, tryList: true,
         bookingState: true, bookingStateSet: true, bookBy: true,
       },
@@ -83,7 +83,7 @@ export async function readDayRows<X>(
       orderBy: { sortOrder: "asc" },
       select: {
         id: true, mode: true, fromStopId: true, toStopId: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true,
-        depLat: true, depLng: true, arrLat: true, arrLng: true, reference: true, notes: true, sortOrder: true,
+        depLat: true, depLng: true, depPlaceId: true, arrLat: true, arrLng: true, arrPlaceId: true, reference: true, notes: true, sortOrder: true,
         anchorStopId: true, depIsHome: true, arrIsHome: true, bookingState: true, bookingStateSet: true, bookBy: true,
       },
     }),
@@ -93,7 +93,7 @@ export async function readDayRows<X>(
       orderBy: { checkIn: "asc" },
       select: {
         id: true, stopId: true, name: true, address: true, checkIn: true, checkOut: true,
-        checkInTime: true, checkOutTime: true, confirmation: true, notes: true, lat: true, lng: true,
+        checkInTime: true, checkOutTime: true, confirmation: true, notes: true, lat: true, lng: true, placeId: true,
         bookingState: true, bookingStateSet: true, bookBy: true,
       },
     }),
@@ -134,7 +134,7 @@ export async function readDayRows<X>(
     ...itemRows.map((it) => ({ ...withTryList(withOpeningHours(it)), bookingState: it.bookingState as BookingState, surprise: v.views.items.get(it.id) ?? null })),
     ...placeholders.map((p) => ({
       id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-      sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, address: p.address, link: p.link,
+      sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, placeId: p.placeId, address: p.address, link: p.link,
       booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
       slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable, openingHours: p.openingHours, tryList: p.tryList,
       bookingState: p.bookingState, bookingStateSet: p.bookingStateSet, bookBy: p.bookBy,

@@ -8,7 +8,7 @@ import { requireGlobeAccess, requireGlobeOwner } from "@/lib/globe";
 import { inviteeAlreadyHasGlobe } from "@/lib/globe-invites";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
-import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
+import { reverseGeocode, type GeoCandidate } from "@/lib/geocode";
 import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 import { cleanupGlobeAttachments } from "./target-cleanup";
 import { revalidateGlobe } from "@/lib/revalidate";
@@ -32,6 +32,7 @@ function markerData(parsed: {
   note?: string;
   link?: string;
   timing?: string;
+  placeId?: string;
   lat?: number;
   lng?: number;
   city?: string;
@@ -44,6 +45,7 @@ function markerData(parsed: {
     note: parsed.note ?? null,
     link: parsed.link ?? null,
     timing: parsed.timing ?? null,
+    placeId: parsed.placeId ?? null,
     lat: parsed.lat ?? null,
     lng: parsed.lng ?? null,
     city: parsed.city ?? null,
@@ -52,12 +54,7 @@ function markerData(parsed: {
   };
 }
 
-// --- Geocoding proxies (server-side so Nominatim gets our User-Agent) --------
-
-export async function searchPlacesAction(query: string): Promise<PlaceSearchOutcome> {
-  await requireGlobeAccess(); // access-gate; also lazily creates the globe
-  return searchPlacesWithStatus(query);
-}
+// --- Geocoding proxy (server-side so the Google server key never reaches the browser) --------
 
 export async function reverseGeocodeAction(
   lat: number,

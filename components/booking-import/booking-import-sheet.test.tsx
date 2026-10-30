@@ -5,6 +5,7 @@ import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
 import type { BookingImportResult, ProposalBase } from "@/lib/booking-import/types";
 
 const m = vi.hoisted(() => ({ importBooking: vi.fn(), confirmProposal: vi.fn(), uploadAttachment: vi.fn() }));
+vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/server/actions/booking-import", () => ({ importBooking: m.importBooking, confirmProposal: m.confirmProposal }));
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: m.uploadAttachment, deleteAttachment: vi.fn() }));
 vi.mock("@/server/actions/costs", () => ({ createCost: vi.fn(), updateCost: vi.fn(), deleteCost: vi.fn() }));
@@ -18,7 +19,6 @@ vi.mock("@/server/actions/accommodation", () => ({ createAccommodation: vi.fn(),
 vi.mock("@/server/actions/items", () => ({ createItem: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn() }));
 vi.mock("@/server/actions/item-photo", () => ({ setItemPhoto: vi.fn(), removeItemPhoto: vi.fn() }));
 vi.mock("@/server/actions/stops", () => ({ createStop: vi.fn(), updateStop: vi.fn() }));
-vi.mock("@/server/actions/places", () => ({ findPlaces: vi.fn().mockResolvedValue([]) }));
 
 import { BookingImportSheet } from "./booking-import-sheet";
 

@@ -101,7 +101,7 @@ export interface DayViewData {
   /** The Day map's model (CONTEXT.md "Day map"); the panel stays collapsed until opened. */
   dayMap: DayMapModel;
   attachmentsByTarget: Record<string, AttachmentView[]>;
-  stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number }>;
+  stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number; lat?: number | null; lng?: number | null }>;
   /** Day ideas — every phase (ADR 0044 amendment). */
   ideas: ReturnType<typeof dayIdeasRows>;
   /** Planned-day nearby rail (unchanged behaviour). */
@@ -118,6 +118,7 @@ export interface DayViewData {
     notes: string | null;
     lat: number | null;
     lng: number | null;
+    placeId?: string | null;
   } | null;
   strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine };
   journal: {
@@ -227,7 +228,7 @@ function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[]) {
   const attachmentsById = new Map(rows.attachments.map((a) => [a.id, { url: a.url }]));
   const editorBase: Omit<DayEntryEditor, "accommodations"> = {
     tripId,
-    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
+    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate, lat: s.lat, lng: s.lng })),
     homeCurrency: trip.homeCurrency,
     homeBaseName: trip.homeName,
     homeTimezone: trip.homeTimezone,
@@ -253,7 +254,7 @@ function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[]) {
     itemsByDate,
     windowDates,
     editorBase,
-    stopOptions: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate, timezone: s.timezone, sortOrder: s.sortOrder })),
+    stopOptions: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate, timezone: s.timezone, sortOrder: s.sortOrder, lat: s.lat, lng: s.lng })),
     line: stopLine({
       days: windowDates,
       stops: stops.map((s) => ({ id: s.id, name: s.name, arriveDate: s.arriveDate!, departDate: s.departDate!, sortOrder: s.sortOrder })),
@@ -295,7 +296,7 @@ function projectDayView(
       ? {
           id: bed.id, name: bed.name, nightOf: tonightNight, checkOut: bed.checkOut, address: bed.address,
           confirmation: bed.confirmation, checkInTime: bed.checkInTime, checkOutTime: bed.checkOutTime,
-          notes: bed.notes, lat: bed.lat, lng: bed.lng,
+          notes: bed.notes, lat: bed.lat, lng: bed.lng, placeId: bed.placeId,
         }
       : null;
 

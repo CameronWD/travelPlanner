@@ -208,3 +208,20 @@ describe("WishlistPage — the ?plan= gate (resolvePlanParam)", () => {
     expect(stopFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "t1", forkId: null } }));
   });
 });
+
+describe("WishlistPage — place IDs", () => {
+  it("hands an idea's placeId to the board and selects it", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      id: "t1", name: "Europe", startDate: "2026-07-01", endDate: "2026-07-20", homeCurrency: "USD", forksEnabled: false, stops: [],
+      items: [{
+        id: "i1", title: "Louvre", category: "SIGHTSEEING", date: null, startTime: null, endTime: null, address: null, link: null,
+        booking: null, notes: null, stopId: null, lat: 48.86, lng: 2.34, placeId: "ChIJlouvre", sourceMarkerId: null,
+        hiddenFromShares: false, photoAttachmentId: null, stop: null,
+      }],
+    });
+    await renderPage();
+    expect((boardProps.items as { placeId: string }[])[0].placeId).toBe("ChIJlouvre");
+    const select = tripFindUniqueMock.mock.calls[0][0].select.items.select;
+    expect(select.placeId).toBe(true);
+  });
+});

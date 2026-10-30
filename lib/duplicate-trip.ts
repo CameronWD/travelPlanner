@@ -32,6 +32,7 @@ interface DuplicateSourceStop {
   country: string | null;
   lat: number | null;
   lng: number | null;
+  placeId?: string | null;
   timezone: string | null;
   arriveDate: string | null;
   departDate: string | null;
@@ -56,6 +57,8 @@ interface DuplicateSourceItem {
   lat: number | null;
   lng: number | null;
   countryCode: string | null;
+  placeId?: string | null;
+  businessStatus?: string | null;
   address: string | null;
   link: string | null;
   booking: string | null;
@@ -87,6 +90,8 @@ interface DuplicateSourceTransport {
   depLng: number | null;
   arrLat: number | null;
   arrLng: number | null;
+  depPlaceId?: string | null;
+  arrPlaceId?: string | null;
 }
 
 interface DuplicateSourceChecklistItem {
@@ -114,7 +119,7 @@ export interface DuplicatePlan {
     sourceId: string;
     sourceChapterId: string | null;
     data: {
-      name: string; country: string | null; lat: number | null; lng: number | null; timezone: string | null;
+      name: string; country: string | null; lat: number | null; lng: number | null; placeId: string | null; timezone: string | null;
       arriveDate: null; departDate: null; nights: number; pinned: false; sortOrder: number; chapterSortOrder: number; notes: string | null;
       surprisePlannerId: string | null; surpriseForIds: string | null; surpriseRevealedAt: Date | null;
     };
@@ -123,7 +128,8 @@ export interface DuplicatePlan {
     sourceStopId: string | null;
     data: {
       title: string; category: string; date: null; startTime: null; endTime: null; booking: null;
-      lat: number | null; lng: number | null; countryCode: string | null; address: string | null; link: string | null; notes: string | null; sortOrder: number;
+      lat: number | null; lng: number | null; countryCode: string | null; placeId: string | null; businessStatus: string | null;
+      address: string | null; link: string | null; notes: string | null; sortOrder: number;
       openingHours: string | null;
       tryList: string | null;
       hiddenFromShares: boolean;
@@ -137,7 +143,8 @@ export interface DuplicatePlan {
     sourceAnchorStopId: string | null;
     data: {
       mode: string; depPlace: string | null; arrPlace: string | null; depAt: null; arrAt: null; reference: null; notes: null;
-      depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; sortOrder: number;
+      depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
+      depPlaceId: string | null; arrPlaceId: string | null; sortOrder: number;
       bookingState: BookingState; bookingStateSet: false;
     };
   }>;
@@ -175,6 +182,7 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         country: s.country,
         lat: s.lat,
         lng: s.lng,
+        placeId: s.placeId ?? null,
         timezone: s.timezone,
         arriveDate: null,
         departDate: null,
@@ -200,6 +208,8 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         lat: it.lat,
         lng: it.lng,
         countryCode: it.countryCode,
+        placeId: it.placeId ?? null,
+        businessStatus: it.businessStatus ?? null,
         address: it.address,
         link: it.link,
         notes: it.notes,
@@ -228,6 +238,8 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         depLng: t.depLng,
         arrLat: t.arrLat,
         arrLng: t.arrLng,
+        depPlaceId: t.depPlaceId ?? null,
+        arrPlaceId: t.arrPlaceId ?? null,
         sortOrder: idx,
         // No reference is copied, so the leg starts at its mode's default: a drive needs no booking.
         bookingState: defaultBookingState(transportBookingSubject(t.mode)),

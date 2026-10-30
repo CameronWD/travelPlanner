@@ -4,7 +4,7 @@ import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
-import { hhmm, isoDate } from "@/lib/validations/primitives";
+import { hhmm, isoDate, placeId } from "@/lib/validations/primitives";
 import { startFromSlot } from "@/lib/slot-time";
 import { arriveByMinutesSchema, bookBySchema, checkSlotFields, refundableSchema, slotTimeSchema } from "@/lib/validations/planning";
 import { openingHoursSchema } from "@/lib/validations/opening-hours";
@@ -78,8 +78,12 @@ export const itemSchema = z
     arriveByMinutes: arriveByMinutesSchema.optional(),
     refundable: refundableSchema.optional(),
     notes: z.string().trim().optional(),
-    lat: z.number().optional(),
-    lng: z.number().optional(),
+    /** A picked Google place; lat/lng/countryCode only come with it (refined below). */
+    placeId: placeId.optional(),
+    businessStatus: z.enum(["OPERATIONAL", "CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY"]).optional(),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
+    countryCode: z.string().trim().regex(/^[a-zA-Z]{2}$/, "Country code must be two letters").transform((c) => c.toLowerCase()).optional(),
     /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. Omitted = false. */
     hiddenFromShares: z.boolean().optional(),
     /**
@@ -164,6 +168,10 @@ export const itemSchema = z
       path: ["endTime"],
     },
   )
+  .refine((data) => data.placeId != null || (data.lat === undefined && data.lng === undefined), {
+    message: "Coordinates only come with a picked place",
+    path: ["lat"],
+  })
   // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
   // === undefined) because paidMinor is nullable, and this must catch both:
   // an explicit `null` (paidMinor cleared) and an absent `undefined`

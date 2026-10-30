@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import {
   createMarker,
   updateMarker,
   deleteMarker,
-  searchPlacesAction,
 } from "@/server/actions/globe";
 import { useServerAction } from "@/components/ui/use-server-action";
-import type { GeoCandidate } from "@/lib/geocode";
 import type { MarkerView } from "@/components/globe/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import {
@@ -53,6 +52,7 @@ interface ResolvedPlace {
   city: string | null;
   country: string | null;
   countryCode: string | null;
+  placeId: string | null;
 }
 
 export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, onSaved, globeId, attachments }: MarkerFormProps) {
@@ -68,19 +68,15 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
   const [timing, setTiming] = useState(marker?.timing ?? "");
   const [place, setPlace] = useState<ResolvedPlace | null>(
     marker
-      ? { lat: marker.lat, lng: marker.lng, city: marker.city, country: marker.country, countryCode: marker.countryCode }
+      ? { lat: marker.lat, lng: marker.lng, city: marker.city, country: marker.country, countryCode: marker.countryCode, placeId: marker.placeId ?? null }
       : prefill
-        ? { lat: prefill.lat, lng: prefill.lng, city: null, country: null, countryCode: null }
+        ? { lat: prefill.lat, lng: prefill.lng, city: null, country: null, countryCode: null, placeId: null }
         : null,
   );
   const [query, setQuery] = useState(marker?.title ?? initialQuery ?? "");
-  const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
-  const [searched, setSearched] = useState(false);
-  const [searchFailed, setSearchFailed] = useState(false);
+  // The title a pick filled in; a later pick may replace it, but never a title the Traveller typed.
+  const pickedTitle = useRef<string | null>(null);
   const [resolvingPlace, setResolvingPlace] = useState(false);
-
-  // Search flow — stays on its own useTransition (PlaceSearchOutcome is not ActionResult-shaped)
-  const [searchPending, startSearchTransition] = useTransition();
 
   // Save flow — create or update
   const save = useServerAction(
@@ -96,6 +92,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
         city: place?.city ?? undefined,
         country: place?.country ?? undefined,
         countryCode: place?.countryCode ?? undefined,
+        placeId: place?.placeId ?? undefined,
       };
       return isEdit ? updateMarker(marker!.id, input) : createMarker(input);
     },
@@ -132,7 +129,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   // Combined busy flag — disables every control during any async operation
-  const busy = searchPending || save.isPending || del.isPending;
+  const busy = save.isPending || del.isPending;
 
   // If dropped via map click (prefill present, not editing), resolve the place
   // name in the background. State updates happen only inside the async IIFE —
@@ -149,34 +146,15 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
       if (!c) return;
       setTitle((t) => t || c.name.split(",")[0]);
       setQuery((q) => q || c.name);
-      setPlace({ lat: c.lat, lng: c.lng, city: c.city, country: c.country, countryCode: c.countryCode });
+      setPlace({ lat: c.lat, lng: c.lng, city: c.city, country: c.country, countryCode: c.countryCode, placeId: c.placeId });
     })();
   }, [prefill, marker]);
 
-  const runSearch = () => {
-    const q = query.trim();
-    if (!q) return;
-    startSearchTransition(async () => {
-      const res = await searchPlacesAction(q);
-      setSearched(true);
-      if (res.status === "error") {
-        setSearchFailed(true);
-        setCandidates([]);
-      } else {
-        setSearchFailed(false);
-        setCandidates(res.candidates);
-      }
-    });
-  };
-
-  const chooseCandidate = (c: GeoCandidate) => {
-    // Always adopt the picked result's name — picking a place is an explicit
-    // choice, so it overwrites any prior title (including an earlier pick).
-    setTitle(c.name.split(",")[0]);
-    setPlace({ lat: c.lat, lng: c.lng, city: c.city, country: c.country, countryCode: c.countryCode });
-    setCandidates([]);
-    setSearched(false);
-    setSearchFailed(false);
+  const choosePlace = (p: PickedPlace) => {
+    const earlier = pickedTitle.current;
+    pickedTitle.current = p.name;
+    setTitle((t) => (t === "" || t === earlier ? p.name : t));
+    setPlace({ lat: p.lat, lng: p.lng, city: p.city ?? null, country: p.country ?? null, countryCode: p.countryCode ?? null, placeId: p.placeId });
   };
 
   // Resolved location caption: "Tokyo, Japan"
@@ -198,54 +176,16 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
         <div className="flex flex-col gap-4">
           {/* Place search */}
           <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <Input
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setSearched(false); setSearchFailed(false); }}
-                onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                placeholder="Search for a place…"
-                disabled={busy}
-                aria-label="Place search"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                className="h-12"
-                onClick={runSearch}
-                loading={searchPending}
-                disabled={busy}
-              >
-                Search
-              </Button>
-            </div>
-
-            {/* Candidate list */}
-            {candidates.length > 0 && (
-              <ul className="flex max-h-48 flex-col gap-0.5 overflow-y-auto rounded-md border-2 border-border bg-card p-1 shadow-hard-1">
-                {candidates.map((c, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      className="min-h-11 w-full rounded-sm px-3 py-2 text-left text-sm font-semibold hover:bg-muted focus-visible:outline-[3px] focus-visible:outline-offset-[-3px] focus-visible:outline-ring"
-                      onClick={() => chooseCandidate(c)}
-                    >
-                      {c.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {searchFailed && (
-              <p className="text-xs font-semibold text-destructive">
-                Place search is temporarily unavailable. Try again in a moment.
-              </p>
-            )}
-            {searched && !searchFailed && candidates.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No matching places found. Try a more specific search.
-              </p>
-            )}
+            <PlaceCombobox
+              kind="any"
+              value={query}
+              onValueChange={setQuery}
+              onPick={choosePlace}
+              placeholder="Search for a place…"
+              aria-label="Place search"
+              disabled={busy}
+              unavailableHint="Search isn't available right now. Drop a pin on the map to place it."
+            />
 
             {/* Pin-drop geocode hint — shown while background reverse-geocode is resolving */}
             {resolvingPlace && !locationCaption && (

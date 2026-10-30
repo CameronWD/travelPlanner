@@ -28,3 +28,5 @@ export const isoDate = isoDateWith("Date must be in YYYY-MM-DD format", "Date mu
 
 /** An HH:MM 24-hour wall-clock time. */
 export const hhmm = z.string().regex(HHMM_RE, "Time must be in HH:MM format (24h)");
+
+export const placeId = z.string().trim().min(1).max(300);

@@ -198,11 +198,17 @@ A script, dry run first, archived after the real run:
 - Accept only within **~1 km** of the old point (**~25 km** for Stops and Home
   bases). Rows with no coordinates yet are attempted unconditionally.
 - Venue Items additionally get Opening hours and link filled when empty.
-- The dry run prints `row · old → new · distance · verdict`; Cam reads it
-  before the real run.
-- Production counts on 2026-10-30: ~128 Essentials lookups, 61 Item families
-  for Enterprise details. The runbook says to raise the Place Details
-  Enterprise daily quota to 100 for the hour of the run and put it back.
+- The dry run prints `row · old → new · distance · verdict · matched address`
+  and writes a plan file of the rows it would write; Cam reads it, and
+  `--execute` applies exactly that file (no fresh lookups; refused when older
+  than 24 hours; rows changed since the plan are skipped).
+- A row that already has a pin is moved only by a venue match; an address match
+  never replaces it. A failed lookup is ERROR, never NO-MATCH.
+- Production counts on 2026-10-30: ~128 location rows, 61 venue Item families
+  for Enterprise details. Google quotas are per method (one GetPlace cap covers
+  Essentials and Enterprise), so the runbook (DEPLOY §4j step 12) raises the
+  Geocoding and Place Details (GetPlace) daily quotas to 500 each for the hour
+  of the run and puts them back.
 
 ## Branch 3 — Travel times
 
@@ -278,8 +284,15 @@ is collected here, after all three branches are merged.
 4. Attribution check (DEPLOY §4j step 11): Google's logo and attribution row is
    not covered on the Your travels card or the desktop Home tile, in both
    themes.
-5. Push `main` → deploy.
-6. Backfill dry run → Cam reads → real run.
+5. Places check (DEPLOY §4j step 11): with the real keys, one pick per field
+   kind (Stop/region, Item venue with the hours filling, Transport end, Globe
+   pin), then confirm Google's billing report shows **Autocomplete Session
+   Usage** — proof that sessions terminate. If they do not, every keystroke
+   bills per request.
+6. Push `main` → deploy.
+7. Backfill (DEPLOY §4j step 12): raise the GetPlace quota to 300 for the hour,
+   `npm run backfill:places` (dry run) → Cam reads the rows →
+   `npm run backfill:places -- --execute` → put the quota back.
 
 ## Not in this work / follow-ups
 

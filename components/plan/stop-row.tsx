@@ -164,6 +164,7 @@ export function StopRow({
                 <MapLink
                   lat={stop.lat}
                   lng={stop.lng}
+                  placeId={stop.placeId}
                   label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
                   className="text-muted-foreground/60"
                 />

@@ -15,7 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 // silently carried one it shouldn't, would type-check fine.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); }, redirect: () => { throw new Error("REDIRECT"); } }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: vi.fn(async () => null), geocodePlaceDetailed: vi.fn(async () => null) }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: vi.fn(async () => null), locateVenue: vi.fn(async () => null) }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn(async () => undefined) }));
 vi.mock("@/lib/guards", async () => {
   const actual = await vi.importActual<typeof import("@/lib/guards")>("@/lib/guards");
@@ -42,6 +42,10 @@ const TRY_UNTICKED = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", t
 // one that leaked through when it shouldn't) is visible either way.
 const TRANSPORT_FIELDS = { bookingState: "TO_BOOK" as const, bookingStateSet: true, bookBy: "2027-05-01" };
 const ACCOMMODATION_FIELDS = { bookingState: "TO_BOOK" as const, bookingStateSet: true, bookBy: "2027-05-02" };
+const STOP_PLACE = { placeId: "it-porto-id" };
+const TRANSPORT_PLACE = { depPlaceId: "it-lisboa-id", arrPlaceId: "it-campanha-id" };
+const ACCOMMODATION_PLACE = { placeId: "it-casa-id" };
+const ITEM_PLACE = { placeId: "it-tour-id", businessStatus: "OPERATIONAL" };
 const ITEM_FIELDS = {
   bookingState: "BOOKED" as const, bookingStateSet: true, bookBy: null,
   slotTime: "12:00", arriveByMinutes: 15, refundable: false, openingHours: HOURS, tryList: TRY,
@@ -61,16 +65,16 @@ describe.skipIf(process.env.INTEGRATION !== "1")("createFork and duplicateTrip c
       },
     });
     await db.stop.create({
-      data: { id: PORTO, tripId: TRIP_ID, name: "IT Porto", timezone: "Europe/Lisbon", arriveDate: "2027-06-01", departDate: "2027-06-07", nights: 6, sortOrder: 0 },
+      data: { id: PORTO, tripId: TRIP_ID, name: "IT Porto", timezone: "Europe/Lisbon", arriveDate: "2027-06-01", departDate: "2027-06-07", nights: 6, sortOrder: 0, ...STOP_PLACE },
     });
     await db.transport.create({
-      data: { tripId: TRIP_ID, mode: "TRAIN", toStopId: PORTO, sortOrder: 0, ...TRANSPORT_FIELDS },
+      data: { tripId: TRIP_ID, mode: "TRAIN", toStopId: PORTO, sortOrder: 0, ...TRANSPORT_FIELDS, ...TRANSPORT_PLACE },
     });
     await db.accommodation.create({
-      data: { tripId: TRIP_ID, stopId: PORTO, name: "IT Casa", checkIn: "2027-06-01", checkOut: "2027-06-07", ...ACCOMMODATION_FIELDS },
+      data: { tripId: TRIP_ID, stopId: PORTO, name: "IT Casa", checkIn: "2027-06-01", checkOut: "2027-06-07", ...ACCOMMODATION_FIELDS, ...ACCOMMODATION_PLACE },
     });
     await db.item.create({
-      data: { tripId: TRIP_ID, stopId: PORTO, title: "IT Tour", category: "ACTIVITY", date: "2027-06-02", sortOrder: 0, ...ITEM_FIELDS },
+      data: { tripId: TRIP_ID, stopId: PORTO, title: "IT Tour", category: "ACTIVITY", date: "2027-06-02", sortOrder: 0, ...ITEM_FIELDS, ...ITEM_PLACE },
     });
   });
 
@@ -78,22 +82,25 @@ describe.skipIf(process.env.INTEGRATION !== "1")("createFork and duplicateTrip c
     await db.trip.deleteMany({ where: { id: TRIP_ID } });
   });
 
-  it("a Fork carries bookingState, bookingStateSet, bookBy, slotTime, arriveByMinutes, refundable, openingHours and tryList (ticks included)", async () => {
+  it("a Fork carries bookingState, bookingStateSet, bookBy, slotTime, arriveByMinutes, refundable, openingHours, tryList (ticks included) and every place ID", async () => {
     const result = await createFork(TRIP_ID, "IT Plan B");
     if (!result.success) throw new Error("expected createFork to succeed");
     const forkId = result.forkId;
 
+    const stop = await db.stop.findFirstOrThrow({ where: { tripId: TRIP_ID, forkId } });
+    expect(stop).toMatchObject(STOP_PLACE);
+
     const transport = await db.transport.findFirstOrThrow({ where: { tripId: TRIP_ID, forkId } });
-    expect(transport).toMatchObject(TRANSPORT_FIELDS);
+    expect(transport).toMatchObject({ ...TRANSPORT_FIELDS, ...TRANSPORT_PLACE });
 
     const accommodation = await db.accommodation.findFirstOrThrow({ where: { tripId: TRIP_ID, forkId } });
-    expect(accommodation).toMatchObject(ACCOMMODATION_FIELDS);
+    expect(accommodation).toMatchObject({ ...ACCOMMODATION_FIELDS, ...ACCOMMODATION_PLACE });
 
     const item = await db.item.findFirstOrThrow({ where: { tripId: TRIP_ID, forkId } });
-    expect(item).toMatchObject(ITEM_FIELDS);
+    expect(item).toMatchObject({ ...ITEM_FIELDS, ...ITEM_PLACE });
   });
 
-  it("Duplicate trip keeps openingHours and the Try list (unticked) and resets the rest to their column defaults", async () => {
+  it("Duplicate trip keeps openingHours, the Try list (unticked) and the place IDs, and resets the rest to their column defaults", async () => {
     const result = await duplicateTrip(TRIP_ID, "IT Copy");
     if (!result.success) throw new Error("expected duplicateTrip to succeed");
     const copyTripId = result.tripId;
@@ -102,14 +109,16 @@ describe.skipIf(process.env.INTEGRATION !== "1")("createFork and duplicateTrip c
     // of ACCOMMODATION_FIELDS to check there.
     expect(await db.accommodation.count({ where: { tripId: copyTripId } })).toBe(0);
 
+    expect(await db.stop.findFirstOrThrow({ where: { tripId: copyTripId } })).toMatchObject(STOP_PLACE);
+
     const transport = await db.transport.findFirstOrThrow({ where: { tripId: copyTripId } });
-    expect(transport).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null });
+    expect(transport).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null, ...TRANSPORT_PLACE });
 
     const item = await db.item.findFirstOrThrow({ where: { tripId: copyTripId } });
     expect(item).toMatchObject({
       bookingState: "NONE", bookingStateSet: false, bookBy: null,
       slotTime: null, arriveByMinutes: null, refundable: null,
-      openingHours: HOURS, tryList: TRY_UNTICKED,
+      openingHours: HOURS, tryList: TRY_UNTICKED, ...ITEM_PLACE,
     });
   });
 });

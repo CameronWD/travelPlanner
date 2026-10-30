@@ -1,87 +1,17 @@
-/**
- * Geocoding helpers — OpenStreetMap Nominatim for one-off lookups (saving a
- * place, reverse geocoding, button-press search) and Photon (komoot) for the
- * as-you-type place combobox (ADR 0069; Nominatim's policy forbids
- * autocomplete).
- *
- * Rules:
- * - Never throws; always returns null / { status: "error" } on any error.
- * - Uses an AbortController timeout so it doesn't block actions indefinitely.
- * - Sets a descriptive User-Agent header (required by Nominatim's usage policy;
- *   harmless to Photon).
- * - Memoises successful responses in-process by URL (ADR 0028). Failures —
- *   including a 2xx body of the wrong shape — are never cached, in-process or
- *   in Next's data cache.
- * - Nominatim requests also use Next's data cache (`next: { revalidate:
- *   GEOCODE_REVALIDATE_SECONDS }`); Photon's typeahead requests opt out of it
- *   (`cache: "no-store"`) so a malformed 2xx can't get stuck rejecting a query
- *   for up to 30 days — see `cachedFetchJson`.
- */
+import "server-only";
+import { haversineKm, type LatLng } from "@/lib/geo";
+import type { OpeningHours } from "@/lib/opening-hours";
+import { openingHoursFromGoogle, parseGooglePeriods } from "@/lib/opening-hours-google";
 
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-// Nominatim's usage policy requires a REAL contact (email or the app's public
-// URL) in the User-Agent, and it blocklists placeholder contacts such as
-// "example.com" with HTTP 403. We therefore never send a placeholder: if
-// NOMINATIM_CONTACT is unset we warn and omit the contact entirely. Configure
-// NOMINATIM_CONTACT in every environment where geocoding must work.
-const NOMINATIM_CONTACT = process.env.NOMINATIM_CONTACT?.trim() || null;
-
-if (!NOMINATIM_CONTACT) {
-  console.warn(
-    "[geocode] NOMINATIM_CONTACT is not set. OpenStreetMap Nominatim requires a " +
-      "real contact (email or app URL) in the User-Agent and blocks placeholder " +
-      "contacts with HTTP 403. Location search and geocoding will likely fail " +
-      "until NOMINATIM_CONTACT is configured.",
-  );
-}
-
-const USER_AGENT = NOMINATIM_CONTACT
-  ? `TripPlanner/1.0 (${NOMINATIM_CONTACT})`
-  : "TripPlanner/1.0";
+const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
+const PLACES_URL = "https://places.googleapis.com/v1/places";
 const TIMEOUT_MS = 5_000;
-// The app is English-only. Ask Nominatim for English place names so search
-// results and derived city/country are not returned in the local language
-// (e.g. "Tokyo Tower", not "東京タワー"). Falls back to the local name only
-// when no English name exists in OpenStreetMap.
-const ACCEPT_LANGUAGE = "en";
+const LANGUAGE = "en";
+const NEAR_BOUNDS_DEG = 0.5;
+const NEAR_BIAS_RADIUS_M = 50_000;
 
-export interface LatLng {
-  lat: number;
-  lng: number;
-}
+export const VENUE_GUARD_KM = 0.5;
 
-interface NominatimResult {
-  lat: string;
-  lon: string;
-}
-
-/**
- * Geocode a free-text place query using OpenStreetMap Nominatim.
- *
- * Returns `{ lat, lng }` on success, or `null` if the query returns no
- * results, the network request fails, or any other error occurs.
- */
-export async function geocodePlace(query: string): Promise<LatLng | null> {
-  const url = new URL(NOMINATIM_URL);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("limit", "1");
-  url.searchParams.set("q", query);
-  url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
-
-  const data = await cachedFetchJson(url.toString());
-  if (!Array.isArray(data) || data.length === 0) return null;
-
-  const { lat, lon } = data[0] as NominatimResult;
-  const latNum = parseFloat(lat);
-  const lngNum = parseFloat(lon);
-  if (isNaN(latNum) || isNaN(lngNum)) return null;
-
-  return { lat: latNum, lng: lngNum };
-}
-
-const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
-
-/** A resolved place from Nominatim or Photon, with the address components we care about. */
 export interface GeoCandidate {
   name: string;
   lat: number;
@@ -89,142 +19,66 @@ export interface GeoCandidate {
   city: string | null;
   country: string | null;
   countryCode: string | null;
+  placeId: string | null;
+  address: string | null;
 }
 
-interface NominatimAddress {
-  city?: string;
-  town?: string;
-  village?: string;
-  hamlet?: string;
-  municipality?: string;
-  country?: string;
-  country_code?: string;
+export interface VenueMatch extends GeoCandidate {
+  matched: "venue" | "address";
 }
 
-interface NominatimDetailedResult {
-  display_name?: string;
-  lat: string;
-  lon: string;
-  address?: NominatimAddress;
+export type Lookup<T> = { status: "ok"; candidate: T } | { status: "miss" } | { status: "error" };
+
+const MISS = { status: "miss" } as const;
+const ERROR = { status: "error" } as const;
+
+function found(candidate: GeoCandidate | null): Lookup<GeoCandidate> {
+  return candidate ? { status: "ok", candidate } : MISS;
 }
 
-/** Best-effort city/town from Nominatim's address components. */
-function pickCity(address: NominatimAddress | undefined): string | null {
-  if (!address) return null;
-  return (
-    address.city ??
-    address.town ??
-    address.village ??
-    address.hamlet ??
-    address.municipality ??
-    null
-  );
+function candidateOf<T>(lookup: Lookup<T>): T | null {
+  return lookup.status === "ok" ? lookup.candidate : null;
 }
 
-function toCandidate(r: NominatimDetailedResult): GeoCandidate | null {
-  const lat = parseFloat(r.lat);
-  const lng = parseFloat(r.lon);
-  if (isNaN(lat) || isNaN(lng)) return null;
-  return {
-    name: r.display_name ?? "",
-    lat,
-    lng,
-    city: pickCity(r.address),
-    country: r.address?.country ?? null,
-    countryCode: r.address?.country_code ?? null,
-  };
+export interface VenueDetails {
+  openingHours: OpeningHours | null;
+  website: string | null;
+  businessStatus: string | null;
 }
 
-// In-memory memo of successful Nominatim responses, keyed by request URL.
-// Nominatim's usage policy asks callers to cache and not repeat identical
-// queries. Geocoding results are stable, so entries live for the life of the
-// server instance with no eviction — two-user volume makes growth a non-issue
-// (mirrors the in-memory cache in lib/weather.ts). Only successful responses
-// are stored; failures (network error, timeout, non-2xx, unparseable body) are
-// never cached, so a transient outage never sticks and the next call retries.
-/**
- * Next's data cache keeps a successful Nominatim answer this long across
- * serverless instances (spec 2026-10-06 §U); the in-memory map below stays as
- * the first level. Places don't move. Not `use cache` (needs cacheComponents).
- * Photon's typeahead requests opt OUT of Next's data cache entirely
- * (`cache: "no-store"`, see `cachedFetchJson`) — a malformed 2xx could
- * otherwise sit there rejecting every repeat of that query for up to 30 days;
- * only the in-memory map covers Photon, and only once a response has passed
- * its `accept` check.
- */
-export const GEOCODE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30;
-const responseCache = new Map<string, unknown>();
-
-/** Test-only seam: clear the in-memory response cache between cases. */
-export function _resetGeocodeCacheForTests(): void {
-  responseCache.clear();
+interface Component {
+  text: string;
+  short: string;
+  types: string[];
 }
 
-// Nominatim asks for at most one request per second (ADR 0069).
-// cachedFetchJson calls paceNominatim() immediately before each real
-// Nominatim network fetch — never on an in-memory cache hit, never for
-// Photon — so consecutive requests are ≥1 s apart and a cached repeat
-// returns at once. Process-local: a reservation is taken synchronously, so
-// concurrent callers in one instance queue up rather than racing. The first
-// call — and any call over a second after the previous one — does not wait.
-const NOMINATIM_MIN_GAP_MS = 1_000;
-let nextNominatimSlot = 0;
+const REGION_TYPES = new Set([
+  "locality",
+  "sublocality",
+  "postal_town",
+  "colloquial_area",
+  "administrative_area_level_1",
+  "administrative_area_level_2",
+  "administrative_area_level_3",
+  "country",
+]);
+const CITY_TYPES = ["locality", "postal_town", "administrative_area_level_3"];
 
-export async function paceNominatim(): Promise<void> {
-  const now = Date.now();
-  const wait = Math.max(0, nextNominatimSlot - now);
-  nextNominatimSlot = Math.max(now, nextNominatimSlot) + NOMINATIM_MIN_GAP_MS;
-  if (wait > 0) await new Promise<void>((resolve) => setTimeout(resolve, wait));
+function serverKey(): string | null {
+  return process.env.GOOGLE_MAPS_SERVER_KEY?.trim() || null;
 }
 
-/** Test-only seam: forget the last paced call. */
-export function _resetNominatimPaceForTests(): void {
-  nextNominatimSlot = 0;
+export function hasServerKey(): boolean {
+  return serverKey() !== null;
 }
 
-function isNominatimUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname === "nominatim.openstreetmap.org";
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Fetch and parse JSON from a geocoder URL, memoising successful responses in
- * the in-memory `responseCache` by URL. Returns the parsed body on success
- * (HTTP 2xx + valid JSON + `accept` says the shape is right), or null on any
- * failure (which is NOT cached at either layer). Never throws.
- *
- * `revalidate` additionally controls Next's own fetch/data cache: a number
- * opts the request into `next: { revalidate }` (Nominatim's default — stable
- * results, safe to keep for up to `GEOCODE_REVALIDATE_SECONDS`); `false` opts
- * out with `cache: "no-store"` (Photon's typeahead — a malformed 2xx must
- * never sit in Next's cache rejecting every repeat of that query for up to 30
- * days; the in-memory `responseCache` above already skips it too, since it is
- * only populated after `accept` passes).
- */
-async function cachedFetchJson(
-  url: string,
-  options: { accept?: (data: unknown) => boolean; revalidate?: number | false } = {},
-): Promise<unknown | null> {
-  const { accept = () => true, revalidate = GEOCODE_REVALIDATE_SECONDS } = options;
-  if (responseCache.has(url)) return responseCache.get(url) ?? null;
-  if (isNominatimUrl(url)) await paceNominatim();
-
+async function fetchJson(url: string, init: RequestInit = {}): Promise<unknown | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-      ...(revalidate === false ? { cache: "no-store" as const } : { next: { revalidate } }),
-    });
+    const res = await fetch(url, { ...init, signal: controller.signal });
     if (!res.ok) return null;
-    const data = await res.json();
-    if (!accept(data)) return null;
-    responseCache.set(url, data);
-    return data;
+    return await res.json();
   } catch {
     return null;
   } finally {
@@ -232,155 +86,164 @@ async function cachedFetchJson(
   }
 }
 
-/**
- * Geocode a free-text place query, returning the single best-matching
- * `GeoCandidate` (with countryCode) or `null`. Use this in stop-write paths
- * where you need to persist `countryCode` alongside `lat`/`lng`.
- *
- * Never throws; returns null on any failure or empty result.
- */
-export async function geocodePlaceDetailed(query: string): Promise<GeoCandidate | null> {
-  const [first] = await searchPlaces(query, 1);
-  return first ?? null;
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
-/**
- * Result of a place search that distinguishes a genuine empty result
- * ("no matches") from a transport/HTTP/parse failure ("search unavailable").
- * Use this in interactive search UIs; use `searchPlaces` for best-effort paths.
- */
-export type PlaceSearchOutcome =
-  | { status: "ok"; candidates: GeoCandidate[] }
-  | { status: "error" };
-
-/**
- * Forward-search a free-text place query, returning an outcome that
- * distinguishes "no matches" (status "ok", empty candidates) from a request
- * failure (status "error"). Never throws.
- */
-export async function searchPlacesWithStatus(
-  query: string,
-  limit = 5,
-): Promise<PlaceSearchOutcome> {
-  const trimmed = query.trim();
-  if (!trimmed) return { status: "ok", candidates: [] };
-
-  const url = new URL(NOMINATIM_URL);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("limit", String(limit));
-  url.searchParams.set("q", trimmed);
-  url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
-
-  const data = await cachedFetchJson(url.toString());
-  if (!Array.isArray(data)) return { status: "error" };
-  const candidates = (data as NominatimDetailedResult[])
-    .map(toCandidate)
-    .filter((c): c is GeoCandidate => c !== null);
-  return { status: "ok", candidates };
+function finite(n: unknown): n is number {
+  return typeof n === "number" && Number.isFinite(n);
 }
 
-// ---------------------------------------------------------------------------
-// Photon (komoot) — the as-you-type place search (ADR 0069)
-// ---------------------------------------------------------------------------
-
-const PHOTON_URL = "https://photon.komoot.io/api";
-
-interface PhotonProperties {
-  name?: string;
-  city?: string;
-  town?: string;
-  village?: string;
-  locality?: string;
-  country?: string;
-  /** ISO 3166-1 alpha-2, upper-case in Photon's responses. */
-  countrycode?: string;
+function readComponents(raw: unknown, textKey: string, shortKey: string): Component[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isRecord).map((c) => ({
+    text: typeof c[textKey] === "string" ? c[textKey] : "",
+    short: typeof c[shortKey] === "string" ? c[shortKey] : "",
+    types: Array.isArray(c.types) ? c.types.filter((t): t is string => typeof t === "string") : [],
+  }));
 }
 
-interface PhotonFeature {
-  geometry?: { coordinates?: unknown };
-  properties?: PhotonProperties;
-}
-
-function isPhotonFeatureCollection(data: unknown): data is { type: "FeatureCollection"; features: PhotonFeature[] } {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
-  const d = data as { type?: unknown; features?: unknown };
-  return d.type === "FeatureCollection" && Array.isArray(d.features);
-}
-
-/** Photon has no `display_name`: compose "name, city, country", blanks and repeats dropped. */
-function photonToCandidate(feature: PhotonFeature): GeoCandidate | null {
-  const coords = feature.geometry?.coordinates;
-  if (!Array.isArray(coords) || coords.length < 2) return null;
-  const [lng, lat] = coords; // GeoJSON order
-  if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  const p = feature.properties ?? {};
-  const city = p.city ?? p.town ?? p.village ?? p.locality ?? null;
-  const country = p.country ?? null;
-  const parts: string[] = [];
-  for (const part of [p.name, city, country]) {
-    const t = part?.trim();
-    if (t && !parts.includes(t)) parts.push(t);
-  }
+function buildCandidate(p: {
+  lat: unknown;
+  lng: unknown;
+  address: unknown;
+  placeId: unknown;
+  types: unknown;
+  components: Component[];
+}): GeoCandidate | null {
+  if (!finite(p.lat) || !finite(p.lng)) return null;
+  const address = typeof p.address === "string" && p.address.trim() ? p.address.trim() : null;
+  const types = Array.isArray(p.types) ? p.types : [];
+  const isRegion = types.some((t) => REGION_TYPES.has(t));
+  const country = p.components.find((c) => c.types.includes("country"));
+  const cityType = CITY_TYPES.find((t) => p.components.some((c) => c.types.includes(t)));
+  const city = cityType ? p.components.find((c) => c.types.includes(cityType))?.text || null : null;
   return {
-    name: parts.join(", "),
-    lat,
-    lng,
+    name: (isRegion ? address?.split(",")[0]?.trim() : address) ?? "",
+    lat: p.lat,
+    lng: p.lng,
     city,
-    country,
-    countryCode: p.countrycode ? p.countrycode.toLowerCase() : null,
+    country: country?.text || null,
+    countryCode: country?.short ? country.short.toLowerCase() : null,
+    placeId: typeof p.placeId === "string" && p.placeId ? p.placeId : null,
+    address,
   };
 }
 
-/**
- * As-you-type place search on Photon (photon.komoot.io), built for
- * autocomplete. Same contract as `searchPlacesWithStatus`: never throws;
- * "error" on network error, timeout, non-2xx or a body that is not a GeoJSON
- * FeatureCollection; "ok" with [] on no match. No fallback to Nominatim on
- * error — that would recreate the policy violation (ADR 0069).
- */
-export async function searchPlacesTypeahead(query: string, limit = 5): Promise<PlaceSearchOutcome> {
-  const trimmed = query.trim();
-  if (!trimmed) return { status: "ok", candidates: [] };
-
-  const url = new URL(PHOTON_URL);
-  url.searchParams.set("q", trimmed);
-  url.searchParams.set("limit", String(limit));
-  url.searchParams.set("lang", ACCEPT_LANGUAGE);
-
-  const data = await cachedFetchJson(url.toString(), { accept: isPhotonFeatureCollection, revalidate: false });
-  if (!isPhotonFeatureCollection(data)) return { status: "error" };
-  const candidates = data.features
-    .map(photonToCandidate)
-    .filter((c): c is GeoCandidate => c !== null);
-  return { status: "ok", candidates };
+async function geocode(params: Record<string, string>): Promise<Lookup<GeoCandidate>> {
+  const key = serverKey();
+  if (!key) return ERROR;
+  const url = new URL(GEOCODE_URL);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  url.searchParams.set("language", LANGUAGE);
+  url.searchParams.set("key", key);
+  const data = await fetchJson(url.toString());
+  if (!isRecord(data)) return ERROR;
+  if (data.status === "ZERO_RESULTS") return MISS;
+  if (data.status !== "OK" || !Array.isArray(data.results)) return ERROR;
+  const first = data.results[0];
+  if (!isRecord(first)) return MISS;
+  const location = isRecord(first.geometry) && isRecord(first.geometry.location) ? first.geometry.location : {};
+  return found(
+    buildCandidate({
+      lat: location.lat,
+      lng: location.lng,
+      address: first.formatted_address,
+      placeId: first.place_id,
+      types: first.types,
+      components: readComponents(first.address_components, "long_name", "short_name"),
+    }),
+  );
 }
 
-/**
- * Best-effort forward search. Returns up to `limit` candidates, or [] on any
- * failure OR empty result. Kept for callers that don't need error-vs-empty
- * (e.g. geocodePlaceDetailed, background stop/accommodation geocoding).
- */
-export async function searchPlaces(query: string, limit = 5): Promise<GeoCandidate[]> {
-  const outcome = await searchPlacesWithStatus(query, limit);
-  return outcome.status === "ok" ? outcome.candidates : [];
+export async function lookUpPlace(query: string, opts: { near?: LatLng } = {}): Promise<Lookup<GeoCandidate>> {
+  const address = query.trim();
+  if (!address) return MISS;
+  const params: Record<string, string> = { address };
+  if (opts.near) {
+    const { lat, lng } = opts.near;
+    params.bounds = `${lat - NEAR_BOUNDS_DEG},${lng - NEAR_BOUNDS_DEG}|${lat + NEAR_BOUNDS_DEG},${lng + NEAR_BOUNDS_DEG}`;
+  }
+  return geocode(params);
 }
 
-/**
- * Reverse-geocode a coordinate to a single named place with derived
- * city/country. Never throws; returns null on any failure.
- */
+export async function geocodePlaceDetailed(query: string, opts: { near?: LatLng } = {}): Promise<GeoCandidate | null> {
+  return candidateOf(await lookUpPlace(query, opts));
+}
+
 export async function reverseGeocode(lat: number, lng: number): Promise<GeoCandidate | null> {
-  const url = new URL(NOMINATIM_REVERSE_URL);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("lat", String(lat));
-  url.searchParams.set("lon", String(lng));
-  url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
+  return candidateOf(await geocode({ latlng: `${lat},${lng}` }));
+}
 
-  const data = await cachedFetchJson(url.toString());
-  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const result = data as NominatimDetailedResult;
-  if (!result.lat || !result.lon) return null;
-  return toCandidate(result);
+async function placeDetails(placeId: string, fieldMask: string, key: string): Promise<Record<string, unknown> | null> {
+  const url = new URL(`${PLACES_URL}/${encodeURIComponent(placeId)}`);
+  url.searchParams.set("languageCode", LANGUAGE);
+  const data = await fetchJson(url.toString(), {
+    headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": fieldMask },
+  });
+  return isRecord(data) && typeof data.id === "string" ? data : null;
+}
+
+async function findVenue(textQuery: string, near: LatLng | undefined, key: string): Promise<Lookup<GeoCandidate>> {
+  const body = near
+    ? { textQuery, locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: NEAR_BIAS_RADIUS_M } } }
+    : { textQuery };
+  const search = await fetchJson(`${PLACES_URL}:searchText`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id" },
+    body: JSON.stringify(body),
+  });
+  if (!isRecord(search)) return ERROR;
+  const first = Array.isArray(search.places) ? search.places[0] : null;
+  if (!isRecord(first) || typeof first.id !== "string") return MISS;
+  const place = await placeDetails(first.id, "id,location,formattedAddress,addressComponents", key);
+  if (!place) return ERROR;
+  const location = isRecord(place.location) ? place.location : {};
+  return found(
+    buildCandidate({
+      lat: location.latitude,
+      lng: location.longitude,
+      address: place.formattedAddress,
+      placeId: place.id,
+      types: [],
+      components: readComponents(place.addressComponents, "longText", "shortText"),
+    }),
+  );
+}
+
+// Only Google answering "no such address" (or no address to ask about) lets a venue through unchecked; a failed lookup is not that answer.
+export async function lookUpVenue(title: string, address: string, opts: { near?: LatLng } = {}): Promise<Lookup<VenueMatch>> {
+  const key = serverKey();
+  if (!key) return ERROR;
+  const textQuery = [title.trim(), address.trim()].filter(Boolean).join(", ");
+  if (!textQuery) return MISS;
+  const [venue, place] = await Promise.all([findVenue(textQuery, opts.near, key), lookUpPlace(address, opts)]);
+  if (venue.status === "error" || place.status === "error") return ERROR;
+  if (venue.status === "miss") return place.status === "ok" ? { status: "ok", candidate: { ...place.candidate, matched: "address" } } : MISS;
+  if (place.status === "miss" || haversineKm(venue.candidate, place.candidate) <= VENUE_GUARD_KM) {
+    return { status: "ok", candidate: { ...venue.candidate, matched: "venue" } };
+  }
+  return { status: "ok", candidate: { ...place.candidate, matched: "address" } };
+}
+
+export async function locateVenue(title: string, address: string, opts: { near?: LatLng } = {}): Promise<VenueMatch | null> {
+  return candidateOf(await lookUpVenue(title, address, opts));
+}
+
+// The field mask has no address, and the Maps URL requires a query, so the place ID serves as both.
+const mapsLink = (placeId: string): string =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeId)}&query_place_id=${encodeURIComponent(placeId)}`;
+
+export async function fetchVenueDetails(placeId: string): Promise<VenueDetails | null> {
+  const key = serverKey();
+  if (!key) return null;
+  const place = await placeDetails(placeId, "id,regularOpeningHours,websiteUri,businessStatus", key);
+  if (!place) return null;
+  const hours = isRecord(place.regularOpeningHours) ? place.regularOpeningHours : null;
+  const periods = hours ? parseGooglePeriods(hours.periods) : null;
+  return {
+    openingHours: openingHoursFromGoogle(periods, mapsLink(placeId)),
+    website: typeof place.websiteUri === "string" && place.websiteUri ? place.websiteUri : null,
+    businessStatus: typeof place.businessStatus === "string" && place.businessStatus ? place.businessStatus : null,
+  };
 }

@@ -143,3 +143,20 @@ it("carries the Try list, ticks and all, into the variant; none copies as null",
   expect(buildForkPlan({ ...source, items: [{ ...source.items[0], tryList: list }] }).items[0].data.tryList).toBe(list);
   expect(buildForkPlan(source).items[0].data.tryList).toBeNull();
 });
+
+it("carries every row's place ID into the variant; a missing one copies as null", () => {
+  const plan = buildForkPlan({
+    ...source,
+    stops: [{ ...source.stops[0], placeId: "rome-id" }],
+    transports: [{ ...source.transports[0], depPlaceId: "termini-id", arrPlaceId: "smn-id" }],
+    accommodations: [{ ...source.accommodations[0], placeId: "hotel-id" }],
+    items: [{ ...source.items[0], placeId: "colosseum-id", businessStatus: "OPERATIONAL" }],
+  });
+  expect(plan.stops[0].data.placeId).toBe("rome-id");
+  expect(plan.transports[0].data).toMatchObject({ depPlaceId: "termini-id", arrPlaceId: "smn-id" });
+  expect(plan.accommodations[0].data.placeId).toBe("hotel-id");
+  expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL" });
+  const bare = buildForkPlan(source);
+  expect(bare.stops[0].data.placeId).toBeNull();
+  expect(bare.items[0].data).toMatchObject({ placeId: null, businessStatus: null });
+});

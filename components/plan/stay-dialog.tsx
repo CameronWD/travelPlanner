@@ -102,7 +102,7 @@ function StayDetail({
           {a.address && (
             <p className="mt-1 flex min-w-0 items-center gap-1 text-sm text-foreground/80">
               <span className="truncate">{a.address}</span>
-              <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="text-foreground/80" />
+              <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="text-foreground/80" />
             </p>
           )}
         </div>

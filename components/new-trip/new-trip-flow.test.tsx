@@ -4,9 +4,10 @@ import { render, screen, within, waitFor, fireEvent } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 
-const { createTrip, findPlaces, push, toast, compressCoverSmall } = vi.hoisted(() => ({ createTrip: vi.fn(), findPlaces: vi.fn(), push: vi.fn(), toast: vi.fn(), compressCoverSmall: vi.fn() }));
+const { createTrip, push, toast, compressCoverSmall } = vi.hoisted(() => ({ createTrip: vi.fn(), push: vi.fn(), toast: vi.fn(), compressCoverSmall: vi.fn() }));
+const maps = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => maps.module);
 vi.mock("@/server/actions/trips", () => ({ createTrip: (...a: unknown[]) => createTrip(...a) }));
-vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }) }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: (o: unknown) => toast(o) }));
 vi.mock("@/lib/image-compress", () => ({ compressImage: async (f: File) => f, compressCoverSmall: (f: File) => compressCoverSmall(f) }));
@@ -27,14 +28,18 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-09-30T10:00:00Z"));
   createTrip.mockReset().mockResolvedValue({ success: true, tripId: "t1", href: "/trips/kyoto" });
-  findPlaces.mockReset().mockResolvedValue({ status: "ok", candidates: [] });
+  maps.reset();
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
   push.mockReset();
   toast.mockReset();
   compressCoverSmall.mockReset().mockResolvedValue(null);
   sessionStorage.clear();
   window.history.replaceState(null, "", "/trips/new");
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 
 describe("NewTripFlow — shell and step 1", () => {
   it("opens on Where to? with the name focused", async () => {
@@ -248,7 +253,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
 
   it("past mode: dates and a stop, then the Globe", async () => {
     createTrip.mockResolvedValue({ success: true, tripId: "t9", href: "/globe?added=t9" });
-    findPlaces.mockResolvedValue({ status: "ok", candidates: [{ name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" }] });
+    maps.places.predictions = [{ placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp", country: "Japan" }];
     flow({ past: true });
     await userEvent.type(nameInput(), "Kansai");
     await clickContinue();
@@ -260,12 +265,13 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await userEvent.type(screen.getByRole("combobox", { name: "Add a place" }), "Kyo");
     await screen.findAllByRole("option");
     await userEvent.keyboard("{Enter}");
+    await screen.findByRole("button", { name: "Remove Kyoto" });
     await clickContinue();
     await heading("Got a photo for it?");
     await userEvent.click(screen.getByRole("button", { name: /Add trip/ }));
     await waitFor(() =>
       expect(createTrip).toHaveBeenCalledWith(
-        { name: "Kansai", homeCurrency: "AUD", startDate: "2026-08-01", endDate: "2026-08-10", stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }] },
+        { name: "Kansai", homeCurrency: "AUD", startDate: "2026-08-01", endDate: "2026-08-10", stops: [{ name: "Kyoto", placeId: "ChIJKyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }] },
         null,
         null,
       ),
@@ -274,7 +280,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
   });
 
   it("the currency follows the home place", async () => {
-    findPlaces.mockResolvedValue({ status: "ok", candidates: [{ name: "Portland, Multnomah County, Oregon, United States", lat: 45.52, lng: -122.68, city: "Portland", country: "United States", countryCode: "us" }] });
+    maps.places.predictions = [{ placeId: "ChIJPortland", mainText: "Portland", secondaryText: "OR, USA", lat: 45.52, lng: -122.68, formattedAddress: "Portland, OR, USA", countryCode: "us", country: "United States" }];
     flow();
     await userEvent.type(nameInput(), "Kyoto");
     await clickContinue();
@@ -284,12 +290,16 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await userEvent.type(screen.getByRole("combobox", { name: "Leaving from" }), "Portl");
     await screen.findAllByRole("option");
     await userEvent.keyboard("{Enter}");
-    expect(screen.getByText(/Picked from Portland\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Picked from Portland\./)).toBeInTheDocument();
     await clickContinue();
     await heading("Got a photo for it?");
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     await waitFor(() =>
-      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ homeName: "Portland", homeCurrency: "USD", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us" }), null, null),
+      expect(createTrip).toHaveBeenCalledWith(
+        expect.objectContaining({ homeName: "Portland", homeCurrency: "USD", homePlaceId: "ChIJPortland", homeLat: 45.52, homeLng: -122.68, homeCountryCode: "us" }),
+        null,
+        null,
+      ),
     );
     // Let the submit transition finish before the test ends (and the tree unmounts):
     // an in-flight create left pending across tests hangs this vitest/happy-dom/React 19 setup.

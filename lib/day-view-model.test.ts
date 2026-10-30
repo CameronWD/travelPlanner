@@ -122,17 +122,17 @@ it("forecastOpensOn is 15 days before", () => expect(forecastOpensOn("2027-01-02
 
 describe("buildDayModel (card 3.M)", () => {
   const stop = (o: Partial<DayRows["stops"][number]> & { id: string; name: string; arriveDate: string; departDate: string; sortOrder: number }) => ({
-    country: "France", countryCode: "FR", timezone: "Europe/Paris", lat: 48.57, lng: 7.75, surprise: null, ...o,
+    country: "France", countryCode: "FR", timezone: "Europe/Paris", lat: 48.57, lng: 7.75, placeId: null, surprise: null, ...o,
   });
   const item = (o: Partial<DayRows["items"][number]> & { id: string; date: string }) => ({
     title: `Item ${o.id}`, category: "SIGHTSEEING", startTime: null, endTime: null, sortOrder: 0, stopId: "s-stras",
-    lat: null, lng: null, address: null, link: null, booking: null, bookingState: "NONE" as const, bookingStateSet: false,
+    lat: null, lng: null, placeId: null, address: null, link: null, booking: null, bookingState: "NONE" as const, bookingStateSet: false,
     bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null, ...o,
   });
   const SURPRISED = { plannerId: "u-pat", plannerName: "Pat", forIds: ["u-viv"], forNames: ["Viv"], youAreSurprised: true };
   const HOTEL = {
     id: "a-corbeau", stopId: "s-stras", name: "Hôtel Cour du Corbeau", address: "6 Rue des Couples", checkIn: "2026-12-10",
-    checkOut: "2026-12-13", checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: 48.5795, lng: 7.7498,
+    checkOut: "2026-12-13", checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: 48.5795, lng: 7.7498, placeId: null,
     bookingState: "BOOKED" as const, bookingStateSet: false, bookBy: null,
   };
   function rows(over: Partial<DayRows> = {}): DayRows {

@@ -13,20 +13,20 @@ beforeEach(() => {
   vi.clearAllMocks();
   findShareLink.mockResolvedValue(LINK);
   loadShareStops.mockResolvedValue([
-    { id: "s1", name: "London", country: "England", lat: 51.5, lng: -0.1, timezone: "Europe/London", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
-    { id: "s2", name: "Paris", country: "France", lat: 48.9, lng: 2.35, timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-15", sortOrder: 1 },
+    { id: "s1", name: "London", country: "England", placeId: "ChIJLondon", lat: 51.5, lng: -0.1, timezone: "Europe/London", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+    { id: "s2", name: "Paris", country: "France", placeId: null, lat: 48.9, lng: 2.35, timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-15", sortOrder: 1 },
   ]);
 });
 
 describe("routeStopsFromShare (CONTEXT.md Route copy)", () => {
-  it("copies the public stops as name, country, coords and nights — nothing else", async () => {
+  it("copies the public stops as name, country, coords with their place ID, and nights — nothing else", async () => {
     const r = await routeStopsFromShare("tok");
     expect(r).toEqual({
       linkId: "link-1",
       tripName: "Christmas in Europe",
       stops: [
-        { name: "London", country: "England", lat: 51.5, lng: -0.1, nights: 5 },
-        { name: "Paris", country: "France", lat: 48.9, lng: 2.35, nights: 5 },
+        { name: "London", country: "England", placeId: "ChIJLondon", lat: 51.5, lng: -0.1, nights: 5 },
+        { name: "Paris", country: "France", placeId: null, lat: 48.9, lng: 2.35, nights: 5 },
       ],
     });
     expect(findShareLink).toHaveBeenCalledWith("tok");

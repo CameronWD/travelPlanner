@@ -14,6 +14,7 @@
     "test": "TZ=UTC vitest run",
     "test:watch": "TZ=UTC vitest",
     "test:integration": "TZ=UTC vitest run --config vitest.integration.config.ts",
+    "backfill:places": "tsx --conditions=react-server scripts/backfill-google-places.ts",
     "sweep:blobs": "tsx --conditions=react-server scripts/sweep-deleted-blobs.ts",
     "audit:contrast": "tsx scripts/contrast-audit.ts",
     "audit:layout": "tsx scripts/layout-audit.ts",

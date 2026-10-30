@@ -9,20 +9,30 @@ export interface MapLinkParams {
   lng?: number | null;
   address?: string | null;
   label?: string | null;
+  placeId?: string | null;
 }
 
 /**
  * Build a Google Maps search URL.
  *
- * Preference order:
- *   1. lat + lng → `?query=<lat>,<lng>`
- *   2. address   → `?query=<encoded address>`
- *   3. label     → `?query=<encoded label>`
+ * Without a placeId, `query` prefers:
+ *   1. lat + lng → `<lat>,<lng>`
+ *   2. address   → `<encoded address>`
+ *   3. label     → `<encoded label>`
  *
- * Returns null if none of the above are available.
+ * With a placeId, `query` (required by Maps URLs, shown only as a fallback)
+ * prefers label → address → lat,lng, and `query_place_id` opens the venue.
+ *
+ * Returns null if no query text is available.
  */
-export function mapsUrl({ lat, lng, address, label }: MapLinkParams): string | null {
+export function mapsUrl({ lat, lng, address, label, placeId }: MapLinkParams): string | null {
   const base = "https://www.google.com/maps/search/?api=1&query=";
+
+  if (placeId) {
+    const query = label || address || (lat != null && lng != null ? `${lat},${lng}` : null);
+    if (!query) return null;
+    return `${base}${encodeURIComponent(query)}&query_place_id=${encodeURIComponent(placeId)}`;
+  }
 
   if (lat != null && lng != null) {
     return `${base}${encodeURIComponent(`${lat},${lng}`)}`;
@@ -71,6 +81,7 @@ export interface DirectionsPoint {
   lng?: number | null;
   address?: string | null;
   label?: string | null;
+  placeId?: string | null;
 }
 
 /** A point renders as "lat,lng" when coords exist, else its address/label text. Null if neither. */
@@ -85,13 +96,20 @@ function pointToken(p: DirectionsPoint): string | null {
  * if fewer than 2 points resolve to a usable token.
  */
 export function googleDirectionsUrl(points: DirectionsPoint[]): string | null {
-  const tokens = points.map(pointToken).filter((t): t is string => t != null);
-  if (tokens.length < 2) return null;
+  const usable = points.map((p) => ({ token: pointToken(p), placeId: p.placeId ?? "" })).filter((p) => p.token != null);
+  if (usable.length < 2) return null;
+  const tokens = usable.map((p) => p.token as string);
   const origin = tokens[0];
   const destination = tokens[tokens.length - 1];
   const waypoints = tokens.slice(1, -1);
   const params = new URLSearchParams({ api: "1", origin, destination });
-  if (waypoints.length) params.set("waypoints", waypoints.join("|"));
+  if (usable[0].placeId) params.set("origin_place_id", usable[0].placeId);
+  if (usable[usable.length - 1].placeId) params.set("destination_place_id", usable[usable.length - 1].placeId);
+  if (waypoints.length) {
+    params.set("waypoints", waypoints.join("|"));
+    const ids = usable.slice(1, -1).map((p) => p.placeId);
+    if (ids.every(Boolean)) params.set("waypoint_place_ids", ids.join("|"));
+  }
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 

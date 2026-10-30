@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -7,6 +7,9 @@ vi.mock("@/server/actions/items", () => ({
   updateItem: vi.fn().mockResolvedValue({ success: true }),
   deleteItem: vi.fn().mockResolvedValue({ success: true }),
 }));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
@@ -29,6 +32,7 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => ({
 }));
 import { toast } from "@/components/ui/use-toast";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
+import { venueDetailsForPick } from "@/server/actions/venue-details";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
 import { deleteAttachment } from "@/server/actions/attachments";
 
@@ -1745,5 +1749,160 @@ describe("Try list (R6)", () => {
     await user.type(screen.getByLabelText("New thing to try"), "One more{Enter}");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(await screen.findByText("A Try list holds up to 30 things")).toBeInTheDocument();
+  });
+});
+
+
+describe("ItemFormDialog address search", () => {
+  const ICHIRAN = { placeId: "ChIJIchiran", mainText: "Ichiran Shibuya", secondaryText: "Tokyo", lat: 35.66, lng: 139.7, formattedAddress: "1-22-7 Jinnan, Shibuya, Tokyo", countryCode: "jp", country: "Japan", types: ["restaurant", "food", "point_of_interest", "establishment"] };
+  const HOURS = { week: { mon: [["11:00", "22:00"]] as [string, string][] }, seasons: [], closed: [] };
+  const address = () => screen.getByRole("combobox", { name: "Address" });
+  const link = () => screen.getByLabelText("Link");
+
+  async function pickIchiran() {
+    await userEvent.type(address(), "Ichi");
+    await screen.findByRole("option", { name: /Ichiran/ });
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(address()).toHaveValue("1-22-7 Jinnan, Shibuya, Tokyo"));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+    mock.places.predictions = [ICHIRAN];
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+    vi.mocked(venueDetailsForPick).mockResolvedValue(null);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("picking a venue fills address and sends placeId, lat, lng", async () => {
+    render(<ItemFormDialog {...baseProps} />);
+    await userEvent.type(screen.getByLabelText(/title/i), "Ramen");
+    await pickIchiran();
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ address: "1-22-7 Jinnan, Shibuya, Tokyo", placeId: "ChIJIchiran", lat: 35.66, lng: 139.7, countryCode: "jp" }),
+      undefined,
+    );
+  });
+
+  it("a venue pick fills empty opening hours and an empty link from venueDetailsForPick", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: HOURS, website: "https://ichiran.test", businessStatus: "OPERATIONAL" });
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await waitFor(() => expect(link()).toHaveValue("https://ichiran.test"));
+    expect(venueDetailsForPick).toHaveBeenCalledWith("trip-1", "ChIJIchiran");
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ link: "https://ichiran.test", businessStatus: "OPERATIONAL", openingHours: HOURS }),
+      undefined,
+    );
+  });
+
+  it.each([
+    ["a city", { placeId: "ChIJTokyo", mainText: "Tokyo", secondaryText: "Japan", lat: 35.68, lng: 139.76, formattedAddress: "Tokyo, Japan", countryCode: "jp", country: "Japan", types: ["locality", "political"] }],
+    ["a street address", { placeId: "ChIJStreet", mainText: "1-22-7 Jinnan", secondaryText: "Shibuya, Tokyo", lat: 35.66, lng: 139.7, formattedAddress: "1-22-7 Jinnan, Shibuya, Tokyo", countryCode: "jp", country: "Japan", types: ["street_address"] }],
+  ])("picking %s saves its place without asking for venue details", async (_label, place) => {
+    mock.places.predictions = [place];
+    render(<ItemFormDialog {...baseProps} />);
+    await userEvent.type(address(), place.mainText.slice(0, 4));
+    await screen.findByRole("option", { name: new RegExp(place.mainText) });
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(address()).toHaveValue(place.formattedAddress));
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1]).toMatchObject({ placeId: place.placeId, lat: place.lat, lng: place.lng });
+    expect(venueDetailsForPick).not.toHaveBeenCalled();
+  });
+
+  it("when venueDetailsForPick answers null the pick still saves its place and fills nothing", async () => {
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    const input = vi.mocked(createItem).mock.calls[0][1];
+    expect(input).toMatchObject({ placeId: "ChIJIchiran", lat: 35.66, lng: 139.7 });
+    expect(input.link).toBeUndefined();
+    expect(input.openingHours).toBeUndefined();
+    expect(input.businessStatus).toBeUndefined();
+  });
+
+  it("a venue pick leaves hours and link the Traveller already set", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: HOURS, website: "https://ichiran.test", businessStatus: null });
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, link: "https://mine.test", openingHours: { week: { tue: [["09:00", "10:00"]] }, seasons: [], closed: [] } }} />);
+    await pickIchiran();
+    await waitFor(() => expect(venueDetailsForPick).toHaveBeenCalled());
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    const patch = vi.mocked(updateItem).mock.calls[0][1];
+    expect(patch.link).toBe("https://mine.test");
+    expect(patch.openingHours).toBeUndefined();
+  });
+
+  it("a pick sends no businessStatus when venueDetailsForPick answers null for it", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: null, website: null, businessStatus: null });
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await waitFor(() => expect(venueDetailsForPick).toHaveBeenCalled());
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1].businessStatus).toBeUndefined();
+  });
+
+  it("a pick sends the businessStatus venueDetailsForPick answered", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: null, website: null, businessStatus: "CLOSED_TEMPORARILY" });
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await waitFor(() => expect(venueDetailsForPick).toHaveBeenCalled());
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1].businessStatus).toBe("CLOSED_TEMPORARILY");
+  });
+
+  it("the owning Stop's coordinates bias the suggestions", async () => {
+    render(<ItemFormDialog {...baseProps} stops={[{ id: "s1", name: "Tokyo", lat: 35.68, lng: 139.76 }]} defaultStopId="s1" />);
+    await userEvent.type(address(), "Ichi");
+    await screen.findByRole("option", { name: /Ichiran/ });
+    expect(mock.places.requests.at(-1)?.locationBias).toMatchObject({ center: { lat: 35.68, lng: 139.76 } });
+  });
+
+  it("typing after a pick drops the place and sends the text only", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: HOURS, website: "https://ichiran.test", businessStatus: "OPERATIONAL" });
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await waitFor(() => expect(link()).toHaveValue("https://ichiran.test"));
+    await userEvent.type(address(), "x");
+    await waitFor(() => expect(link()).toHaveValue(""));
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    const input = vi.mocked(createItem).mock.calls[0][1];
+    expect(input.address).toBe("1-22-7 Jinnan, Shibuya, Tokyox");
+    for (const k of ["placeId", "lat", "lng", "countryCode", "businessStatus", "openingHours", "link"] as const) expect(input[k]).toBeUndefined();
+  });
+
+  it("typing after a pick keeps a link the Traveller changed since", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: null, website: "https://ichiran.test", businessStatus: null });
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await waitFor(() => expect(link()).toHaveValue("https://ichiran.test"));
+    await userEvent.type(link(), "/menu");
+    await userEvent.type(address(), "x");
+    expect(link()).toHaveValue("https://ichiran.test/menu");
+  });
+
+  it("an unchanged edit does not resend the row's own place", async () => {
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, address: "Old St" }} />);
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    const patch = vi.mocked(updateItem).mock.calls[0][1];
+    expect(patch.address).toBe("Old St");
+    expect(patch.placeId).toBeUndefined();
+    expect(patch.lat).toBeUndefined();
+  });
+
+  it("keyless, the address is a plain field and saves as text", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    render(<ItemFormDialog {...baseProps} />);
+    expect(screen.queryByRole("combobox", { name: "Address" })).toBeNull();
+    await userEvent.type(screen.getByRole("textbox", { name: "Address" }), "12 Rue de la Paix");
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    const input = vi.mocked(createItem).mock.calls[0][1];
+    expect(input.address).toBe("12 Rue de la Paix");
+    expect(input.placeId).toBeUndefined();
   });
 });

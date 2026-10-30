@@ -2,7 +2,7 @@ import { z } from "zod";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
-import { hhmm, isoDate } from "@/lib/validations/primitives";
+import { hhmm, isoDate, placeId } from "@/lib/validations/primitives";
 import { bookBySchema } from "@/lib/validations/planning";
 
 /**
@@ -32,8 +32,10 @@ export const accommodationSchema = z
     /** The day it should be booked by; only while To book (lib/booking-state-patch.ts refuses it otherwise). */
     bookBy: bookBySchema.optional(),
     notes: z.string().trim().optional(),
-    lat: z.number().optional(),
-    lng: z.number().optional(),
+    /** A picked Google place; lat/lng only come with it (refined below). */
+    placeId: placeId.optional(),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
 
     // --- Inline cost fields (all optional) ---
 
@@ -72,6 +74,10 @@ export const accommodationSchema = z
   .refine((data) => data.checkOut >= data.checkIn, {
     message: "Check-out must be on or after check-in",
     path: ["checkOut"],
+  })
+  .refine((data) => data.placeId != null || (data.lat === undefined && data.lng === undefined), {
+    message: "Coordinates only come with a picked place",
+    path: ["lat"],
   })
   // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
   // === undefined) because paidMinor is nullable, and this must catch both:

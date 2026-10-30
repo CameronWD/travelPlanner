@@ -2,11 +2,12 @@
 
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
+import { requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
-import { geocodePlace, searchPlacesWithStatus, type PlaceSearchOutcome } from "@/lib/geocode";
+import { geocodePlaceDetailed } from "@/lib/geocode";
+import { pickedPlace, placeForSave, type SavedPlace } from "@/lib/place-save";
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
@@ -69,6 +70,36 @@ async function validateStopBelongsToTrip(
     }
   }
   return null;
+}
+
+type EndsBefore = {
+  depPlace: string | null; depLat: number | null; depLng: number | null; depPlaceId: string | null;
+  arrPlace: string | null; arrLat: number | null; arrLng: number | null; arrPlaceId: string | null;
+};
+
+async function endPlaces(
+  data: Pick<TransportInput, "depPlaceId" | "depLat" | "depLng" | "arrPlaceId" | "arrLat" | "arrLng">,
+  text: { depPlace: string | null; arrPlace: string | null },
+  before?: EndsBefore,
+) {
+  const end = (place: string | null, pick: SavedPlace | null, held: { text: string | null; place: SavedPlace } | null) =>
+    placeForSave({ text: place, pick: place ? pick : null, before: held, lookUp: geocodePlaceDetailed });
+  const [dep, arr] = await Promise.all([
+    end(
+      text.depPlace,
+      pickedPlace({ placeId: data.depPlaceId, lat: data.depLat, lng: data.depLng }),
+      before ? { text: before.depPlace, place: { lat: before.depLat, lng: before.depLng, countryCode: null, placeId: before.depPlaceId } } : null,
+    ),
+    end(
+      text.arrPlace,
+      pickedPlace({ placeId: data.arrPlaceId, lat: data.arrLat, lng: data.arrLng }),
+      before ? { text: before.arrPlace, place: { lat: before.arrLat, lng: before.arrLng, countryCode: null, placeId: before.arrPlaceId } } : null,
+    ),
+  ]);
+  return {
+    depLat: dep.place.lat, depLng: dep.place.lng, depPlaceId: dep.place.placeId,
+    arrLat: arr.place.lat, arrLng: arr.place.lng, arrPlaceId: arr.place.placeId,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -141,23 +172,8 @@ export async function createTransport(
   });
   const sortOrder = (maxTransport?.sortOrder ?? -1) + 1;
 
-  // Best-effort geocode for departure and arrival places.
-  // Home endpoints are not geocoded — coords resolve from the trip at read time.
-  let depLat: number | null = null;
-  let depLng: number | null = null;
-  if (depPlace) {
-    const coords = await geocodePlace(depPlace);
-    depLat = coords?.lat ?? null;
-    depLng = coords?.lng ?? null;
-  }
-
-  let arrLat: number | null = null;
-  let arrLng: number | null = null;
-  if (arrPlace) {
-    const coords = await geocodePlace(arrPlace);
-    arrLat = coords?.lat ?? null;
-    arrLng = coords?.lng ?? null;
-  }
+  // Home endpoints are not looked up — coords resolve from the trip at read time.
+  const ends = await endPlaces(data, { depPlace, arrPlace });
 
   const created = await db.transport.create({
     data: {
@@ -176,10 +192,7 @@ export async function createTransport(
       reference: data.reference ?? null,
       notes: data.notes ?? null,
       sortOrder,
-      depLat,
-      depLng,
-      arrLat,
-      arrLng,
+      ...ends,
       ...booking,
     },
   });
@@ -255,6 +268,9 @@ export async function updateTransport(
     ...inlineCost,
     bookingState: patch.bookingState ?? undefined,
     bookBy: patch.bookBy ?? undefined,
+    // A picked end (lib/place-save.ts) isn't an endpoint rule either; nothing is merged from the row.
+    depPlaceId: patch.depPlaceId ?? undefined, depLat: patch.depLat ?? undefined, depLng: patch.depLng ?? undefined,
+    arrPlaceId: patch.arrPlaceId ?? undefined, arrLat: patch.arrLat ?? undefined, arrLng: patch.arrLng ?? undefined,
   });
   if (!parsed.success) {
     return validationResult(parsed.error);
@@ -309,23 +325,8 @@ export async function updateTransport(
   const depAtInstant = wallTimeToInstant(data.depAt, depTz);
   const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
 
-  // Best-effort geocode for departure and arrival places.
-  // Home endpoints are not geocoded — coords resolve from the trip at read time.
-  let depLat: number | null = null;
-  let depLng: number | null = null;
-  if (depPlace) {
-    const coords = await geocodePlace(depPlace);
-    depLat = coords?.lat ?? null;
-    depLng = coords?.lng ?? null;
-  }
-
-  let arrLat: number | null = null;
-  let arrLng: number | null = null;
-  if (arrPlace) {
-    const coords = await geocodePlace(arrPlace);
-    arrLat = coords?.lat ?? null;
-    arrLng = coords?.lng ?? null;
-  }
+  // Home endpoints are not looked up — coords resolve from the trip at read time.
+  const ends = await endPlaces(data, { depPlace, arrPlace }, before);
 
   await auditedUpdate("TRANSPORT", db.transport, transportId, {
     mode: data.mode,
@@ -340,10 +341,7 @@ export async function updateTransport(
     arrAt: arrAtInstant,
     reference: data.reference ?? null,
     notes: data.notes ?? null,
-    depLat,
-    depLng,
-    arrLat,
-    arrLng,
+    ...ends,
     ...booking,
   }, transport.forkId ?? null, { before });
   // F4: re-dating (or re-homing) a leg can push the soft end to the day it lands home.
@@ -412,19 +410,6 @@ export async function updateTransport(
 
   revalidateTrip(transport.tripId, "plan", "money", ...tripWindowScopes(grownTo));
   return { success: true };
-}
-
-/**
- * Search for geocoded place candidates scoped to a trip the current user can access.
- */
-export async function searchPlacesAction(
-  tripId: string,
-  query: string,
-): Promise<PlaceSearchOutcome> {
-  await requireTripAccess(tripId);
-  const q = query.trim();
-  if (q === "") return { status: "ok", candidates: [] };
-  return searchPlacesWithStatus(q);
 }
 
 /**

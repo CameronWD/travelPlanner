@@ -22,7 +22,7 @@ export const metadata: Metadata = {
  *   - prisma/schema.prisma (PushSubscription, Activity, FeedbackNote,
  *     Account, Session field lists)
  *   - lib/device-label.ts (device label is derived from the user agent)
- *   - lib/push.ts, lib/geocode.ts (Nominatim and Photon, ADR 0069), lib/map/google-config.ts, components/map/google-map-frame.tsx (Google Maps), lib/storage.ts,
+ *   - lib/push.ts, lib/geocode.ts (Google Places and Geocoding, ADR 0076), lib/map/google-config.ts, components/map/google-map-frame.tsx (Google Maps), lib/storage.ts,
  *     lib/weather.ts, lib/money/fx.ts (outbound third parties)
  *   - components/analytics.tsx + app/layout.tsx (Vercel Web Analytics and Speed Insights — what
  *     it redacts and what it deliberately keeps)
@@ -208,10 +208,11 @@ export default function PrivacyPage() {
           </li>
           <li>
             <span className="font-bold">
-              OpenStreetMap (Nominatim) and Photon (komoot)
+              Google Places and Geocoding
             </span>
-            : turn place names you type into map coordinates (Photon for
-            as-you-type search, Nominatim when a place is saved).
+            : turn place names and addresses you type into places on the
+            map, and fill a venue&rsquo;s opening hours and website when you
+            pick it.
           </li>
           <li>
             <span className="font-bold">Google Maps</span>: draws the

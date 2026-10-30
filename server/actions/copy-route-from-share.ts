@@ -7,6 +7,7 @@ import { shareStopNights } from "@/lib/share/view";
 export interface SharedRouteStop {
   name: string;
   country: string | null;
+  placeId: string | null;
   lat: number | null;
   lng: number | null;
   nights: number;
@@ -30,6 +31,7 @@ export async function routeStopsFromShare(
     stops: stops.map((s) => ({
       name: s.name,
       country: s.country,
+      placeId: s.placeId,
       lat: s.lat,
       lng: s.lng,
       nights: shareStopNights(s),

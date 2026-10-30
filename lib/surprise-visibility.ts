@@ -30,6 +30,8 @@ export interface PlaceholderItem {
   notes: null;
   lat: null;
   lng: null;
+  placeId: null;
+  businessStatus: null;
   countryCode: null;
   hiddenFromShares: boolean; // the real Item's flag, so a Share link can drop the slot too
   sortOrder: number;
@@ -186,6 +188,8 @@ export async function loadSurpriseVisibility(
       notes: null,
       lat: null,
       lng: null,
+      placeId: null,
+      businessStatus: null,
       countryCode: null,
       hiddenFromShares: i.hiddenFromShares,
       sortOrder: i.sortOrder,

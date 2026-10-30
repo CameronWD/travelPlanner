@@ -255,7 +255,7 @@ export function ItemCard({
           {item.address && (
             <span className="flex items-center gap-1">
               <span {...highlightAttrs(highlight, "address", cn(!expanded && "truncate max-w-[18ch]"))}>{item.address}</span>
-              <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground" />
+              <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} placeId={item.placeId} className="text-muted-foreground" />
             </span>
           )}
           {safeWebHref(item.link) && (

@@ -15,11 +15,11 @@ import { isoDate } from "@/lib/validations/primitives";
 
 /** Shared by plan-day and check-day (spec 2026-10-11-mcp-read-pass Part E). */
 const LOGISTICS_CHECK =
-  "For each stop on the day, in order: (1) Address: confirm it resolves with search_places and name the place it matched. " +
+  "For each stop on the day, in order: (1) Address: look the venue up on the web and give its full street address, so Teepee places the pin on the venue. " +
   "(2) Getting there: from the previous place, give the options that apply (walk, metro or train, bus or tram, car or taxi) with a rough time for each, recommend one, and check the gap allows for it. " +
   "(3) Opening hours: start from the thing's openingHours (get_item or get_trip_plan) when Teepee has them, then check them for that date and weekday, including seasonal and holiday closures, and whether booking is needed. Save hours you have confirmed with set_opening_hours, giving the page as source. " +
   "(4) Fixed times: check the day's Transport (local times from get_trip_plan), check-out and check-in fit, with a buffer for airports and stations. " +
-  "Mark each point verified (say how: web search, search_places) or unverified. Teepee holds no routing data and only the opening hours someone has saved, so flag anything you can't check with your own tools, never guess.";
+  "Mark each point verified (say how: web search) or unverified. Teepee holds no routing data and only the opening hours someone has saved, so flag anything you can't check with your own tools, never guess.";
 
 export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
@@ -81,7 +81,7 @@ export function registerPrompts(server: McpServer): void {
               "Draft a timed itinerary that fits around the Transport and check-in/out times. Then run this logistics check on the draft and fix what fails: " +
               LOGISTICS_CHECK +
               " Propose the itinerary with the getting-there options between stops, the check results, and a suggested Day title. Change nothing until I agree. " +
-              "Once I agree, build it as real things to do: place Wishlist ideas with schedule_thing_to_do; add new things with add_thing_to_do, each with the date, stopId, startTime, endTime and address; set the title with set_day_title. Never put the schedule in a note. Leave anything already on the day alone unless I say to move or delete it. " +
+              "Once I agree, build it as real things to do: place Wishlist ideas with schedule_thing_to_do; add new things with add_thing_to_do, each with the date, stopId, startTime, endTime and address (a full street address); set the title with set_day_title. Never put the schedule in a note. Leave anything already on the day alone unless I say to move or delete it. " +
               CHECK_FACTS +
               " " +
               WRITING_STYLE,

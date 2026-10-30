@@ -1,12 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
-  searchPlacesAction: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
 }));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
   deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
@@ -78,30 +79,9 @@ async function openComboboxAndTypePlace(
   labelPrefix: string,
   placeName: string,
 ) {
-  // Open the popover
-  const trigger = screen.getByRole("button", { name: new RegExp(labelPrefix, "i") });
-  await user.click(trigger);
-  // The search input inside the popover
-  const searchInput = await screen.findByPlaceholderText(/type to filter or search/i);
-  await user.type(searchInput, placeName);
-  // Use the "place" option that's typed in: click "Use …" button which appears
-  // when user types but no candidates (handled via the search candidates list).
-  // In our combobox, we need to search first then select a candidate.
-  // Mock returns empty candidates, so we rely on the "Use typed text" approach.
-  // Actually, the combobox doesn't have a "use typed text" button by default.
-  // We need to trigger the search and have the mock return a candidate.
-  // Re-mock searchPlacesAction to return a candidate for this search.
-  const { searchPlacesAction } = await import("@/server/actions/transport");
-  (searchPlacesAction as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-    status: "ok",
-    candidates: [{ name: placeName, lat: 0, lon: 0 }],
-  });
-  // Click the search button
-  const searchBtn = screen.getByRole("button", { name: new RegExp(`search.*${placeName}`, "i") });
-  await user.click(searchBtn);
-  // Click the candidate result
-  const candidate = await screen.findByRole("button", { name: placeName });
-  await user.click(candidate);
+  await user.click(screen.getByRole("button", { name: new RegExp(labelPrefix, "i") }));
+  await user.type(await screen.findByPlaceholderText(/type to filter or search/i), placeName);
+  await user.click(screen.getByRole("button", { name: new RegExp(`use .${placeName}. as a place`, "i") }));
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +89,10 @@ async function openComboboxAndTypePlace(
 // ---------------------------------------------------------------------------
 
 describe("TransportFormDialog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+  });
 
   it("keeps Leaves and Arrives paired in the same grid, in create mode", () => {
     render(<TransportFormDialog {...baseProps} />);
@@ -1964,5 +1947,91 @@ describe("TransportFormDialog: Booking state (spec 2026-10-17 R2: a tentative le
       existingTransport.id,
       expect.objectContaining({ reference: "ICE 512", bookingState: "TO_BOOK", bookBy: "2027-05-01" }),
     );
+  });
+});
+
+describe("TransportFormDialog: places on the ends", () => {
+  const CDG = { placeId: "ChIJCDG", mainText: "Paris Charles de Gaulle Airport", secondaryText: "Roissy-en-France, France", lat: 49.0097, lng: 2.5479, countryCode: "fr", country: "France" };
+  const GDN = { placeId: "ChIJGDN", mainText: "Gare du Nord", secondaryText: "Paris, France", lat: 48.8809, lng: 2.3553, countryCode: "fr", country: "France" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function pickEndPlace(user: ReturnType<typeof userEvent.setup>, prefix: string, p: typeof CDG) {
+    mock.places.predictions = [p];
+    await user.click(screen.getByRole("button", { name: new RegExp(prefix, "i") }));
+    await user.type(await screen.findByPlaceholderText(/type to filter or search/i), p.mainText.slice(0, 5));
+    await user.click(await screen.findByRole("button", { name: new RegExp(p.secondaryText) }));
+  }
+
+  it("picking a place end sends depPlaceId and coordinates", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    await pickEndPlace(user, "^From:", CDG);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ depPlace: "Paris Charles de Gaulle Airport", depPlaceId: "ChIJCDG", depLat: 49.0097, depLng: 2.5479 }),
+      undefined,
+    );
+  });
+
+  it("a typed place end sends the name only", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    await openComboboxAndTypePlace(user, "^To:", "CDG Terminal 2");
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    const input = vi.mocked(createTransport).mock.calls[0][1];
+    expect(input).toMatchObject({ arrPlace: "CDG Terminal 2" });
+    expect(input).not.toHaveProperty("arrPlaceId");
+    expect(input).not.toHaveProperty("arrLat");
+  });
+
+  it("a picked departure point sends depPlaceId", async () => {
+    mock.places.predictions = [GDN];
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    await openComboboxAndSelectStop(user, "^From:", "London");
+    const point = screen.getByRole("combobox", { name: "Departure point" });
+    await user.type(point, "Gare");
+    await screen.findByRole("option", { name: /Gare du Nord/ });
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(point).toHaveValue("Gare du Nord"));
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ fromStopId: "stop-a", depPlace: "Gare du Nord", depPlaceId: "ChIJGDN", depLat: 48.8809, depLng: 2.3553 }),
+      undefined,
+    );
+  });
+
+  it("editing the departure point after a pick drops the pick", async () => {
+    mock.places.predictions = [GDN];
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    await openComboboxAndSelectStop(user, "^From:", "London");
+    const point = screen.getByRole("combobox", { name: "Departure point" });
+    await user.type(point, "Gare");
+    await screen.findByRole("option", { name: /Gare du Nord/ });
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(point).toHaveValue("Gare du Nord"));
+    await user.type(point, " East");
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    const input = vi.mocked(createTransport).mock.calls[0][1];
+    expect(input).toMatchObject({ depPlace: "Gare du Nord East" });
+    expect(input).not.toHaveProperty("depPlaceId");
+  });
+
+  it("an unchanged edit never resends the row's own place", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} />);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    const patch = vi.mocked(updateTransport).mock.calls[0][1];
+    expect(patch).not.toHaveProperty("depPlaceId");
+    expect(patch).not.toHaveProperty("arrPlaceId");
   });
 });

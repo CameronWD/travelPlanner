@@ -77,7 +77,7 @@ function StayBlock({
       {a.address && (
         <p className="flex min-w-0 items-center gap-1">
           <span className="truncate">{a.address}</span>
-          <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="relative z-10 text-foreground/80" />
+          <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="relative z-10 text-foreground/80" />
         </p>
       )}
       {a.confirmation && (

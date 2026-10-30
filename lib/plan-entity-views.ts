@@ -39,6 +39,7 @@ export interface ItemCardItem {
   stopName?: string | null; // resolved from stop relation
   lat?: number | null;
   lng?: number | null;
+  placeId?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
   /** CONTEXT.md "Item photo" (spec §I) — `lib/item-photo.ts`'s `itemPhotoUrl`, resolved by the loader. Null/absent = no photo. */
@@ -99,6 +100,7 @@ export interface AccommodationCardAccommodation {
   notes?: string | null;
   lat?: number | null;
   lng?: number | null;
+  placeId?: string | null;
 }
 
 /** The Item dialog's Stop choice (components/trip/item-form-dialog.tsx). Not the Transport dialog's same-named type. */
@@ -107,6 +109,9 @@ export interface StopOption {
   name: string;
   /** Stop's arrive date (YYYY-MM-DD) — the scheduled-mode date default. Null/absent for a rough Stop. */
   arriveDate?: string | null;
+  /** The Stop's point, when known — biases venue suggestions toward it. */
+  lat?: number | null;
+  lng?: number | null;
 }
 
 /** Everything the three edit dialogs need, built once by the day page and looked up by entity id. */

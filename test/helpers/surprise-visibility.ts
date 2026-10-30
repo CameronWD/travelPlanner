@@ -41,6 +41,8 @@ export function placeholderItem(o: Partial<PlaceholderItem> & { id: string }): P
     notes: null,
     lat: null,
     lng: null,
+    placeId: null,
+    businessStatus: null,
     countryCode: null,
     hiddenFromShares: false,
     sortOrder: 0,

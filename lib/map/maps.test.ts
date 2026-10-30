@@ -240,3 +240,52 @@ describe("appleDirectionsUrl", () => {
     expect(parsed.searchParams.get("daddr")).toBe("Big Ben");
   });
 });
+
+describe("place IDs", () => {
+  it("mapsUrl adds query_place_id when a placeId is given", () => {
+    const url = mapsUrl({ lat: 35.66, lng: 139.7, label: "Ichiran Shibuya", address: "1-22-7 Jinnan", placeId: "ChIJabc" })!;
+    const q = new URL(url).searchParams;
+    expect(q.get("query")).toBe("Ichiran Shibuya");
+    expect(q.get("query_place_id")).toBe("ChIJabc");
+  });
+
+  it("mapsUrl with a placeId falls back to address then coordinates for the required query", () => {
+    expect(new URL(mapsUrl({ address: "1 Main St", placeId: "p" })!).searchParams.get("query")).toBe("1 Main St");
+    expect(new URL(mapsUrl({ lat: 1, lng: 2, placeId: "p" })!).searchParams.get("query")).toBe("1,2");
+  });
+
+  it("mapsUrl ignores a placeId when there is nothing to query", () => {
+    expect(mapsUrl({ placeId: "p" })).toBeNull();
+  });
+
+  it("mapsUrl is unchanged without a placeId", () => {
+    expect(mapsUrl({ lat: 1, lng: 2, placeId: null })).toBe("https://www.google.com/maps/search/?api=1&query=1%2C2");
+  });
+
+  it("googleDirectionsUrl adds origin/destination/waypoint place ids aligned with their points", () => {
+    const url = googleDirectionsUrl([
+      { lat: 1, lng: 1, placeId: "A" },
+      { lat: 2, lng: 2, placeId: "B" },
+      { lat: 3, lng: 3 },
+      { lat: 4, lng: 4, placeId: "D" },
+    ])!;
+    const q = new URL(url).searchParams;
+    expect(q.get("origin_place_id")).toBe("A");
+    expect(q.get("destination_place_id")).toBe("D");
+    expect(q.get("waypoints")).toBe("2,2|3,3");
+    expect(q.has("waypoint_place_ids")).toBe(false);
+  });
+
+  it("googleDirectionsUrl emits waypoint_place_ids when every waypoint has one", () => {
+    const q = new URL(googleDirectionsUrl([
+      { lat: 1, lng: 1 }, { lat: 2, lng: 2, placeId: "B" }, { lat: 3, lng: 3, placeId: "C" }, { lat: 4, lng: 4 },
+    ])!).searchParams;
+    expect(q.get("waypoint_place_ids")).toBe("B|C");
+  });
+
+  it("googleDirectionsUrl omits waypoint_place_ids when no waypoint has one", () => {
+    const q = new URL(googleDirectionsUrl([{ lat: 1, lng: 1 }, { lat: 2, lng: 2 }, { lat: 3, lng: 3 }])!).searchParams;
+    expect(q.has("waypoint_place_ids")).toBe(false);
+    expect(q.has("origin_place_id")).toBe(false);
+  });
+});

@@ -10,7 +10,6 @@ const {
   markerFindMany,
   listTemplates,
   listRemindersForTrip,
-  findPlaces,
   loadTripPlanForMcp,
   loadCostsForMcp,
   loadAttachmentIndexForMcp,
@@ -33,7 +32,6 @@ const {
   markerFindMany: vi.fn(),
   listTemplates: vi.fn(),
   listRemindersForTrip: vi.fn(),
-  findPlaces: vi.fn(),
   loadTripPlanForMcp: vi.fn(),
   loadCostsForMcp: vi.fn(),
   loadAttachmentIndexForMcp: vi.fn(),
@@ -61,7 +59,6 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/server/actions/checklists", () => ({ listTemplates }));
 vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip }));
-vi.mock("@/server/actions/places", () => ({ findPlaces }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
 vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp }));
@@ -131,9 +128,14 @@ describe("read tools", () => {
         "get_checklists",
         "get_activity",
         "list_globe_markers",
-        "search_places",
       ]),
     );
+  });
+
+  it("the tool list has no search_places", async () => {
+    const c = await connectTestClient();
+    const names = (await c.listTools()).tools.map((t) => t.name);
+    expect(names).not.toContain("search_places");
   });
 
   it("registers every Task 10 tool", async () => {
@@ -505,24 +507,6 @@ describe("read tools", () => {
         { id: "m1", name: "Eiffel Tower", category: "SIGHT", town: "Paris", countryCode: "fr", when: "spring", note: "Go at night", link: null },
       ],
     });
-  });
-
-  it("search_places returns findPlaces' outcome directly", async () => {
-    findPlaces.mockResolvedValue({ status: "ok", candidates: [{ name: "Paris", lat: 1, lng: 2, city: null, country: "France", countryCode: "fr" }] });
-    const c = await connectTestClient();
-    const r = await c.callTool({ name: "search_places", arguments: { query: "Paris" } });
-    expect(findPlaces).toHaveBeenCalledWith("Paris");
-    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
-      status: "ok",
-      candidates: [{ name: "Paris", lat: 1, lng: 2, city: null, country: "France", countryCode: "fr" }],
-    });
-  });
-
-  it("rejects a too-short search_places query before calling findPlaces", async () => {
-    const c = await connectTestClient();
-    const r = await c.callTool({ name: "search_places", arguments: { query: "a" } });
-    expect(r.isError).toBe(true);
-    expect(findPlaces).not.toHaveBeenCalled();
   });
 
   describe("a non-member's trip id reads as not found, not data", () => {

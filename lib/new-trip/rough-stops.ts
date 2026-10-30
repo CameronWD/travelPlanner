@@ -10,6 +10,7 @@ export interface RoughStopSeed {
   lat?: number;
   lng?: number;
   countryCode?: string;
+  placeId?: string;
   nights?: number;
 }
 
@@ -37,6 +38,7 @@ export function roughStopRows(stops: RoughStopSeed[], dates: { startDate?: strin
     timezone: null,
     lat: s.lat ?? null,
     lng: s.lng ?? null,
+    placeId: s.placeId ?? null,
     notes: null,
     pinned: false,
     sortOrder: i,

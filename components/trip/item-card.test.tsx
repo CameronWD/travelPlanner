@@ -246,6 +246,13 @@ describe("ItemCard — map pin is not decorative", () => {
     );
     expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(1);
   });
+
+  it("links a wishlist idea with a placeId through query_place_id", () => {
+    const { container } = render(
+      <ItemCard item={{ ...baseItem, stopName: "Paris", address: "Champ de Mars", lat: 48.86, lng: 2.34, placeId: "ChIJeiffel" }} mode="wishlist" />,
+    );
+    expect(container.querySelector("a[href*='query_place_id=ChIJeiffel']")).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

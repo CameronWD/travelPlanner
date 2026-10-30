@@ -35,6 +35,8 @@ interface WishlistStop {
   name: string;
   arriveDate: string | null; // null for rough (date-less) stops
   departDate: string | null; // null for rough (date-less) stops
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface WishlistBoardProps {
@@ -108,7 +110,7 @@ export function WishlistBoard({
     [forksEnabled, placedIdeaIds],
   );
   const { confirm, dialog } = useConfirm();
-  const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
+  const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng }));
 
   // ── View toggle ──
   const [view, setView] = React.useState<"list" | "map">("list");
