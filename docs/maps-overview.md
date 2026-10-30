@@ -27,8 +27,7 @@ and the raster-tile config are gone.
 | Service | Used for | Auth | Where |
 |---|---|---|---|
 | **Google Maps JavaScript API** | Rendering every map (vector, Map ID with light and dark styles), Advanced Markers, InfoWindows | Browser key (HTTP-referrer restricted) + Map ID | `components/map/google-map-frame.tsx`, `lib/map/google-config.ts` |
-| **OpenStreetMap Nominatim** | Forward geocode, place search, reverse geocode — *replaced in Branch 2* | None — a real contact in `User-Agent` is mandatory | `lib/geocode.ts` |
-| **Photon (komoot)** | As-you-type place search — *replaced in Branch 2* | None | `lib/geocode.ts` |
+| **Google Geocoding + Places (New)** | Server lookups (geocode, reverse, venue location and details) and the as-you-type place field (Autocomplete) | Server key (`GOOGLE_MAPS_SERVER_KEY`); browser key for Autocomplete | `lib/geocode.ts`, `components/ui/place-combobox.tsx` |
 | **Google Maps / Apple Maps** | "Open in Maps" + turn-by-turn directions deep links | None — URL schemes only | `lib/map/maps.ts` |
 
 Env: `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`
@@ -60,7 +59,7 @@ are in DEPLOY.md §4j.
 │  lib/nearby.ts       radius search over located items               │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ Server (network I/O, "use server") ────────────────────────────────┐
-│  lib/geocode.ts             Nominatim client (replaced in Branch 2) │
+│  lib/geocode.ts             Google Geocoding/Places client      │
 │  server/actions/*.ts        geocode-on-save; search actions         │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ Loader boundary (ssr:false seam where a page needs one) ───────────┐
@@ -207,78 +206,75 @@ so a keyless run (fallbacks only) does not time out.
 `day-map-panel.tsx` mounts `DayMap` only when the user expands the panel, so the
 Maps library never loads on a day view nobody opens.
 
-## 6. Geocoding — `lib/geocode.ts` (replaced in Branch 2)
+## 6. Geocoding and places — `lib/geocode.ts`
 
-> Nominatim and Photon are replaced by Google Places and Geocoding in Branch 2 of the Google Maps work (ADR 0076). Until that merges, this section describes what runs.
+Google Geocoding and Places (New) over REST, server-only, behind
+`GOOGLE_MAPS_SERVER_KEY` (ADR 0076). It replaced Nominatim and Photon, along with
+their pacing and response cache. The contract:
 
-One file, ~245 lines, wraps Nominatim's `/search` and `/reverse`. The contract:
+- **Never throws.** Every function returns `null` on any failure, with a 5 s timeout.
+- **Keyless is a no-op.** `hasServerKey()` is false without the key: every lookup
+  returns `null` with no network call and the row saves without coordinates.
+- `geocodePlaceDetailed` (Geocoding), `reverseGeocode`, `locateVenue` (Text Search,
+  IDs only, then Place Details Essentials; a hit further than **500 m** from the
+  address is rejected) and `fetchVenueDetails` (Place Details Enterprise: opening
+  hours, website, business status).
 
-- **Never throws.** Every function returns `null` / `[]` on any failure —
-  network error, timeout, non-2xx, unparseable body. A geocode failure must
-  never fail a user's save.
-- **5-second `AbortController` timeout.** Saves do best-effort network I/O; they
-  can't hang on a slow third party.
-- **Real contact in the `User-Agent`.** Nominatim's policy requires it and
-  returns **HTTP 403 for placeholder contacts like `example.com`** — so if
-  `NOMINATIM_CONTACT` is unset we log a warning and send no contact at all
-  rather than a fake one. This is the single most common way to get blocked.
-- **`accept-language=en`** on every request, so results come back "Tokyo Tower"
-  rather than "東京タワー".
-- **In-memory response cache** keyed by full request URL, shared by all three
-  request builders via one `cachedFetchJson` helper. Successes only — including
-  genuine empty results; failures are never cached, so a transient outage never
-  sticks.
+**The place field.** Every place-ish text field (Stop, Item, Accommodation,
+Transport ends, Trip Home, Globe marker) is `PlaceCombobox` on `usePlaceSuggestions`
+(Places Autocomplete (New), debounce 350 ms, minimum 3 characters, one session
+token per field focus, ended by the pick's `fetchFields`). A pick fetches
+Essentials fields only (`id, location, formattedAddress, addressComponents`); its
+name is the prediction's main text. The pick travels with the save as `placeId` +
+coordinates, so the server does not look the place up again. Typing after a pick
+clears it. Google's attribution shows as the list footer ("Google Maps").
 
-Three public shapes, deliberately distinct:
+**Keyless behaviour.** Without `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`, or after
+Google refuses the key (`useMapsAuthFailed()`), the field is a plain text input
+with the hint "Suggestions aren't available — the place is looked up when you
+save." The save still works: the server looks the text up (or saves without
+coordinates when it has no key either).
 
-```ts
-geocodePlace(query): Promise<LatLng | null>              // just coords
-geocodePlaceDetailed(query): Promise<GeoCandidate | null>// + city/country/countryCode
-searchPlacesWithStatus(query, limit): Promise<
-  | { status: "ok"; candidates: GeoCandidate[] }         // includes "ok, but empty"
-  | { status: "error" }>                                 // request actually failed
-reverseGeocode(lat, lng): Promise<GeoCandidate | null>   // for drop-a-pin
-```
+**On save, in the server action**, never at render time. A save looks up only when
+no picked place came with it and the text changed or the row has no coordinates:
 
-The `status` discriminant exists because an interactive search UI must say
-"no matches" and "search unavailable" differently. Best-effort background paths
-use the simpler `searchPlaces()` which collapses both to `[]`.
-
-**Why a cache and not a rate limiter (ADR 0028).** Nominatim asks for ≤1 req/sec
-*and* asks you to cache and not repeat identical queries. On serverless, a real
-rate limiter needs shared cross-instance state (Redis/KV/Postgres lock) — new
-infrastructure for a load that never approaches 1 req/sec at human interaction
-pace. Caching removes the actual policy violation (repeat queries) for free. The
-only path that can burst is the backfill script, which sleeps 1100 ms between
-calls. **If your project has real traffic, this reasoning inverts — you need a
-paid geocoder or a durable cache.**
-
-### Where geocoding happens
-
-**On save, in the server action**, never at render time (coupling render to a
-5-second third-party call is how you get slow first loads):
-
-| Entity | Query geocoded |
+| Entity | Looked up |
 |---|---|
-| Stop | `"<name>, <country>"` → coords + `countryCode` |
-| Item | its `address`, if present |
-| Accommodation | its `address`, if present |
-| Transport | `depPlace` and `arrPlace` separately → 4 columns (`depLat/depLng/arrLat/arrLng`) |
-| Trip home base | the home place name → coords + country |
+| Stop | `"<name>, <country>"` → coords, `countryCode`, `placeId` |
+| Item | `locateVenue(title, address)` → coords, `placeId` |
+| Accommodation | its `address` / name |
+| Transport | `depPlace` and `arrPlace` separately → 4 columns plus `depPlaceId` / `arrPlaceId` |
+| Trip home base | the home place name → coords, country, timezone |
 
-Transport gets its *own* coordinates rather than borrowing its from/to Stop's,
-because a departure terminal is tens of kilometres from the city centre pin
-(ADR 0011).
+Transport gets its own coordinates rather than its Stops', because a terminal is
+tens of kilometres from the city pin (ADR 0011).
 
-**Interactively**, two server actions expose search to the UI:
-`searchPlacesAction` (Globe marker form, transport location combobox) and
-`reverseGeocodeAction` (drop-a-pin: click the Globe → reverse-geocode → prefill
-the title and place).
+**Venue details and the Enterprise counter.** Item/Accommodation venue picks call
+the server action `venueDetailsForPick`, which fills opening hours and the link
+(only when empty) and business status. That is a Place Details **Enterprise**
+call. Google's quota is per method, so one GetPlace cap (165/day) covers the
+Essentials picks, the server lookups and Enterprise together. Teepee holds
+Enterprise to **15/day** itself with `takeGoogleQuota("venue-details", 15)`
+(`lib/google-usage.ts`, table `GoogleUsage`, a per-UTC-day counter). Past it the
+pick still fills location; hours and link just do not fill. Overnight hours are
+split across days by `lib/opening-hours-google.ts`.
 
-**Retroactively**, `scripts/archive/backfill-geocode.ts` (archived) — idempotent (only touches rows
-missing coords), throttled at 1100 ms, `--dry-run` supported, prints a
-scanned/geocoded/skipped/failed summary. Explicitly *not* run inside
-`prisma migrate deploy`: slow network calls don't belong in a migration.
+**Surprise.** A placeholder masks `placeId` and `businessStatus` like
+`address`/`lat`/`lng` (ADR 0072) — "Open in Maps" uses `query_place_id`, which
+would otherwise reveal the venue.
+
+**The MCP server has no place search.** `search_places` is gone; Claude researches
+venues on the web.
+
+**Retroactively**, `npm run backfill:places` (`scripts/backfill-google-places.ts`)
+puts place IDs on rows that still carry OpenStreetMap coordinates. A dry run by
+default; `-- --execute` writes. Tolerance 1 km (Items, Accommodation, Transport
+ends, Markers) or 25 km (Stops, Home bases); rows with no address or name to
+look up are skipped (NO-ANCHOR); it aborts without `GOOGLE_MAPS_SERVER_KEY`. It
+fills Item hours, link and business status only when empty. It bypasses the app's
+15/day Enterprise counter by design, so the runbook raises the console quota for
+the hour (DEPLOY §4j). Not run inside `prisma migrate deploy`.
+
 
 ## 7. Directions — deep links, not a routing API (Travel times arrive in Branch 3)
 
@@ -371,9 +367,9 @@ the page still works from data already in the page, and deep links still render.
 7. **No CSP is set** (`next.config.ts` deliberately sets none), so Google's origins
    need no header changes. Adding a CSP later means allowing `maps.googleapis.com`
    and `maps.gstatic.com`.
-8. **Nominatim is a free shared service** — fine at human pace for a two-person
-   app, replaced in Branch 2; `NOMINATIM_CONTACT` must be a real contact in every
-   environment until then or HTTP 403.
+8. **Places quotas are per API method.** One GetPlace cap covers Essentials picks,
+   server lookups and Enterprise detail calls; Teepee holds Enterprise to 15/day
+   with its own `GoogleUsage` counter (§6).
 9. **Storage stance.** Google's terms limit how long Places coordinates and Routes
    results may be cached; the app stores coordinates indefinitely, a known
    deviation accepted while the app is invite-only (ADR 0076, revisit if the
@@ -410,6 +406,6 @@ To stand this up in another Next.js App Router project:
 |---|---|
 | `0011` | Geocode all located entities on save; Transport gets its own coordinates |
 | `0024` | The "Globe" is a flat map, not a 3D globe (amended: now Google) |
-| `0028` | Nominatim etiquette via in-memory response caching, not runtime rate limiting |
+| `0028` | Nominatim response cache — superseded by 0076 |
 | `0033` | Free raster basemap tiles — superseded by 0076 |
 | `0076` | Google Maps Platform replaces the free map stack |

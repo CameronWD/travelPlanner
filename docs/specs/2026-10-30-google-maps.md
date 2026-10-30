@@ -278,8 +278,15 @@ is collected here, after all three branches are merged.
 4. Attribution check (DEPLOY §4j step 11): Google's logo and attribution row is
    not covered on the Your travels card or the desktop Home tile, in both
    themes.
-5. Push `main` → deploy.
-6. Backfill dry run → Cam reads → real run.
+5. Places check (DEPLOY §4j step 11): with the real keys, one pick per field
+   kind (Stop/region, Item venue with the hours filling, Transport end, Globe
+   pin), then confirm Google's billing report shows **Autocomplete Session
+   Usage** — proof that sessions terminate. If they do not, every keystroke
+   bills per request.
+6. Push `main` → deploy.
+7. Backfill (DEPLOY §4j step 12): raise the GetPlace quota to 300 for the hour,
+   `npm run backfill:places` (dry run) → Cam reads the rows →
+   `npm run backfill:places -- --execute` → put the quota back.
 
 ## Not in this work / follow-ups
 

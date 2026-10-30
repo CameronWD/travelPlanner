@@ -79,7 +79,7 @@ See `docs/resendDeploy.md` — account, domain and DNS, API key, the two Vercel 
    | `NEXT_PUBLIC_APP_NAME` | e.g. `Trip Planner` |
    | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | from §4j (optional — maps show a fallback without it) |
    | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | from §4j (optional — maps show a fallback without it) |
-   | `GOOGLE_MAPS_SERVER_KEY` | from §4j (server-only; first used by the Places and Travel-time branches) |
+   | `GOOGLE_MAPS_SERVER_KEY` | from §4j (server-only; used by Places lookups, the backfill and Travel times) |
 
    Without the browser key and Map ID every map renders its fallback instead of a map.
    **`NEXT_PUBLIC_*` values are inlined at build time**, so adding these to an *existing*
@@ -571,9 +571,23 @@ other half.)
    | Maps JavaScript — Dynamic Maps | 10,000 | 150 |
    | Geocoding (Essentials) | 10,000 | 165 |
    | Routes — Compute Routes (Essentials) | 10,000 | 165 |
-   | Places — Place Details (Essentials) | 10,000 | 165 |
-   | Places — Place Details (Enterprise) | 1,000 | 15 |
-   | Places — Autocomplete | per the current SKU table | half its free allowance ÷ 30 |
+   | Places — Place Details (GetPlace, one cap) | 10,000 | 165 |
+   | Places — Autocomplete ("Autocomplete Requests") | 10,000 | 165 |
+   | Places — Text Search (IDs only — free) | unlimited | 1,000 (runaway cap) |
+
+   Notes on the Places rows:
+   - **Place Details is one cap.** Google quotas are per API method, not per SKU:
+     the single GetPlace cap of 165/day covers the Essentials picks, the server
+     venue lookups and the Enterprise calls (opening hours) together.
+   - **Enterprise is held to 15/day by Teepee, not the console.** The app's own
+     `GoogleUsage` counter (`takeGoogleQuota("venue-details", 15)`) gates every
+     Enterprise call; past it a venue pick still fills the location but not the
+     hours or link. Read today's count (UTC day) with
+     `SELECT * FROM "GoogleUsage" WHERE day = to_char(now() at time zone 'utc','YYYY-MM-DD');`
+   - **Autocomplete** bills per request only for abandoned sessions and for the
+     first 12 requests of a session (a session that ends in a pick is covered by
+     the pick). 165/day is half of the 10,000/month free allowance (shared with
+     hometracker) ÷ 30; the app debounces 350 ms and starts at 3 characters.
 
    Re-read Google's pricing page for the current free allowances before typing
    numbers; the rule is the source of truth, the table is today's arithmetic.
@@ -607,9 +621,27 @@ other half.)
       fallback ("The map isn't available right now.", or "The map didn’t load"
       on the Your travels card and the Home tile) — not Google's grey "This page
       can't load Google Maps correctly" box. Put the quota back to the step 6 value afterwards.
+    - **Places picks** (with the real keys, one pick per field kind): a Stop /
+      region, an Item venue (confirm opening hours and the link fill), a Transport
+      end, and a Globe pin. Then open Billing → Reports for the project and confirm
+      **Autocomplete Session Usage** appears — proof that sessions terminate. If
+      only "Autocomplete Requests" shows, every keystroke is billing per request:
+      stop and fix before the push.
     - **Attribution.** Confirm Google's logo and attribution row is not covered
       on the Your travels card (title pill, chips, "Open Globe →" pill) and on
       the desktop Home route tile (view chips, inset cards), in light and dark.
+12. **Backfill places** (last, after the deploy is live; moves existing rows onto
+    Google place IDs and fills Item hours/links only where empty). Run against
+    the production database from your machine with the server key in the env:
+    1. Raise the Place Details (GetPlace) per-day quota from 165 to **300** for
+       the hour — the backfill's ~61 Enterprise and ~190 location lookups share
+       that one method cap. The script bypasses Teepee's 15/day Enterprise
+       counter by design, which is why the console quota is what holds it.
+    2. `npm run backfill:places` — a dry run. It prints each row's verdict and
+       writes nothing. Read the rows (rows with no address/name to look up are
+       skipped as NO-ANCHOR; moves beyond tolerance are flagged, not written).
+    3. `npm run backfill:places -- --execute` — writes the accepted and new rows.
+    4. Put the GetPlace quota back to 165.
 
 ## 5. GitHub Actions cron (reminder delivery)
 

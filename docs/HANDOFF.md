@@ -13,7 +13,7 @@ The following work out of the box in local development with no external accounts
 | Database | Postgres in Docker (`docker-compose.yml`) via `@prisma/adapter-pg` — see ADR 0005 |
 | Auth | Dev-login shim (`ALLOW_DEV_LOGIN="true"`) — no OAuth required |
 | FX rates | Frankfurter public API — no key |
-| Maps / geocoding | Google Maps + Nominatim + Photon — with no Google key every map shows its fallback list instead of a map (the page still works); saving a place and the Globe/Transport search buttons need `NOMINATIM_CONTACT` (see §5); the as-you-type place search uses Photon, which needs no key and no contact |
+| Maps / geocoding | Google Maps + Places (New) + Geocoding — with no Google key every map shows its fallback list instead of a map and every place field is a plain text input (the page still works; saves just get no coordinates) |
 | File uploads | Local disk (`.uploads/` at repo root) |
 
 The following are **disabled gracefully** without config — the UI hides or disables those features:
@@ -224,7 +224,7 @@ Users can manually override any rate on the Budget page — the manual flag is s
 
 ## 5. Maps
 
-Maps render with [Google Maps](https://developers.google.com/maps) through `@vis.gl/react-google-maps` (ADR 0076), one Map ID with light and dark styling that follows the app theme. [Nominatim](https://nominatim.org/) geocodes a saved place and powers the Globe marker and Transport location search buttons, and [Photon](https://photon.komoot.io/) powers the as-you-type place search (ADR 0069) — both are replaced in the Places branch.
+Maps render with [Google Maps](https://developers.google.com/maps) through `@vis.gl/react-google-maps` (ADR 0076), one Map ID with light and dark styling that follows the app theme. Google Places (New) powers the as-you-type place field and Geocoding/Places look a saved place up on the server (`GOOGLE_MAPS_SERVER_KEY`).
 
 ### Google Maps needs a browser key and a Map ID
 
@@ -234,9 +234,9 @@ Set `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` (
 
 Without the key or Map ID, or when Google refuses the key or a quota runs out, every map renders its fallback ("The map isn't available right now." or the stop/item list) and the page keeps working. See [maps-overview.md](maps-overview.md).
 
-### Nominatim needs a contact, not a key
+### Places lookups and quotas
 
-Geocoding requires no API key, but Nominatim's usage policy requires a real contact (email or app URL) in the User-Agent and returns **HTTP 403** for a missing or placeholder one. Set `NOMINATIM_CONTACT` in every environment where geocoding must work — without it, saving a place gets no coordinates and the Globe marker and Transport location searches show "Place search is temporarily unavailable". The as-you-type place combobox goes to **Photon** instead (ADR 0069), which needs neither a key nor a contact.
+Place fields suggest through Places Autocomplete (New) with the browser key; saves look places up on the server with `GOOGLE_MAPS_SERVER_KEY`. Without either, the field is plain text (with a hint) and the row saves without coordinates. Google's Place Details quota is one cap per method, so Teepee holds its Enterprise calls (opening hours on a venue pick) to 15/day with its own `GoogleUsage` counter. The existing rows were moved onto Google place IDs by `npm run backfill:places` (dry run unless `-- --execute`). Runbook and quotas: [DEPLOY.md §4j](DEPLOY.md); design: [maps-overview.md §6](maps-overview.md).
 
 ---
 
@@ -381,8 +381,7 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `NEXT_PUBLIC_APP_NAME` | No | App name shown in the UI | Any string; defaults gracefully |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | No (maps show their fallback without it) | Maps JavaScript API browser key, referrer-restricted | Google Cloud Console — [DEPLOY.md §4j](DEPLOY.md) |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | No (maps show their fallback without it) | Vector Map ID with light and dark styles (Advanced Markers need one) | Google Cloud Console — [DEPLOY.md §4j](DEPLOY.md) |
-| `GOOGLE_MAPS_SERVER_KEY` | No | Server key for Routes, Geocoding and Places (New); first used by later branches | Google Cloud Console — [DEPLOY.md §4j](DEPLOY.md) |
-| `NOMINATIM_CONTACT` | No (place search breaks without it) | Real contact for Nominatim's User-Agent (Photon, the typeahead, needs none) | An email you control, or your app's public URL |
+| `GOOGLE_MAPS_SERVER_KEY` | No | Server key for Routes, Geocoding and Places (New); Geocoding/Places lookups on save and the Places backfill use it now | Google Cloud Console — [DEPLOY.md §4j](DEPLOY.md) |
 | `STORAGE_DRIVER` | Yes (unless local) | Storage backend: `"local"`, `"r2"`, or `"s3"` | Set to `"r2"` or `"s3"` |
 | `CLOUDFLARE_ACCOUNT_ID` | If `STORAGE_DRIVER=r2` | Cloudflare account ID | Cloudflare dashboard |
 | `R2_BUCKET_NAME` | If `STORAGE_DRIVER=r2` | R2 bucket name | Cloudflare R2 |
