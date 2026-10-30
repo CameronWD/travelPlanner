@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isoDate, placeId } from "@/lib/validations/primitives";
 // ISO 3166-1 alpha-2 from a picked place; stored lower-case like the geocoder's (Stop.countryCode).
 const countryCode = z.string().trim().regex(/^[a-zA-Z]{2}$/, "Country code must be two letters").transform((c) => c.toLowerCase()).optional();
+const localTravelMode = z.enum(["DRIVE", "TRANSIT"]).nullable().optional();
 const name = z.string().trim().min(1, "Stop name is required").max(120, "Stop name must be 120 characters or fewer");
 
 const roughStopSchema = z.object({
@@ -16,6 +17,7 @@ const roughStopSchema = z.object({
   lat: z.number().optional(),
   lng: z.number().optional(),
   notes: z.string().trim().optional(),
+  localTravelMode,
 });
 
 const scheduledStopSchema = z
@@ -31,6 +33,7 @@ const scheduledStopSchema = z
     lat: z.number().optional(),
     lng: z.number().optional(),
     notes: z.string().trim().optional(),
+    localTravelMode,
   })
   .refine((d) => d.departDate >= d.arriveDate, {
     message: "Depart date must be on or after arrive date",

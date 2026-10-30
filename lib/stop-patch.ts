@@ -36,6 +36,7 @@ export type StopPatch = {
   lat?: number | null;
   lng?: number | null;
   notes?: string | null;
+  localTravelMode?: "DRIVE" | "TRANSIT" | null;
   nights?: number;
   chapterId?: string | null;
   arriveDate?: string;
@@ -51,6 +52,7 @@ export type StopPatchRow = {
   lat: number | null;
   lng: number | null;
   notes: string | null;
+  localTravelMode?: string | null;
   nights: number | null;
   arriveDate: string | null;
   departDate: string | null;
@@ -105,11 +107,13 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
     ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined, placeId: patch.placeId ?? undefined }
     : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: renamed ? undefined : (current.placeId ?? undefined) };
   const notes = patched(patch.notes, current.notes);
+  const localTravelMode = patched(patch.localTravelMode, current.localTravelMode);
   const place = {
     name: patch.name ?? current.name,
     country: patched(patch.country, current.country),
     ...Object.fromEntries(Object.entries(point).filter(([, v]) => v !== undefined)),
     ...(notes !== undefined ? { notes } : {}),
+    ...(localTravelMode !== undefined ? { localTravelMode } : {}),
   };
 
   if (mode === "scheduled") {

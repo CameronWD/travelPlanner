@@ -42,7 +42,7 @@ const TRY_UNTICKED = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", t
 // one that leaked through when it shouldn't) is visible either way.
 const TRANSPORT_FIELDS = { bookingState: "TO_BOOK" as const, bookingStateSet: true, bookBy: "2027-05-01" };
 const ACCOMMODATION_FIELDS = { bookingState: "TO_BOOK" as const, bookingStateSet: true, bookBy: "2027-05-02" };
-const STOP_PLACE = { placeId: "it-porto-id" };
+const STOP_PLACE = { placeId: "it-porto-id", localTravelMode: "TRANSIT" };
 const TRANSPORT_PLACE = { depPlaceId: "it-lisboa-id", arrPlaceId: "it-campanha-id" };
 const ACCOMMODATION_PLACE = { placeId: "it-casa-id" };
 const ITEM_PLACE = { placeId: "it-tour-id", businessStatus: "OPERATIONAL" };
