@@ -53,8 +53,24 @@ import { SM_HIT } from "@/components/ui/touch-target";
 import { cn } from "@/lib/cn";
 import { travellerFirstName, type TravellerLike } from "@/lib/traveller";
 import type { StopOption } from "@/lib/plan-entity-views";
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
+import { venueDetailsForPick } from "@/server/actions/venue-details";
 
 export type { StopOption };
+
+const BUSINESS_STATUSES = ["OPERATIONAL", "CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY"] as const;
+
+interface ItemPick {
+  placeId: string;
+  lat: number;
+  lng: number;
+  countryCode?: string;
+  businessStatus?: (typeof BUSINESS_STATUSES)[number];
+}
+
+function hoursEmpty(h: OpeningHours | null): boolean {
+  return !h || (Object.keys(h.week).length === 0 && h.seasons.length === 0 && h.closed.length === 0);
+}
 
 export interface ItemFormDialogProps {
   tripId: string;
@@ -565,6 +581,10 @@ function ItemForm({
   const [ticketOpenAtStart] = React.useState(() => Boolean(slotTime || arriveBy || refundable !== null));
   const [address, setAddress] = React.useState(item?.address ?? proposed?.address ?? "");
   const [link, setLink] = React.useState(item?.link ?? "");
+  // A place picked in THIS dialog session; an unchanged save never resends the row's own place.
+  const [pick, setPick] = React.useState<ItemPick | null>(null);
+  const pickToken = React.useRef(0);
+  const filledByPick = React.useRef<{ hours: OpeningHours | null; link: string | null }>({ hours: null, link: null });
   const [booking, setBooking] = React.useState(item?.booking ?? proposed?.booking ?? "");
   const bookingField = useBookingStateField("ITEM", item ?? seedFromProposal(proposed), booking);
   const [notes, setNotes] = React.useState(item?.notes ?? proposed?.notes ?? "");
@@ -574,6 +594,40 @@ function ItemForm({
   const [openingHours, setOpeningHours] = React.useState<OpeningHours | null>(item?.openingHours ?? null);
   const [initialOpeningHours] = React.useState(() => JSON.stringify(item?.openingHours ?? null));
   const openingHoursChanged = JSON.stringify(openingHours) !== initialOpeningHours;
+  const latest = React.useRef({ openingHours, link });
+  React.useEffect(() => {
+    latest.current = { openingHours, link };
+  });
+  const owningStop = stops.find((s) => s.id === stopId);
+  const rankNear = owningStop?.lat != null && owningStop.lng != null ? { lat: owningStop.lat, lng: owningStop.lng } : undefined;
+
+  function dropPick() {
+    pickToken.current++;
+    const filled = filledByPick.current;
+    filledByPick.current = { hours: null, link: null };
+    if (filled.hours && JSON.stringify(latest.current.openingHours) === JSON.stringify(filled.hours)) setOpeningHours(null);
+    if (filled.link && latest.current.link === filled.link) setLink("");
+    setPick(null);
+  }
+
+  async function onPlacePick(p: PickedPlace) {
+    const token = ++pickToken.current;
+    setAddress(p.address ?? p.name);
+    if (onSubmitOverride) return;
+    setPick({ placeId: p.placeId, lat: p.lat, lng: p.lng, ...(p.countryCode && { countryCode: p.countryCode }) });
+    const details = await venueDetailsForPick(tripId, p.placeId).catch(() => null);
+    if (token !== pickToken.current || !details) return;
+    if (details.openingHours && hoursEmpty(latest.current.openingHours)) {
+      filledByPick.current.hours = details.openingHours;
+      setOpeningHours(details.openingHours);
+    }
+    if (details.website && !latest.current.link.trim()) {
+      filledByPick.current.link = details.website;
+      setLink(details.website);
+    }
+    const businessStatus = BUSINESS_STATUSES.find((b) => b === details.businessStatus);
+    if (businessStatus) setPick((cur) => (cur ? { ...cur, businessStatus } : cur));
+  }
   // CONTEXT.md "Try list": sent only when changed, like the hours, so an edit
   // that never loaded it can't wipe it. Ids, never ticks: a tick made while
   // the dialog is open survives the save.
@@ -619,6 +673,7 @@ function ItemForm({
       refundable: refundable === null ? undefined : refundable,
       address: address.trim() || undefined,
       link: link.trim() || undefined,
+      ...pick,
       booking: booking.trim() || undefined,
       ...bookingField.payload(),
       notes: notes.trim() || undefined,
@@ -867,10 +922,17 @@ function ItemForm({
 
       {/* Address — full width; a street address reads best on one line. */}
       <Field label="Address" error={errors.address?.[0]} className="sm:col-span-2">
-        <Input
+        <PlaceCombobox
+          kind="venue"
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
+          onValueChange={(t) => {
+            setAddress(t);
+            dropPick();
+          }}
+          onPick={(p) => void onPlacePick(p)}
+          rankNear={rankNear}
           placeholder="e.g. 12 Rue de la Paix, Paris"
+          aria-label="Address"
           disabled={isPending}
         />
       </Field>

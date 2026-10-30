@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
 vi.mock("@/server/actions/accommodation", () => ({
   createAccommodation: vi.fn().mockResolvedValue({ success: true }),
   updateAccommodation: vi.fn().mockResolvedValue({ success: true }),
@@ -858,5 +860,63 @@ describe("AccommodationFormDialog: Booking state (spec 2026-10-17 R2)", () => {
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(updateAccommodation).toHaveBeenCalledWith("acc-1", expect.objectContaining({ confirmation: "HX-1", bookBy: null }));
     expect(vi.mocked(updateAccommodation).mock.calls[0][1].bookingState).toBeUndefined();
+  });
+});
+
+
+describe("AccommodationFormDialog address search", () => {
+  const HILTON = { placeId: "ChIJHilton", mainText: "Hilton Garden Inn", secondaryText: "Austin", lat: 30.27, lng: -97.74, formattedAddress: "500 Congress Ave, Austin, TX" };
+  const address = () => screen.getByRole("combobox", { name: "Address" });
+
+  async function pickHilton() {
+    await userEvent.type(address(), "Hilt");
+    await screen.findAllByRole("option");
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(address()).toHaveValue("500 Congress Ave, Austin, TX"));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+    mock.places.predictions = [HILTON];
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function fillAndSave() {
+    await userEvent.type(screen.getByPlaceholderText(/hilton garden inn/i), "My Hotel");
+    await userEvent.click(screen.getByRole("button", { name: /add accommodation/i }));
+  }
+
+  it("picking a venue fills the address and sends placeId, lat, lng", async () => {
+    render(<AccommodationFormDialog {...baseProps} />);
+    await pickHilton();
+    await fillAndSave();
+    expect(createAccommodation).toHaveBeenCalledWith(
+      expect.objectContaining({ address: "500 Congress Ave, Austin, TX", placeId: "ChIJHilton", lat: 30.27, lng: -97.74 }),
+      undefined,
+    );
+  });
+
+  it("typing after a pick drops the place and sends the text only", async () => {
+    render(<AccommodationFormDialog {...baseProps} />);
+    await pickHilton();
+    await userEvent.type(address(), "x");
+    await fillAndSave();
+    const input = vi.mocked(createAccommodation).mock.calls[0][0];
+    expect(input.address).toBe("500 Congress Ave, Austin, TXx");
+    expect(input.placeId).toBeUndefined();
+    expect(input.lat).toBeUndefined();
+  });
+
+  it("keyless, the address is a plain field and saves as text", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    render(<AccommodationFormDialog {...baseProps} />);
+    expect(screen.queryByRole("combobox", { name: "Address" })).toBeNull();
+    await userEvent.type(screen.getByRole("textbox", { name: "Address" }), "123 Main St");
+    await fillAndSave();
+    const input = vi.mocked(createAccommodation).mock.calls[0][0];
+    expect(input.address).toBe("123 Main St");
+    expect(input.placeId).toBeUndefined();
   });
 });

@@ -107,6 +107,9 @@ export interface StopOption {
   name: string;
   /** Stop's arrive date (YYYY-MM-DD) — the scheduled-mode date default. Null/absent for a rough Stop. */
   arriveDate?: string | null;
+  /** The Stop's point, when known — biases venue suggestions toward it. */
+  lat?: number | null;
+  lng?: number | null;
 }
 
 /** Everything the three edit dialogs need, built once by the day page and looked up by entity id. */

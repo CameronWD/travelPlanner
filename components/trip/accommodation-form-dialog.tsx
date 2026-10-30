@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -174,6 +175,8 @@ function AccommodationForm({
 
   const [name, setName] = React.useState(accommodation?.name ?? proposed?.name ?? "");
   const [address, setAddress] = React.useState(accommodation?.address ?? proposed?.address ?? "");
+  // A place picked in THIS dialog session; an unchanged save never resends the row's own place.
+  const [pick, setPick] = React.useState<{ placeId: string; lat: number; lng: number } | null>(null);
   const [checkIn, setCheckIn] = React.useState(
     accommodation?.checkIn ?? proposed?.checkIn ?? stopDateRange.arriveDate,
   );
@@ -217,6 +220,7 @@ function AccommodationForm({
       stopId,
       name,
       address: address.trim() || undefined,
+      ...pick,
       checkIn,
       checkOut,
       ...(checkInTime ? { checkInTime } : {}),
@@ -263,10 +267,19 @@ function AccommodationForm({
       {/* Address + Booking confirmation — own sub-grid so they always pair. */}
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
         <Field label="Address" error={errors.address?.[0]}>
-          <Input
+          <PlaceCombobox
+            kind="venue"
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            onValueChange={(t) => {
+              setAddress(t);
+              setPick(null);
+            }}
+            onPick={(p: PickedPlace) => {
+              setAddress(p.address ?? p.name);
+              if (!onSubmitOverride) setPick({ placeId: p.placeId, lat: p.lat, lng: p.lng });
+            }}
             placeholder="e.g. 123 Main Street"
+            aria-label="Address"
             disabled={isPending}
           />
         </Field>
