@@ -179,7 +179,7 @@ describe("MarkerForm — place search feedback", () => {
     vi.mocked(searchPlacesAction).mockResolvedValue({
       status: "ok",
       candidates: [
-        { name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp" },
+        { name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp", placeId: null, address: null },
       ],
     });
     render(<MarkerForm {...baseProps} />);
@@ -196,7 +196,7 @@ describe("MarkerForm — place search feedback", () => {
     const user = userEvent.setup();
     vi.mocked(searchPlacesAction).mockResolvedValue({
       status: "ok",
-      candidates: [{ name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp" }],
+      candidates: [{ name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp", placeId: null, address: null }],
     });
     render(<MarkerForm {...baseProps} />);
 
@@ -209,7 +209,7 @@ describe("MarkerForm — place search feedback", () => {
     // Change your mind: search again and pick a different place.
     vi.mocked(searchPlacesAction).mockResolvedValue({
       status: "ok",
-      candidates: [{ name: "Osaka, Japan", lat: 34.69, lng: 135.5, city: "Osaka", country: "Japan", countryCode: "jp" }],
+      candidates: [{ name: "Osaka, Japan", lat: 34.69, lng: 135.5, city: "Osaka", country: "Japan", countryCode: "jp", placeId: null, address: null }],
     });
     await user.clear(search);
     await user.type(search, "Osaka");

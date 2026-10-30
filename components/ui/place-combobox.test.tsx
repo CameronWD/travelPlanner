@@ -9,8 +9,8 @@ vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlace
 import { Field } from "@/components/ui/field";
 import { PlaceCombobox, type PickedPlace } from "./place-combobox";
 
-const SYD_AU = { name: "Sydney, Council of the City of Sydney, New South Wales, 2000, Australia", lat: -33.87, lng: 151.21, city: "Sydney", country: "Australia", countryCode: "au" };
-const SYD_CA = { name: "Sydney, Cape Breton Regional Municipality, Nova Scotia, B1P 1A1, Canada", lat: 46.14, lng: -60.19, city: "Sydney", country: "Canada", countryCode: "ca" };
+const SYD_AU = { name: "Sydney", lat: -33.87, lng: 151.21, city: "Sydney", country: "Australia", countryCode: "au", placeId: "ChIJSydAu", address: "Sydney, New South Wales, Australia" };
+const SYD_CA = { name: "Sydney", lat: 46.14, lng: -60.19, city: "Sydney", country: "Canada", countryCode: "ca", placeId: "ChIJSydCa", address: "Sydney, Nova Scotia, Canada" };
 
 const submitted = vi.fn();
 const outerKey = vi.fn();

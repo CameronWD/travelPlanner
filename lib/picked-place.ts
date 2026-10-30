@@ -12,12 +12,10 @@ export interface PickedPlace {
 }
 
 export function toPickedPlace(c: GeoCandidate): PickedPlace | null {
-  const parts = c.name.split(",").map((p) => p.trim()).filter(Boolean);
-  const name = parts[0] ?? c.city ?? "";
+  const name = c.name.split(",")[0]?.trim() || c.city || "";
   if (!name) return null;
-  // Nominatim's display_name runs place → districts → state → postcode → country.
-  const rest = parts.slice(1).filter((p) => !/\d/.test(p));
-  const region = rest.slice(-2).join(", ");
+  const rest = (c.address ?? "").split(",").map((p) => p.trim()).filter(Boolean).slice(1);
+  const region = rest.slice(-2).join(", ") || (c.country && c.country !== name ? c.country : "");
   return {
     name,
     ...(region ? { region } : {}),

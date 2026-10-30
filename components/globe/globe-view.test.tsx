@@ -35,6 +35,8 @@ const candidate = (name: string, city: string) => ({
   city,
   country: "Japan",
   countryCode: "jp",
+  placeId: null,
+  address: null,
 });
 
 describe("GlobeView — reopening Add Marker", () => {

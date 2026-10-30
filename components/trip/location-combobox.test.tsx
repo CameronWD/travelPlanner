@@ -37,6 +37,8 @@ describe("LocationCombobox", () => {
           city: "Hakone",
           country: "Japan",
           countryCode: "jp",
+          placeId: null,
+          address: null,
         },
       ],
     });
