@@ -273,7 +273,14 @@ describe("place IDs", () => {
     expect(q.get("origin_place_id")).toBe("A");
     expect(q.get("destination_place_id")).toBe("D");
     expect(q.get("waypoints")).toBe("2,2|3,3");
-    expect(q.get("waypoint_place_ids")).toBe("B|");
+    expect(q.has("waypoint_place_ids")).toBe(false);
+  });
+
+  it("googleDirectionsUrl emits waypoint_place_ids when every waypoint has one", () => {
+    const q = new URL(googleDirectionsUrl([
+      { lat: 1, lng: 1 }, { lat: 2, lng: 2, placeId: "B" }, { lat: 3, lng: 3, placeId: "C" }, { lat: 4, lng: 4 },
+    ])!).searchParams;
+    expect(q.get("waypoint_place_ids")).toBe("B|C");
   });
 
   it("googleDirectionsUrl omits waypoint_place_ids when no waypoint has one", () => {

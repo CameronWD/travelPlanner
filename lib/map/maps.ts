@@ -15,12 +15,15 @@ export interface MapLinkParams {
 /**
  * Build a Google Maps search URL.
  *
- * Preference order:
- *   1. lat + lng → `?query=<lat>,<lng>`
- *   2. address   → `?query=<encoded address>`
- *   3. label     → `?query=<encoded label>`
+ * Without a placeId, `query` prefers:
+ *   1. lat + lng → `<lat>,<lng>`
+ *   2. address   → `<encoded address>`
+ *   3. label     → `<encoded label>`
  *
- * Returns null if none of the above are available.
+ * With a placeId, `query` (required by Maps URLs, shown only as a fallback)
+ * prefers label → address → lat,lng, and `query_place_id` opens the venue.
+ *
+ * Returns null if no query text is available.
  */
 export function mapsUrl({ lat, lng, address, label, placeId }: MapLinkParams): string | null {
   const base = "https://www.google.com/maps/search/?api=1&query=";
@@ -105,7 +108,7 @@ export function googleDirectionsUrl(points: DirectionsPoint[]): string | null {
   if (waypoints.length) {
     params.set("waypoints", waypoints.join("|"));
     const ids = usable.slice(1, -1).map((p) => p.placeId);
-    if (ids.some(Boolean)) params.set("waypoint_place_ids", ids.join("|"));
+    if (ids.every(Boolean)) params.set("waypoint_place_ids", ids.join("|"));
   }
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
