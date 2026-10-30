@@ -183,7 +183,9 @@ so you don't have to describe the task from scratch each time:
 Claude researches venues on the web and passes full street addresses;
 Teepee finds the venue from the address.
 
-Opening hours and travel times come from Claude's own web search, not from
+Day reads include the travel between that day's things, marked real (from
+routing) or estimated (a straight-line guess). Opening hours come from
+Claude's own web search, not from
 anything stored in TEEPEE, so turn web search on in your Claude client for
 the best results from `plan-day` and `check-day`. Anything Claude couldn't
 verify is marked unverified rather than guessed. Claude has also been told to

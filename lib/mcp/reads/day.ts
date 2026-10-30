@@ -15,6 +15,9 @@ import { orderDayEntries, type ItemEntry } from "@/lib/itinerary";
 import { fail, type ActionFailure } from "@/lib/action-result";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { BookingState } from "@/lib/enum-values";
+import { resolvedDayHops } from "@/lib/day-map";
+import { homePointOf } from "@/lib/travel-times/hops";
+import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { toMcpDayItem, toMcpSurprise, type McpDayItem, type McpSurprise } from "./plan-shapes";
 
 /** CONTEXT.md "Booking state", as get_trip_plan's legs and stays carry it. */
@@ -59,6 +62,12 @@ export interface McpDay {
   timeline: McpDayEntry[];
   /** The day's untimed things to do. */
   anytime: McpDayItem[];
+  /**
+   * Travel between the day's located things, in the Day map's order, only for
+   * Items the viewer can see (a hidden Surprise is stepped over). estimated
+   * true means a straight-line guess, not a routed time.
+   */
+  hops: { fromItemId: string; toItemId: string; minutes: number; mode: "walk" | "drive" | "public_transport"; distanceKm: number; estimated: boolean }[];
 }
 
 export async function loadDayForMcp(tripId: string, date: string): Promise<McpDay | ActionFailure> {
@@ -127,6 +136,24 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
     }
   });
 
+  const dayItems = rows.items.filter((it) => it.date === date);
+  const lookup = await loadTravelLookupFor({ items: dayItems, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip) });
+  const hops = resolvedDayHops(model.dayMap, {
+    dayItems,
+    stops: rows.stops,
+    transports: rows.transports,
+    lookup,
+    estimateOpts: { windingFactor: rows.trip.drivingWindingFactor, avgSpeedKph: rows.trip.drivingAvgSpeedKph },
+  }).flatMap(({ fromId, toId, resolved }) =>
+    resolved
+      ? [{
+          fromItemId: fromId, toItemId: toId, minutes: Math.round(resolved.minutes),
+          mode: resolved.mode === "transit" ? ("public_transport" as const) : resolved.mode,
+          distanceKm: Math.round(resolved.distanceKm * 10) / 10, estimated: resolved.estimated,
+        }]
+      : [],
+  );
+
   const s = model.dayStop;
   const bed = model.tonight;
   return {
@@ -141,5 +168,6 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
       : null,
     timeline,
     anytime: ordered.anytime.map(item),
+    hops,
   };
 }

@@ -79,6 +79,16 @@ describe("MCP prompts", () => {
     }
   });
 
+  it("plan-day and check-day point at the day's hops and no longer claim there is no routing data", async () => {
+    const c = await connectTestClient();
+    for (const name of ["plan-day", "check-day"]) {
+      const r = await c.getPrompt({ name, arguments: { tripId: "t1", date: "2026-12-18" } });
+      const t = textOf(r.messages[0]);
+      expect(t).not.toContain("no routing data");
+      expect(t).toContain("Use the day's hops for travel between things: real ones come from routing; estimated ones are straight-line guesses, so say so.");
+    }
+  });
+
   it("plan-day carries the date and brief, and builds real things to do, never a note", async () => {
     const c = await connectTestClient();
     const r = await c.getPrompt({ name: "plan-day", arguments: { tripId: "t1", date: "2026-12-18", brief: "castle in the afternoon" } });

@@ -21,6 +21,7 @@ import {
   type HopItemRow,
   type HopStopRow,
   type HopTransportRow,
+  type ResolvedHop,
   type TravelLookup,
 } from "@/lib/travel-times/hops";
 
@@ -212,33 +213,42 @@ export function buildDayMapModel(input: {
   return { points, routePoints, perItemPrev };
 }
 
-export function dayMapHops(
+type DayHopInput = {
+  dayItems: HopItemRow[];
+  stops: HopStopRow[];
+  transports: (HopTransportRow & { id: string })[];
+  lookup: TravelLookup;
+  estimateOpts: { windingFactor: number; avgSpeedKph: number };
+};
+
+/** Each consecutive located pair on the Day map, with its resolved travel when the pair is a planned hop. One source for the map and the Claude connection. */
+export function resolvedDayHops(
   model: DayMapModel,
-  input: {
-    dayItems: HopItemRow[];
-    stops: HopStopRow[];
-    transports: (HopTransportRow & { id: string })[];
-    lookup: TravelLookup;
-    estimateOpts: { windingFactor: number; avgSpeedKph: number };
-  },
-): DayMapHop[] {
+  input: DayHopInput,
+): { fromId: string; toId: string; resolved: ResolvedHop | null }[] {
   const items = input.dayItems.map(toHopItem).sort(byHopOrder);
   const byId = new Map(items.map((i) => [i.id, i]));
   const stopsById = hopStopsById(input.stops);
   const planTransports = input.transports.map(toPlanTransport);
   const planned = new Set(planHops(items, planTransports).map((h) => `${h.from.id}|${h.to.id}`));
   const order = model.routePoints.filter((p) => p.kind === "item");
-  const hops: DayMapHop[] = [];
+  const out: { fromId: string; toId: string; resolved: ResolvedHop | null }[] = [];
   for (let i = 1; i < order.length; i++) {
     const [a, b] = [order[i - 1].id, order[i].id];
     const from = byId.get(a);
     const to = byId.get(b);
     const inputs = from && to && planned.has(`${a}|${b}`) ? hopInputs({ from, to }, { stopsById, planTransports }) : null;
     const resolved = inputs ? resolveHop(inputs.from, inputs.to, inputs.localMode, inputs.departure, input.lookup, input.estimateOpts) : null;
-    const polyline = resolved && !resolved.estimated && resolved.polyline ? resolved.polyline : null;
-    hops.push({ fromId: a, toId: b, polyline, estimated: polyline === null });
+    out.push({ fromId: a, toId: b, resolved });
   }
-  return hops;
+  return out;
+}
+
+export function dayMapHops(model: DayMapModel, input: DayHopInput): DayMapHop[] {
+  return resolvedDayHops(model, input).map(({ fromId, toId, resolved }) => {
+    const polyline = resolved && !resolved.estimated && resolved.polyline ? resolved.polyline : null;
+    return { fromId, toId, polyline, estimated: polyline === null };
+  });
 }
 
 export function withDayMapHops(
