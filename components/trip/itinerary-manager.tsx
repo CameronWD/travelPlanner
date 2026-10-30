@@ -1148,6 +1148,8 @@ export function ItineraryManager({
     sortOrder: s.sortOrder,
     arriveDate: s.arriveDate ?? null,
     departDate: s.departDate ?? null,
+    lat: s.lat ?? null,
+    lng: s.lng ?? null,
   }));
   const hasChapters = planChapters.length > 0;
 

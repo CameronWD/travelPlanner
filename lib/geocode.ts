@@ -50,6 +50,10 @@ function serverKey(): string | null {
   return process.env.GOOGLE_MAPS_SERVER_KEY?.trim() || null;
 }
 
+export function hasServerKey(): boolean {
+  return serverKey() !== null;
+}
+
 async function fetchJson(url: string, init: RequestInit = {}): Promise<unknown | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

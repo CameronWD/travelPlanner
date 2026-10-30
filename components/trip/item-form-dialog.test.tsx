@@ -1823,6 +1823,22 @@ describe("ItemFormDialog address search", () => {
     expect(patch.openingHours).toBeUndefined();
   });
 
+  it("a pick sends the businessStatus venueDetailsForPick answered", async () => {
+    vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: null, website: null, businessStatus: "CLOSED_TEMPORARILY" });
+    render(<ItemFormDialog {...baseProps} />);
+    await pickIchiran();
+    await waitFor(() => expect(venueDetailsForPick).toHaveBeenCalled());
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    expect(vi.mocked(createItem).mock.calls[0][1].businessStatus).toBe("CLOSED_TEMPORARILY");
+  });
+
+  it("the owning Stop's coordinates bias the suggestions", async () => {
+    render(<ItemFormDialog {...baseProps} stops={[{ id: "s1", name: "Tokyo", lat: 35.68, lng: 139.76 }]} defaultStopId="s1" />);
+    await userEvent.type(address(), "Ichi");
+    await screen.findByRole("option", { name: /Ichiran/ });
+    expect(mock.places.requests.at(-1)?.locationBias).toMatchObject({ center: { lat: 35.68, lng: 139.76 } });
+  });
+
   it("typing after a pick drops the place and sends the text only", async () => {
     vi.mocked(venueDetailsForPick).mockResolvedValue({ openingHours: HOURS, website: "https://ichiran.test", businessStatus: "OPERATIONAL" });
     render(<ItemFormDialog {...baseProps} />);

@@ -227,7 +227,7 @@ function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[]) {
   const attachmentsById = new Map(rows.attachments.map((a) => [a.id, { url: a.url }]));
   const editorBase: Omit<DayEntryEditor, "accommodations"> = {
     tripId,
-    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate })),
+    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate, lat: s.lat, lng: s.lng })),
     homeCurrency: trip.homeCurrency,
     homeBaseName: trip.homeName,
     homeTimezone: trip.homeTimezone,

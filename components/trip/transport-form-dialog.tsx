@@ -65,6 +65,8 @@ export interface StopOption {
   /** Stop's stay dates (YYYY-MM-DD) — feed the context row's date. */
   departDate?: string | null;
   arriveDate?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 
