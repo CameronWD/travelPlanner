@@ -296,6 +296,9 @@ export function resolveDriveLeg(
   );
 }
 
+// Every keying field required (nullable): a loader that forgets to select one fails to compile instead of silently estimating.
+export type Selected<T> = { [K in keyof T]-?: Exclude<T[K], undefined> };
+
 export type HopItemRow = {
   id: string;
   date?: string | null;
@@ -407,8 +410,8 @@ export function itemDeparture(item: HopItem, stopTimezone: string): Date | null 
 export type RouteLegStop = { id: string; lat?: number | null; lng?: number | null };
 
 export function routeLegPaths(
-  stops: RouteLegStop[],
-  transports: (HopTransportRow & { id: string })[],
+  stops: Selected<RouteLegStop>[],
+  transports: Selected<HopTransportRow>[],
   lookup: TravelLookup,
   home: Pt | null,
 ): Record<string, string> {

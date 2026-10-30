@@ -191,6 +191,10 @@ export default async function SharePage({
             sortOrder: true,
             depIsHome: true,
             arrIsHome: true,
+            depLat: true,
+            depLng: true,
+            arrLat: true,
+            arrLng: true,
           },
         })
       : [],

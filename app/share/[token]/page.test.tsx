@@ -18,6 +18,7 @@ const {
   journalEntryFindManyMock,
   attachmentFindManyMock,
   tripMemberFindManyMock,
+  travelTimeFindManyMock,
   loadSurpriseVisibilityMock,
 } = vi.hoisted(() => ({
   shareFindFirstMock: vi.fn(),
@@ -29,6 +30,7 @@ const {
   journalEntryFindManyMock: vi.fn().mockResolvedValue([]),
   attachmentFindManyMock: vi.fn().mockResolvedValue([]),
   tripMemberFindManyMock: vi.fn().mockResolvedValue([]),
+  travelTimeFindManyMock: vi.fn().mockResolvedValue([]),
   loadSurpriseVisibilityMock: vi.fn(),
 }));
 
@@ -43,6 +45,7 @@ vi.mock("@/lib/db", () => ({
     journalEntry: { findMany: journalEntryFindManyMock },
     attachment: { findMany: attachmentFindManyMock },
     tripMember: { findMany: tripMemberFindManyMock },
+    travelTime: { findMany: travelTimeFindManyMock },
   },
 }));
 vi.mock("next/navigation", () => ({
@@ -84,6 +87,7 @@ import { shareRefParam } from "@/lib/share/ref";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, placeholderItem, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
+import { driveKey } from "@/lib/travel-times/hops";
 
 /** Private values that must never reach the public page. */
 const PRIVATE = {
@@ -803,5 +807,28 @@ describe("Share page is light-only (spec 2026-10-01 §A)", () => {
     const { container } = await renderPage();
     const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
     expect(classes).toEqual(expect.arrayContaining(["text-foreground", "bg-background"]));
+  });
+});
+
+describe("Share page car legs (Travel times)", () => {
+  it("keys a car leg with a typed departure point from that point, as the refresh does, and draws its road", async () => {
+    const typed = { lat: 48.14, lng: 11.56 };
+    const row = {
+      id: "car1", mode: "CAR", fromStopId: "s1", toStopId: "s2", depPlace: "Hotel garage", arrPlace: null,
+      depAt: null, arrAt: null, sortOrder: 0, depLat: typed.lat, depLng: typed.lng, arrLat: null, arrLng: null,
+      depIsHome: false, arrIsHome: false, ...PRIVATE.transport,
+    };
+    transportFindManyMock.mockImplementation(async ({ select }: { select: Record<string, boolean> }) => [
+      Object.fromEntries(Object.entries(row).filter(([k]) => select[k])),
+    ]);
+    const key = driveKey(typed, { lat: STOPS[1].lat, lng: STOPS[1].lng });
+    travelTimeFindManyMock.mockResolvedValue([{ key, status: "OK", minutes: 600, distanceM: 900000, polyline: "_p~iF~ps|U" }]);
+
+    await renderPage();
+
+    const [[args]] = travelTimeFindManyMock.mock.calls;
+    expect(args.where.key.in).toEqual([key]);
+    const props = JSON.parse(screen.getByTestId("route-map").getAttribute("data-props")!);
+    expect(props.legPaths).toEqual({ "s1>s2": "_p~iF~ps|U" });
   });
 });
