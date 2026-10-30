@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { APIProvider } from "@vis.gl/react-google-maps";
 import { m } from "motion/react";
 import { LayoutMotion } from "@/components/ui/layout-motion";
 import { useFieldControl } from "@/components/ui/field";
-import { findPlaces } from "@/server/actions/places";
-import { pickedPlaces, type PickedPlace } from "@/lib/picked-place";
+import { usePlaceSuggestions, type PlaceKind, type PlaceSuggestion } from "@/components/places/use-place-suggestions";
+import { placesBrowserKey } from "@/lib/map/google-config";
+import type { PickedPlace } from "@/lib/picked-place";
 
 export type { PickedPlace } from "@/lib/picked-place";
 
@@ -14,110 +16,95 @@ export interface PlaceComboboxProps {
   onValueChange: (text: string) => void;
   onPick: (p: PickedPlace) => void;
   placeholder?: string;
-  /** Sort results nearest-first to this point (Plan: the route's centroid). */
+  /** Bias suggestions toward this point (Plan: the route's centroid). */
   rankNear?: { lat: number; lng: number };
+  kind?: PlaceKind;
   autoFocus?: boolean;
   id?: string;
   "aria-label"?: string;
   disabled?: boolean;
 }
 
-const DEBOUNCE_MS = 350;
-const MIN_CHARS = 2;
+const HINT = "Suggestions aren't available — the place is looked up when you save.";
 
-type Status = "idle" | "empty" | "error";
+export function PlaceCombobox(props: PlaceComboboxProps) {
+  const apiKey = placesBrowserKey();
+  return apiKey ? (
+    <APIProvider apiKey={apiKey}>
+      <PlaceField {...props} />
+    </APIProvider>
+  ) : (
+    <PlaceField {...props} />
+  );
+}
 
-export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, autoFocus, id, "aria-label": ariaLabel = "Place", disabled }: PlaceComboboxProps) {
+function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, kind = "region", autoFocus, id, "aria-label": ariaLabel = "Place", disabled }: PlaceComboboxProps) {
   const listId = React.useId();
+  const hintId = React.useId();
   const field = useFieldControl();
-  const [results, setResults] = React.useState<PickedPlace[]>([]);
-  const [status, setStatus] = React.useState<Status>("idle");
-  const [open, setOpen] = React.useState(false);
-  const [active, setActive] = React.useState(-1);
-  const seq = React.useRef(0);
-  // The value it mounts with is settled (an existing Stop's name, spec 2026-10-06 §L) — not searched.
-  const pickedValue = React.useRef<string | null>(value.trim() || null);
-  const rankNearRef = React.useRef(rankNear);
-  React.useEffect(() => {
-    rankNearRef.current = rankNear;
-  });
+  const { available, suggestions, status, search, pick, reset } = usePlaceSuggestions({ kind, near: rankNear });
+  // Both are keyed to the suggestion list they were set for, so a fresh list reopens with its first row highlighted.
+  const [dismissed, setDismissed] = React.useState<PlaceSuggestion[] | null>(null);
+  const [highlight, setHighlight] = React.useState<{ list: PlaceSuggestion[]; index: number } | null>(null);
+  const edits = React.useRef(0);
 
-  React.useEffect(() => {
-    const q = value.trim();
-    if (q.length < MIN_CHARS || q === pickedValue.current) return;
-    const mine = ++seq.current;
-    const t = setTimeout(async () => {
-      const res = await findPlaces(q);
-      if (mine !== seq.current) return;
-      if (res.status === "error") {
-        setResults([]);
-        setStatus("error");
-        setOpen(false);
-        return;
-      }
-      const list = pickedPlaces(res.candidates, rankNearRef.current).slice(0, 5);
-      setResults(list);
-      setActive(list.length ? 0 : -1);
-      setStatus(list.length ? "idle" : "empty");
-      setOpen(true);
-    }, DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [value]);
+  const open = dismissed !== suggestions;
+  const active = highlight?.list === suggestions ? highlight.index : suggestions.length ? 0 : -1;
 
-  function pick(p: PickedPlace) {
-    pickedValue.current = p.name;
-    seq.current++;
-    onValueChange(p.name);
-    onPick(p);
-    setOpen(false);
-    setResults([]);
-    setStatus("idle");
+  async function choose(s: PlaceSuggestion) {
+    const mine = ++edits.current;
+    setDismissed(suggestions);
+    const place = await pick(s.id);
+    if (!place || mine !== edits.current) return;
+    onValueChange(place.name);
+    onPick(place);
   }
 
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     const next = e.target.value;
-    pickedValue.current = null;
-    if (next.trim().length < MIN_CHARS) {
-      seq.current++;
-      setOpen(false);
-      setResults([]);
-      setStatus("idle");
-    }
+    edits.current++;
+    search(next);
     onValueChange(next);
   }
 
+  function move(step: 1 | -1) {
+    const n = suggestions.length;
+    setDismissed(null);
+    setHighlight({ list: suggestions, index: step === 1 ? (active + 1) % n : active <= 0 ? n - 1 : active - 1 });
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowDown" && results.length) {
+    if (!available) return;
+    if (e.key === "ArrowDown" && suggestions.length) {
       e.preventDefault();
-      setOpen(true);
-      setActive((a) => (a + 1) % results.length);
-    } else if (e.key === "ArrowUp" && results.length) {
+      move(1);
+    } else if (e.key === "ArrowUp" && suggestions.length) {
       e.preventDefault();
-      setOpen(true);
-      setActive((a) => (a <= 0 ? results.length - 1 : a - 1));
-    } else if (e.key === "Enter" && open && results[active]) {
-      e.preventDefault();
-      e.stopPropagation();
-      pick(results[active]);
-    } else if (e.key === "Escape" && open) {
+      move(-1);
+    } else if (e.key === "Enter" && open && suggestions[active]) {
       e.preventDefault();
       e.stopPropagation();
-      setOpen(false);
+      void choose(suggestions[active]);
+    } else if (e.key === "Escape" && open && suggestions.length) {
+      e.preventDefault();
+      e.stopPropagation();
+      setDismissed(suggestions);
     }
   }
 
-  const showList = open && results.length > 0;
+  const showList = available && open && suggestions.length > 0;
+  const describedBy = [field["aria-describedby"], available ? undefined : hintId].filter(Boolean).join(" ") || undefined;
   return (
     <div className="shrink-0 overflow-hidden rounded-[18px] border-2 border-border bg-card shadow-hard-2">
       <input
         id={id ?? field.id}
-        role="combobox"
+        role={available ? "combobox" : undefined}
         aria-label={ariaLabel}
         aria-invalid={field["aria-invalid"]}
-        aria-describedby={field["aria-describedby"]}
-        aria-expanded={showList}
-        aria-controls={listId}
-        aria-autocomplete="list"
+        aria-describedby={describedBy}
+        aria-expanded={available ? showList : undefined}
+        aria-controls={available ? listId : undefined}
+        aria-autocomplete={available ? "list" : undefined}
         aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
         autoComplete="off"
         autoFocus={autoFocus}
@@ -126,51 +113,55 @@ export function PlaceCombobox({ value, onValueChange, onPick, placeholder = "Sea
         placeholder={placeholder}
         onChange={onChange}
         onKeyDown={onKeyDown}
-        onBlur={() => setOpen(false)}
+        onFocus={reset}
+        onBlur={() => setDismissed(suggestions)}
         className="h-[60px] w-full bg-transparent px-5 text-xl font-bold text-foreground caret-coral outline-none placeholder:text-muted-foreground focus-visible:outline-[3px] focus-visible:-outline-offset-[3px] focus-visible:outline-ring"
       />
       {showList ? (
-        <m.ul
-          id={listId}
-          role="listbox"
-          aria-label="Places"
-          initial={{ height: 0 }}
-          animate={{ height: "auto" }}
-          transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
-          className="overflow-hidden border-t-2 border-border"
-        >
-          {results.map((p, i) => (
-            <li
-              key={`${p.name}|${p.region ?? ""}|${i}`}
-              id={`${listId}-${i}`}
-              role="option"
-              aria-selected={i === active}
-              onMouseDown={(e) => e.preventDefault()}
-              onMouseEnter={() => setActive(i)}
-              onClick={() => pick(p)}
-              className="relative flex min-h-[52px] cursor-pointer items-center gap-3 px-5 py-2"
-            >
-              {/* One highlight that slides to the active row (MOTION N10). */}
-              {i === active ? (
-                <LayoutMotion>
-                  <m.span data-place-hl layoutId={`place-hl-${listId}`} aria-hidden="true" className="absolute inset-0 bg-sun/25" transition={{ duration: 0.18 }} />
-                </LayoutMotion>
-              ) : null}
-              <span aria-hidden="true" className="relative size-3 shrink-0 rounded-full border-2 border-border bg-sun" />
-              <span className="relative min-w-0">
-                <span className="block truncate font-bold">{p.name}</span>
-                {p.region ? <span className="block truncate text-xs text-muted-foreground">{p.region}</span> : null}
-              </span>
-            </li>
-          ))}
-        </m.ul>
+        <>
+          <m.ul
+            id={listId}
+            role="listbox"
+            aria-label="Places"
+            initial={{ height: 0 }}
+            animate={{ height: "auto" }}
+            transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+            className="overflow-hidden border-t-2 border-border"
+          >
+            {suggestions.map((s, i) => (
+              <li
+                key={s.id}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setHighlight({ list: suggestions, index: i })}
+                onClick={() => void choose(s)}
+                className="relative flex min-h-[52px] cursor-pointer items-center gap-3 px-5 py-2"
+              >
+                {/* One highlight that slides to the active row (MOTION N10). */}
+                {i === active ? (
+                  <LayoutMotion>
+                    <m.span data-place-hl layoutId={`place-hl-${listId}`} aria-hidden="true" className="absolute inset-0 bg-sun/25" transition={{ duration: 0.18 }} />
+                  </LayoutMotion>
+                ) : null}
+                <span aria-hidden="true" className="relative size-3 shrink-0 rounded-full border-2 border-border bg-sun" />
+                <span className="relative min-w-0">
+                  <span className="block truncate font-bold">{s.mainText}</span>
+                  {s.secondaryText ? <span className="block truncate text-xs text-muted-foreground">{s.secondaryText}</span> : null}
+                </span>
+              </li>
+            ))}
+          </m.ul>
+          <p translate="no" className="border-t-2 border-border px-5 py-1.5 text-right text-[11px] font-semibold text-muted-foreground">Google Maps</p>
+        </>
       ) : null}
-      {status === "empty" && open ? (
+      {available && status === "empty" && open ? (
         <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">No places found. Keep typing, or use it as written.</p>
       ) : null}
-      {status === "error" ? (
-        <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">Place search isn&apos;t available right now. What you typed is kept as is.</p>
-      ) : null}
+      {available ? null : (
+        <p id={hintId} className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">{HINT}</p>
+      )}
     </div>
   );
 }

@@ -1,77 +1,216 @@
 import * as React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { findPlaces } = vi.hoisted(() => ({ findPlaces: vi.fn() }));
-vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
 
 import { Field } from "@/components/ui/field";
+import { resetMapsAuthForTests } from "@/components/map/maps-auth";
+import type { PlaceKind } from "@/components/places/use-place-suggestions";
 import { PlaceCombobox, type PickedPlace } from "./place-combobox";
 
-const SYD_AU = { name: "Sydney", lat: -33.87, lng: 151.21, city: "Sydney", country: "Australia", countryCode: "au", placeId: "ChIJSydAu", address: "Sydney, New South Wales, Australia" };
-const SYD_CA = { name: "Sydney", lat: 46.14, lng: -60.19, city: "Sydney", country: "Canada", countryCode: "ca", placeId: "ChIJSydCa", address: "Sydney, Nova Scotia, Canada" };
+const SYD_AU = { placeId: "ChIJSydAu", mainText: "Sydney", secondaryText: "NSW, Australia", lat: -33.87, lng: 151.21, formattedAddress: "Sydney NSW, Australia", countryCode: "au" };
+const SYD_CA = { placeId: "ChIJSydCa", mainText: "Sydney", secondaryText: "NS, Canada", lat: 46.14, lng: -60.19, formattedAddress: "Sydney, NS, Canada", countryCode: "ca" };
+const HINT = "Suggestions aren't available — the place is looked up when you save.";
 
 const submitted = vi.fn();
 const outerKey = vi.fn();
 
-function Harness({ onPick = vi.fn(), rankNear }: { onPick?: (p: PickedPlace) => void; rankNear?: { lat: number; lng: number } }) {
+function Harness({ onPick = vi.fn(), rankNear, kind }: { onPick?: (p: PickedPlace) => void; rankNear?: { lat: number; lng: number }; kind?: PlaceKind }) {
   const [v, setV] = React.useState("");
   return (
     <div onKeyDown={(e) => outerKey(e.key)}>
       <form onSubmit={(e) => { e.preventDefault(); submitted(); }}>
-        <PlaceCombobox value={v} onValueChange={setV} onPick={onPick} rankNear={rankNear} aria-label="Leaving from" />
+        <PlaceCombobox value={v} onValueChange={setV} onPick={onPick} rankNear={rankNear} kind={kind} aria-label="Leaving from" />
       </form>
+      <button type="button">elsewhere</button>
     </div>
   );
 }
 
 const input = () => screen.getByRole("combobox", { name: "Leaving from" });
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const lastRequest = () => mock.places.requests[mock.places.requests.length - 1];
 
 describe("PlaceCombobox", () => {
   beforeEach(() => {
-    findPlaces.mockReset().mockResolvedValue({ status: "ok", candidates: [SYD_AU, SYD_CA] });
+    mock.reset();
+    mock.places.predictions = [SYD_AU, SYD_CA];
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+    resetMapsAuthForTests();
+    delete window.gm_authFailure;
     submitted.mockReset();
     outerKey.mockReset();
   });
 
-  it("searches after a pause and lists name and region", async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("is a plain input with the hint when there is no browser key", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     render(<Harness />);
+    expect(screen.queryByRole("combobox")).toBeNull();
+    const field = screen.getByRole("textbox", { name: "Leaving from" });
+    expect(field).toHaveAccessibleDescription(HINT);
+    await userEvent.type(field, "Sydney");
+    await pause(400);
+    expect(field).toHaveValue("Sydney");
+    expect(mock.places.fetchAutocompleteSuggestions).not.toHaveBeenCalled();
+    expect(mock.providers).toHaveLength(0);
+  });
+
+  it("is a plain input with the hint after Google refuses the key", async () => {
+    render(<Harness />);
+    const el = input();
+    await userEvent.type(el, "Syd");
+    act(() => window.gm_authFailure?.());
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Leaving from" })).toBe(el);
+    expect(el).toHaveFocus();
+    expect(el).toHaveValue("Syd");
+    expect(screen.getByText(HINT)).toBeInTheDocument();
+  });
+
+  it("renders its own APIProvider with the browser key", () => {
+    render(<Harness />);
+    expect(mock.providers.at(-1)).toEqual({ apiKey: "k" });
+  });
+
+  it("asks for suggestions after 3 characters and 350 ms, not before", () => {
+    vi.useFakeTimers();
+    render(<Harness />);
+    fireEvent.change(input(), { target: { value: "Sy" } });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(mock.places.fetchAutocompleteSuggestions).not.toHaveBeenCalled();
+    fireEvent.change(input(), { target: { value: "Syd" } });
+    act(() => vi.advanceTimersByTime(349));
+    expect(mock.places.fetchAutocompleteSuggestions).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(mock.places.fetchAutocompleteSuggestions).toHaveBeenCalledTimes(1);
+    expect(lastRequest().input).toBe("Syd");
+  });
+
+  it.each([
+    [undefined, ["(regions)"]],
+    ["region", ["(regions)"]],
+    ["venue", undefined],
+    ["any", undefined],
+  ] as const)("region kind asks for (regions); venue and any kinds don't filter (%s)", async (kind, types) => {
+    render(<Harness kind={kind} />);
     await userEvent.type(input(), "Syd");
-    expect(await screen.findByRole("option", { name: /Sydney.*New South Wales, Australia/ })).toBeInTheDocument();
-    expect(findPlaces).toHaveBeenCalledTimes(1);
-    expect(findPlaces).toHaveBeenCalledWith("Syd");
-    expect(input()).toHaveAttribute("aria-expanded", "true");
+    await screen.findAllByRole("option");
+    if (types) expect(lastRequest().includedPrimaryTypes).toEqual(types);
+    else expect(lastRequest()).not.toHaveProperty("includedPrimaryTypes");
   });
 
-  it("does not search under two characters", async () => {
-    render(<Harness />);
-    await userEvent.type(input(), "S");
-    await pause(500);
-    expect(findPlaces).not.toHaveBeenCalled();
-  });
-
-  it("highlights the first result and follows the arrow keys", async () => {
+  it("lists name and region, and highlights the first", async () => {
     render(<Harness />);
     await userEvent.type(input(), "Syd");
     const options = await screen.findAllByRole("option");
+    expect(options[0]).toHaveTextContent("SydneyNSW, Australia");
+    expect(input()).toHaveAttribute("aria-expanded", "true");
     expect(input()).toHaveAttribute("aria-activedescendant", options[0].id);
     await userEvent.keyboard("{ArrowDown}");
     expect(input()).toHaveAttribute("aria-activedescendant", options[1].id);
     expect(options[1]).toHaveAttribute("aria-selected", "true");
   });
 
-  it("Enter picks the highlighted result and does not submit the form", async () => {
+  it("a pick fetches exactly the location mask and returns placeId, coordinates, address, country code and the prediction's main text as name", async () => {
     const onPick = vi.fn();
     render(<Harness onPick={onPick} />);
     await userEvent.type(input(), "Syd");
     await screen.findAllByRole("option");
     await userEvent.keyboard("{Enter}");
-    expect(onPick).toHaveBeenCalledWith({ name: "Sydney", region: "New South Wales, Australia", lat: -33.87, lng: 151.21, countryCode: "au" });
+    await waitFor(() => expect(onPick).toHaveBeenCalledTimes(1));
+    expect(mock.places.fetchFields).toHaveBeenCalledTimes(1);
+    expect(mock.places.fetchFields).toHaveBeenCalledWith({ fields: ["id", "location", "formattedAddress", "addressComponents"] });
+    expect(onPick).toHaveBeenCalledWith({ name: "Sydney", region: "NSW, Australia", lat: -33.87, lng: 151.21, countryCode: "au", placeId: "ChIJSydAu", address: "Sydney NSW, Australia" });
     expect(submitted).not.toHaveBeenCalled();
     expect(input()).toHaveValue("Sydney");
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("clicking an option picks it", async () => {
+    const onPick = vi.fn();
+    render(<Harness onPick={onPick} />);
+    await userEvent.type(input(), "Syd");
+    const options = await screen.findAllByRole("option");
+    await userEvent.click(options[1]);
+    await waitFor(() => expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ placeId: "ChIJSydCa" })));
+  });
+
+  it("a failed pick keeps the typed text and returns no place", async () => {
+    mock.places.fetchFields.mockRejectedValueOnce(new Error("quota"));
+    const onPick = vi.fn();
+    render(<Harness onPick={onPick} />);
+    await userEvent.type(input(), "Syd");
+    await screen.findAllByRole("option");
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(mock.places.fetchFields).toHaveBeenCalled());
+    await pause(0);
+    expect(onPick).not.toHaveBeenCalled();
+    expect(input()).toHaveValue("Syd");
+  });
+
+  it("typing while a pick loads drops the pick", async () => {
+    let finish: () => void = () => {};
+    mock.places.fetchFields.mockImplementationOnce(() => new Promise<void>((r) => { finish = r; }));
+    const onPick = vi.fn();
+    render(<Harness onPick={onPick} />);
+    await userEvent.type(input(), "Syd");
+    await screen.findAllByRole("option");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(input(), "x");
+    await act(async () => finish());
+    expect(onPick).not.toHaveBeenCalled();
+    expect(input()).toHaveValue("Sydx");
+  });
+
+  it("a rejected suggestions call degrades to a plain input with the hint", async () => {
+    mock.places.fetchAutocompleteSuggestions.mockRejectedValue(new Error("OVER_QUERY_LIMIT"));
+    render(<Harness />);
+    const el = input();
+    await userEvent.type(el, "Syd");
+    expect(await screen.findByText(HINT)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(el).toHaveValue("Syd");
+    await userEvent.type(el, "ney");
+    await pause(400);
+    expect(mock.places.fetchAutocompleteSuggestions).toHaveBeenCalledTimes(1);
+    expect(el).toHaveValue("Sydney");
+  });
+
+  it("one session token per focus; a pick ends it", async () => {
+    render(<Harness />);
+    await userEvent.type(input(), "Syd");
+    await screen.findAllByRole("option");
+    await userEvent.type(input(), "n");
+    await waitFor(() => expect(mock.places.requests).toHaveLength(2));
+    expect(mock.places.requests[1].sessionToken).toBe(mock.places.requests[0].sessionToken);
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(input()).toHaveValue("Sydney"));
+
+    await userEvent.type(input(), " Harbour");
+    await waitFor(() => expect(mock.places.requests).toHaveLength(3));
+    expect(mock.places.requests[2].sessionToken).not.toBe(mock.places.requests[1].sessionToken);
+
+    await userEvent.click(screen.getByRole("button", { name: "elsewhere" }));
+    await userEvent.type(input(), "s");
+    await waitFor(() => expect(mock.places.requests).toHaveLength(4));
+    expect(mock.places.requests[3].sessionToken).not.toBe(mock.places.requests[2].sessionToken);
+    expect(mock.places.tokens).toHaveLength(3);
+  });
+
+  it("the list footer says Google Maps", async () => {
+    render(<Harness />);
+    await userEvent.type(input(), "Syd");
+    await screen.findAllByRole("option");
+    const footer = screen.getByText("Google Maps");
+    expect(screen.getByRole("listbox")).not.toContainElement(footer);
   });
 
   it("a picked value is not searched again", async () => {
@@ -79,8 +218,9 @@ describe("PlaceCombobox", () => {
     await userEvent.type(input(), "Syd");
     await screen.findAllByRole("option");
     await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(input()).toHaveValue("Sydney"));
     await pause(500);
-    expect(findPlaces).toHaveBeenCalledTimes(1);
+    expect(mock.places.fetchAutocompleteSuggestions).toHaveBeenCalledTimes(1);
   });
 
   it("Escape closes the list without bubbling", async () => {
@@ -92,19 +232,18 @@ describe("PlaceCombobox", () => {
     expect(outerKey).not.toHaveBeenCalledWith("Escape");
   });
 
-  it("a search failure falls back to what was typed", async () => {
-    findPlaces.mockResolvedValue({ status: "error" });
+  it("says when nothing matched", async () => {
+    mock.places.predictions = [];
     render(<Harness />);
-    await userEvent.type(input(), "Sydney");
-    expect(await screen.findByText(/isn't available right now/)).toBeInTheDocument();
-    expect(input()).toHaveValue("Sydney");
+    await userEvent.type(input(), "Zzzq");
+    expect(await screen.findByText("No places found. Keep typing, or use it as written.")).toBeInTheDocument();
   });
 
-  it("rankNear puts the nearest result first", async () => {
+  it("rankNear biases the suggestions", async () => {
     render(<Harness rankNear={{ lat: 45, lng: -63 }} />);
     await userEvent.type(input(), "Syd");
-    const options = await screen.findAllByRole("option");
-    expect(options[0]).toHaveTextContent("Nova Scotia");
+    await screen.findAllByRole("option");
+    expect(lastRequest().locationBias).toEqual({ center: { lat: 45, lng: -63 }, radius: 50000 });
   });
 
   it("uses tokens only", async () => {
@@ -133,7 +272,7 @@ describe("PlaceCombobox", () => {
     }
     render(<Seeded />);
     await pause(500);
-    expect(findPlaces).not.toHaveBeenCalled();
+    expect(mock.places.fetchAutocompleteSuggestions).not.toHaveBeenCalled();
   });
 
   it("wires id and aria-invalid from a surrounding Field", () => {
@@ -143,6 +282,18 @@ describe("PlaceCombobox", () => {
       </Field>,
     );
     expect(screen.getByRole("combobox", { name: "Place name" })).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("keeps the Field wiring as a plain input", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    render(
+      <Field label="Place name" error="Stop name is required">
+        <PlaceCombobox value="" onValueChange={vi.fn()} onPick={vi.fn()} aria-label="Place name" />
+      </Field>,
+    );
+    const field = screen.getByRole("textbox", { name: "Place name" });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(`Stop name is required ${HINT}`);
   });
 
   it("never gives up its height inside a bounded flex column (Add a stop sheet on phones, spec 2026-10-12 W6)", () => {

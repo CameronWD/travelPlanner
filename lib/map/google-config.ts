@@ -5,3 +5,7 @@ export function mapsConfig(): MapsConfig | null {
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID;
   return apiKey && mapId ? { apiKey, mapId } : null;
 }
+
+export function placesBrowserKey(): string | null {
+  return process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || null;
+}

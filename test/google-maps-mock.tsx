@@ -30,6 +30,16 @@ type FakePolyline = {
   setOptions: ReturnType<typeof vi.fn>;
 };
 
+export type FakePrediction = {
+  placeId: string;
+  mainText: string;
+  secondaryText?: string;
+  lat?: number;
+  lng?: number;
+  formattedAddress?: string;
+  countryCode?: string;
+};
+
 function withoutChildren(props: Props) {
   const rest = { ...props };
   delete rest.children;
@@ -58,8 +68,68 @@ export function createGoogleMapsMock() {
     polylines: [] as FakePolyline[],
   };
 
-  function APIProvider({ children }: { children?: React.ReactNode }) {
-    return <>{children}</>;
+  const providers: Props[] = [];
+
+  function APIProvider(props: Props & { children?: React.ReactNode }) {
+    providers.push(withoutChildren(props));
+    return <>{props.children}</>;
+  }
+
+  const places = {
+    loaded: true,
+    predictions: [] as FakePrediction[],
+    requests: [] as google.maps.places.AutocompleteRequest[],
+    tokens: [] as object[],
+    fetchFields: vi.fn(),
+    fetchAutocompleteSuggestions: vi.fn(),
+  };
+
+  function fakePlace(p: FakePrediction) {
+    return {
+      fetchFields: places.fetchFields,
+      id: p.placeId,
+      location: p.lat === undefined || p.lng === undefined ? null : { lat: () => p.lat, lng: () => p.lng },
+      formattedAddress: p.formattedAddress ?? null,
+      addressComponents: p.countryCode ? [{ longText: p.countryCode, shortText: p.countryCode.toUpperCase(), types: ["country", "political"] }] : [],
+      regularOpeningHours: null,
+      websiteURI: null,
+      businessStatus: null,
+    };
+  }
+
+  function defaultSuggestions(request: google.maps.places.AutocompleteRequest) {
+    places.requests.push(request);
+    return Promise.resolve({
+      suggestions: places.predictions.map((p) => ({
+        placePrediction: {
+          placeId: p.placeId,
+          mainText: { text: p.mainText },
+          secondaryText: p.secondaryText === undefined ? null : { text: p.secondaryText },
+          text: { text: [p.mainText, p.secondaryText].filter(Boolean).join(", ") },
+          toPlace: () => fakePlace(p),
+        },
+      })),
+    });
+  }
+
+  class AutocompleteSessionToken {
+    constructor() {
+      places.tokens.push(this);
+    }
+  }
+
+  const placesLibrary = {
+    AutocompleteSuggestion: { fetchAutocompleteSuggestions: places.fetchAutocompleteSuggestions },
+    AutocompleteSessionToken,
+  };
+
+  function resetPlaces() {
+    places.loaded = true;
+    places.predictions = [];
+    places.requests = [];
+    places.tokens = [];
+    places.fetchFields.mockReset().mockImplementation(() => Promise.resolve({}));
+    places.fetchAutocompleteSuggestions.mockReset().mockImplementation(defaultSuggestions);
   }
 
   function Map(props: Props & { className?: string; children?: React.ReactNode }) {
@@ -130,6 +200,7 @@ export function createGoogleMapsMock() {
     useAdvancedMarkerRef: () => [markerRef, markerStub] as const,
     useMap: () => map,
     useApiLoadingStatus: () => status.current,
+    useMapsLibrary: (name: string) => (name === "places" && places.loaded ? placesLibrary : null),
     ColorScheme,
     APILoadingStatus,
   };
@@ -141,12 +212,15 @@ export function createGoogleMapsMock() {
     recorded.markers = [];
     recorded.infoWindows = [];
     recorded.polylines = [];
+    providers.length = 0;
+    resetPlaces();
     markerRef.mockClear();
     for (const fn of Object.values(map)) fn.mockReset();
     installGlobal();
   }
 
+  resetPlaces();
   installGlobal();
 
-  return { module: standIn, map, status, markerStub, recorded, reset };
+  return { module: standIn, map, status, markerStub, recorded, providers, places, reset };
 }

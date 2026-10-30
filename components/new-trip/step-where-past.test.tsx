@@ -1,19 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { findPlaces } = vi.hoisted(() => ({ findPlaces: vi.fn() }));
-vi.mock("@/server/actions/places", () => ({ findPlaces: (q: string) => findPlaces(q) }));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
 
 import { StepWherePast } from "./step-where-past";
 import { StepHarness, currentDraft } from "./step-harness.test-utils";
 
-const KYOTO = { name: "Kyoto, Kyoto Prefecture, Japan", lat: 35.01, lng: 135.77, city: "Kyoto", country: "Japan", countryCode: "jp" };
+const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp" };
 const combo = () => screen.getByRole("combobox", { name: "Add a place" });
 const past = { past: true, startDate: "2026-08-01", endDate: "2026-08-10" };
 
 describe("StepWherePast", () => {
-  beforeEach(() => findPlaces.mockReset().mockResolvedValue({ status: "ok", candidates: [KYOTO] }));
+  beforeEach(() => {
+    mock.reset();
+    mock.places.predictions = [KYOTO];
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("asks where you stopped, and it's optional", () => {
     render(<StepHarness Step={StepWherePast} initial={past} />);
@@ -27,6 +32,7 @@ describe("StepWherePast", () => {
     await userEvent.type(combo(), "Kyo");
     await screen.findAllByRole("option");
     await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(currentDraft().stops).toHaveLength(1));
     expect(currentDraft().stops).toEqual([{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }]);
     expect(combo()).toHaveValue("");
     expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
@@ -36,7 +42,7 @@ describe("StepWherePast", () => {
 
   it("Enter with typed text and no result adds it as written, without continuing", async () => {
     const onNext = vi.fn();
-    findPlaces.mockResolvedValue({ status: "ok", candidates: [] });
+    mock.places.predictions = [];
     render(<StepHarness Step={StepWherePast} initial={past} onNext={onNext} />);
     await userEvent.type(combo(), "Nowhereville{Enter}");
     expect(currentDraft().stops).toEqual([{ name: "Nowhereville" }]);
@@ -53,7 +59,7 @@ describe("StepWherePast", () => {
 
   it("Continue adds a half-typed place first", async () => {
     const onNext = vi.fn();
-    findPlaces.mockResolvedValue({ status: "ok", candidates: [] });
+    mock.places.predictions = [];
     render(<StepHarness Step={StepWherePast} initial={past} onNext={onNext} />);
     await userEvent.type(combo(), "Nara");
     await userEvent.click(screen.getByRole("button", { name: /^Continue/ }));
