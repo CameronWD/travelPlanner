@@ -17,7 +17,6 @@ const {
   requireTripAccessMock,
   requirePlanAccessMock,
   revalidateTripMock,
-  geocodePlaceMock,
   geocodePlaceDetailedMock,
   stopFindFirstMock,
   stopFindUniqueMock,
@@ -115,7 +114,6 @@ const {
       plan: forkId ?? null,
     })),
     revalidateTripMock: vi.fn(),
-    geocodePlaceMock: vi.fn().mockResolvedValue(null),
     geocodePlaceDetailedMock: vi.fn().mockResolvedValue({ lat: 1, lng: 2, city: "Tokyo", country: "Japan", countryCode: "jp", name: "Tokyo" }),
     stopFindFirstMock,
     stopFindUniqueMock,
@@ -185,7 +183,7 @@ vi.mock("@/lib/guards", async () => {
   };
 });
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,

@@ -1,3 +1,4 @@
+import "server-only";
 import { haversineKm, type LatLng } from "@/lib/geo";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { openingHoursFromGoogle, parseGooglePeriods } from "@/lib/opening-hours-google";
@@ -211,19 +212,3 @@ export async function fetchVenueDetails(placeId: string): Promise<VenueDetails |
     businessStatus: typeof place.businessStatus === "string" && place.businessStatus ? place.businessStatus : null,
   };
 }
-
-// Shims for callers Task 3 and Task 7 rewire; Task 10 deletes them.
-export async function geocodePlace(query: string): Promise<LatLng | null> {
-  const c = await geocodePlaceDetailed(query);
-  return c && { lat: c.lat, lng: c.lng };
-}
-
-export type PlaceSearchOutcome = { status: "ok"; candidates: GeoCandidate[] } | { status: "error" };
-
-export async function searchPlacesWithStatus(query: string): Promise<PlaceSearchOutcome> {
-  const c = await geocodePlaceDetailed(query);
-  return c ? { status: "ok", candidates: [c] } : { status: "error" };
-}
-
-// Never calls Google: a Geocoding request per keystroke would bill every keystroke.
-export const searchPlacesTypeahead: (query: string, limit?: number) => Promise<PlaceSearchOutcome> = async () => ({ status: "error" });

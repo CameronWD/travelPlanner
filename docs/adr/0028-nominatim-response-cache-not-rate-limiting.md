@@ -1,5 +1,8 @@
 # Nominatim etiquette via in-memory response caching, not runtime rate limiting
 
+## Status
+Superseded by ADR 0076 (2026-10-30).
+
 > **Amended by ADR 0069 (2026-10-06).** This ADR's premise — geocodes happen
 > at human pace — no longer holds: the place combobox became a typeahead, and
 > firm-up geocoded every Stop back to back. The as-you-type search now goes

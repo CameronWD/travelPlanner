@@ -1,7 +1,7 @@
 # Typeahead goes to Photon; Nominatim keeps one-off lookups
 
 ## Status
-Accepted (2026-10-06). Amends ADR 0028.
+Superseded by ADR 0076 (2026-10-30). Previously: accepted (2026-10-06), amending ADR 0028.
 
 ## Context
 

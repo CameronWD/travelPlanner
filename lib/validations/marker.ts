@@ -43,7 +43,7 @@ export const markerSchema = z.object({
   lng: z.number().optional(),
   city: optionalText(140),
   country: optionalText(140),
-  // ISO 3166-1 alpha-2, lowercase as Nominatim returns it.
+  // ISO 3166-1 alpha-2, lowercase.
   countryCode: z
     .string()
     .trim()

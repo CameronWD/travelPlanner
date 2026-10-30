@@ -115,7 +115,6 @@ const ALLOWLIST: Record<string, string[]> = {
   "journal.ts": ["deleteJournalEntry", "saveJournalEntry", "setJournalShareHidden"],
   "last-trip.ts": ["rememberLastTrip"],
   "notes.ts": ["addNote", "deleteNote"],
-  "places.ts": ["findPlaces"],
   "profile.ts": ["removeProfilePhoto", "setDisplayName", "setProfilePhoto", "setProfilePhotoFocal"],
   "push.ts": ["healRotatedSubscription", "subscribeToPush", "unsubscribeFromPush"],
   "rates.ts": ["clearManualRate", "refreshRates", "setManualRate"],
@@ -161,6 +160,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "setTripHardEndDate",
     "updateTrip",
   ],
+  "venue-details.ts": ["venueDetailsForPick"],
   "votes.ts": ["clearVote", "setVote"],
   "welcome.ts": ["markWelcomeSeen"],
 };

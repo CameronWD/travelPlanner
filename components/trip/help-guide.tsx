@@ -677,8 +677,9 @@ export function HelpGuide({
               <li>
                 <strong className="font-semibold">Address</strong>: worth
                 filling in, because an address will usually put the thing on that
-                day&rsquo;s map. The app looks the address up as it saves, and
-                only what it can place gets plotted.
+                day&rsquo;s map. Pick a suggestion, or type an address and the
+                app looks it up as it saves; only what it can place gets
+                plotted.
               </li>
               <li>
                 <strong className="font-semibold">Link</strong>: the page you
