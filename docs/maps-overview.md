@@ -20,7 +20,7 @@ and the page keeps working. Decision: [ADR 0076](adr/0076-google-maps-platform-r
 Notably **not** installed: any 3D globe library (`react-globe.gl`, `three`,
 `cobe` — rejected in ADR 0024; the "Globe" is a flat map, the name describes the
 concept), `@googlemaps/*` SDKs, and any routing SDK. `leaflet`, `@types/leaflet`
-and the CARTO tile config are gone.
+and the raster-tile config are gone.
 
 ## 2. Services we consume
 
@@ -370,5 +370,5 @@ To stand this up in another Next.js App Router project:
 | `0011` | Geocode all located entities on save; Transport gets its own coordinates |
 | `0024` | The "Globe" is a flat map, not a 3D globe (amended: now Google) |
 | `0028` | Nominatim etiquette via in-memory response caching, not runtime rate limiting |
-| `0033` | CARTO tiles — superseded by 0076 |
+| `0033` | Free raster basemap tiles — superseded by 0076 |
 | `0076` | Google Maps Platform replaces the free map stack |
