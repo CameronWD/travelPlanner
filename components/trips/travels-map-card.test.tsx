@@ -32,7 +32,6 @@ describe("TravelsMapCard", () => {
     expect(screen.getAllByRole("button", { name: /^Trip / })).toHaveLength(3);
     expect(screen.getByRole("button", { name: "+2" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Globe →" })).toHaveAttribute("href", "/globe");
-    expect(screen.getByText("© OpenStreetMap · CARTO")).toBeInTheDocument();
   });
   it("collapses chips into +N whenever the measured row would overflow the card, not only past three (LA-151)", () => {
     vi.stubGlobal("ResizeObserver", class { cb: (e: unknown[]) => void; constructor(cb: (e: unknown[]) => void) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} });

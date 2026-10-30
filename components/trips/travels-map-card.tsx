@@ -242,9 +242,6 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
           Globe →
         </span>
       )}
-      <p className="pointer-events-none absolute bottom-3 left-4 z-[500] shrink-0 whitespace-nowrap text-[11px] font-semibold text-muted-foreground">
-        © OpenStreetMap · CARTO
-      </p>
     </>
   );
   if (mobile) {

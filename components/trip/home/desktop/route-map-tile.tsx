@@ -35,7 +35,7 @@ export interface RouteMapTileProps {
   tripId: string;
   /** How many real-plan Stops exist, located or not (tunes the empty state). */
   stopCount?: number;
-  /** Spec 2026-10-06 §D: the breakpoint this tile is shown at; elsewhere Leaflet never loads. */
+  /** Spec 2026-10-06 §D: the breakpoint this tile is shown at; elsewhere the map never loads. */
   mountWhen?: MapMountWhen;
 }
 
@@ -192,10 +192,6 @@ export function RouteMapTile({ stops, tripId, stopCount, mountWhen = true }: Rou
           ))}
         </div>
       ) : null}
-
-      <p className="pointer-events-none absolute bottom-3 left-4 z-10 text-[11px] font-semibold text-muted-foreground">
-        © OpenStreetMap · CARTO
-      </p>
     </Card>
   );
 }

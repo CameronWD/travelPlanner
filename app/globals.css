@@ -15,46 +15,54 @@
 @custom-variant dark (&:where(.dark, .dark *):not(:where([data-theme="light"], [data-theme="light"] *)));
 
 /* ---------------------------------------------------------------------------
-   Leaflet stacking-context containment
-   Leaflet assigns high z-index values to its internal panes (200–700) and
-   controls (1000). Without a stacking context on the map root, those values
-   leak into the page's root context and paint ABOVE our modal layer (dialog
-   overlay/content are z-50), so an open dialog appears *behind* the map.
-   `isolation: isolate` gives every map its own stacking context: the internal
-   layering is preserved, but the whole map now sits at the container's level
-   in the page (~0), safely below the z-50 dialogs. Applies to all maps
-   (globe, wishlist, route, day) via Leaflet's shared .leaflet-container class.
+   Map stacking-context containment
+   Google draws its panes and controls with high z-index values. Without a
+   stacking context on the map root they leak into the page's root context and
+   paint ABOVE our modal layer (dialog overlay/content are z-50). `isolation:
+   isolate` keeps the internal layering but sits the whole map at the
+   container's level, safely below the dialogs. Applies to every map via the
+   `tp-map` class GoogleMapFrame puts on the map root.
    It does NOT cover overlays a card draws *outside* the container to sit above
-   the map (chips, pills, attribution at z-[500]): any wrapper that holds such
-   overlays must carry `isolate` itself — components/trips/travels-map-card.tsx
-   and components/plan/plan-mini-map.tsx do (spec 2026-10-01 §C).
+   the map (chips, pills): any wrapper that holds such overlays must carry
+   `isolate` itself — components/trips/travels-map-card.tsx and
+   components/plan/plan-mini-map.tsx do (spec 2026-10-01 §C).
 --------------------------------------------------------------------------- */
-.leaflet-container {
+.tp-map {
   isolation: isolate;
 }
 
-/* Kit zoom control for maps whose frame carries .tp-map (the Globe and the Wishlist map): Leaflet's default is a
-   white box with a grey outline in both themes. 44px buttons, 2px ink outline, hard shadow. */
-.tp-map.leaflet-container .leaflet-bar {
-  border: 2px solid hsl(var(--border));
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-1);
-  overflow: hidden;
-}
-.tp-map.leaflet-container .leaflet-bar a,
-.tp-map.leaflet-container .leaflet-bar a:hover {
-  width: 44px;
-  height: 44px;
-  line-height: 44px;
+/* Kit InfoWindow shell. Google's default is a white card in both themes, which leaves the
+   token-coloured popup text unreadable in dark mode. Card surface, 2px ink outline, hard shadow;
+   the tail and the close button follow the same tokens. */
+.tp-map .gm-style-iw-c {
   background: hsl(var(--card));
   color: hsl(var(--foreground));
-  border-bottom: 2px solid hsl(var(--border));
-  font-weight: 800;
+  border: 2px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  font-family: var(--font-sans);
 }
-.tp-map.leaflet-container .leaflet-bar a:hover { background: hsl(var(--muted)); }
-.tp-map.leaflet-container .leaflet-bar a:last-child { border-bottom: none; }
-.tp-map.leaflet-container .leaflet-bar a.leaflet-disabled { color: hsl(var(--muted-foreground)); background: hsl(var(--card)); }
-.tp-map.leaflet-container .leaflet-bar a:focus-visible { outline: 3px solid hsl(var(--ring)); outline-offset: -3px; }
+.tp-map .gm-style-iw-d {
+  color: hsl(var(--foreground));
+}
+.tp-map .gm-style-iw-tc::after {
+  background: hsl(var(--card));
+  border: 2px solid hsl(var(--border));
+  box-shadow: var(--shadow-1);
+}
+.tp-map .gm-style-iw-chr button.gm-ui-hover-effect {
+  color: hsl(var(--muted-foreground));
+}
+.tp-map .gm-style-iw-chr button.gm-ui-hover-effect > span {
+  background-color: hsl(var(--muted-foreground));
+}
+.tp-map .gm-style-iw-chr button.gm-ui-hover-effect:hover > span {
+  background-color: hsl(var(--foreground));
+}
+.tp-map .gm-style-iw-chr button.gm-ui-hover-effect:focus-visible {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: -3px;
+}
 
 /* ---------------------------------------------------------------------------
    Design tokens. HSL channels (same convention as before) so bg-coral/20 etc. work.

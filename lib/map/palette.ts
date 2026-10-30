@@ -41,7 +41,7 @@ export function hueInkHex(hue: Hue, dark = false): string {
 /** The travels map ground behind the tiles — mirrors --map-fill. */
 export const MAP_FILL = { light: "#EAF3F2", dark: "#232A2A" } as const;
 
-/** Non-hue map colours. Tiles stay CARTO light / dark (cartoTiles). */
+/** Non-hue map colours. */
 export const MAP_INK = {
   light: {
     ink: "#1D1D1B",        // --foreground: pin outline, pin glyph, route casing, home pin fill

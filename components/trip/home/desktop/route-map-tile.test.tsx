@@ -69,7 +69,6 @@ describe("RouteMapTile", () => {
     expect(insets).toHaveLength(1);
     expect(insets[0]).toHaveTextContent("Kuta, Bali");
     expect(insets[0]).toHaveTextContent("4 nights · then Paris");
-    expect(screen.getByText("© OpenStreetMap · CARTO")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Trip route map" })).toBeInTheDocument();
   });
 
