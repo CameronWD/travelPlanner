@@ -37,6 +37,25 @@ describe("PrivacyPage", () => {
     expect(screen.getAllByText(/Resend/).length).toBeGreaterThan(0);
   });
 
+  it("names every surface that loads Google Maps", async () => {
+    render(await PrivacyPage());
+    const item = screen.getByText("Google Maps").closest("li")!.textContent!.replace(/\s+/g, " ");
+    for (const surface of [
+      "the Trip",
+      "the Summary",
+      "the Share page",
+      "without an account",
+      "Home",
+      "route tile",
+      "Your travels",
+      "the Globe",
+      "the Day map",
+      "the Wishlist",
+    ]) {
+      expect(item).toContain(surface);
+    }
+  });
+
   // ADR 0069: the as-you-type place search goes to Photon.
   it("says which geocoder sees what is typed", async () => {
     render(await PrivacyPage());

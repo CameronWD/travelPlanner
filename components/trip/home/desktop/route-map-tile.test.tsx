@@ -59,7 +59,8 @@ const fittedPoints = (call: number | "last" = 0) => {
   return bounds.points;
 };
 const pinTitles = () => screen.getAllByTestId("marker").map((m) => m.getAttribute("title"));
-const zoomListener = () => (mock.map.addListener.mock.calls as unknown as [string, () => void][]).find(([ev]) => ev === "zoom_changed")![1];
+const listenerEvents = () => (mock.map.addListener.mock.calls as unknown as [string, () => void][]).map(([ev]) => ev);
+const idleListener = () => (mock.map.addListener.mock.calls as unknown as [string, () => void][]).find(([ev]) => ev === "idle")![1];
 
 describe("RouteMapTile", () => {
   it("selects the main geographic cluster chip and shows the outlying Stop as an inset card", () => {
@@ -74,9 +75,9 @@ describe("RouteMapTile", () => {
     expect(screen.getByRole("region", { name: "Trip route map" })).toBeInTheDocument();
   });
 
-  it("builds the map with the zoom control and no scroll-wheel hijack, fitted to the main cluster", () => {
+  it("builds the map with no zoom control and no scroll-wheel hijack, fitted to the main cluster", () => {
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
-    expect(mock.recorded.map.at(-1)).toMatchObject({ disableDefaultUI: true, zoomControl: true, gestureHandling: "cooperative" });
+    expect(mock.recorded.map.at(-1)).toMatchObject({ disableDefaultUI: true, zoomControl: false, gestureHandling: "cooperative" });
     const fitted = fittedPoints();
     expect(fitted).toHaveLength(10);
     expect(fitted.some(({ lat }) => lat < 0)).toBe(false);
@@ -144,16 +145,17 @@ describe("RouteMapTile", () => {
     expect(fittedPoints()).toEqual([{ lat: 48.85, lng: 2.35 }, { lat: 48.86, lng: 2.36 }]);
   });
 
-  it("cluster pins recompute when the zoom changes", () => {
+  it("cluster pins recompute once the camera settles, not mid-zoom", () => {
     render(<RouteMapTile stops={close} tripId="t1" />);
     expect(screen.getAllByTestId("marker")).toHaveLength(2);
+    expect(listenerEvents()).not.toContain("zoom_changed");
     mock.map.getZoom.mockReturnValue(14);
-    act(() => zoomListener()());
+    act(() => idleListener()());
     expect(screen.getAllByTestId("marker")).toHaveLength(3);
     expect(pinTitles()).toEqual(expect.arrayContaining(["1. A", "2. B", "3. C"]));
   });
 
-  it("removes its zoom listener on unmount", () => {
+  it("removes its idle listener on unmount", () => {
     const remove = vi.fn();
     mock.map.addListener.mockReturnValue({ remove });
     const { unmount } = render(<RouteMapTile stops={close} tripId="t1" />);
@@ -171,7 +173,8 @@ describe("RouteMapTile", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
     act(() => window.gm_authFailure!());
-    expect(await screen.findByRole("heading", { level: 3, name: "The map didn’t load" })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { level: 3, name: "The map didn’t load" });
+    expect(heading.closest("[data-map-fallback]")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
     spy.mockRestore();
   });

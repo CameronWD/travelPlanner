@@ -23,6 +23,20 @@ export interface WishlistMapProps {
   onSelect: (id: string) => void;
 }
 
+function WishlistItemList({ items, onSelect }: WishlistMapProps) {
+  return (
+    <ol className="flex flex-col gap-2">
+      {items.map((item) => (
+        <li key={item.id} className="text-sm">
+          <button type="button" onClick={() => onSelect(item.id)} className="text-left font-bold hover:underline">
+            {item.title}
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function FitItems({ items }: { items: WishlistMapItem[] }) {
   useFitBounds(items, { padding: 40 });
   return null;
@@ -48,7 +62,7 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
       role="region"
       aria-label="Wishlist map"
       dark={isDark}
-      fallback={<MapUnavailable />}
+      fallback={<MapUnavailable><WishlistItemList items={items} onSelect={onSelect} /></MapUnavailable>}
       className="h-52 w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2 sm:h-[360px]"
     >
       <FitItems items={items} />

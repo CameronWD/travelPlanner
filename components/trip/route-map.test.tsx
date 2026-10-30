@@ -77,7 +77,8 @@ describe("RouteMap on Google", () => {
 
   it("renders the text fallback, not a map, with fewer than two located stops", () => {
     render(<RouteMap stops={[STOPS[0]]} />);
-    expect(screen.getByText("Add coordinates to your stops to see the route map.")).toBeInTheDocument();
+    const copy = screen.getByText("Add coordinates to your stops to see the route map.");
+    expect(copy.closest("[data-map-fallback]")).not.toBeNull();
     expect(screen.queryByTestId("gmap")).toBeNull();
   });
 

@@ -58,9 +58,9 @@ describe("TravelMap", () => {
     expect(mock.map.setZoom).toHaveBeenCalledWith(12);
   });
 
-  it("keeps the zoom control and drops scroll-wheel hijack", () => {
+  it("has no zoom control and drops scroll-wheel hijack", () => {
     render(<TravelMap trips={[europe]} filterTripId={null} variant="desktop" />);
-    expect(mock.recorded.map.at(-1)).toMatchObject({ disableDefaultUI: true, zoomControl: true, gestureHandling: "cooperative", minZoom: 1 });
+    expect(mock.recorded.map.at(-1)).toMatchObject({ disableDefaultUI: true, zoomControl: false, gestureHandling: "cooperative", minZoom: 1 });
   });
 
   it("labels the map region", () => {

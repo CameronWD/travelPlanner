@@ -64,6 +64,7 @@ class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { 
     if (this.state.failed) {
       return (
         <ErrorPanel
+          data-map-fallback
           layout="card"
           headingLevel={3}
           title="The map didn’t load"

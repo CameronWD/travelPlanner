@@ -80,6 +80,17 @@ describe("WishlistMap frame", () => {
     expect(screen.queryByTestId("marker")).not.toBeInTheDocument();
   });
 
+  it("lists the items under the unavailable notice, each one selectable", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    const onSelect = vi.fn();
+    render(<WishlistMap items={ITEMS} onSelect={onSelect} />);
+    const list = screen.getByRole("list");
+    expect(list.closest("[data-map-fallback]")).not.toBeNull();
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Tokyo Tower", "Ramen"]);
+    fireEvent.click(screen.getByRole("button", { name: "Ramen" }));
+    expect(onSelect).toHaveBeenCalledWith("b");
+  });
+
   it("keeps the empty state when there are no items", () => {
     render(<WishlistMap items={[]} onSelect={vi.fn()} />);
     expect(screen.getByText("No map locations yet.")).toBeInTheDocument();

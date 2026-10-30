@@ -155,7 +155,7 @@ function RouteStopList({ stops }: { stops: RouteMapStop[] }) {
 
 function MapFallback({ stops }: { stops: RouteMapStop[] }) {
   return (
-    <div className="flex flex-col gap-4 rounded-lg border-2 border-dashed border-border-soft px-5 py-6">
+    <div data-map-fallback className="flex flex-col gap-4 rounded-lg border-2 border-dashed border-border-soft px-5 py-6">
       <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
         <MapPin className="size-4 shrink-0" aria-hidden="true" />
         <span>

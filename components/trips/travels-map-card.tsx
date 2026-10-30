@@ -49,6 +49,7 @@ function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
 function MapFailurePanel() {
   return (
     <ErrorPanel
+      data-map-fallback
       layout="card"
       headingLevel={3}
       title="The map didn’t load"

@@ -69,7 +69,7 @@ describe("TravelsMapCard", () => {
   it("shows the error panel (title pill still visible) when the map reports onFail", () => {
     hoisted.shouldFail = true;
     render(<TravelsMapCard trips={trips} variant="desktop" />);
-    expect(screen.getByText("The map didn’t load")).toBeInTheDocument();
+    expect(screen.getByText("The map didn’t load").closest("[data-map-fallback]")).not.toBeNull();
     expect(screen.getByText("Your travels")).toBeInTheDocument();
   });
   it("shows the failure panel (title pill kept, chips hidden) when trips is null (I5)", () => {

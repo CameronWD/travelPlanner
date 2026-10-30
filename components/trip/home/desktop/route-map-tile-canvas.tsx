@@ -6,7 +6,7 @@
  * keyless map throws into that boundary, which draws the tile's error panel.
  *
  * Pins: 30px numbered stickers in each Stop's own colour (lib/stop-colours →
- * lib/map/palette hex). After every fit/zoom, pins closer than 32px on screen
+ * lib/map/palette hex). Each time the camera settles, pins closer than 32px on screen
  * are merged into one count pin (lib/map/overlap) — clicking it zooms in.
  * Clicking a Stop pin opens the Plan at that Stop (`#stop-<id>`).
  */
@@ -20,6 +20,7 @@ import { MapPolyline } from "@/components/map/map-polyline";
 import { hueHex, routeStyles } from "@/lib/map/palette";
 import { pinHtml } from "@/lib/map/pins";
 import { mergeOverlapping } from "@/lib/map/overlap";
+import { WORLD_RESTRICTION } from "@/lib/map/world";
 import type { Hue } from "@/lib/hues";
 
 interface CanvasStop {
@@ -48,11 +49,6 @@ const MERGE_PX = 32;
 const FIT_PADDING = 48;
 const FOCUS_ZOOM = 7;
 const FIRST_ZOOM = 2;
-
-const WORLD_RESTRICTION = {
-  latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
-  strictBounds: false,
-};
 
 // Only distances between pins matter, so Web Mercator at the current zoom is enough — no projection object needed.
 function toScreen(lat: number, lng: number, zoom: number) {
@@ -121,7 +117,8 @@ function Pins({ stops, dark, onPinClick }: { stops: CanvasStop[]; dark: boolean;
     if (!map) return;
     const sync = () => setZoom(map.getZoom() ?? FIRST_ZOOM);
     sync();
-    const listener = map.addListener("zoom_changed", sync);
+    // zoom_changed fires on every fractional step of an animated zoom; re-clustering then remounts pins mid-animation.
+    const listener = map.addListener("idle", sync);
     return () => listener.remove();
   }, [map]);
 
@@ -186,6 +183,7 @@ export function RouteMapTileCanvas({ stops, mainIds, view, focus, onPinClick }: 
         defaultCenter: { lat: 20, lng: 0 },
         defaultZoom: FIRST_ZOOM,
         minZoom: 1,
+        zoomControl: false,
         gestureHandling: "cooperative",
         restriction: WORLD_RESTRICTION,
       }}

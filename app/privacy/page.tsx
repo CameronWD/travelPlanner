@@ -215,10 +215,11 @@ export default function PrivacyPage() {
           </li>
           <li>
             <span className="font-bold">Google Maps</span>: draws the
-            maps you see on the Trip, the Summary, the Globe, the Day map
-            and the Wishlist. Your browser loads the map from Google when
-            a map is on screen, so Google sees your IP address and the
-            area you look at.
+            maps you see on the Trip, the Summary, the Share page (including
+            for viewers without an account), Home (including the route tile),
+            Your travels, the Globe, the Day map and the Wishlist. Your
+            browser loads the map from Google when a map is on screen, so
+            Google sees your IP address and the area you look at.
           </li>
           <li>
             <span className="font-bold">

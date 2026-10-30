@@ -25,6 +25,7 @@ import { MapPolyline } from "@/components/map/map-polyline";
 import { useFitBounds } from "@/components/map/use-fit-bounds";
 import { pinHtml } from "@/lib/map/pins";
 import { hueHex, mapInk } from "@/lib/map/palette";
+import { WORLD_RESTRICTION } from "@/lib/map/world";
 import type { TravelMapTrip } from "@/lib/trips/trip-views";
 
 export type { TravelMapTrip };
@@ -90,8 +91,9 @@ export function TravelMap({ trips, filterTripId, variant, onFail }: TravelMapPro
         defaultCenter: WORLD.center,
         defaultZoom: WORLD.zoom,
         minZoom: 1,
+        zoomControl: false,
         gestureHandling: "cooperative",
-        restriction: { latLngBounds: { north: 85, south: -85, west: -180, east: 180 }, strictBounds: false },
+        restriction: WORLD_RESTRICTION,
       }}
     >
       <FitTravels points={points} />

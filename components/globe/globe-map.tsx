@@ -10,6 +10,7 @@ import { useFitBounds } from "@/components/map/use-fit-bounds";
 import { useTheme } from "@/components/ui/theme-provider";
 import { pinHex, pinHtml } from "@/lib/map/pins";
 import { hueHex } from "@/lib/map/palette";
+import { WORLD_RESTRICTION } from "@/lib/map/world";
 import { ARRIVAL_FLY_S, PIN_STAGGER_MS } from "./arrival";
 
 export interface GlobeMapProps {
@@ -25,11 +26,6 @@ export interface GlobeMapProps {
 }
 
 type LocatedMarker = MarkerView & { lat: number; lng: number };
-
-const WORLD_RESTRICTION = {
-  latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
-  strictBounds: false,
-};
 
 function FitInitial({ points }: { points: google.maps.LatLngLiteral[] }) {
   const [initial] = useState(points);
