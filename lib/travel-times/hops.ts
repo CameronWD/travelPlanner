@@ -220,12 +220,22 @@ function transitBookable(departure: Date | null, now: Date): departure is Date {
   return ahead >= 0 && ahead <= TRANSIT_WINDOW_MS;
 }
 
-export function hopKeys(from: Pt, to: Pt, localMode: LocalMode, departure: Date | null, now: Date): string[] {
+// "fetch" is the refresh asking Google (TRANSIT only inside its window); "read" loads any TRANSIT row already stored, so a past hop stays real.
+export type KeyPurpose = "fetch" | "read";
+
+export function hopKeys(
+  from: Pt,
+  to: Pt,
+  localMode: LocalMode,
+  departure: Date | null,
+  now: Date,
+  purpose: KeyPurpose = "fetch",
+): string[] {
   if (samePoint(from, to)) return [];
   const keys: string[] = [];
   if (haversineKm(from, to) < WALK_ROW_UNDER_KM) keys.push(routeKey("WALK", from, to));
   if (localMode === "DRIVE") keys.push(routeKey("DRIVE", from, to));
-  else if (transitBookable(departure, now)) keys.push(routeKey("TRANSIT", from, to, departure));
+  else if (departure && (purpose === "read" || transitBookable(departure, now))) keys.push(routeKey("TRANSIT", from, to, departure));
   return keys;
 }
 
@@ -371,6 +381,7 @@ export function homePointOf(trip: { homeLat?: number | null; homeLng?: number | 
 export function planTravelKeys(
   plan: { items: HopItemRow[]; stops: HopStopRow[]; transports: HopTransportRow[]; home: Pt | null },
   now: Date,
+  opts: { purpose?: KeyPurpose } = {},
 ): Set<string> {
   const stopsById = hopStopsById(plan.stops);
   const planTransports = plan.transports.map(toPlanTransport);
@@ -378,7 +389,7 @@ export function planTravelKeys(
   const keys = new Set<string>();
   for (const pair of planHops(items, planTransports)) {
     const hop = hopInputs(pair, { stopsById, planTransports });
-    if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now)) keys.add(k);
+    if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now, opts.purpose)) keys.add(k);
   }
   for (const leg of carLegs(planTransports, stopsById, plan.home)) {
     if (!samePoint(leg.from, leg.to)) keys.add(driveKey(leg.from, leg.to));

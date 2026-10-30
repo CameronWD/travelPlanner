@@ -17,5 +17,5 @@ export function loadTravelLookupFor(
   input: { items: Selected<HopItemRow>[]; stops: Selected<HopStopRow>[]; transports: Selected<HopTransportRow>[]; home: Pt | null },
   now: Date = new Date(),
 ): Promise<TravelLookup> {
-  return loadTravelTimes([...planTravelKeys(input, now)]);
+  return loadTravelTimes([...planTravelKeys(input, now, { purpose: "read" })]);
 }

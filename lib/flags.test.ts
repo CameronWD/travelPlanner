@@ -912,6 +912,17 @@ describe("Travel times in the Flags", () => {
       expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min public transport.`);
     });
 
+    it("keeps reading a stored public transport time after its departure has passed", () => {
+      const departure = new Date(`${DAY}T12:00:00+09:00`);
+      const afterwards = new Date("2026-11-11T00:00:00Z");
+      const stop = tokyo("TRANSIT");
+      const keys = planTravelKeys({ items: pair(SHRINE), stops: [stop], transports: [], home: null }, afterwards, { purpose: "read" });
+      const transit = hopKeys(TEMPLE, SHRINE, "TRANSIT", departure, afterwards, "read")[0];
+      expect(keys).toContain(transit);
+      const [flag] = tight(pair(SHRINE), stop, new Map([[transit, ok(31)]]));
+      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min public transport.`);
+    });
+
     it("falls back to the estimate, marked, when the stored row is NONE", () => {
       const lookup: TravelLookup = new Map([[keyOf("DRIVE", SHRINE), none]]);
       const [flag] = tight(pair(SHRINE), tokyo("DRIVE"), lookup);

@@ -10,6 +10,7 @@ import {
   itemDeparture,
   parseHopKey,
   planHops,
+  planTravelKeys,
   pointKey,
   resolveDriveLeg,
   resolveHop,
@@ -188,6 +189,30 @@ describe("hopKeys", () => {
 
   it("needs no route when both points share a key", () => {
     expect(hopKeys(A, { lat: 35.000001, lng: 135.000001 }, "DRIVE", null, NOW)).toEqual([]);
+  });
+
+  it("reads a stored TRANSIT row for any departure, past or beyond 90 days", () => {
+    const past = new Date(NOW.getTime() - 3 * 60 * 60_000);
+    const later = new Date(NOW.getTime() + 200 * 24 * 60 * 60_000);
+    for (const dep of [past, later]) {
+      expect(hopKeys(A, FAR2, "TRANSIT", dep, NOW, "read")).toEqual([`TRANSIT|${a}|${far}|${dep.toISOString()}`]);
+      expect(hopKeys(A, FAR2, "TRANSIT", dep, NOW, "fetch")).toEqual([]);
+    }
+    expect(hopKeys(A, FAR2, "TRANSIT", null, NOW, "read")).toEqual([]);
+  });
+});
+
+describe("planTravelKeys", () => {
+  const stops = [{ id: "s1", localTravelMode: "TRANSIT", timezone: "UTC", lat: 35, lng: 135 }];
+  const items = [
+    item("a", { date: "2026-10-20", startTime: "09:00", endTime: "10:00" }),
+    item("b", { date: "2026-10-20", startTime: "11:00", endTime: "12:00", lat: FAR2.lat, lng: FAR2.lng }),
+  ];
+  const pastKey = `TRANSIT|${pointKey(A)}|${pointKey(FAR2)}|2026-10-20T10:00:00.000Z`;
+
+  it("fetch mode leaves out a past departure's TRANSIT key; read mode keeps it", () => {
+    expect([...planTravelKeys({ items, stops, transports: [], home: null }, NOW)]).not.toContain(pastKey);
+    expect([...planTravelKeys({ items, stops, transports: [], home: null }, NOW, { purpose: "read" })]).toContain(pastKey);
   });
 });
 

@@ -73,6 +73,11 @@ const ITEMS = [
   item("ropeway", "hakone", { lat: 35.25, lng: 139.02 }, "10:30", "11:00", 0, "2026-11-12"),
   item("lake", "fuji", FUJI, "15:00", "16:00", 0, "2026-11-13"),
   item("cave", "fuji", { lat: 35.45, lng: 138.62 }, "16:30", "17:00", 0, "2026-11-13"),
+  // Outside the refresh's TRANSIT window: one already past, one more than 90 days ahead.
+  item("museum", "tokyo", TEMPLE, "09:00", "11:00", 0, "2026-10-20"),
+  item("garden", "tokyo", SHRINE, "11:30", "12:30", 0, "2026-10-20"),
+  item("market", "tokyo", TEMPLE, "09:00", "11:00", 0, "2027-03-01"),
+  item("tower", "tokyo", SHRINE, "11:30", "12:30", 0, "2027-03-01"),
 ];
 const transport = (id: string, t: Record<string, unknown>) => ({
   id, forkId: null, mode: "CAR", fromStopId: null, toStopId: null, depAt: null, arrAt: null,
@@ -114,15 +119,24 @@ async function refreshKeys(): Promise<Set<string>> {
   return keys;
 }
 
+const outOfWindowTransit = () =>
+  [
+    hopKeys(TEMPLE, SHRINE, "TRANSIT", new Date("2026-10-20T11:00:00+09:00"), NOW, "read"),
+    hopKeys(TEMPLE, SHRINE, "TRANSIT", new Date("2027-03-01T11:00:00+09:00"), NOW, "read"),
+  ].map((ks) => ks.find((k) => k.startsWith("TRANSIT|"))!);
+
 describe("loadFlagRows's Travel-time keys", () => {
-  it("are exactly the keys the refresh fetches for the same plan", async () => {
+  it("are the refresh's keys plus the stored TRANSIT rows outside its fetch window", async () => {
     vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     try {
       const refreshed = await refreshKeys();
       await loadFlagRows("t1", "viv");
       const [read] = keysAsked();
 
-      expect(read).toEqual(refreshed);
+      const outOfWindow = outOfWindowTransit();
+      for (const k of outOfWindow) expect(refreshed).not.toContain(k);
+      for (const k of refreshed) expect(read).toContain(k);
+      expect(read).toEqual(new Set([...refreshed, ...outOfWindow]));
       const transitAt = (end: string) => new Date(`${DAY}T${end}:00+09:00`);
       for (const k of [
         ...hopKeys(TEMPLE, DINNER, "TRANSIT", transitAt("12:00"), NOW),
@@ -139,7 +153,7 @@ describe("loadFlagRows's Travel-time keys", () => {
     }
   });
 
-  it("for a masked viewer, include the hop that steps over the hidden Surprise and nothing the refresh lacks", async () => {
+  it("for a masked viewer, include the hop that steps over the hidden Surprise and no key beyond the refresh's plus stored out-of-window TRANSIT", async () => {
     hidden.byViewer = { null: ["dinner"], viv: ["dinner"] };
     vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     try {
@@ -149,7 +163,8 @@ describe("loadFlagRows's Travel-time keys", () => {
 
       const stepOver = hopKeys(TEMPLE, BAR, "TRANSIT", new Date(`${DAY}T12:00:00+09:00`), NOW);
       for (const k of stepOver) expect(read).toContain(k);
-      for (const k of read) expect(refreshed).toContain(k);
+      const known = new Set([...refreshed, ...outOfWindowTransit()]);
+      for (const k of read) expect(known).toContain(k);
       expect([...read].some((k) => k.includes("35.71000,139.80000"))).toBe(false);
     } finally {
       vi.useRealTimers();

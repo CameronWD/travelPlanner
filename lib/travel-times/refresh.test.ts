@@ -132,6 +132,19 @@ describe("refreshTripTravelTimes", () => {
     expect(m.takeGoogleQuota).toHaveBeenCalledWith("routes", 165);
   });
 
+  it("never fetches a TRANSIT key whose departure is past or more than 90 days ahead", async () => {
+    plan({
+      items: [
+        item({ id: "a", at: TEMPLE, start: "10:00", end: "12:00", date: "2026-10-20" }),
+        item({ id: "b", at: FAR(1), start: "13:00", end: "14:00", date: "2026-10-20" }),
+        item({ id: "c", at: TEMPLE, start: "10:00", end: "12:00", date: "2027-03-01" }),
+        item({ id: "d", at: FAR(1), start: "13:00", end: "14:00", date: "2027-03-01" }),
+      ],
+    });
+    await refreshTripTravelTimes("t1", { now: NOW });
+    expect(m.computeRoute.mock.calls.map(([, , mode]) => mode)).not.toContain("TRANSIT");
+  });
+
   it("sends exactly what the key encodes: rounded points and the floored TRANSIT departure", async () => {
     plan({ items: [item({ id: "a", at: { lat: 35.714774, lng: 139.796664 }, start: "10:00", end: "12:14" }), item({ id: "b", at: FAR(1), start: "13:00" })] });
     await refreshTripTravelTimes("t1", { now: NOW });
