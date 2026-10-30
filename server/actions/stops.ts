@@ -69,6 +69,15 @@ async function requireStopAccess(stopId: string) {
   return { ...row, surpriseOf };
 }
 
+// A picked point (spec 2026-10-06 §L) is taken as sent; otherwise "name, country" is looked up best-effort.
+async function stopPlace(input: { name: string; country?: string; lat?: number; lng?: number; placeId?: string }) {
+  if (input.lat !== undefined && input.lng !== undefined) {
+    return { lat: input.lat, lng: input.lng, countryCode: null, placeId: input.placeId ?? null };
+  }
+  const found = await geocodePlaceDetailed([input.name, input.country].filter(Boolean).join(", "));
+  return found && { lat: found.lat, lng: found.lng, countryCode: found.countryCode ?? null, placeId: found.placeId };
+}
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
@@ -77,7 +86,7 @@ async function requireStopAccess(stopId: string) {
  * Create a new stop in the given trip.
  *
  * Handles both rough and scheduled modes.
- * For scheduled stops: if no lat/lng are provided, best-effort geocodes the name+country.
+ * With no picked lat/lng, best-effort looks up the name+country.
  * sortOrder is set to (max existing + 1) by default, or inserted after `afterStopId` when provided.
  *
  * @param afterStopId  Optional anchor: insert the new stop immediately after this stop.
@@ -107,40 +116,13 @@ export async function createStop(
     // mirroring the pattern used by moveStop and reorderStops.
     // -----------------------------------------------------------------------
 
-    // For both scheduled and rough stops, geocode outside the transaction (network
+    // For both scheduled and rough stops, look up outside the transaction (network
     // call; must not hold a DB lock while waiting for an external service — ADR 0007).
-    let lat: number | undefined;
-    let lng: number | undefined;
-    let derivedCountryCode: string | null = null;
-    if (parsed.data.mode === "scheduled") {
-      const { name, country } = parsed.data;
-      ({ lat, lng } = parsed.data);
-      derivedCountryCode = parsed.data.countryCode ?? null;
-      if (lat === undefined || lng === undefined) {
-        const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
-        if (coords) {
-          lat = coords.lat;
-          lng = coords.lng;
-          derivedCountryCode ??= coords.countryCode ?? null;
-        }
-      }
-    } else {
-      // rough: derive country like scheduled stops do (best-effort; failure just leaves coords null)
-      const { name, country } = parsed.data;
-      let roughLat: number | undefined;
-      let roughLng: number | undefined;
-      let roughCountryCode: string | null = null;
-      const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
-      if (coords) {
-        roughLat = coords.lat;
-        roughLng = coords.lng;
-        roughCountryCode = coords.countryCode ?? null;
-      }
-      // Store on the outer variables so the rough branch inside the tx can read them.
-      lat = roughLat;
-      lng = roughLng;
-      derivedCountryCode = parsed.data.countryCode ?? roughCountryCode;
-    }
+    const located = await stopPlace(parsed.data);
+    const lat = located?.lat;
+    const lng = located?.lng;
+    const placeId = located?.placeId ?? null;
+    const derivedCountryCode = parsed.data.countryCode ?? located?.countryCode ?? null;
 
     // Chapter membership validation for rough stops is a pure read that doesn't
     // race with stop inserts, so it can run before the transaction.
@@ -206,7 +188,7 @@ export async function createStop(
         }
         const chapterSortOrder = resolvedChapterId !== null && resolvedChapterId === anchorChapterId ? (anchorChapterSortOrder ?? 0) : 0;
 
-        // lat/lng/derivedCountryCode were geocoded before this transaction opened (ADR 0007).
+        // lat/lng/placeId/derivedCountryCode were looked up before this transaction opened (ADR 0007).
         const createdRough = await tx.stop.create({
           data: {
             tripId,
@@ -222,6 +204,7 @@ export async function createStop(
             timezone: null,
             lat: lat ?? null,
             lng: lng ?? null,
+            placeId,
             notes: notes ?? null,
             pinned: false,
             sortOrder,
@@ -250,6 +233,7 @@ export async function createStop(
           departDate,
           lat: lat ?? null,
           lng: lng ?? null,
+          placeId,
           countryCode: derivedCountryCode,
           notes: notes ?? null,
           chapterId: null,
@@ -303,18 +287,9 @@ export async function createStop(
       appendChapterId = chapter.startDate != null ? null : chapterId;
     }
 
-    // ROUGH APPEND PATH: geocode ran before this write; no FOR UPDATE lock is held here
+    // ROUGH APPEND PATH: the lookup ran before this write; no FOR UPDATE lock is held here
     // (racing appends can tie on sortOrder — see the APPEND PATH note above; cf. ADR 0007).
-    // rough create (append): derive country like scheduled stops do (best-effort; failure leaves coords null)
-    let appendRoughLat: number | null = null;
-    let appendRoughLng: number | null = null;
-    let appendRoughCountryCode: string | null = null;
-    const appendRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
-    if (appendRoughCoords) {
-      appendRoughLat = appendRoughCoords.lat;
-      appendRoughLng = appendRoughCoords.lng;
-      appendRoughCountryCode = appendRoughCoords.countryCode ?? null;
-    }
+    const appendRough = await stopPlace(parsed.data);
 
     // ADR 0073: the lone-Stop rule runs in the same transaction as the create.
     const created = await db.$transaction(async (tx) => {
@@ -324,15 +299,16 @@ export async function createStop(
           forkId: plan,
           name,
           country: country ?? null,
-          countryCode: parsed.data.countryCode ?? appendRoughCountryCode,
+          countryCode: parsed.data.countryCode ?? appendRough?.countryCode ?? null,
           nights,
           chapterId: appendChapterId,
           chapterSortOrder: 0,
           arriveDate: null,
           departDate: null,
           timezone: null,
-          lat: appendRoughLat,
-          lng: appendRoughLng,
+          lat: appendRough?.lat ?? null,
+          lng: appendRough?.lng ?? null,
+          placeId: appendRough?.placeId ?? null,
           notes: notes ?? null,
           pinned: false,
           sortOrder,
@@ -348,18 +324,10 @@ export async function createStop(
 
   // scheduled (append)
   const { name, country, arriveDate, departDate, notes } = parsed.data;
-  let { lat, lng } = parsed.data;
-
-  // Best-effort geocode if coords are missing
-  let appendCountryCode: string | null = parsed.data.countryCode ?? null;
-  if (lat === undefined || lng === undefined) {
-    const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
-    if (coords) {
-      lat = coords.lat;
-      lng = coords.lng;
-      appendCountryCode ??= coords.countryCode ?? null;
-    }
-  }
+  const appendPlace = await stopPlace(parsed.data);
+  const lat = appendPlace?.lat;
+  const lng = appendPlace?.lng;
+  const appendCountryCode = parsed.data.countryCode ?? appendPlace?.countryCode ?? null;
 
   const appendTimezone = resolveStopTimezone({ timezone: parsed.data.timezone, lat, lng, countryCode: appendCountryCode, country });
 
@@ -377,6 +345,7 @@ export async function createStop(
         departDate,
         lat: lat ?? null,
         lng: lng ?? null,
+        placeId: appendPlace?.placeId ?? null,
         countryCode: appendCountryCode,
         notes: notes ?? null,
         pinned: false,
@@ -417,7 +386,7 @@ export async function updateStop(
   }
 
   if (parsed.data.mode === "rough") {
-    const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode } = parsed.data;
+    const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode, placeId: pickedPlaceId } = parsed.data;
 
     // ARCH-TEN-5: the client-supplied Chapter must be one of this Stop's own
     // plan — same Trip AND same Fork — before it is written (createStop's shape).
@@ -432,21 +401,24 @@ export async function updateStop(
     // typed text is geocoded best-effort as before (failure leaves coords as they were).
     let updateRoughLat: number | null | undefined;
     let updateRoughLng: number | null | undefined;
+    let updateRoughPlaceId: string | null = null;
     // A sent countryCode wins over the geocoder's, as in createStop and the scheduled branch.
     let updateRoughCountryCode: string | null = pickedCountryCode ?? null;
     if (pickedLat !== undefined && pickedLng !== undefined) {
       updateRoughLat = pickedLat;
       updateRoughLng = pickedLng;
+      updateRoughPlaceId = pickedPlaceId ?? null;
     } else {
       const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
       if (updateRoughCoords) {
         updateRoughLat = updateRoughCoords.lat;
         updateRoughLng = updateRoughCoords.lng;
+        updateRoughPlaceId = updateRoughCoords.placeId;
         updateRoughCountryCode = pickedCountryCode ?? updateRoughCoords.countryCode ?? null;
       }
     }
 
-    // On a geocode miss, omit lat/lng from the update so we don't clobber previously-good
+    // On a geocode miss, omit lat/lng/placeId from the update so we don't clobber previously-good
     // coordinates — unlike create paths which write explicit null.
     // ADR 0073: the lone-Stop rule runs in the same transaction as the update.
     let updated;
@@ -458,7 +430,7 @@ export async function updateStop(
             name,
             country: country ?? null,
             countryCode: updateRoughCountryCode,
-            ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng } : {}),
+            ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng, placeId: updateRoughPlaceId } : {}),
             nights,
             chapterId: chapterId ?? null,
             notes: notes ?? null,
@@ -483,6 +455,7 @@ export async function updateStop(
   // scheduled
   const { name, country, timezone, arriveDate, departDate, notes } = parsed.data;
   let { lat, lng } = parsed.data;
+  let placeId: string | null = lat !== undefined && lng !== undefined ? (parsed.data.placeId ?? null) : null;
 
   // Best-effort geocode if coords are missing on update too
   let updateCountryCode: string | null = null;
@@ -492,6 +465,7 @@ export async function updateStop(
     if (coords) {
       lat = coords.lat;
       lng = coords.lng;
+      placeId = coords.placeId;
       updateCountryCode = coords.countryCode ?? null;
     }
   }
@@ -510,6 +484,7 @@ export async function updateStop(
         departDate,
         lat: lat ?? null,
         lng: lng ?? null,
+        placeId,
         countryCode: parsed.data.countryCode ?? updateCountryCode,
         notes: notes ?? null,
       },
@@ -945,8 +920,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   for (const r of results) {
     const s = segById[r.id];
     // ADR 0069: a Stop that already has coordinates keeps them (only its
-    // dates/timezone are written); lib/geocode spaces the real Nominatim
-    // requests a geocode makes ≥1 s (a cache hit doesn't wait).
+    // dates/timezone are written); only an unlocated one is looked up.
     const located = s.lat != null && s.lng != null;
     const coords = located ? null : await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const timezone = s.timezone ?? tripTz;
@@ -957,7 +931,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
         arriveDate: r.arriveDate,
         departDate: r.departDate,
         timezone,
-        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null } : {}),
+        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null, placeId: coords.placeId } : {}),
       },
     });
     // ADR 0038: if this stop had a prior arrive date and the flowed dates
@@ -1069,7 +1043,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   const stopById = Object.fromEntries(stops.map((s) => [s.id, s]));
   for (const r of results) {
     const s = stopById[r.id];
-    // ADR 0069: skip located Stops; lib/geocode spaces real Nominatim requests ≥1 s.
+    // ADR 0069: skip located Stops; only an unlocated one is looked up.
     const located = s.lat != null && s.lng != null;
     const coords = located ? null : await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const previousArrive = s.arriveDate;
@@ -1079,7 +1053,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
         arriveDate: r.arriveDate,
         departDate: r.departDate,
         timezone: s.timezone ?? tripTz,
-        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null } : {}),
+        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null, placeId: coords.placeId } : {}),
       },
     });
     // ADR 0038: if this stop had a prior arrive date and the flowed dates

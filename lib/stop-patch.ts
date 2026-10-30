@@ -12,9 +12,9 @@
  *    row's — unless the patch says where (TU-02) or the row has none — and
  *    is otherwise UNCHOSEN_TIMEZONE, so `updateStop` derives it from the
  *    final point and country (`resolveStopTimezone`, F3).
- *  - The point (lat/lng/countryCode) is the row's unless the patch says
- *    where (country, countryCode, lat or lng); then only the patch's point
- *    counts and `updateStop` geocodes a missing one.
+ *  - The point (lat/lng/countryCode/placeId) is the row's unless the patch
+ *    says where (country, countryCode, lat, lng or placeId); then only the
+ *    patch's point counts and `updateStop` geocodes a missing one.
  *  - The Chapter (rough only): the patch's (`null` = none), else the row's.
  *
  * The refusals name tool fields; no form can send them (spec 3.L notes).
@@ -31,6 +31,7 @@ export type StopPatch = {
   name?: string;
   country?: string | null;
   countryCode?: string | null;
+  placeId?: string | null;
   lat?: number | null;
   lng?: number | null;
   notes?: string | null;
@@ -45,6 +46,7 @@ export type StopPatchRow = {
   name: string;
   country: string | null;
   countryCode: string | null;
+  placeId: string | null;
   lat: number | null;
   lng: number | null;
   notes: string | null;
@@ -86,10 +88,10 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
     if (mismatch) return mismatch;
   }
 
-  const saysWhere = [patch.country, patch.countryCode, patch.lat, patch.lng].some((v) => v !== undefined);
+  const saysWhere = [patch.country, patch.countryCode, patch.lat, patch.lng, patch.placeId].some((v) => v !== undefined);
   const point = saysWhere
-    ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined }
-    : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined };
+    ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined, placeId: patch.placeId ?? undefined }
+    : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: current.placeId ?? undefined };
   const notes = patched(patch.notes, current.notes);
   const place = {
     name: patch.name ?? current.name,

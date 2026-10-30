@@ -45,7 +45,6 @@ const {
   storageSaveMock,
   scheduleBlobDeletionMock,
   geocodePlaceDetailedMock,
-  paceNominatimMock,
   assignTripSlugMock,
   checkQuotaMock,
 } = vi.hoisted(() => {
@@ -139,7 +138,6 @@ const {
     storageSaveMock,
     scheduleBlobDeletionMock,
     geocodePlaceDetailedMock: vi.fn(),
-    paceNominatimMock: vi.fn(),
     assignTripSlugMock: vi.fn().mockResolvedValue("japan-2026"),
     checkQuotaMock: vi.fn().mockResolvedValue({ ok: true }),
   };
@@ -160,7 +158,6 @@ vi.mock("@/lib/guards", async () => {
 });
 vi.mock("@/lib/geocode", () => ({
   geocodePlaceDetailed: geocodePlaceDetailedMock,
-  paceNominatim: paceNominatimMock,
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -623,6 +620,22 @@ describe("createTrip", () => {
     expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" }) });
   });
 
+  it("a picked home stores homePlaceId and skips geocoding", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-h" });
+    await createTrip({ name: "Japan", homeCurrency: "AUD", homeName: "Sydney", homePlaceId: "sydney-id", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homePlaceId: "sydney-id", homeLat: -33.87 }) });
+  });
+
+  it("a looked-up home stores the found homePlaceId", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-h" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au", placeId: "sydney-id", address: "Sydney NSW, Australia" });
+    await createTrip({ name: "Japan", homeCurrency: "AUD", homeName: "Sydney" });
+    expect(tripCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ homePlaceId: "sydney-id", homeLat: -33.86 }) });
+  });
+
   it("computes homeTimezone from the picked Home point when none is sent (F3)", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1" });
     tripCreateMock.mockResolvedValue({ id: "trip-tz" });
@@ -690,7 +703,7 @@ describe("createTrip", () => {
     expect(r.success && r.href).toBe("/globe?added=trip-q");
   });
 
-  it("geocodes each rough Stop, skips located Stops, and leaves pacing to lib/geocode (ADR 0069)", async () => {
+  it("geocodes each rough Stop and skips located Stops (ADR 0069)", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1" });
     tripCreateMock.mockResolvedValue({ id: "trip-pace" });
     geocodePlaceDetailedMock.mockResolvedValue(null);
@@ -699,8 +712,19 @@ describe("createTrip", () => {
       stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }, { name: "Nara" }, { name: "Osaka" }],
     });
     expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(2);
-    // Pacing lives in lib/geocode, before the real Nominatim fetch only (a cache hit doesn't wait).
-    expect(paceNominatimMock).not.toHaveBeenCalled();
+  });
+
+  it("rough Stops keep a picked placeId and store a looked-up one", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1" });
+    tripCreateMock.mockResolvedValue({ id: "trip-p" });
+    geocodePlaceDetailedMock.mockResolvedValue({ name: "Nara", lat: 34.68, lng: 135.8, city: "Nara", country: "Japan", countryCode: "jp", placeId: "nara-id", address: "Nara, Japan" });
+    await createTrip({
+      name: "Kansai", homeCurrency: "AUD",
+      stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp", placeId: "kyoto-id" }, { name: "Nara" }],
+    });
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledTimes(1);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ name: "Kyoto", placeId: "kyoto-id" }) });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ name: "Nara", lat: 34.68, placeId: "nara-id" }) });
   });
 
   it("an undated trip with rough stops returns trip home", async () => {
@@ -912,6 +936,40 @@ describe("updateTrip", () => {
     }));
   });
 
+  it("updateTrip with a picked home stores homePlaceId and skips geocoding", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Brisbane", homeCountryCode: "au", homeTimezone: "Australia/Brisbane" });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney", homePlaceId: "sydney-id", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ homeName: "Sydney", homePlaceId: "sydney-id", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au", homeTimezone: "Australia/Sydney" }),
+    }));
+  });
+
+  it("a pick that keeps the home's name still replaces its place", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney", homeCountryCode: "au", homeTimezone: "Australia/Sydney" });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney", homePlaceId: "sydney-id", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ homePlaceId: "sydney-id", homeLat: -33.87, homeLng: 151.21 }),
+    }));
+  });
+
+  it("a renamed home stores the found homePlaceId", async () => {
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au", placeId: "sydney-id", address: null });
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: null });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ homePlaceId: "sydney-id" }) }));
+  });
+
   it("clears home coords when homeName is emptied", async () => {
     tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney" });
     tripUpdateMock.mockResolvedValue({ id: "t1" });
@@ -920,7 +978,7 @@ describe("updateTrip", () => {
 
     expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
     expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ homeName: null, homeLat: null, homeLng: null, homeCountryCode: null }),
+      data: expect.objectContaining({ homeName: null, homeLat: null, homeLng: null, homeCountryCode: null, homePlaceId: null }),
     }));
   });
 

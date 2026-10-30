@@ -119,9 +119,26 @@ describe("createMarker", () => {
     );
     expect(revalidateGlobeMock).toHaveBeenCalledOnce();
   });
+
+  it("createMarker stores placeId", async () => {
+    dbm.marker.create.mockResolvedValue({ id: "m1" });
+    await createMarker({ title: "Tokyo Tower", category: "SIGHTSEEING", placeId: "tower-id", lat: 35.6586, lng: 139.7454 });
+    expect(dbm.marker.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ placeId: "tower-id", lat: 35.6586, lng: 139.7454 }) }),
+    );
+  });
 });
 
 describe("updateMarker", () => {
+  it("stores the sent placeId, and none when the place was typed", async () => {
+    dbm.marker.findUnique.mockResolvedValue({ id: "m1", globeId: "g1" });
+    dbm.marker.update.mockResolvedValue({ id: "m1" });
+    await updateMarker("m1", { title: "Tokyo Tower", category: "SIGHTSEEING", placeId: "tower-id", lat: 35.6586, lng: 139.7454 });
+    expect(dbm.marker.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ placeId: "tower-id" }) }));
+    await updateMarker("m1", { title: "Tokyo Tower", category: "SIGHTSEEING" });
+    expect(dbm.marker.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ placeId: null }) }));
+  });
+
   it("404s (throws) when the marker is on another globe", async () => {
     dbm.marker.findUnique.mockResolvedValue({ id: "m1", globeId: "OTHER" });
     await expect(updateMarker("m1", { title: "X", category: "OTHER" })).rejects.toBeDefined();

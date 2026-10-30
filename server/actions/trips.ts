@@ -9,6 +9,7 @@ import { checkQuota } from "@/lib/storage-quota";
 import { acceptSmallCover, saveCoverFiles, coverAspectOf } from "@/lib/cover-save";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { foundPlace, pickedPlace } from "@/lib/place-save";
 import { resolveHomeTimezone } from "@/lib/tz-point";
 import { assignTripSlug } from "@/lib/trip-slug-store";
 import { tripPath } from "@/lib/trip-path";
@@ -70,6 +71,7 @@ export async function createTrip(
     homeLat,
     homeLng,
     homeCountryCode,
+    homePlaceId,
     fromShareToken,
   } = parsed.data;
 
@@ -97,6 +99,7 @@ export async function createTrip(
     homeLat: number | null;
     homeLng: number | null;
     homeCountryCode: string | null;
+    homePlaceId: string | null;
     homeTimezone: string | null;
   } | null = null;
   const trimmedHome = rawHomeName?.trim();
@@ -107,6 +110,7 @@ export async function createTrip(
       homeLat,
       homeLng,
       homeCountryCode: resolvedCountryCode,
+      homePlaceId: homePlaceId ?? null,
       homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: homeLat, lng: homeLng, countryCode: resolvedCountryCode }),
     };
   } else if (trimmedHome) {
@@ -117,6 +121,7 @@ export async function createTrip(
       homeLat: geo?.lat ?? null,
       homeLng: geo?.lng ?? null,
       homeCountryCode: resolvedCountryCode,
+      homePlaceId: geo?.placeId ?? null,
       homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: geo?.lat, lng: geo?.lng, countryCode: resolvedCountryCode }),
     };
   }
@@ -211,9 +216,8 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
       continue;
     }
     // A Route copy carries the country; a bare name ("Paris") can land anywhere.
-    // ADR 0069: lib/geocode spaces real Nominatim requests ≥1 s (a cache hit doesn't wait).
     const geo = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
-    out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined });
+    out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined, placeId: geo?.placeId ?? undefined });
   }
   return out;
 }
@@ -228,6 +232,8 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
  * base, F3) rather than the one it sent.
  */
 export type UpdateTripResult = ActionResult<{ slug?: string; homeTimezone?: string | null }>;
+
+type HomeCoordFields = { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null; homePlaceId: string | null };
 
 /**
  * Update a Trip (PATCH, ADR 0075): name, dates, Hard end date and home
@@ -283,6 +289,12 @@ export async function updateTrip(
     homeTimezone: rawHomeTimezone,
     roundTrip,
   } = parsed.data;
+  const homePick = pickedPlace({
+    placeId: parsed.data.homePlaceId,
+    lat: parsed.data.homeLat,
+    lng: parsed.data.homeLng,
+    countryCode: parsed.data.homeCountryCode,
+  });
 
   const datesChanged =
     (startDate ?? null) !== (before.startDate ?? null) ||
@@ -293,6 +305,7 @@ export async function updateTrip(
   //   - explicit ""             → clear homeName + coords to null
   //   - non-empty, same as before → only update homeName, leave coords untouched
   //   - non-empty, changed      → geocode + set coords
+  //   - non-empty with a pick   → the pick's coords, no geocode (renamed or not)
 
   // homeNameUpdate is the value we'll write to the DB, or the sentinel
   // SKIP_HOME_UPDATE when the key was absent.
@@ -303,7 +316,7 @@ export async function updateTrip(
 
   let homeUpdate: typeof SKIP_HOME_UPDATE | {
     homeName: string | null;
-    coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null;
+    coordFields: HomeCoordFields | null;
   };
 
   // The zone to write, or KEEP_TIMEZONE to omit the key. Sent non-empty
@@ -326,19 +339,18 @@ export async function updateTrip(
     const nameChanged = nextHomeName !== null && nextHomeName !== before.homeName;
     const nameCleared = nextHomeName === null;
 
-    let coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
+    let coordFields: HomeCoordFields | null = null;
 
     if (nameCleared) {
       // Explicitly clear the coords and the zone — a cleared Home base has
       // no timezone, regardless of anything sent alongside it.
-      coordFields = { homeLat: null, homeLng: null, homeCountryCode: null };
+      coordFields = { homeLat: null, homeLng: null, homeCountryCode: null, homePlaceId: null };
       timezoneUpdate = null;
-    } else if (nameChanged) {
-      // Geocode the new name.
-      const geo = await geocodePlaceDetailed(nextHomeName!);
+    } else if (nameChanged || homePick) {
+      const geo = homePick ?? foundPlace(await geocodePlaceDetailed(nextHomeName!));
       coordFields = geo
-        ? { homeLat: geo.lat, homeLng: geo.lng, homeCountryCode: geo.countryCode }
-        : { homeLat: null, homeLng: null, homeCountryCode: null };
+        ? { homeLat: geo.lat, homeLng: geo.lng, homeCountryCode: geo.countryCode, homePlaceId: geo.placeId }
+        : { homeLat: null, homeLng: null, homeCountryCode: null, homePlaceId: null };
 
       if (sentTimezone !== undefined) {
         timezoneUpdate = sentTimezone;

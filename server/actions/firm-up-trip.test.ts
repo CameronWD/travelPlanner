@@ -9,7 +9,6 @@ const {
   tripUpdateMock,
   chapterUpdateMock,
   geocodeMock,
-  paceMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn(),
   tripFindUniqueMock: vi.fn(),
@@ -18,7 +17,6 @@ const {
   tripUpdateMock: vi.fn(),
   chapterUpdateMock: vi.fn(),
   geocodeMock: vi.fn(),
-  paceMock: vi.fn(),
 }));
 
 // requirePlanAccess (ADR 0074 rule 1): membership via requireTripAccessMock;
@@ -32,7 +30,7 @@ vi.mock("@/lib/guards", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn() }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodeMock, geocodePlaceDetailed: geocodeMock, paceNominatim: paceMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodeMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: { findUnique: tripFindUniqueMock, update: tripUpdateMock },
@@ -139,7 +137,7 @@ describe("firmUpTrip", () => {
 });
 
 // ADR 0069 / spec 2026-10-06-typeahead-photon §C.
-describe("firmUpTrip: geocodes respect Nominatim", () => {
+describe("firmUpTrip: only unlocated Stops are looked up", () => {
   const located = (id: string, sortOrder: number) => ({ ...roughRow(id, sortOrder, 2), lat: 41.9, lng: 12.5 });
   const unlocated = (id: string, sortOrder: number) => ({ ...roughRow(id, sortOrder, 2), lat: null, lng: null });
 
@@ -148,16 +146,15 @@ describe("firmUpTrip: geocodes respect Nominatim", () => {
     stopFindManyMock.mockResolvedValue([located("a", 0), located("b", 1)]);
     await firmUpTrip("trip-1");
     expect(geocodeMock).not.toHaveBeenCalled();
-    expect(paceMock).not.toHaveBeenCalled();
     for (const [arg] of stopUpdateMock.mock.calls) expect(arg.data).not.toHaveProperty("lat");
   });
 
-  it("makes two geocode calls for two unlocated Stops, without pacing at the call site", async () => {
+  it("makes two geocode calls for two unlocated Stops and stores each place ID", async () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
     stopFindManyMock.mockResolvedValue([unlocated("a", 0), unlocated("b", 1)]);
+    geocodeMock.mockResolvedValue({ lat: 41.9, lng: 12.5, countryCode: "it", placeId: "found-id" });
     await firmUpTrip("trip-1");
     expect(geocodeMock).toHaveBeenCalledTimes(2);
-    // Pacing lives in lib/geocode, before the real Nominatim fetch only (a cache hit doesn't wait).
-    expect(paceMock).not.toHaveBeenCalled();
+    for (const [arg] of stopUpdateMock.mock.calls) expect(arg.data).toMatchObject({ lat: 41.9, placeId: "found-id" });
   });
 });

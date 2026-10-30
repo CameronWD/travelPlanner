@@ -32,6 +32,7 @@ function markerData(parsed: {
   note?: string;
   link?: string;
   timing?: string;
+  placeId?: string;
   lat?: number;
   lng?: number;
   city?: string;
@@ -44,6 +45,7 @@ function markerData(parsed: {
     note: parsed.note ?? null,
     link: parsed.link ?? null,
     timing: parsed.timing ?? null,
+    placeId: parsed.placeId ?? null,
     lat: parsed.lat ?? null,
     lng: parsed.lng ?? null,
     city: parsed.city ?? null,

@@ -222,11 +222,18 @@ describe("createTripSchema — New trip flow fields", () => {
     expect(r.success).toBe(false);
   });
   it("tripSchema (Settings) strips the create-only fields", () => {
-    const r = tripSchema.parse({ ...base, roughMonth: "2027-04", stops: [{ name: "x" }], homeLat: 1, fromShareToken: "t" });
+    const r = tripSchema.parse({ ...base, roughMonth: "2027-04", stops: [{ name: "x" }], fromShareToken: "t" });
     expect(r).not.toHaveProperty("roughMonth");
     expect(r).not.toHaveProperty("stops");
-    expect(r).not.toHaveProperty("homeLat");
     expect(r).not.toHaveProperty("fromShareToken");
+  });
+  it("tripSchema (Settings) accepts a picked Home base", () => {
+    const r = tripSchema.parse({ ...base, homeName: "Sydney", homePlaceId: "abc", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "AU" });
+    expect(r).toMatchObject({ homePlaceId: "abc", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
+  });
+  it("carries a picked rough stop's placeId", () => {
+    const r = createTripSchema.parse({ ...base, stops: [{ name: "Kyoto", lat: 35.01, lng: 135.77, placeId: "kyoto-id" }] });
+    expect(r.stops?.[0]).toMatchObject({ placeId: "kyoto-id" });
   });
 });
 

@@ -39,11 +39,9 @@ export async function placeForSave({
   if (before && before.text === text && before.place.lat != null && before.place.lng != null) {
     return { place: before.place, source: "kept" };
   }
-  const found = await lookUp(text);
-  return {
-    place: found
-      ? { lat: found.lat, lng: found.lng, countryCode: found.countryCode?.toLowerCase() ?? null, placeId: found.placeId }
-      : NO_PLACE,
-    source: "looked-up",
-  };
+  return { place: foundPlace(await lookUp(text)) ?? NO_PLACE, source: "looked-up" };
+}
+
+export function foundPlace(found: GeoCandidate | null): SavedPlace | null {
+  return found && { lat: found.lat, lng: found.lng, countryCode: found.countryCode?.toLowerCase() ?? null, placeId: found.placeId };
 }
