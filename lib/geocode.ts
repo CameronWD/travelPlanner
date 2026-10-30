@@ -1,5 +1,6 @@
 import { haversineKm, type LatLng } from "@/lib/geo";
 import type { OpeningHours } from "@/lib/opening-hours";
+import { openingHoursFromGoogle, type GooglePeriod } from "@/lib/opening-hours-google";
 
 const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const PLACES_URL = "https://places.googleapis.com/v1/places";
@@ -189,13 +190,19 @@ export async function locateVenue(title: string, address: string, opts: { near?:
   return haversineKm(venue, place) <= VENUE_GUARD_KM ? venue : place;
 }
 
+// The field mask has no address, and the Maps URL requires a query, so the place ID serves as both.
+const mapsLink = (placeId: string): string =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeId)}&query_place_id=${encodeURIComponent(placeId)}`;
+
 export async function fetchVenueDetails(placeId: string): Promise<VenueDetails | null> {
   const key = serverKey();
   if (!key) return null;
   const place = await placeDetails(placeId, "id,regularOpeningHours,websiteUri,businessStatus", key);
   if (!place) return null;
+  const hours = isRecord(place.regularOpeningHours) ? place.regularOpeningHours : null;
+  const periods = hours && Array.isArray(hours.periods) ? (hours.periods as GooglePeriod[]) : null;
   return {
-    openingHours: null,
+    openingHours: openingHoursFromGoogle(periods, mapsLink(placeId)),
     website: typeof place.websiteUri === "string" && place.websiteUri ? place.websiteUri : null,
     businessStatus: typeof place.businessStatus === "string" && place.businessStatus ? place.businessStatus : null,
   };

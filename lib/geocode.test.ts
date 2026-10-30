@@ -245,7 +245,12 @@ describe("fetchVenueDetails", () => {
       },
     });
     expect(await fetchVenueDetails("ChIJVenue")).toEqual({
-      openingHours: null,
+      openingHours: {
+        week: { sun: [], mon: [["11:00", "22:00"]], tue: [], wed: [], thu: [], fri: [], sat: [] },
+        seasons: [],
+        closed: [],
+        source: "https://www.google.com/maps/search/?api=1&query=ChIJVenue&query_place_id=ChIJVenue",
+      },
       website: "https://ichiran.com/",
       businessStatus: "OPERATIONAL",
     });
