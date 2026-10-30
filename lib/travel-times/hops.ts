@@ -286,6 +286,106 @@ export function resolveDriveLeg(
   );
 }
 
+export type HopItemRow = {
+  id: string;
+  date?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  sortOrder?: number | null;
+  lat?: number | null;
+  lng?: number | null;
+  stopId?: string | null;
+};
+export type HopStopRow = { id: string; localTravelMode?: string | null; timezone?: string | null; lat?: number | null; lng?: number | null };
+export type HopTransportRow = {
+  id: string;
+  mode: string;
+  fromStopId?: string | null;
+  toStopId?: string | null;
+  depLat?: number | null;
+  depLng?: number | null;
+  arrLat?: number | null;
+  arrLng?: number | null;
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
+};
+
+function nullsLast(a: string | null | undefined, b: string | null | undefined): number {
+  if (a == null || b == null) return a == null ? (b == null ? 0 : 1) : -1;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+// ITEM_HOP_ORDER in JS, so a reader whose query orders Items differently still pairs ties as the refresh does.
+export function byHopOrder(a: HopItemRow, b: HopItemRow): number {
+  return (
+    nullsLast(a.date, b.date) ||
+    nullsLast(a.startTime, b.startTime) ||
+    (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+    nullsLast(a.id, b.id)
+  );
+}
+
+export function toHopItem(it: HopItemRow): HopItem {
+  return {
+    id: it.id,
+    date: it.date ?? null,
+    startTime: it.startTime ?? null,
+    endTime: it.endTime ?? null,
+    sortOrder: it.sortOrder ?? 0,
+    lat: it.lat ?? null,
+    lng: it.lng ?? null,
+    stopId: it.stopId ?? null,
+  };
+}
+
+export function hopStopsById(
+  stops: HopStopRow[],
+): Map<string, { id: string; localTravelMode: string | null; timezone: string | null; lat: number | null; lng: number | null }> {
+  return new Map(
+    stops.map((s) => [
+      s.id,
+      { id: s.id, localTravelMode: s.localTravelMode ?? null, timezone: s.timezone ?? null, lat: s.lat ?? null, lng: s.lng ?? null },
+    ]),
+  );
+}
+
+export function toPlanTransport(t: HopTransportRow) {
+  return {
+    id: t.id,
+    mode: t.mode,
+    fromStopId: t.fromStopId ?? null,
+    toStopId: t.toStopId ?? null,
+    depLat: t.depLat ?? null,
+    depLng: t.depLng ?? null,
+    arrLat: t.arrLat ?? null,
+    arrLng: t.arrLng ?? null,
+    depIsHome: t.depIsHome ?? false,
+    arrIsHome: t.arrIsHome ?? false,
+  };
+}
+
+export function homePointOf(trip: { homeLat?: number | null; homeLng?: number | null }): Pt | null {
+  return trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null;
+}
+
+export function planTravelKeys(
+  plan: { items: HopItemRow[]; stops: HopStopRow[]; transports: HopTransportRow[]; home: Pt | null },
+  now: Date,
+): Set<string> {
+  const stopsById = hopStopsById(plan.stops);
+  const planTransports = plan.transports.map(toPlanTransport);
+  const items = plan.items.map(toHopItem).sort(byHopOrder);
+  const keys = new Set<string>();
+  for (const pair of planHops(items, planTransports)) {
+    const hop = hopInputs(pair, { stopsById, planTransports });
+    if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now)) keys.add(k);
+  }
+  for (const leg of carLegs(planTransports, stopsById, plan.home)) {
+    if (!samePoint(leg.from, leg.to)) keys.add(driveKey(leg.from, leg.to));
+  }
+  return keys;
+}
+
 export function itemDeparture(item: HopItem, stopTimezone: string): Date | null {
   if (!item.date || !item.endTime || !isRealCalendarDate(item.date)) return null;
   const overnight = item.startTime != null && hhmmToMin(item.endTime) < hhmmToMin(item.startTime);

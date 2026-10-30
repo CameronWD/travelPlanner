@@ -4,10 +4,7 @@ import { hasServerKey } from "@/lib/google-fetch";
 import { takeGoogleQuota } from "@/lib/google-usage";
 import { computeRoute } from "@/lib/routes";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
-import {
-  ITEM_HOP_ORDER, carLegs, driveKey, hopInputs, hopKeys, parseHopKey, planHops, pointKey,
-  type HopItem,
-} from "@/lib/travel-times/hops";
+import { ITEM_HOP_ORDER, parseHopKey, planTravelKeys, type HopItem } from "@/lib/travel-times/hops";
 import { saveTravelTime, settledTravelKeys } from "@/lib/travel-times/store";
 
 export const ROUTES_DAILY_CAP = 165;
@@ -77,7 +74,6 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
   ]);
 
   const home = trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null;
-  const stopsById = new Map(stops.map((s) => [s.id, s]));
   const itemsByPlan = groupByFork<PlanItem>(items);
   const transportsByPlan = groupByFork(transports);
   const forkIds = [...new Set([...itemsByPlan.keys(), ...transportsByPlan.keys()])].filter((f): f is string => f !== null).sort();
@@ -87,13 +83,8 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
     const planTransports = transportsByPlan.get(plan) ?? [];
     const keys = new Set<string>();
     for (const hidden of views) {
-      for (const pair of planHops(planItems.filter((i) => !hidden.has(i.id)), planTransports)) {
-        const hop = hopInputs(pair, { stopsById, planTransports });
-        if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now)) keys.add(k);
-      }
-    }
-    for (const leg of carLegs(planTransports, stopsById, home)) {
-      if (pointKey(leg.from) !== pointKey(leg.to)) keys.add(driveKey(leg.from, leg.to));
+      const viewItems = planItems.filter((i) => !hidden.has(i.id));
+      for (const k of planTravelKeys({ items: viewItems, stops, transports: planTransports, home }, now)) keys.add(k);
     }
     return keys;
   });
