@@ -288,3 +288,13 @@ is collected here, after all three branches are merged.
 - Hometracker's quota caps (hometracker repo).
 - The compliance refresh cron (G1's revisit trigger).
 - Phone, rating, photos, reviews from Places.
+
+## Hand-off from Branch 1 (as built, 2026-10-30)
+
+Inputs for planning Branches 2 and 3, from Branch 1's final review:
+
+- **Google availability for forms (Branch 2).** `mapsConfig()` requires a Map ID, which Places autocomplete does not need — forms need their own gate on the browser key alone. The `APIProvider` lives inside each map frame; forms need their own provider and failure handling. Prefer `useMapsLibrary("places")` over a `libraries` prop (mismatched provider params trigger vis.gl's "already loaded with different parameters" warning).
+- **Refused key (Branch 2).** `components/map/maps-auth.ts` (`useMapsAuthFailed()`) owns `window.gm_authFailure` for the whole page. Forms read it; nothing else may assign `window.gm_authFailure`.
+- **Autocomplete quota (Branch 2).** The DEPLOY quota table states the rule, not a number, for Autocomplete. Keystroke requests are free inside a session that ends in Place Details and billed per request when the session is abandoned, so a 165/day cap would stop typing after roughly 16 searches. Branch 2 sets the number from current pricing, with debounce and a minimum query length.
+- **Route lines (Branch 3).** `MapPolyline` has no `encodedPath`; vis.gl 1.10.1's exported `<Polyline>` does (and deep-compares options) — wrap it or add decoding. The Day map draws one polyline today; Branch 3 needs one per hop (solid real, dashed estimated). The Route map's travelled-leg draw-in interpolates lat/lng linearly; legs crossing the antimeridian sweep the wrong way during the draw.
+- **Known, deferred.** A theme flip remounts each map and loses pan/zoom (see `docs/maps-overview.md` §4.2 for why carrying the camera is not a one-liner). A map click does not close an open popup (Leaflet did). The Share page's leg draw-in plays on mount rather than on section reveal.
