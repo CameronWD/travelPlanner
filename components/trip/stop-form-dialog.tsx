@@ -216,7 +216,7 @@ function StopForm({
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
   useFormDirty({ mode, name, country, timezone, nights, chapterId, arriveDate, departDate, notes });
   const pickedPoint = picked
-    ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}) }
+    ? { lat: picked.lat, lng: picked.lng, ...(picked.countryCode ? { countryCode: picked.countryCode } : {}), ...(picked.placeId ? { placeId: picked.placeId } : {}) }
     : {};
 
   // The would-be create/update input, exactly as typed.

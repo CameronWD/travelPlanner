@@ -38,6 +38,7 @@ describe("StepFrom", () => {
     render(<StepHarness Step={StepFrom} />);
     await pick("Portl");
     expect(currentDraft()).toMatchObject({ homeName: "Portland", homeCurrency: "USD" });
+    expect(currentDraft().homePlace).toMatchObject({ placeId: "ChIJPortland", lat: 45.52, lng: -122.68, countryCode: "us" });
     expect(screen.getByText("USD")).toBeInTheDocument();
     expect(screen.getByText("Picked from Portland. Costs in other currencies convert to this.")).toBeInTheDocument();
   });

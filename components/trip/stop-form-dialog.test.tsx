@@ -161,7 +161,7 @@ describe("StopFormDialog", () => {
       arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, chapterId: null, sortOrder: 0, notes: null, lat: 51.5, lng: -0.12,
     };
 
-    it("a pick sets name, country, point and timezone", async () => {
+    it("a pick sets name, country, point, place ID and timezone", async () => {
       maps.places.predictions = [KYOTO];
       const user = userEvent.setup();
       render(<StopFormDialog {...baseProps} stop={LONDON} />);
@@ -173,8 +173,27 @@ describe("StopFormDialog", () => {
       expect(screen.getByPlaceholderText(/e\.g\. united kingdom/i)).toHaveValue("Japan");
       await user.click(screen.getByRole("button", { name: /save changes/i }));
       expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({
-        mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", timezone: "Asia/Tokyo",
+        mode: "scheduled", name: "Kyoto", country: "Japan", lat: 35.01, lng: 135.77, countryCode: "jp", placeId: "ChIJKyoto", timezone: "Asia/Tokyo",
       }));
+    });
+
+    it("a new Stop's pick sends its place ID, and typing after it drops the place", async () => {
+      maps.places.predictions = [KYOTO];
+      const user = userEvent.setup();
+      render(<StopFormDialog {...baseProps} />);
+      const place = screen.getByPlaceholderText(/e\.g\. london/i);
+      await user.type(place, "Kyo");
+      await user.click(await screen.findByRole("option", { name: /Kyoto/ }));
+      await waitFor(() => expect(place).toHaveValue("Kyoto"));
+      await user.click(screen.getByRole("button", { name: /add stop/i }));
+      expect(createStop).toHaveBeenLastCalledWith("trip-1", expect.objectContaining({ name: "Kyoto", placeId: "ChIJKyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }), undefined);
+
+      await user.type(place, " Station");
+      await user.click(screen.getByRole("button", { name: /add stop/i }));
+      const input = vi.mocked(createStop).mock.calls.at(-1)![1];
+      expect(input).toEqual(expect.objectContaining({ name: "Kyoto Station" }));
+      expect(input).not.toHaveProperty("placeId");
+      expect(input).not.toHaveProperty("lat");
     });
 
     it("typing without picking sends no point, so the save re-geocodes as before", async () => {
@@ -187,6 +206,7 @@ describe("StopFormDialog", () => {
       const input = vi.mocked(updateStop).mock.calls[0][1];
       expect(input).toEqual(expect.objectContaining({ name: "Leeds" }));
       expect(input).not.toHaveProperty("lat");
+      expect(input).not.toHaveProperty("placeId");
     });
 
     it("editing Country after a pick drops the picked point, so the save re-geocodes", async () => {
@@ -207,6 +227,7 @@ describe("StopFormDialog", () => {
       expect(input).not.toHaveProperty("lat");
       expect(input).not.toHaveProperty("lng");
       expect(input).not.toHaveProperty("countryCode");
+      expect(input).not.toHaveProperty("placeId");
     });
 
     it("an edit that empties Notes and Country, or picks No chapter on a rough Stop, sends them as null (PATCH)", async () => {
@@ -248,7 +269,7 @@ describe("StopFormDialog", () => {
       });
       await user.click(screen.getByRole("button", { name: /save changes/i }));
       expect(updateStop).toHaveBeenCalledWith("stop-1", expect.objectContaining({
-        name: "Brisbane", countryCode: "au", lat: -27.47, lng: 153.03, timezone: "Australia/Brisbane",
+        name: "Brisbane", countryCode: "au", lat: -27.47, lng: 153.03, placeId: "ChIJBrisbane", timezone: "Australia/Brisbane",
       }));
     });
 

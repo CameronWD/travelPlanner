@@ -27,13 +27,13 @@ describe("StepWherePast", () => {
     expect(screen.getByText("Show money in")).toBeInTheDocument();
   });
 
-  it("a picked place becomes a removable chip with its coordinates", async () => {
+  it("a picked place becomes a removable chip with its coordinates and place ID", async () => {
     render(<StepHarness Step={StepWherePast} initial={past} />);
     await userEvent.type(combo(), "Kyo");
     await screen.findAllByRole("option");
     await userEvent.keyboard("{Enter}");
     await waitFor(() => expect(currentDraft().stops).toHaveLength(1));
-    expect(currentDraft().stops).toEqual([{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }]);
+    expect(currentDraft().stops).toEqual([{ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp", placeId: "ChIJKyoto" }]);
     expect(combo()).toHaveValue("");
     expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Remove Kyoto" }));
