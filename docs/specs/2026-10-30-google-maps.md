@@ -311,3 +311,13 @@ Inputs for planning Branches 2 and 3, from Branch 1's final review:
 - **Autocomplete quota (Branch 2).** The DEPLOY quota table states the rule, not a number, for Autocomplete. Keystroke requests are free inside a session that ends in Place Details and billed per request when the session is abandoned, so a 165/day cap would stop typing after roughly 16 searches. Branch 2 sets the number from current pricing, with debounce and a minimum query length.
 - **Route lines (Branch 3).** `MapPolyline` has no `encodedPath`; vis.gl 1.10.1's exported `<Polyline>` does (and deep-compares options) — wrap it or add decoding. The Day map draws one polyline today; Branch 3 needs one per hop (solid real, dashed estimated). The Route map's travelled-leg draw-in interpolates lat/lng linearly; legs crossing the antimeridian sweep the wrong way during the draw.
 - **Known, deferred.** A theme flip remounts each map and loses pan/zoom (see `docs/maps-overview.md` §4.2 for why carrying the camera is not a one-liner). A map click does not close an open popup (Leaflet did). The Share page's leg draw-in plays on mount rather than on section reveal.
+
+## Hand-off from Branch 2 (as built, 2026-10-30)
+
+Inputs for planning Branch 3, from Branch 2's final review:
+
+- **Server plumbing.** `fetchJson` and the server-key read are private to `lib/geocode.ts` (`import "server-only"`). Extract them to a shared server-only module before Routes needs them.
+- **Miss vs failure.** Lookups distinguish a genuine miss (`ZERO_RESULTS`) from a failure (quota, HTTP, timeout) and never accept a guess on a failure. Routes needs the same split: a failed Routes call leaves the hop *estimated* and is retried, never stored as a result.
+- **Keys and ends.** Key Travel times by point (rounded lat/lng), not place ID — many rows have no place ID. A Transport end at a Stop or the Home base has no place ID on the Transport row; use the Stop's / the Trip's.
+- **After the backfill.** The backfill moves points with raw updates, so no after-save hook runs. Travel times need a one-off recompute after the backfill (or the fetch must also run lazily for hops with no stored time).
+- **Cost guard.** Enterprise-style app-side caps live in `lib/google-usage.ts` (`takeGoogleQuota(sku, limit)`), per UTC day. Routes calls should go through it too (sku `"routes"`), capped at the console quota so the app degrades before Google refuses.
