@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * One Leaflet map, not two. `TravelsMapCard` renders a full map (Leaflet
- * instance + tiles) per `variant`; the page used to mount both "mobile" and
+ * One map, not two. `TravelsMapCard` renders a full map (a Google map
+ * instance) per `variant`; the page used to mount both "mobile" and
  * "desktop" side by side and let CSS pick which one showed, which meant two
- * live Leaflet maps at once (double the tiles, double the memory, double the
+ * live maps at once (double the tiles, double the memory, double the
  * event listeners). This picks ONE variant, in React, from the same
  * breakpoint the rest of the page uses (`md`, 768px) via
  * `useSyncExternalStore` over `matchMedia` — so it updates live if the

@@ -1,13 +1,12 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createLeafletMock } from "@/test/leaflet-mock";
 import type { RouteMapTileStop } from "./route-map-tile";
 
-const hoisted = vi.hoisted(() => ({
-  leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,
-  push: vi.fn(),
-}));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+
+const hoisted = vi.hoisted(() => ({ push: vi.fn() }));
 
 vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn(), toggleTheme: vi.fn() }),
@@ -15,6 +14,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: hoisted.push }) }));
 
 const { RouteMapTile } = await import("./route-map-tile");
+const { resetMapsAuthForTests } = await import("@/components/map/maps-auth");
 
 const EUROPE: [string, number, number, string][] = [
   ["Paris", 48.8566, 2.3522, "fr"],
@@ -45,13 +45,25 @@ const STOPS: RouteMapTileStop[] = [
 ];
 
 beforeEach(() => {
-  hoisted.leaflet = createLeafletMock();
+  mock.reset();
+  resetMapsAuthForTests();
   hoisted.push.mockReset();
-  vi.doMock("leaflet", () => hoisted.leaflet!.module);
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+  return () => vi.unstubAllEnvs();
 });
 
+const fittedPoints = (call: number | "last" = 0) => {
+  const calls = mock.map.fitBounds.mock.calls;
+  const bounds = (call === "last" ? calls.at(-1)! : calls[call])[0] as { points: google.maps.LatLngLiteral[] };
+  return bounds.points;
+};
+const pinTitles = () => screen.getAllByTestId("marker").map((m) => m.getAttribute("title"));
+const listenerEvents = () => (mock.map.addListener.mock.calls as unknown as [string, () => void][]).map(([ev]) => ev);
+const idleListener = () => (mock.map.addListener.mock.calls as unknown as [string, () => void][]).find(([ev]) => ev === "idle")![1];
+
 describe("RouteMapTile", () => {
-  it("selects the main geographic cluster chip and shows the outlying Stop as an inset card", async () => {
+  it("selects the main geographic cluster chip and shows the outlying Stop as an inset card", () => {
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
     expect(screen.getByRole("button", { name: "Europe · 10 stops" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Route" })).toHaveAttribute("aria-pressed", "false");
@@ -60,63 +72,95 @@ describe("RouteMapTile", () => {
     expect(insets).toHaveLength(1);
     expect(insets[0]).toHaveTextContent("Kuta, Bali");
     expect(insets[0]).toHaveTextContent("4 nights · then Paris");
-    expect(screen.getByText("© OpenStreetMap · CARTO")).toBeInTheDocument();
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(screen.getByRole("region", { name: "Trip route map" })).toBeInTheDocument();
   });
 
-  it("builds the map without zoom control or scroll-wheel zoom, fitted to the main cluster", async () => {
+  it("builds the map with no zoom control and no scroll-wheel hijack, fitted to the main cluster", () => {
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const map = hoisted.leaflet!.maps[0];
-    expect(map.options).toMatchObject({ zoomControl: false, scrollWheelZoom: false, attributionControl: false });
-    const fitted = map.fitBounds.mock.calls[0][0] as [number, number][];
+    expect(mock.recorded.map.at(-1)).toMatchObject({ disableDefaultUI: true, zoomControl: false, gestureHandling: "cooperative" });
+    const fitted = fittedPoints();
     expect(fitted).toHaveLength(10);
-    expect(fitted.some(([lat]) => lat < 0)).toBe(false);
+    expect(fitted.some(({ lat }) => lat < 0)).toBe(false);
+    expect(mock.map.fitBounds.mock.calls[0][1]).toBe(48);
   });
 
   it("fits every Stop on 'Whole trip' and draws the route line on 'Route'", async () => {
     const user = userEvent.setup();
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const map = hoisted.leaflet!.maps[0];
-    expect(hoisted.leaflet!.polylines).toHaveLength(0);
+    expect(mock.recorded.polylines).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Whole trip" }));
-    const last = map.fitBounds.mock.calls.at(-1)![0] as unknown[];
-    expect(last).toHaveLength(11);
+    expect(fittedPoints("last")).toHaveLength(11);
 
     await user.click(screen.getByRole("button", { name: "Route" }));
-    expect(hoisted.leaflet!.polylines.length).toBeGreaterThan(0);
+    expect(mock.recorded.polylines.length).toBeGreaterThan(0);
+  });
+
+  it("draws the route as a casing and a line over the same path, casing under", async () => {
+    const user = userEvent.setup();
+    render(<RouteMapTile stops={STOPS} tripId="t1" />);
+    await user.click(screen.getByRole("button", { name: "Route" }));
+    expect(mock.recorded.polylines).toHaveLength(2);
+    const [casing, line] = mock.recorded.polylines.map((p) => p.setOptions.mock.calls.at(-1)![0] as Record<string, unknown>);
+    expect(casing.path).toBe(line.path);
+    expect(casing.strokeWeight).toBe(7);
+    expect(line.strokeWeight).toBe(3.5);
+    expect(casing.zIndex as number).toBeLessThan(line.zIndex as number);
   });
 
   it("pans to an outlying Stop when its inset card is clicked", async () => {
     const user = userEvent.setup();
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
     await user.click(screen.getByRole("button", { name: "Show Kuta, Bali on the map" }));
-    expect(hoisted.leaflet!.maps[0].setView).toHaveBeenCalledWith([-8.72, 115.17], expect.any(Number));
+    expect(mock.map.setCenter).toHaveBeenLastCalledWith({ lat: -8.72, lng: 115.17 });
+    expect(mock.map.setZoom).toHaveBeenLastCalledWith(7);
   });
 
   it("opens the Plan at a Stop when its pin is clicked", async () => {
+    const user = userEvent.setup();
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
-    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(0));
-    const bali = hoisted.leaflet!.markers.find((m) => m.latlng[0] === -8.72)!;
-    const onClick = bali.on.mock.calls.find(([ev]) => ev === "click")![1] as () => void;
-    onClick();
+    await user.click(screen.getByTitle("1. Kuta, Bali"));
     expect(hoisted.push).toHaveBeenCalledWith("/trips/t1/plan#stop-bali", undefined);
   });
 
-  it("merges pins that would overlap into a count pin", async () => {
-    const close: RouteMapTileStop[] = [
-      { ...STOPS[1], id: "a", lat: 48.85, lng: 2.35, number: 1 },
-      { ...STOPS[1], id: "b", lat: 48.86, lng: 2.36, number: 2 },
-      { ...STOPS[1], id: "c", lat: 60, lng: 30, number: 3 },
-    ];
+  const close: RouteMapTileStop[] = [
+    { ...STOPS[1], id: "a", name: "A", lat: 48.85, lng: 2.35, number: 1 },
+    { ...STOPS[1], id: "b", name: "B", lat: 48.86, lng: 2.36, number: 2 },
+    { ...STOPS[1], id: "c", name: "C", lat: 60, lng: 30, number: 3 },
+  ];
+
+  it("merges pins that would overlap into a count pin", () => {
     render(<RouteMapTile stops={close} tripId="t1" />);
-    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(0));
-    expect(hoisted.leaflet!.markers).toHaveLength(2);
-    const counts = hoisted.leaflet!.markers.map((m) => (m.options.icon as { html: string }).html);
-    expect(counts.some((h) => h.includes(">2<"))).toBe(true);
+    expect(screen.getAllByTestId("marker")).toHaveLength(2);
+    expect(pinTitles()).toContain("2 stops: A, B");
+    const html = screen.getAllByTestId("marker").map((m) => m.querySelector(".tp-map-pin")!.innerHTML);
+    expect(html.some((h) => h.includes(">2<"))).toBe(true);
+  });
+
+  it("clicking a count pin fits the map to its members", async () => {
+    const user = userEvent.setup();
+    render(<RouteMapTile stops={close} tripId="t1" />);
+    mock.map.fitBounds.mockClear();
+    await user.click(screen.getByTitle("2 stops: A, B"));
+    expect(fittedPoints()).toEqual([{ lat: 48.85, lng: 2.35 }, { lat: 48.86, lng: 2.36 }]);
+  });
+
+  it("cluster pins recompute once the camera settles, not mid-zoom", () => {
+    render(<RouteMapTile stops={close} tripId="t1" />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(2);
+    expect(listenerEvents()).not.toContain("zoom_changed");
+    mock.map.getZoom.mockReturnValue(14);
+    act(() => idleListener()());
+    expect(screen.getAllByTestId("marker")).toHaveLength(3);
+    expect(pinTitles()).toEqual(expect.arrayContaining(["1. A", "2. B", "3. C"]));
+  });
+
+  it("removes its idle listener on unmount", () => {
+    const remove = vi.fn();
+    mock.map.addListener.mockReturnValue({ remove });
+    const { unmount } = render(<RouteMapTile stops={close} tripId="t1" />);
+    unmount();
+    expect(remove).toHaveBeenCalled();
   });
 
   it("shows the 'Add your first stop' empty state with no located Stops", () => {
@@ -125,27 +169,33 @@ describe("RouteMapTile", () => {
     expect(screen.getByRole("link", { name: "+ Add a stop" })).toHaveAttribute("href", "/trips/t1/plan?add=stop");
   });
 
-  it("shows a compact error panel inside the tile when the map fails", async () => {
-    hoisted.leaflet!.L.map.mockImplementation(() => {
-      throw new Error("map failed");
-    });
+  it("shows a compact error panel inside the tile when Google refuses the key", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<RouteMapTile stops={STOPS} tripId="t1" />);
-    expect(await screen.findByText("The map didn’t load", {}, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 3, name: "The map didn’t load" })).toBeInTheDocument();
-    // Chips still render — the rest of the tile survives.
+    act(() => window.gm_authFailure!());
+    const heading = await screen.findByRole("heading", { level: 3, name: "The map didn’t load" });
+    expect(heading.closest("[data-map-fallback]")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
     spy.mockRestore();
   });
 
-  it('mountWhen="desktop" below lg keeps the tile but never builds a Leaflet map (spec 2026-10-06 §D)', async () => {
+  it("shows the same error panel, not a blank box, when there is no key", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<RouteMapTile stops={STOPS} tripId="t1" />);
+    expect(await screen.findByText("The map didn’t load")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it('mountWhen="desktop" below lg keeps the tile but never builds a map (spec 2026-10-06 §D)', async () => {
     const { setMatchMedia } = await import("@/test/setup");
     setMatchMedia(false);
     try {
       render(<RouteMapTile stops={STOPS} tripId="t1" mountWhen="desktop" />);
       expect(screen.getByRole("button", { name: "Whole trip" })).toBeInTheDocument();
       await new Promise((r) => setTimeout(r, 0));
-      expect(hoisted.leaflet!.maps).toHaveLength(0);
+      expect(mock.recorded.mapMounts).toBe(0);
     } finally {
       setMatchMedia((q) => q === "(min-width: 640px)");
     }
@@ -156,7 +206,7 @@ describe("RouteMapTile", () => {
     setMatchMedia((q) => q === "(min-width: 1024px)");
     try {
       render(<RouteMapTile stops={STOPS} tripId="t1" mountWhen="desktop" />);
-      await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+      expect(mock.recorded.mapMounts).toBe(1);
     } finally {
       setMatchMedia((q) => q === "(min-width: 640px)");
     }

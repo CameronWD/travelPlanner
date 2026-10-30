@@ -39,8 +39,8 @@ describe("DayKeyboardNav", () => {
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(push).not.toHaveBeenCalled();
   });
-  it("leaves arrow keys on the Day map to Leaflet", () => {
-    render(<><DayKeyboardNav prevHref={"/p" as Route} nextHref={"/n" as Route} /><div className="leaflet-container"><button>map</button></div></>);
+  it("ignores arrow keys typed inside the map", () => {
+    render(<><DayKeyboardNav prevHref={"/p" as Route} nextHref={"/n" as Route} /><div className="tp-map"><button>map</button></div></>);
     fireEvent.keyDown(screen.getByText("map"), { key: "ArrowRight" });
     fireEvent.keyDown(screen.getByText("map"), { key: "ArrowLeft" });
     expect(push).not.toHaveBeenCalled();

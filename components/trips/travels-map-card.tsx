@@ -49,6 +49,7 @@ function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
 function MapFailurePanel() {
   return (
     <ErrorPanel
+      data-map-fallback
       layout="card"
       headingLevel={3}
       title="The map didn’t load"
@@ -139,8 +140,8 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
   const visible = list.slice(0, shown);
   const overflow = list.slice(shown);
   const card = cn(
-    // `isolate`: the chips, Globe pill and attribution below sit at z-[500]
-    // to clear Leaflet's panes; without a stacking context on the card that
+    // `isolate`: the chips and Globe pill below sit at z-[500]
+    // to clear the map's panes; without a stacking context on the card that
     // 500 leaks into the page root and paints over the z-50 dialog layer
     // (the Welcome dialog on /trips — spec 2026-10-01 §C).
     "relative isolate overflow-hidden border-2 border-border bg-map-fill",
@@ -242,9 +243,6 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
           Globe →
         </span>
       )}
-      <p className="pointer-events-none absolute bottom-3 left-4 z-[500] shrink-0 whitespace-nowrap text-[11px] font-semibold text-muted-foreground">
-        © OpenStreetMap · CARTO
-      </p>
     </>
   );
   if (mobile) {

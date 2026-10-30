@@ -32,7 +32,6 @@ describe("TravelsMapCard", () => {
     expect(screen.getAllByRole("button", { name: /^Trip / })).toHaveLength(3);
     expect(screen.getByRole("button", { name: "+2" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Globe →" })).toHaveAttribute("href", "/globe");
-    expect(screen.getByText("© OpenStreetMap · CARTO")).toBeInTheDocument();
   });
   it("collapses chips into +N whenever the measured row would overflow the card, not only past three (LA-151)", () => {
     vi.stubGlobal("ResizeObserver", class { cb: (e: unknown[]) => void; constructor(cb: (e: unknown[]) => void) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} });
@@ -70,7 +69,7 @@ describe("TravelsMapCard", () => {
   it("shows the error panel (title pill still visible) when the map reports onFail", () => {
     hoisted.shouldFail = true;
     render(<TravelsMapCard trips={trips} variant="desktop" />);
-    expect(screen.getByText("The map didn’t load")).toBeInTheDocument();
+    expect(screen.getByText("The map didn’t load").closest("[data-map-fallback]")).not.toBeNull();
     expect(screen.getByText("Your travels")).toBeInTheDocument();
   });
   it("shows the failure panel (title pill kept, chips hidden) when trips is null (I5)", () => {

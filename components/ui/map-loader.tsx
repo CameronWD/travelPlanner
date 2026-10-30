@@ -16,7 +16,7 @@ export type MapMountWhen = boolean | "phone" | "desktop";
  * Whether a map should mount now. A breakpoint answer is false in the server
  * render and during hydration — a map is client-only, so its placeholder is
  * what the server drew anyway — and on the side of the breakpoint it isn't
- * shown at, so a CSS-hidden map never imports Leaflet.
+ * shown at, so a CSS-hidden map never loads the maps bundle.
  */
 export function useMapMount(mountWhen: MapMountWhen = true): boolean {
   const lgUp = useMediaQuery(LG_UP);
@@ -26,7 +26,7 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
 }
 
 /**
- * Build a client-only loader for a Leaflet map component. `next/dynamic` with
+ * Build a client-only loader for a map component. `next/dynamic` with
  * `ssr:false` must live in a Client Component; this factory is that boundary.
  *
  *   export const RouteMapLoader = createMapLoader<RouteMapProps>(

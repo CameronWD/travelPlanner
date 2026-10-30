@@ -4,7 +4,7 @@ import { hueHex, mapInk } from "@/lib/map/palette";
 /**
  * Map pins. Same export names as before (CATEGORY_PIN_HEX, pinHex) so the Globe and Wishlist
  * maps keep compiling; both now take an optional `dark` flag. `pinHtml` builds the Playground
- * sticker pin for L.divIcon({ html, className: "", iconSize, iconAnchor }).
+ * sticker pin as an HTML string that HtmlPin mounts inside a Google Advanced Marker.
  */
 export const CATEGORY_PIN_HEX: Record<string, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.value, hueHex(c.hue, false)]),
@@ -24,7 +24,7 @@ export interface PinOptions {
   variant: PinVariant;
   /** Fill for category/stop pins (pinHex or chapterColourSwatch). */
   fill?: string;
-  /** Short text inside: stop number, cluster count. Escape before passing. */
+  /** Short text inside: stop number, cluster count, "H"/"T". Interpolated as raw HTML, so never user text. */
   label?: string;
   /** Inline SVG string for a glyph (lucide icon at 14px, stroke = currentColor). */
   glyph?: string;

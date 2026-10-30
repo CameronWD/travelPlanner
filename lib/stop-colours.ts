@@ -41,5 +41,5 @@ export function stopPillClass(index: number): string { return PILL[idx(index)]; 
 
 /** The Stop's hue on the ramp, by its position — the same cycle MonthGrid and StopCard paint. */
 export function stopHue(index: number): Hue { return STOP_HUES[idx(index)]; }
-/** Leaflet hex for the Stop's hue (divIcon HTML and polylines can't take Tailwind classes). */
+/** Map hex for the Stop's hue (pin HTML and polylines can't take Tailwind classes). */
 export function stopHex(index: number, dark = false): string { return hueHex(stopHue(index), dark); }

@@ -48,17 +48,16 @@
  *
  * THREE TRAPS THIS PROJECT HAS ALREADY FALLEN INTO
  * -----------------
- *   1. Leaflet renders after `networkidle`. Every map on this site
- *      (globe, wishlist, route/summary, day) mounts via
- *      `next/dynamic(..., { ssr: false })`, and Leaflet's own marker layer
- *      finishes painting *after* the network goes idle — `networkidle` says
- *      "no more requests", not "Leaflet is done". Measuring right after
+ *   1. The map renders after `networkidle`. Every map on this site
+ *      (globe, wishlist, route/summary, day) loads Google Maps client-side,
+ *      and its pin layer finishes painting *after* the network goes idle —
+ *      `networkidle` says "no more requests", not "the map is done". Measuring right after
  *      `page.goto(..., { waitUntil: "networkidle" })` reads the page before
  *      markers exist. That previously undercounted pins by 21 and made an
  *      unrelated token fix look three times more effective than it actually
  *      was. Fix: for every map route, explicitly wait on
- *      `.leaflet-marker-icon` (see revealMap() in scripts/lib/audit-browser.ts) and record the
- *      marker count rather than trusting network idle. Two of the four map
+ *      `.tp-map-pin` or the keyless `[data-map-fallback]` (see revealMap() in
+ *      scripts/lib/audit-browser.ts) and record the pin count rather than trusting network idle. Two of the four map
  *      surfaces (wishlist, day/home) also hide their map behind a toggle
  *      button by default ("Map" tab, "Show day map") — the script clicks
  *      that open first, since a collapsed map that never mounted looks
@@ -173,17 +172,12 @@
  *
  * EXEMPTION: WCAG 1.4.3 inactive user interface components (TWO GATES)
  * -----------------
- *   Leaflet's own disabled zoom-in/zoom-out control (`.leaflet-control-zoom-*`,
- *   stock CSS from node_modules/leaflet/dist/leaflet.css: #bbb text on #f4f4f4,
- *   ~1.75:1) fails 3:1 in both themes, on both map surfaces, always — but
- *   WCAG 2.x SC 1.4.3 explicitly scopes the contrast minimum to "text ... that
- *   is part of ... an inactive user interface component", so this specific
- *   failure is not a design-token defect: it is the control's intended
- *   "you can't zoom further" affordance, genuinely exempt by name in the
- *   normative text, not a convenient excuse to silence a red gate.
+ *   Inactive controls (aria-disabled / :disabled) are exempt by WCAG 2.x
+ *   SC 1.4.3, which scopes the contrast minimum to "text ... that is part of
+ *   ... an inactive user interface component".
  *
- *   Without this exemption those 4 rows can never leave the failure list —
- *   Leaflet ships the colours, this app doesn't own them, and they don't vary
+ *   Without an exemption such rows can never leave the failure list —
+ *   the colours may be owned by a third party and not vary
  *   by theme — which makes the whole gate permanently red and therefore
  *   useless: nobody reads a check that never passes. But the fix has to be
  *   narrow, or it quietly re-opens the exact hole this script exists to
@@ -204,37 +198,26 @@
  *   genuinely inactive UI component at all? `el.closest('[aria-disabled="true"],
  *   :disabled')`:
  *     - `[aria-disabled="true"]` matches only the exact string "true" — an
- *       element sitting at `aria-disabled="false"` (which Leaflet also sets,
- *       on the *other* zoom button, the instant you're not at that extreme)
- *       does NOT match. Confirmed directly in
- *       node_modules/leaflet/dist/leaflet-src.js (~line 5570-5583): Leaflet
- *       flips this attribute between "true" and "false" as the real map zoom
- *       crosses min/max, so this reads live interaction state, not a static
- *       marker some stylesheet happened to leave lying around.
+ *       element sitting at `aria-disabled="false"` does NOT
+ *       match, so this reads live interaction state, not a static marker
+ *       some stylesheet happened to leave lying around.
  *     - `:disabled` is a browser pseudo-class, true only for real form
  *       controls (button/input/select/textarea/…) carrying the `disabled`
  *       DOM property — the platform's own definition of "inactive", not a
  *       heuristic this script invents.
  *   This selector is kept exactly this broad ON PURPOSE: WCAG 1.4.3's
- *   exemption is about inactive components generally, not about Leaflet, so
- *   narrowing gate 1 itself down to Leaflet's classes would misrepresent
+ *   exemption is about inactive components generally, so narrowing gate 1
+ *   itself down to one library's classes would misrepresent
  *   what the standard actually exempts. Gate 1 alone answers "is this kind
  *   of failure even eligible to be excused" — it does not, by itself, excuse
  *   anything.
  *
  *   GATE 2 (identity, deliberately narrow): EXPECTED_EXEMPTIONS, a
  *   module-level allowlist of the SPECIFIC controls this repo has actually
- *   examined and accepted — currently just the two Leaflet zoom buttons
- *   (`a.leaflet-control-zoom-in`, `a.leaflet-control-zoom-out`). Matching is
- *   against the matched ancestor's OWN tag and class (`exemptAncestorTag` /
- *   `exemptAncestorClass` on ProbeRow) — not the text-owning element's:
- *   Leaflet's zoom-button text ("+"/"−") lives in an unclassed inner `<span
- *   aria-hidden="true">`; the class and `aria-disabled` are one level up, on
- *   the `<a>` (verified directly against rendered DOM: `<a
- *   class="leaflet-control-zoom-in leaflet-disabled" aria-disabled="true"
- *   role="button"><span aria-hidden="true">+</span></a>`). `.closest()`
- *   starts its climb at the `<span>` and stops at the `<a>` — so identity
- *   has to be read off the ancestor it actually stopped at, not off the row.
+ *   examined and accepted. Matching is against the matched ancestor's OWN tag and class
+ *   (`exemptAncestorTag` / `exemptAncestorClass` on ProbeRow) — not the
+ *   text-owning element's, since `.closest()` stops at the ancestor and
+ *   identity has to be read off where it actually stopped.
  *
  *   A row must pass BOTH gates to reach the `exempted` bucket and leave
  *   `RESULT: PASS` green:
@@ -265,14 +248,6 @@
  *   either way; both `exempted` and `unrecognizedExemptions` only ever hold
  *   failures that are being either excused or flagged, never things that
  *   already passed on their own.
- *
- *   Alternative considered and rejected: overriding Leaflet's own disabled
- *   colours in globals.css to hit 3:1. Rejected because the low contrast IS
- *   the correct affordance here (WCAG names this exact case as exempt, not
- *   merely tolerated), so "fixing" it would fight the control's own design
- *   intent to satisfy a check that doesn't apply to it, and it would mean
- *   carrying a permanent CSS override against a third-party stylesheet for a
- *   problem WCAG itself says isn't one.
  *
  *   GATE 1b (decorative): a second, narrower path onto the same `exempted`
  *   bucket, for WCAG 1.4.3's other named exclusion — "incidental" text, i.e.
@@ -532,9 +507,8 @@ interface ProbeRow {
   /** Tag name of the closest ancestor that matched the exemption selector
    * (lowercased), or null if none matched. This is gate 2's raw material —
    * the allowlist matches on THIS ancestor's own identity, not on the
-   * text-owning element, because the text-owning node for Leaflet's zoom
-   * controls is an inner `<span aria-hidden="true">` with no class of its
-   * own; the class and `aria-disabled` live one level up, on the `<a>`. */
+   * text-owning element, because the text-owning node is often an inner
+   * element with no class of its own; the identity lives one level up. */
   exemptAncestorTag: string | null;
   /** className of the closest matching ancestor (space-separated, as
    * rendered), or null if none matched. See exemptAncestorTag. */
@@ -858,7 +832,8 @@ const PROBE_SCRIPT = `
     // subtree (the new-trip preview) still has to pass on its own.
     const disabledAncestor = el.closest('[aria-disabled="true"], :disabled');
     const decorativeSelf = !disabledAncestor && el.matches('[aria-hidden="true"]') ? el : null;
-    const exemptAncestor = disabledAncestor || decorativeSelf;
+    const googleUi = !disabledAncestor && !decorativeSelf && !el.closest(".tp-map-pin") ? el.closest(".gm-style") : null;
+    const exemptAncestor = disabledAncestor || decorativeSelf || googleUi;
     const exempt = exemptAncestor !== null;
     const exemptReason = !exemptAncestor
       ? null
@@ -866,12 +841,12 @@ const PROBE_SCRIPT = `
         ? disabledAncestor.matches('[aria-disabled="true"]')
           ? 'aria-disabled="true"'
           : ":disabled (form control)"
-        : 'aria-hidden="true" (decorative, on the text element itself)';
+        : googleUi
+          ? "third-party map UI (.gm-style)"
+          : 'aria-hidden="true" (decorative, on the text element itself)';
     // Gate 2's raw material (see EXPECTED_EXEMPTIONS in Node-land below) --
-    // the ancestor's OWN identity, not the text-owning element's. Leaflet's
-    // zoom buttons put the text in an unclassed inner <span aria-hidden>; the
-    // class and aria-disabled live on the outer <a>. For gate 1b the
-    // "ancestor" is the text element itself.
+    // the ancestor's OWN identity, not the text-owning element's. For
+    // gate 1b the "ancestor" is the text element itself.
     const exemptAncestorTag = exemptAncestor ? exemptAncestor.tagName.toLowerCase() : null;
     const exemptAncestorClass = exemptAncestor ? classNameOf(exemptAncestor) : null;
 
@@ -961,8 +936,8 @@ interface RouteResult {
 // docblock's "EXEMPTION" section for the full two-gate rationale — in short,
 // gate 1 (`[aria-disabled="true"], :disabled` in the probe script above) is
 // deliberately broad, because WCAG 1.4.3's exemption for inactive UI
-// components is general, not Leaflet-specific. Narrowing THAT selector to
-// Leaflet's own classes would misrepresent the standard. So narrowing
+// components is general, not library-specific. Narrowing THAT selector to
+// one library's classes would misrepresent the standard. So narrowing
 // happens here instead, as a second, independent gate: a failing+exempt row
 // only leaves the exit code green if it ALSO matches one of these entries by
 // the matched ancestor's own tag/class identity — never by "something
@@ -984,12 +959,13 @@ function ancestorHasClass(row: ProbeRow, cls: string): boolean {
 
 const EXPECTED_EXEMPTIONS: ExemptionAllowlistEntry[] = [
   {
-    name: "Leaflet zoom-in control (a.leaflet-control-zoom-in)",
-    matches: (row) => row.exemptAncestorTag === "a" && ancestorHasClass(row, "leaflet-control-zoom-in"),
-  },
-  {
-    name: "Leaflet zoom-out control (a.leaflet-control-zoom-out)",
-    matches: (row) => row.exemptAncestorTag === "a" && ancestorHasClass(row, "leaflet-control-zoom-out"),
+    // Google's own map UI (attribution, terms, keyboard-shortcut links) is not ours to style.
+    // Our pins render inside .gm-style too; the probe excludes .tp-map-pin so they stay audited.
+    name: "Google Maps own UI (descendants of .gm-style, outside .tp-map-pin)",
+    matches: (row) =>
+      row.exemptReason !== null &&
+      row.exemptReason.startsWith("third-party map UI") &&
+      ancestorHasClass(row, "gm-style"),
   },
   {
     // The 88px/50px coral "." that closes "Your whole trip, in one place" on the

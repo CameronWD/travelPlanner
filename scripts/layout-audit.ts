@@ -113,9 +113,9 @@
  *      throws `ReferenceError: __name is not defined`. So every non-trivial
  *      piece of in-page code (the collector, the share-link reader below)
  *      is a plain JS string.
- *   2. Leaflet renders after `networkidle`. Map routes click their hidden
+ *   2. The map renders after `networkidle`. Map routes click their hidden
  *      map open ("Show day map", the wishlist "Map" tab), then wait on
- *      `.leaflet-marker-icon` and record the marker count — never trusting
+ *      `.tp-map-pin` or the keyless `[data-map-fallback]` and record the pin count — never trusting
  *      network idle alone (see contrast-audit.ts, trap 1).
  *   3. A broken probe reports success. A collector that silently measures
  *      nothing (selector drift, a page that errored into its boundary)

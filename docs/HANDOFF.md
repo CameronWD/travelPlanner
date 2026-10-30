@@ -13,7 +13,7 @@ The following work out of the box in local development with no external accounts
 | Database | Postgres in Docker (`docker-compose.yml`) via `@prisma/adapter-pg` — see ADR 0005 |
 | Auth | Dev-login shim (`ALLOW_DEV_LOGIN="true"`) — no OAuth required |
 | FX rates | Frankfurter public API — no key |
-| Maps / geocoding | Leaflet + CARTO tiles + Nominatim + Photon — works with no key, but tiles carry a CARTO watermark without `NEXT_PUBLIC_CARTO_API_KEY`; saving a place and the Globe/Transport search buttons need `NOMINATIM_CONTACT` (see §5); the as-you-type place search uses Photon, which needs no key and no contact |
+| Maps / geocoding | Google Maps + Nominatim + Photon — with no Google key every map shows its fallback list instead of a map (the page still works); saving a place and the Globe/Transport search buttons need `NOMINATIM_CONTACT` (see §5); the as-you-type place search uses Photon, which needs no key and no contact |
 | File uploads | Local disk (`.uploads/` at repo root) |
 
 The following are **disabled gracefully** without config — the UI hides or disables those features:
@@ -224,28 +224,15 @@ Users can manually override any rate on the Budget page — the manual flag is s
 
 ## 5. Maps
 
-Powered by [Leaflet](https://leafletjs.com/) with [CARTO](https://carto.com/) basemap tiles — Positron for light mode, Dark Matter for dark (see [ADR 0033's 2026-08-31 amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)) — [Nominatim](https://nominatim.org/) for geocoding a saved place and for the Globe marker and Transport location search buttons, and [Photon](https://photon.komoot.io/) for the as-you-type place search (ADR 0069).
+Maps render with [Google Maps](https://developers.google.com/maps) through `@vis.gl/react-google-maps` (ADR 0076), one Map ID with light and dark styling that follows the app theme. [Nominatim](https://nominatim.org/) geocodes a saved place and powers the Globe marker and Transport location search buttons, and [Photon](https://photon.komoot.io/) powers the as-you-type place search (ADR 0069) — both are replaced in the Places branch.
 
-### CARTO tiles need an API key
+### Google Maps needs a browser key and a Map ID
 
-Since late August 2026 CARTO's raster basemap endpoint watermarks unauthenticated tiles with "API KEY REQUIRED". Get a free key (fair-use limit) at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) and set:
+Set `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` (and `GOOGLE_MAPS_SERVER_KEY` for server-side calls). The full Google Cloud setup — project, APIs, the two keys and their restrictions, the Map ID, per-day quotas, the budget alert — is the runbook in [DEPLOY.md §4j](DEPLOY.md).
 
-```
-NEXT_PUBLIC_CARTO_API_KEY="<your carto key>"
-```
+**`NEXT_PUBLIC_*` values are inlined at build time**, so setting them in your host's dashboard does nothing until you redeploy.
 
-To get a key: email [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) your email address, the domain you'll use the basemaps on, and roughly what you're building. There's no account and no approval queue — CARTO emails the key straight back, and domain scoping is fixed at that point, from the domain you supplied. There is no dashboard to change it afterwards.
-
-The key reaches the browser by necessity — Leaflet fetches tiles client-side — that's expected, not a leak. **`NEXT_PUBLIC_*` values are inlined at build time**, so setting the variable in your host's dashboard does nothing until you redeploy.
-
-Without the key the maps still pan, zoom and render markers; the tiles are just watermarked.
-
-**Fair use and terms.** The key is free for up to 5 million tile requests per calendar month, counted across CARTO's raster and vector services combined — past that, CARTO says they'll get in touch rather than cut the key off. It's intended for non-commercial use (personal projects, research, teaching, non-profits); commercial projects still get a key, but past the limit may be asked onto a paid agreement. Treat the key as scoped to this project: request a separate one rather than sharing or reusing this key on another domain or app.
-
-**Two things that look like a failed fix, but aren't:**
-
-- Both the browser and CARTO's CDN cache tiles. After adding the key, a plain reload can still show cached watermarked tiles — force-refresh (or clear the cache) before concluding the key isn't taking effect.
-- A wrong or mistyped key does **not** error. CARTO returns HTTP 200 with a watermarked tile — the same response as no key at all — so there is no failure signal to notice. If the watermark persists after a hard refresh, double-check the key value itself.
+Without the key or Map ID, or when Google refuses the key or a quota runs out, every map renders its fallback ("The map isn't available right now." or the stop/item list) and the page keeps working. See [maps-overview.md](maps-overview.md).
 
 ### Nominatim needs a contact, not a key
 
@@ -392,7 +379,9 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `AUTH_GOOGLE_SECRET` | Yes | Google OAuth client secret | Google Cloud Console |
 | `ALLOW_DEV_LOGIN` | Yes (set `"false"`) | Disable dev-login bypass | Set to `"false"` in production |
 | `NEXT_PUBLIC_APP_NAME` | No | App name shown in the UI | Any string; defaults gracefully |
-| `NEXT_PUBLIC_CARTO_API_KEY` | No (tiles watermarked without it) | CARTO basemap tile key | [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | No (maps show their fallback without it) | Maps JavaScript API browser key, referrer-restricted | Google Cloud Console — [DEPLOY.md §4j](DEPLOY.md) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | No (maps show their fallback without it) | Vector Map ID with light and dark styles (Advanced Markers need one) | Google Cloud Console — [DEPLOY.md §4j](DEPLOY.md) |
+| `GOOGLE_MAPS_SERVER_KEY` | No | Server key for Routes, Geocoding and Places (New); first used by later branches | Google Cloud Console — [DEPLOY.md §4j](DEPLOY.md) |
 | `NOMINATIM_CONTACT` | No (place search breaks without it) | Real contact for Nominatim's User-Agent (Photon, the typeahead, needs none) | An email you control, or your app's public URL |
 | `STORAGE_DRIVER` | Yes (unless local) | Storage backend: `"local"`, `"r2"`, or `"s3"` | Set to `"r2"` or `"s3"` |
 | `CLOUDFLARE_ACCOUNT_ID` | If `STORAGE_DRIVER=r2` | Cloudflare account ID | Cloudflare dashboard |

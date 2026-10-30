@@ -74,12 +74,16 @@ export async function applyThemeClass(page: Page, theme: Theme, settleMs = 350):
 }
 
 // --------------------------------------------------------------------------
-// Maps (trap 1: Leaflet renders after networkidle — see contrast-audit.ts's
+// Maps (trap 1: the map renders after networkidle — see contrast-audit.ts's
 // docblock for the full story)
 // --------------------------------------------------------------------------
 
-/** Trap 1: click open the maps that mount collapsed, then wait for real markers. */
-export async function revealMap(page: Page, reveal: MapReveal | undefined, markerWaitMs = 8_000): Promise<void> {
+/**
+ * Trap 1: click open the maps that mount collapsed, then wait for a real pin
+ * or the keyless fallback, whichever lands first. Returns the pin count: 0 is
+ * normal keyless, so a keyed run asserts > 0 per surface.
+ */
+export async function revealMap(page: Page, reveal: MapReveal | undefined, markerWaitMs = 8_000): Promise<number> {
   if (reveal === "show-day-map") {
     // The Day view is a paged carousel (ADR 0065): the previous and next
     // days are rendered offscreen with their own toggles, so click the one
@@ -99,16 +103,17 @@ export async function revealMap(page: Page, reveal: MapReveal | undefined, marke
   }
 
   await page
-    .waitForSelector(".leaflet-marker-icon", { timeout: markerWaitMs })
+    .waitForSelector(".tp-map-pin, [data-map-fallback]", { timeout: markerWaitMs })
     .catch(() => {
-      // No marker appeared in time. Could be a genuinely empty map (e.g. an
-      // empty wishlist) or a real regression — markerCount() below records
-      // the number either way, and Step 6 in the report says which this is.
+      // Neither a pin nor the fallback appeared in time. Could be a genuinely
+      // empty map (e.g. an empty wishlist) or a real regression — the count
+      // below records the number either way.
     });
+  return markerCount(page);
 }
 
 export async function markerCount(page: Page): Promise<number> {
-  return page.evaluate(() => document.querySelectorAll(".leaflet-marker-icon").length);
+  return page.evaluate(() => document.querySelectorAll(".tp-map-pin").length);
 }
 
 // --------------------------------------------------------------------------

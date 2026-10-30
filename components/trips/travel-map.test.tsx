@@ -1,91 +1,120 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import * as React from "react";
-import { render, waitFor } from "@testing-library/react";
-import { createLeafletMock } from "@/test/leaflet-mock";
+import { act, render, screen } from "@testing-library/react";
 import { hueHex } from "@/lib/map/palette";
 
-const hoisted = vi.hoisted(() => ({
-  leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,
-  theme: "light" as "light" | "dark",
-}));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+
+const hoisted = vi.hoisted(() => ({ theme: "light" as "light" | "dark" }));
 vi.mock("@/components/ui/theme-provider", () => ({ useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => "/trips", useSearchParams: () => new URLSearchParams() }));
 
+import { resetMapsAuthForTests } from "@/components/map/maps-auth";
 import { TravelMap, type TravelMapTrip } from "./travel-map";
 
 const europe: TravelMapTrip = { id: "t1", name: "Europe", hue: "coral", when: "upcoming", points: [{ lat: 51.5, lng: -0.12, name: "London" }, { lat: 41.9, lng: 12.5, name: "Rome" }] };
 const nz: TravelMapTrip = { id: "t2", name: "NZ", hue: "leaf", when: "past", points: [{ lat: -45, lng: 168.7, name: "Queenstown" }] };
 
+const pinHtmls = () => screen.getAllByTestId("marker").map((m) => m.querySelector(".tp-map-pin")!.innerHTML);
+
 beforeEach(() => {
-  hoisted.leaflet = createLeafletMock();
+  mock.reset();
+  resetMapsAuthForTests();
   hoisted.theme = "light";
-  vi.doMock("leaflet", () => hoisted.leaflet!.module);
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+  return () => vi.unstubAllEnvs();
 });
 
 describe("TravelMap", () => {
-  it("draws a 20px pin per point in the trip colour and a dashed ink line per trip, at full opacity for done trips", async () => {
+  it("draws a 20px pin per point in the trip colour and a dashed ink geodesic line per trip", () => {
     render(<TravelMap trips={[europe, nz]} filterTripId={null} variant="desktop" />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
-    const html = String((hoisted.leaflet!.markers[0].options.icon as { html: string }).html);
-    expect(html).toContain(hueHex("coral"));
-    expect(html).toContain("width:20px");
-    expect(html).toContain("2px 2px 0");
-    expect(hoisted.leaflet!.polylines).toHaveLength(1);
-    expect(hoisted.leaflet!.polylines[0].options).toMatchObject({ dashArray: "6 5", weight: 1.5, opacity: 1 });
-    expect(String((hoisted.leaflet!.markers[2].options.icon as { html: string }).html)).toContain(hueHex("leaf"));
+    const html = pinHtmls();
+    expect(html).toHaveLength(3);
+    expect(html[0]).toContain(hueHex("coral"));
+    expect(html[0]).toContain("width:20px");
+    expect(html[0]).toContain("2px 2px 0");
+    expect(html[2]).toContain(hueHex("leaf"));
+    expect(mock.recorded.polylines).toHaveLength(1);
+    const line = mock.recorded.polylines[0];
+    const options = line.setOptions.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect(options).toMatchObject({ geodesic: true, strokeWeight: 1.5, strokeOpacity: 0 });
+    expect(options.icons).toHaveLength(1);
+    expect(options.path).toEqual([{ lat: 51.5, lng: -0.12 }, { lat: 41.9, lng: 12.5 }]);
   });
-  it("fits bounds to the filtered trip only, with 40px padding", async () => {
+
+  it("fits bounds to the filtered trip only, with 40px padding", () => {
+    render(<TravelMap trips={[europe, nz]} filterTripId="t1" variant="desktop" />);
+    const [bounds, padding] = mock.map.fitBounds.mock.calls.at(-1)!;
+    expect(padding).toBe(40);
+    expect(JSON.stringify(bounds)).toContain("12.5");
+    expect(JSON.stringify(bounds)).not.toContain("168.7");
+  });
+
+  it("a single filtered point sits at a sane zoom", () => {
     render(<TravelMap trips={[europe, nz]} filterTripId="t2" variant="desktop" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalled());
-    const [bounds, opts] = hoisted.leaflet!.maps[0].fitBounds.mock.calls.at(-1)!;
-    expect(opts).toEqual({ padding: [40, 40] });
-    expect(JSON.stringify(bounds)).toContain("168.7");
-    expect(JSON.stringify(bounds)).not.toContain("12.5");
+    expect(mock.map.setCenter).toHaveBeenCalledWith({ lat: -45, lng: 168.7 });
+    expect(mock.map.setZoom).toHaveBeenCalledWith(12);
   });
-  it("has no zoom control and no scroll-wheel zoom", async () => {
+
+  it("has no zoom control and drops scroll-wheel hijack", () => {
     render(<TravelMap trips={[europe]} filterTripId={null} variant="desktop" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].options).toMatchObject({ zoomControl: false, scrollWheelZoom: false, dragging: true, attributionControl: false });
+    expect(mock.recorded.map.at(-1)).toMatchObject({ disableDefaultUI: true, zoomControl: false, gestureHandling: "cooperative", minZoom: 1 });
   });
-  it("mobile uses 14px pins with no shadow", async () => {
+
+  it("labels the map region", () => {
+    render(<TravelMap trips={[europe]} filterTripId={null} variant="desktop" />);
+    expect(screen.getByRole("region", { name: "Your travels map" })).toBeInTheDocument();
+  });
+
+  it("mobile uses 14px pins with no shadow", () => {
     render(<TravelMap trips={[europe]} filterTripId={null} variant="mobile" />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const html = String((hoisted.leaflet!.markers[0].options.icon as { html: string }).html);
-    expect(html).toContain("width:14px");
-    expect(html).toContain("box-shadow:none");
+    const html = pinHtmls();
+    expect(html).toHaveLength(2);
+    expect(html[0]).toContain("width:14px");
+    expect(html[0]).toContain("box-shadow:none");
   });
-  it("with no trips shows the world", async () => {
+
+  it("with no trips shows the world", () => {
     render(<TravelMap trips={[]} filterTripId={null} variant="desktop" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].setView).toHaveBeenCalledWith([20, 0], 1);
+    expect(mock.map.setCenter).toHaveBeenCalledWith({ lat: 20, lng: 0 });
+    expect(mock.map.setZoom).toHaveBeenCalledWith(1);
   });
-  it("a theme flip redraws tiles and markers but does not re-fit bounds", async () => {
+
+  it("a theme flip remounts the map and recolours pins but does not re-fit twice for the same data", () => {
     const { rerender } = render(<TravelMap trips={[europe, nz]} filterTripId={null} variant="desktop" />);
-    await waitFor(() => expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalledTimes(1));
-    const markersBefore = hoisted.leaflet!.markers.length;
+    expect(mock.recorded.mapMounts).toBe(1);
     hoisted.theme = "dark";
     rerender(<TravelMap trips={[europe, nz]} filterTripId={null} variant="desktop" />);
-    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThan(markersBefore));
-    expect(hoisted.leaflet!.tileLayers[0].setUrl).toHaveBeenCalled();
-    expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenCalledTimes(1);
+    expect(mock.recorded.mapMounts).toBe(2);
+    expect(pinHtmls()[0]).toContain(hueHex("coral", true));
   });
-  it("survives Strict Mode's mount→cleanup→mount without onFail, building exactly one live map (I2)", async () => {
-    // The mock's `map()` (test/leaflet-mock.ts) now mirrors real Leaflet's own
-    // "already initialized" container guard, so this catches the same crash a
-    // real double `L.map(container)` build would: the pre-fix code raced two
-    // `import("leaflet")` calls from Strict Mode's mount→cleanup→mount, and
-    // the second `L.map` on the same container threw, firing `onFail`.
+
+  it("survives Strict Mode without onFail", () => {
     const onFail = vi.fn();
-    const { container } = render(
+    render(
       <React.StrictMode>
         <TravelMap trips={[europe]} filterTripId={null} variant="desktop" onFail={onFail} />
       </React.StrictMode>,
     );
-    const mapEl = container.querySelector('[aria-label="Your travels map"]') as (HTMLElement & { _leaflet_id?: unknown }) | null;
-    await waitFor(() => expect(mapEl?._leaflet_id).toBeTruthy());
     expect(onFail).not.toHaveBeenCalled();
-    // At most one build ever reaches the mock — the cancelled Strict Mode
-    // invocation bails before calling `L.map` at all.
-    expect(hoisted.leaflet!.maps.length).toBeLessThanOrEqual(1);
+    expect(screen.getAllByTestId("marker")).toHaveLength(2);
+  });
+
+  it("calls onFail when Google refuses the key", () => {
+    const onFail = vi.fn();
+    render(<TravelMap trips={[europe]} filterTripId={null} variant="desktop" onFail={onFail} />);
+    expect(onFail).not.toHaveBeenCalled();
+    act(() => window.gm_authFailure!());
+    expect(onFail).toHaveBeenCalled();
+  });
+
+  it("calls onFail and renders nothing when there is no key", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    const onFail = vi.fn();
+    const { container } = render(<TravelMap trips={[europe]} filterTripId={null} variant="desktop" onFail={onFail} />);
+    expect(onFail).toHaveBeenCalled();
+    expect(container).toBeEmptyDOMElement();
   });
 });

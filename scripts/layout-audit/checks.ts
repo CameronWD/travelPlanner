@@ -97,7 +97,7 @@ export function checkSideways(raw: RawCollect): Hit[] {
 export function checkSpill(raw: RawCollect): Hit[] {
   const out: Hit[] = [];
   for (const s of raw.spills) {
-    if (s.inHScroller || s.inLeaflet) continue;
+    if (s.inHScroller || s.inMap) continue;
     const left = s.containerRect.x - s.rect.x;
     const rightOver = right(s.rect) - right(s.containerRect);
     if (left <= SPILL_PX && rightOver <= SPILL_PX) continue;
@@ -136,10 +136,10 @@ export function checkOverlap(raw: RawCollect): Hit[] {
   const boxes = raw.boxes;
   for (let i = 0; i < boxes.length; i++) {
     const a = boxes[i];
-    if (a.stackOk || a.inLeaflet) continue;
+    if (a.stackOk || a.inMap) continue;
     for (let j = i + 1; j < boxes.length; j++) {
       const b = boxes[j];
-      if (b.stackOk || b.inLeaflet) continue;
+      if (b.stackOk || b.inMap) continue;
       if (a.layer !== b.layer) continue; // fixed chrome over scrolling flow is by design
       if (a.ancestorIdx.includes(j) || b.ancestorIdx.includes(i)) continue;
       const ox = spanOverlap(a.rect.x, right(a.rect), b.rect.x, right(b.rect));

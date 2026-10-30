@@ -32,8 +32,28 @@ describe("PrivacyPage", () => {
     expect(screen.getByText(/Cloudflare R2/)).toBeInTheDocument();
     expect(screen.getAllByText(/Vercel/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Neon/)).toBeInTheDocument();
-    expect(screen.getByText(/OpenStreetMap \(Nominatim\), Photon \(komoot\) and CARTO/)).toBeInTheDocument();
+    expect(screen.getByText(/OpenStreetMap \(Nominatim\) and Photon \(komoot\)/)).toBeInTheDocument();
+    expect(screen.getByText("Google Maps")).toBeInTheDocument();
     expect(screen.getAllByText(/Resend/).length).toBeGreaterThan(0);
+  });
+
+  it("names every surface that loads Google Maps", async () => {
+    render(await PrivacyPage());
+    const item = screen.getByText("Google Maps").closest("li")!.textContent!.replace(/\s+/g, " ");
+    for (const surface of [
+      "the Trip",
+      "the Summary",
+      "the Share page",
+      "without an account",
+      "Home",
+      "route tile",
+      "Your travels",
+      "the Globe",
+      "the Day map",
+      "the Wishlist",
+    ]) {
+      expect(item).toContain(surface);
+    }
   });
 
   // ADR 0069: the as-you-type place search goes to Photon.

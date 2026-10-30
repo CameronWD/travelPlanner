@@ -21,13 +21,13 @@ describe("checkSideways", () => {
 });
 
 describe("checkSpill", () => {
-  const base = { sel: "div.chip", containerSel: "div.card", containerRect: R(16, 0, 358, 100), inHScroller: false, inLeaflet: false };
+  const base = { sel: "div.chip", containerSel: "div.card", containerRect: R(16, 0, 358, 100), inHScroller: false, inMap: false };
   it("flags an element poking out of its clipping container", () =>
     expect(checkSpill(raw({ spills: [{ ...base, rect: R(300, 10, 100, 20) }] }))).toHaveLength(1));
   it("ignores ≤2px", () => expect(checkSpill(raw({ spills: [{ ...base, rect: R(300, 10, 76, 20) }] }))).toEqual([]));
-  it("ignores intentional horizontal scrollers and Leaflet", () => {
+  it("ignores intentional horizontal scrollers and the map", () => {
     expect(checkSpill(raw({ spills: [{ ...base, rect: R(300, 10, 200, 20), inHScroller: true }] }))).toEqual([]);
-    expect(checkSpill(raw({ spills: [{ ...base, rect: R(300, 10, 200, 20), inLeaflet: true }] }))).toEqual([]);
+    expect(checkSpill(raw({ spills: [{ ...base, rect: R(300, 10, 200, 20), inMap: true }] }))).toEqual([]);
   });
 });
 
@@ -40,7 +40,7 @@ describe("checkClipped", () => {
 
 describe("checkOverlap", () => {
   const box = (sel: string, rect: ReturnType<typeof R>, ancestorIdx: number[] = []) =>
-    ({ sel, rect, kind: "interactive" as const, ancestorIdx, stackOk: false, inLeaflet: false });
+    ({ sel, rect, kind: "interactive" as const, ancestorIdx, stackOk: false, inMap: false });
   it("flags two unrelated boxes overlapping >4px both ways", () =>
     expect(checkOverlap(raw({ boxes: [box("a", R(0, 0, 50, 50)), box("b", R(40, 40, 50, 50))] }))).toHaveLength(1));
   it("ignores a touch/sliver", () =>
@@ -104,7 +104,7 @@ describe("classify — beyond the brief", () => {
 
 describe("fix round 1", () => {
   const box = (sel: string, rect: ReturnType<typeof R>, layer?: string) =>
-    ({ sel, rect, kind: "interactive" as const, ancestorIdx: [], stackOk: false, inLeaflet: false, layer });
+    ({ sel, rect, kind: "interactive" as const, ancestorIdx: [], stackOk: false, inMap: false, layer });
   it("compares fixed chrome against fixed chrome", () =>
     expect(checkOverlap(raw({ boxes: [box("nav a", R(0, 736, 60, 64), "fixed"), box("button.fab", R(20, 720, 44, 44), "fixed")] }))).toHaveLength(1));
   it("never compares across layers", () => {

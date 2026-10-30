@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-// Mock WishlistMapLoader so Leaflet never touches jsdom.
+// Mock WishlistMapLoader so the map never touches jsdom.
 vi.mock("./wishlist-map-loader", () => ({
   WishlistMapLoader: () => <div data-testid="wishlist-map" />,
 }));

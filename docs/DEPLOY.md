@@ -77,11 +77,13 @@ See `docs/resendDeploy.md` — account, domain and DNS, API key, the two Vercel 
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | same as `VAPID_PUBLIC_KEY` |
    | `CRON_SECRET` | from step 0 |
    | `NEXT_PUBLIC_APP_NAME` | e.g. `Trip Planner` |
-   | `NEXT_PUBLIC_CARTO_API_KEY` | from https://carto.com/basemaps/apikey (optional — see below) |
+   | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | from §4j (optional — maps show a fallback without it) |
+   | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | from §4j (optional — maps show a fallback without it) |
+   | `GOOGLE_MAPS_SERVER_KEY` | from §4j (server-only; first used by the Places and Travel-time branches) |
 
-   `NEXT_PUBLIC_CARTO_API_KEY` is optional: without it the map tiles still render, just
-   watermarked ("API KEY REQUIRED"). **`NEXT_PUBLIC_*` values are inlined at build time**,
-   so adding this to an *existing* deployment does nothing until you redeploy.
+   Without the browser key and Map ID every map renders its fallback instead of a map.
+   **`NEXT_PUBLIC_*` values are inlined at build time**, so adding these to an *existing*
+   deployment does nothing until you redeploy.
 
 3. Deploy. The build runs `prisma migrate deploy` against `DIRECT_URL`, creating the
    schema on Neon, then `next build`.
@@ -526,6 +528,88 @@ Steps 1 and 2 are safe to do any time before the switch; step 4 is the switch.
 `prisma/migrations/20261014130000_ai_usage` adds the new `AiUsage` table only. The
 deployed build never reads or writes it, so there is no §4b window: one deploy.
 Nothing AI happens until `ANTHROPIC_API_KEY` is set ("Enabling AI" below).
+
+## 4j. Google Maps Platform (ADR 0076)
+
+Every map renders on Google Maps. This is the one-sitting checklist; do it top to
+bottom after the branch work is merged and before the push. Nothing in the code
+waits on it — without keys every map shows its fallback ("The map isn't available
+right now.") and the pages keep working.
+
+**Cost rule.** Every Google API Teepee calls gets a per-day quota of **half its
+free monthly allowance ÷ 30**. A month inside the quota cannot leave the free
+allowance, so the bill is $0 by construction. Free usage is granted per SKU **per
+billing account**, and this account is shared with hometracker (`ourhome`), which is
+why Teepee takes only half. (Follow-up in the hometracker repo: cap its quotas at the
+other half.)
+
+1. **Project.** console.cloud.google.com → create project `teepee`, billing account
+   = the existing one (the same one hometracker uses).
+2. **Enable APIs** (APIs & Services → Library): Maps JavaScript API, Places API (New),
+   Geocoding API, Routes API.
+3. **Browser key** (Credentials → Create API key). Application restriction: HTTP
+   referrers —
+   - `https://teepeeapp.com/*`
+   - `https://beta.teepeeapp.com/*`
+   - the Vercel preview pattern (your team's `https://*-<team>.vercel.app/*`)
+   - `http://localhost:3000/*`
+
+   API restriction: Maps JavaScript API and Places API (New) only.
+4. **Server key** (a second API key). API restriction: Routes API, Geocoding API and
+   Places API (New). Branches 2 and 3 (Places, Travel times) call these from the
+   server; the env var is set now so nothing needs touching later. Do not give it
+   to the browser.
+5. **Map ID.** Google Maps Platform → Map Management → Create map ID: type
+   JavaScript, **Vector**. Create a Map Style for it (Map Styles) with a light and a
+   dark look and attach it to the Map ID; the app picks the scheme from the theme.
+   Advanced Markers (the pins) require a Map ID.
+6. **Per-day quotas** (IAM & Admin → Quotas & System Limits, or each API's Quotas
+   tab; set a per-day limit on the request metric):
+
+   | API / SKU | Free monthly | Per-day quota (half ÷ 30) |
+   |---|---|---|
+   | Maps JavaScript — Dynamic Maps | 10,000 | 150 |
+   | Geocoding (Essentials) | 10,000 | 165 |
+   | Routes — Compute Routes (Essentials) | 10,000 | 165 |
+   | Places — Place Details (Essentials) | 10,000 | 165 |
+   | Places — Place Details (Enterprise) | 1,000 | 15 |
+   | Places — Autocomplete | per the current SKU table | half its free allowance ÷ 30 |
+
+   Re-read Google's pricing page for the current free allowances before typing
+   numbers; the rule is the source of truth, the table is today's arithmetic.
+   Quota exhaustion is meant to degrade, never fail: maps show their fallback,
+   Travel times fall back to estimates, saves succeed without coordinates. For
+   the maps that is expected but unverified — step 11 checks it.
+
+   Every map mount is likely a billable Dynamic Maps load: each page view with a
+   map, each theme flip (the map remounts in the new scheme), and the Plan's mini
+   map and its Route map dialog separately.
+7. **Budget alert.** Billing → Budgets & alerts on the billing account: alerts at $1
+   and $5.
+8. **Env vars.** In Vercel (Settings → Environment Variables), for **Production and
+   Preview**, and in `.env.local`:
+
+   | Variable | Value |
+   |---|---|
+   | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | browser key from step 3 |
+   | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Map ID from step 5 |
+   | `GOOGLE_MAPS_SERVER_KEY` | server key from step 4 |
+
+9. **Redeploy.** `NEXT_PUBLIC_*` values are inlined at build time: adding or changing
+   the browser key or Map ID does nothing until a new build. Redeploy after step 8.
+10. **Check.** Open a Trip, a Day, the Wishlist and the Globe in light and dark. If a
+    map shows the fallback with a key set, the usual cause is a referrer that does not
+    match the host (Google refuses the key; the app lands on the fallback rather than
+    breaking) — check the browser console for `RefererNotAllowedMapError`.
+11. **Pre-push checks** (with a dev key, locally):
+    - **Over quota.** Set the Dynamic Maps per-day quota on the dev key's project
+      very low (e.g. 2), load maps past it, and confirm each map shows the app's
+      fallback ("The map isn't available right now.", or "The map didn’t load"
+      on the Your travels card and the Home tile) — not Google's grey "This page
+      can't load Google Maps correctly" box. Put the quota back to the step 6 value afterwards.
+    - **Attribution.** Confirm Google's logo and attribution row is not covered
+      on the Your travels card (title pill, chips, "Open Globe →" pill) and on
+      the desktop Home route tile (view chips, inset cards), in light and dark.
 
 ## 5. GitHub Actions cron (reminder delivery)
 
