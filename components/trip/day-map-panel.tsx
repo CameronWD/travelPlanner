@@ -4,7 +4,7 @@
  * Collapsible panel that wraps the DayMap.
  *
  * - Renders nothing when model.points is empty (nothing to show).
- * - Toggle button mounts/unmounts DayMap so Leaflet only loads when opened.
+ * - Toggle button mounts/unmounts DayMap so Google only loads when opened.
  * - variant "tile" (desktop Travelling Home, spec D): always expanded — an
  *   h2 "Day map" over the mounted map, no toggle — and it keeps its grid
  *   cell with a quiet line on a day with nothing to map.
@@ -26,7 +26,7 @@ export function DayMapPanel({
   tripId: string;
   model: DayMapModel;
   variant?: "panel" | "tile";
-  /** Spec 2026-10-06 §D: the tile's breakpoint; elsewhere Leaflet never loads. */
+  /** Spec 2026-10-06 §D: the tile's breakpoint; elsewhere the map never loads. */
   mountWhen?: MapMountWhen;
 }) {
   const [open, setOpen] = useState(false);

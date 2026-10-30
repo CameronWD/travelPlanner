@@ -1,13 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
-import { createLeafletMock } from "@/test/leaflet-mock";
-import { cartoTiles } from "@/lib/map/tiles";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { DayMapModel } from "@/lib/day-map";
 
-const hoisted = vi.hoisted(() => ({
-  leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,
-  theme: "light" as "light" | "dark",
-}));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+
+const hoisted = vi.hoisted(() => ({ theme: "light" as "light" | "dark" }));
 
 vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }),
@@ -15,14 +13,10 @@ vi.mock("@/components/ui/theme-provider", () => ({
 
 import { DayMap } from "./day-map";
 
-/** The mock's `divIcon` returns its options verbatim, untyped; narrow just the `html` we assert on. */
-function iconHtml(marker: { options: Record<string, unknown> }): string {
-  return (marker.options.icon as { html: string }).html;
-}
-
 const MODEL: DayMapModel = {
   points: [
     { kind: "item", id: "i1", lat: 35.65, lng: 139.74, label: "Tokyo Tower", order: 1 },
+    { kind: "item", id: "i2", lat: 35.66, lng: 139.75, label: "Shibuya", order: 2 },
     { kind: "accommodation", id: "a1", lat: 35.69, lng: 139.7, label: "Hotel" },
     { kind: "transport-dep", id: "t1", lat: 35.55, lng: 139.6, label: "Station" },
   ],
@@ -30,113 +24,117 @@ const MODEL: DayMapModel = {
     { kind: "accommodation", id: "a1", lat: 35.69, lng: 139.7, label: "Hotel" },
     { kind: "item", id: "i1", lat: 35.65, lng: 139.74, label: "Tokyo Tower", order: 1 },
   ],
-  perItemPrev: {},
+  perItemPrev: {
+    i2: { kind: "item", id: "i1", lat: 35.65, lng: 139.74, label: "Tokyo Tower", order: 1 },
+  },
 };
 
+const pinHtmls = () => screen.getAllByTestId("marker").map((m) => m.querySelector(".tp-map-pin")!.innerHTML);
+
 beforeEach(() => {
-  hoisted.leaflet = createLeafletMock();
+  mock.reset();
   hoisted.theme = "light";
-  vi.clearAllMocks();
-  // The component dynamically import()s "leaflet" inside its effect. Vitest
-  // caches a module's resolution after the first import within a test file,
-  // so a hoisted `vi.mock` factory would only ever run once for this whole
-  // file — every test after the first would silently resolve the FIRST
-  // test's mock instance instead of its own. `vi.doMock` re-registers the
-  // factory before each test so the next dynamic import picks up the
-  // current `hoisted.leaflet`.
-  vi.doMock("leaflet", () => hoisted.leaflet!.module);
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+  return () => vi.unstubAllEnvs();
 });
 
-describe("DayMap theme handling", () => {
-  it("builds the map once with the light tiles", async () => {
+describe("DayMap pins", () => {
+  it("draws one pin per point with the item, accommodation and transport fills", () => {
     render(<DayMap tripId="t1" model={MODEL} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(false).url);
+    const html = pinHtmls();
+    expect(html).toHaveLength(4);
+    expect(html[0]).toContain("#8AD6F5");
+    expect(html[0]).toContain(">1<");
+    expect(html[1]).toContain(">2<");
+    expect(html[2]).toContain("#1D1D1B");
+    expect(html[2]).toContain("#FFFBF3");
+    expect(html[2]).toContain(">H<");
+    expect(html[3]).toContain("#C7A2FF");
+    expect(html[3]).toContain(">T<");
   });
 
-  it("builds the map with the dark tiles when mounted in dark mode", async () => {
-    hoisted.theme = "dark";
-    render(<DayMap tripId="t1" model={MODEL} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(true).url);
-  });
-
-  it("does NOT destroy and rebuild the map when the theme flips", async () => {
+  it("recolours the pins and remounts the map when the theme flips", () => {
     const { rerender } = render(<DayMap tripId="t1" model={MODEL} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const mapInstance = hoisted.leaflet!.maps[0];
-
+    expect(mock.recorded.mapMounts).toBe(1);
     hoisted.theme = "dark";
     rerender(<DayMap tripId="t1" model={MODEL} />);
-
-    await waitFor(() =>
-      expect(hoisted.leaflet!.tileLayers[0].setUrl).toHaveBeenCalledWith(
-        cartoTiles(true).url,
-      ),
-    );
-    expect(mapInstance.remove).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.maps).toHaveLength(1);
+    const html = pinHtmls();
+    expect(html[0]).toContain("#8CC0D6");
+    expect(html[2]).toContain("#EDE6D8");
+    expect(html[3]).toContain("#B5A0E2");
+    expect(mock.recorded.mapMounts).toBe(2);
   });
 
-  it("recolours item, accommodation, and transport markers in place (setIcon) when the theme flips", async () => {
-    const { rerender } = render(<DayMap tripId="t1" model={MODEL} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
-    const mapInstance = hoisted.leaflet!.maps[0];
-    // MODEL.points is [item, accommodation, transport-dep], and the component
-    // places markers in that same order.
-    const [itemMarker, accommodationMarker, transportMarker] = hoisted.leaflet!.markers;
-
-    // Light-mode fills baked in at creation time: "stop" variant (sky/lilac
-    // hues) for item/transport, ink/paper swap for the "home" accommodation.
-    expect(iconHtml(itemMarker)).toContain("#8AD6F5");
-    expect(iconHtml(accommodationMarker)).toContain("#1D1D1B");
-    expect(iconHtml(accommodationMarker)).toContain("#FFFBF3");
-    expect(iconHtml(transportMarker)).toContain("#C7A2FF");
-
-    hoisted.theme = "dark";
-    rerender(<DayMap tripId="t1" model={MODEL} />);
-
-    await waitFor(() => expect(itemMarker.setIcon).toHaveBeenCalled());
-    await waitFor(() => expect(accommodationMarker.setIcon).toHaveBeenCalled());
-    await waitFor(() => expect(transportMarker.setIcon).toHaveBeenCalled());
-
-    // The new icons passed to setIcon carry the dark-mode fills.
-    expect(itemMarker.setIcon).toHaveBeenLastCalledWith(
-      expect.objectContaining({ html: expect.stringContaining("#8CC0D6") }),
-    );
-    expect(accommodationMarker.setIcon).toHaveBeenLastCalledWith(
-      expect.objectContaining({ html: expect.stringContaining("#EDE6D8") }),
-    );
-    expect(transportMarker.setIcon).toHaveBeenLastCalledWith(
-      expect.objectContaining({ html: expect.stringContaining("#B5A0E2") }),
-    );
-
-    // Recoloured in place: no map rebuild, no new markers created.
-    expect(mapInstance.remove).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.markers).toHaveLength(3);
-    expect(itemMarker.remove).not.toHaveBeenCalled();
-    expect(accommodationMarker.remove).not.toHaveBeenCalled();
-    expect(transportMarker.remove).not.toHaveBeenCalled();
+  it("draws the route as one dashed line through the route points", () => {
+    render(<DayMap tripId="t1" model={MODEL} />);
+    expect(mock.recorded.polylines).toHaveLength(1);
+    expect(mock.recorded.polylines[0].options.path).toEqual([
+      { lat: 35.69, lng: 139.7 },
+      { lat: 35.65, lng: 139.74 },
+    ]);
   });
 
-  it("still rebuilds when the plotted points actually change", async () => {
-    const { rerender } = render(<DayMap tripId="t1" model={MODEL} />);
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+  it("draws no line with fewer than two route points", () => {
+    render(<DayMap tripId="t1" model={{ ...MODEL, routePoints: [MODEL.routePoints[0]] }} />);
+    expect(mock.recorded.polylines).toHaveLength(0);
+  });
 
-    // Same point count as MODEL.points (2) — only a coordinate changes. This
-    // isolates the `points.map(...).join("|")` signature dependency: if that
-    // dependency were dropped and only `points.length` remained, this
-    // rerender would not re-trigger the init effect and `maps` would stay at
-    // length 1.
-    const movedModel: DayMapModel = {
-      ...MODEL,
-      points: [
-        MODEL.points[0],
-        { ...MODEL.points[1], lat: 35.7 },
-      ],
-    };
-    rerender(<DayMap tripId="t1" model={movedModel} />);
+  it("fits the map to every point", () => {
+    render(<DayMap tripId="t1" model={MODEL} />);
+    expect(mock.map.fitBounds).toHaveBeenCalled();
+  });
 
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
+  it("renders nothing without points", () => {
+    const { container } = render(<DayMap tripId="t1" model={{ points: [], routePoints: [], perItemPrev: {} }} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("links Open today's route when there are two route points", () => {
+    render(<DayMap tripId="t1" model={MODEL} />);
+    expect(screen.getByText(/Open today's route/)).toBeInTheDocument();
+  });
+
+  it("labels and sizes the frame itself", () => {
+    render(<DayMap tripId="t1" model={MODEL} />);
+    const frame = screen.getByRole("region", { name: "Day route map for trip t1" });
+    expect(frame).toContainElement(screen.getByTestId("gmap"));
+    expect(frame.style.height).toBe("360px");
+  });
+});
+
+describe("DayMap popups", () => {
+  it("opens a pin's popup with Open in Maps and Directions from previous", () => {
+    render(<DayMap tripId="t1" model={MODEL} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getAllByTestId("marker")[1]);
+    const popup = screen.getByRole("dialog");
+    expect(popup).toHaveTextContent("Shibuya");
+    expect(popup.querySelectorAll("a[href*='google']").length).toBeGreaterThan(0);
+    expect(popup).toHaveTextContent("Google Maps");
+    expect(popup).toHaveTextContent("Apple Maps");
+    expect(popup).toHaveTextContent("Directions from previous");
+  });
+
+  it("omits Directions from previous on a point with no previous item", () => {
+    render(<DayMap tripId="t1" model={MODEL} />);
+    fireEvent.click(screen.getAllByTestId("marker")[0]);
+    expect(screen.getByRole("dialog")).not.toHaveTextContent("Directions from previous");
+  });
+});
+
+describe("DayMap when Google is unavailable", () => {
+  it("lists the day's points with Open in Maps links when the map is unavailable", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
+    const { container } = render(<DayMap tripId="t1" model={MODEL} />);
+    expect(screen.queryByTestId("gmap")).toBeNull();
+    expect(container.querySelector("[data-map-fallback]")).not.toBeNull();
+    expect(screen.getByText("The map isn't available right now.")).toBeInTheDocument();
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(4);
+    expect(items[0]).toHaveTextContent("Tokyo Tower");
+    expect(items[2]).toHaveTextContent("Hotel");
+    expect(items[0].querySelector("a[href]")).not.toBeNull();
   });
 });
