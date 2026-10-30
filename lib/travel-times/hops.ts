@@ -1,3 +1,4 @@
+import { addDays, isRealCalendarDate } from "@/lib/dates";
 import { estimateDriveMinutes, haversineKm } from "@/lib/geo";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 
@@ -35,9 +36,20 @@ const MAX_REAL_WALK_MIN = 20;
 const ESTIMATE_WALK_KMH = 4.5;
 const ESTIMATE_MAX_WALK_MIN = 30;
 const TRANSIT_SLOT_MS = 15 * 60_000;
+const DAY_MS = 24 * 60 * 60_000;
+const TRANSIT_WINDOW_MS = 90 * DAY_MS;
+const MODES: readonly TravelMode[] = ["WALK", "DRIVE", "TRANSIT"];
+
+function coord(n: number): string {
+  return (Math.round(n * 1e5) / 1e5 + 0).toFixed(5);
+}
 
 export function pointKey(p: Pt): string {
-  return `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+  return `${coord(p.lat)},${coord(p.lng)}`;
+}
+
+function samePoint(from: Pt, to: Pt): boolean {
+  return pointKey(from) === pointKey(to);
 }
 
 function routeKey(mode: TravelMode, from: Pt, to: Pt, departure?: Date): string {
@@ -45,6 +57,30 @@ function routeKey(mode: TravelMode, from: Pt, to: Pt, departure?: Date): string 
   if (mode !== "TRANSIT" || !departure) return base;
   const slot = new Date(Math.floor(departure.getTime() / TRANSIT_SLOT_MS) * TRANSIT_SLOT_MS);
   return `${base}|${slot.toISOString()}`;
+}
+
+export function driveKey(from: Pt, to: Pt): string {
+  return routeKey("DRIVE", from, to);
+}
+
+function parsePoint(raw: string): Pt | null {
+  const parts = raw.split(",");
+  if (parts.length !== 2 || parts.some((p) => p.trim() === "")) return null;
+  const [lat, lng] = parts.map(Number);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+export function parseHopKey(key: string): { mode: TravelMode; from: Pt; to: Pt; departure: Date | null } | null {
+  const [mode, fromRaw, toRaw, depRaw, ...rest] = key.split("|");
+  const m = MODES.find((x) => x === mode);
+  if (!m || rest.length > 0 || fromRaw === undefined || toRaw === undefined) return null;
+  if ((m === "TRANSIT") !== (depRaw !== undefined)) return null;
+  const from = parsePoint(fromRaw);
+  const to = parsePoint(toRaw);
+  if (!from || !to) return null;
+  if (depRaw === undefined) return { mode: m, from, to, departure: null };
+  const departure = new Date(depRaw);
+  return Number.isNaN(departure.getTime()) ? null : { mode: m, from, to, departure };
 }
 
 export function effectiveLocalMode(
@@ -129,12 +165,30 @@ export function transportEnds(
   return from && to ? { from, to } : null;
 }
 
+function transitBookable(departure: Date | null, now: Date): departure is Date {
+  if (!departure) return false;
+  const ahead = departure.getTime() - now.getTime();
+  return ahead >= 0 && ahead <= TRANSIT_WINDOW_MS;
+}
+
 export function hopKeys(from: Pt, to: Pt, localMode: LocalMode, departure: Date | null, now: Date): string[] {
+  if (samePoint(from, to)) return [];
   const keys: string[] = [];
   if (haversineKm(from, to) < WALK_ROW_UNDER_KM) keys.push(routeKey("WALK", from, to));
   if (localMode === "DRIVE") keys.push(routeKey("DRIVE", from, to));
-  else if (departure && departure.getTime() >= now.getTime()) keys.push(routeKey("TRANSIT", from, to, departure));
+  else if (transitBookable(departure, now)) keys.push(routeKey("TRANSIT", from, to, departure));
   return keys;
+}
+
+function realHop(lookup: TravelLookup, key: string, mode: ResolvedHop["mode"], km: number): ResolvedHop | null {
+  const row = lookup.get(key);
+  if (row?.status !== "OK" || row.minutes == null) return null;
+  const distanceKm = row.distanceM != null ? row.distanceM / 1000 : km;
+  return { minutes: row.minutes, distanceKm, mode, estimated: false, polyline: row.polyline };
+}
+
+function noRoute(mode: ResolvedHop["mode"]): ResolvedHop {
+  return { minutes: 0, distanceKm: 0, mode, estimated: false, polyline: null };
 }
 
 export function resolveHop(
@@ -145,25 +199,18 @@ export function resolveHop(
   lookup: TravelLookup,
   estimateOpts: { windingFactor: number; avgSpeedKph: number },
 ): ResolvedHop {
+  if (samePoint(from, to)) return noRoute("walk");
   const km = haversineKm(from, to);
-  const real = (key: string, mode: ResolvedHop["mode"]): ResolvedHop | null => {
-    const row = lookup.get(key);
-    if (row?.status !== "OK" || row.minutes == null) return null;
-    const distanceKm = row.distanceM != null ? row.distanceM / 1000 : km;
-    return { minutes: row.minutes, distanceKm, mode, estimated: false, polyline: row.polyline };
-  };
-
-  if (km < WALK_ROW_UNDER_KM) {
-    const walk = real(routeKey("WALK", from, to), "walk");
-    if (walk && walk.minutes <= MAX_REAL_WALK_MIN) return walk;
-  }
+  const walk = km < WALK_ROW_UNDER_KM ? realHop(lookup, routeKey("WALK", from, to), "walk", km) : null;
+  if (walk && walk.minutes <= MAX_REAL_WALK_MIN) return walk;
   const local =
     localMode === "DRIVE"
-      ? real(routeKey("DRIVE", from, to), "drive")
+      ? realHop(lookup, routeKey("DRIVE", from, to), "drive", km)
       : departure
-        ? real(routeKey("TRANSIT", from, to, departure), "transit")
+        ? realHop(lookup, routeKey("TRANSIT", from, to, departure), "transit", km)
         : null;
   if (local) return local;
+  if (walk) return walk;
 
   const walkMin = (km / ESTIMATE_WALK_KMH) * 60;
   return walkMin <= ESTIMATE_MAX_WALK_MIN
@@ -171,8 +218,28 @@ export function resolveHop(
     : { minutes: estimateDriveMinutes(km, estimateOpts), distanceKm: km, mode: "drive", estimated: true, polyline: null };
 }
 
+export function resolveDriveLeg(
+  from: Pt,
+  to: Pt,
+  lookup: TravelLookup,
+  estimateOpts: { windingFactor: number; avgSpeedKph: number },
+): ResolvedHop {
+  if (samePoint(from, to)) return noRoute("drive");
+  const km = haversineKm(from, to);
+  return (
+    realHop(lookup, driveKey(from, to), "drive", km) ?? {
+      minutes: estimateDriveMinutes(km, estimateOpts),
+      distanceKm: km,
+      mode: "drive",
+      estimated: true,
+      polyline: null,
+    }
+  );
+}
+
 export function itemDeparture(item: HopItem, stopTimezone: string): Date | null {
-  if (!item.date || !item.endTime) return null;
-  const at = zonedWallTimeToInstant(item.date, item.endTime, stopTimezone);
+  if (!item.date || !item.endTime || !isRealCalendarDate(item.date)) return null;
+  const overnight = item.startTime != null && hhmmToMin(item.endTime) < hhmmToMin(item.startTime);
+  const at = zonedWallTimeToInstant(overnight ? addDays(item.date, 1) : item.date, item.endTime, stopTimezone);
   return Number.isNaN(at.getTime()) ? null : at;
 }
