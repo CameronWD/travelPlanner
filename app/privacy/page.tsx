@@ -22,7 +22,7 @@ export const metadata: Metadata = {
  *   - prisma/schema.prisma (PushSubscription, Activity, FeedbackNote,
  *     Account, Session field lists)
  *   - lib/device-label.ts (device label is derived from the user agent)
- *   - lib/push.ts, lib/geocode.ts (Nominatim and Photon, ADR 0069), lib/map/tiles.ts, lib/storage.ts,
+ *   - lib/push.ts, lib/geocode.ts (Nominatim and Photon, ADR 0069), lib/map/google-config.ts, components/map/google-map-frame.tsx (Google Maps), lib/storage.ts,
  *     lib/weather.ts, lib/money/fx.ts (outbound third parties)
  *   - components/analytics.tsx + app/layout.tsx (Vercel Web Analytics and Speed Insights — what
  *     it redacts and what it deliberately keeps)
@@ -208,12 +208,17 @@ export default function PrivacyPage() {
           </li>
           <li>
             <span className="font-bold">
-              OpenStreetMap (Nominatim), Photon (komoot) and CARTO
+              OpenStreetMap (Nominatim) and Photon (komoot)
             </span>
             : turn place names you type into map coordinates (Photon for
-            as-you-type search, Nominatim when a place is saved), and draw
-            the map tiles you see on the Summary, the Globe and the Day
-            map.
+            as-you-type search, Nominatim when a place is saved).
+          </li>
+          <li>
+            <span className="font-bold">Google Maps</span>: draws the
+            maps you see on the Trip, the Summary, the Globe, the Day map
+            and the Wishlist. Your browser loads the map from Google when
+            a map is on screen, so Google sees your IP address and the
+            area you look at.
           </li>
           <li>
             <span className="font-bold">

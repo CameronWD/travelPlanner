@@ -12,7 +12,7 @@ A collaborative trip planner built for two partners — plan a multi-stop journe
 
 **Budget** — multi-currency cost tracking (estimated vs actual), live FX rates via Frankfurter (no key required), manual rate override, per-category breakdown, and a home-currency roll-up.
 
-**On the go** — Today view that auto-focuses on the current trip day; interactive Leaflet + CARTO route map (OpenStreetMap-credited data) with Nominatim geocoding; offline read-cache via PWA service worker.
+**On the go** — Today view that auto-focuses on the current trip day; interactive Google Maps route map with Nominatim geocoding; offline read-cache via PWA service worker.
 
 **Together** — shared Items list + Wishlist with emoji voting and per-item notes; web-push Reminders; per-day Journal with photo attachments.
 
@@ -29,7 +29,7 @@ A collaborative trip planner built for two partners — plan a multi-stop journe
 | Language | TypeScript 5 |
 | ORM / DB | Prisma 7 with driver adapter; Postgres |
 | Auth | Auth.js v5 (NextAuth) — Google OAuth + dev-login shim |
-| Maps | Leaflet 1.x + CARTO tiles (OpenStreetMap data) + Nominatim geocoding |
+| Maps | Google Maps (`@vis.gl/react-google-maps`, Advanced Markers) + Nominatim geocoding |
 | FX rates | Frankfurter public API (no key) |
 | Push | web-push (VAPID) |
 | AI | Anthropic SDK (`@anthropic-ai/sdk`) |
@@ -158,9 +158,11 @@ npx web-push generate-vapid-keys     # VAPID public + private pair
 | `VAPID_SUBJECT` | `mailto:you@yourdomain.com` |
 | `CRON_SECRET` | step 0 |
 | `NEXT_PUBLIC_APP_NAME` | e.g. `Teepee` |
-| `NEXT_PUBLIC_CARTO_API_KEY` | optional, from [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | optional, browser key from the Google Cloud runbook ([DEPLOY.md §4j](docs/DEPLOY.md)) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | optional, the vector Map ID from the same runbook |
+| `GOOGLE_MAPS_SERVER_KEY` | optional, server key (used by later Places and Travel-time work) |
 
-`NEXT_PUBLIC_CARTO_API_KEY` is optional — without it map tiles still work, just watermarked. **`NEXT_PUBLIC_*` values are inlined at build time**, so adding it to an already-deployed project does nothing until you redeploy.
+The Google Maps variables are optional — without the browser key and Map ID every map shows its fallback list instead of a map. **`NEXT_PUBLIC_*` values are inlined at build time**, so adding them to an already-deployed project does nothing until you redeploy.
 
 Deploy. The build runs `prisma migrate deploy` (creating the Neon schema), then `next build`.
 

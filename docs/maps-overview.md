@@ -1,14 +1,13 @@
 # Maps: packages, services, and how we use them
 
-A portable write-up of the mapping stack in this app — what's installed, what's
-just an HTTP endpoint, how the layers are separated, and the patterns worth
-copying into another project.
+A portable write-up of the mapping stack in this app — what's installed, which
+services it calls, how the layers are separated, and the patterns worth copying.
 
-**Headline: the entire map stack is one runtime dependency (`leaflet`) plus three
-free HTTP services. No accounts, no billing — but since late August 2026 CARTO's
-tile endpoint wants a free API key (unauthenticated tiles render with an
-"API KEY REQUIRED" watermark); see §2 and
-[ADR 0033's amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key).**
+**Headline: every map renders on Google Maps through one frame component
+(`components/map/google-map-frame.tsx`), built on `@vis.gl/react-google-maps`.
+It needs a Google Cloud project, a browser key and a Map ID (runbook:
+[DEPLOY.md §4j](DEPLOY.md)); without them every map degrades to a fallback list
+and the page keeps working. Decision: [ADR 0076](adr/0076-google-maps-platform-replaces-the-free-map-stack.md).**
 
 ---
 
@@ -16,86 +15,63 @@ tile endpoint wants a free API key (unauthenticated tiles render with an
 
 | Package | Version | Role |
 |---|---|---|
-| `leaflet` | `^1.9.4` | The only map rendering library. Raster-tile 2D map, markers, polylines, popups. |
-| `@types/leaflet` | `^1.9.21` (dev) | Types. We import types via `typeof import("leaflet")` so the runtime import stays dynamic. |
+| `@vis.gl/react-google-maps` | `1.10.1` (pinned) | The only map library: `APIProvider`, `Map`, `AdvancedMarker`, `InfoWindow`, hooks. Loads Google's Maps JavaScript API. |
 
-That's it. Notably **not** installed:
+Notably **not** installed: any 3D globe library (`react-globe.gl`, `three`,
+`cobe` — rejected in ADR 0024; the "Globe" is a flat map, the name describes the
+concept), `@googlemaps/*` SDKs, and any routing SDK. `leaflet`, `@types/leaflet`
+and the CARTO tile config are gone.
 
-- **`react-leaflet`** — deliberately skipped. See §3.
-- **Any 3D globe library** (`react-globe.gl`, `three`, `cobe`) — considered and
-  rejected (ADR 0024). The "Globe" feature is a flat Leaflet world map; the name
-  describes the concept, not the rendering.
-- **Any geocoding/routing SDK** (`@mapbox/*`, `@googlemaps/*`) — we call
-  Nominatim over plain `fetch` and deep-link out for directions.
-
-## 2. Services we consume (no packages, just URLs)
+## 2. Services we consume
 
 | Service | Used for | Auth | Where |
 |---|---|---|---|
-| **CARTO basemaps** (Positron / Dark Matter) | Raster tiles, light + dark | Free `NEXT_PUBLIC_CARTO_API_KEY` recommended — since late Aug 2026, unauthenticated tiles are watermarked | `lib/map/tiles.ts` |
-| **OpenStreetMap Nominatim** | Forward geocode, place search, reverse geocode | None — but a real contact in `User-Agent` is mandatory | `lib/geocode.ts` |
+| **Google Maps JavaScript API** | Rendering every map (vector, Map ID with light and dark styles), Advanced Markers, InfoWindows | Browser key (HTTP-referrer restricted) + Map ID | `components/map/google-map-frame.tsx`, `lib/map/google-config.ts` |
+| **OpenStreetMap Nominatim** | Forward geocode, place search, reverse geocode — *replaced in Branch 2* | None — a real contact in `User-Agent` is mandatory | `lib/geocode.ts` |
+| **Photon (komoot)** | As-you-type place search — *replaced in Branch 2* | None | `lib/geocode.ts` |
 | **Google Maps / Apple Maps** | "Open in Maps" + turn-by-turn directions deep links | None — URL schemes only | `lib/map/maps.ts` |
 
-**Why CARTO instead of raw OSM tiles:** OSM's standard raster tiles have no dark
-variant, and dark mode is first-class in this app. CARTO publishes Positron
-(light) and Dark Matter (dark) on a free CDN with the same `{s}/{z}/{x}/{y}`
-scheme, so it's a one-line swap that closes the dark-mode gap (ADR 0033).
-Cost: dual attribution is mandatory — OpenStreetMap for the data, CARTO for
-the tiles — we now depend on CARTO's CDN uptime, mitigated by keeping the
-tile config in exactly one file, and since late August 2026 CARTO requires a
-free `NEXT_PUBLIC_CARTO_API_KEY` to avoid a watermark on every tile (see
-[ADR 0033's amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)).
+Env: `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`
+(both inlined at build — rebuild after changing), and `GOOGLE_MAPS_SERVER_KEY`
+(server-only, first used by Branches 2 and 3). `mapsConfig()` in
+`lib/map/google-config.ts` returns `{ apiKey, mapId }` or `null`; **Advanced
+Markers require a Map ID**, so a missing Map ID counts as "not configured".
 
-```ts
-// lib/map/tiles.ts — the entire tile layer config, 54 lines
-const KEY_QUERY = API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : "";
-export const CARTO_TILES = {
-  light: { url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png${KEY_QUERY}`, ... },
-  dark:  { url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${KEY_QUERY}`,  ... },
-};
-export function cartoTiles(isDark: boolean): TileConfig { ... }
-```
+**Cost rule.** Every Google API we call has a per-day quota of half its free
+monthly allowance ÷ 30, on a billing account shared with hometracker, so a
+month inside the quota is $0 by construction. The quota table and budget alert
+are in DEPLOY.md §4j.
 
-## 3. Why raw Leaflet and not `react-leaflet`
-
-Every map component drives Leaflet **imperatively inside `useEffect`** rather
-than declaring `<MapContainer><Marker/></MapContainer>`. The trade:
-
-- **No wrapper version-coupling.** `react-leaflet` majors track React majors and
-  lag them; on React 19 that's a recurring upgrade tax for a thin abstraction.
-- **The dynamic-import boundary is cleaner.** We `await import("leaflet")`
-  *inside* the effect, so Leaflet is never touched during SSR or in jsdom.
-- **Markers are cheap DOM, not React trees.** All pins are `L.divIcon` with an
-  inline HTML string — no reconciliation, no per-marker component.
-
-The cost is real and worth knowing before you copy it: you hand-manage the map
-lifecycle (double-init guards, `map.remove()` on unmount, dependency
-signatures). Roughly 40 lines of boilerplate per map component. If your project
-has more than ~5 maps or wants React state bound to map state,
-`react-leaflet` starts paying for itself.
-
-## 4. Architecture — four layers
+## 3. Architecture — four layers
 
 ```
 ┌─ Pure logic (no React, no network, no Prisma) ──────────────────────┐
 │  lib/geo.ts          haversine distance, offline drive estimates    │
 │  lib/map/maps.ts     Google/Apple URL builders                      │
-│  lib/day-map.ts      builds the day's point model + route order     │
+│  lib/map/pins.ts     category -> pin colour; pin HTML builders      │
+│  lib/map/palette.ts  pin / chapter palette                          │
+│  lib/map/overlap.ts  overlapping-pin offsets                        │
+│  lib/map/google-config.ts  env -> { apiKey, mapId } | null          │
+│  lib/day-map.ts      the day's point model + route order            │
 │  lib/route-map.ts    home-base point extraction                     │
-│  lib/trips/route-sketch.ts lat/lng → SVG projection (route sketch)  │
+│  lib/geo-cluster.ts  clustering                                     │
+│  lib/trips/route-sketch.ts lat/lng -> SVG projection (route sketch) │
 │  lib/nearby.ts       radius search over located items               │
-│  lib/map/tiles.ts    tile config + theme selection                  │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ Server (network I/O, "use server") ────────────────────────────────┐
-│  lib/geocode.ts             Nominatim client (cached, never throws) │
+│  lib/geocode.ts             Nominatim client (replaced in Branch 2) │
 │  server/actions/*.ts        geocode-on-save; search actions         │
-│  scripts/archive/backfill-geocode.ts  one-off backfill (archived)   │
 └─────────────────────────────────────────────────────────────────────┘
-┌─ Loader boundary (the ssr:false seam) ──────────────────────────────┐
+┌─ Loader boundary (ssr:false seam where a page needs one) ───────────┐
 │  components/ui/map-loader.tsx  createMapLoader<P>() factory         │
-│  *-map-loader.tsx              one 8-line file per map              │
+│  *-map-loader.tsx              one small file per map               │
 └─────────────────────────────────────────────────────────────────────┘
-┌─ Leaflet components (client-only, imperative) ──────────────────────┐
+┌─ Map components (client-only) ──────────────────────────────────────┐
+│  components/map/google-map-frame.tsx  the frame every map uses      │
+│  components/map/html-pin.tsx          pin = HTML in Advanced Marker │
+│  components/map/map-polyline.tsx      lines                         │
+│  components/map/use-fit-bounds.ts     fit / single-point zoom       │
+│  components/map/map-unavailable.tsx   fallback copy                 │
 │  components/trip/route-map.tsx     trip route: numbered stops       │
 │  components/trip/day-map.tsx       one day: items + hotel + transit │
 │  components/trip/wishlist-map.tsx  category pins for one trip       │
@@ -103,223 +79,102 @@ has more than ~5 maps or wants React state bound to map state,
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-The point of the split: **everything testable is pure and lives in `lib/`;
-everything untestable is a thin imperative shell.** `lib/day-map.ts` decides
-which points exist, their order, and each item's predecessor — `day-map.tsx`
-only knows how to draw whatever it's handed.
+Everything testable is pure and lives in `lib/`; `lib/day-map.ts` decides which
+points exist, their order, and each item's predecessor — `day-map.tsx` only
+draws whatever it's handed.
 
 ### The four maps
 
 | Component | Surface | What it renders |
 |---|---|---|
-| `route-map.tsx` | Trip summary, share page, home phases, the Plan's Route map dialog | Numbered stop pins coloured by chapter, per-segment dashed polylines, 🏠 home-base bookend pins with outbound/return legs, fallback list when <2 stops have coords |
-| `day-map.tsx` | A single day (inside a collapsible panel) | Numbered item pins, `H` accommodation pin, `T` transport pins, route polyline, per-pin "Open in Maps" + "Directions from previous", an "Open today's route" multi-stop deep link |
-| `wishlist-map.tsx` | Trip wishlist board | Category-coloured pins, click → select item in the list |
-| `globe-map.tsx` | Cross-trip Globe | Category-coloured pins world-wide, click-map-to-drop-a-pin, fly-to + popup on select, Edit/Delete buttons wired inside popups |
+| `route-map.tsx` | Trip page, Summary, share page, home phases, the Plan's mini map and Route map dialog | Numbered stop pins coloured by chapter, per-segment lines (flight, train and ferry legs geodesic), home-base bookend pins with outbound/return legs, fallback list when <2 stops have coords |
+| `day-map.tsx` | A single day (collapsible panel), Travelling Home | Numbered item pins, `H` accommodation pin, `T` transport pins, route line, per-pin "Open in Maps" + "Directions from previous", an "Open today's route" multi-stop deep link |
+| `wishlist-map.tsx` | Trip wishlist board | Category-coloured pins, click selects the item in the list |
+| `globe-map.tsx` | Cross-trip Globe | Category-coloured pins world-wide, click-map-to-drop-a-pin, fly-to + InfoWindow on select with Edit/Delete |
 
-## 5. The patterns worth copying
+Your travels and the desktop Home route tile draw on the same frame.
 
-### 5.1 One loader factory for every map
+## 4. The patterns worth copying
 
-`next/dynamic` with `ssr: false` is only legal inside a Client Component, so we
-made that boundary a 25-line factory instead of repeating it four times:
+### 4.1 One frame
 
-```tsx
-// components/ui/map-loader.tsx
-"use client";
-export function createMapLoader<P extends object>(
-  load: () => Promise<React.ComponentType<P>>,
-): (props: P) => React.ReactElement {
-  const Inner = dynamic(load, { ssr: false }) as React.ComponentType<P>;
-  return function MapLoader(props: P) { return <Inner {...props} />; };
-}
-```
+`GoogleMapFrame({ fallback, dark, className?, style?, mapProps?, onFail?, children })`
+wraps `APIProvider` + `Map`. It:
 
-Each map then gets an 8-line loader file:
+- reads config via `mapsConfig()`; with no config it renders `fallback`;
+- sets `disableDefaultUI` and turns `zoomControl` on, `clickableIcons={false}`
+  (a caller opts back into other controls through `mapProps`);
+- puts `className`/`style` on a **wrapper** div (the caller must size it — it is
+  0px tall otherwise) and `tp-map` on the map root;
+- falls back on `APILoadingStatus.FAILED` / `AUTH_FAILURE`, on
+  `window.gm_authFailure` (a key Google refuses, e.g. a wrong referrer on a
+  preview host), and on any render error inside the map (an error boundary —
+  markers can throw on a dead library after a client-side navigation);
+- calls `onFail` once per mount on any failure, including "no config".
 
-```tsx
-// components/trip/route-map-loader.tsx
-"use client";
-export const RouteMapLoader = createMapLoader<RouteMapProps>(
-  () => import("./route-map").then((m) => m.RouteMap),
-);
-```
+Never pass `mapId` or `colorScheme` — the frame owns them.
 
-Two details that matter: the generic is `<P extends object>`, **not**
-`Record<string, unknown>`, so prop interfaces with function members
-(`onSelect`, `onMapClick`) stay assignable without an index signature. And the
-loader is the seam tests mock — see §8.
+### 4.2 Theme
 
-### 5.2 Dynamic-import Leaflet *inside* the effect
+The map's `colorScheme` is read only when the map is created, so a theme flip
+**remounts** the map (keyed on `dark`) and it comes back in the new scheme with
+pins recoloured. Share pages keep their forced `theme` override
+(`RouteMapProps.theme`). One Map ID carries both light and dark styles.
 
-Belt-and-braces on top of `ssr: false`. Leaflet reaches for `window` at module
-scope, so it must never be evaluated on the server or in jsdom:
+### 4.3 Pins
 
-```tsx
-useEffect(() => {
-  if (!mapRef.current) return;
-  if (leafletMapRef.current) return;          // React strict-mode double-init guard
+Every pin is the existing HTML string (`pinHtml(...)` and friends) mounted in an
+Advanced Marker by `HtmlPin({ position, html, title?, onClick?, zIndex?, open?, onClose?, children? })`.
+It is centre-anchored; `children` become the InfoWindow content, shown while
+`open`. The pin wrapper carries `tp-map-pin` — the stable DOM hook tests and the
+audit scripts look for.
 
-  import("leaflet").then((leaflet) => {
-    const L = leaflet.default ?? leaflet;     // interop: ESM default vs namespace
-    // ... build map
-  });
+**Pin and InfoWindow HTML is raw HTML, so every interpolated value goes through
+`escapeHtml` (`lib/escape-html.ts`)** — place names and titles are user input.
+Popups stay width-clamped for mobile.
 
-  return () => {                              // MUST clean up or you get
-    leafletMapRef.current?.remove();          // "Map container is already initialized"
-    leafletMapRef.current = null;
-  };
-}, [/* derived signature — see 5.6 */]);
-```
+### 4.4 Lines
 
-`leaflet.default ?? leaflet` is not optional — it resolves differently under
-Next's bundler vs. Vitest's.
+`MapPolyline({ path, color, weight, opacity?, dashed?, geodesic?, zIndex? })`.
+Memoise `path` — a fresh array each render re-applies options. Flight, train and
+ferry legs pass `geodesic`.
 
-### 5.3 Self-host the marker icons
+### 4.5 Fitting
 
-Leaflet's default icon URLs are derived from the CSS path and break under every
-bundler. The fix lives in `lib/map/icons.ts`, run once per map init immediately
-after the dynamic `import("leaflet")` resolves, with the three PNGs copied from
-`node_modules/leaflet/dist/images/` into `public/leaflet/`:
+`useFitBounds(points, { padding?, maxZoom? })` must be called from a component
+rendered **inside** the frame (it uses `useMap()`). A single located point does
+not `fitBounds` (it would zoom to max): it centres and zooms to
+`FIT_SINGLE_ZOOM` (12). Never hardcode a centre; with nothing to fit the Globe
+shows a world view.
 
-```tsx
-// lib/map/icons.ts — call once per map init, after import("leaflet") resolves
-applyLeafletIconDefaults(L);
-```
+### 4.6 Fallback
 
-All four map components call it right after `const L = leaflet.default ?? leaflet;`.
-We use `divIcon` for all real pins, so this mostly just stops a broken-image
-icon ever appearing — but it's two lines and it removes a whole class of bug.
+Three failure modes — no config, Google fails to load or refuses the key, a
+render error — all land on the caller's `fallback`. `MapUnavailable` renders
+"The map isn't available right now." above any children (the Route map's stop
+list, say) and carries `data-map-fallback`. Existing "not enough coordinates"
+copy is unchanged. Coordinates are always optional: nothing in the data model
+requires a geocode.
 
-### 5.4 Theme-aware tiles without rebuilding the map
+### 4.7 Stable DOM hooks
 
-Keep a ref to the tile layer and `setUrl()` it when the theme flips. Rebuilding
-the whole map on a theme toggle throws away zoom/pan state:
+| Hook | On |
+|---|---|
+| `.tp-map` | the map root |
+| `.tp-map-pin` | every marker wrapper |
+| `[data-map-fallback]` | every fallback root |
 
-```tsx
-const { theme } = useTheme();
-const isDark = theme === "dark";
+`audit:layout` and `audit:contrast` wait for `.tp-map-pin, [data-map-fallback]`,
+so a keyless run (fallbacks only) does not time out.
 
-// on init
-tileLayerRef.current = L.tileLayer(cartoTiles(isDark).url, { ...opts }).addTo(map);
+### 4.8 Lazy-mount the heavy ones
 
-// on theme change — swap tiles in place
-useEffect(() => {
-  tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
-}, [isDark]);
-```
+`day-map-panel.tsx` mounts `DayMap` only when the user expands the panel, so the
+Maps library never loads on a day view nobody opens.
 
-**The dependency arrays are the load-bearing part.** `isDark` must NOT appear in
-the *init* effect's deps. React runs an effect's cleanup before re-running it,
-and the init cleanup calls `map.remove()` — so depending on the theme there
-destroys and rebuilds the map on every toggle (losing pan/zoom, re-fitting
-bounds) while the `setUrl` effect fires uselessly against a detached layer.
-Each map carries a comment saying so, because it looks like an omission.
+## 6. Geocoding — `lib/geocode.ts` (replaced in Branch 2)
 
-Also needed, once, globally — Leaflet panes fight z-index with modals/popovers:
-
-```css
-/* app/globals.css */
-.leaflet-container { isolation: isolate; }
-```
-
-### 5.5 `divIcon` markers + escaped popup HTML
-
-Every pin is a styled `<div>` in an HTML string. Cheap, fully controllable,
-no image assets:
-
-```tsx
-L.divIcon({
-  html: `<div style="width:28px;height:28px;border-radius:50%;background:${hex};
-    color:#fff;display:flex;align-items:center;justify-content:center;
-    border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">${index + 1}</div>`,
-  className: "",
-  iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
-});
-```
-
-`hex` above is `pinHex(category)` on the Wishlist and Globe maps, which colour
-pins by category; Route colours pins from chapter data and Day uses fixed
-per-type colours instead.
-
-```tsx
-import { escapeHtml } from "@/lib/escape-html";   // shared — never re-implement
-import { pinHex } from "@/lib/map/pins";          // category → pin colour
-```
-
-**Popups are raw HTML, so every interpolated value goes through `escapeHtml`.**
-All four map components import the same helper from `lib/escape-html.ts` —
-user-entered place names and titles land directly in `bindPopup()` strings and
-would otherwise be an XSS hole. This used to be four copy-pasted private
-copies; now there is exactly one.
-
-Popups are also width-clamped for mobile: `min-width:min(140px,80vw);
-max-width:min(240px,90vw)`.
-
-Interactive controls *inside* a popup (the Globe's Edit/Delete) are wired on the
-map's `popupopen` event — the DOM doesn't exist until the popup opens:
-
-```tsx
-map.on("popupopen", (e) => {
-  e.popup.getElement()?.querySelectorAll("[data-edit]").forEach((btn) => {
-    btn.onclick = () => onEditRef.current(btn.dataset.edit!);
-  });
-});
-```
-
-### 5.6 Dependency signatures, not array identity
-
-Effects can't depend on `stops` (a new array every render) or the whole map
-rebuilds continuously. Depend on a **derived string** of only the fields that
-change the render, and disable `exhaustive-deps` with a comment saying why:
-
-```tsx
-}, [
-  hasEnoughCoords,
-  stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}`).join("|"),
-  home?.lat, home?.lng, showReturn,
-]);
-```
-
-Companion pattern — **callbacks in refs**, updated in their own effect, so a new
-inline `onSelect` from the parent never re-initialises the map:
-
-```tsx
-const onSelectRef = useRef(onSelect);
-useEffect(() => { onSelectRef.current = onSelect; });   // never mutate during render
-// ...later: marker.on("click", () => onSelectRef.current(mk.id));
-```
-
-One more subtlety we hit: because the map is created asynchronously, a plotting
-effect that runs before the map exists may never re-run for a stable data set.
-The Globe fixes this with a `ready` state flag flipped when the async init
-finishes, which the plotting effect depends on.
-
-### 5.7 Always `fitBounds`, never a hardcoded centre
-
-```tsx
-map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), { padding: [40, 40] });
-// world view when there's nothing to fit:
-map.setView([20, 0], 2);
-```
-
-The Globe adds `maxZoom: 8` on fit (one pin shouldn't zoom to street level) and
-`worldCopyJump: true` for infinite horizontal panning.
-
-### 5.8 Degrade gracefully when coordinates are missing
-
-Every map has a no-coords path, and none of them is a blank grey box:
-`route-map` renders a numbered text list of stops with a "add coordinates to see
-the map" hint; `wishlist-map` renders an `EmptyState`; `day-map` returns `null`
-and its panel doesn't render at all. **Coordinates are always optional** —
-nothing in the data model requires a successful geocode.
-
-### 5.9 Lazy-mount the heavy ones
-
-`day-map-panel.tsx` mounts `DayMap` only when the user expands the panel, so
-Leaflet's ~140 KB never downloads on a day view nobody opens.
-
-## 6. Geocoding — `lib/geocode.ts`
+> Nominatim and Photon are replaced by Google Places and Geocoding in Branch 2 of the Google Maps work (ADR 0076). Until that merges, this section describes what runs.
 
 One file, ~245 lines, wraps Nominatim's `/search` and `/reverse`. The contract:
 
@@ -390,7 +245,7 @@ missing coords), throttled at 1100 ms, `--dry-run` supported, prints a
 scanned/geocoded/skipped/failed summary. Explicitly *not* run inside
 `prisma migrate deploy`: slow network calls don't belong in a migration.
 
-## 7. Directions — deep links, not a routing API
+## 7. Directions — deep links, not a routing API (Travel times arrive in Branch 3)
 
 `lib/map/maps.ts` builds URLs; nothing calls a routing or distance-matrix service.
 
@@ -420,153 +275,91 @@ justifies the key/cost/rate-limit burden.
 
 ## 8. Testing
 
-The split in §4 is what makes this testable at all:
-
-- **Pure `lib/` modules have real unit tests** — `geo.test.ts`, `map/maps.test.ts`,
-  `day-map.test.ts`, `map/tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
-  `route-sketch.test.ts`, `escape-html.test.ts`, `map/icons.test.ts`,
-  `map/pins.test.ts`. This is where the actual logic lives, so this is where
-  the coverage is.
-- **Real Leaflet never runs in jsdom — but the map components themselves now
-  do get rendered there**, with only the `leaflet` package swapped for a test
-  double. There are two distinct mocking seams, for two distinct jobs:
-
-  **Loader/component-boundary mock** — for testing the *surrounding* UI (panel
-  toggles, selection wiring, empty states) without the map in play at all:
+- **Pure `lib/` modules have real unit tests** — `geo`, `map/maps`, `day-map`,
+  `geocode`, `nearby`, `route-sketch`, `escape-html`, `map/pins`,
+  `map/google-config`. That is where the logic lives.
+- **No test loads real Google Maps.** The `@vis.gl/react-google-maps` module is
+  swapped for `createGoogleMapsMock()` from `test/google-maps-mock.tsx`:
 
   ```tsx
-  vi.mock("./globe-map-loader", () => ({ GlobeMapLoader: () => null }));
-  vi.mock("./day-map", () => ({ DayMap: () => <div data-testid="day-map" /> }));
+  const mock = await vi.hoisted(async () =>
+    (await import("@/test/google-maps-mock")).createGoogleMapsMock(),
+  );
+  vi.mock("@vis.gl/react-google-maps", () => mock.module);
+  beforeEach(() => mock.reset());
   ```
 
-  Used by parent/consumer tests such as `wishlist-board.test.tsx` (mocks
-  `./wishlist-map-loader`) and `day-map-panel.test.tsx` (mocks `./day-map`
-  directly — `DayMapPanel` imports `DayMap` without a loader, since it already
-  gates the mount on the panel being expanded, §5.9).
-
-  **`leaflet`-module mock** — for testing a map component's *own* lifecycle:
-  init-once, `fitBounds`, pin plotting, and — the one thing the boundary mock
-  above cannot exercise at all, because it never lets the component's effects
-  run — the §5.4 theme-swap-without-rebuild rule. The `leaflet` package itself
-  is replaced with `createLeafletMock()` from `test/leaflet-mock.ts`, wired up
-  via `vi.doMock("leaflet", ...)` **inside `beforeEach`**, not a hoisted
-  `vi.mock(...)`:
-
-  ```tsx
-  const hoisted = vi.hoisted(() => ({
-    leaflet: null as ReturnType<typeof createLeafletMock> | null,
-  }));
-  beforeEach(() => {
-    hoisted.leaflet = createLeafletMock();
-    vi.doMock("leaflet", () => hoisted.leaflet!.module);
-  });
-  ```
-
-  `vi.doMock` in `beforeEach` matters because Vitest resolves a dynamically
-  imported specifier once per test file and caches it — a hoisted `vi.mock`
-  factory would only ever run for the first test, and every test after that
-  would silently get the first test's stale mock (see the docblock at the top
-  of `test/leaflet-mock.ts`). Used by `route-map.test.tsx`, `day-map.test.tsx`,
-  `wishlist-map.test.tsx`, and `globe-map.test.tsx`.
-
-- **Visual output is human-verified.** Marker styling and polyline colours
-  across all four maps get no pixel-level test coverage — Vitest asserts
-  wiring and lifecycle (§8 above), never appearance. Only the route map's
-  home-base marker and its outbound/return polylines carry an explicit
-  `VISUAL:` comment (`route-map.tsx`) calling that out; the rest is human-
-  verified the same way, just without the comment.
-
-`lib/geocode.ts` exports `_resetGeocodeCacheForTests()` — a deliberate test-only
-seam, since the module-level cache would otherwise leak between cases.
+  It returns `{ module, map, status, markerStub, recorded, reset }`, where
+  `recorded` holds the maps, mounts, markers, InfoWindows and polylines the
+  component asked for. Render keyed with
+  `vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k")` and
+  `vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m")`; leave them empty to
+  exercise the keyless fallback.
+- **Surrounding-UI tests** can still mock the loader or the map component
+  (`vi.mock("./globe-map-loader", ...)`, `vi.mock("./day-map", ...)`) when the map
+  itself is not under test.
+- **Visual output is human-verified.** Vitest asserts wiring and lifecycle, never
+  appearance.
+- **The real Google path is checked by hand** with keys in `.env.local`:
+  `audit:layout` keyed should show `.tp-map-pin` on every map surface in both
+  themes.
 
 ## 9. Offline / PWA behaviour
 
 The service worker (`lib/offline.ts` → `public/sw.js`) routes **all cross-origin
-GETs to `network-only`**, which includes tile requests. So:
-
-- Tiles are **not** precached or SW-cached — an offline user gets the browser's
-  own HTTP cache for tiles they've already seen, and grey squares beyond that.
-- Everything else on a map page still works offline: pins, polylines, popups,
-  and deep links all render from data already in the page.
-
-ADR 0024 flags this as the known trade of choosing raster tiles over a bundled
-globe texture. If offline maps ever become a requirement, tile caching is the
-place to look.
+GETs to `network-only`**, which includes Google's map tiles and scripts. Offline,
+the Maps library cannot load, so each map shows its fallback; everything else on
+the page still works from data already in the page, and deep links still render.
 
 ## 10. Gotchas and limits (read before porting)
 
-1. **`NOMINATIM_CONTACT` must be set in every environment.** Unset → warning +
-   no contact header; placeholder → HTTP 403. This is the #1 "why is search
-   broken in prod" cause.
-2. **Nominatim is a free shared service.** Fine for a two-person app at human
-   pace. It is *not* fine for production traffic — you'll need a paid geocoder
-   (or self-hosted Nominatim) and a durable cache.
-3. **The response cache is per-instance and unbounded.** No TTL, no eviction —
-   correct at this scale, wrong past it.
-4. **CARTO tiles want a free API key since late August 2026**, or every tile
-   renders with an "API KEY REQUIRED" watermark — see §2. Otherwise it's a
-   free CDN with no SLA; fine to depend on, keep the swap point (one file)
-   intact.
-5. **Attribution is contractual.** The OpenStreetMap + CARTO dual credit renders
-   on every map. Removing it violates CARTO's terms.
-6. **`Permissions-Policy: geolocation=()`** is set in `next.config.ts`. There's
-   no "locate me" button, and adding one means relaxing that header.
-7. **No clustering.** At a few hundred pins the Globe will get crowded;
-   `leaflet.markercluster` is the drop-in if that day comes.
-8. **Popup HTML is hand-built.** Every new interpolation needs `escapeHtml`. A
-   React-portal popup approach would remove this footgun at the cost of the
-   imperative simplicity.
-9. **Leaflet caches its container's size.** A map whose box can change after
-   build (a resized window, a dialog that grows) draws grey tiles until told.
-   `route-map.tsx` observes its frame with a `ResizeObserver` and calls
-   `invalidateSize()` (spec 2026-10-04 §C); copy that into any other map that
-   can live in a resizable box.
+1. **`NEXT_PUBLIC_*` is inlined at build.** Adding or changing the browser key or
+   Map ID needs a redeploy. Read them as literal `process.env.NEXT_PUBLIC_…`
+   member expressions.
+2. **No Map ID, no map.** Advanced Markers need one, so `mapsConfig()` is `null`
+   without it.
+3. **Referrer restrictions bite on previews.** A host that doesn't match a key
+   referrer makes Google refuse the key (`gm_authFailure`); the frame lands on the
+   fallback rather than an error page.
+4. **Quota exhaustion degrades.** Per-day quotas (DEPLOY.md §4j) are set below the
+   free allowance, so hitting one means the fallback list, not a bill.
+5. **The InfoWindow theme is ours.** `app/globals.css` restyles Google's
+   InfoWindow under `.tp-map`; Google's own rules have higher specificity than a
+   bare class, so the overrides are scoped to `.tp-map .gm-style`.
+6. **`Permissions-Policy: geolocation=()`** is set in `next.config.ts`. There's no
+   "locate me" button, and adding one means relaxing that header.
+7. **No CSP is set** (`next.config.ts` deliberately sets none), so Google's origins
+   need no header changes. Adding a CSP later means allowing `maps.googleapis.com`
+   and `maps.gstatic.com`.
+8. **Nominatim is a free shared service** — fine at human pace for a two-person
+   app, replaced in Branch 2; `NOMINATIM_CONTACT` must be a real contact in every
+   environment until then or HTTP 403.
+9. **Storage stance.** Google's terms limit how long Places coordinates and Routes
+   results may be cached; the app stores coordinates indefinitely, a known
+   deviation accepted while the app is invite-only (ADR 0076, revisit if the
+   allowlist opens).
 
 ## 11. Porting checklist
 
 To stand this up in another Next.js App Router project:
 
-1. `npm i leaflet && npm i -D @types/leaflet`
-2. Copy `node_modules/leaflet/dist/images/marker-icon.png`, `marker-icon-2x.png`,
-   `marker-shadow.png` → `public/leaflet/`
-3. Add `.leaflet-container { isolation: isolate; }` to global CSS
-4. Copy the `lib/` map helpers: `lib/map/tiles.ts` (tile config — get a free
-   `NEXT_PUBLIC_CARTO_API_KEY` at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)
-   or tiles ship watermarked), `lib/map/icons.ts` (default-icon fix),
-   `lib/map/pins.ts` (category → hex), `lib/escape-html.ts` (popup
-   escaping). All four are dependency-free and copy verbatim.
-5. Copy `components/ui/map-loader.tsx` (the `createMapLoader` factory)
-6. Copy `lib/map/maps.ts` verbatim if you want the deep links, `lib/geo.ts` for
-   distance/drive estimates
-7. Copy `lib/geocode.ts`, set `NOMINATIM_CONTACT` to a **real** email or app URL
-   in every environment — and re-read §6/§10 about whether Nominatim suits your
-   traffic
-8. Write one map component per surface, following §5.2–§5.8; write a
-   `*-map-loader.tsx` beside each and import **the loader**, never the component
-9. Keep the point-model logic in a pure `lib/` module so it's testable. For
-   surrounding-UI tests, mock the loader (or the map component directly);
-   for a map component's own lifecycle (including the theme-swap rule in
-   §5.4), mock `leaflet` itself with `createLeafletMock()` — see §8
-
-## 12. If we were starting fresh
-
-The choices we'd revisit, in rough order of likely payoff:
-
-- **MapLibre GL + vector tiles** instead of Leaflet + raster. Sharper on retina,
-  smooth zoom, runtime-restylable (so theme switching is a style swap, not a
-  tile-URL swap), better offline story. Costs: WebGL requirement, larger bundle,
-  and — like the current CARTO raster tiles since late August 2026 — a vector
-  tile source that usually wants a key too.
-- **`react-leaflet`** if the map count grows past ~5 or map state needs to be
-  reactive. The imperative pattern is fine at four maps; it wouldn't be at twelve.
-- **A React-portal popup renderer** to kill the hand-escaped HTML strings.
-- **A paid geocoder** (Mapbox / Google / self-hosted Nominatim) the moment this
-  serves more than a handful of users.
-- **`leaflet.markercluster`** before pin counts reach the hundreds.
-
-Everything else — the loader factory, the pure-logic split, geocode-on-save,
-never-throws geocoding, deep-links-not-routing, the graceful no-coords
-fallbacks — we'd keep as-is.
+1. `npm i @vis.gl/react-google-maps` (pin the version).
+2. Create the Google Cloud project, a referrer-restricted browser key and a vector
+   Map ID with light and dark styles (see DEPLOY.md §4j); set
+   `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`.
+3. Copy `lib/map/google-config.ts` and the `components/map/` files
+   (`google-map-frame`, `html-pin`, `map-polyline`, `use-fit-bounds`,
+   `map-unavailable`), plus the `.tp-map` rules in `app/globals.css`.
+4. Copy `lib/map/pins.ts` (category -> colour) and `lib/escape-html.ts`.
+5. Copy `components/ui/map-loader.tsx` if a page needs an `ssr:false` seam.
+6. Copy `lib/map/maps.ts` for the deep links, `lib/geo.ts` for distance and drive
+   estimates.
+7. Write one map component per surface on `GoogleMapFrame`, with a fallback;
+   keep the point-model logic in a pure `lib/` module.
+8. Copy `test/google-maps-mock.tsx` and mock `@vis.gl/react-google-maps` with it —
+   see §8.
+9. Set a per-day quota on every Google API you call (half the free allowance ÷ 30
+   is a safe rule) and a budget alert.
 
 ---
 
@@ -575,6 +368,7 @@ fallbacks — we'd keep as-is.
 | ADR | Decision |
 |---|---|
 | `0011` | Geocode all located entities on save; Transport gets its own coordinates |
-| `0024` | The "Globe" renders as a flat Leaflet map, not a 3D globe |
+| `0024` | The "Globe" is a flat map, not a 3D globe (amended: now Google) |
 | `0028` | Nominatim etiquette via in-memory response caching, not runtime rate limiting |
-| `0033` | CARTO Positron/Dark Matter tiles for light/dark basemaps |
+| `0033` | CARTO tiles — superseded by 0076 |
+| `0076` | Google Maps Platform replaces the free map stack |

@@ -57,3 +57,10 @@ rendering.** We are not adding a 3D globe library in v1.
   loader + a map component, as `wishlist-map` already does), swapping in a 3D
   globe later is a contained change if the "globe should be a globe" itch ever
   wins.
+
+## Amendment — 2026-10-30: the flat map is now Google
+
+The Globe is still a flat map, not a 3D globe, but it no longer renders with
+Leaflet: ADR 0076 moves every map to Google Maps (`@vis.gl/react-google-maps`).
+The component boundary this ADR relies on held — the swap stayed inside the
+map components. Where this ADR says Leaflet or CARTO tiles, read Google Maps.

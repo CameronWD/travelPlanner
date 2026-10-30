@@ -27,10 +27,10 @@ See also: **`docs/adr/0026-shared-ui-conventions.md`** (extraction decisions) an
 | `<FormDialog>` | `components/ui/form-dialog.tsx` | Dialog chrome with state-reset remount. Props: `open`, `onOpenChange`, `title`, `recordId?`. |
 | `<RowActions>` | `components/ui/row-actions.tsx` | Edit (Pencil) / Delete (Trash2) ghost `size-8` icon-button pair. |
 | `<SectionHeader>` | `components/ui/section-header.tsx` | Icon + `h3` heading + optional count + optional right-aligned action slot. |
-| `createMapLoader<P>` | `components/ui/map-loader.tsx` | Factory: wraps a Leaflet component in `next/dynamic({ ssr:false })`. Returns a typed loader component. |
-| `escapeHtml(s)` | `lib/escape-html.ts` | Escapes `&<>"'`. MANDATORY for any user value interpolated into Leaflet popup HTML. |
+| `createMapLoader<P>` | `components/ui/map-loader.tsx` | Factory: wraps a map component in `next/dynamic({ ssr:false })`. Returns a typed loader component. |
+| `<GoogleMapFrame>` | `components/map/google-map-frame.tsx` | The one frame every map renders in: loads Google Maps, remounts on theme flip, lands on `fallback` when Google is unavailable. Pair with `<HtmlPin>`, `<MapPolyline>`, `useFitBounds`, `<MapUnavailable>`. |
+| `escapeHtml(s)` | `lib/escape-html.ts` | Escapes `&<>"'`. MANDATORY for any user value interpolated into pin or InfoWindow HTML. |
 | `pinHex(category)` | `lib/map/pins.ts` | Category → map-pin hex (Tailwind-500 shade), falling back to OTHER. |
-| `applyLeafletIconDefaults(L)` | `lib/map/icons.ts` | Repoints Leaflet's bundler-broken default marker URLs at `public/leaflet/`. Call once per map init. |
 | `useDeleteWithConfirm` | `components/ui/use-delete-with-confirm.ts` | Confirm-then-delete. Composes `useConfirm` + `useServerAction`. Returns `{ requestDelete, isPending, dialog }`. |
 | `<InlineCostFields>` | `components/money/cost-fields/inline-cost-fields.tsx` | The inline Cost fields (cost amount, Settlement, Paid, paid amount, date paid) for the transport, accommodation and item form dialogs and the CostEditor; state from `useCostFields`. |
 | `<AppLink>` | `components/navigation/app-link.tsx` | `next/link` that reports its navigation to the pending context (ADR 0063). Every in-app nav control uses it. Extra prop `pendingClassName`. |
@@ -164,48 +164,43 @@ return (
 
 ---
 
-### Add a Leaflet map
+### Add a map
 
-Use `createMapLoader` to produce a typed client-only loader. Call it once at
-module level in a `"use client"` file.
+A map is a client component built on `GoogleMapFrame`. Give the frame a size
+(a `className` height or a `style`; it is 0px tall otherwise), pass `dark` and a
+`fallback`, and put pins and lines inside it as children.
 
 **References:**
-- `components/trip/route-map-loader.tsx` — single-prop map
-- `components/trip/wishlist-map-loader.tsx` — map with callbacks
-- `components/globe/globe-map-loader.tsx` — globe map
+- `components/trip/route-map.tsx` — numbered pins, per-segment lines, fallback list
+- `components/trip/wishlist-map.tsx` — category pins with selection
+- `components/globe/globe-map.tsx` — click-to-drop-a-pin, InfoWindow actions
 
 ```tsx
-// route-map-loader.tsx
-"use client";
-import { createMapLoader } from "@/components/ui/map-loader";
-import type { RouteMapProps } from "./route-map";
-
-export const RouteMapLoader = createMapLoader<RouteMapProps>(
-  () => import("./route-map").then((m) => m.RouteMap),
-);
+<GoogleMapFrame dark={isDark} className="h-72" fallback={<MapUnavailable>{list}</MapUnavailable>}>
+  <FitToPoints points={points} />
+  {points.map((p) => (
+    <HtmlPin key={p.id} position={p} html={pinHtml(p)} />
+  ))}
+</GoogleMapFrame>
 ```
 
-Then use `<RouteMapLoader …/>` in any server or client component — the dynamic
-import ensures Leaflet is never SSR'd.
+`createMapLoader` still gives a map its `ssr:false` loader where a page needs
+one (`*-map-loader.tsx`). Rules:
 
-Inside the map component itself, four rules are non-negotiable:
+1. Pins are the existing `pinHtml(...)` strings mounted in an Advanced Marker
+   by `HtmlPin`; every user value in that HTML or in InfoWindow HTML goes
+   through `escapeHtml`.
+2. Never pass `tp-map` or `mapId`/`colorScheme` yourself — the frame owns them.
+   Theme is the `dark` prop; a flip remounts the map.
+3. Call `useFitBounds` from a component rendered **inside** the frame.
+4. Memoise any `path` handed to `MapPolyline`.
 
-1. `import("leaflet")` **inside** the effect, and `leaflet.default ?? leaflet` —
-   the interop differs between the Next bundler and Vitest.
-2. Call `applyLeafletIconDefaults(L)` once, right after that import resolves.
-3. Every user-controlled value in popup HTML goes through `escapeHtml`.
-4. **Never put `isDark` in the init effect's dependency array** — its cleanup
-   destroys the map. Swap tiles with a separate `tileLayerRef.current?.setUrl()`
-   effect keyed on `[isDark]`.
-
-Test it by mocking the `leaflet` module with `createLeafletMock()` from
-`test/leaflet-mock.ts`, called inside a `beforeEach` via `vi.doMock("leaflet",
-…)` — **not** a hoisted `vi.mock(...)`. Vitest resolves a dynamically-imported
-specifier once per test file and caches it, so a hoisted factory only ever
-runs for the first test; every test after that would silently get the first
-test's stale mock and fail with a misleading "no map was ever built". See
-`components/trip/wishlist-map.test.tsx` for the working pattern. Never render
-real Leaflet in jsdom.
+Test it with `createGoogleMapsMock()` from `test/google-maps-mock.tsx`,
+hoisted: `const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());`
+then `vi.mock("@vis.gl/react-google-maps", () => mock.module)` and
+`beforeEach(() => mock.reset())`. Stub `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`
+and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` to render keyed; leave them empty to
+exercise the fallback. Never load real Google Maps in jsdom.
 
 ---
 

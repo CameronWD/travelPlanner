@@ -32,7 +32,8 @@ describe("PrivacyPage", () => {
     expect(screen.getByText(/Cloudflare R2/)).toBeInTheDocument();
     expect(screen.getAllByText(/Vercel/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Neon/)).toBeInTheDocument();
-    expect(screen.getByText(/OpenStreetMap \(Nominatim\), Photon \(komoot\) and CARTO/)).toBeInTheDocument();
+    expect(screen.getByText(/OpenStreetMap \(Nominatim\) and Photon \(komoot\)/)).toBeInTheDocument();
+    expect(screen.getByText("Google Maps")).toBeInTheDocument();
     expect(screen.getAllByText(/Resend/).length).toBeGreaterThan(0);
   });
 
