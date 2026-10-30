@@ -15,6 +15,11 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/google-fetch", () => ({ hasServerKey: m.hasServerKey }));
 vi.mock("@/lib/routes", () => ({ computeRoute: m.computeRoute }));
+const parse = vi.hoisted(() => ({ fail: new Set<string>() }));
+vi.mock("@/lib/travel-times/hops", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/travel-times/hops")>();
+  return { ...actual, parseHopKey: (key: string) => (parse.fail.has(key) ? null : actual.parseHopKey(key)) };
+});
 vi.mock("@/lib/google-usage", () => ({ takeGoogleQuota: m.takeGoogleQuota }));
 vi.mock("@/lib/surprise-visibility", () => ({
   loadSurpriseVisibility: vi.fn(async (_tripId: string, viewerId: string | null) => ({
@@ -63,7 +68,7 @@ function stop(s: StopIn) {
 
 function transport(t: Partial<{ forkId: string | null; mode: string; fromStopId: string | null; toStopId: string | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; depIsHome: boolean; arrIsHome: boolean }>) {
   return {
-    forkId: null, mode: "CAR", fromStopId: null, toStopId: null,
+    id: `t-${Math.random()}`, forkId: null, mode: "CAR", fromStopId: null, toStopId: null,
     depLat: null, depLng: null, arrLat: null, arrLng: null, depIsHome: false, arrIsHome: false,
     ...t,
   };
@@ -96,6 +101,7 @@ function calledKeys(): string[] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  parse.fail.clear();
   m.hidden = {};
   m.hasServerKey.mockReturnValue(true);
   m.takeGoogleQuota.mockResolvedValue(true);
@@ -340,5 +346,44 @@ describe("refreshTripTravelTimes", () => {
     const out = await refreshTripTravelTimes("t2", { now: NOW });
     expect(m.computeRoute).toHaveBeenCalledTimes(2);
     expect(out.wanted).toBe(0);
+  });
+  it("reads Items in a fixed order so equal start times always pair the same way", async () => {
+    await refreshTripTravelTimes("t1", { now: NOW });
+    expect(db.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: [{ date: "asc" }, { startTime: "asc" }, { sortOrder: "asc" }, { id: "asc" }] }),
+    );
+  });
+
+  it("fetches the real plan's keys before any Fork's, and WALK before DRIVE within a plan", async () => {
+    const W = (n: number): Pt => ({ lat: 36 + n * 0.005, lng: 140 });
+    const F = (n: number): Pt => ({ lat: 34 + n * 0.005, lng: 138 });
+    plan({
+      stops: [stop({ id: "s1", mode: "DRIVE" }), stop({ id: "fs", forkId: "f1", mode: "DRIVE" })],
+      items: [
+        item({ id: "r1", at: W(0), sortOrder: 0 }),
+        item({ id: "r2", at: W(1), sortOrder: 1 }),
+        item({ id: "f1", forkId: "f1", stopId: "fs", at: F(0), sortOrder: 0 }),
+        item({ id: "f2", forkId: "f1", stopId: "fs", at: F(1), sortOrder: 1 }),
+      ],
+    });
+    await refreshTripTravelTimes("t1", { now: NOW });
+    const k = (mode: string, a: Pt, b: Pt) => `${mode}|${a.lat.toFixed(5)},${a.lng.toFixed(5)}|${b.lat.toFixed(5)},${b.lng.toFixed(5)}`;
+    expect(calledKeys()).toEqual([k("WALK", W(0), W(1)), k("DRIVE", W(0), W(1)), k("WALK", F(0), F(1)), k("DRIVE", F(0), F(1))]);
+  });
+
+  it("a key that does not parse never takes quota", async () => {
+    plan({ stops: [stop({ id: "s1", mode: "DRIVE" })], items: [0, 1, 2].map((i) => item({ id: `i${i}`, at: FAR(i), sortOrder: i })) });
+    parse.fail.add(driveKey(FAR(0), FAR(1)));
+    await refreshTripTravelTimes("t1", { now: NOW });
+    expect(m.takeGoogleQuota).toHaveBeenCalledTimes(1);
+    expect(calledKeys()).toEqual([driveKey(FAR(1), FAR(2))]);
+  });
+
+  it("a dry run counts what it would fetch and makes no call and no write", async () => {
+    plan({ stops: [stop({ id: "s1", mode: "DRIVE" })], items: [0, 1, 2].map((i) => item({ id: `i${i}`, at: FAR(i), sortOrder: i })) });
+    expect(await refreshTripTravelTimes("t1", { now: NOW, dryRun: true })).toEqual({ wanted: 2, fetched: 0, skippedQuota: 0, failed: 0 });
+    expect(m.takeGoogleQuota).not.toHaveBeenCalled();
+    expect(m.computeRoute).not.toHaveBeenCalled();
+    expect(db.travelTime.upsert).not.toHaveBeenCalled();
   });
 });

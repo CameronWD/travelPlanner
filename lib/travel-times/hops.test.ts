@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { estimateDriveMinutes, haversineKm } from "@/lib/geo";
 import {
+  carLegs,
   dayHops,
   driveKey,
   effectiveLocalMode,
+  hopInputs,
   hopKeys,
   itemDeparture,
   parseHopKey,
+  planHops,
   pointKey,
   resolveDriveLeg,
   resolveHop,
@@ -377,5 +380,87 @@ describe("itemDeparture", () => {
   it("is null without a date or end time", () => {
     expect(itemDeparture(item("a", { endTime: null }), "Asia/Tokyo")).toBeNull();
     expect(itemDeparture(item("a", { date: null, endTime: "10:00" }), "Asia/Tokyo")).toBeNull();
+  });
+});
+
+describe("planHops", () => {
+  it("drops a pair on two Stops a Transport in the plan joins, either way round", () => {
+    const items = [
+      item("a", { stopId: "s1", sortOrder: 0 }),
+      item("b", { stopId: "s2", sortOrder: 1, lat: 35.01 }),
+      item("c", { stopId: "s3", sortOrder: 2, lat: 35.02 }),
+    ];
+    expect(pairs(planHops(items, [{ mode: "FLIGHT", fromStopId: "s2", toStopId: "s1" }]))).toEqual(["b>c"]);
+    expect(pairs(planHops(items, [{ mode: "TRAIN", fromStopId: "s1", toStopId: "s2" }]))).toEqual(["b>c"]);
+  });
+
+  it("keeps same-Stop pairs, Stop-less pairs and pairs no Transport joins", () => {
+    const items = [
+      item("a", { stopId: "s1", sortOrder: 0 }),
+      item("b", { stopId: "s1", sortOrder: 1, lat: 35.01 }),
+      item("c", { stopId: null, sortOrder: 2, lat: 35.02 }),
+      item("d", { stopId: "s2", sortOrder: 3, lat: 35.03 }),
+    ];
+    expect(pairs(planHops(items, [{ mode: "CAR", fromStopId: "s1", toStopId: "s1" }]))).toEqual(["a>b", "b>c", "c>d"]);
+    expect(pairs(planHops(items, [{ mode: "CAR", fromStopId: "s1", toStopId: "s9" }]))).toEqual(["a>b", "b>c", "c>d"]);
+  });
+});
+
+describe("hopInputs", () => {
+  const stopsById = new Map([
+    ["s1", { id: "s1", localTravelMode: null, timezone: "Asia/Tokyo" }],
+    ["s2", { id: "s2", localTravelMode: "DRIVE", timezone: null }],
+  ]);
+
+  it("takes the earlier Item's Stop mode from the plan's Transports and its departure in that Stop's zone", () => {
+    const pair = { from: item("a", { startTime: "09:00", endTime: "10:00" }), to: item("b", { lat: 35.01 }) };
+    expect(hopInputs(pair, { stopsById, planTransports: [] })).toEqual({
+      from: { lat: 35, lng: 135 },
+      to: { lat: 35.01, lng: 135 },
+      localMode: "TRANSIT",
+      departure: new Date("2026-11-02T01:00:00.000Z"),
+    });
+    const drive = hopInputs(pair, { stopsById, planTransports: [{ mode: "CAR", fromStopId: "s1", toStopId: "s2" }] });
+    expect(drive?.localMode).toBe("DRIVE");
+  });
+
+  it("no departure without a zone; TRANSIT and no departure without a Stop", () => {
+    const end = { startTime: "09:00", endTime: "10:00" };
+    expect(hopInputs({ from: item("a", { ...end, stopId: "s2" }), to: item("b") }, { stopsById, planTransports: [] }))
+      .toMatchObject({ localMode: "DRIVE", departure: null });
+    expect(hopInputs({ from: item("a", { ...end, stopId: null }), to: item("b") }, { stopsById, planTransports: [] }))
+      .toMatchObject({ localMode: "TRANSIT", departure: null });
+    expect(hopInputs({ from: item("a", { ...end, stopId: "gone" }), to: item("b") }, { stopsById, planTransports: [] }))
+      .toMatchObject({ localMode: "TRANSIT", departure: null });
+  });
+
+  it("is null when either Item has no point", () => {
+    expect(hopInputs({ from: item("a", { lat: null }), to: item("b") }, { stopsById, planTransports: [] })).toBeNull();
+    expect(hopInputs({ from: item("a"), to: item("b", { lng: null }) }, { stopsById, planTransports: [] })).toBeNull();
+  });
+});
+
+describe("carLegs", () => {
+  const stopsById = new Map([
+    ["s1", { lat: 1, lng: 1 }],
+    ["s2", { lat: 2, lng: 2 }],
+  ]);
+  const HOME = { lat: 9, lng: 9 };
+
+  it("lists every CAR leg whose ends resolve, with its Transport id", () => {
+    const legs = carLegs(
+      [
+        { id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2" },
+        { id: "t2", mode: "TRAIN", fromStopId: "s1", toStopId: "s2" },
+        { id: "t3", mode: "CAR", fromStopId: null, toStopId: "s1", depIsHome: true },
+        { id: "t4", mode: "CAR", fromStopId: "s1", toStopId: null },
+      ],
+      stopsById,
+      HOME,
+    );
+    expect(legs).toEqual([
+      { transportId: "t1", from: { lat: 1, lng: 1 }, to: { lat: 2, lng: 2 } },
+      { transportId: "t3", from: HOME, to: { lat: 1, lng: 1 } },
+    ]);
   });
 });

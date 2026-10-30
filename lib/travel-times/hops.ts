@@ -31,6 +31,9 @@ export type ResolvedHop = {
   polyline: string | null;
 };
 
+// Items are read in this order wherever hops are built: dayHops breaks equal start times by input order.
+export const ITEM_HOP_ORDER = [{ date: "asc" }, { startTime: "asc" }, { sortOrder: "asc" }, { id: "asc" }] as const;
+
 const WALK_ROW_UNDER_KM = 2;
 const MAX_REAL_WALK_MIN = 20;
 const ESTIMATE_WALK_KMH = 4.5;
@@ -163,6 +166,52 @@ export function transportEnds(
   const from = end(t.depLat, t.depLng, t.fromStopId, t.depIsHome);
   const to = end(t.arrLat, t.arrLng, t.toStopId, t.arrIsHome);
   return from && to ? { from, to } : null;
+}
+
+type PlanTransport = { mode: string; fromStopId: string | null; toStopId: string | null };
+
+export function planHops(items: HopItem[], planTransports: PlanTransport[]): { from: HopItem; to: HopItem }[] {
+  // Rule 12 skips a pair on two Stops a Transport joins: changing place mid-day is that Transport's job.
+  const joined = new Set<string>();
+  for (const t of planTransports) {
+    if (t.fromStopId && t.toStopId && t.fromStopId !== t.toStopId) {
+      joined.add(`${t.fromStopId}|${t.toStopId}`);
+      joined.add(`${t.toStopId}|${t.fromStopId}`);
+    }
+  }
+  return dayHops(items).filter(
+    ({ from, to }) => !(from.stopId && to.stopId && from.stopId !== to.stopId && joined.has(`${from.stopId}|${to.stopId}`)),
+  );
+}
+
+export function hopInputs(
+  pair: { from: HopItem; to: HopItem },
+  ctx: {
+    stopsById: Map<string, { id: string; localTravelMode: string | null; timezone: string | null; lat?: number | null; lng?: number | null }>;
+    planTransports: PlanTransport[];
+  },
+): { from: Pt; to: Pt; localMode: LocalMode; departure: Date | null } | null {
+  const from = located(pair.from.lat, pair.from.lng);
+  const to = located(pair.to.lat, pair.to.lng);
+  if (!from || !to) return null;
+  const stop = pair.from.stopId ? ctx.stopsById.get(pair.from.stopId) : undefined;
+  return {
+    from,
+    to,
+    localMode: stop ? effectiveLocalMode(stop, ctx.planTransports) : "TRANSIT",
+    departure: stop?.timezone ? itemDeparture(pair.from, stop.timezone) : null,
+  };
+}
+
+export function carLegs<T extends Parameters<typeof transportEnds>[0] & { id: string }>(
+  planTransports: T[],
+  stopsById: Map<string, { lat?: number | null; lng?: number | null }>,
+  home: Pt | null,
+): { transportId: string; from: Pt; to: Pt }[] {
+  return planTransports.flatMap((t) => {
+    const ends = transportEnds(t, stopsById, home);
+    return ends ? [{ transportId: t.id, ...ends }] : [];
+  });
 }
 
 function transitBookable(departure: Date | null, now: Date): departure is Date {
