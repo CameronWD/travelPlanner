@@ -1,14 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
-import { createLeafletMock } from "@/test/leaflet-mock";
-import { cartoTiles } from "@/lib/map/tiles";
-import { setMatchMedia } from "@/test/setup";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { MarkerView } from "@/components/globe/types";
 
-const hoisted = vi.hoisted(() => ({
-  leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,
-  theme: "light" as "light" | "dark",
-}));
+const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("@vis.gl/react-google-maps", () => mock.module);
+
+const hoisted = vi.hoisted(() => ({ theme: "light" as "light" | "dark" }));
 
 vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }),
@@ -16,291 +13,198 @@ vi.mock("@/components/ui/theme-provider", () => ({
 
 import { GlobeMap } from "./globe-map";
 
-/** The mock's `divIcon` returns its options verbatim, untyped; narrow just the `html` we assert on. */
-function iconHtml(marker: { options: Record<string, unknown> }): string {
-  return (marker.options.icon as { html: string }).html;
-}
-
 const MARKERS = [
   { id: "m1", title: "Tokyo Tower", category: "SIGHTSEEING", lat: 35.65, lng: 139.74 },
   { id: "m2", title: "Ramen", category: "FOOD", lat: 35.69, lng: 139.7 },
 ] as unknown as MarkerView[];
 
-function globeElement(selectedId: string | null = null) {
+const pinHtmls = () => screen.getAllByTestId("marker").map((m) => m.querySelector(".tp-map-pin")!.innerHTML);
+const lastMapProps = () => mock.recorded.map.at(-1)!;
+
+interface Handlers {
+  onSelect?: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onMapClick?: (lat: number, lng: number) => void;
+}
+
+function globeElement(selectedId: string | null = null, h: Handlers = {}, extra: Partial<React.ComponentProps<typeof GlobeMap>> = {}) {
   return (
     <GlobeMap
       markers={MARKERS}
       selectedId={selectedId}
-      onSelect={vi.fn()}
-      onEdit={vi.fn()}
-      onDelete={vi.fn()}
-      onMapClick={vi.fn()}
+      onSelect={h.onSelect ?? vi.fn()}
+      onEdit={h.onEdit ?? vi.fn()}
+      onDelete={h.onDelete ?? vi.fn()}
+      onMapClick={h.onMapClick ?? vi.fn()}
+      {...extra}
     />
   );
 }
 
 beforeEach(() => {
-  hoisted.leaflet = createLeafletMock();
+  mock.reset();
   hoisted.theme = "light";
-  vi.clearAllMocks();
-  // The component dynamically import()s "leaflet" inside its effect. Vitest
-  // caches a module's resolution after the first import within a test file,
-  // so a hoisted `vi.mock` factory would only ever run once for this whole
-  // file — every test after the first would silently resolve the FIRST
-  // test's mock instance instead of its own. `vi.doMock` re-registers the
-  // factory before each test so the next dynamic import picks up the
-  // current `hoisted.leaflet`.
-  vi.doMock("leaflet", () => hoisted.leaflet!.module);
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+  return () => vi.unstubAllEnvs();
 });
 
-describe("GlobeMap theme handling", () => {
-  it("builds the map once with the light tiles", async () => {
+describe("GlobeMap pins and theme", () => {
+  it("draws one category pin per located marker", () => {
     render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(false).url);
+    const html = pinHtmls();
+    expect(html).toHaveLength(2);
+    expect(html[0]).toContain("#8AD6F5");
+    expect(html[1]).toContain("#FFD166");
   });
 
-  it("builds the map with the dark tiles when mounted in dark mode", async () => {
-    hoisted.theme = "dark";
-    render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(true).url);
+  it("gives the selected marker the lift+ring variant and a higher zIndex", () => {
+    render(globeElement("m1"));
+    const html = pinHtmls();
+    expect(html[0]).toContain("scale(1.15)");
+    expect(html[1]).not.toContain("scale(1.15)");
+    expect(mock.recorded.markers.find((m) => m.title === "Tokyo Tower")!.zIndex).toBe(1000);
   });
 
-  it("does NOT destroy and rebuild the map when the theme flips", async () => {
-    // Rerender the SAME instance rather than calling render() again — a
-    // second render() would mount a second instance, which legitimately
-    // builds a second map and would make this assertion meaningless.
-    const { rerender } = render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    const mapInstance = hoisted.leaflet!.maps[0];
-
-    hoisted.theme = "dark";
-    rerender(globeElement());
-
-    await waitFor(() =>
-      expect(hoisted.leaflet!.tileLayers[0].setUrl).toHaveBeenCalledWith(
-        cartoTiles(true).url,
-      ),
-    );
-    expect(mapInstance.remove).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.maps).toHaveLength(1);
-  });
-
-  it("still plots its pins after init (the ready-flag path)", async () => {
-    render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-  });
-
-  it("recolours markers in place (setIcon) when the theme flips, preserving the selected marker's lift+ring", async () => {
+  it("recolours the pins and remounts the map when the theme flips, keeping the selected lift", () => {
     const { rerender } = render(globeElement("m1"));
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const mapInstance = hoisted.leaflet!.maps[0];
-    const [selectedMarker, plainMarker] = hoisted.leaflet!.markers;
-
-    // Light-mode fills baked in at creation time (sky/sun hues), and m1's
-    // selected lift+ring (pinHtml's `selected: true` styling).
-    expect(iconHtml(selectedMarker)).toContain("#8AD6F5");
-    expect(iconHtml(selectedMarker)).toContain("scale(1.15)");
-    expect(iconHtml(plainMarker)).toContain("#FFD166");
-    expect(iconHtml(plainMarker)).not.toContain("scale(1.15)");
-
+    expect(mock.recorded.mapMounts).toBe(1);
     hoisted.theme = "dark";
     rerender(globeElement("m1"));
+    const html = pinHtmls();
+    expect(html[0]).toContain("#8CC0D6");
+    expect(html[0]).toContain("scale(1.15)");
+    expect(html[1]).toContain("#E6C57A");
+    expect(mock.recorded.mapMounts).toBe(2);
+    expect(lastMapProps().colorScheme).toBe("DARK");
+  });
 
-    await waitFor(() => expect(selectedMarker.setIcon).toHaveBeenCalled());
-    await waitFor(() => expect(plainMarker.setIcon).toHaveBeenCalled());
-
-    // Dark-mode fills, and the selected marker's lift+ring survives the
-    // recolour -- a naive setIcon could drop it back to the plain icon.
-    expect(selectedMarker.setIcon).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        html: expect.stringContaining("#8CC0D6"),
-      }),
-    );
-    expect(selectedMarker.setIcon).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        html: expect.stringContaining("scale(1.15)"),
-      }),
-    );
-    expect(plainMarker.setIcon).toHaveBeenLastCalledWith(
-      expect.objectContaining({ html: expect.stringContaining("#E6C57A") }),
-    );
-
-    // Recoloured in place: no map rebuild, no new markers created, no popup
-    // silently closed by a remove-and-recreate.
-    expect(mapInstance.remove).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.markers).toHaveLength(2);
-    expect(selectedMarker.remove).not.toHaveBeenCalled();
-    expect(plainMarker.remove).not.toHaveBeenCalled();
+  it("falls back to the unavailable notice without a key", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    const { container } = render(globeElement());
+    expect(container.querySelector("[data-map-fallback]")).toHaveTextContent("The map isn't available right now.");
+    expect(screen.queryByTestId("gmap")).toBeNull();
   });
 });
 
 describe("GlobeMap kit chrome", () => {
   it("frames the map with the kit 2px outline, not the old 1px/rounded-2xl shape", () => {
-    const { getByLabelText } = render(globeElement());
-    const frame = getByLabelText("Globe map");
+    render(globeElement());
+    const frame = screen.getByLabelText("Globe map");
     expect(frame).toHaveClass("border-2", "border-border", "rounded-lg");
     expect(frame).not.toHaveClass("rounded-2xl");
   });
 
   it("fills the viewport height beside the marker list from lg (ruling R3, LA-156)", () => {
-    const { getByLabelText } = render(globeElement());
-    const frame = getByLabelText("Globe map");
-    // 100dvh minus the page's top padding + sticky offset, the caption line
-    // under the map and a bottom gap — never shorter than the old 460px box.
+    render(globeElement());
+    const frame = screen.getByLabelText("Globe map");
     expect(frame).toHaveClass("lg:h-[calc(100dvh-4.5rem)]", "lg:min-h-[460px]");
     expect(frame).not.toHaveClass("lg:h-[460px]");
-    expect(frame).toHaveClass("h-[260px]"); // phones unchanged
-  });
-
-  it("builds popups from token classes (no raw hex, no emoji) in a themed popup shell", async () => {
-    render(
-      <GlobeMap
-        markers={MARKERS}
-        selectedId={null}
-        onSelect={vi.fn()}
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-        onMapClick={vi.fn()}
-        attachmentsByMarkerId={{ m1: [{ id: "a1" }, { id: "a2" }] }}
-      />,
-    );
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const [first] = hoisted.leaflet!.markers;
-    const [html, options] = first.bindPopup.mock.calls[0] as [string, { className?: string }];
-    expect(html).not.toMatch(/#[0-9a-f]{3,6}\b/i);
-    expect(html).not.toContain("📎");
-    expect(html).toContain("2 files");
-    // No <p>: leaflet.css's unlayered `.leaflet-popup-content p` margin would beat the utilities.
-    expect(html).not.toMatch(/<p[\s>]/);
-    expect(html).toContain("border-2");
-    expect(html).toMatch(/data-edit="m1"[^>]*>Edit</);
-    expect(html).toMatch(/data-delete="m1"[^>]*>Delete</);
-    expect(options?.className).toBe("tp-map-popup");
+    expect(frame).toHaveClass("h-[260px]");
   });
 });
 
-describe("GlobeMap selection popup", () => {
-  /** Turn the mock map's on/off into a tiny emitter so moveend can be fired by hand. */
-  function wireEmitter(map: { on: ReturnType<typeof vi.fn>; off: ReturnType<typeof vi.fn> }) {
-    const handlers = new Map<string, Set<() => void>>();
-    map.on.mockImplementation((type: string, fn: () => void) => {
-      (handlers.get(type) ?? handlers.set(type, new Set()).get(type)!).add(fn);
-      return map;
-    });
-    map.off.mockImplementation((type: string, fn?: () => void) => {
-      if (fn) handlers.get(type)?.delete(fn);
-      else handlers.delete(type);
-      return map;
-    });
-    return {
-      fire: (type: string) => [...(handlers.get(type) ?? [])].forEach((fn) => fn()),
-      count: (type: string) => handlers.get(type)?.size ?? 0,
-    };
-  }
-
-  it("opens the selected marker's popup only after the fly-to lands (moveend)", async () => {
-    const { rerender } = render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const map = hoisted.leaflet!.maps[0];
-    const bus = wireEmitter(map);
-    const [m1] = hoisted.leaflet!.markers;
-
-    rerender(globeElement("m1"));
-    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
-    expect(m1.openPopup).not.toHaveBeenCalled();
-
-    bus.fire("moveend");
-    expect(m1.openPopup).toHaveBeenCalledTimes(1);
-    expect(bus.count("moveend")).toBe(0); // the listener removes itself
-
-    bus.fire("moveend"); // a later pan must not reopen it
-    expect(m1.openPopup).toHaveBeenCalledTimes(1);
+describe("GlobeMap popup", () => {
+  it("builds the popup from token classes (no raw hex, no emoji) with the file count", () => {
+    render(globeElement("m1", {}, { attachmentsByMarkerId: { m1: [{ id: "a1" }, { id: "a2" }] } }));
+    const popup = screen.getByRole("dialog");
+    expect(popup).toHaveTextContent("Tokyo Tower");
+    expect(popup).toHaveTextContent("2 files");
+    expect(popup.innerHTML).not.toMatch(/#[0-9a-f]{3,6}\b/i);
+    expect(popup.innerHTML).not.toContain("📎");
+    expect(popup.innerHTML).toContain("border-2");
   });
 
-  it("opens the marker instance that exists when the fly lands, after a mid-flight replot", async () => {
-    const el = (selectedId: string | null, attachmentsByMarkerId?: Record<string, { id: string }[]>) => (
-      <GlobeMap
-        markers={MARKERS}
-        selectedId={selectedId}
-        onSelect={vi.fn()}
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-        onMapClick={vi.fn()}
-        attachmentsByMarkerId={attachmentsByMarkerId}
-      />
-    );
-    const { rerender } = render(el(null));
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const map = hoisted.leaflet!.maps[0];
-    const bus = wireEmitter(map);
-    const [oldM1] = hoisted.leaflet!.markers;
-
-    rerender(el("m1"));
-    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
-
-    // An attachment count change replots every marker (new instances) mid-flight.
-    rerender(el("m1", { m1: [{ id: "a1" }] }));
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(4));
-    const newM1 = hoisted.leaflet!.markers[2];
-    expect(newM1.latlng).toEqual(oldM1.latlng);
-
-    bus.fire("moveend");
-    expect(newM1.openPopup).toHaveBeenCalledTimes(1);
-    expect(oldM1.openPopup).not.toHaveBeenCalled();
+  it("Edit and Delete in the popup call onEdit and onDelete with the marker id", () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    render(globeElement("m1", { onEdit, onDelete }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(onEdit).toHaveBeenCalledWith("m1");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledWith("m1");
   });
 
-  it("removes a pending moveend listener on unmount", async () => {
-    const { rerender, unmount } = render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const map = hoisted.leaflet!.maps[0];
-    const bus = wireEmitter(map);
-
-    rerender(globeElement("m1"));
-    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
-    expect(bus.count("moveend")).toBe(1);
-
-    unmount();
-    expect(bus.count("moveend")).toBe(0);
+  it("opens only the selected marker's popup, and a pin click selects and opens it", () => {
+    const onSelect = vi.fn();
+    render(globeElement(null, { onSelect }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getAllByTestId("marker")[1]);
+    expect(onSelect).toHaveBeenCalledWith("m2");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Ramen");
   });
 
-  it("re-selecting mid-flight drops the first marker's pending open", async () => {
-    const { rerender } = render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
-    const map = hoisted.leaflet!.maps[0];
-    const bus = wireEmitter(map);
-    const [m1, m2] = hoisted.leaflet!.markers;
-
-    rerender(globeElement("m1"));
-    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
-    rerender(globeElement("m2")); // before the first fly lands
-    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(2));
-    expect(bus.count("moveend")).toBe(1);
-    expect(map.closePopup).toHaveBeenCalled();
-
-    bus.fire("moveend");
-    expect(m1.openPopup).not.toHaveBeenCalled();
-    expect(m2.openPopup).toHaveBeenCalledTimes(1);
+  it("closing the popup leaves it closed until the pin is clicked again", () => {
+    render(globeElement("m1"));
+    act(() => (mock.recorded.infoWindows.at(-1)!.onClose as () => void)());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getAllByTestId("marker")[0]);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 
-describe("GlobeMap bounded world (Feedback cmumcnbmn000004l7h5efbdl0)", () => {
-  it("bounds the map so North America cannot appear twice", async () => {
+describe("GlobeMap selection from outside", () => {
+  it("pans to the marker, lifts the zoom to 9 and opens its popup", () => {
+    mock.map.getZoom.mockReturnValue(4);
+    const { rerender } = render(globeElement());
+    expect(mock.map.panTo).not.toHaveBeenCalled();
+    rerender(globeElement("m2"));
+    expect(mock.map.panTo).toHaveBeenCalledWith({ lat: 35.69, lng: 139.7 });
+    expect(mock.map.setZoom).toHaveBeenCalledWith(9);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Ramen");
+  });
+
+  it("keeps a closer zoom as it is", () => {
+    mock.map.getZoom.mockReturnValue(12);
+    const { rerender } = render(globeElement());
+    rerender(globeElement("m1"));
+    expect(mock.map.panTo).toHaveBeenCalled();
+    expect(mock.map.setZoom).not.toHaveBeenCalledWith(9);
+  });
+
+  it("re-selecting moves the popup to the new marker only", () => {
+    const { rerender } = render(globeElement("m1"));
+    rerender(globeElement("m2"));
+    const dialogs = screen.getAllByRole("dialog");
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0]).toHaveTextContent("Ramen");
+  });
+});
+
+describe("GlobeMap map clicks and world view", () => {
+  it("a map click reports its lat and lng to onMapClick", () => {
+    const onMapClick = vi.fn();
+    render(globeElement(null, { onMapClick }));
+    (lastMapProps().onClick as (e: unknown) => void)({ detail: { latLng: { lat: 10.5, lng: -20.25 } } });
+    expect(onMapClick).toHaveBeenCalledWith(10.5, -20.25);
+  });
+
+  it("ignores a click with no coordinates", () => {
+    const onMapClick = vi.fn();
+    render(globeElement(null, { onMapClick }));
+    (lastMapProps().onClick as (e: unknown) => void)({ detail: { latLng: null } });
+    expect(onMapClick).not.toHaveBeenCalled();
+  });
+
+  it("restricts the map to one world with a minimum zoom of 2", () => {
     render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].options).toMatchObject({
-      worldCopyJump: false,
-      maxBounds: [[-85, -180], [85, 180]],
-      maxBoundsViscosity: 1,
-      minZoom: 1,
+    expect(lastMapProps()).toMatchObject({
+      minZoom: 2,
+      restriction: { latLngBounds: { north: 85, south: -85, west: -180, east: 180 }, strictBounds: false },
     });
   });
 
-  it("sets noWrap on the tile layer", async () => {
-    render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.tileLayers[0].options).toMatchObject({ noWrap: true });
+  it("fits the located markers once, and shows the whole world when there are none", () => {
+    const { rerender } = render(globeElement());
+    expect(mock.map.fitBounds).toHaveBeenCalledTimes(1);
+    rerender(globeElement(null, {}, { markers: [...MARKERS, { id: "m3", title: "Kyoto", category: "FOOD", lat: 35, lng: 135 } as unknown as MarkerView] }));
+    expect(mock.map.fitBounds).toHaveBeenCalledTimes(1);
+
+    mock.reset();
+    render(globeElement(null, {}, { markers: [] }));
+    expect(mock.map.fitBounds).not.toHaveBeenCalled();
+    expect(lastMapProps()).toMatchObject({ defaultCenter: { lat: 20, lng: 0 }, defaultZoom: 2 });
   });
 });
 
@@ -309,35 +213,24 @@ describe("GlobeMap arrival (?added=)", () => {
     { id: "s1", name: "Kyoto", lat: 35.01, lng: 135.77 },
     { id: "s2", name: "Nara", lat: 34.68, lng: 135.8 },
   ];
-  const el = (arrivalPins?: typeof PINS) => (
-    <GlobeMap markers={[]} selectedId={null} onSelect={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onMapClick={vi.fn()} arrivalPins={arrivalPins} />
-  );
 
-  it("draws numbered pins that pop in after the fly, 60ms apart, and flies to fit them", async () => {
-    render(el(PINS));
-    await waitFor(() => expect(hoisted.leaflet!.maps[0].flyToBounds).toHaveBeenCalled());
-    const pins = hoisted.leaflet!.markers.filter((m) => m.options.title);
-    expect(pins.map((m) => m.options.title)).toEqual(["Kyoto", "Nara"]);
-    expect(iconHtml(pins[0])).toMatch(/tp-pin-pop/);
-    expect(iconHtml(pins[0])).toMatch(/animation-delay:800ms/);
-    expect(iconHtml(pins[1])).toMatch(/animation-delay:860ms/);
-    expect(hoisted.leaflet!.maps[0].flyToBounds.mock.calls[0][0]).toEqual([[35.01, 135.77], [34.68, 135.8]]);
-    expect(hoisted.leaflet!.maps[0].flyToBounds.mock.calls[0][1]).toMatchObject({ maxZoom: 8, duration: 0.8 });
+  it("draws numbered pins that pop in after the fly, 60ms apart, and fits them with maxZoom 8", () => {
+    render(globeElement(null, {}, { markers: [], arrivalPins: PINS }));
+    const pins = screen.getAllByTestId("marker");
+    expect(pins.map((m) => m.getAttribute("title"))).toEqual(["Kyoto", "Nara"]);
+    const html = pins.map((m) => m.querySelector(".tp-map-pin")!.innerHTML);
+    expect(html[0]).toMatch(/tp-pin-pop/);
+    expect(html[0]).toMatch(/animation-delay:800ms/);
+    expect(html[1]).toMatch(/animation-delay:860ms/);
+    expect(mock.map.fitBounds).toHaveBeenCalledTimes(1);
+    const bounds = mock.map.fitBounds.mock.calls[0][0] as { points: unknown[] };
+    expect(bounds.points).toEqual([{ lat: 35.01, lng: 135.77 }, { lat: 34.68, lng: 135.8 }]);
+    expect(mock.map.addListener).toHaveBeenCalledWith("idle", expect.any(Function));
   });
 
-  it("reduced motion: fits at once with no delay", async () => {
-    setMatchMedia((q) => q.includes("prefers-reduced-motion: reduce"));
-    render(el(PINS));
-    await waitFor(() => expect(hoisted.leaflet!.markers.filter((m) => m.options.title)).toHaveLength(2));
-    expect(hoisted.leaflet!.maps[0].flyToBounds).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.maps[0].fitBounds).toHaveBeenLastCalledWith([[35.01, 135.77], [34.68, 135.8]], expect.objectContaining({ maxZoom: 8 }));
-    expect(iconHtml(hoisted.leaflet!.markers.filter((m) => m.options.title)[1])).toMatch(/animation-delay:0ms/);
-  });
-
-  it("without arrival pins draws nothing extra", async () => {
-    render(el());
-    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
-    expect(hoisted.leaflet!.maps[0].flyToBounds).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.markers.filter((m) => m.options.title)).toHaveLength(0);
+  it("without arrival pins draws nothing extra", () => {
+    render(globeElement(null, {}, { markers: [] }));
+    expect(screen.queryAllByTestId("marker")).toHaveLength(0);
+    expect(mock.map.fitBounds).not.toHaveBeenCalled();
   });
 });
