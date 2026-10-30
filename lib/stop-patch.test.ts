@@ -63,6 +63,18 @@ describe("mergeStopPatch", () => {
     expect(mergeStopPatch(located, { country: "France" })).not.toHaveProperty("placeId");
     expect(mergeStopPatch(located, { placeId: "paris-id", lat: 48.86, lng: 2.35 })).toMatchObject({ placeId: "paris-id", lat: 48.86 });
   });
+  it("the form's save of an unchanged place keeps the row's point and place ID (no re-lookup)", () => {
+    const located = { ...rough, placeId: "rome-id" };
+    expect(mergeStopPatch(located, { mode: "rough", name: "Rome", country: "Italy", nights: 3, chapterId: null, notes: "x" }))
+      .toMatchObject({ lat: 41.9, lng: 12.5, countryCode: "it", placeId: "rome-id" });
+    expect(mergeStopPatch(located, { name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, countryCode: "it" }))
+      .toMatchObject({ lat: 41.9, placeId: "rome-id" });
+  });
+  it("the form's save of a typed rename says where, so the save re-looks it up", () => {
+    const m = mergeStopPatch({ ...rough, placeId: "rome-id" }, { mode: "rough", name: "Florence", country: "Italy", nights: 3 });
+    expect(m).not.toHaveProperty("lat");
+    expect(m).not.toHaveProperty("placeId");
+  });
   it("the form's rough save with No chapter and emptied notes clears both", () => {
     const m = mergeStopPatch(rough, { mode: "rough", name: "Rome", country: "Italy", nights: 2, chapterId: null, notes: null });
     expect(m).toMatchObject({ mode: "rough", nights: 2 });

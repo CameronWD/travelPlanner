@@ -13,7 +13,8 @@
  *    is otherwise UNCHOSEN_TIMEZONE, so `updateStop` derives it from the
  *    final point and country (`resolveStopTimezone`, F3).
  *  - The point (lat/lng/countryCode/placeId) is the row's unless the patch
- *    says where (country, countryCode, lat, lng or placeId); then only the
+ *    says where (a country, countryCode, lat, lng or placeId that differs
+ *    from the row's, or a country sent with a new name); then only the
  *    patch's point counts and `updateStop` geocodes a missing one.
  *  - The Chapter (rough only): the patch's (`null` = none), else the row's.
  *
@@ -88,7 +89,15 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
     if (mismatch) return mismatch;
   }
 
-  const saysWhere = [patch.country, patch.countryCode, patch.lat, patch.lng, patch.placeId].some((v) => v !== undefined);
+  // Forms resend the whole Stop, so only a value that differs from the row's
+  // says where — else every save of an unchanged place would re-bill a lookup.
+  // A sent country says where on a rename too: typing a new name re-locates.
+  const same = (v: unknown) => (v === "" || v === undefined ? null : typeof v === "string" ? v.toLowerCase() : v);
+  const differs = (sent: unknown, row: unknown) => sent !== undefined && same(sent) !== same(row);
+  const renamed = patch.name !== undefined && patch.name !== current.name;
+  const saysWhere =
+    (patch.country !== undefined && (renamed || differs(patch.country, current.country))) ||
+    [differs(patch.countryCode, current.countryCode), differs(patch.lat, current.lat), differs(patch.lng, current.lng), differs(patch.placeId, current.placeId)].some(Boolean);
   const point = saysWhere
     ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined, placeId: patch.placeId ?? undefined }
     : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: current.placeId ?? undefined };

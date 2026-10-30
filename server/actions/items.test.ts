@@ -2245,6 +2245,17 @@ describe("Item place on save (Google)", () => {
       expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ placeId: "found-id" }) }));
     });
 
+    it("a row with a place and no address keeps it when the address stays empty", async () => {
+      itemFindUniqueMock.mockResolvedValue({ ...row, address: null });
+
+      await updateItem("item-1", { notes: "x" });
+
+      expect(locateVenueMock).not.toHaveBeenCalled();
+      expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ address: null, lat: 41.8902, lng: 12.4922, placeId: "colosseum-id" }),
+      }));
+    });
+
     it("clearing the address clears the place", async () => {
       await updateItem("item-1", { address: null });
 

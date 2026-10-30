@@ -569,6 +569,17 @@ describe("createStop", () => {
     for (const [arg] of stopCreateMock.mock.calls) expect(arg.data).toMatchObject({ placeId: "london-id", lat: 51.5, lng: -0.12 });
   });
 
+  it("a rough createStop whose point came without a place ID still looks it up, as before", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    geocodePlaceDetailedMock.mockResolvedValue({ lat: 41.9, lng: 12.5, countryCode: "it", placeId: "found-id" });
+
+    await createStop("trip-1", { ...ROUGH_INPUT, lat: 41.89, lng: 12.49 });
+
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it", placeId: "found-id" }) });
+  });
+
   it("createStop that looks its place up stores the found placeId", async () => {
     stopFindFirstMock.mockResolvedValue(null);
     stopCreateMock.mockResolvedValue({ id: "stop-1" });
@@ -1318,6 +1329,13 @@ describe("updateStop (PATCH, ADR 0075)", () => {
     geocodePlaceDetailedMock.mockResolvedValue(null);
     await updateStop("s1", { name: "Nowhere", country: "Italy" });
     expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lat: null, lng: null, placeId: null }) }));
+  });
+  it("the form's save of an unchanged scheduled Stop looks nothing up and keeps its place", async () => {
+    stopFindUniqueMock.mockResolvedValue({ ...held, placeId: "rome-id", nights: null, arriveDate: "2026-07-01", departDate: "2026-07-05", timezone: "Europe/Rome", chapterId: null });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("s1", { mode: "scheduled", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-07-01", departDate: "2026-07-05", notes: "new notes" });
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lat: 41.9, lng: 12.5, countryCode: "it", placeId: "rome-id" }) }));
   });
   it("a lone date on a rough Stop is refused before anything is written", async () => {
     stopFindUniqueMock.mockResolvedValue(held);

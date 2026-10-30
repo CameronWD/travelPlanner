@@ -35,10 +35,10 @@ export async function placeForSave({
   lookUp: (text: string) => Promise<GeoCandidate | null>;
 }): Promise<{ place: SavedPlace; source: PlaceSource }> {
   if (pick) return { place: pick, source: "pick" };
-  if (!text) return { place: NO_PLACE, source: "none" };
-  if (before && before.text === text && before.place.lat != null && before.place.lng != null) {
+  if (before && (before.text || null) === (text || null) && before.place.lat != null && before.place.lng != null) {
     return { place: before.place, source: "kept" };
   }
+  if (!text) return { place: NO_PLACE, source: "none" };
   return { place: foundPlace(await lookUp(text)) ?? NO_PLACE, source: "looked-up" };
 }
 

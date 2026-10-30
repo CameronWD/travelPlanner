@@ -69,9 +69,11 @@ async function requireStopAccess(stopId: string) {
   return { ...row, surpriseOf };
 }
 
-// A picked point (spec 2026-10-06 §L) is taken as sent; otherwise "name, country" is looked up best-effort.
-async function stopPlace(input: { name: string; country?: string; lat?: number; lng?: number; placeId?: string }) {
-  if (input.lat !== undefined && input.lng !== undefined) {
+// A scheduled Stop takes a sent point as picked (spec 2026-10-06 §L). A rough one
+// always looked itself up (that is where its countryCode came from), so it skips
+// the lookup only for a full pick with its place ID.
+async function stopPlace(input: { mode: "rough" | "scheduled"; name: string; country?: string; lat?: number; lng?: number; placeId?: string }) {
+  if (input.lat !== undefined && input.lng !== undefined && (input.mode === "scheduled" || input.placeId !== undefined)) {
     return { lat: input.lat, lng: input.lng, countryCode: null, placeId: input.placeId ?? null };
   }
   const found = await geocodePlaceDetailed([input.name, input.country].filter(Boolean).join(", "));
