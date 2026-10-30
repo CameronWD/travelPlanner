@@ -1,11 +1,11 @@
 import "server-only";
 import { haversineKm, type LatLng } from "@/lib/geo";
 import type { OpeningHours } from "@/lib/opening-hours";
+import { fetchJson as fetchGoogleJson, finite, hasServerKey, isRecord, serverKey } from "@/lib/google-fetch";
 import { openingHoursFromGoogle, parseGooglePeriods } from "@/lib/opening-hours-google";
 
 const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const PLACES_URL = "https://places.googleapis.com/v1/places";
-const TIMEOUT_MS = 5_000;
 const LANGUAGE = "en";
 const NEAR_BOUNDS_DEG = 0.5;
 const NEAR_BIAS_RADIUS_M = 50_000;
@@ -64,34 +64,11 @@ const REGION_TYPES = new Set([
 ]);
 const CITY_TYPES = ["locality", "postal_town", "administrative_area_level_3"];
 
-function serverKey(): string | null {
-  return process.env.GOOGLE_MAPS_SERVER_KEY?.trim() || null;
-}
-
-export function hasServerKey(): boolean {
-  return serverKey() !== null;
-}
+export { hasServerKey };
 
 async function fetchJson(url: string, init: RequestInit = {}): Promise<unknown | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
-function finite(n: unknown): n is number {
-  return typeof n === "number" && Number.isFinite(n);
+  const res = await fetchGoogleJson(url, init);
+  return res.ok ? res.body : null;
 }
 
 function readComponents(raw: unknown, textKey: string, shortKey: string): Component[] {
