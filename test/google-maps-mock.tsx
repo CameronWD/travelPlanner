@@ -38,6 +38,7 @@ export type FakePrediction = {
   lng?: number;
   formattedAddress?: string;
   countryCode?: string;
+  country?: string;
 };
 
 function withoutChildren(props: Props) {
@@ -90,7 +91,7 @@ export function createGoogleMapsMock() {
       id: p.placeId,
       location: p.lat === undefined || p.lng === undefined ? null : { lat: () => p.lat, lng: () => p.lng },
       formattedAddress: p.formattedAddress ?? null,
-      addressComponents: p.countryCode ? [{ longText: p.countryCode, shortText: p.countryCode.toUpperCase(), types: ["country", "political"] }] : [],
+      addressComponents: p.countryCode ? [{ longText: p.country ?? p.countryCode, shortText: p.countryCode.toUpperCase(), types: ["country", "political"] }] : [],
       regularOpeningHours: null,
       websiteURI: null,
       businessStatus: null,

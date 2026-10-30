@@ -47,15 +47,20 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
   const [dismissed, setDismissed] = React.useState<PlaceSuggestion[] | null>(null);
   const [highlight, setHighlight] = React.useState<{ list: PlaceSuggestion[]; index: number } | null>(null);
   const edits = React.useRef(0);
+  // Between a pick and its place arriving the list is closed, so a second Enter would otherwise submit the typed text.
+  const picking = React.useRef(false);
 
   const open = dismissed !== suggestions;
   const active = highlight?.list === suggestions ? highlight.index : suggestions.length ? 0 : -1;
 
   async function choose(s: PlaceSuggestion) {
     const mine = ++edits.current;
+    picking.current = true;
     setDismissed(suggestions);
     const place = await pick(s.id);
-    if (!place || mine !== edits.current) return;
+    if (mine !== edits.current) return;
+    picking.current = false;
+    if (!place) return;
     onValueChange(place.name);
     onPick(place);
   }
@@ -63,6 +68,7 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     const next = e.target.value;
     edits.current++;
+    picking.current = false;
     search(next);
     onValueChange(next);
   }
@@ -74,6 +80,11 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && picking.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (!available) return;
     if (e.key === "ArrowDown" && suggestions.length) {
       e.preventDefault();

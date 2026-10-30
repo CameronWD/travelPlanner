@@ -7,7 +7,7 @@ vi.mock("@vis.gl/react-google-maps", () => mock.module);
 import { usePlaceSuggestions } from "./use-place-suggestions";
 import { resetMapsAuthForTests } from "@/components/map/maps-auth";
 
-const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp" };
+const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp", country: "Japan" };
 
 beforeEach(() => {
   mock.reset();
@@ -83,6 +83,30 @@ describe("usePlaceSuggestions", () => {
       picked = await result.current.pick("ChIJJp");
     });
     expect(picked).toEqual({ name: "Japan", lat: 36, lng: 138, placeId: "ChIJJp" });
+  });
+
+  it("a pick names the country in full where Google abbreviates it", async () => {
+    mock.places.predictions = [{ placeId: "ChIJPdx", mainText: "Portland", secondaryText: "OR, USA", lat: 45.52, lng: -122.68, countryCode: "us", country: "United States" }];
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    act(() => result.current.search("Portl"));
+    await waitFor(() => expect(result.current.suggestions).toHaveLength(1));
+    let picked: { region?: string } | null = null;
+    await act(async () => {
+      picked = await result.current.pick("ChIJPdx");
+    });
+    expect(picked!.region).toBe("OR, United States");
+  });
+
+  it("a country pick has no region", async () => {
+    mock.places.predictions = [{ placeId: "ChIJJp", mainText: "Japan", lat: 36, lng: 138, countryCode: "jp", country: "Japan" }];
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    act(() => result.current.search("Japa"));
+    await waitFor(() => expect(result.current.suggestions).toHaveLength(1));
+    let picked: { region?: string } | null = null;
+    await act(async () => {
+      picked = await result.current.pick("ChIJJp");
+    });
+    expect(picked).not.toHaveProperty("region");
   });
 
   it("reset starts a new session", async () => {

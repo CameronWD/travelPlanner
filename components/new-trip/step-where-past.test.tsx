@@ -8,7 +8,7 @@ vi.mock("@vis.gl/react-google-maps", () => mock.module);
 import { StepWherePast } from "./step-where-past";
 import { StepHarness, currentDraft } from "./step-harness.test-utils";
 
-const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp" };
+const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp", country: "Japan" };
 const combo = () => screen.getByRole("combobox", { name: "Add a place" });
 const past = { past: true, startDate: "2026-08-01", endDate: "2026-08-10" };
 

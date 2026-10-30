@@ -17,6 +17,14 @@ const PICK_FIELDS = ["id", "location", "formattedAddress", "addressComponents"];
 type Found = { suggestions: PlaceSuggestion[]; status: SuggestionStatus };
 const NOTHING: Found = { suggestions: [], status: "idle" };
 
+// Google abbreviates some countries in the secondary text ("OR, USA"); forms take the country from its last part.
+function regionWithCountry(name: string, secondary: string | undefined, country: string | undefined): string | undefined {
+  const parts = (secondary ?? "").split(",").map((p) => p.trim()).filter(Boolean);
+  if (!country) return parts.join(", ") || undefined;
+  if (!parts.length) return country === name ? undefined : country;
+  return [...parts.slice(0, -1), country].join(", ");
+}
+
 export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: google.maps.LatLngLiteral }) {
   const places = useMapsLibrary("places");
   const keyed = usePlacesAvailable();
@@ -93,10 +101,12 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
       return null;
     }
     if (!place.location) return null;
-    const region = prediction.secondaryText?.text;
-    const countryCode = place.addressComponents?.find((c) => c.types.includes("country"))?.shortText?.toLowerCase();
+    const name = prediction.mainText?.text ?? prediction.text.text;
+    const country = place.addressComponents?.find((c) => c.types.includes("country"));
+    const region = regionWithCountry(name, prediction.secondaryText?.text, country?.longText ?? undefined);
+    const countryCode = country?.shortText?.toLowerCase();
     return {
-      name: prediction.mainText?.text ?? prediction.text.text,
+      name,
       ...(region ? { region } : {}),
       lat: place.location.lat(),
       lng: place.location.lng(),

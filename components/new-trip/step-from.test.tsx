@@ -8,8 +8,8 @@ vi.mock("@vis.gl/react-google-maps", () => mock.module);
 import { StepFrom } from "./step-from";
 import { StepHarness, currentDraft } from "./step-harness.test-utils";
 
-const PORTLAND = { placeId: "ChIJPortland", mainText: "Portland", secondaryText: "OR, USA", lat: 45.52, lng: -122.68, formattedAddress: "Portland, OR, USA", countryCode: "us" };
-const HANOI = { placeId: "ChIJHanoi", mainText: "Hanoi", secondaryText: "Vietnam", lat: 21.03, lng: 105.85, formattedAddress: "Hanoi, Vietnam", countryCode: "vn" };
+const PORTLAND = { placeId: "ChIJPortland", mainText: "Portland", secondaryText: "OR, USA", lat: 45.52, lng: -122.68, formattedAddress: "Portland, OR, USA", countryCode: "us", country: "United States" };
+const HANOI = { placeId: "ChIJHanoi", mainText: "Hanoi", secondaryText: "Vietnam", lat: 21.03, lng: 105.85, formattedAddress: "Hanoi, Vietnam", countryCode: "vn", country: "Vietnam" };
 const combo = () => screen.getByRole("combobox", { name: "Leaving from" });
 
 async function pick(query: string) {

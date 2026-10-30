@@ -253,7 +253,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
 
   it("past mode: dates and a stop, then the Globe", async () => {
     createTrip.mockResolvedValue({ success: true, tripId: "t9", href: "/globe?added=t9" });
-    maps.places.predictions = [{ placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp" }];
+    maps.places.predictions = [{ placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp", country: "Japan" }];
     flow({ past: true });
     await userEvent.type(nameInput(), "Kansai");
     await clickContinue();
@@ -280,7 +280,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
   });
 
   it("the currency follows the home place", async () => {
-    maps.places.predictions = [{ placeId: "ChIJPortland", mainText: "Portland", secondaryText: "OR, USA", lat: 45.52, lng: -122.68, formattedAddress: "Portland, OR, USA", countryCode: "us" }];
+    maps.places.predictions = [{ placeId: "ChIJPortland", mainText: "Portland", secondaryText: "OR, USA", lat: 45.52, lng: -122.68, formattedAddress: "Portland, OR, USA", countryCode: "us", country: "United States" }];
     flow();
     await userEvent.type(nameInput(), "Kyoto");
     await clickContinue();

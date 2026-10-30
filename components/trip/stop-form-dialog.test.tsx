@@ -155,7 +155,7 @@ describe("StopFormDialog", () => {
   });
 
   describe("place search on edit (spec 2026-10-06 §L)", () => {
-    const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp" };
+    const KYOTO = { placeId: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan", lat: 35.01, lng: 135.77, formattedAddress: "Kyoto, Japan", countryCode: "jp", country: "Japan" };
     const LONDON = {
       id: "stop-1", name: "London", country: "United Kingdom", timezone: "Europe/London",
       arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, chapterId: null, sortOrder: 0, notes: null, lat: 51.5, lng: -0.12,
@@ -247,7 +247,7 @@ describe("StopFormDialog", () => {
       expect(updateStop).toHaveBeenLastCalledWith("stop-2", expect.objectContaining({ mode: "rough", chapterId: null }));
     });
 
-    const BRISBANE = { placeId: "ChIJBrisbane", mainText: "Brisbane", secondaryText: "QLD, Australia", lat: -27.47, lng: 153.03, formattedAddress: "Brisbane QLD, Australia", countryCode: "au" };
+    const BRISBANE = { placeId: "ChIJBrisbane", mainText: "Brisbane", secondaryText: "QLD, Australia", lat: -27.47, lng: 153.03, formattedAddress: "Brisbane QLD, Australia", countryCode: "au", country: "Australia" };
 
     it("a pick previews the zone at the picked point once the lookup loads (F3)", async () => {
       maps.places.predictions = [BRISBANE];

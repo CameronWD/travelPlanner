@@ -11,8 +11,8 @@ import { resetMapsAuthForTests } from "@/components/map/maps-auth";
 import type { PlaceKind } from "@/components/places/use-place-suggestions";
 import { PlaceCombobox, type PickedPlace } from "./place-combobox";
 
-const SYD_AU = { placeId: "ChIJSydAu", mainText: "Sydney", secondaryText: "NSW, Australia", lat: -33.87, lng: 151.21, formattedAddress: "Sydney NSW, Australia", countryCode: "au" };
-const SYD_CA = { placeId: "ChIJSydCa", mainText: "Sydney", secondaryText: "NS, Canada", lat: 46.14, lng: -60.19, formattedAddress: "Sydney, NS, Canada", countryCode: "ca" };
+const SYD_AU = { placeId: "ChIJSydAu", mainText: "Sydney", secondaryText: "NSW, Australia", lat: -33.87, lng: 151.21, formattedAddress: "Sydney NSW, Australia", countryCode: "au", country: "Australia" };
+const SYD_CA = { placeId: "ChIJSydCa", mainText: "Sydney", secondaryText: "NS, Canada", lat: 46.14, lng: -60.19, formattedAddress: "Sydney, NS, Canada", countryCode: "ca", country: "Canada" };
 const HINT = "Suggestions aren't available — the place is looked up when you save.";
 
 const submitted = vi.fn();
@@ -168,6 +168,22 @@ describe("PlaceCombobox", () => {
     await act(async () => finish());
     expect(onPick).not.toHaveBeenCalled();
     expect(input()).toHaveValue("Sydx");
+  });
+
+  it("Enter while a pick loads neither submits the form nor picks twice", async () => {
+    let finish: () => void = () => {};
+    mock.places.fetchFields.mockImplementationOnce(() => new Promise<void>((r) => { finish = r; }));
+    const onPick = vi.fn();
+    render(<Harness onPick={onPick} />);
+    await userEvent.type(input(), "Syd");
+    await screen.findAllByRole("option");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("{Enter}");
+    expect(submitted).not.toHaveBeenCalled();
+    expect(outerKey).not.toHaveBeenCalledWith("Enter");
+    await act(async () => finish());
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(input()).toHaveValue("Sydney");
   });
 
   it("a rejected suggestions call degrades to a plain input with the hint", async () => {
