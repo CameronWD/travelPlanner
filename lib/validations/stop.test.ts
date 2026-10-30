@@ -145,3 +145,13 @@ describe("stopSchema rough mode", () => {
     expect(r.success).toBe(false);
   });
 });
+
+describe("stopSchema — Google place", () => {
+  it("accepts a placeId on a scheduled and a rough stop", () => {
+    expect(stopSchema.safeParse({ ...VALID, placeId: "abc123" }).success).toBe(true);
+    expect(stopSchema.safeParse({ mode: "rough", name: "Kyoto", nights: 2, placeId: "abc123" }).success).toBe(true);
+  });
+  it("rejects an empty placeId", () => {
+    expect(stopSchema.safeParse({ ...VALID, placeId: "" }).success).toBe(false);
+  });
+});

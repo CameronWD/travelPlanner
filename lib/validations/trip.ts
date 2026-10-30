@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { isValidTimeZone } from "@/lib/tz";
-import { isoDate } from "@/lib/validations/primitives";
+import { isoDate, placeId } from "@/lib/validations/primitives";
 
 /** A YYYY-MM-DD date that is optional: a blank string (from an empty date input) is treated as "no date". */
 const optionalIsoDate = z.preprocess(
@@ -16,6 +16,7 @@ const tripFields = {
   hardEndDate: optionalIsoDate,
   homeCurrency: z.enum(CURRENCY_CODES as [string, ...string[]], { error: "Select a valid currency." }),
   homeName: z.string().trim().max(120, "Home base must be 120 characters or fewer").optional().or(z.literal("")),
+  homePlaceId: placeId.optional(),
   homeTimezone: z.string().trim()
     .refine((zone) => zone === "" || isValidTimeZone(zone), "Pick a timezone from the list.")
     .optional(),

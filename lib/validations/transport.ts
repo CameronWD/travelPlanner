@@ -4,6 +4,7 @@ import { bookBySchema } from "@/lib/validations/planning";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { WALL_TIME_RE } from "@/lib/wall-time";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { placeId } from "@/lib/validations/primitives";
 
 /**
  * A transport time as submitted. Two shapes survive parsing:
@@ -53,6 +54,9 @@ export const transportSchema = z.object({
   depPlace: z.string().trim().optional(),
   /** Free-text arrival place name. */
   arrPlace: z.string().trim().optional(),
+
+  depPlaceId: placeId.optional(),
+  arrPlaceId: placeId.optional(),
 
   /** Departure instant (datetime-local or ISO string → stored as Date). */
   depAt: isoDatetime,

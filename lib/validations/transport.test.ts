@@ -163,3 +163,14 @@ describe("transportSchema paidAt calendar validity and amount cap", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("transportSchema — Google place", () => {
+  it("accepts depPlaceId/arrPlaceId", () => {
+    const r = transportSchema.safeParse({ ...VALID_BASE, depPlaceId: "abc", arrPlaceId: "def" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toMatchObject({ depPlaceId: "abc", arrPlaceId: "def" });
+  });
+  it("rejects an overlong place ID", () => {
+    expect(transportSchema.safeParse({ ...VALID_BASE, depPlaceId: "x".repeat(301) }).success).toBe(false);
+  });
+});

@@ -208,6 +208,12 @@ describe("createTripSchema — New trip flow fields", () => {
     const r = createTripSchema.parse({ ...base, homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "AU" });
     expect(r).toMatchObject({ homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au" });
   });
+  it("accepts homePlaceId", () => {
+    expect(createTripSchema.parse({ ...base, homeName: "Sydney", homePlaceId: "abc123" }).homePlaceId).toBe("abc123");
+  });
+  it("rejects an overlong homePlaceId", () => {
+    expect(createTripSchema.safeParse({ ...base, homePlaceId: "x".repeat(301) }).success).toBe(false);
+  });
   it("threads fromShareToken through", () => {
     expect(createTripSchema.parse({ ...base, fromShareToken: "tok" }).fromShareToken).toBe("tok");
   });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
+import { placeId } from "@/lib/validations/primitives";
 
 /** "" | undefined -> undefined; otherwise the trimmed string. */
 const optionalText = (max: number) =>
@@ -37,6 +38,7 @@ export const markerSchema = z.object({
     })
     .transform((v) => (v === "" || v === undefined ? undefined : v)),
   timing: optionalText(120),
+  placeId: placeId.optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   city: optionalText(140),

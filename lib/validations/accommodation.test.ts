@@ -81,6 +81,7 @@ describe("accommodationSchema", () => {
       address: "123 Main St",
       confirmation: "ABC123",
       notes: "Non-smoking room please",
+      placeId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
       lat: 51.5,
       lng: -0.1,
     });
@@ -237,5 +238,17 @@ describe("accommodationDateWarnings", () => {
       STOP,
     );
     expect(warnings).toContainEqual(expect.stringMatching(/after you leave/i));
+  });
+});
+
+describe("accommodationSchema — Google place", () => {
+  it("accepts a picked place (placeId + lat + lng)", () => {
+    expect(accommodationSchema.safeParse({ ...VALID, placeId: "abc123", lat: 51.5, lng: -0.1 }).success).toBe(true);
+  });
+  it("rejects lat/lng without placeId", () => {
+    expect(accommodationSchema.safeParse({ ...VALID, lat: 51.5, lng: -0.1 }).success).toBe(false);
+  });
+  it("rejects out-of-range coordinates", () => {
+    expect(accommodationSchema.safeParse({ ...VALID, placeId: "p", lat: 95, lng: 0 }).success).toBe(false);
   });
 });

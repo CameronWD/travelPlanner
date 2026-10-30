@@ -58,3 +58,14 @@ describe("markerSchema", () => {
     }
   });
 });
+
+describe("markerSchema — Google place", () => {
+  it("accepts a placeId", () => {
+    const r = markerSchema.safeParse({ title: "Tokyo Tower", category: "SIGHTSEEING", placeId: "abc123" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.placeId).toBe("abc123");
+  });
+  it("rejects an empty placeId", () => {
+    expect(markerSchema.safeParse({ title: "X", category: "OTHER", placeId: "" }).success).toBe(false);
+  });
+});

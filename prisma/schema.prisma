@@ -481,6 +481,7 @@ model Trip {
   // date engine. Auto-geocoded on save like a Stop. roundTrip drives the
   // return-leg nudge/flag.
   homeName        String?
+  homePlaceId     String? // Google place ID of the Home base
   homeLat         Float?
   homeLng         Float?
   homeCountryCode String?
@@ -625,7 +626,8 @@ model Stop {
   forkId           String?
   name             String
   country          String?
-  countryCode      String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from Nominatim); null while un-derived
+  countryCode      String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from the geocoder); null while un-derived
+  placeId          String? // Google place ID — set by a pick or the backfill
   lat              Float?
   lng              Float?
   timezone         String? // IANA — null while rough
@@ -716,6 +718,8 @@ model Transport {
   depPlace   String?
   depAt      DateTime?
   arrPlace   String?
+  depPlaceId String? // Google place ID of the departure end
+  arrPlaceId String? // Google place ID of the arrival end
   arrAt      DateTime?
   depLat     Float?
   depLng     Float?
@@ -761,6 +765,7 @@ model Accommodation {
   stopId       String
   name         String
   address      String?
+  placeId      String? // Google place ID — set by a pick or the backfill
   checkIn      String // "YYYY-MM-DD"
   checkOut     String // "YYYY-MM-DD"
   checkInTime  String? // "HH:mm" in the stop's local timezone — optional (CONTEXT.md Accommodation)
@@ -801,6 +806,8 @@ model Item {
   lng       Float?
   countryCode String? // ISO 3166-1 alpha-2, lowercase, derived by geocoding — same as Stop/Marker
   address   String?
+  placeId   String? // Google place ID — set by a pick or the backfill
+  businessStatus String? // Google: OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
   link      String?
   booking   String?
   notes     String?
@@ -1241,7 +1248,8 @@ model Marker {
   lng         Float?
   city        String? // auto-derived town/city
   country     String? // auto-derived country name
-  countryCode String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from Nominatim)
+  countryCode String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from the geocoder)
+  placeId     String? // Google place ID — set by a pick or the backfill
   createdById String
 
   globe          Globe  @relation(fields: [globeId], references: [id], onDelete: Cascade)
@@ -1523,4 +1531,14 @@ model DeletedBlob {
 model OperatorNotice {
   key        String   @id
   lastSentAt DateTime
+}
+
+/// Per-UTC-day counter of paid Google calls the app makes itself
+/// (takeGoogleQuota) — holds Enterprise spend. day is "YYYY-MM-DD" in UTC.
+model GoogleUsage {
+  day   String
+  sku   String
+  count Int    @default(0)
+
+  @@id([day, sku])
 }

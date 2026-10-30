@@ -59,6 +59,7 @@ describe("itemSchema — valid inputs", () => {
       link: "https://example.com",
       booking: "REF123",
       notes: "Book tickets in advance",
+      placeId: "ChIJLU7jZClu5kcR4PcOOO6p3I0",
       lat: 48.8584,
       lng: 2.2945,
     });
@@ -328,5 +329,34 @@ describe("itemSchema: tryList (CONTEXT.md Try list)", () => {
     expect(r.error?.issues[0].path[0]).toBe("tryList");
     const many = itemSchema.safeParse({ title: "Market", category: "FOOD", tryList: Array.from({ length: 31 }, (_, i) => ({ text: `T${i}` })) });
     expect(many.error?.issues[0]).toMatchObject({ path: ["tryList"], message: "At most 30 things to try" });
+  });
+});
+
+describe("itemSchema — Google place", () => {
+  it("accepts a picked place (placeId + lat + lng)", () => {
+    const r = itemSchema.safeParse({ ...VALID_UNSCHEDULED, placeId: "abc123", lat: 35.66, lng: 139.7, countryCode: "jp" });
+    expect(r.success).toBe(true);
+  });
+  it("accepts a placeId alone", () => {
+    expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, placeId: " abc " }).success).toBe(true);
+  });
+  it("rejects lat/lng without placeId", () => {
+    expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, lat: 35.66, lng: 139.7 }).success).toBe(false);
+  });
+  it("rejects out-of-range coordinates", () => {
+    expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, placeId: "p", lat: 91, lng: 0 }).success).toBe(false);
+    expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, placeId: "p", lat: 0, lng: 181 }).success).toBe(false);
+  });
+  it("rejects an empty or overlong placeId", () => {
+    expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, placeId: "  " }).success).toBe(false);
+    expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, placeId: "x".repeat(301) }).success).toBe(false);
+  });
+  it("accepts a known businessStatus", () => {
+    for (const businessStatus of ["OPERATIONAL", "CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY"]) {
+      expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, businessStatus }).success).toBe(true);
+    }
+  });
+  it("rejects an unknown businessStatus", () => {
+    expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, businessStatus: "GONE" }).success).toBe(false);
   });
 });
