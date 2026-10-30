@@ -1,5 +1,6 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { setMatchMedia } from "@/test/setup";
 import { pinHtml } from "@/lib/map/pins";
 import { stopHex } from "@/lib/stop-colours";
 
@@ -190,7 +191,21 @@ describe("RouteMap sizing and frame", () => {
     expect(frame().className).toMatch(/\bshadow-hard-2\b/);
     expect(frame().className.split(/\s+/)).not.toContain("border");
     expect(screen.getByTestId("gmap").className.split(/\s+/)).toContain("tp-map");
-    expect(screen.getByLabelText("Trip route map")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Trip route map" })).toBe(frame());
+  });
+
+  it("the element carrying frameClassName is the labelled region that contains the map, so a caller's flex-1 sizes it", () => {
+    render(
+      <div className="flex flex-col" data-testid="parent">
+        <RouteMap stops={STOPS} frameClassName="min-h-[240px] flex-1 rounded-lg" />
+      </div>,
+    );
+    const region = screen.getByRole("region", { name: "Trip route map" });
+    expect(region.className).toMatch(/\bflex-1\b/);
+    expect(region.className).toMatch(/min-h-\[240px\]/);
+    expect(region.parentElement).toBe(screen.getByTestId("parent"));
+    expect(region).toContainElement(screen.getByTestId("gmap"));
+    expect(screen.getByTestId("gmap").parentElement).toBe(region);
   });
 
   it("frameClassName replaces the default frame and the fixed height", () => {
@@ -259,6 +274,64 @@ describe("RouteMap kit pins and legs", () => {
   });
 });
 
+describe("RouteMap leg draw-in (MOTION.md S5)", () => {
+  const during = { stage: "during", currentStopId: "s3" } as const;
+  const tip = (i: number) => (lines()[i].path as { lat: number; lng: number }[])[1];
+  let raf: Array<(t: number) => void>;
+  const frames = (t: number) => {
+    const queued = raf;
+    raf = [];
+    act(() => queued.forEach((cb) => cb(t)));
+  };
+
+  beforeEach(() => {
+    raf = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: (t: number) => void) => raf.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("grows a travelled leg from its start to its end over 700ms", () => {
+    render(<RouteMap stops={THREE} progress={during} />);
+    expect(tip(0)).toEqual({ lat: STOPS[0].lat, lng: STOPS[0].lng });
+    frames(1000);
+    frames(1350);
+    const mid = tip(0);
+    expect(mid.lng).toBeLessThan(STOPS[0].lng);
+    expect(mid.lng).toBeGreaterThan(STOPS[1].lng);
+    frames(1700);
+    expect(tip(0)).toEqual({ lat: STOPS[1].lat, lng: STOPS[1].lng });
+    expect(raf).toHaveLength(0);
+  });
+
+  it("draws the untravelled legs whole from the start", () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
+    expect(tip(1)).toEqual({ lat: THREE[2].lat, lng: THREE[2].lng });
+  });
+
+  it("does not draw in after the trip", () => {
+    render(<RouteMap stops={THREE} progress={{ stage: "after" }} />);
+    expect(tip(0)).toEqual({ lat: STOPS[1].lat, lng: STOPS[1].lng });
+    expect(raf).toHaveLength(0);
+  });
+
+  it("is full immediately under reduced motion", () => {
+    setMatchMedia((q) => q.includes("prefers-reduced-motion"));
+    render(<RouteMap stops={THREE} progress={during} />);
+    expect(tip(0)).toEqual({ lat: STOPS[1].lat, lng: STOPS[1].lng });
+    expect(raf).toHaveLength(0);
+  });
+
+  it("does not replay on a theme flip", () => {
+    const { rerender } = render(<RouteMap stops={THREE} progress={during} />);
+    frames(1000);
+    frames(1800);
+    hoisted.theme = "dark";
+    rerender(<RouteMap stops={THREE} progress={during} />);
+    expect(tip(0)).toEqual({ lat: STOPS[1].lat, lng: STOPS[1].lng });
+  });
+});
+
 describe("RouteMap progress (SHARE.md §5)", () => {
   it("draws travelled legs solid and the rest dashed during the trip", () => {
     render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
@@ -276,12 +349,22 @@ describe("RouteMap progress (SHARE.md §5)", () => {
     expect(here[0]).toContain("tp-tag-drop");
   });
 
-  it("a theme flip redraws the here pin without replaying its entrance", () => {
-    const { rerender } = render(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-    hoisted.theme = "dark";
-    rerender(<RouteMap stops={THREE} progress={{ stage: "during", currentStopId: "s2" }} />);
-    const redrawn = pinHtmls().find((h) => h.includes("They're here"))!;
-    expect(redrawn).not.toMatch(/tp-pin-pop|tp-tag-drop/);
+  it("entrances play once: a dark, light, dark flip never replays them, and a stop added later pops once", () => {
+    const during = { stage: "during", currentStopId: "s2" } as const;
+    const { rerender } = render(<RouteMap stops={THREE} progress={during} />);
+    const entrance = /tp-pin-pop|tp-tag-drop|tp-pop/;
+    expect(pinHtmls().find((h) => h.includes("They're here"))).toMatch(entrance);
+    for (const theme of ["dark", "light", "dark"] as const) {
+      hoisted.theme = theme;
+      rerender(<RouteMap stops={THREE} progress={during} />);
+      expect(pinHtmls().filter((h) => entrance.test(h))).toEqual([]);
+    }
+    const FLORENCE = { id: "s4", name: "Florence", lat: 43.77, lng: 11.25, arriveDate: "2026-01-09", departDate: "2026-01-11", sortOrder: 3 };
+    rerender(<RouteMap stops={[...THREE, FLORENCE]} progress={during} />);
+    expect(pinHtmls()[3]).toContain('class="tp-pop"');
+    hoisted.theme = "light";
+    rerender(<RouteMap stops={[...THREE, FLORENCE]} progress={during} />);
+    expect(pinHtmls().filter((h) => entrance.test(h))).toEqual([]);
   });
 
   it("draws every leg solid after the trip, with no tag", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDateRange } from "@/lib/dates";
@@ -169,10 +169,34 @@ function MapFallback({ stops }: { stops: RouteMapStop[] }) {
 
 type Point = { lat: number; lng: number };
 
-function Leg({ from, to, color, weight, opacity, dashed }: { from: Point; to: Point; color: string; weight: number; opacity: number; dashed: boolean }) {
+const LEG_DRAW_MS = 700;
+const easePop = (t: number) => 1 - Math.pow(1 - t, 3);
+
+function Leg({ from, to, color, weight, opacity, dashed, draw = false }: { from: Point; to: Point; color: string; weight: number; opacity: number; dashed: boolean; draw?: boolean }) {
+  // Decided at mount: a later re-render must not cut the draw short or restart it.
+  const [animate] = useState(() => draw && !window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [frac, setFrac] = useState(animate ? 0 : 1);
+
+  useEffect(() => {
+    if (!animate) return;
+    let frame = 0;
+    let start: number | null = null;
+    const step = (now: number) => {
+      start ??= now;
+      const t = Math.min(1, (now - start) / LEG_DRAW_MS);
+      setFrac(easePop(t));
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [animate]);
+
   const path = useMemo(
-    () => [{ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }],
-    [from.lat, from.lng, to.lat, to.lng],
+    () => [
+      { lat: from.lat, lng: from.lng },
+      { lat: from.lat + (to.lat - from.lat) * frac, lng: from.lng + (to.lng - from.lng) * frac },
+    ],
+    [from.lat, from.lng, to.lat, to.lng, frac],
   );
   return <MapPolyline path={path} color={color} weight={weight} opacity={opacity} dashed={dashed} geodesic />;
 }
@@ -189,11 +213,12 @@ const popupText = "block text-xs font-medium text-muted-foreground";
 // ---------------------------------------------------------------------------
 
 export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect, onStopClick, progress, frameClassName, theme }: RouteMapProps) {
+  "use no memo";
   const { theme: appTheme } = useTheme();
   const isDark = (theme ?? appTheme) === "dark";
-  // A theme flip remounts the map, which would replay every entrance; entrances belong to the first scheme only.
-  const [firstDark] = useState(isDark);
-  const [firstIds] = useState(() => new Set(stopsWithCoords(stops).map((s) => s.id)));
+  // Entrances are read in render so they land in the pin HTML on first paint; the compiler would freeze that read.
+  // The map remounts on a theme flip; what has already entered (stops, legs, the here pin) must not play again.
+  const entrances = useRef({ done: new Set<string>(), mounted: false });
   const [openId, setOpenId] = useState<string | null>(null);
 
   const coordStops = stopsWithCoords(stops);
@@ -204,13 +229,25 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
     home ? { lat: home.lat, lng: home.lng } : null,
   );
 
+  const travelled = travelledLegCount(coordStops.map((s) => s.id), progress);
+  const currentStopId = progress?.stage === "during" ? progress.currentStopId : null;
+
+  useEffect(() => {
+    const done = entrances.current.done;
+    entrances.current.mounted = true;
+    coordStops.forEach((stop, i) => {
+      done.add(stop.id);
+      if (stop.id === currentStopId) done.add(`here:${stop.id}`);
+      if (i > 0 && i - 1 < travelled) done.add(`leg:${stop.id}`);
+    });
+  });
+
   if (!hasEnoughCoords) {
     return <MapFallback stops={stops} />;
   }
 
-  const entering = isDark === firstDark;
+  const { done: seen, mounted } = entrances.current;
   const desktop = window.matchMedia("(min-width: 1024px)").matches;
-  const travelled = travelledLegCount(coordStops.map((s) => s.id), progress);
   const last = coordStops[coordStops.length - 1];
   const homeLegs = home
     ? [
@@ -220,14 +257,16 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
     : [];
 
   return (
-    <div aria-label="Trip route map">
-      <GoogleMapFrame
+    <GoogleMapFrame
+        role="region"
+        aria-label="Trip route map"
         dark={isDark}
         fallback={<MapUnavailable><RouteStopList stops={stops} /></MapUnavailable>}
         style={frameClassName ? undefined : aspect ? { aspectRatio: aspect.replace("/", " / ") } : { height }}
         className={cn("w-full overflow-hidden border-2 border-border", frameClassName ?? "rounded-lg shadow-hard-2")}
       >
         <FitRoute points={fitPoints} />
+        {/* eslint-disable-next-line react-hooks/refs */}
         {coordStops.slice(1).map((stop, i) => (
           <Leg
             key={`leg-${stop.id}`}
@@ -237,16 +276,18 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
             weight={3}
             opacity={i < travelled ? 0.9 : 0.7}
             dashed={i >= travelled}
+            draw={progress?.stage === "during" && i < travelled && !seen.has(`leg:${stop.id}`)}
           />
         ))}
         {homeLegs.map((leg) => (
           <Leg key={leg.key} from={leg.from} to={leg.to} color={homeLegColour(isDark)} weight={2} opacity={0.5} dashed />
         ))}
+        {/* eslint-disable-next-line react-hooks/refs */}
         {coordStops.map((stop, index) => {
-          const here = progress?.stage === "during" && stop.id === progress.currentStopId;
+          const here = stop.id === currentStopId;
           const html = here
-            ? herePinHtml(index + 1, stop.sortOrder, isDark, desktop, entering)
-            : stopPinHtml(index + 1, stop.sortOrder, isDark, entering && !firstIds.has(stop.id));
+            ? herePinHtml(index + 1, stop.sortOrder, isDark, desktop, !seen.has(`here:${stop.id}`))
+            : stopPinHtml(index + 1, stop.sortOrder, isDark, mounted && !seen.has(stop.id));
           return (
             <HtmlPin
               key={stop.id}
@@ -283,7 +324,6 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
             </div>
           </HtmlPin>
         )}
-      </GoogleMapFrame>
-    </div>
+    </GoogleMapFrame>
   );
 }

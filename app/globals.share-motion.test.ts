@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { allSelectors, declValues, decls, findRules, keyframes, mentions, reducedMotion, rule, selectorsOf, utility } from "@/test/helpers/css";
 
 describe("share motion (MOTION.md S1–S10)", () => {
-  it.each(["tp-share-hero-in", "tp-share-polaroid-in", "tp-live-ring", "tp-progress-fill", "tp-strike", "tp-reveal", "tp-leg-draw", "tp-tag-drop"])(
+  it.each(["tp-share-hero-in", "tp-share-polaroid-in", "tp-live-ring", "tp-progress-fill", "tp-strike", "tp-reveal", "tp-tag-drop"])(
     "defines %s",
     (name) => {
       expect(mentions(name)).toBe(true);
@@ -10,7 +10,7 @@ describe("share motion (MOTION.md S1–S10)", () => {
   );
   it("only the live ring loops (S2)", () => {
     const infinite = declValues("animation").filter((a) => a.includes("infinite"));
-    const shareInfinite = infinite.filter((a) => /tp-(share|live|progress|strike|reveal|leg|tag)/.test(a));
+    const shareInfinite = infinite.filter((a) => /tp-(share|live|progress|strike|reveal|tag)/.test(a));
     expect(shareInfinite).toHaveLength(1);
     expect(shareInfinite[0]).toContain("tp-live-ring");
   });
@@ -18,11 +18,10 @@ describe("share motion (MOTION.md S1–S10)", () => {
     expect(decls(utility("tp-share-hero-in")).animation).toContain("420ms var(--ease-bounce)");
     expect(decls(utility("tp-progress-fill")).animation).toContain("700ms var(--ease-pop) 200ms");
   });
-  it("reduced motion stops the ring, shows unrevealed sections and draws legs solid", () => {
+  it("reduced motion stops the ring, shows unrevealed sections", () => {
     const reduced = reducedMotion();
     expect(decls(rule(".tp-live-ring", reduced)).animation).toBe("none !important");
     expect(decls(rule(".tp-reveal", reduced)).opacity).toBe("1");
-    expect(decls(rule(".tp-leg-draw", reduced))).toMatchObject({ animation: "none", "stroke-dasharray": "none" });
   });
   it("reduced motion settles every delayed share entrance at once", () => {
     const settled: string[] = [];
@@ -34,7 +33,7 @@ describe("share motion (MOTION.md S1–S10)", () => {
     }
   });
   it("entrances inside an armed, unrevealed section wait for the reveal", () => {
-    const armed = rule(".tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-leg-draw, .tp-pin-pop, .tp-tag-drop)");
+    const armed = rule(".tp-reveal[data-reveal-armed]:not([data-revealed]) :is(.tp-pin-pop, .tp-tag-drop)");
     expect(decls(armed)).toEqual({ "animation-play-state": "paused" });
     expect(allSelectors().filter((s) => s.startsWith(".tp-reveal:not([data-revealed]) :is("))).toEqual([]);
   });

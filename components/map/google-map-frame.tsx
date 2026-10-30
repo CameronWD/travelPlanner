@@ -23,6 +23,8 @@ export interface GoogleMapFrameProps {
   dark: boolean;
   className?: string;
   style?: React.CSSProperties;
+  role?: string;
+  "aria-label"?: string;
   mapProps?: Omit<MapProps, "mapId" | "colorScheme">;
   onFail?: () => void;
   children?: React.ReactNode;
@@ -70,7 +72,7 @@ function FailureWatch({ onFail }: { onFail: () => void }) {
   return null;
 }
 
-export function GoogleMapFrame({ fallback, dark, className, style, mapProps, onFail, children }: GoogleMapFrameProps) {
+export function GoogleMapFrame({ fallback, dark, className, style, role, "aria-label": ariaLabel, mapProps, onFail, children }: GoogleMapFrameProps) {
   const config = mapsConfig();
   const [failed, setFailed] = React.useState(false);
   const unavailable = !config || failed;
@@ -89,7 +91,7 @@ export function GoogleMapFrame({ fallback, dark, className, style, mapProps, onF
       {failed ? (
         fallback
       ) : (
-        <div className={className} style={style}>
+        <div className={className} style={style} role={role} aria-label={ariaLabel}>
           <APIProvider apiKey={config.apiKey} onError={fail}>
             <FailureWatch onFail={fail} />
             <Map
