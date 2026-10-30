@@ -12,7 +12,7 @@ import type { TransportMode } from "@/lib/enum-values";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { estimateRoadKm } from "@/lib/geo";
-import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport } from "@/lib/travel-times/hops";
+import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, routeLegPaths, toPlanTransport } from "@/lib/travel-times/hops";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { summarizePlan } from "@/lib/plan-overview";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
@@ -364,6 +364,7 @@ export default async function TripPlanPage({
       sortOrder: s.sortOrder,
     }));
   const home = trip ? homeMapPoint(trip) : null;
+  const legPaths = routeLegPaths(mapStops, transports, travel, homePointOf(trip));
   const chaptersEnabled = trip?.chaptersEnabled ?? true;
 
   return (
@@ -383,7 +384,7 @@ export default async function TripPlanPage({
         </PlanRiseIn>
         {stops.length > 0 && (
           <div className="lg:hidden">
-            <PlanFitStrip summary={planSummary} stops={mapStops} home={home} />
+            <PlanFitStrip summary={planSummary} stops={mapStops} home={home} legPaths={legPaths} />
           </div>
         )}
         <div className={stops.length > 0 ? PLAN_GRID_CLASS : "flex flex-col"}>
@@ -450,7 +451,7 @@ export default async function TripPlanPage({
             <aside aria-label="Plan overview" className={PLAN_ASIDE_CLASS}>
               {/* empty:hidden — the Route map button renders nothing under two located stops, and an empty slot would still take a gap. */}
               <PlanRiseIn delayMs={60} className="empty:hidden">
-                <PlanMapButton stops={mapStops} home={home} />
+                <PlanMapButton stops={mapStops} home={home} legPaths={legPaths} />
               </PlanRiseIn>
               <PlanRiseIn delayMs={120}>
                 <FitTile

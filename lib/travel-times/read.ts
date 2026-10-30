@@ -1,6 +1,9 @@
 import "server-only";
 import {
+  legPathKeys,
   planTravelKeys,
+  routeLegPaths,
+  type RouteLegStop,
   type HopItemRow,
   type HopStopRow,
   type HopTransportRow,
@@ -18,4 +21,14 @@ export function loadTravelLookupFor(
   now: Date = new Date(),
 ): Promise<TravelLookup> {
   return loadTravelTimes([...planTravelKeys(input, now, { purpose: "read" })]);
+}
+
+export async function loadRouteLegPaths(
+  stops: RouteLegStop[],
+  transports: (HopTransportRow & { id: string })[],
+  home: Pt | null,
+): Promise<Record<string, string>> {
+  const keys = legPathKeys(stops, transports, home);
+  if (keys.length === 0) return {};
+  return routeLegPaths(stops, transports, await loadTravelTimes(keys), home);
 }

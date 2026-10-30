@@ -16,7 +16,7 @@ import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
-import { homePointOf } from "@/lib/travel-times/hops";
+import { homePointOf, routeLegPaths } from "@/lib/travel-times/hops";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { tripTodayISO } from "@/lib/trip-today";
 import { homeMapPoint } from "@/lib/route-map";
@@ -439,7 +439,7 @@ export default async function SummaryPage({
       <section aria-labelledby="map-heading">
         <SectionHeading id="map-heading" icon={MapPin} title="Route" />
         {/* RouteMap is client-only via dynamic import */}
-        <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
+        <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} legPaths={routeLegPaths(datedStops, transports, travel, homePointOf(trip))} />
       </section>
 
       {/* ── Stops overview ── */}

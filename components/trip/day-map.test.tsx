@@ -138,3 +138,33 @@ describe("DayMap when Google is unavailable", () => {
     expect(items[0].querySelector("a[href]")).not.toBeNull();
   });
 });
+
+describe("DayMap route hops", () => {
+  const withHops = (hops: NonNullable<DayMapModel["hops"]>): DayMapModel => ({
+    ...MODEL,
+    routePoints: [
+      { kind: "accommodation", id: "a1", lat: 35.69, lng: 139.7, label: "Hotel" },
+      { kind: "item", id: "i1", lat: 35.65, lng: 139.74, label: "Tokyo Tower", order: 1 },
+      { kind: "item", id: "i2", lat: 35.66, lng: 139.75, label: "Shibuya", order: 2 },
+      { kind: "item", id: "i3", lat: 35.67, lng: 139.76, label: "Ueno", order: 3 },
+    ],
+    hops,
+  });
+  const ENCODED = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
+
+  it("draws solid decoded lines for real hops and dashed straight for the rest, bed segment dashed", () => {
+    render(<DayMap tripId="t1" model={withHops([
+      { fromId: "i1", toId: "i2", polyline: ENCODED, estimated: false },
+      { fromId: "i2", toId: "i3", polyline: null, estimated: true },
+    ])} />);
+    const opts = mock.recorded.polylines.map((p) => p.options);
+    expect(opts).toHaveLength(3);
+    expect(opts[0].strokeOpacity).toBe(0);
+    expect(opts[0].path).toEqual([{ lat: 35.69, lng: 139.7 }, { lat: 35.65, lng: 139.74 }]);
+    expect(opts[1].path).toHaveLength(3);
+    expect(opts[1].strokeOpacity).toBeGreaterThan(0);
+    expect(opts[1].icons).toEqual([]);
+    expect(opts[2].strokeOpacity).toBe(0);
+    expect(opts[2].path).toEqual([{ lat: 35.66, lng: 139.75 }, { lat: 35.67, lng: 139.76 }]);
+  });
+});

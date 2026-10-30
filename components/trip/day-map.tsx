@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { DayMapModel, DayMapPoint } from "@/lib/day-map";
+import type { DayMapHop, DayMapModel, DayMapPoint } from "@/lib/day-map";
 import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl } from "@/lib/map/maps";
 import { useTheme } from "@/components/ui/theme-provider";
 import { GoogleMapFrame } from "@/components/map/google-map-frame";
@@ -56,9 +56,31 @@ function FitDay({ points }: { points: { lat: number; lng: number }[] }) {
   return null;
 }
 
-function DayRoute({ routePoints }: { routePoints: DayMapPoint[] }) {
+const ROUTE_COLOR = "#2563eb";
+
+function DayRoute({ routePoints, hops }: { routePoints: DayMapPoint[]; hops: DayMapHop[] | undefined }) {
   const path = useMemo(() => routePoints.map((p) => ({ lat: p.lat, lng: p.lng })), [routePoints]);
-  return <MapPolyline path={path} color="#2563eb" weight={3} opacity={0.7} dashed />;
+  const legs = useMemo(() => {
+    if (!hops) return null;
+    const at = new Map(routePoints.map((p) => [p.id, { lat: p.lat, lng: p.lng }]));
+    const bed = routePoints[0]?.kind === "accommodation" && routePoints[1] ? [{ key: "bed", path: [path[0], path[1]], polyline: null }] : [];
+    return [
+      ...bed,
+      ...hops.map((h) => ({ key: `${h.fromId}>${h.toId}`, path: [at.get(h.fromId)!, at.get(h.toId)!], polyline: h.polyline })),
+    ];
+  }, [hops, routePoints, path]);
+  if (!legs) return <MapPolyline path={path} color={ROUTE_COLOR} weight={3} opacity={0.7} dashed />;
+  return (
+    <>
+      {legs.map((leg) =>
+        leg.polyline ? (
+          <MapPolyline key={leg.key} encodedPath={leg.polyline} color={ROUTE_COLOR} weight={4} opacity={0.85} />
+        ) : (
+          <MapPolyline key={leg.key} path={leg.path} color={ROUTE_COLOR} weight={3} opacity={0.7} dashed />
+        ),
+      )}
+    </>
+  );
 }
 
 function DayPointList({ points }: { points: DayMapPoint[] }) {
@@ -111,7 +133,7 @@ export function DayMap({ tripId, model }: { tripId: string; model: DayMapModel }
         className="w-full rounded-2xl overflow-hidden border border-border shadow-sm"
       >
         <FitDay points={points} />
-        {routePoints.length >= 2 && <DayRoute routePoints={routePoints} />}
+        {routePoints.length >= 2 && <DayRoute routePoints={routePoints} hops={model.hops} />}
         {points.map((point) => {
           const key = `${point.kind}:${point.id}`;
           return (

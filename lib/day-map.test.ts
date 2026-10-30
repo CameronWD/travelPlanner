@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildDayMapModel, buildItemDirections, DayMapItemInput, DayMapAccommodationInput, DayMapTransportInput } from "./day-map";
+import { buildDayMapModel, buildItemDirections, dayMapHops, DayMapItemInput, DayMapAccommodationInput, DayMapTransportInput } from "./day-map";
+import { driveKey } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -364,5 +365,44 @@ describe("place ids in the Day map", () => {
     const hop = new URL(buildItemDirections(model)["i1"].google!).searchParams;
     expect(hop.get("origin_place_id")).toBe("STAY");
     expect(hop.get("destination_place_id")).toBe("ITEM");
+  });
+});
+
+describe("dayMapHops", () => {
+  const A = { lat: 35.0, lng: 139.0 };
+  const B = { lat: 35.2, lng: 139.2 };
+  const C = { lat: 35.4, lng: 139.4 };
+  const row = (id: string, p: { lat: number; lng: number }, startTime: string, stopId = "s1") => ({
+    id, date: "2026-01-02", startTime, endTime: null, sortOrder: 0, lat: p.lat, lng: p.lng, stopId,
+  });
+  const stops = [
+    { id: "s1", localTravelMode: "DRIVE", timezone: "UTC" },
+    { id: "s2", localTravelMode: "DRIVE", timezone: "UTC" },
+  ];
+  const estimateOpts = { windingFactor: 1.3, avgSpeedKph: 60 };
+  const modelFor = (items: ReturnType<typeof row>[]) =>
+    buildDayMapModel({ date: "2026-01-02", items: items.map((i) => ({ id: i.id, title: i.id, lat: i.lat, lng: i.lng, startTime: i.startTime, sortOrder: 0 })), transports: [] });
+  const real = (polyline: string | null) => ({ status: "OK" as const, minutes: 30, distanceM: 30000, polyline });
+
+  it("draws a real hop's polyline and marks a missing row estimated", () => {
+    const items = [row("i1", A, "09:00"), row("i2", B, "10:00"), row("i3", C, "11:00")];
+    const lookup = new Map([[driveKey(A, B), real("abc")]]);
+    expect(dayMapHops(modelFor(items), { dayItems: items, stops, transports: [], lookup, estimateOpts })).toEqual([
+      { fromId: "i1", toId: "i2", polyline: "abc", estimated: false },
+      { fromId: "i2", toId: "i3", polyline: null, estimated: true },
+    ]);
+  });
+
+  it("keeps an OK row with an empty polyline as a dashed straight hop", () => {
+    const items = [row("i1", A, "09:00"), row("i2", B, "10:00")];
+    const lookup = new Map([[driveKey(A, B), real("")]]);
+    expect(dayMapHops(modelFor(items), { dayItems: items, stops, transports: [], lookup, estimateOpts })[0]).toMatchObject({ polyline: null, estimated: true });
+  });
+
+  it("has no row for a pair a Transport joins across Stops", () => {
+    const items = [row("i1", A, "09:00", "s1"), row("i2", B, "10:00", "s2")];
+    const transports = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
+    const lookup = new Map([[driveKey(A, B), real("abc")]]);
+    expect(dayMapHops(modelFor(items), { dayItems: items, stops, transports, lookup, estimateOpts })[0]).toMatchObject({ polyline: null, estimated: true });
   });
 });

@@ -24,6 +24,7 @@ import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enum-values";
 import { homeMapPoint } from "@/lib/route-map";
+import { loadRouteLegPaths } from "@/lib/travel-times/read";
 import { MAP_INK } from "@/lib/map/palette";
 import { describePhase } from "@/lib/trip-phase";
 import { countdownFor } from "@/lib/countdown";
@@ -537,6 +538,8 @@ export default async function SharePage({
     sortOrder: s.sortOrder,
   }));
 
+  const legPaths = await loadRouteLegPaths(scheduled, transports, homeMapPoint(trip));
+
   const sections = shareSections(stage, {
     journal: journalHasCards,
     days: scheduled.length > 0 && (scope.includeAccommodation || scope.includeTransport || scope.includeDailyPlans),
@@ -590,6 +593,7 @@ export default async function SharePage({
               progress={stage === "during" ? { stage, currentStopId } : { stage }}
               frameClassName={cn("rounded-3xl shadow-hard-4 lg:h-[400px]", stage === "during" ? "h-[180px]" : "h-[200px]")}
               theme="light"
+              legPaths={legPaths}
             />
           </section>
         );

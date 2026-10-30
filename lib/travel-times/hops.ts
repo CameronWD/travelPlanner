@@ -403,3 +403,37 @@ export function itemDeparture(item: HopItem, stopTimezone: string): Date | null 
   const at = zonedWallTimeToInstant(overnight ? addDays(item.date, 1) : item.date, item.endTime, stopTimezone);
   return Number.isNaN(at.getTime()) ? null : at;
 }
+
+export type RouteLegStop = { id: string; lat?: number | null; lng?: number | null };
+
+export function routeLegPaths(
+  stops: RouteLegStop[],
+  transports: (HopTransportRow & { id: string })[],
+  lookup: TravelLookup,
+  home: Pt | null,
+): Record<string, string> {
+  const stopIds = new Set(stops.map((s) => s.id));
+  const stopsById = new Map(stops.map((s) => [s.id, s]));
+  const paths: Record<string, string> = {};
+  for (const t of transports) {
+    if (!t.fromStopId || !t.toStopId || !stopIds.has(t.fromStopId) || !stopIds.has(t.toStopId)) continue;
+    const key = `${t.fromStopId}>${t.toStopId}`;
+    if (paths[key]) continue;
+    const ends = transportEnds(toPlanTransport(t), stopsById, home);
+    if (!ends || samePoint(ends.from, ends.to)) continue;
+    const row = lookup.get(driveKey(ends.from, ends.to));
+    if (row?.status === "OK" && row.polyline) paths[key] = row.polyline;
+  }
+  return paths;
+}
+
+export function legPathKeys(
+  stops: RouteLegStop[],
+  transports: (HopTransportRow & { id: string })[],
+  home: Pt | null,
+): string[] {
+  const stopsById = new Map(stops.map((s) => [s.id, s]));
+  return carLegs(transports.map(toPlanTransport), stopsById, home)
+    .filter((leg) => !samePoint(leg.from, leg.to))
+    .map((leg) => driveKey(leg.from, leg.to));
+}

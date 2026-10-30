@@ -53,6 +53,8 @@ export interface RouteMapProps {
    * from useTheme(), not from CSS — would still render dark.
    */
   theme?: "light" | "dark";
+  /** Encoded driving routes by `${fromStopId}>${toStopId}`; a leg with one draws solid along the road instead of a straight line. */
+  legPaths?: Record<string, string>;
 }
 
 export type RouteProgress =
@@ -212,7 +214,7 @@ const popupText = "block text-xs font-medium text-muted-foreground";
 // Map component
 // ---------------------------------------------------------------------------
 
-export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect, onStopClick, progress, frameClassName, theme }: RouteMapProps) {
+export function RouteMap({ stops, height = 360, home = null, showReturn = false, aspect, onStopClick, progress, frameClassName, theme, legPaths }: RouteMapProps) {
   "use no memo";
   const { theme: appTheme } = useTheme();
   const isDark = (theme ?? appTheme) === "dark";
@@ -267,18 +269,24 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
       >
         <FitRoute points={fitPoints} />
         {/* eslint-disable-next-line react-hooks/refs */}
-        {coordStops.slice(1).map((stop, i) => (
-          <Leg
-            key={`leg-${stop.id}`}
-            from={coordStops[i]}
-            to={stop}
-            color={legColour(stop.sortOrder, isDark)}
-            weight={3}
-            opacity={i < travelled ? 0.9 : 0.7}
-            dashed={i >= travelled}
-            draw={progress?.stage === "during" && i < travelled && !seen.has(`leg:${stop.id}`)}
-          />
-        ))}
+        {coordStops.slice(1).map((stop, i) => {
+          const encoded = legPaths?.[`${coordStops[i].id}>${stop.id}`];
+          const opacity = i < travelled ? 0.9 : 0.7;
+          return encoded ? (
+            <MapPolyline key={`leg-${stop.id}`} encodedPath={encoded} color={legColour(stop.sortOrder, isDark)} weight={3} opacity={opacity} />
+          ) : (
+            <Leg
+              key={`leg-${stop.id}`}
+              from={coordStops[i]}
+              to={stop}
+              color={legColour(stop.sortOrder, isDark)}
+              weight={3}
+              opacity={opacity}
+              dashed={i >= travelled}
+              draw={progress?.stage === "during" && i < travelled && !seen.has(`leg:${stop.id}`)}
+            />
+          );
+        })}
         {homeLegs.map((leg) => (
           <Leg key={leg.key} from={leg.from} to={leg.to} color={homeLegColour(isDark)} weight={2} opacity={0.5} dashed />
         ))}

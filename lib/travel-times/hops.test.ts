@@ -10,6 +10,7 @@ import {
   itemDeparture,
   parseHopKey,
   planHops,
+  routeLegPaths,
   planTravelKeys,
   pointKey,
   resolveDriveLeg,
@@ -487,5 +488,42 @@ describe("carLegs", () => {
       { transportId: "t1", from: { lat: 1, lng: 1 }, to: { lat: 2, lng: 2 } },
       { transportId: "t3", from: HOME, to: { lat: 1, lng: 1 } },
     ]);
+  });
+});
+
+describe("routeLegPaths", () => {
+  const stops = [
+    { id: "s1", lat: 35.0, lng: 139.0 },
+    { id: "s2", lat: 35.5, lng: 139.5 },
+  ];
+  const A = { lat: 35.0, lng: 139.0 };
+  const B = { lat: 35.5, lng: 139.5 };
+  const ok = (polyline: string | null) => ({ status: "OK" as const, minutes: 60, distanceM: 70000, polyline });
+
+  it("takes the DRIVE row's polyline for a car leg between the Stops", () => {
+    const lookup = new Map([
+      [driveKey(A, B), ok("road")],
+      [`WALK|${pointKey(A)}|${pointKey(B)}`, ok("walk")],
+    ]);
+    const t = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
+    expect(routeLegPaths(stops, t, lookup, null)).toEqual({ "s1>s2": "road" });
+  });
+
+  it("skips non-car legs, missing rows, empty polylines and unknown Stops", () => {
+    const t = [
+      { id: "t1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2" },
+      { id: "t2", mode: "CAR", fromStopId: "s1", toStopId: "s9" },
+    ];
+    expect(routeLegPaths(stops, t, new Map([[driveKey(A, B), ok("road")]]), null)).toEqual({});
+    const car = [{ id: "t3", mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
+    expect(routeLegPaths(stops, car, new Map([[driveKey(A, B), ok("")]]), null)).toEqual({});
+    expect(routeLegPaths(stops, car, new Map(), null)).toEqual({});
+  });
+
+  it("uses a typed departure point's key, so a leg from elsewhere finds its own row", () => {
+    const P = { lat: 35.1, lng: 139.1 };
+    const t = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2", depLat: P.lat, depLng: P.lng }];
+    expect(routeLegPaths(stops, t, new Map([[driveKey(A, B), ok("stop")]]), null)).toEqual({});
+    expect(routeLegPaths(stops, t, new Map([[driveKey(P, B), ok("typed")]]), null)).toEqual({ "s1>s2": "typed" });
   });
 });

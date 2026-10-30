@@ -94,16 +94,18 @@ export function PlanFitStrip({
   summary,
   stops,
   home,
+  legPaths,
 }: {
   summary: PlanSummary;
   stops: RouteMapStop[];
   home: HomeMapPoint | null;
+  legPaths?: Record<string, string>;
 }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
       <FitStrip summary={summary} onOpenMap={stops.length >= 2 ? () => setOpen(true) : undefined} />
-      <PlanMapDialog open={open} onOpenChange={setOpen} stops={stops} home={home} />
+      <PlanMapDialog open={open} onOpenChange={setOpen} stops={stops} home={home} legPaths={legPaths} />
     </>
   );
 }

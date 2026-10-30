@@ -262,7 +262,7 @@ describe("Plan overview sticky aside (LA-038)", () => {
     expect(aside.className).toBe(PLAN_ASIDE_CLASS);
     expect([...aside.children].map((c) => c.firstElementChild!.getAttribute("data-testid"))).toEqual(["map-button", "fit-tile", "jump-list"]);
     // Spec 2026-10-04 §C: a button card, not a map tile — it needs no far-home pill.
-    expect(Object.keys(railCapture.mapButton!).sort()).toEqual(["home", "stops"]);
+    expect(Object.keys(railCapture.mapButton!).sort()).toEqual(["home", "legPaths", "stops"]);
     expect(PLAN_ASIDE_CLASS).toContain("lg:sticky");
     expect(PLAN_ASIDE_CLASS).toContain("lg:max-h-[calc(100dvh-3rem)]");
     expect(aside.parentElement!.className).toBe(PLAN_GRID_CLASS);

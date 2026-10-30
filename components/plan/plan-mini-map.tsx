@@ -17,6 +17,7 @@ function locatedCount(stops: RouteMapStop[]): number {
 export interface PlanMapButtonProps {
   stops: RouteMapStop[];
   home: HomeMapPoint | null;
+  legPaths?: Record<string, string>;
 }
 
 /**
@@ -26,7 +27,7 @@ export interface PlanMapButtonProps {
  * Nothing under two located Stops: there's no route to show, and the rail
  * slot around it is `empty:hidden`.
  */
-export function PlanMapButton({ stops, home }: PlanMapButtonProps) {
+export function PlanMapButton({ stops, home, legPaths }: PlanMapButtonProps) {
   const [open, setOpen] = React.useState(false);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   // PlanMapDialog is a plain controlled Dialog, not a DialogTrigger — Radix's
@@ -58,7 +59,7 @@ export function PlanMapButton({ stops, home }: PlanMapButtonProps) {
         <span className="flex-1 font-display text-base font-extrabold">Route map</span>
         <Maximize2 className="size-4 shrink-0" aria-hidden="true" />
       </button>
-      <PlanMapDialog open={open} onOpenChange={setOpen} stops={stops} home={home} />
+      <PlanMapDialog open={open} onOpenChange={setOpen} stops={stops} home={home} legPaths={legPaths} />
     </>
   );
 }
@@ -68,6 +69,7 @@ export interface PlanMapDialogProps {
   onOpenChange(open: boolean): void;
   stops: RouteMapStop[];
   home: HomeMapPoint | null;
+  legPaths?: Record<string, string>;
 }
 
 /**
@@ -75,7 +77,7 @@ export interface PlanMapDialogProps {
  * (92vw × 92vh), full-screen on a phone, the map filling it. The rail's Route
  * map button and the phone Fit strip's Map open it.
  */
-export function PlanMapDialog({ open, onOpenChange, stops, home }: PlanMapDialogProps) {
+export function PlanMapDialog({ open, onOpenChange, stops, home, legPaths }: PlanMapDialogProps) {
   const { jumpTo } = usePlanBody();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,6 +91,7 @@ export function PlanMapDialog({ open, onOpenChange, stops, home }: PlanMapDialog
         <RouteMapLoader
           stops={stops}
           home={home}
+          legPaths={legPaths}
           frameClassName="min-h-[240px] flex-1 rounded-lg shadow-hard-2"
           onStopClick={(id) => {
             onOpenChange(false);
