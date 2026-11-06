@@ -184,6 +184,7 @@ describe("Settings companion-column layout (LA-046)", () => {
     expect(titles).toEqual([
       "Trip details",
       "Chapters",
+      "What's around",
       "Offline",
       "Travellers",
       "Digest",
@@ -202,6 +203,8 @@ describe("Settings companion-column layout (LA-046)", () => {
       screen.getByRole("heading", { level: 3, name: title }).closest("[data-slot='settings-slot']")!;
     expect(cardOf("Trip details").className).toContain("lg:col-start-1");
     expect(cardOf("Driving estimates").className).toContain("lg:col-start-1");
+    expect(cardOf("What's around")).toBe(cardOf("Chapters"));
+    expect(cardOf("What's around").className).toContain("lg:col-start-1");
     expect(cardOf("Travellers").className).toContain("lg:col-start-2");
     expect(cardOf("Danger zone").className).toContain("lg:col-start-2");
     // Column wrappers dissolve below lg so the one-column stack is DOM order.
