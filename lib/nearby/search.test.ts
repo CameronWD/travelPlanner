@@ -54,7 +54,7 @@ describe("searchNearby", () => {
     });
   });
 
-  it("parses a place, with hours, rating and the time it closes", async () => {
+  it("parses a place, with hours and rating", async () => {
     fetchMock.mockResolvedValue(reply({ places: [PLACE] }));
     const [place] = (await searchNearby(POINT, FOOD))!;
     expect(place).toMatchObject({
@@ -66,8 +66,6 @@ describe("searchNearby", () => {
       typeLabel: "Seafood restaurant",
       rating: 4.6,
       ratingCount: 21000,
-      openNow: true,
-      closesAt: "23:00",
       businessStatus: "OPERATIONAL",
       website: "https://ramiro.test",
     });
@@ -75,28 +73,11 @@ describe("searchNearby", () => {
     expect(place.openingHours?.source).toContain("query_place_id=ChIJ1");
   });
 
-  it.each([
-    ["+60", "2026-11-06T22:00:00Z", 60, "23:00"],
-    ["+540 across midnight", "2026-11-06T16:30:00Z", 540, "01:30"],
-    ["negative offset", "2026-11-06T03:15:00Z", -300, "22:15"],
-  ])("shifts nextCloseTime by the place's UTC offset (%s)", async (_n, nextCloseTime, utcOffsetMinutes, closesAt) => {
-    fetchMock.mockResolvedValue(reply({ places: [{ ...PLACE, utcOffsetMinutes, currentOpeningHours: { openNow: true, nextCloseTime } }] }));
-    expect((await searchNearby(POINT, FOOD))![0].closesAt).toBe(closesAt);
-  });
-
-  it("has no closesAt without a close time or an offset", async () => {
-    const noOffset = { ...PLACE, utcOffsetMinutes: undefined };
-    fetchMock.mockResolvedValue(reply({ places: [noOffset, { ...PLACE, id: "n", currentOpeningHours: { openNow: true } }] }));
-    expect((await searchNearby(POINT, FOOD))!.map((p) => p.closesAt)).toEqual([null, null]);
-  });
-
-  it("leaves closesAt empty when the place is closed", async () => {
-    const closed = { ...PLACE, id: "c", currentOpeningHours: { ...PLACE.currentOpeningHours, openNow: false } };
-    const bare = { id: "b", displayName: { text: "Bare" }, location: { latitude: 1, longitude: 2 } };
-    fetchMock.mockResolvedValue(reply({ places: [closed, bare] }));
+  it("carries the place's UTC offset and leaves open status to serve time", async () => {
+    fetchMock.mockResolvedValue(reply({ places: [PLACE, { ...PLACE, id: "n", utcOffsetMinutes: undefined }] }));
     const [a, b] = (await searchNearby(POINT, FOOD))!;
-    expect(a).toMatchObject({ openNow: false, closesAt: null });
-    expect(b).toMatchObject({ openNow: null, closesAt: null, rating: null, ratingCount: null, openingHours: null, website: null, address: null, typeLabel: null, businessStatus: null });
+    expect(a).toMatchObject({ utcOffsetMinutes: 60, openNow: null, closesAt: null });
+    expect(b.utcOffsetMinutes).toBeNull();
   });
 
   it("drops permanently closed places and rows without a location or name", async () => {

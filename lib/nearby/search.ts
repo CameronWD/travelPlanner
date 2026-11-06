@@ -22,6 +22,7 @@ export interface NearbyPlace {
   typeLabel: string | null;
   rating: number | null;
   ratingCount: number | null;
+  utcOffsetMinutes: number | null;
   openNow: boolean | null;
   closesAt: string | null;
   openingHours: OpeningHours | null;
@@ -32,14 +33,6 @@ export interface NearbyPlace {
 const text = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 const labelOf = (v: unknown): string | null => (isRecord(v) ? text(v.text) : null);
 
-function closesAtOf(current: Record<string, unknown>, utcOffsetMinutes: unknown): string | null {
-  if (current.openNow !== true || typeof current.nextCloseTime !== "string" || !finite(utcOffsetMinutes)) return null;
-  const next = Date.parse(current.nextCloseTime);
-  if (!Number.isFinite(next)) return null;
-  const local = new Date(next + utcOffsetMinutes * 60_000);
-  return `${String(local.getUTCHours()).padStart(2, "0")}:${String(local.getUTCMinutes()).padStart(2, "0")}`;
-}
-
 function parsePlace(raw: unknown): NearbyPlace | null {
   if (!isRecord(raw) || typeof raw.id !== "string" || !raw.id) return null;
   const name = labelOf(raw.displayName);
@@ -47,7 +40,6 @@ function parsePlace(raw: unknown): NearbyPlace | null {
   if (!name || !location || !finite(location.latitude) || !finite(location.longitude)) return null;
   if (raw.businessStatus === "CLOSED_PERMANENTLY") return null;
   const regular = isRecord(raw.regularOpeningHours) ? raw.regularOpeningHours : null;
-  const current = isRecord(raw.currentOpeningHours) ? raw.currentOpeningHours : null;
   return {
     placeId: raw.id,
     name,
@@ -57,8 +49,9 @@ function parsePlace(raw: unknown): NearbyPlace | null {
     typeLabel: labelOf(raw.primaryTypeDisplayName),
     rating: finite(raw.rating) ? raw.rating : null,
     ratingCount: finite(raw.userRatingCount) ? raw.userRatingCount : null,
-    openNow: current && typeof current.openNow === "boolean" ? current.openNow : null,
-    closesAt: current ? closesAtOf(current, raw.utcOffsetMinutes) : null,
+    utcOffsetMinutes: finite(raw.utcOffsetMinutes) ? raw.utcOffsetMinutes : null,
+    openNow: null,
+    closesAt: null,
     openingHours: regular ? openingHoursFromGoogle(parseGooglePeriods(regular.periods), mapsLink(raw.id)) : null,
     businessStatus: text(raw.businessStatus),
     website: text(raw.websiteUri),

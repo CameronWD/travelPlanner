@@ -7,6 +7,7 @@ import { dailyCap } from "@/lib/google-budget";
 import { takeGoogleQuota } from "@/lib/google-usage";
 import { requireTripAccess } from "@/lib/guards";
 import { nearbyKind, type NearbyKind } from "@/lib/nearby/kinds";
+import { withOpenStatus } from "@/lib/nearby/open-status";
 import { cachedNearby, nearbyCacheKey, saveNearby } from "@/lib/nearby/cache";
 import { searchNearby, type NearbyPlace } from "@/lib/nearby/search";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
@@ -51,7 +52,7 @@ export async function whatsAround(tripId: string, input: { from: WhatsAroundFrom
   const key = isDevice ? null : nearbyCacheKey(origin, input.nearbyKind);
   if (key) {
     const hit = await cachedNearby(key);
-    if (hit) return hit.status === "OK" ? { status: "ok", places: hit.results, origin } : { status: "unavailable" };
+    if (hit) return hit.status === "OK" ? { status: "ok", places: withOpenStatus(hit.results, Date.now()), origin } : { status: "unavailable" };
   }
 
   if (!hasServerKey()) return { status: "unavailable" };
@@ -59,5 +60,5 @@ export async function whatsAround(tripId: string, input: { from: WhatsAroundFrom
 
   const places = await searchNearby(origin, input.nearbyKind);
   if (key) await saveNearby(key, places ? "OK" : "ERROR", places ?? []);
-  return places ? { status: "ok", places, origin } : { status: "unavailable" };
+  return places ? { status: "ok", places: withOpenStatus(places, Date.now()), origin } : { status: "unavailable" };
 }

@@ -35,7 +35,7 @@ vi.mock("@/lib/db", () => ({
 
 import { whatsAround } from "./whats-around";
 
-const PLACE = { placeId: "p1", name: "Ramiro" };
+const PLACE = { placeId: "p1", name: "Ramiro", utcOffsetMinutes: 0, openNow: null, closesAt: null, openingHours: null };
 const HOME = { lat: 38.7139, lng: -9.1334 };
 
 describe("whatsAround", () => {
@@ -59,6 +59,29 @@ describe("whatsAround", () => {
     expect(await whatsAround("t1", acc)).toEqual({ status: "ok", places: [PLACE], origin: HOME });
     expect(m.takeGoogleQuota).toHaveBeenCalledWith("nearby-search", 33);
     expect(m.saveNearby).toHaveBeenCalledWith("day|food|38.714,-9.133", "OK", [PLACE]);
+  });
+
+  it("derives open status at serve time, for a cache hit and a fresh fetch alike", async () => {
+    const week = { week: { fri: [["12:00", "23:00"]] }, seasons: [], closed: [] };
+    const cached = { ...PLACE, utcOffsetMinutes: 60, openNow: true, closesAt: "23:00", openingHours: week };
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-11-06T09:30:00Z"));
+      m.cachedNearby.mockResolvedValue({ status: "OK", results: [cached] });
+      const morning = await whatsAround("t1", acc);
+      expect(morning).toMatchObject({ places: [{ openNow: false, closesAt: null }] });
+      vi.setSystemTime(new Date("2026-11-06T20:00:00Z"));
+      expect(await whatsAround("t1", acc)).toMatchObject({ places: [{ openNow: true, closesAt: "23:00" }] });
+      vi.setSystemTime(new Date("2026-11-06T22:30:00Z"));
+      expect(await whatsAround("t1", acc)).toMatchObject({ places: [{ openNow: false, closesAt: null }] });
+      m.cachedNearby.mockResolvedValue(null);
+      m.searchNearby.mockResolvedValue([{ ...cached, openNow: false, closesAt: null }]);
+      vi.setSystemTime(new Date("2026-11-06T20:00:00Z"));
+      expect(await whatsAround("t1", acc)).toMatchObject({ places: [{ openNow: true, closesAt: "23:00" }] });
+      expect(m.saveNearby.mock.calls[0][2][0]).toMatchObject({ openNow: false });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("refuses when the switch is off, with no quota and no Google call", async () => {
