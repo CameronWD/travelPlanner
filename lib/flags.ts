@@ -1068,7 +1068,7 @@ function closedMessage(name: string, date: string, day: DayHours): string {
 export function flagClosedOnDay(items: FlagItem[]): Flag[] {
   const flags: Flag[] = [];
   for (const item of items) {
-    if (!item.date) continue;
+    if (!item.date || item.businessStatus === "CLOSED_PERMANENTLY") continue;
     const day = hoursOn(item.openingHours, item.date);
     if (!day?.closed) continue;
     const name = itemTitle(item) ?? "This thing to do";
@@ -1115,7 +1115,7 @@ const clock = (hhmm: string) => (hhmm === "24:00" ? "midnight" : hhmm);
 export function flagOutsideOpeningHours(items: FlagItem[]): Flag[] {
   const flags: Flag[] = [];
   for (const item of items) {
-    if (!item.date || !item.startTime) continue;
+    if (!item.date || !item.startTime || item.businessStatus === "CLOSED_PERMANENTLY") continue;
     const day = hoursOn(item.openingHours, item.date);
     if (!day || day.closed || day.spans.length === 0) continue;
     const name = itemTitle(item) ?? "This thing to do";
