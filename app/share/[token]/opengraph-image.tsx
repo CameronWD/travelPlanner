@@ -1,5 +1,11 @@
 import { ImageResponse } from "next/og";
 import { DefaultOgCard, OG_SIZE, ShareOgCard, ogFonts } from "@/lib/og-card";
+import { db } from "@/lib/db";
+import { mapIdOnly } from "@/lib/map/google-config";
+import { fetchStaticMapDataUrl } from "@/lib/map/static-map-fetch";
+import { REAL_PLAN } from "@/lib/plan-scope";
+import { homeMapPoint } from "@/lib/route-map";
+import { loadRouteLegPaths } from "@/lib/travel-times/read";
 import { findShareLink, loadShareStops } from "@/lib/share/lookup";
 import { shareOgModel } from "@/lib/share/og";
 import { scheduledShareStops } from "@/lib/share/view";
@@ -30,5 +36,41 @@ export default async function Image({ params }: { params: Promise<{ token: strin
     stopCount: stops.length,
     today,
   });
-  return new ImageResponse(<ShareOgCard {...model} />, { ...size, fonts });
+  const mapId = mapIdOnly();
+  let mapImage: string | null = null;
+  if (mapId && scheduled.some((s) => s.lat != null && s.lng != null)) {
+    const home = homeMapPoint(link.trip);
+    const transports = link.includeTransport
+      ? await db.transport.findMany({
+          where: { tripId: link.trip.id, ...REAL_PLAN },
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            mode: true,
+            fromStopId: true,
+            toStopId: true,
+            depPlace: true,
+            arrPlace: true,
+            depAt: true,
+            arrAt: true,
+            sortOrder: true,
+            depIsHome: true,
+            arrIsHome: true,
+            depLat: true,
+            depLng: true,
+            arrLat: true,
+            arrLng: true,
+          },
+        })
+      : [];
+    mapImage = await fetchStaticMapDataUrl({
+      mapId,
+      width: 280,
+      height: 373,
+      stops: scheduled,
+      home,
+      legPaths: await loadRouteLegPaths(scheduled, transports, home),
+    });
+  }
+  return new ImageResponse(<ShareOgCard {...model} mapImage={mapImage} />, { ...size, fonts });
 }

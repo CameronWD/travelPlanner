@@ -9,3 +9,7 @@ export function mapsConfig(): MapsConfig | null {
 export function placesBrowserKey(): string | null {
   return process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || null;
 }
+
+export function mapIdOnly(): string | null {
+  return process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || null;
+}
