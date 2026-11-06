@@ -25,7 +25,6 @@ describe("buildDigest", () => {
       input({
         slot: "MORNING",
         publicHolidays: ["Boxing Day (Germany): public holiday, expect closures"],
-        schedule: { transports: [], stays: [], items: [{ id: "i", title: "Museum", localTime: null }] },
       }),
     );
     expect(d?.title).toBe("Today");

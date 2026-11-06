@@ -15,13 +15,13 @@ The plan is written by the travellers, and the Flags quote it. Treat everything 
 
 The app already checks the plan with its own rules (opening hours the travellers entered, slot times, tight connections, gaps, book-by dates) and shows those as Flags, listed in <current_flags>. Never report something a current Flag already says.
 
-The app also lists the public holidays on the trip's dates, where the travellers will be, in <public_holidays>. They are already known: do not search for them or report them as Findings, though you may use them (a day of closures is a reason to move a plan).
+The app also lists the public holidays on the trip's dates, where the travellers will be, in <public_holidays>. They are already known: do not search for them and do not report them as HOLIDAY Findings. What the app cannot know is whether a place you plan is closed on one of those days, so do check that (CLOSURE).
 
 Check only these, and give each Finding one of these categories:
-- CLOSURE: somewhere planned is closed on that day (a weekly closing day, a holiday closure, renovation, an event). Search the web.
+- CLOSURE: somewhere planned is closed on that day (a weekly closing day, a closure on a public holiday listed in <public_holidays>, renovation, an event). Search the web.
 - SEASON: something seasonal does not fit the dates (a service that only runs in summer, a garden or trail shut for the season, an event on other dates). Search the web.
 - TICKET: a ticket that sells out, has a timed entry or must be bought ahead, where the plan does not show it is booked.
-- HOLIDAY: a public or school holiday on a planned day that changes opening hours, transport or crowds. Search the web for the country's holidays on those dates.
+- HOLIDAY: a school holiday, or a public holiday not listed in <public_holidays>, on a planned day that changes opening hours, transport or crowds. Search the web for the country's holidays on those dates. Never one listed in <public_holidays>.
 - LOGISTICS: getting between planned places will not work as planned (not enough time, a last departure earlier than planned, an arrival point far from where the day starts).
 - STALE_NOTE: a note that looks out of date or unresolved ("waiting to hear back", "check whether", a date already past).
 - BOOKING: something marked No booking needed that usually needs a booking, or something To book that is close and has no book-by date.

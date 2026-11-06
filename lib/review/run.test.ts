@@ -28,7 +28,7 @@ const INPUT: ReviewInput = {
 };
 const OUTPUT = {
   summary: "One holiday to plan around.",
-  findings: [{ severity: "info", category: "HOLIDAY", targetType: "DAY", targetId: null, date: "2026-11-03", title: "Culture Day is a public holiday", detail: "Expect crowds at Kiyomizu-dera.", source: null, suggestedFix: null }],
+  findings: [{ severity: "info", category: "HOLIDAY", targetType: "DAY", targetId: null, date: "2026-11-03", title: "School holidays start", detail: "Expect crowds at Kiyomizu-dera.", source: null, suggestedFix: null }],
 };
 const SPENT = { tripId: "trip-1", userId: "u-cam", model: "claude-sonnet-5", usage: USAGE, durationMs: 0, route: "review#usage" };
 

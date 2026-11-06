@@ -26,6 +26,15 @@ describe("REVIEW_SYSTEM_PROMPT (spec 2026-10-17 R8, R9, R11)", () => {
     expect(REVIEW_SYSTEM_PROMPT).toMatch(/Search the web/);
   });
 
+  it("lists the public holidays and tells Claude they are already known", () => {
+    expect(REVIEW_SYSTEM_PROMPT).toMatch(/in <public_holidays>\. They are already known/);
+    expect(REVIEW_SYSTEM_PROMPT).toMatch(/Never one listed in <public_holidays>/);
+    const base = reviewInputFromPlan(SAMPLE_PLAN, FLAGS, SAMPLE_TODAY);
+    const withLines = buildReviewUserMessage({ ...base, publicHolidays: [{ date: "2026-11-03", lines: ["A (Japan): public holiday, expect closures", "B (Japan): many places close early"] }, { date: "2026-11-04", lines: ["C"] }] });
+    expect(withLines).toContain("<public_holidays>\n2026-11-03: A (Japan): public holiday, expect closures; B (Japan): many places close early\n2026-11-04: C\n</public_holidays>");
+    expect(buildReviewUserMessage(base)).toContain("<public_holidays>\nNone.\n</public_holidays>");
+  });
+
   it("describes the checklist.add fix and tells Claude not to repeat what is already on a list", () => {
     expect(REVIEW_SYSTEM_PROMPT).toMatch(/Only for something not already in <checklists>, ticked or not\./);
     expect(REVIEW_SYSTEM_PROMPT).toContain(

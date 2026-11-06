@@ -63,13 +63,12 @@ export interface McpDay {
   timeline: McpDayEntry[];
   /** The day's untimed things to do. */
   anytime: McpDayItem[];
+  publicHolidays: string[];
   /**
    * Travel between the day's located things, in the Day map's order, only for
    * Items the viewer can see (a hidden Surprise is stepped over). estimated
    * true means a straight-line guess, not a routed time.
    */
-  /** The day's public holidays, already worded ("Epiphany (Germany): public holiday, expect closures"); empty when there are none. */
-  publicHolidays: string[];
   hops: { fromItemId: string; toItemId: string; minutes: number; mode: "walk" | "drive" | "public_transport"; distanceKm: number; estimated: boolean }[];
 }
 
