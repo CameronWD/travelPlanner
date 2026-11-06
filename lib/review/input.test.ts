@@ -5,6 +5,8 @@ const m = vi.hoisted(() => ({
   loadTripPlanView: vi.fn(), loadFlagRows: vi.fn(), flagsForRows: vi.fn(), loadTripProjection: vi.fn(),
   checklistItemFindMany: vi.fn(),
 }));
+const holidays = vi.hoisted(() => ({ loadHolidayLines: vi.fn() }));
+vi.mock("@/lib/holidays/trip-days", () => holidays);
 vi.mock("@/lib/db", () => ({ db: { checklistItem: { findMany: m.checklistItemFindMany } } }));
 vi.mock("@/lib/mcp/reads/trip-plan", () => ({ loadTripPlanView: m.loadTripPlanView }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlagRows: m.loadFlagRows, flagsForRows: m.flagsForRows }));
@@ -29,6 +31,7 @@ beforeEach(() => {
   m.flagsForRows.mockReturnValue([FLAG]);
   m.loadTripProjection.mockResolvedValue(PROJECTION);
   m.checklistItemFindMany.mockResolvedValue(CHECKLIST_ROWS);
+  holidays.loadHolidayLines.mockResolvedValue(new Map());
 });
 
 describe("buildReviewInput", () => {
@@ -47,6 +50,15 @@ describe("buildReviewInput", () => {
     expect(m.flagsForRows).not.toHaveBeenCalled();
     expect(input.flags).toEqual([]);
     expect(input.today).toBe(todayISOInZone("Australia/Sydney"));
+  });
+
+  it("carries the public holidays on the Trip's dates, as date and lines", async () => {
+    holidays.loadHolidayLines.mockResolvedValue(new Map([["2026-11-02", ["Culture Day (Japan): public holiday, expect closures"]]]));
+    const input = await buildReviewInput("trip-1");
+    const dates = holidays.loadHolidayLines.mock.calls[0][1] as string[];
+    expect(dates[0]).toBe(SAMPLE_PLAN.trip.startDate);
+    expect(dates.at(-1)).toBe(SAMPLE_PLAN.trip.endDate);
+    expect(input.publicHolidays).toEqual([{ date: "2026-11-02", lines: ["Culture Day (Japan): public holiday, expect closures"] }]);
   });
 
   it("reads the trip's Packing list and Pre-trip checklist, ordered, and passes them through", async () => {

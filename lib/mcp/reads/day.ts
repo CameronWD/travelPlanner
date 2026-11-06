@@ -18,6 +18,7 @@ import type { BookingState } from "@/lib/enum-values";
 import { resolvedDayHops } from "@/lib/day-map";
 import { homePointOf } from "@/lib/travel-times/hops";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
+import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { toMcpDayItem, toMcpSurprise, type McpDayItem, type McpSurprise } from "./plan-shapes";
 
 /** CONTEXT.md "Booking state", as get_trip_plan's legs and stays carry it. */
@@ -67,6 +68,8 @@ export interface McpDay {
    * Items the viewer can see (a hidden Surprise is stepped over). estimated
    * true means a straight-line guess, not a routed time.
    */
+  /** The day's public holidays, already worded ("Epiphany (Germany): public holiday, expect closures"); empty when there are none. */
+  publicHolidays: string[];
   hops: { fromItemId: string; toItemId: string; minutes: number; mode: "walk" | "drive" | "public_transport"; distanceKm: number; estimated: boolean }[];
 }
 
@@ -154,6 +157,8 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
       : [],
   );
 
+  const publicHolidays = (await loadHolidayLines(tripId, [date])).get(date) ?? [];
+
   const s = model.dayStop;
   const bed = model.tonight;
   return {
@@ -168,6 +173,7 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
       : null,
     timeline,
     anytime: ordered.anytime.map(item),
+    publicHolidays,
     hops,
   };
 }

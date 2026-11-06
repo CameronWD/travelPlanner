@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { flagsForRows, loadFlagRows } from "@/lib/flags-loader";
 import { loadTripPlanView } from "@/lib/mcp/reads/trip-plan";
 import { loadTripProjection } from "@/lib/trip-projection-reads";
+import { addDays } from "@/lib/dates";
+import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { todayISOInZone } from "@/lib/tz";
 import { reviewInputFromPlan, type ReviewChecklistEntry, type ReviewInput } from "./input-shape";
 
@@ -32,5 +34,10 @@ export async function buildReviewInput(tripId: string): Promise<ReviewInput> {
   const flags = rows ? flagsForRows(rows, projection) : [];
   const today = rows?.today ?? todayISOInZone(plan.trip.homeTimezone ?? "UTC");
   const checklists: ReviewChecklistEntry[] = checklistRows.map((r) => ({ list: r.kind as ReviewChecklistEntry["list"], text: r.text, ticked: r.done }));
-  return reviewInputFromPlan(plan, flags, today, checklists);
+  const { startDate, endDate } = plan.trip;
+  const dates: string[] = [];
+  if (startDate && endDate) for (let d = startDate; d <= endDate; d = addDays(d, 1)) dates.push(d);
+  const holidayLines = dates.length > 0 ? await loadHolidayLines(tripId, dates) : new Map<string, string[]>();
+  const publicHolidays = [...holidayLines].map(([date, lines]) => ({ date, lines }));
+  return reviewInputFromPlan(plan, flags, today, checklists, publicHolidays);
 }

@@ -15,6 +15,9 @@ vi.mock("@/lib/day-reads", () => ({ readDayRows }));
 // for lack of a DATABASE_URL.
 vi.mock("@/lib/db", () => ({ db: { stop: { findMany: stopFindMany } } }));
 
+const { loadHolidayLines } = vi.hoisted(() => ({ loadHolidayLines: vi.fn() }));
+vi.mock("@/lib/holidays/trip-days", () => ({ loadHolidayLines }));
+
 const { loadTravelLookupFor } = vi.hoisted(() => ({ loadTravelLookupFor: vi.fn() }));
 vi.mock("@/lib/travel-times/read", () => ({ loadTravelLookupFor }));
 
@@ -52,6 +55,16 @@ describe("loadDayForMcp", () => {
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
     readDayRows.mockResolvedValue({ rows, visibility: {}, alongside: [{ id: "s1", name: "Porto" }] });
     loadTravelLookupFor.mockResolvedValue(new Map());
+    loadHolidayLines.mockResolvedValue(new Map());
+  });
+
+  it("carries the day's public holidays, empty when there are none", async () => {
+    loadHolidayLines.mockResolvedValue(new Map([["2027-06-02", ["Corpus Christi (Portugal): public holiday, expect closures"]]]));
+    const day = await loadDayForMcp("trip-1", "2027-06-02");
+    expect(loadHolidayLines).toHaveBeenCalledWith("trip-1", ["2027-06-02"]);
+    expect(day).toMatchObject({ publicHolidays: ["Corpus Christi (Portugal): public holiday, expect closures"] });
+    const other = await loadDayForMcp("trip-1", "2027-06-03");
+    expect(other).toMatchObject({ publicHolidays: [] });
   });
 
   describe("hops", () => {

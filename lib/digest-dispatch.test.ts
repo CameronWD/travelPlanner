@@ -157,6 +157,9 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
   loadSurpriseVisibility: loadSurpriseVisibilityMock,
 }));
 
+const { loadHolidayLinesMock } = vi.hoisted(() => ({ loadHolidayLinesMock: vi.fn() }));
+vi.mock("@/lib/holidays/trip-days", () => ({ loadHolidayLines: loadHolidayLinesMock }));
+
 // Import after the mocks.
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
@@ -197,6 +200,7 @@ function seedSubscription(id: string, userId = USER_ID) {
 }
 
 beforeEach(() => {
+  loadHolidayLinesMock.mockResolvedValue(new Map());
   vi.clearAllMocks();
   loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   resetDb();
@@ -1527,6 +1531,25 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("MORNING carries today's public holiday lines, read for the digest's own local date", async () => {
+    seedTravellingTrip();
+    loadHolidayLinesMock.mockResolvedValue(new Map([[LOCAL_DATE, ["Boxing Day (Germany): public holiday, expect closures"]]]));
+
+    const input = await collect({ slot: "MORNING" });
+
+    expect(loadHolidayLinesMock).toHaveBeenCalledWith(TRIP_ID, [LOCAL_DATE]);
+    expect(input.publicHolidays).toEqual(["Boxing Day (Germany): public holiday, expect closures"]);
+  });
+
+  it("EVENING carries no public holiday lines", async () => {
+    seedTravellingTrip();
+    loadHolidayLinesMock.mockResolvedValue(new Map([[TOMORROW, ["x"]]]));
+
+    const input = await collect({ slot: "EVENING" });
+
+    expect(input.publicHolidays).toEqual([]);
+  });
+
   it("MORNING does not query payments, checklist or reminders — it discards them", async () => {
     // collectLines (lib/digest.ts) only renders payments, checklist and
     // reminders on the EVENING slot. Querying them for MORNING wakes Neon for
@@ -1679,6 +1702,7 @@ describe("collectDigestInput", () => {
       // child-table query runs, the same early-out used for a trip in
       // Recently deleted below — so this seeded Reminder is never read.
       reminders: [],
+      publicHolidays: [],
       schedule: { transports: [], stays: [], items: [] },
     });
   });
@@ -1699,6 +1723,7 @@ describe("collectDigestInput", () => {
       payments: [],
       checklist: [],
       reminders: [],
+      publicHolidays: [],
       schedule: { transports: [], stays: [], items: [] },
     });
   });

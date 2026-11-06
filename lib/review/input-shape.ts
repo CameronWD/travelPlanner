@@ -33,6 +33,8 @@ export interface ReviewInput {
   /** reviewChecklistsJson's output: so Claude never suggests packing or a pre-trip task already on a list. */
   checklists: string;
   targets: ReviewTargets;
+  /** Public holidays on the Trip's dates where the Travellers will be (lib/holidays), already worded. */
+  publicHolidays: Array<{ date: string; lines: string[] }>;
 }
 
 /**
@@ -90,7 +92,7 @@ export function reviewChecklistsJson(entries: readonly ReviewChecklistEntry[]): 
   return JSON.stringify({ packing: byList("PACKING"), preTrip: byList("PRETRIP") });
 }
 
-export function reviewInputFromPlan(plan: McpTripPlan, flags: Flag[], today: string, checklists: readonly ReviewChecklistEntry[] = []): ReviewInput {
+export function reviewInputFromPlan(plan: McpTripPlan, flags: Flag[], today: string, checklists: readonly ReviewChecklistEntry[] = [], publicHolidays: ReviewInput["publicHolidays"] = []): ReviewInput {
   return {
     tripName: plan.trip.name,
     startDate: plan.trip.startDate,
@@ -100,5 +102,6 @@ export function reviewInputFromPlan(plan: McpTripPlan, flags: Flag[], today: str
     flags,
     checklists: reviewChecklistsJson(checklists),
     targets: collectReviewTargets(plan),
+    publicHolidays,
   };
 }
