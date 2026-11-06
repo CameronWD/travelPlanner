@@ -144,6 +144,82 @@ describe("WhatsAroundSheet", () => {
   });
 });
 
+describe("WhatsAroundSheet follow-ups", () => {
+  const device = () => Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: vi.fn((ok) => ok({ coords: { latitude: 1.5, longitude: 2.5 } })) }, configurable: true });
+  const deviceCalls = () => whatsAround.mock.calls.filter(([, i]) => i.from.kind === "device").length;
+
+  it("retries a failed search when the same kind is tapped again", async () => {
+    whatsAround.mockResolvedValueOnce({ status: "unavailable" });
+    setup();
+    expect(await screen.findByText("Couldn't look around right now. Try again.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sights" }));
+    expect(await screen.findByText("Cathédrale")).toBeInTheDocument();
+    expect(whatsAround).toHaveBeenCalledTimes(2);
+  });
+  it("does not refetch a good result when its kind is tapped again", async () => {
+    setup();
+    await screen.findByText("Cathédrale");
+    fireEvent.click(screen.getByRole("button", { name: "Sights" }));
+    expect(whatsAround).toHaveBeenCalledTimes(1);
+  });
+  it("keeps Near me results across close and reopen, and a fresh tap refreshes", async () => {
+    device();
+    setup({ allowNearMe: true });
+    await screen.findByText("Cathédrale");
+    fireEvent.click(screen.getByRole("button", { name: "Near me" }));
+    await waitFor(() => expect(deviceCalls()).toBe(1));
+    await screen.findByText("Cathédrale");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "What's around" }));
+    await screen.findByText("Cathédrale");
+    expect(deviceCalls()).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Near me" }));
+    await waitFor(() => expect(deviceCalls()).toBe(2));
+  });
+  it("omits an unknown businessStatus and still saves", async () => {
+    whatsAround.mockResolvedValue(ok([{ ...place, businessStatus: "FUTURE_OPENING" }]));
+    setup();
+    await screen.findByText("Cathédrale");
+    fireEvent.click(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" }));
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect("businessStatus" in createItem.mock.calls[0][1]).toBe(false);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Added to Sat 12 Dec" })));
+  });
+  it("marks a row Added and Saved after success and disables the buttons", async () => {
+    setup();
+    await screen.findByText("Cathédrale");
+    fireEvent.click(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" }));
+    const added = await screen.findByRole("button", { name: "Added Cathédrale to Sat 12 Dec" });
+    expect(added).toBeDisabled();
+    expect(added).toHaveTextContent("Added");
+    fireEvent.click(screen.getByRole("button", { name: "♡ Wishlist: save Cathédrale" }));
+    const saved = await screen.findByRole("button", { name: "Saved Cathédrale to the Wishlist" });
+    expect(saved).toBeDisabled();
+    expect(saved).toHaveTextContent("Saved");
+    fireEvent.click(added);
+    expect(createItem).toHaveBeenCalledTimes(2);
+  });
+  it("leaves the button live after a failed save", async () => {
+    createItem.mockResolvedValue({ success: false });
+    setup();
+    await screen.findByText("Cathédrale");
+    fireEvent.click(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
+    expect(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" })).not.toBeDisabled();
+  });
+  it("says Open 24 hours when open with no close time", async () => {
+    whatsAround.mockResolvedValue(ok([{ ...place, openNow: true, closesAt: null }]));
+    setup();
+    expect(await screen.findByText(/Open 24 hours/)).toBeInTheDocument();
+  });
+  it("says Closed now when closed", async () => {
+    whatsAround.mockResolvedValue(ok([{ ...place, openNow: false, closesAt: null }]));
+    setup();
+    expect(await screen.findByText(/Closed now/)).toBeInTheDocument();
+  });
+});
+
 describe("helpers", () => {
   it("compactCount", () => {
     expect([999, 1234, 10000, 21000].map(compactCount)).toEqual(["999", "1.2k", "10k", "21k"]);
