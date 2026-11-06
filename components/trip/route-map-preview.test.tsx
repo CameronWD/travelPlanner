@@ -39,4 +39,35 @@ describe("RouteMapPreview", () => {
     expect(screen.getByTestId("live-map")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
+
+  it("moves focus to the live map wrapper after the tap", () => {
+    render(
+      <RouteMapPreview imageUrl="https://img.test/m.png" alt="Route map of Alps">
+        {live}
+      </RouteMapPreview>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Explore map" }));
+    const wrapper = screen.getByRole("group", { name: "Route map" });
+    expect(document.activeElement).toBe(wrapper);
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("does not steal focus on first render without an image", () => {
+    render(
+      <RouteMapPreview imageUrl={null} alt="Route map of Alps">
+        {live}
+      </RouteMapPreview>,
+    );
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("gives the image frame the live map's frame classes", () => {
+    render(
+      <RouteMapPreview imageUrl="https://img.test/m.png" alt="Route map of Alps" frameClassName="rounded-3xl h-[200px]">
+        {live}
+      </RouteMapPreview>,
+    );
+    const frame = screen.getByAltText("Route map of Alps").parentElement!;
+    expect(frame).toHaveClass("rounded-3xl", "h-[200px]", "border-2", "border-border");
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
@@ -16,9 +16,20 @@ export function RouteMapPreview({
   children: ReactNode;
 }) {
   const [live, setLive] = useState(false);
-  if (imageUrl == null || live) return <>{children}</>;
+  const liveRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (live) liveRef.current?.focus();
+  }, [live]);
+  if (imageUrl == null) return <>{children}</>;
+  if (live) {
+    return (
+      <div ref={liveRef} tabIndex={-1} role="group" aria-label="Route map" className="outline-none">
+        {children}
+      </div>
+    );
+  }
   return (
-    <div className={cn("relative w-full overflow-hidden", frameClassName)}>
+    <div className={cn("relative w-full overflow-hidden border-2 border-border", frameClassName)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={imageUrl} alt={alt} loading="lazy" className="size-full object-cover" />
       <Button
