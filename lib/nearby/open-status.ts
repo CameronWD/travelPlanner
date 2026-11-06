@@ -1,3 +1,4 @@
+import { formatISODate } from "@/lib/dates";
 import { hoursOn, type OpeningHours } from "@/lib/opening-hours";
 import type { NearbyPlace } from "./search";
 
@@ -11,7 +12,7 @@ const minutes = (clock: string): number => {
 
 const clockOf = (min: number): string => `${String(Math.floor(min / 60) % 24).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
-const isoOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+const isoOf = (ms: number): string => formatISODate(new Date(ms));
 
 type Status = { openNow: boolean | null; closesAt: string | null };
 

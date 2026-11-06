@@ -209,12 +209,12 @@ describe("WhatsAroundSheet follow-ups", () => {
     expect(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" })).not.toBeDisabled();
   });
   it("says Open 24 hours when open with no close time", async () => {
-    whatsAround.mockResolvedValue(ok([{ ...place, openNow: true, closesAt: null }]));
+    whatsAround.mockResolvedValue(ok([{ ...place, openNow: true, closesAt: null } as never]));
     setup();
     expect(await screen.findByText(/Open 24 hours/)).toBeInTheDocument();
   });
   it("says Closed now when closed", async () => {
-    whatsAround.mockResolvedValue(ok([{ ...place, openNow: false, closesAt: null }]));
+    whatsAround.mockResolvedValue(ok([{ ...place, openNow: false, closesAt: null } as never]));
     setup();
     expect(await screen.findByText(/Closed now/)).toBeInTheDocument();
   });
