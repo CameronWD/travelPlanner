@@ -9,11 +9,9 @@ import { nearbyKind } from "./kinds";
 
 const SEARCH_URL = "https://places.googleapis.com/v1/places:searchNearby";
 const FIELD_MASK =
-  "places.id,places.displayName,places.location,places.formattedAddress,places.primaryTypeDisplayName,places.rating,places.userRatingCount,places.regularOpeningHours,places.currentOpeningHours,places.businessStatus,places.websiteUri";
+  "places.id,places.displayName,places.location,places.formattedAddress,places.primaryTypeDisplayName,places.rating,places.userRatingCount,places.regularOpeningHours,places.currentOpeningHours,places.businessStatus,places.websiteUri,places.utcOffsetMinutes";
 const RADIUS_M = 1500;
 const MAX_RESULTS = 10;
-const MAX_UTC_OFFSET_MIN = 14 * 60;
-const MIN_UTC_OFFSET_MIN = -12 * 60;
 
 export interface NearbyPlace {
   placeId: string;
@@ -34,23 +32,12 @@ export interface NearbyPlace {
 const text = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 const labelOf = (v: unknown): string | null => (isRecord(v) ? text(v.text) : null);
 
-// The field mask has no UTC offset, so the place's local close time is read off the one period whose local close is a legal UTC offset away from nextCloseTime; two such periods and it stays unknown.
-function closesAtOf(current: Record<string, unknown>): string | null {
-  if (current.openNow !== true || typeof current.nextCloseTime !== "string" || !Array.isArray(current.periods)) return null;
+function closesAtOf(current: Record<string, unknown>, utcOffsetMinutes: unknown): string | null {
+  if (current.openNow !== true || typeof current.nextCloseTime !== "string" || !finite(utcOffsetMinutes)) return null;
   const next = Date.parse(current.nextCloseTime);
   if (!Number.isFinite(next)) return null;
-  const clocks = new Set<string>();
-  for (const period of current.periods) {
-    const close = isRecord(period) && isRecord(period.close) ? period.close : null;
-    const date = close && isRecord(close.date) ? close.date : null;
-    if (!close || !date || !finite(date.year) || !finite(date.month) || !finite(date.day)) continue;
-    const hour = finite(close.hour) ? close.hour : 0;
-    const minute = finite(close.minute) ? close.minute : 0;
-    const offsetMin = (Date.UTC(date.year, date.month - 1, date.day, hour, minute) - next) / 60_000;
-    if (offsetMin % 15 !== 0 || offsetMin < MIN_UTC_OFFSET_MIN || offsetMin > MAX_UTC_OFFSET_MIN) continue;
-    clocks.add(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
-  }
-  return clocks.size === 1 ? [...clocks][0] : null;
+  const local = new Date(next + utcOffsetMinutes * 60_000);
+  return `${String(local.getUTCHours()).padStart(2, "0")}:${String(local.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 function parsePlace(raw: unknown): NearbyPlace | null {
@@ -71,7 +58,7 @@ function parsePlace(raw: unknown): NearbyPlace | null {
     rating: finite(raw.rating) ? raw.rating : null,
     ratingCount: finite(raw.userRatingCount) ? raw.userRatingCount : null,
     openNow: current && typeof current.openNow === "boolean" ? current.openNow : null,
-    closesAt: current ? closesAtOf(current) : null,
+    closesAt: current ? closesAtOf(current, raw.utcOffsetMinutes) : null,
     openingHours: regular ? openingHoursFromGoogle(parseGooglePeriods(regular.periods), mapsLink(raw.id)) : null,
     businessStatus: text(raw.businessStatus),
     website: text(raw.websiteUri),

@@ -8,7 +8,7 @@ import { searchNearby } from "./search";
 const POINT = { lat: 38.7139, lng: -9.1334 };
 const FOOD = "food" as const;
 const MASK =
-  "places.id,places.displayName,places.location,places.formattedAddress,places.primaryTypeDisplayName,places.rating,places.userRatingCount,places.regularOpeningHours,places.currentOpeningHours,places.businessStatus,places.websiteUri";
+  "places.id,places.displayName,places.location,places.formattedAddress,places.primaryTypeDisplayName,places.rating,places.userRatingCount,places.regularOpeningHours,places.currentOpeningHours,places.businessStatus,places.websiteUri,places.utcOffsetMinutes";
 
 const reply = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
@@ -21,6 +21,7 @@ const PLACE = {
   rating: 4.6,
   userRatingCount: 21000,
   businessStatus: "OPERATIONAL",
+  utcOffsetMinutes: 60,
   websiteUri: "https://ramiro.test",
   regularOpeningHours: {
     periods: [{ open: { day: 1, hour: 12, minute: 0 }, close: { day: 1, hour: 23, minute: 0 } }],
@@ -28,10 +29,6 @@ const PLACE = {
   currentOpeningHours: {
     openNow: true,
     nextCloseTime: "2026-11-06T22:00:00Z",
-    periods: [
-      { open: { date: { year: 2026, month: 11, day: 6 }, hour: 12, minute: 0 }, close: { date: { year: 2026, month: 11, day: 6 }, hour: 23, minute: 0 } },
-      { open: { date: { year: 2026, month: 11, day: 7 }, hour: 12, minute: 0 }, close: { date: { year: 2026, month: 11, day: 7 }, hour: 23, minute: 0 } },
-    ],
   },
 };
 
@@ -78,7 +75,22 @@ describe("searchNearby", () => {
     expect(place.openingHours?.source).toContain("query_place_id=ChIJ1");
   });
 
-  it("leaves closesAt empty when the place is closed or the close time is ambiguous", async () => {
+  it.each([
+    ["+60", "2026-11-06T22:00:00Z", 60, "23:00"],
+    ["+540 across midnight", "2026-11-06T16:30:00Z", 540, "01:30"],
+    ["negative offset", "2026-11-06T03:15:00Z", -300, "22:15"],
+  ])("shifts nextCloseTime by the place's UTC offset (%s)", async (_n, nextCloseTime, utcOffsetMinutes, closesAt) => {
+    fetchMock.mockResolvedValue(reply({ places: [{ ...PLACE, utcOffsetMinutes, currentOpeningHours: { openNow: true, nextCloseTime } }] }));
+    expect((await searchNearby(POINT, FOOD))![0].closesAt).toBe(closesAt);
+  });
+
+  it("has no closesAt without a close time or an offset", async () => {
+    const noOffset = { ...PLACE, utcOffsetMinutes: undefined };
+    fetchMock.mockResolvedValue(reply({ places: [noOffset, { ...PLACE, id: "n", currentOpeningHours: { openNow: true } }] }));
+    expect((await searchNearby(POINT, FOOD))!.map((p) => p.closesAt)).toEqual([null, null]);
+  });
+
+  it("leaves closesAt empty when the place is closed", async () => {
     const closed = { ...PLACE, id: "c", currentOpeningHours: { ...PLACE.currentOpeningHours, openNow: false } };
     const bare = { id: "b", displayName: { text: "Bare" }, location: { latitude: 1, longitude: 2 } };
     fetchMock.mockResolvedValue(reply({ places: [closed, bare] }));
