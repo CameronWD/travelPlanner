@@ -6,6 +6,7 @@ import type { NearbyKind } from "./kinds";
 import type { NearbyPlace } from "./search";
 
 const KEEP_MS = 2 * 24 * 60 * 60 * 1000;
+const ERROR_COOLDOWN_MS = 15 * 60 * 1000;
 
 export type CachedNearby = { status: "OK"; results: NearbyPlace[] } | { status: "ERROR"; results: [] };
 
@@ -17,6 +18,7 @@ export async function cachedNearby(key: string): Promise<CachedNearby | null> {
   const row = await db.nearbyCache.findUnique({ where: { key } });
   if (!row) return null;
   if (row.status === "OK" && Array.isArray(row.results)) return { status: "OK", results: row.results as unknown as NearbyPlace[] };
+  if (Date.now() - row.fetchedAt.getTime() > ERROR_COOLDOWN_MS) return null;
   return { status: "ERROR", results: [] };
 }
 
