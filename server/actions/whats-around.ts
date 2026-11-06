@@ -18,25 +18,18 @@ export type WhatsAroundResult =
 
 type Located = { tripId: string; lat: number | null; lng: number | null } | null;
 
-function pointOf(row: Located, tripId: string): LatLng | null {
-  if (!row || row.tripId !== tripId || row.lat === null || row.lng === null) return null;
-  return { lat: row.lat, lng: row.lng };
-}
-
 async function resolvePoint(tripId: string, userId: string, from: Exclude<WhatsAroundFrom, { kind: "device" }>): Promise<LatLng | null> {
   const select = { tripId: true, lat: true, lng: true } as const;
-  let point: LatLng | null;
-  if (from.kind === "accommodation") {
-    point = pointOf(await db.accommodation.findUnique({ where: { id: from.id }, select }), tripId);
-    if (point) await requireOutsideSurprise(userId, { accommodationId: from.id });
-  } else if (from.kind === "stop") {
-    point = pointOf(await db.stop.findUnique({ where: { id: from.id }, select }), tripId);
-    if (point) await requireOutsideSurprise(userId, { stopId: from.id });
-  } else {
-    point = pointOf(await db.item.findUnique({ where: { id: from.id }, select }), tripId);
-    if (point) await requireOutsideSurprise(userId, { itemId: from.id });
-  }
-  return point;
+  let row: Located;
+  if (from.kind === "accommodation") row = await db.accommodation.findUnique({ where: { id: from.id }, select });
+  else if (from.kind === "stop") row = await db.stop.findUnique({ where: { id: from.id }, select });
+  else row = await db.item.findUnique({ where: { id: from.id }, select });
+  if (!row || row.tripId !== tripId) return null;
+  // Guard before the location check, or a surprised viewer could tell whether a hidden row is located.
+  if (from.kind === "accommodation") await requireOutsideSurprise(userId, { accommodationId: from.id });
+  else if (from.kind === "stop") await requireOutsideSurprise(userId, { stopId: from.id });
+  else await requireOutsideSurprise(userId, { itemId: from.id });
+  return row.lat === null || row.lng === null ? null : { lat: row.lat, lng: row.lng };
 }
 
 const isCoordinate = (lat: number, lng: number): boolean =>

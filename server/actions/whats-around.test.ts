@@ -109,6 +109,12 @@ describe("whatsAround", () => {
     expect(m.searchNearby).not.toHaveBeenCalled();
   });
 
+  it("rejects a surprised viewer for an unlocated item too, not no-point", async () => {
+    m.itemFindUnique.mockResolvedValue({ tripId: "t1", lat: null, lng: null });
+    m.requireOutsideSurprise.mockRejectedValue(new Error("NOT_FOUND"));
+    await expect(whatsAround("t1", { from: { kind: "item", id: "i1" }, nearbyKind: "food" })).rejects.toThrow("NOT_FOUND");
+  });
+
   it("guards accommodation and stop points with their own Surprise refs", async () => {
     await whatsAround("t1", acc);
     expect(m.requireOutsideSurprise).toHaveBeenCalledWith("u1", { accommodationId: "a1" });
