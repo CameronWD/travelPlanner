@@ -1563,3 +1563,14 @@ model TravelTime {
   polyline  String?
   fetchedAt DateTime @default(now()) @updatedAt
 }
+
+// Global cache of Google's public holiday iCal feeds, one row per country
+// (spec 2026-11-06-google-extras, Branch 2). holidays = parsed FeedHoliday[].
+// status OK carries them; NONE = Google has no feed for the country; ERROR =
+// cooldown marker after a failed fetch.
+model HolidayFeed {
+  countryCode String   @id
+  status      String
+  holidays    Json
+  fetchedAt   DateTime @default(now()) @updatedAt
+}
