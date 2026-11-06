@@ -27,7 +27,9 @@ Accepted (2026-10-30). Decided in the Google Maps grill
 - **Two more opt-in/background uses:** What's around (Nearby Search,
   Enterprise fields, only on Trips where a Traveller switched it on) and
   closed-venue re-checks (Place Details Pro, `businessStatus` only, upcoming
-  Trips, at most monthly per venue).
+  Trips, at most monthly per venue). NearbyCache keeps What's around results
+  (names, ratings, hours, addresses, points) for up to two days; same
+  invite-only storage deviation as point 2.
 
 ## Context
 
