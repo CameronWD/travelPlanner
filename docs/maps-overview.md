@@ -268,7 +268,8 @@ candidate or `null`.
 opening hours and the link (only when empty) and business status. A city or a
 bare street address skips it. That is a Place Details **Enterprise**
 call. Google's quota is per method, so one GetPlace cap (333/day) covers the
-Essentials picks, the server lookups and Enterprise together. Teepee holds
+Essentials picks, the server lookups, Enterprise and the Pro status re-checks
+(`venue-status`, at most 80/day by the app) together. Teepee holds
 Enterprise to **33/day** itself with `dailyCap("venue-details")`
 (`lib/google-usage.ts`, table `GoogleUsage`, a per-UTC-day counter). Past it the
 pick still fills location; hours and link just do not fill. Overnight hours are
@@ -437,7 +438,7 @@ the page still works from data already in the page, and deep links still render.
    need no header changes. Adding a CSP later means allowing `maps.googleapis.com`
    and `maps.gstatic.com`.
 8. **Places quotas are per API method.** One GetPlace cap covers Essentials picks,
-   server lookups and Enterprise detail calls; Teepee holds Enterprise to 33/day
+   server lookups, Enterprise detail calls and the Pro status re-checks (at most 80/day by the app); Teepee holds Enterprise to 33/day
    with its own `GoogleUsage` counter (§6).
 9. **Storage stance.** Google's terms limit how long Places coordinates and Routes
    results may be cached; the app stores coordinates indefinitely, a known

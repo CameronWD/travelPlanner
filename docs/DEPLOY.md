@@ -594,7 +594,8 @@ left room.
    Notes on the Places rows:
    - **Place Details is one cap.** Google quotas are per API method, not per SKU:
      the single GetPlace cap of 333/day covers the Essentials picks, the server
-     venue lookups and the Enterprise calls (opening hours) together.
+     venue lookups, the Enterprise calls (opening hours) and the Pro status
+     re-checks (`venue-status`, held to at most 80/day by the app) together.
    - **Enterprise is held to 33/day by Teepee, not the console.** The app's own
      `GoogleUsage` counter (`dailyCap("venue-details")`) gates every
      Enterprise call; past it a venue pick still fills the location but not the
