@@ -4,7 +4,6 @@
  * notFound() exactly as a non-member would be refused. Server-only; uses db.
  */
 import type { Prisma } from "@prisma/client";
-import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { SURPRISE_SELECT, isSurprisedBy, surpriseState, type SurpriseColumns, type SurpriseOver } from "@/lib/surprise";
 
@@ -85,7 +84,8 @@ export async function surpriseRootFor(ref: SurpriseRef, now = new Date(), client
 export async function requireOutsideSurprise(viewerId: string, ref: SurpriseRef, now = new Date()): Promise<SurpriseRoot | null> {
   const hit = await resolve(ref, now);
   if (!hit) return null;
-  if (hit.layers.some((l) => isSurprisedBy(l.row, l.over, viewerId, now))) notFound();
+  // Loaded lazily: operator scripts (tsx --conditions=react-server) reach this module via lib/item-family, and a static next/navigation import pulls Next's client build there and crashes at load.
+  if (hit.layers.some((l) => isSurprisedBy(l.row, l.over, viewerId, now))) (await import("next/navigation")).notFound();
   return hit.root;
 }
 
