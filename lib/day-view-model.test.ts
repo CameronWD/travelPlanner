@@ -137,7 +137,7 @@ describe("buildDayModel (card 3.M)", () => {
   };
   function rows(over: Partial<DayRows> = {}): DayRows {
     return {
-      trip: { name: "Xmas", startDate: "2026-12-04", endDate: "2026-12-20", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: null, chaptersEnabled: true, roundTrip: true, homeLat: null, homeLng: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80 },
+      trip: { name: "Xmas", startDate: "2026-12-04", endDate: "2026-12-20", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: null, chaptersEnabled: true, whatsAroundEnabled: false, roundTrip: true, homeLat: null, homeLng: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80 },
       startDate: "2026-12-04",
       endDate: "2026-12-20",
       stops: [

@@ -212,7 +212,9 @@ export default function PrivacyPage() {
             </span>
             : turn place names and addresses you type into places on the
             map, and fill a venue&rsquo;s opening hours and website when you
-            pick it.
+            pick it. &ldquo;What&rsquo;s around&rdquo; sends the point you
+            choose to Google Places; &ldquo;Near me&rdquo; uses your device
+            location only for that search and never stores it.
           </li>
           <li>
             <span className="font-bold">Google Maps</span>: draws the

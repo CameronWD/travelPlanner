@@ -108,6 +108,7 @@ export interface DayViewData {
   stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number; lat?: number | null; lng?: number | null }>;
   /** Day ideas — every phase (ADR 0044 amendment). */
   ideas: ReturnType<typeof dayIdeasRows>;
+  whatsAround: { enabled: boolean; starts: DayModel["nearbyStarts"] };
   /** Planned-day nearby rail (unchanged behaviour). */
   nearby: NearbyResult[];
   tonight: {
@@ -464,6 +465,7 @@ function projectDayView(
     stopOptions: shared.stopOptions,
     ideas,
     nearby: model.nearby,
+    whatsAround: { enabled: trip.whatsAroundEnabled, starts: model.nearbyStarts },
     tonight,
     strip,
     holidays: holidayLines.get(date) ?? [],

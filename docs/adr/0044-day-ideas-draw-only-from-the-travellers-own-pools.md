@@ -3,6 +3,11 @@
 ## Status
 Accepted (2026-09-14).
 
+**Amended 2026-11-06** (`docs/specs/2026-11-06-google-extras.md` §D): **What's
+around** is the one outside fetch. It sits *beside* Day ideas, as its own
+button and sheet, and is off unless a Traveller switches it on for the Trip.
+Day ideas themselves still draw only from the Travellers' own pools.
+
 ## Context
 A free-form day — one with nothing scheduled (`isFreeFormDay`, ADR/Task 8) —
 used to show only the Nearby Wishlist rail, and only when something happened

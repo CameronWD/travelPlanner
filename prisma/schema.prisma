@@ -502,6 +502,10 @@ model Trip {
   // Off leaves existing Forks dormant — they return when it is turned back on.
   forksEnabled Boolean @default(false)
 
+  // What's around (spec 2026-11-06 §D) is opt-in per trip: off by default,
+  // no entry point renders and the search action refuses while off.
+  whatsAroundEnabled Boolean @default(false)
+
   // Per-trip driving-estimate settings (used by drive-time hints + the
   // "long driving day" flag). Defaults suit mixed/winding roads.
   drivingWindingFactor Float @default(1.5)
@@ -1573,4 +1577,11 @@ model HolidayFeed {
   status      String
   holidays    Json
   fetchedAt   DateTime @default(now()) @updatedAt
+}
+
+model NearbyCache {
+  key       String   @id
+  status    String
+  results   Json
+  fetchedAt DateTime @default(now()) @updatedAt
 }

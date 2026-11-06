@@ -159,11 +159,13 @@ const ALLOWLIST: Record<string, string[]> = {
     "setChaptersEnabled",
     "setForksEnabled",
     "setTripHardEndDate",
+    "setWhatsAroundEnabled",
     "updateTrip",
   ],
   "venue-details.ts": ["venueDetailsForPick"],
   "votes.ts": ["clearVote", "setVote"],
   "welcome.ts": ["markWelcomeSeen"],
+  "whats-around.ts": ["whatsAround"],
 };
 
 const ACTIONS_DIR = path.resolve(__dirname, "../server/actions");

@@ -223,7 +223,7 @@ export async function locateVenue(title: string, address: string, opts: { near?:
 }
 
 // The field mask has no address, and the Maps URL requires a query, so the place ID serves as both.
-const mapsLink = (placeId: string): string =>
+export const mapsLink = (placeId: string): string =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeId)}&query_place_id=${encodeURIComponent(placeId)}`;
 
 export async function fetchVenueDetails(placeId: string): Promise<VenueDetails | null> {

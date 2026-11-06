@@ -156,7 +156,9 @@ there are no entry points and no searches.
 ### D2. Entry points (no clutter)
 - One "What's around" button on the **Day view**, sitting with **Day
   ideas** and separate from them. Day ideas stay "own pool only".
-- "What's near this" inside an Item's existing ⋯ menu.
+- "What's near this" as a start-point choice inside the sheet: the picker
+  lists the day's located Items. (Amended 2026-11-06: Day-view Items have no
+  ⋯ menu, and adding one to every row is the clutter Cam wanted to avoid.)
 - One button on the **Today view**.
 
 All three open the same sheet.

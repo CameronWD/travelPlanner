@@ -237,6 +237,7 @@ import {
   duplicateTrip,
   setChaptersEnabled,
   setForksEnabled,
+  setWhatsAroundEnabled,
   removeTripMember,
   leaveTrip,
 } from "./trips";
@@ -2072,6 +2073,37 @@ describe("setForksEnabled", () => {
     expect(recordActivityMock).toHaveBeenCalledWith(
       expect.objectContaining({ changes: { summary: "Turned what-if plans off" } }),
     );
+  });
+});
+
+describe("setWhatsAroundEnabled", () => {
+  it("is access-checked before the write", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setWhatsAroundEnabled(TRIP_ID, true);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
+  });
+
+  it("sets the flag, revalidates the trip, and records no Activity", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setWhatsAroundEnabled(TRIP_ID, true);
+
+    expect(result).toEqual({ success: true });
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { whatsAroundEnabled: true } });
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("clears the flag", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setWhatsAroundEnabled(TRIP_ID, false);
+
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { whatsAroundEnabled: false } });
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
   });
 });
 
