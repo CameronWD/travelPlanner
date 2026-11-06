@@ -10,6 +10,6 @@ export function placesBrowserKey(): string | null {
   return process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY || null;
 }
 
-export function mapIdOnly(): string | null {
-  return process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || null;
+export function staticMapId(): string | null {
+  return process.env.NEXT_PUBLIC_GOOGLE_MAPS_STATIC_MAP_ID || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || null;
 }

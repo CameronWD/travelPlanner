@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mapsConfig, placesBrowserKey } from "./google-config";
+import { mapsConfig, placesBrowserKey, staticMapId } from "./google-config";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -35,5 +35,25 @@ describe("placesBrowserKey", () => {
   it("is null when the browser key is empty", () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     expect(placesBrowserKey()).toBeNull();
+  });
+});
+
+describe("staticMapId", () => {
+  it("prefers the Static Map ID when set", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_STATIC_MAP_ID", "s");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+    expect(staticMapId()).toBe("s");
+  });
+
+  it("falls back to the JS Map ID", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_STATIC_MAP_ID", "");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "m");
+    expect(staticMapId()).toBe("m");
+  });
+
+  it("is null with neither", () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_STATIC_MAP_ID", "");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
+    expect(staticMapId()).toBeNull();
   });
 });
