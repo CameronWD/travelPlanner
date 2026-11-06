@@ -70,4 +70,28 @@ describe("RouteMapPreview", () => {
     const frame = screen.getByAltText("Route map of Alps").parentElement!;
     expect(frame).toHaveClass("rounded-3xl", "h-[200px]", "border-2", "border-border");
   });
+
+  it("falls back to the live map when the image fails, without stealing focus", () => {
+    render(
+      <RouteMapPreview imageUrl="https://img.test/m.png" alt="Route map of Alps">
+        {live}
+      </RouteMapPreview>,
+    );
+    fireEvent.error(screen.getByAltText("Route map of Alps"));
+    expect(screen.getByTestId("live-map")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Explore map" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Route map" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("contains the image rather than cropping it", () => {
+    render(
+      <RouteMapPreview imageUrl="https://img.test/m.png" alt="Route map of Alps">
+        {live}
+      </RouteMapPreview>,
+    );
+    const cls = screen.getByAltText("Route map of Alps").className;
+    expect(cls).toContain("object-contain");
+    expect(cls).toContain("bg-background");
+  });
 });

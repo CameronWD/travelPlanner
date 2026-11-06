@@ -16,11 +16,12 @@ export function RouteMapPreview({
   children: ReactNode;
 }) {
   const [live, setLive] = useState(false);
+  const [failed, setFailed] = useState(false);
   const liveRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (live) liveRef.current?.focus();
   }, [live]);
-  if (imageUrl == null) return <>{children}</>;
+  if (imageUrl == null || failed) return <>{children}</>;
   if (live) {
     return (
       <div ref={liveRef} tabIndex={-1} role="group" aria-label="Route map" className="outline-none">
@@ -31,7 +32,7 @@ export function RouteMapPreview({
   return (
     <div className={cn("relative w-full overflow-hidden border-2 border-border", frameClassName)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt={alt} loading="lazy" className="size-full object-cover" />
+      <img src={imageUrl} alt={alt} loading="lazy" className="size-full bg-background object-contain" onError={() => setFailed(true)} />
       <Button
         type="button"
         variant="secondary"

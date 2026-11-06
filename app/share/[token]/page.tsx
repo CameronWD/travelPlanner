@@ -25,7 +25,7 @@ import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enum-values";
 import { homeMapPoint } from "@/lib/route-map";
 import { staticMapUrl } from "@/lib/map/static-map";
-import { mapsConfig } from "@/lib/map/google-config";
+import { mapsConfig, staticMapId } from "@/lib/map/google-config";
 import { RouteMapPreview } from "@/components/trip/route-map-preview";
 import { loadRouteLegPaths } from "@/lib/travel-times/read";
 import { MAP_INK } from "@/lib/map/palette";
@@ -592,14 +592,16 @@ export default async function SharePage({
         return <JournalPolaroids {...journalProps} />;
       case "map": {
         const maps = mapsConfig();
-        const mapImageUrl = maps
+        const mapImageUrl =
+          maps && mapStops.filter((s) => s.lat != null && s.lng != null).length >= 2
           ? staticMapUrl({
               key: maps.apiKey,
-              mapId: maps.mapId,
+              mapId: staticMapId() ?? maps.mapId,
               width: 640,
               height: 320,
               stops: mapStops.map((s) => ({ id: s.id, lat: s.lat ?? null, lng: s.lng ?? null, sortOrder: s.sortOrder })),
               home: homeMapPoint(trip),
+              showReturn: trip.roundTrip ?? false,
               legPaths,
             })
           : null;

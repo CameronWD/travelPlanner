@@ -13,6 +13,7 @@ const input = {
   height: 373,
   stops: [{ id: "a", lat: 1, lng: 2, sortOrder: 0 }],
   home: null,
+  showReturn: false,
 };
 const fetchMock = vi.fn();
 

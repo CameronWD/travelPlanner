@@ -8,6 +8,7 @@ export type StaticMapInput = {
   height: number;
   stops: StaticMapStop[];
   home: { lat: number; lng: number } | null;
+  showReturn: boolean;
   legPaths?: Record<string, string>;
 };
 
@@ -19,10 +20,11 @@ const LINE = `color:${INK}FF|weight:3`;
 type Point = { lat: number; lng: number };
 type Located = { id: string; lat: number; lng: number; sortOrder: number };
 
-const pt = (p: Point) => `${p.lat},${p.lng}`;
+const round6 = (n: number) => String(Math.round(n * 1e6) / 1e6);
+const pt = (p: Point) => `${round6(p.lat)},${round6(p.lng)}`;
 const param = (name: string, value: string) => `${name}=${encodeURIComponent(value)}`;
 
-function paths(located: Located[], home: Point | null, legPaths: Record<string, string> | undefined): string[] {
+function paths(located: Located[], home: Point | null, showReturn: boolean, legPaths: Record<string, string> | undefined): string[] {
   const out: string[] = [];
   let run: Point[] = [];
   const flush = () => {
@@ -43,7 +45,7 @@ function paths(located: Located[], home: Point | null, legPaths: Record<string, 
       straight(located[i - 1], located[i]);
     }
   }
-  if (home) straight(located[located.length - 1], home);
+  if (home && showReturn) straight(located[located.length - 1], home);
   flush();
   return out;
 }
@@ -60,14 +62,14 @@ export function staticMapUrl(input: StaticMapInput): string | null {
   });
 
   const build = (withHome: boolean, withEnc: boolean) => {
-    const home = withHome ? input.home : null;
+    const home = withHome && located.length < 2 ? input.home : null;
     const parts = [
       `size=${input.width}x${input.height}`,
       "scale=2",
       param("map_id", input.mapId),
       ...markers,
       ...(home ? [param("markers", `color:${INK}|label:H|${pt(home)}`)] : []),
-      ...paths(located, home, withEnc ? input.legPaths : undefined).map((p) => param("path", p)),
+      ...paths(located, home, input.showReturn, withEnc ? input.legPaths : undefined).map((p) => param("path", p)),
       param("key", input.key),
     ];
     return `${BASE}?${parts.join("&")}`;

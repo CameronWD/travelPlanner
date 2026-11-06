@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { DefaultOgCard, OG_SIZE, ShareOgCard, ogFonts } from "@/lib/og-card";
 import { db } from "@/lib/db";
-import { mapIdOnly } from "@/lib/map/google-config";
+import { staticMapId } from "@/lib/map/google-config";
 import { fetchStaticMapDataUrl } from "@/lib/map/static-map-fetch";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { homeMapPoint } from "@/lib/route-map";
@@ -36,9 +36,9 @@ export default async function Image({ params }: { params: Promise<{ token: strin
     stopCount: stops.length,
     today,
   });
-  const mapId = mapIdOnly();
+  const mapId = staticMapId();
   let mapImage: string | null = null;
-  if (mapId && scheduled.some((s) => s.lat != null && s.lng != null)) {
+  if (mapId && scheduled.filter((s) => s.lat != null && s.lng != null).length > 0) {
     const home = homeMapPoint(link.trip);
     const transports = link.includeTransport
       ? await db.transport.findMany({
@@ -69,6 +69,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
       height: 373,
       stops: scheduled,
       home,
+      showReturn: link.trip.roundTrip ?? false,
       legPaths: await loadRouteLegPaths(scheduled, transports, home),
     });
   }

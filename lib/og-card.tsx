@@ -76,7 +76,7 @@ export function ShareOgCard({ name, subLine, sketch, mapImage }: ShareOgCardProp
         <div style={{ display: "flex", marginTop: 24, fontSize: 34, fontWeight: 700 }}>{subLine}</div>
       </div>
       <div style={{ position: "absolute", right: 90, top: 90, display: "flex", transform: "rotate(4deg)", background: OG_COLOURS.card, border: `4px solid ${OG_COLOURS.ink}`, borderRadius: 16, padding: "14px 14px 40px", boxShadow: `12px 12px 0 ${OG_COLOURS.ink}` }}>
-        <div style={{ width: 280, height: 373, display: "flex", alignItems: "center", justifyContent: "center", background: OG_COLOURS.paper, border: `3px solid ${OG_COLOURS.ink}` }}>
+        <div style={{ width: 280, height: 373, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: OG_COLOURS.paper, border: `3px solid ${OG_COLOURS.ink}` }}>
           {mapImage ? (
             // eslint-disable-next-line @next/next/no-img-element -- Satori, not the DOM
             <img src={mapImage} width={280} height={373} alt="" style={{ width: 280, height: 373, objectFit: "cover" }} />

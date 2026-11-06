@@ -28,7 +28,7 @@ vi.mock("@/lib/plan-reads", async (importOriginal) => {
   return { ...actual, readPlan: readPlanMock };
 });
 const { mapsConfigMock } = vi.hoisted(() => ({ mapsConfigMock: vi.fn() }));
-vi.mock("@/lib/map/google-config", () => ({ mapsConfig: mapsConfigMock }));
+vi.mock("@/lib/map/google-config", () => ({ mapsConfig: mapsConfigMock, staticMapId: () => "map-id" }));
 vi.mock("@/lib/travel-times/read", () => ({ loadRouteLegPaths: vi.fn(async () => ({})) }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn(async () => ({ user: { id: "u-viewer", email: "v@example.com" }, membership: { role: "member" } })),

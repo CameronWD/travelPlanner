@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { stopHex } from "@/lib/stop-colours";
 import { staticMapUrl, type StaticMapStop } from "./static-map";
 
-const base = { key: "K", mapId: "M", width: 600, height: 300, home: null };
+const base = { key: "K", mapId: "M", width: 600, height: 300, home: null, showReturn: false };
 const stop = (n: number, lat: number | null = n, lng: number | null = n): StaticMapStop => ({
   id: `s${n}`,
   lat,
@@ -73,18 +73,44 @@ describe("staticMapUrl", () => {
     expect(params(url, "markers")).toHaveLength(12);
   });
 
-  it("adds an H marker and Home legs when given a Home", () => {
-    const url = staticMapUrl({ ...base, home: { lat: 9, lng: 9 }, stops: [stop(1), stop(2)] })!;
-    expect(params(url, "markers")).toContain("color:0x1D1D1B|label:H|9,9");
-    expect(params(url, "path")).toEqual(["color:0x1D1D1BFF|weight:3|9,9|1,1|2,2|9,9"]);
+  it("draws no Home marker or legs when two or more Stops are located", () => {
+    const url = staticMapUrl({ ...base, showReturn: true, home: { lat: 9, lng: 9 }, stops: [stop(1), stop(2)] })!;
+    expect(params(url, "markers")).toHaveLength(2);
+    expect(params(url, "markers").join()).not.toContain("label:H");
+    expect(params(url, "path")).toEqual(["color:0x1D1D1BFF|weight:3|1,1|2,2"]);
   });
 
-  it("keeps Home when dropping encoded paths is enough", () => {
-    const stops = Array.from({ length: 12 }, (_, i) => stop(i + 1));
-    const legPaths: Record<string, string> = {};
-    for (let i = 1; i < 12; i++) legPaths[`s${i}>s${i + 1}`] = "a".repeat(900);
-    const url = staticMapUrl({ ...base, home: { lat: 9, lng: 9 }, stops, legPaths })!;
+  it("draws Home and the outbound leg when fewer than two Stops are located", () => {
+    const url = staticMapUrl({ ...base, home: { lat: 9, lng: 9 }, stops: [stop(1), stop(2, null, null)] })!;
+    expect(params(url, "markers")).toContain("color:0x1D1D1B|label:H|9,9");
+    expect(params(url, "path")).toEqual(["color:0x1D1D1BFF|weight:3|9,9|1,1"]);
+  });
+
+  it("adds the return leg only when showReturn is set", () => {
+    const url = staticMapUrl({ ...base, showReturn: true, home: { lat: 9, lng: 9 }, stops: [stop(1)] })!;
+    expect(params(url, "path")).toEqual(["color:0x1D1D1BFF|weight:3|9,9|1,1|9,9"]);
+  });
+
+  it("falls back to no Home when the single-Stop URL is still too long", () => {
+    const url = staticMapUrl({ ...base, home: { lat: 9, lng: 9 }, mapId: "m".repeat(9000), stops: [stop(1)] })!;
+    expect(params(url, "markers")).toEqual([`color:${hex(1)}|label:1|1,1`]);
+    expect(params(url, "path")).toEqual([]);
+  });
+
+  it("rounds coordinates to six decimal places", () => {
+    const url = staticMapUrl({ ...base, stops: [stop(1, 48.123456789, -0.1000004), stop(2, 10, 20.5)] })!;
+    expect(params(url, "markers")[0]).toBe(`color:${hex(1)}|label:1|48.123457,-0.1`);
+    expect(params(url, "path")).toEqual(["color:0x1D1D1BFF|weight:3|48.123457,-0.1|10,20.5"]);
+  });
+
+  it("keeps the single-Stop Home when dropping encoded paths is enough", () => {
+    const url = staticMapUrl({
+      ...base,
+      home: { lat: 9, lng: 9 },
+      stops: [stop(1)],
+      legPaths: { "s0>s1": "a".repeat(9000) },
+    })!;
     expect(url.length).toBeLessThanOrEqual(8192);
-    expect(params(url, "markers")).toHaveLength(13);
+    expect(params(url, "markers")).toHaveLength(2);
   });
 });
