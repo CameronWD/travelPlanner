@@ -279,8 +279,15 @@ describe("getDays — one day", () => {
     const d = await one("2026-12-12");
     if (typeof d === "string") throw new Error(d);
     expect(d.holidays).toEqual(["Epiphany (Germany): public holiday, expect closures"]);
-    expect(d.strip.dates.find((s) => s.iso === "2026-12-12")?.holiday).toBe(true);
+    expect(d.strip.dates.find((s) => s.iso === "2026-12-12")?.holiday).toBe("public");
     expect(d.strip.dates.find((s) => s.iso === "2026-12-11")?.holiday).toBe(false);
+  });
+
+  it("flags a day with only an Observance as early closing, not a public holiday", async () => {
+    loadHolidayLinesMock.mockResolvedValue(new Map([["2026-12-12", ["Good Friday (Germany): many places close early"]]]));
+    const d = await one("2026-12-12");
+    if (typeof d === "string") throw new Error(d);
+    expect(d.strip.dates.find((s) => s.iso === "2026-12-12")?.holiday).toBe("early");
   });
 
   it("strip dots count Transport legs and check-ins/outs as well as Items (what the plan card counts)", async () => {

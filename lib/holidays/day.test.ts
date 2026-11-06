@@ -106,7 +106,7 @@ describe("holidaysOnDay", () => {
 
   it("shows a regional holiday for a matching Region with no named Regions", () => {
     expect(epiphany("Bavaria")).toEqual([
-      { countryCode: "de", name: "Epiphany (regional holiday)", kind: "public", halfDay: false, namedRegions: null },
+      { countryCode: "de", name: "Epiphany", kind: "public", halfDay: false, namedRegions: null },
     ]);
   });
 
@@ -159,7 +159,7 @@ describe("holidaysOnDay", () => {
 
   it("keeps the half-day public holiday", () => {
     expect(holidaysOnDay([{ countryCode: "de", region: null }], "2026-12-24", feeds)).toMatchObject([
-      { name: "Christmas Eve (half-day)", kind: "public", halfDay: true },
+      { name: "Christmas Eve", kind: "public", halfDay: true },
     ]);
   });
 

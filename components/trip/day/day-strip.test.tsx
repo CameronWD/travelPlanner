@@ -9,7 +9,7 @@ import type { StopLine } from "@/lib/day-view-model";
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, scroll, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} data-scroll={String(scroll)} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
 vi.mock("next/navigation", () => ({ usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
 
-const dates = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, count: [1, 1, 3, 0, 2][i], isCurrent: iso === "2026-12-12", isToday: iso === "2026-12-11", holiday: iso === "2026-12-10" }));
+const dates = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, count: [1, 1, 3, 0, 2][i], isCurrent: iso === "2026-12-12", isToday: iso === "2026-12-11", holiday: iso === "2026-12-10" ? "public" as const : iso === "2026-12-09" ? "early" as const : false as const }));
 const segments: StopLine = {
   homeStart: "Gold Coast",
   homeEnd: "Gold Coast",
@@ -233,6 +233,8 @@ describe("DayStrip", () => {
     expect(links[1]).toHaveAttribute("aria-label", expect.stringMatching(/, public holiday$/));
     expect(links[1].querySelector("[data-holiday]")).not.toBeNull();
     expect(links[0]).not.toHaveAttribute("aria-label", expect.stringContaining("public holiday"));
-    expect(links[0].querySelector("[data-holiday]")).toBeNull();
+    expect(links[0]).toHaveAttribute("aria-label", expect.stringMatching(/, places close early$/));
+    expect(links[0].querySelector("[data-holiday]")).not.toBeNull();
+    expect(links[2].querySelector("[data-holiday]")).toBeNull();
   });
 });

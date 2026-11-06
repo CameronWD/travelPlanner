@@ -39,7 +39,7 @@ function targetFor(nav: HTMLElement, chip: HTMLElement, useDesktopRule: boolean,
   return useDesktopRule ? desktopStripScroll(input) : phoneStripScroll(input);
 }
 
-export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: boolean }>; line: StopLine; size: "desktop" | "phone" }) {
+export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: "public" | "early" | false }>; line: StopLine; size: "desktop" | "phone" }) {
   const phone = size === "phone";
   const tripHref = useTripHref(tripId);
   const carousel = useDayCarousel();
@@ -166,7 +166,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
           {dates.map((d) => {
             const dt = parseISODate(d.iso);
             const dots = dotsFor(d.count);
-            const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}${d.holiday ? ", public holiday" : ""}`;
+            const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}${d.holiday === "public" ? ", public holiday" : d.holiday === "early" ? ", places close early" : ""}`;
             const href = tripHref(`/day/${d.iso}`);
             return (
               <AppLink

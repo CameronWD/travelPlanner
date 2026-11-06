@@ -101,3 +101,8 @@ export function holidayLine(h: DayHoliday): string {
   if (h.halfDay) return `${h.name} (${country}): half-day public holiday, many places close early`;
   return `${h.name} (${country}): public holiday, expect closures`;
 }
+
+export function holidayMark(lines: string[] | undefined): "public" | "early" | false {
+  if (!lines?.length) return false;
+  return lines.some((l) => l.includes("public holiday")) ? "public" : "early";
+}

@@ -54,6 +54,7 @@ import type { TransportMode } from "@/lib/enum-values";
 import type { DayEntryEditor } from "@/lib/plan-entity-views";
 import type { AttachmentView } from "@/lib/attachment-view";
 import type { CostRow } from "@/lib/money/cost-row";
+import { holidayMark } from "@/lib/holidays/day";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
@@ -123,7 +124,7 @@ export interface DayViewData {
     lng: number | null;
     placeId?: string | null;
   } | null;
-  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: boolean }>; line: StopLine };
+  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: "public" | "early" | false }>; line: StopLine };
   /** Public holidays where the Trip is on this day (lib/holidays/trip-days.ts), one line each. */
   holidays: string[];
   journal: {
@@ -405,7 +406,7 @@ function projectDayView(
       count: (shared.itemsByDate.get(iso) ?? 0) + nonItemCount(iso),
       isCurrent: iso === date,
       isToday: iso === today,
-      holiday: holidayLines.has(iso),
+      holiday: holidayMark(holidayLines.get(iso)),
     })),
     line: shared.line,
   };
