@@ -19,9 +19,10 @@ Accepted (2026-10-30). Decided in the Google Maps grill
   for a day, so a crawler is not a billed call each time. Serving a Google
   map image inside our own card is the same invite-only storage deviation as
   point 2.
-- **Public holidays come from Google Calendar's holiday calendars** (Calendar
-  API, free), cached per country and year (subject to the spec §B3 data
-  check; Nager.Date otherwise).
+- **Public holidays come from Google Calendar's holiday calendars**, read
+  from their public iCal feeds (no key, no Calendar API) and cached per
+  country and year. The data check passed on 2026-11-06: the feeds label
+  public holidays, observances and their Regions.
 - **Two more opt-in/background uses:** What's around (Nearby Search,
   Enterprise fields, only on Trips where a Traveller switched it on) and
   closed-venue re-checks (Place Details Pro, `businessStatus` only, upcoming
