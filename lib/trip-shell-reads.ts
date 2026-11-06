@@ -43,6 +43,7 @@ export const TRIP_SHELL_SELECT = {
   roundTrip: true,
   chaptersEnabled: true,
   forksEnabled: true,
+  whatsAroundEnabled: true,
   drivingWindingFactor: true,
   drivingAvgSpeedKph: true,
   coverImageKey: true,

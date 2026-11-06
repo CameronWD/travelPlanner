@@ -795,6 +795,22 @@ export async function setChaptersEnabled(tripId: string, enabled: boolean): Prom
 }
 
 // ---------------------------------------------------------------------------
+// setWhatsAroundEnabled
+// ---------------------------------------------------------------------------
+
+export type SetWhatsAroundEnabledResult = UpdateTripResult;
+
+export async function setWhatsAroundEnabled(tripId: string, enabled: boolean): Promise<SetWhatsAroundEnabledResult> {
+  await requireTripAccess(tripId);
+
+  await db.trip.update({ where: { id: tripId }, data: { whatsAroundEnabled: enabled } });
+
+  revalidateTrip(tripId, "trip");
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // setForksEnabled
 // ---------------------------------------------------------------------------
 

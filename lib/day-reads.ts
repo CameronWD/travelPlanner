@@ -47,7 +47,7 @@ export async function readDayRows<X>(
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: {
-      name: true, startDate: true, endDate: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, roundTrip: true,
+      name: true, startDate: true, endDate: true, homeCurrency: true, homeName: true, homeTimezone: true, chaptersEnabled: true, whatsAroundEnabled: true, roundTrip: true,
       homeLat: true, homeLng: true, drivingWindingFactor: true, drivingAvgSpeedKph: true,
     },
   });

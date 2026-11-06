@@ -159,6 +159,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "setChaptersEnabled",
     "setForksEnabled",
     "setTripHardEndDate",
+    "setWhatsAroundEnabled",
     "updateTrip",
   ],
   "venue-details.ts": ["venueDetailsForPick"],

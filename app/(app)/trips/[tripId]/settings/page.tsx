@@ -25,6 +25,7 @@ import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estima
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
+import { WhatsAroundSwitch } from "@/components/trip/settings/whats-around-switch";
 import { ChaptersSwitch } from "@/components/trip/settings/chapters-switch";
 import { SavedForOffline } from "@/components/trip/settings/saved-for-offline";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
@@ -88,6 +89,7 @@ export default async function SettingsPage({
       drivingAvgSpeedKph: true,
       chaptersEnabled: true,
       forksEnabled: true,
+      whatsAroundEnabled: true,
       members: {
         select: {
           userId: true,
@@ -187,6 +189,15 @@ export default async function SettingsPage({
                   <ChaptersManager tripId={tripId} chapters={chapters} />
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">What&apos;s around</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <WhatsAroundSwitch tripId={tripId} enabled={trip.whatsAroundEnabled} />
             </CardContent>
           </Card>
 
