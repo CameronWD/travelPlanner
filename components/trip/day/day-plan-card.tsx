@@ -25,14 +25,15 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
   const phone = size === "phone";
   const dateLabel = formatDayLabel(data.date);
   const empty = !data.hasEntries && data.ideas.rows.length === 0;
-  const whatsAround = data.whatsAround.enabled ? (
+  const allowNearMe = data.phase === "travelling" && data.isToday;
+  const whatsAround = data.whatsAround.enabled && (data.whatsAround.starts.length > 0 || allowNearMe) ? (
     <WhatsAroundSheet
       tripId={data.tripId}
       date={data.date}
       dateLabel={dateLabel}
       stopId={data.stop?.id ?? null}
       startPoints={data.whatsAround.starts}
-      allowNearMe={data.phase === "travelling" && data.isToday}
+      allowNearMe={allowNearMe}
     />
   ) : null;
   return (
@@ -55,7 +56,6 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
         <div data-slot="day-plan-empty" className="flex min-h-[12rem] flex-col items-center justify-center gap-3.5 text-center">
           <p className="text-sm font-semibold text-muted-foreground">Nothing planned</p>
           <div className="w-full">{addButton}</div>
-          {whatsAround}
         </div>
       ) : (
         <>
@@ -93,10 +93,10 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
           </div>
           <div className="flex flex-col gap-2.5">
             {addButton}
-            {whatsAround ? <div>{whatsAround}</div> : null}
           </div>
         </>
       )}
+      {whatsAround ? <div className={empty ? "flex justify-center" : undefined}>{whatsAround}</div> : null}
     </section>
   );
 }

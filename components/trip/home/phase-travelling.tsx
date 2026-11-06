@@ -336,7 +336,7 @@ export async function PhaseTravelling({
 // ---------------------------------------------------------------------------
 
 function whatsAroundFor(tripId: string, model: DatedTravellingHome) {
-  if (!model.trip.whatsAroundEnabled) return null;
+  if (!model.trip.whatsAroundEnabled || (model.nearbyStarts.length === 0 && !model.isWithinTrip)) return null;
   return (
     <WhatsAroundSheet
       tripId={tripId}

@@ -1,11 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
+import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import type { DayViewData } from "@/lib/day-view-loader";
 
-const { sheetMock } = vi.hoisted(() => ({ sheetMock: vi.fn() }));
+const { sheetMock, lifecycle } = vi.hoisted(() => ({ sheetMock: vi.fn(), lifecycle: { mount: vi.fn(), unmount: vi.fn() } }));
 vi.mock("@/components/trip/whats-around-sheet", () => ({
   WhatsAroundSheet: (p: Record<string, unknown>) => {
     sheetMock(p);
+    React.useEffect(() => {
+      lifecycle.mount();
+      return () => lifecycle.unmount();
+    }, []);
     return <button>What&apos;s around</button>;
   },
 }));
@@ -65,5 +70,26 @@ describe("DayPlanCard What's around", () => {
   it("renders nothing when the Trip has it off", () => {
     render(<DayPlanCard data={data({ enabled: false })} size="desktop" addButton={<button>Add</button>} />);
     expect(screen.queryByRole("button", { name: "What's around" })).toBeNull();
+  });
+
+  it("keeps the same sheet instance when an empty day becomes planned", () => {
+    lifecycle.mount.mockClear();
+    lifecycle.unmount.mockClear();
+    const empty = data({ hasEntries: false, planCount: 0 });
+    const { rerender } = render(<DayPlanCard data={empty} size="desktop" addButton={<button>Add</button>} />);
+    rerender(<DayPlanCard data={data()} size="desktop" addButton={<button>Add</button>} />);
+    expect(screen.getByRole("button", { name: "What's around" })).toBeInTheDocument();
+    expect(lifecycle.mount).toHaveBeenCalledTimes(1);
+    expect(lifecycle.unmount).not.toHaveBeenCalled();
+  });
+
+  it("renders nothing with no start points and no Near me", () => {
+    render(<DayPlanCard data={data({ isToday: false, whatsAround: { enabled: true, starts: [] } } as never)} size="desktop" addButton={<button>Add</button>} />);
+    expect(screen.queryByRole("button", { name: "What's around" })).toBeNull();
+  });
+
+  it("renders with no start points when Near me is allowed", () => {
+    render(<DayPlanCard data={data({ whatsAround: { enabled: true, starts: [] } } as never)} size="desktop" addButton={<button>Add</button>} />);
+    expect(screen.getByRole("button", { name: "What's around" })).toBeInTheDocument();
   });
 });

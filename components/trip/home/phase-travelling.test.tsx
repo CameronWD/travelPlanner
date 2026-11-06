@@ -331,6 +331,24 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
     expect(findElementByType(tree, WhatsAroundSheet)?.props.allowNearMe).toBe(within);
   });
 
+  it.each([
+    ["2026-01-01", "2026-01-10", false],
+    ["2000-01-01", "2999-01-10", true],
+  ])("with no located start point, renders What's around only when Near me is possible (%s..%s -> %s)", async (startDate, endDate, shown) => {
+    tripFindUniqueMock.mockResolvedValue({ startDate, endDate, homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: true });
+    vi.mocked((await import("@/lib/itinerary")).effectiveTodayISO).mockReturnValue("2026-01-05");
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Munich", country: "Germany", countryCode: "de", lat: null, lng: null, timezone: "Europe/Berlin", arriveDate: startDate, departDate: endDate, sortOrder: 0 },
+    ]);
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    const sheet = findElementByType(tree, WhatsAroundSheet);
+    expect(sheet !== null).toBe(shown);
+    if (sheet) expect(sheet.props.startPoints).toEqual([]);
+  });
+
   it("renders no What's around entry point when the Trip has it off", async () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: false });
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
