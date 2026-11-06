@@ -708,6 +708,20 @@ left room.
     `npm run travel-times:refresh -- --execute` occasionally (e.g. monthly) if
     you want them filled sooner.
 
+14. **Fill Regions and warm public holidays** (last, after the places backfill:
+    Public holidays need each Stop, Home base and Transport end's country and
+    Region; rows saved from now on fill themselves, existing ones do not).
+    1. `npm run regions:fill` (dry run). It looks up every Stop, Home base and
+       Transport end that has a place ID but no Region (Transport ends also
+       missing a country) and prints `kind id · place · → country / Region` per
+       row, then totals. Nothing is written. Five lookups failing in a row stop
+       it with "Google is refusing lookups: check the GetPlace quota."
+    2. `npm run regions:fill -- --execute` writes them, only where the Region
+       (or country) is still empty; it never overwrites. About 50 GetPlace
+       Essentials lookups, inside the step 6 quota.
+    3. Both modes then fetch Google's public holiday feeds for every country
+       the Trips touch. The feeds are public: no key, no quota.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:

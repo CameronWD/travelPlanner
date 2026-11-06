@@ -164,6 +164,18 @@ async function placeDetails(placeId: string, fieldMask: string, key: string): Pr
   return isRecord(data) && typeof data.id === "string" ? data : null;
 }
 
+export async function lookUpRegion(placeId: string): Promise<{ countryCode: string; region: string | null } | null> {
+  const key = serverKey();
+  if (!key) return null;
+  const place = await placeDetails(placeId, "id,addressComponents", key);
+  if (!place) return null;
+  const components = readComponents(place.addressComponents, "longText", "shortText");
+  const country = components.find((c) => c.types.includes("country"))?.short;
+  if (!country) return null;
+  const region = components.find((c) => c.types.includes("administrative_area_level_1"))?.text || null;
+  return { countryCode: country.toLowerCase(), region };
+}
+
 async function findVenue(textQuery: string, near: LatLng | undefined, key: string): Promise<Lookup<GeoCandidate>> {
   const body = near
     ? { textQuery, locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: NEAR_BIAS_RADIUS_M } } }
