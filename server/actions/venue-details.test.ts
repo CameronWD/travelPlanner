@@ -36,7 +36,7 @@ describe("venueDetailsForPick", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, takeGoogleQuotaMock);
   });
 
-  it("refuses the 16th call of the day without calling Google", async () => {
+  it("refuses past the daily cap without calling Google", async () => {
     takeGoogleQuotaMock.mockResolvedValueOnce(false);
     expect(await venueDetailsForPick("trip-1", "ChIJ1")).toBeNull();
     expect(fetchVenueDetailsMock).not.toHaveBeenCalled();

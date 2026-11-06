@@ -56,7 +56,7 @@ The operator scripts' `--cap` stays.
 
 ### A2. Docs
 DEPLOY §4j's cost rule and quota table are rewritten for share 1. The
-console quotas (≈330/day for each Essentials method) are raised by Cam on
+console quotas (333/day for each Essentials method) are raised by Cam on
 2026-12-01, or earlier only after Billing → Reports shows the property
 tracker's November usage left room. Free usage is counted per calendar
 month per billing account.
@@ -192,11 +192,14 @@ Needs a status-checked-at timestamp on Item. Past Trips are never
 re-checked.
 
 ## Before the one push (Cam)
+0. Raise the console quotas to the A1 share-1 values (333 per Essentials
+   method) — on/after 2026-12-01 or after the November billing check. The
+   push waits for this.
 1. Enable the **Google Calendar API** and the **Maps Static API** in the
    `teepee` project.
 2. Server key API restrictions: add Calendar API and Maps Static API.
    Browser key: add Maps Static API.
-3. Per-day quotas: Maps Static ≈330. Nearby Search (SearchNearby) 33 if
+3. Per-day quotas: Maps Static 333. Nearby Search (SearchNearby) 33 if
    offered per method.
 4. Local checks Claude can run headless: a Day with a Public holiday, Share
    preview image, Print map, the What's around sheet (one search), and a
@@ -204,8 +207,6 @@ re-checked.
 
 ## After the deploy (Cam)
 1. Region fill: dry run, read it, `--execute` (`! npm run …`).
-2. On 2026-12-01 (or after the billing check): raise the console quotas to
-   the share-1 numbers in A1 / DEPLOY §4j.
 
 ## Not in this work / follow-ups
 - Reordering a day by Route Matrix (skipped 2026-11-06).

@@ -542,11 +542,15 @@ leave the free allowance, so the bill is $0 by construction. Free usage is grant
 per SKU **per billing account**; the account is no longer shared, because the
 property tracker's Google usage stopped on 2026-11-06. The share is `GOOGLE_SHARE`
 in `lib/google-budget.ts`. Free usage is per calendar month per billing account, so
-a share change takes effect from the next month, or after Billing → Reports shows
-room.
+the console per-day quotas (step 6) must be at the share-1 values (333 for each
+Essentials method) **before** the deploy that ships `GOOGLE_SHARE = 1`: the app's
+own counters allow up to `dailyCap(...)`, and a console refusal is stored as an
+ERROR Travel time with a 24 h cooldown. Raise them on or after 2026-12-01, or
+earlier only once Billing → Reports shows the property tracker's November usage
+left room.
 
 1. **Project.** console.cloud.google.com → create project `teepee`, billing account
-   = the existing one (the same one hometracker uses).
+   = the existing one (the one hometracker used).
 2. **Enable APIs** (APIs & Services → Library): Maps JavaScript API, Places API (New),
    Geocoding API, Routes API.
 3. **Browser key** (Credentials → Create API key). Application restriction: HTTP
@@ -566,7 +570,8 @@ room.
    dark look and attach it to the Map ID; the app picks the scheme from the theme.
    Advanced Markers (the pins) require a Map ID.
 6. **Per-day quotas** (IAM & Admin → Quotas & System Limits, or each API's Quotas
-   tab; set a per-day limit on the request metric):
+   tab; set a per-day limit on the request metric). Do this before the deploy
+   that ships `GOOGLE_SHARE = 1` (see the cost rule above):
 
    | API / SKU | Free monthly | Per-day quota (share ÷ 30) |
    |---|---|---|

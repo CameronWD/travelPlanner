@@ -207,7 +207,7 @@ The one card on the **Day view** that says what that day's weather is like at th
 _Avoid_: Forecast (only one of the things it may show), widget, weather tile
 
 **Public holiday**:
-A date a country observes as a public holiday — Christmas Day in France, Epiphany in Italy — that falls on a day of the Trip in a country the Travellers are in that day. It is context the day *shows*, never a **Flag**: nothing in the plan is wrong because of it, it only warns that things may be shut. Belongs to the place and the date, not to the Trip.
+A date a country, or a **Region** of it, observes as a public holiday — Christmas Day in France, Epiphany in Bavaria. A day of the Trip shows the Public holidays of the places the Travellers are in that day. It is context the day *shows*, never a **Flag**: nothing in the plan is wrong because of it, it only warns that things may be shut. Belongs to the place and the date, not to the Trip.
 _Avoid_: Holiday on its own (that word is reserved against meaning the **Trip**), bank holiday, closure (a closure belongs to a place's **Opening hours**)
 
 **Observance**:
@@ -216,7 +216,7 @@ _Avoid_: Holiday, special day
 
 **Region**:
 The first-level part of a country a place lies in — a German state such as Bavaria, an Australian state such as Queensland, a UK nation such as Northern Ireland. A **Stop**, the **Home base** and each end of a **Transport** know their Region as well as their country; it is what lets a **Public holiday** observed in only part of a country be shown only where it applies.
-_Avoid_: State (reserved), province, subdivision; not the "area" a Stop is searched as (a city or district)
+_Avoid_: State (avoided for **Phase**), province, subdivision; not the "area" a Stop is searched as (a city or district)
 
 **Day map**:
 An on-demand map of a single day's plan — its located Items as a numbered route in time order, with tonight's Accommodation and the day's Transport points marked. Available on both the Day view and the Travelling **Home**, collapsed until opened. It offers one-tap **directions** out to an external maps app (the whole day's route, or a single hop between Items), draws each hop along its **Travel time**'s route where one is known, and plots only what has coordinates.

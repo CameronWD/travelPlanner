@@ -10,7 +10,7 @@ Accepted (2026-10-30). Decided in the Google Maps grill
 - **Cost rule, share 1.** The property tracker stopped using Google and its
   keys are deleted, so Teepee takes the whole free allowance. "Half its free
   monthly allowance" becomes "its **share** of the allowance". The share is
-  one number in code, now 1. Every daily cap is `allowance × share ÷ 30`,
+  one number in code, now 1. Every daily cap is `allowance × share ÷ 30`, rounded down,
   from one table. Set the share back to 0.5 if another app ever shares the
   billing account again.
 - **Static Maps on Share link previews, Print and the Share page are now
@@ -20,7 +20,12 @@ Accepted (2026-10-30). Decided in the Google Maps grill
   map image inside our own card is the same invite-only storage deviation as
   point 2.
 - **Public holidays come from Google Calendar's holiday calendars** (Calendar
-  API, free), cached per country and year.
+  API, free), cached per country and year (subject to the spec §B3 data
+  check; Nager.Date otherwise).
+- **Two more opt-in/background uses:** What's around (Nearby Search,
+  Enterprise fields, only on Trips where a Traveller switched it on) and
+  closed-venue re-checks (Place Details Pro, `businessStatus` only, upcoming
+  Trips, at most monthly per venue).
 
 ## Context
 
