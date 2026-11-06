@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { haversineKm, type LatLng } from "@/lib/geo";
+import { safeWebHref } from "@/lib/url";
 import { mapsUrl } from "@/lib/map/maps";
 import { NEARBY_KINDS, type NearbyKind } from "@/lib/nearby/kinds";
 import type { NearbyPlace } from "@/lib/nearby/search";
@@ -40,41 +41,45 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
   const [device, setDevice] = React.useState<LatLng | null>(null);
   const [locating, setLocating] = React.useState(false);
   const [locationMessage, setLocationMessage] = React.useState<string | null>(null);
-  const [loaded, setLoaded] = React.useState<Loaded | null>(null);
+  const [results, setResults] = React.useState<Record<string, Loaded>>({});
   const [pending, setPending] = React.useState<string | null>(null);
-  const memo = React.useRef(new Map<string, Loaded>());
-  const request = React.useRef(0);
+  const inflight = React.useRef(new Set<string>());
+  const session = React.useRef(0);
 
   const start = startPoints.find((s) => s.key === startKey);
-  const from: WhatsAroundFrom | null = startKey === NEAR_ME ? (device ? { kind: "device", ...device } : null) : (start?.from ?? null);
+  const from = React.useMemo<WhatsAroundFrom | null>(
+    () => (startKey === NEAR_ME ? (device ? { kind: "device", ...device } : null) : (start?.from ?? null)),
+    [startKey, device, start],
+  );
+  const fromKey = from ? (from.kind === "device" ? `device:${from.lat},${from.lng}` : `${from.kind}:${from.id}`) : null;
+  const resultKey = fromKey ? `${fromKey}|${kind}` : null;
+  const loaded = resultKey ? (results[resultKey] ?? null) : null;
 
   React.useEffect(() => {
-    if (!open || !from) return;
-    const memoKey = startKey === NEAR_ME ? null : `${startKey}|${kind}`;
-    const cached = memoKey ? memo.current.get(memoKey) : undefined;
-    if (cached) {
-      setLoaded(cached);
-      return;
-    }
-    const mine = ++request.current;
-    setLoaded(null);
+    if (!open || !from || !resultKey || resultKey in results || inflight.current.has(resultKey)) return;
+    const mine = session.current;
+    inflight.current.add(resultKey);
     whatsAround(tripId, { from, nearbyKind: kind })
       .then((r): Loaded => (r.status === "ok" ? r : r.status === "over-cap" ? { status: "over-cap" } : { status: "failed" }))
       .catch((): Loaded => ({ status: "failed" }))
       .then((result) => {
-        if (mine !== request.current) return;
-        if (memoKey && result.status !== "failed") memo.current.set(memoKey, result);
-        setLoaded(result);
+        inflight.current.delete(resultKey);
+        if (mine !== session.current) return;
+        setResults((m) => ({ ...m, [resultKey]: result }));
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, startKey, kind, device, tripId]);
+  }, [open, from, resultKey, results, kind, tripId]);
+
+  function changeOpen(next: boolean) {
+    if (!next) {
+      session.current += 1;
+      inflight.current.clear();
+      setResults({});
+    }
+    setOpen(next);
+  }
 
   function nearMe() {
     setLocationMessage(null);
-    if (device) {
-      setStartKey(NEAR_ME);
-      return;
-    }
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationMessage("Location isn't available here.");
       return;
@@ -88,14 +93,15 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
       },
       (err) => {
         setLocating(false);
-        setLocationMessage(err.code === 1 ? "Location is off for this site." : "Couldn't get your location.");
+        setLocationMessage(err.code === 1 ? "Location is off for this site." : "Couldn't get your location. Try again.");
       },
-      { timeout: 10_000, maximumAge: 60_000 },
+      { timeout: 10_000, maximumAge: 0 },
     );
   }
 
   function save(place: NearbyPlace, to: "day" | "wishlist") {
     const category = NEARBY_KINDS.find((k) => k.key === kind)!.category as ItemInput["category"];
+    const link = safeWebHref(place.website);
     const input: ItemInput = {
       title: place.name,
       category,
@@ -105,7 +111,7 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
       ...(place.address ? { address: place.address } : {}),
       ...(place.openingHours ? { openingHours: place.openingHours } : {}),
       ...(place.businessStatus ? { businessStatus: place.businessStatus as ItemInput["businessStatus"] } : {}),
-      ...(place.website ? { link: place.website } : {}),
+      ...(link ? { link } : {}),
       ...(to === "day" ? { date, ...(stopId ? { stopId } : {}) } : {}),
     };
     setPending(`${place.placeId}|${to}`);
@@ -126,7 +132,7 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
   const actionClass = "pressable inline-flex h-[34px] shrink-0 items-center justify-center rounded-full border-2 border-border bg-card px-3 text-[13px] font-extrabold text-foreground shadow-[2px_2px_0_hsl(var(--shadow-ink))] disabled:opacity-50";
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={changeOpen}>
       <SheetTrigger asChild>
         <Chip tone="white" size="l" touch>What&apos;s around</Chip>
       </SheetTrigger>
@@ -158,7 +164,7 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
             ) : loaded.status === "over-cap" ? (
               <p role="status" className="text-[13px] font-semibold text-muted-foreground">That&apos;s all the looking around for today. Try again tomorrow.</p>
             ) : loaded.status === "failed" ? (
-              <p role="status" className="text-[13px] font-semibold text-muted-foreground">Couldn&apos;t look around right now.</p>
+              <p role="status" className="text-[13px] font-semibold text-muted-foreground">Couldn&apos;t look around right now. Try again.</p>
             ) : loaded.places.length === 0 ? (
               <p role="status" className="text-[13px] font-semibold text-muted-foreground">Nothing like that nearby.</p>
             ) : (
@@ -166,12 +172,12 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
                 <ul className="flex flex-col gap-2.5">
                   {loaded.places.map((p) => {
                     const href = mapsUrl({ lat: p.lat, lng: p.lng, label: p.name, placeId: p.placeId });
-                    const open = p.openNow === true && p.closesAt ? `Open until ${p.closesAt}` : p.openNow === false ? "Closed now" : null;
+                    const openStatus = p.openNow === true && p.closesAt ? `Open until ${p.closesAt}` : p.openNow === false ? "Closed now" : null;
                     const meta = [
                       p.typeLabel ?? kindMeta.label,
                       p.rating !== null ? `★ ${p.rating.toFixed(1)}${p.ratingCount !== null ? ` (${compactCount(p.ratingCount)})` : ""}` : null,
                       `~${walkMinutes(loaded.origin, p)} min walk`,
-                      open,
+                      openStatus,
                     ].filter(Boolean);
                     return (
                       <li key={p.placeId} className="flex flex-col gap-2 rounded-[16px] border-2 border-border bg-card px-3 py-2.5">
@@ -184,8 +190,8 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
                           <span className="block text-[13px] text-muted-foreground">{meta.join(" · ")}</span>
                         </span>
                         <span className="flex gap-2">
-                          <button type="button" aria-label={`Add ${p.name} to ${dateLabel}`} disabled={pending !== null} onClick={() => save(p, "day")} className={actionClass}>+ Day</button>
-                          <button type="button" aria-label={`Save ${p.name} to the Wishlist`} disabled={pending !== null} onClick={() => save(p, "wishlist")} className={actionClass}>♡ Wishlist</button>
+                          <button type="button" aria-label={`+ Day: add ${p.name} to ${dateLabel}`} disabled={pending !== null} onClick={() => save(p, "day")} className={actionClass}>+ Day</button>
+                          <button type="button" aria-label={`♡ Wishlist: save ${p.name}`} disabled={pending !== null} onClick={() => save(p, "wishlist")} className={actionClass}>♡ Wishlist</button>
                         </span>
                       </li>
                     );

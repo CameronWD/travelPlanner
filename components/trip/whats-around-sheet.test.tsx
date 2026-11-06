@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
+import { WhatsAroundSheet, compactCount, walkMinutes } from "@/components/trip/whats-around-sheet";
 
 const whatsAround = vi.fn();
 const createItem = vi.fn();
@@ -59,17 +59,17 @@ describe("WhatsAroundSheet", () => {
   it("+ Day creates a dated Item on the Stop with category and hours", async () => {
     setup();
     await screen.findByText("Cathédrale");
-    fireEvent.click(screen.getByRole("button", { name: "Add Cathédrale to Sat 12 Dec" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" }));
     await waitFor(() => expect(createItem).toHaveBeenCalled());
     expect(createItem).toHaveBeenCalledWith("t1", expect.objectContaining({
-      title: "Cathédrale", category: "SIGHTSEEING", date: "2026-12-12", stopId: "s1", placeId: "p1", openingHours: hours, link: "https://example.com", businessStatus: "OPERATIONAL",
+      title: "Cathédrale", category: "SIGHTSEEING", date: "2026-12-12", stopId: "s1", placeId: "p1", openingHours: hours, link: "https://example.com/", businessStatus: "OPERATIONAL",
     }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Added to Sat 12 Dec" })));
   });
   it("+ Day on a Gap day sends no stopId", async () => {
     setup({ stopId: null });
     await screen.findByText("Cathédrale");
-    fireEvent.click(screen.getByRole("button", { name: "Add Cathédrale to Sat 12 Dec" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" }));
     await waitFor(() => expect(createItem).toHaveBeenCalled());
     const input = createItem.mock.calls[0][1];
     expect(input.date).toBe("2026-12-12");
@@ -78,7 +78,7 @@ describe("WhatsAroundSheet", () => {
   it("Wishlist omits date and stopId", async () => {
     setup();
     await screen.findByText("Cathédrale");
-    fireEvent.click(screen.getByRole("button", { name: "Save Cathédrale to the Wishlist" }));
+    fireEvent.click(screen.getByRole("button", { name: "♡ Wishlist: save Cathédrale" }));
     await waitFor(() => expect(createItem).toHaveBeenCalled());
     const input = createItem.mock.calls[0][1];
     expect("date" in input).toBe(false);
@@ -117,5 +117,39 @@ describe("WhatsAroundSheet", () => {
     expect(getCurrentPosition).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Near me" }));
     await waitFor(() => expect(whatsAround).toHaveBeenLastCalledWith("t1", { from: { kind: "device", lat: 1.5, lng: 2.5 }, nearbyKind: "sights" }));
+  });
+  it("Near me: a non-denial error shows the other copy", async () => {
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: vi.fn((_ok, err) => err({ code: 3 })) }, configurable: true });
+    setup({ allowNearMe: true });
+    await screen.findByText("Cathédrale");
+    fireEvent.click(screen.getByRole("button", { name: "Near me" }));
+    expect(await screen.findByText("Couldn't get your location. Try again.")).toBeInTheDocument();
+  });
+  it("a late Food response does not replace Sights, and +Day keeps SIGHTSEEING", async () => {
+    let resolveFood: (v: unknown) => void = () => {};
+    whatsAround.mockImplementation((_t, { nearbyKind }) =>
+      nearbyKind === "food" ? new Promise((r) => { resolveFood = r; }) : Promise.resolve(ok()),
+    );
+    setup();
+    await screen.findByText("Cathédrale");
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sights" }));
+    await screen.findByText("Cathédrale");
+    resolveFood(ok([{ ...place, placeId: "p2", name: "Winstub" }]));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByText("Winstub")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" }));
+    await waitFor(() => expect(createItem).toHaveBeenCalled());
+    expect(createItem.mock.calls[0][1].category).toBe("SIGHTSEEING");
+  });
+});
+
+describe("helpers", () => {
+  it("compactCount", () => {
+    expect([999, 1234, 10000, 21000].map(compactCount)).toEqual(["999", "1.2k", "10k", "21k"]);
+  });
+  it("walkMinutes uses 1.3 / 4.8 km/h with a floor of 1", () => {
+    expect(walkMinutes({ lat: 0, lng: 0 }, { lat: 0, lng: 0 })).toBe(1);
+    expect(walkMinutes({ lat: 0, lng: 0 }, { lat: 0.0449, lng: 0 })).toBe(Math.round(((0.0449 * 111.195 * 1.3) / 4.8) * 60));
   });
 });
