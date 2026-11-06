@@ -1578,3 +1578,10 @@ model HolidayFeed {
   holidays    Json
   fetchedAt   DateTime @default(now()) @updatedAt
 }
+
+model NearbyCache {
+  key       String   @id
+  status    String
+  results   Json
+  fetchedAt DateTime @default(now()) @updatedAt
+}

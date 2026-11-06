@@ -165,6 +165,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "venue-details.ts": ["venueDetailsForPick"],
   "votes.ts": ["clearVote", "setVote"],
   "welcome.ts": ["markWelcomeSeen"],
+  "whats-around.ts": ["whatsAround"],
 };
 
 const ACTIONS_DIR = path.resolve(__dirname, "../server/actions");
