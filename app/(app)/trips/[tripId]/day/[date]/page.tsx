@@ -156,6 +156,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
               heading={d.heading}
               subLine={d.subLine}
               subLineCompact={d.subLineCompact}
+              holidays={d.holidays}
               dayTitle={<DayTitleInline stopId={d.dayTitleStopId} date={d.date} title={d.dayTitle} />}
               prevHref={prevHref}
               nextHref={nextHref}

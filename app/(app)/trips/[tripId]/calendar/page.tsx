@@ -8,6 +8,7 @@ import { tripPath } from "@/lib/trip-path";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { buildItinerary } from "@/lib/itinerary";
 import { loadDayTitles } from "@/lib/day-titles-loader";
+import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { readPlan } from "@/lib/plan-reads";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -181,6 +182,8 @@ export default async function CalendarPage({
       ),
     );
 
+    const holidayDates = Object.fromEntries(await loadHolidayLines(tripId, itinerary.map((d) => d.dateISO)));
+
     body = (
       <CalendarViews
         tripId={tripId}
@@ -190,6 +193,7 @@ export default async function CalendarPage({
         wishlistItems={wishlistItems}
         todayISO={agendaToday}
         dayTitles={dayTitles}
+        holidayDates={holidayDates}
       />
     );
   }

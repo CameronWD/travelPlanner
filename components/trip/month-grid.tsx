@@ -29,6 +29,8 @@ export interface MonthGridProps {
    * `lib/day-titles.ts`'s `titlesByDate`, serialised to a plain object.
    */
   dayTitles?: Record<string, { title: string; stopId: string }>;
+  /** Public holiday lines (lib/holidays/trip-days.ts) keyed by dateISO. */
+  holidayDates?: Record<string, string[]>;
 }
 
 /**
@@ -46,6 +48,7 @@ export function MonthGrid({
   todayISO,
   onDropItem,
   dayTitles,
+  holidayDates,
 }: MonthGridProps) {
   const tripHref = useTripHref(tripId);
   const weeks = React.useMemo(() => buildMonthGrid(monthAnchorISO), [monthAnchorISO]);
@@ -138,6 +141,8 @@ export function MonthGrid({
             return `${modeLabel.toLowerCase()} ${t.kind === "transport-departure" ? "departs" : "arrives"}`;
           });
 
+          const holidayLines = holidayDates?.[cell.dateISO] ?? [];
+
           const label = [
             formatLongDate(cell.dateISO),
             day?.stop?.name,
@@ -146,6 +151,7 @@ export function MonthGrid({
             itemCount > 0 ? thingsLabel : null,
             packed ? "busy day" : null,
             isToday ? "today" : null,
+            ...holidayLines,
             ...accommodationLabels,
             ...transportLabels,
           ]
@@ -174,6 +180,7 @@ export function MonthGrid({
               key={cell.dateISO}
               href={tripHref(`/day/${cell.dateISO}`)}
               aria-label={label}
+              title={holidayLines.length > 0 ? holidayLines.join("\n") : undefined}
               aria-current={isToday ? "date" : undefined}
               {...dropProps}
               className={cn(
@@ -188,6 +195,7 @@ export function MonthGrid({
             >
               <span className="flex items-start justify-between gap-1">
                 <span className={numberClass}>{dayNum}</span>
+                {holidayLines.length > 0 ? <span data-holiday aria-hidden="true" className="mt-0.5 size-1.5 shrink-0 rotate-45 border border-current sm:mt-1 sm:size-2" /> : null}
                 <span className="hidden min-w-0 flex-wrap items-center justify-end gap-0.5 sm:flex">
                   {day?.transportEntries.map((t) => {
                     const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;

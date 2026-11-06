@@ -338,3 +338,24 @@ describe("MonthGrid — dense cells clamp (September rule 2; W11, LA-125/126)", 
     expect(iconRow.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex-wrap", "justify-end", "min-w-0"]));
   });
 });
+
+describe("MonthGrid — public holidays", () => {
+  it("marks a holiday cell and puts the lines in its accessible name and title", () => {
+    render(
+      <MonthGrid
+        tripId="t1"
+        monthAnchorISO="2026-07-01"
+        days={[dayPlan("2026-07-14", 0), dayPlan("2026-07-15", 0)]}
+        tripStart="2026-07-14"
+        tripEnd="2026-07-15"
+        holidayDates={{ "2026-07-14": ["Bastille Day (France): public holiday, expect closures"] }}
+      />,
+    );
+    const cell = screen.getByRole("link", { name: /Bastille Day \(France\): public holiday, expect closures/ });
+    expect(cell).toHaveAttribute("title", "Bastille Day (France): public holiday, expect closures");
+    expect(cell.querySelector("[data-holiday]")).not.toBeNull();
+    const other = screen.getAllByRole("link").find((l) => l !== cell)!;
+    expect(other.querySelector("[data-holiday]")).toBeNull();
+    expect(other).not.toHaveAttribute("title");
+  });
+});

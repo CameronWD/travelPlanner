@@ -20,6 +20,11 @@ function renderTile(overrides: Partial<Props> = {}) {
 }
 
 describe("TodayTile", () => {
+  it("renders today's public holiday lines as notes under the date", () => {
+    renderTile({ holidays: ["Epiphany (Germany): public holiday, expect closures"] });
+    expect(screen.getByRole("note")).toHaveTextContent("Epiphany (Germany): public holiday, expect closures");
+  });
+
   it("is headed by an h2 'Today' with the day label and today's Day title", () => {
     renderTile();
     expect(screen.getByRole("heading", { level: 2, name: "Today" })).toBeInTheDocument();

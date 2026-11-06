@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { CalendarDays, Bed, ArrowRight } from "lucide-react";
+import { CalendarDays, CalendarHeart, Bed, ArrowRight } from "lucide-react";
 import { formatLongDate } from "@/lib/dates";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
@@ -108,6 +108,7 @@ export async function PhaseTravelling({
     nearby,
     todaysJournal,
     revealNudges,
+    holidays,
   } = model;
 
   return (
@@ -134,6 +135,12 @@ export async function PhaseTravelling({
           <span className="sr-only">Today, </span>
           {formatLongDate(effectiveDate)}
         </h2>
+        {holidays.map((line) => (
+          <p key={line} role="note" className="flex items-start gap-1.5 text-[13px] font-semibold leading-5 text-muted-foreground">
+            <CalendarHeart aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            {line}
+          </p>
+        ))}
 
         {/* Out-of-trip notice */}
         {isBeforeTrip && (
@@ -386,6 +393,7 @@ function TravellingDesktop({
           dayHref={tripPath(tripSlug, `/day/${effectiveDate}`)}
           dateISO={effectiveDate}
           dayTitle={model.todaysDayTitle}
+          holidays={model.holidays}
           plan={
             model.dayPlan && model.hasEntries ? (
               <Timeline
