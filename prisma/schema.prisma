@@ -819,6 +819,7 @@ model Item {
   address   String?
   placeId   String? // Google place ID — set by a pick or the backfill
   businessStatus String? // Google: OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
+  statusCheckedAt DateTime? // when businessStatus was last read from Google
   link      String?
   booking   String?
   notes     String?

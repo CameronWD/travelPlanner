@@ -2,6 +2,8 @@
 import { it, expect } from "vitest";
 import { buildForkPlan } from "./fork-plan";
 
+const CHECKED = new Date("2026-10-01T00:00:00Z");
+
 const source = {
   chapters: [{ id: "c1", name: "Italy", colour: "#f00", startDate: "2026-07-01", endDate: "2026-07-10", sortOrder: 0 }],
   stops: [{ id: "s1", chapterId: "c1", name: "Rome", country: "IT", lat: 1, lng: 2, timezone: "Europe/Rome",
@@ -150,15 +152,15 @@ it("carries every row's place ID into the variant; a missing one copies as null"
     stops: [{ ...source.stops[0], placeId: "rome-id" }],
     transports: [{ ...source.transports[0], depPlaceId: "termini-id", arrPlaceId: "smn-id" }],
     accommodations: [{ ...source.accommodations[0], placeId: "hotel-id" }],
-    items: [{ ...source.items[0], placeId: "colosseum-id", businessStatus: "OPERATIONAL" }],
+    items: [{ ...source.items[0], placeId: "colosseum-id", businessStatus: "OPERATIONAL", statusCheckedAt: CHECKED }],
   });
   expect(plan.stops[0].data.placeId).toBe("rome-id");
   expect(plan.transports[0].data).toMatchObject({ depPlaceId: "termini-id", arrPlaceId: "smn-id" });
   expect(plan.accommodations[0].data.placeId).toBe("hotel-id");
-  expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL" });
+  expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL", statusCheckedAt: CHECKED });
   const bare = buildForkPlan(source);
   expect(bare.stops[0].data.placeId).toBeNull();
-  expect(bare.items[0].data).toMatchObject({ placeId: null, businessStatus: null });
+  expect(bare.items[0].data).toMatchObject({ placeId: null, businessStatus: null, statusCheckedAt: null });
 });
 
 it("carries a Stop's countryCode and region into the variant; none copies as null", () => {

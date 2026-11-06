@@ -62,6 +62,7 @@ interface DuplicateSourceItem {
   countryCode: string | null;
   placeId?: string | null;
   businessStatus?: string | null;
+  statusCheckedAt?: Date | null;
   address: string | null;
   link: string | null;
   booking: string | null;
@@ -136,6 +137,7 @@ export interface DuplicatePlan {
     data: {
       title: string; category: string; date: null; startTime: null; endTime: null; booking: null;
       lat: number | null; lng: number | null; countryCode: string | null; placeId: string | null; businessStatus: string | null;
+      statusCheckedAt: Date | null;
       address: string | null; link: string | null; notes: string | null; sortOrder: number;
       openingHours: string | null;
       tryList: string | null;
@@ -221,6 +223,7 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         countryCode: it.countryCode,
         placeId: it.placeId ?? null,
         businessStatus: it.businessStatus ?? null,
+        statusCheckedAt: it.statusCheckedAt ?? null,
         address: it.address,
         link: it.link,
         notes: it.notes,

@@ -208,6 +208,7 @@ export async function createItem(
       countryCode: place.countryCode,
       placeId: place.placeId,
       businessStatus: source === "pick" ? (data.businessStatus ?? null) : null,
+      statusCheckedAt: source === "pick" && data.businessStatus ? new Date() : null,
       sortOrder,
       hiddenFromShares: data.hiddenFromShares ?? false,
       // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
@@ -432,6 +433,8 @@ export async function updateItem(
   });
   const businessStatus =
     source === "pick" ? (data.businessStatus ?? null) : source === "kept" ? before.businessStatus : null;
+  const statusCheckedAt =
+    source === "pick" ? (data.businessStatus ? new Date() : null) : source === "kept" ? before.statusCheckedAt : null;
 
   // The Item family's shared columns (lib/item-family.ts: CONTEXT.md "Opening
   // hours", "Try list"), only for the columns the patch actually names, so a
@@ -461,6 +464,7 @@ export async function updateItem(
     countryCode: place.countryCode,
     placeId: place.placeId,
     businessStatus,
+    statusCheckedAt,
     hiddenFromShares: data.hiddenFromShares ?? false,
     // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.
     slotTime: data.slotTime ?? null,
@@ -825,6 +829,7 @@ function ideaCopyData(fullItem: {
   countryCode: string | null;
   placeId?: string | null;
   businessStatus?: string | null;
+  statusCheckedAt?: Date | null;
   address: string | null;
   link: string | null;
   notes: string | null;
@@ -847,6 +852,7 @@ function ideaCopyData(fullItem: {
     countryCode: fullItem.countryCode ?? null,
     placeId: fullItem.placeId ?? null,
     businessStatus: fullItem.businessStatus ?? null,
+    statusCheckedAt: fullItem.statusCheckedAt ?? null,
     address: fullItem.address ?? null,
     link: fullItem.link ?? null,
     notes: fullItem.notes ?? null,

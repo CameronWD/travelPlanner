@@ -2153,6 +2153,19 @@ describe("Item place on save (Google)", () => {
     });
   });
 
+  it("createItem with a picked status stamps statusCheckedAt; no pick leaves it null", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+    await createItem("trip-1", { ...VALID_INPUT, address: "1-22-7 Jinnan, Shibuya", ...PICK });
+    expect(itemCreateMock.mock.calls[0][0].data.statusCheckedAt).toBeInstanceOf(Date);
+
+    itemCreateMock.mockClear();
+    stopFindUniqueMock.mockResolvedValue(STOP);
+    locateVenueMock.mockResolvedValue(FOUND);
+    await createItem("trip-1", { ...VALID_INPUT, address: "1-22-7 Jinnan, Shibuya" });
+    expect(itemCreateMock.mock.calls[0][0].data.statusCheckedAt).toBeNull();
+  });
+
   it("createItem with only an address calls locateVenue near the Stop and stores its placeId", async () => {
     stopFindUniqueMock.mockResolvedValue(STOP);
     itemFindFirstMock.mockResolvedValue(null);
@@ -2233,6 +2246,7 @@ describe("Item place on save (Google)", () => {
       expect(itemUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ placeId: "other-id", lat: 41.89, lng: 12.49, countryCode: null, businessStatus: "CLOSED_TEMPORARILY" }),
       }));
+      expect(itemUpdateMock.mock.calls[0][0].data.statusCheckedAt).toBeInstanceOf(Date);
     });
 
     it("an unchanged address on a row with no coordinates is looked up", async () => {

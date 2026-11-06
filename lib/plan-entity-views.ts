@@ -40,6 +40,8 @@ export interface ItemCardItem {
   lat?: number | null;
   lng?: number | null;
   placeId?: string | null;
+  /** Google's stored business status (OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY); null/absent = not known. */
+  businessStatus?: string | null;
   /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. */
   hiddenFromShares?: boolean;
   /** CONTEXT.md "Item photo" (spec §I) — `lib/item-photo.ts`'s `itemPhotoUrl`, resolved by the loader. Null/absent = no photo. */

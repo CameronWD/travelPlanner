@@ -49,6 +49,27 @@ const baseItem: ItemCardItem = {
   category: "SIGHTSEEING",
 };
 
+describe("ItemCard — closed venue badge", () => {
+  const renderIdea = (businessStatus: string | null) =>
+    render(<ItemCard item={{ ...baseItem, businessStatus }} mode="wishlist" />);
+
+  it("badges a venue closed for good", () => {
+    renderIdea("CLOSED_PERMANENTLY");
+    expect(screen.getByText("Closed for good")).toBeInTheDocument();
+  });
+
+  it("badges a temporarily closed venue", () => {
+    renderIdea("CLOSED_TEMPORARILY");
+    expect(screen.getByText("Temporarily closed")).toBeInTheDocument();
+  });
+
+  it("shows nothing for an operational venue", () => {
+    renderIdea("OPERATIONAL");
+    expect(screen.queryByText("Closed for good")).toBeNull();
+    expect(screen.queryByText("Temporarily closed")).toBeNull();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // FIX 3 — AttachmentPopover guard symmetry with NoteThread
 // ---------------------------------------------------------------------------

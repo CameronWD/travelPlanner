@@ -126,6 +126,8 @@ export interface FlagItem {
   /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
   bookingState?: string | null;
   bookBy?: string | null;
+  businessStatus?: string | null;
+  statusCheckedAt?: Date | string | null;
 }
 
 export interface DetectFlagsInput {
@@ -1075,6 +1077,24 @@ export function flagClosedOnDay(items: FlagItem[]): Flag[] {
   return flags;
 }
 
+export function flagClosedVenue(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.date) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    if (item.businessStatus === "CLOSED_PERMANENTLY") {
+      flags.push(itemFlag(item, `item-closed-for-good-${item.id}`, "warning", `${name} has closed for good. Find a replacement.`));
+    } else if (item.businessStatus === "CLOSED_TEMPORARILY") {
+      const checked = item.statusCheckedAt ? new Date(item.statusCheckedAt) : null;
+      const when = checked ? `when last checked on ${formatDayLabel(formatISODate(checked))}` : "when last checked";
+      flags.push(
+        itemFlag(item, `item-closed-temporarily-${item.id}`, "info", `${name} was temporarily closed ${when}. Check it reopens before ${formatDayLabel(item.date)}.`),
+      );
+    }
+  }
+  return flags;
+}
+
 // ---------------------------------------------------------------------------
 // Rules 18–19: Before opening / After closing (warnings)
 //
@@ -1378,6 +1398,7 @@ export function detectFlags({
     ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId, homeTimezone)),
     // Spec 2026-10-17 R7: the planning Flags, on what the viewer can see.
     ...flagClosedOnDay(planning.items),
+    ...flagClosedVenue(planning.items),
     ...flagOutsideOpeningHours(planning.items),
     ...flagLateForSlot(planning.items),
     ...(today
