@@ -300,7 +300,7 @@ function StopForm({
   function handlePick(p: PickedPlace) {
     setPicked(p);
     setName(p.name);
-    const pickedCountry = p.region?.split(",").pop()?.trim();
+    const pickedCountry = p.subtitle?.split(",").pop()?.trim();
     if (pickedCountry) setCountry(pickedCountry);
     const place = { countryCode: p.countryCode, country: pickedCountry };
     const tz = stopTimezone(place);

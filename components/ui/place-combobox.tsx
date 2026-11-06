@@ -37,7 +37,7 @@ export function PlaceCombobox(props: PlaceComboboxProps) {
   );
 }
 
-function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, kind = "region", autoFocus, id, "aria-label": ariaLabel = "Place", disabled, unavailableHint = PLACE_FIELD_HINT }: PlaceComboboxProps) {
+function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town or city", rankNear, kind = "area", autoFocus, id, "aria-label": ariaLabel = "Place", disabled, unavailableHint = PLACE_FIELD_HINT }: PlaceComboboxProps) {
   const listId = React.useId();
   const hintId = React.useId();
   const field = useFieldControl();

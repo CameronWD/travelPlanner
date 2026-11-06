@@ -11,7 +11,7 @@ vi.mock("@/components/ui/place-combobox", () => ({
     return (
       <div>
         <input aria-label="Place" value={p.value} onChange={(e) => p.onValueChange(e.target.value)} />
-        <button type="button" onClick={() => p.onPick({ name: "Florence", region: "Tuscany, Italy", lat: 43.77, lng: 11.25, countryCode: "it", placeId: "ChIJFlorence" })}>pick Florence</button>
+        <button type="button" onClick={() => p.onPick({ name: "Florence", subtitle: "Tuscany, Italy", lat: 43.77, lng: 11.25, countryCode: "it", placeId: "ChIJFlorence" })}>pick Florence</button>
       </div>
     );
   },

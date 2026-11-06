@@ -110,7 +110,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
 
   const preceding = placement?.precedingId ? (stops.find((s) => s.id === placement.precedingId) ?? null) : null;
   const name = (picked?.name ?? text).trim();
-  const country = picked?.region?.split(",").pop()?.trim() || undefined;
+  const country = picked?.subtitle?.split(",").pop()?.trim() || undefined;
 
   // Explicit, so the server never inherits the *stored* anchor's chapter (it can
   // be a different stop from the displayed neighbour); null means none. A rough

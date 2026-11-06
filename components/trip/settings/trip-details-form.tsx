@@ -196,7 +196,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         description="Where this trip departs from and returns to. Leave blank if you'd rather not set one."
       >
         <PlaceCombobox
-          kind="region"
+          kind="area"
           value={homeName}
           onValueChange={(t) => {
             setHomeName(t);

@@ -5,7 +5,7 @@ import { useMapsLibrary } from "@vis.gl/react-google-maps";
 import type { PickedPlace } from "@/lib/picked-place";
 import { usePlacesAvailable } from "./places-available";
 
-export type PlaceKind = "region" | "venue" | "any";
+export type PlaceKind = "area" | "venue" | "any";
 export type PlaceSuggestion = { id: string; mainText: string; secondaryText: string };
 export type SuggestionStatus = "idle" | "loading" | "ok" | "empty" | "error";
 
@@ -22,7 +22,7 @@ const CITY_TYPES = ["locality", "postal_town", "administrative_area_level_2", "a
 const NOTHING: Found = { suggestions: [], status: "idle" };
 
 // Google abbreviates some countries in the secondary text ("OR, USA"); forms take the country from its last part.
-function regionWithCountry(name: string, secondary: string | undefined, country: string | undefined): string | undefined {
+function subtitleWithCountry(name: string, secondary: string | undefined, country: string | undefined): string | undefined {
   const parts = (secondary ?? "").split(",").map((p) => p.trim()).filter(Boolean);
   if (!country) return parts.join(", ") || undefined;
   if (!parts.length) return country === name ? undefined : country;
@@ -55,7 +55,7 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
       const request: google.maps.places.AutocompleteRequest = {
         input,
         sessionToken: token.current,
-        ...(kind === "region" ? { includedPrimaryTypes: ["(regions)"] } : {}),
+        ...(kind === "area" ? { includedPrimaryTypes: ["(regions)"] } : {}),
         ...(bias ? { locationBias: { center: bias, radius: NEAR_RADIUS_M } } : {}),
       };
       let result: google.maps.places.AutocompleteSuggestion[];
@@ -107,13 +107,13 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
     if (!place.location) return null;
     const name = prediction.mainText?.text ?? prediction.text.text;
     const country = place.addressComponents?.find((c) => c.types.includes("country"));
-    const region = regionWithCountry(name, prediction.secondaryText?.text, country?.longText ?? undefined);
+    const subtitle = subtitleWithCountry(name, prediction.secondaryText?.text, country?.longText ?? undefined);
     const cityType = CITY_TYPES.find((t) => place.addressComponents?.some((c) => c.types.includes(t)));
     const city = cityType ? place.addressComponents?.find((c) => c.types.includes(cityType))?.longText : undefined;
     const countryCode = country?.shortText?.toLowerCase();
     return {
       name,
-      ...(region ? { region } : {}),
+      ...(subtitle ? { subtitle } : {}),
       lat: place.location.lat(),
       lng: place.location.lng(),
       ...(city ? { city } : {}),
