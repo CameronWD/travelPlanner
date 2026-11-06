@@ -261,11 +261,27 @@ function toDate(v: Date | string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+type ZonedStop = { timezone?: string | null } | undefined | null;
+
 /**
  * Return the timezone of a stop, or 'UTC' if none.
  */
-function tzOf(stop: ItineraryStop | undefined | null): string {
+function tzOf(stop: ZonedStop): string {
   return stop?.timezone || "UTC";
+}
+
+// A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
+// the Trip's `homeTimezone` when set, else the usual Stop fallback.
+export function transportEndZones(
+  transport: { depIsHome?: boolean | null; arrIsHome?: boolean | null },
+  homeTimezone: string | null | undefined,
+  fromStop: ZonedStop,
+  toStop: ZonedStop,
+): { depTz: string; arrTz: string } {
+  return {
+    depTz: (transport.depIsHome && homeTimezone) || tzOf(fromStop),
+    arrTz: (transport.arrIsHome && homeTimezone) || tzOf(toStop ?? fromStop),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -334,12 +350,8 @@ export function buildItinerary({
       ? stopById.get(transport.toStopId)
       : undefined;
 
-    // A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
-    // the Trip's `homeTimezone` when set, else the usual Stop fallback.
-    const depTz = (transport.depIsHome && homeTimezone) || tzOf(fromStop);
+    const { depTz, arrTz } = transportEndZones(transport, homeTimezone, fromStop, toStop);
     const depDayISO = instantToZonedDateISO(depDate, depTz);
-
-    const arrTz = (transport.arrIsHome && homeTimezone) || tzOf(toStop ?? fromStop);
 
     let arrDayISO: string | undefined;
     const arrDate = toDate(transport.arrAt);

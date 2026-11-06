@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { transportEndZones } from "@/lib/itinerary";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { readHolidayFeeds, scheduleHolidayFeeds } from "./cache";
@@ -18,7 +19,7 @@ const readTripInput = cache(async (tripId: string): Promise<TripHolidayInput | n
   const [trip, stops, transports] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true, homeTimezone: true, homeCountryCode: true, homeRegion: true } }),
     db.stop.findMany({
-      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
+      where: { tripId, ...REAL_PLAN },
       select: { id: true, timezone: true, arriveDate: true, departDate: true, countryCode: true, region: true },
     }),
     db.transport.findMany({
@@ -31,22 +32,27 @@ const readTripInput = cache(async (tripId: string): Promise<TripHolidayInput | n
   ]);
   if (!trip?.startDate) return null;
 
-  const tzByStop = new Map(stops.map((s) => [s.id, s.timezone || "UTC"]));
+  const stopById = new Map(stops.map((s) => [s.id, s]));
   const transportEnds: TripHolidayInput["transportEnds"] = [];
   for (const t of transports) {
     if (!t.depAt) continue;
-    const depTz = (t.depIsHome && trip.homeTimezone) || (t.fromStopId && tzByStop.get(t.fromStopId)) || "UTC";
-    const arrTz = (t.arrIsHome && trip.homeTimezone) || (t.toStopId && tzByStop.get(t.toStopId)) || (t.fromStopId && tzByStop.get(t.fromStopId)) || "UTC";
+    const fromStop = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
+    const toStop = t.toStopId ? stopById.get(t.toStopId) : undefined;
+    const { depTz, arrTz } = transportEndZones(t, trip.homeTimezone, fromStop, toStop);
+    const placeOf = (code: string | null, region: string | null, stop: typeof fromStop) => {
+      const countryCode = code ?? stop?.countryCode;
+      return countryCode ? { countryCode, region: code ? region : (stop?.region ?? null) } : null;
+    };
     transportEnds.push({
       date: instantToZonedDateISO(t.depAt, depTz),
       isHome: t.depIsHome,
-      place: t.depCountryCode ? { countryCode: t.depCountryCode, region: t.depRegion } : null,
+      place: placeOf(t.depCountryCode, t.depRegion, fromStop),
     });
     if (t.arrAt) {
       transportEnds.push({
         date: instantToZonedDateISO(t.arrAt, arrTz),
         isHome: t.arrIsHome,
-        place: t.arrCountryCode ? { countryCode: t.arrCountryCode, region: t.arrRegion } : null,
+        place: placeOf(t.arrCountryCode, t.arrRegion, toStop),
       });
     }
   }
@@ -55,7 +61,7 @@ const readTripInput = cache(async (tripId: string): Promise<TripHolidayInput | n
     tripStart: trip.startDate,
     tripEnd: trip.endDate ?? trip.startDate,
     home: trip.homeCountryCode ? { countryCode: trip.homeCountryCode, region: trip.homeRegion } : null,
-    stops,
+    stops: stops.filter((s) => s.arriveDate),
     transportEnds,
   };
 });
