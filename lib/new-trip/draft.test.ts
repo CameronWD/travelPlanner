@@ -164,6 +164,20 @@ describe("persistence", () => {
     const d = draftReducer(named({ step: 3 }), { type: "pick-home", place: PORTLAND });
     expect(parseDraft(serializeDraft(d), false)).toEqual(d);
   });
+  it("reads a draft saved before Regions: the old region text becomes the subtitle", () => {
+    const { name, lat, lng, countryCode, placeId } = PORTLAND;
+    const bare = { name, lat, lng, countryCode, placeId };
+    const old = { ...named({ step: 3 }), homeName: "Portland", homePlace: { ...bare, region: "Oregon, United States" } };
+    const d = parseDraft(JSON.stringify(old), false)!;
+    expect(d.homePlace).toMatchObject({ subtitle: "Oregon, United States" });
+    expect(d.homePlace).not.toHaveProperty("region");
+    expect(toCreateInput(d)).not.toHaveProperty("homeRegion");
+  });
+  it("keeps a new-style place's region and subtitle", () => {
+    const place = { ...PORTLAND, subtitle: "Oregon, United States", region: "Oregon" };
+    const d = parseDraft(JSON.stringify({ ...named({ step: 3 }), homePlace: place }), false)!;
+    expect(d.homePlace).toEqual(place);
+  });
   it("rejects junk", () => {
     expect(parseDraft("{nope", false)).toBeNull();
     expect(parseDraft(JSON.stringify({ name: 3 }), false)).toBeNull();
