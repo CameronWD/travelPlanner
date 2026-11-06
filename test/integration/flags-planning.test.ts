@@ -67,6 +67,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("planning Flags (real Postgres)
       { id: "it-fp-slot", tripId: TRIP_ID, stopId: "it-fp-porto", title: "IT Tour", category: "ACTIVITY", date: D(5), startTime: "11:50", slotTime: "12:00", arriveByMinutes: 15, sortOrder: 3 },
       { id: "it-fp-gift", tripId: TRIP_ID, stopId: "it-fp-porto", title: "IT Gift", category: "FOOD", date: D(5), sortOrder: 4, openingHours: closedOn(D(5)), surprisePlannerId: OWNER, surpriseForIds: forMember },
       { id: "it-fp-pass", tripId: TRIP_ID, stopId: "it-fp-porto", title: "IT Tram pass", category: "GETTING_AROUND", sortOrder: 5, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: D(2) },
+      { id: "it-fp-gone", tripId: TRIP_ID, stopId: "it-fp-porto", title: "IT Trattoria", category: "FOOD", date: D(5), sortOrder: 7, businessStatus: "CLOSED_TEMPORARILY", statusCheckedAt: new Date("2026-11-02T10:00:00Z") },
       { id: "it-fp-idea", tripId: TRIP_ID, title: "IT Idea", category: "FOOD", sortOrder: 6, bookingState: "TO_BOOK", bookingStateSet: true, bookBy: D(-1) },
       { id: "it-fp-fork-item", tripId: TRIP_ID, forkId: FORK_ID, stopId: "it-fp-fork-stop", title: "IT Fork museum", category: "SIGHTSEEING", date: D(4), sortOrder: 0, openingHours: closedOn(D(4)) },
     ] });
@@ -122,6 +123,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("planning Flags (real Postgres)
     const ids = steps.map((s) => s.id);
     expect(ids).toEqual(expect.arrayContaining(["item-closed-it-fp-closed", "book-by-overdue-it-fp-casa", "item-late-slot-it-fp-slot"]));
     expect(steps.find((s) => s.id === "item-closed-it-fp-closed")?.href).toContain(`/day/${D(4)}`);
+    expect(ids).toContain("item-closed-temporarily-it-fp-gone");
     const member = await loadHomePlanningData(TRIP_ID, today, "planning", TRIP, MEMBER);
     expect(member.steps.map((s) => s.id)).not.toContain("item-closed-it-fp-gift");
   });

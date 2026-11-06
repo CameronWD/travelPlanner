@@ -1657,7 +1657,7 @@ describe("getPromotionPreview", () => {
       for (const forkId of [null, "fork-9"]) {
         expect(itemFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
           where: expect.objectContaining({ forkId }),
-          select: expect.objectContaining({ title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true }),
+          select: expect.objectContaining({ title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true, businessStatus: true, statusCheckedAt: true }),
         }));
         expect(transportFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
           where: expect.objectContaining({ forkId }), select: expect.objectContaining({ bookingState: true, bookBy: true }),

@@ -456,6 +456,21 @@ describe("flagCounts", () => {
   });
 });
 
+describe("computePlanMetrics: a closed venue", () => {
+  it("carries businessStatus and statusCheckedAt into the dated temporarily-closed Flag", () => {
+    const stops = [makeStop("nbg", { name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-09", timezone: "Europe/Berlin" })];
+    const items = [
+      { id: "i1", stopId: "nbg", date: "2026-12-08", startTime: null, endTime: null, lat: null, lng: null, category: "FOOD", title: "Trattoria", businessStatus: "CLOSED_TEMPORARILY", statusCheckedAt: new Date("2026-11-02T10:00:00Z") },
+    ];
+    vi.mocked(detectFlags).mockClear();
+    computePlanMetrics({ ...emptyInput(), stops, items, today: "2026-12-01" });
+    const flags = vi.mocked(detectFlags).mock.results[0].value as { id: string; message: string }[];
+    expect(flags.find((f) => f.id === "item-closed-temporarily-i1")?.message).toBe(
+      "Trattoria was temporarily closed when last checked on Mon 2 Nov. Check it reopens before Tue 8 Dec.",
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // flightCount
 // ---------------------------------------------------------------------------
