@@ -964,6 +964,40 @@ describe("updateTrip", () => {
     }));
   });
 
+  it("a picked home stores its region, and a new pick without one clears it", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeName: "Brisbane", homeCountryCode: "au", homeTimezone: "Australia/Brisbane" });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney", homePlaceId: "sydney-id", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au", homeRegion: "New South Wales" });
+    expect(tripUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ homeRegion: "New South Wales" }) }));
+
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Singapore", homePlaceId: "sg-id", homeLat: 1.3, homeLng: 103.8, homeCountryCode: "sg" });
+    expect(tripUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ homeRegion: null }) }));
+  });
+
+  it("a renamed home takes the lookup's region; an emptied home clears it", async () => {
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au", region: "New South Wales", placeId: "sydney-id", address: null });
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: null });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+    expect(tripUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ homeRegion: "New South Wales" }) }));
+
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney" });
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "" });
+    expect(tripUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ homeRegion: null }) }));
+  });
+
+  it("createTrip stores a picked home's region, else the lookup's", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-1", name: "Oz" });
+    memberCreateMock.mockResolvedValue({});
+    await createTrip({ name: "Oz", homeCurrency: "AUD", homePlaceId: "picked-id", homeName: "Sydney", homeLat: -33.87, homeLng: 151.21, homeCountryCode: "au", homeRegion: "New South Wales" });
+    expect(tripCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ homeRegion: "New South Wales" }) });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au", region: "New South Wales", placeId: "s", address: null });
+    await createTrip({ name: "Oz", homeCurrency: "AUD", homeName: "Sydney" });
+    expect(tripCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ homeRegion: "New South Wales" }) });
+  });
+
   it("a pick that keeps the home's name still replaces its place", async () => {
     tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney", homeCountryCode: "au", homeTimezone: "Australia/Sydney" });
     tripUpdateMock.mockResolvedValue({ id: "t1" });

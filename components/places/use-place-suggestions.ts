@@ -111,6 +111,7 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
     const cityType = CITY_TYPES.find((t) => place.addressComponents?.some((c) => c.types.includes(t)));
     const city = cityType ? place.addressComponents?.find((c) => c.types.includes(cityType))?.longText : undefined;
     const countryCode = country?.shortText?.toLowerCase();
+    const region = place.addressComponents?.find((c) => c.types.includes("administrative_area_level_1"))?.longText;
     return {
       name,
       ...(subtitle ? { subtitle } : {}),
@@ -119,6 +120,7 @@ export function usePlaceSuggestions({ kind, near }: { kind: PlaceKind; near?: go
       ...(city ? { city } : {}),
       ...(country?.longText ? { country: country.longText } : {}),
       ...(countryCode ? { countryCode } : {}),
+      ...(region ? { region } : {}),
       placeId: place.id || prediction.placeId,
       ...(place.formattedAddress ? { address: place.formattedAddress } : {}),
       ...(prediction.types?.length ? { types: prediction.types } : {}),

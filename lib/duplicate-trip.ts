@@ -30,6 +30,8 @@ interface DuplicateSourceStop {
   id: string;
   name: string;
   country: string | null;
+  countryCode?: string | null;
+  region?: string | null;
   lat: number | null;
   lng: number | null;
   placeId?: string | null;
@@ -120,7 +122,7 @@ export interface DuplicatePlan {
     sourceId: string;
     sourceChapterId: string | null;
     data: {
-      name: string; country: string | null; lat: number | null; lng: number | null; placeId: string | null; timezone: string | null;
+      name: string; country: string | null; countryCode: string | null; region: string | null; lat: number | null; lng: number | null; placeId: string | null; timezone: string | null;
       arriveDate: null; departDate: null; nights: number; pinned: false; sortOrder: number; chapterSortOrder: number; notes: string | null; localTravelMode: string | null;
       surprisePlannerId: string | null; surpriseForIds: string | null; surpriseRevealedAt: Date | null;
     };
@@ -181,6 +183,8 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
       data: {
         name: s.name,
         country: s.country,
+        countryCode: s.countryCode ?? null,
+        region: s.region ?? null,
         lat: s.lat,
         lng: s.lng,
         placeId: s.placeId ?? null,

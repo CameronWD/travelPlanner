@@ -161,6 +161,12 @@ it("carries every row's place ID into the variant; a missing one copies as null"
   expect(bare.items[0].data).toMatchObject({ placeId: null, businessStatus: null });
 });
 
+it("carries a Stop's countryCode and region into the variant; none copies as null", () => {
+  const plan = buildForkPlan({ ...source, stops: [{ ...source.stops[0], countryCode: "de", region: "Bavaria" }] });
+  expect(plan.stops[0].data).toMatchObject({ countryCode: "de", region: "Bavaria" });
+  expect(buildForkPlan(source).stops[0].data).toMatchObject({ countryCode: null, region: null });
+});
+
 it("carries a Stop's Local travel mode into the variant; none copies as null", () => {
   const plan = buildForkPlan({ ...source, stops: [{ ...source.stops[0], localTravelMode: "DRIVE" }] });
   expect(plan.stops[0].data.localTravelMode).toBe("DRIVE");

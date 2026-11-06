@@ -485,6 +485,7 @@ model Trip {
   homeLat         Float?
   homeLng         Float?
   homeCountryCode String?
+  homeRegion      String? // English name of the Home base's first-level area (Google's administrative_area_level_1); null where it has none
   homeTimezone    String? // IANA — the Home base's zone (ADR 0030 amendment 2026-10-14)
   roundTrip       Boolean @default(true)
 
@@ -627,6 +628,7 @@ model Stop {
   name             String
   country          String?
   countryCode      String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from the geocoder); null while un-derived
+  region           String? // English name of the first-level area (Google's administrative_area_level_1); null where the place has none
   placeId          String? // Google place ID — set by a pick or the backfill
   lat              Float?
   lng              Float?
@@ -726,6 +728,10 @@ model Transport {
   depLng     Float?
   arrLat     Float?
   arrLng     Float?
+  depCountryCode String? // ISO 3166-1 alpha-2, lowercase, of the departure end
+  arrCountryCode String?
+  depRegion      String? // English first-level area of the departure end
+  arrRegion      String?
   depIsHome  Boolean @default(false) // departs the trip's Home base (see ADR 0030)
   arrIsHome  Boolean @default(false) // arrives the trip's Home base
   reference  String?

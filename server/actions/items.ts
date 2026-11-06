@@ -203,7 +203,10 @@ export async function createItem(
       link: data.link ?? null,
       booking: data.booking ?? null,
       notes: data.notes ?? null,
-      ...place,
+      lat: place.lat,
+      lng: place.lng,
+      countryCode: place.countryCode,
+      placeId: place.placeId,
       businessStatus: source === "pick" ? (data.businessStatus ?? null) : null,
       sortOrder,
       hiddenFromShares: data.hiddenFromShares ?? false,
@@ -423,7 +426,7 @@ export async function updateItem(
     pick: pickedPlace(data),
     before: {
       text: before.address,
-      place: { lat: before.lat, lng: before.lng, countryCode: before.countryCode, placeId: before.placeId },
+      place: { lat: before.lat, lng: before.lng, countryCode: before.countryCode, region: null, placeId: before.placeId },
     },
     lookUp: (address) => locateVenue(data.title, address, { near }),
   });
@@ -453,7 +456,10 @@ export async function updateItem(
     link: data.link ?? null,
     booking: data.booking ?? null,
     notes: data.notes ?? null,
-    ...place,
+    lat: place.lat,
+    lng: place.lng,
+    countryCode: place.countryCode,
+    placeId: place.placeId,
     businessStatus,
     hiddenFromShares: data.hiddenFromShares ?? false,
     // CONTEXT.md "Slot time" (R3): the ticket's fact; start (above) defaults from it in itemSchema.

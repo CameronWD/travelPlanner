@@ -13,6 +13,8 @@ const latitude = z.number().min(-90).max(90);
 const longitude = z.number().min(-180).max(180);
 const countryCode = z.string().regex(/^[a-zA-Z]{2}$/).transform((c) => c.toLowerCase());
 
+const region = z.string().trim().min(1).max(120);
+
 const tripFields = {
   name: z.string().trim().min(1, "Trip name is required").max(120, "Trip name must be 120 characters or fewer"),
   startDate: optionalIsoDate,
@@ -24,6 +26,7 @@ const tripFields = {
   homeLat: latitude.optional(),
   homeLng: longitude.optional(),
   homeCountryCode: countryCode.optional(),
+  homeRegion: region.optional(),
   homeTimezone: z.string().trim()
     .refine((zone) => zone === "" || isValidTimeZone(zone), "Pick a timezone from the list.")
     .optional(),
@@ -36,6 +39,7 @@ const roughStopInput = z
     lat: latitude.optional(),
     lng: longitude.optional(),
     countryCode: countryCode.optional(),
+    region: region.optional(),
     placeId: placeId.optional(),
     nights: z.number().int().min(0).max(366).optional(),
   })

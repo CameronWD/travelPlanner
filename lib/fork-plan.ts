@@ -45,6 +45,8 @@ interface ForkSourceStop {
   chapterId: string | null;
   name: string;
   country: string | null;
+  countryCode?: string | null;
+  region?: string | null;
   lat: number | null;
   lng: number | null;
   placeId?: string | null;
@@ -196,6 +198,8 @@ export interface ForkPlan {
     data: {
       name: string;
       country: string | null;
+      countryCode: string | null;
+      region: string | null;
       lat: number | null;
       lng: number | null;
       placeId: string | null;
@@ -325,7 +329,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       sourceId: s.id,
       sourceChapterId: s.chapterId,
       data: {
-        name: s.name, country: s.country, lat: s.lat, lng: s.lng, placeId: s.placeId ?? null, timezone: s.timezone,
+        name: s.name, country: s.country, countryCode: s.countryCode ?? null, region: s.region ?? null, lat: s.lat, lng: s.lng, placeId: s.placeId ?? null, timezone: s.timezone,
         arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned,
         sortOrder: s.sortOrder, chapterSortOrder: s.chapterSortOrder, notes: s.notes, localTravelMode: s.localTravelMode ?? null,
         surprisePlannerId: s.surprisePlannerId ?? null, surpriseForIds: s.surpriseForIds ?? null,

@@ -13,6 +13,7 @@ interface DraftStop {
   lat?: number;
   lng?: number;
   countryCode?: string;
+  region?: string;
   placeId?: string;
 }
 
@@ -129,6 +130,7 @@ export function toCreateInput(d: Draft, extra?: { fromShareToken?: string }): Cr
           homeLat: d.homePlace.lat,
           homeLng: d.homePlace.lng,
           ...(d.homePlace.countryCode ? { homeCountryCode: d.homePlace.countryCode } : {}),
+          ...(d.homePlace.region ? { homeRegion: d.homePlace.region } : {}),
         }
       : {}),
     ...(d.past && d.stops.length
@@ -137,6 +139,7 @@ export function toCreateInput(d: Draft, extra?: { fromShareToken?: string }): Cr
             name: s.name,
             ...(s.placeId && s.lat !== undefined && s.lng !== undefined ? { placeId: s.placeId, lat: s.lat, lng: s.lng } : {}),
             ...(s.countryCode ? { countryCode: s.countryCode } : {}),
+            ...(s.region ? { region: s.region } : {}),
           })),
         }
       : {}),
@@ -147,7 +150,7 @@ export function toCreateInput(d: Draft, extra?: { fromShareToken?: string }): Cr
 const STEP_OF: Record<string, Step> = {
   name: 1,
   startDate: 2, endDate: 2, hardEndDate: 2, roughMonth: 2,
-  homeName: 3, homeCurrency: 3, homeLat: 3, homeLng: 3, homeCountryCode: 3, stops: 3,
+  homeName: 3, homeCurrency: 3, homeLat: 3, homeLng: 3, homeCountryCode: 3, homeRegion: 3, stops: 3,
 };
 const SLOT_OF: Record<Step, keyof StepErrors> = { 1: "name", 2: "dates", 3: "home", 4: "form" };
 

@@ -5,7 +5,7 @@ import path from "node:path";
 import { dryRun, type Candidate } from "@/lib/backfill-places-dry-run";
 import { plannedSet, readPlan } from "@/lib/backfill-places";
 
-const FOUND = { name: "Ichiran", lat: 35.6615, lng: 139.7005, city: null, country: "Japan", countryCode: "jp", placeId: "ChIJVenue", address: "1F 1-22-7 Jinnan", matched: "venue" as const };
+const FOUND = { name: "Ichiran", lat: 35.6615, lng: 139.7005, city: null, country: "Japan", countryCode: "jp", region: null, placeId: "ChIJVenue", address: "1F 1-22-7 Jinnan", matched: "venue" as const };
 
 function candidate(id: string, lookup: Candidate["lookup"]): Candidate {
   return {

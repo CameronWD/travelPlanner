@@ -55,7 +55,7 @@ export function StepWherePast({ draft, dispatch, errors, attempt, formRef, onNex
             value={text}
             onValueChange={setText}
             onPick={(p) => {
-              dispatch({ type: "add-stop", stop: { name: p.name, lat: p.lat, lng: p.lng, ...(p.countryCode ? { countryCode: p.countryCode } : {}), ...(p.placeId ? { placeId: p.placeId } : {}) } });
+              dispatch({ type: "add-stop", stop: { name: p.name, lat: p.lat, lng: p.lng, ...(p.countryCode ? { countryCode: p.countryCode } : {}), ...(p.region ? { region: p.region } : {}), ...(p.placeId ? { placeId: p.placeId } : {}) } });
               setText("");
             }}
             rankNear={lastLocated}

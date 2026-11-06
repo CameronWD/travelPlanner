@@ -81,7 +81,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       hardEndDate: data.get("hardEndDate") as string,
       homeCurrency: data.get("homeCurrency") as string,
       homeName,
-      ...(homePick && { homePlaceId: homePick.placeId, homeLat: homePick.lat, homeLng: homePick.lng, ...(homePick.countryCode && { homeCountryCode: homePick.countryCode }) }),
+      ...(homePick && { homePlaceId: homePick.placeId, homeLat: homePick.lat, homeLng: homePick.lng, ...(homePick.countryCode && { homeCountryCode: homePick.countryCode }), ...(homePick.region && { homeRegion: homePick.region }) }),
       homeTimezone: homeTimezoneTouched ? homeTimezone : "",
       roundTrip: data.get("roundTrip") === "on",
     };

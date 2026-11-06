@@ -98,6 +98,7 @@ describe("geocodePlaceDetailed", () => {
       city: "Paris",
       country: "France",
       countryCode: "fr",
+      region: "Île-de-France",
       placeId: "ChIJParis",
       address: "Paris, France",
     });
@@ -106,6 +107,11 @@ describe("geocodePlaceDetailed", () => {
     expect(url.searchParams.get("address")).toBe("Paris");
     expect(url.searchParams.get("language")).toBe("en");
     expect(url.searchParams.get("key")).toBe(KEY);
+  });
+
+  it("has no region where Google gives no first-level area", async () => {
+    routeFetch({ geocode: { status: "OK", results: [SHIBUYA_ADDRESS] } });
+    expect((await geocodePlaceDetailed("1-22-7 Jinnan"))?.region).toBeNull();
   });
 
   it("names a non-locality by its full formatted address", async () => {
@@ -223,6 +229,7 @@ describe("locateVenue", () => {
       city: "Shibuya City",
       country: "Japan",
       countryCode: "jp",
+      region: null,
       placeId: "ChIJVenue",
       address: "1F 1-22-7 Jinnan, Shibuya City, Tokyo 150-0041, Japan",
       matched: "venue",

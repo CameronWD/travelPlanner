@@ -57,7 +57,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("a Stop's default zone comes fr
   });
 
   it("a geocoded Perth point decides when nothing was picked", async () => {
-    vi.mocked(geocodePlaceDetailed).mockResolvedValueOnce({ name: "Perth, Australia", lat: -31.95, lng: 115.86, city: "Perth", country: "Australia", countryCode: "au", placeId: null, address: null });
+    vi.mocked(geocodePlaceDetailed).mockResolvedValueOnce({ name: "Perth, Australia", lat: -31.95, lng: 115.86, city: "Perth", country: "Australia", countryCode: "au", region: null, placeId: null, address: null });
     const r = await createStop(TRIP_ID, { mode: "scheduled", name: "Perth", country: "Australia", timezone: "UTC", arriveDate: "2026-06-03", departDate: "2026-06-05" });
     expect(await stopZone(r)).toBe("Australia/Perth");
   });

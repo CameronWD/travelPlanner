@@ -59,7 +59,7 @@ describe("buildDuplicatePlan", () => {
     const plan = buildDuplicatePlan(SOURCE, "x");
     const rome = plan.stops.find((s) => s.sourceId === "s1")!;
     expect(rome.data).toEqual({
-      name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, placeId: null, timezone: "Europe/Rome",
+      name: "Rome", country: "Italy", countryCode: null, region: null, lat: 41.9, lng: 12.5, placeId: null, timezone: "Europe/Rome",
       arriveDate: null, departDate: null, nights: 3, pinned: false,
       sortOrder: 0, chapterSortOrder: 0, notes: "near station", localTravelMode: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
@@ -117,6 +117,12 @@ describe("buildDuplicatePlan", () => {
   it("an unreadable Try list is not copied", () => {
     const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: "not json" }] }, "x");
     expect(plan.items[0].data.tryList).toBeNull();
+  });
+
+  it("copies each stop's countryCode and region", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, stops: [{ ...SOURCE.stops[0], countryCode: "de", region: "Bavaria" }, SOURCE.stops[1]] }, "x");
+    expect(plan.stops[0].data).toMatchObject({ countryCode: "de", region: "Bavaria" });
+    expect(plan.stops[1].data).toMatchObject({ countryCode: null, region: null });
   });
 
   it("carries a null countryCode through when the source item has none", () => {

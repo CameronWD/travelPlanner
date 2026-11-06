@@ -141,6 +141,22 @@ describe("usePlaceSuggestions", () => {
     expect(picked).toMatchObject({ city: "Kyoto", country: "Japan" });
   });
 
+  it("a pick carries the English name of its first-level area as region", async () => {
+    const picked = await pickOne({
+      placeId: "ChIJMu", mainText: "Munich", secondaryText: "Bavaria, Germany", lat: 48.13, lng: 11.58, countryCode: "de", country: "Germany",
+      components: [
+        { longText: "Munich", shortText: "Munich", types: ["locality", "political"] },
+        { longText: "Bavaria", shortText: "BY", types: ["administrative_area_level_1", "political"] },
+      ],
+    });
+    expect(picked).toMatchObject({ region: "Bavaria" });
+  });
+
+  it("a pick with no first-level area has no region", async () => {
+    const picked = await pickOne({ placeId: "ChIJSg", mainText: "Singapore", lat: 1.35, lng: 103.8, countryCode: "sg", country: "Singapore" });
+    expect(picked).not.toHaveProperty("region");
+  });
+
   it("a venue pick takes its city from the locality, not the ward", async () => {
     const picked = await pickOne({
       placeId: "ChIJTt", mainText: "Tokyo Tower", secondaryText: "Minato City, Tokyo, Japan", lat: 35.65, lng: 139.74, countryCode: "jp", country: "Japan",

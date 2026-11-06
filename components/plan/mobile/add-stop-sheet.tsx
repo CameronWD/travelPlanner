@@ -129,6 +129,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
       ...(country ? { country } : {}),
       ...(picked ? { lat: picked.lat, lng: picked.lng } : {}),
       ...(picked?.countryCode ? { countryCode: picked.countryCode } : {}),
+      ...(picked?.region ? { region: picked.region } : {}),
       ...(picked?.placeId ? { placeId: picked.placeId } : {}),
     };
     const input: StopInput =

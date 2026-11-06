@@ -88,12 +88,12 @@ async function endPlaces(
     end(
       text.depPlace,
       pickedPlace({ placeId: data.depPlaceId, lat: data.depLat, lng: data.depLng }),
-      before ? { text: before.depPlace, place: { lat: before.depLat, lng: before.depLng, countryCode: null, placeId: before.depPlaceId } } : null,
+      before ? { text: before.depPlace, place: { lat: before.depLat, lng: before.depLng, countryCode: null, region: null, placeId: before.depPlaceId } } : null,
     ),
     end(
       text.arrPlace,
       pickedPlace({ placeId: data.arrPlaceId, lat: data.arrLat, lng: data.arrLng }),
-      before ? { text: before.arrPlace, place: { lat: before.arrLat, lng: before.arrLng, countryCode: null, placeId: before.arrPlaceId } } : null,
+      before ? { text: before.arrPlace, place: { lat: before.arrLat, lng: before.arrLng, countryCode: null, region: null, placeId: before.arrPlaceId } } : null,
     ),
   ]);
   return {
