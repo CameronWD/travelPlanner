@@ -97,7 +97,7 @@ export function LocationCombobox({
 
       <PopoverContent align="start" className="w-80 p-3">
         {apiKey ? (
-          <APIProvider apiKey={apiKey}>
+          <APIProvider apiKey={apiKey} language="en">
             <LocationOptions {...optionProps} />
           </APIProvider>
         ) : (

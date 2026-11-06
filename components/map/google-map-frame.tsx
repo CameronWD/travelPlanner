@@ -74,7 +74,7 @@ export function GoogleMapFrame({ fallback, dark, className, style, role, "aria-l
         fallback
       ) : (
         <div className={className} style={style} role={role} aria-label={ariaLabel}>
-          <APIProvider apiKey={config.apiKey} onError={fail}>
+          <APIProvider apiKey={config.apiKey} language="en" onError={fail}>
             <FailureWatch onFail={fail} />
             <Map
               key={dark ? "dark" : "light"}

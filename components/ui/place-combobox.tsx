@@ -29,7 +29,7 @@ export interface PlaceComboboxProps {
 export function PlaceCombobox(props: PlaceComboboxProps) {
   const apiKey = placesBrowserKey();
   return apiKey ? (
-    <APIProvider apiKey={apiKey}>
+    <APIProvider apiKey={apiKey} language="en">
       <PlaceField {...props} />
     </APIProvider>
   ) : (

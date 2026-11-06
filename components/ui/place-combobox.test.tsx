@@ -75,9 +75,9 @@ describe("PlaceCombobox", () => {
     expect(screen.getByText(HINT)).toBeInTheDocument();
   });
 
-  it("renders its own APIProvider with the browser key", () => {
+  it("renders its own APIProvider with the browser key, asking Google for English names", () => {
     render(<Harness />);
-    expect(mock.providers.at(-1)).toEqual({ apiKey: "k" });
+    expect(mock.providers.at(-1)).toEqual({ apiKey: "k", language: "en" });
   });
 
   it("asks for suggestions after 3 characters and 350 ms, not before", () => {
