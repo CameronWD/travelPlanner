@@ -799,6 +799,24 @@ describe("Share page is light-only (spec 2026-10-01 §A)", () => {
     const props = JSON.parse(screen.getByTestId("route-map").getAttribute("data-props")!);
     expect(props.theme).toBe("light");
   });
+  it("shows the Static Maps image, not the live map, while Maps config exists", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "browser-key");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "map-id");
+    await renderPage();
+    const img = screen.getByRole("img", { name: /^Route map of / });
+    expect(img.getAttribute("src")).toContain("https://maps.googleapis.com/maps/api/staticmap");
+    expect(screen.getByRole("button", { name: "Explore map" })).toBeInTheDocument();
+    expect(screen.queryByTestId("route-map")).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+  it("renders the live map straight away without Maps config", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
+    await renderPage();
+    expect(screen.getByTestId("route-map")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Explore map" })).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
   it("pins the phone address-bar colour to the light ground", async () => {
     const mod = await import("./page");
     expect(mod.viewport).toEqual({ themeColor: "#FFFBF3" });

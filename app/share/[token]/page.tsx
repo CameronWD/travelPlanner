@@ -24,6 +24,9 @@ import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enum-values";
 import { homeMapPoint } from "@/lib/route-map";
+import { staticMapUrl } from "@/lib/map/static-map";
+import { mapsConfig } from "@/lib/map/google-config";
+import { RouteMapPreview } from "@/components/trip/route-map-preview";
 import { loadRouteLegPaths } from "@/lib/travel-times/read";
 import { MAP_INK } from "@/lib/map/palette";
 import { describePhase } from "@/lib/trip-phase";
@@ -587,20 +590,36 @@ export default async function SharePage({
         return <ShareTally {...shareTally(stops, totalNights)} />;
       case "journal":
         return <JournalPolaroids {...journalProps} />;
-      case "map":
+      case "map": {
+        const maps = mapsConfig();
+        const mapImageUrl = maps
+          ? staticMapUrl({
+              key: maps.apiKey,
+              mapId: maps.mapId,
+              width: 640,
+              height: 320,
+              stops: mapStops.map((s) => ({ id: s.id, lat: s.lat ?? null, lng: s.lng ?? null, sortOrder: s.sortOrder })),
+              home: homeMapPoint(trip),
+              legPaths,
+            })
+          : null;
+        const frameClassName = cn("rounded-3xl shadow-hard-4 lg:h-[400px]", stage === "during" ? "h-[180px]" : "h-[200px]");
         return (
           <section aria-label="Route map">
-            <RouteMap
-              stops={mapStops}
-              home={homeMapPoint(trip)}
-              showReturn={trip.roundTrip ?? false}
-              progress={stage === "during" ? { stage, currentStopId } : { stage }}
-              frameClassName={cn("rounded-3xl shadow-hard-4 lg:h-[400px]", stage === "during" ? "h-[180px]" : "h-[200px]")}
-              theme="light"
-              legPaths={legPaths}
-            />
+            <RouteMapPreview imageUrl={mapImageUrl} alt={`Route map of ${trip.name}`} frameClassName={frameClassName}>
+              <RouteMap
+                stops={mapStops}
+                home={homeMapPoint(trip)}
+                showReturn={trip.roundTrip ?? false}
+                progress={stage === "during" ? { stage, currentStopId } : { stage }}
+                frameClassName={frameClassName}
+                theme="light"
+                legPaths={legPaths}
+              />
+            </RouteMapPreview>
           </section>
         );
+      }
       case "route":
         return (
           <ShareRouteList
