@@ -7,7 +7,7 @@ vi.mock("@vis.gl/react-google-maps", () => mock.module);
 
 import { LocationCombobox } from "./location-combobox";
 
-const HAKONE = { placeId: "ChIJHakone", mainText: "Hakone", secondaryText: "Kanagawa, Japan", lat: 35.23, lng: 139.1, countryCode: "jp", country: "Japan" };
+const HAKONE = { placeId: "ChIJHakone", mainText: "Hakone", secondaryText: "Kanagawa, Japan", lat: 35.23, lng: 139.1, countryCode: "jp", country: "Japan", components: [{ longText: "Kanagawa", shortText: "Kanagawa", types: ["administrative_area_level_1", "political"] }] };
 
 function renderCombo(onChange = vi.fn()) {
   render(<LocationCombobox label="To" value={{ kind: "none" }} onChange={onChange} stops={[{ id: "s1", name: "Tokyo" }]} homeBaseName="Sydney" />);
@@ -34,7 +34,7 @@ describe("LocationCombobox", () => {
     await userEvent.click(screen.getByRole("button", { name: /^To/ }));
     await userEvent.type(screen.getByRole("textbox"), "Hakone");
     await userEvent.click(await screen.findByRole("button", { name: /Kanagawa/ }));
-    expect(onChange).toHaveBeenCalledWith({ kind: "place", name: "Hakone", placeId: "ChIJHakone", lat: 35.23, lng: 139.1 });
+    expect(onChange).toHaveBeenCalledWith({ kind: "place", name: "Hakone", placeId: "ChIJHakone", lat: 35.23, lng: 139.1, countryCode: "jp", region: "Kanagawa" });
   });
 
   it("the typed text can be used as a place with no pick", async () => {

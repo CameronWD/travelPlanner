@@ -167,6 +167,12 @@ it("carries a Stop's countryCode and region into the variant; none copies as nul
   expect(buildForkPlan(source).stops[0].data).toMatchObject({ countryCode: null, region: null });
 });
 
+it("carries each Transport end's country and region into the variant; none copies as null", () => {
+  const plan = buildForkPlan({ ...source, transports: [{ ...source.transports[0], depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "it", arrRegion: "Tuscany" }] });
+  expect(plan.transports[0].data).toMatchObject({ depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "it", arrRegion: "Tuscany" });
+  expect(buildForkPlan(source).transports[0].data).toMatchObject({ depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null });
+});
+
 it("carries a Stop's Local travel mode into the variant; none copies as null", () => {
   const plan = buildForkPlan({ ...source, stops: [{ ...source.stops[0], localTravelMode: "DRIVE" }] });
   expect(plan.stops[0].data.localTravelMode).toBe("DRIVE");

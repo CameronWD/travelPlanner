@@ -16,7 +16,7 @@ export type LocationValue =
   | { kind: "none" }
   | { kind: "home" }
   | { kind: "stop"; stopId: string; name: string }
-  | { kind: "place"; name: string; placeId?: string; lat?: number; lng?: number };
+  | { kind: "place"; name: string; placeId?: string; lat?: number; lng?: number; countryCode?: string; region?: string };
 
 export interface LocationComboboxProps {
   label: string;
@@ -124,7 +124,7 @@ function LocationOptions({ query, setQuery, filteredStops, homeBaseName, disable
 
   async function choose(id: string) {
     const place = await pick(id);
-    if (place) select({ kind: "place", name: place.name, placeId: place.placeId, lat: place.lat, lng: place.lng });
+    if (place) select({ kind: "place", name: place.name, placeId: place.placeId, lat: place.lat, lng: place.lng, countryCode: place.countryCode, region: place.region });
   }
 
   return (

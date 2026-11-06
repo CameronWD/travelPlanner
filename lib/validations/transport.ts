@@ -6,6 +6,9 @@ import { WALL_TIME_RE } from "@/lib/wall-time";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 import { placeId } from "@/lib/validations/primitives";
 
+const endCountryCode = z.string().trim().regex(/^[a-zA-Z]{2}$/, "Country code must be two letters").transform((c) => c.toLowerCase()).optional();
+const endRegion = z.string().trim().min(1).max(120).optional();
+
 /**
  * A transport time as submitted. Two shapes survive parsing:
  *  - a Date, or a string WITH an explicit offset/Z → an instant, coerced to Date;
@@ -62,6 +65,10 @@ export const transportSchema = z.object({
   arrPlaceId: placeId.optional(),
   arrLat: z.number().min(-90).max(90).optional(),
   arrLng: z.number().min(-180).max(180).optional(),
+  depCountryCode: endCountryCode,
+  depRegion: endRegion,
+  arrCountryCode: endCountryCode,
+  arrRegion: endRegion,
 
   /** Departure instant (datetime-local or ISO string → stored as Date). */
   depAt: isoDatetime,
