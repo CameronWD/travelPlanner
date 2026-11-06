@@ -15,8 +15,9 @@ Accepted (2026-10-30). Decided in the Google Maps grill
   billing account again.
 - **Static Maps on Share link previews, Print and the Share page are now
   accepted.** This reverses the rejected option below. The Share page keeps
-  its live map behind "Explore map". The preview image is cached at the edge
-  for a day, so a crawler is not a billed call each time. Serving a Google
+  its live map behind "Explore map". The preview image is fetched
+  server-side and counted against the daily cap, never edge-cached, so a
+  revoked link stops previewing at once. Serving a Google
   map image inside our own card is the same invite-only storage deviation as
   point 2.
 - **Public holidays come from Google Calendar's holiday calendars**, read

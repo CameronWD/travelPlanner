@@ -127,8 +127,8 @@ know (whether a given venue opens that day).
 ### C1. Where
 - **Share link preview** (`app/share/[token]/opengraph-image.tsx`): the
   route drawn on the card.
-- **Print**: a route map at the top, plus a small map per Stop if the
-  layout allows.
+- **Print**: a route map at the top. (Per-Stop maps were dropped on
+  2026-11-06: each would be a billed load on every print view.)
 - **Public Share page**: a map image until the viewer taps "Explore map",
   which then mounts the live Route map.
 
@@ -137,8 +137,10 @@ Everything else stays live.
 ### C2. How
 - Same Map ID styling as the live maps, numbered Stop pins, and the route
   as a path.
-- The link-preview image is generated with the server key and cached at
-  the edge for a day, so repeat crawls don't call Google.
+- The link-preview image is fetched server-side with the server key and
+  counted against the Static Maps daily cap. It is **not** edge-cached: the
+  preview route stays `force-dynamic` so a revoked link stops previewing at
+  once. Crawls are rare, so the cap absorbs them.
 - `<img>` maps on Print and Share use the browser key, which gets the Maps
   Static API added to its API restrictions.
 - When over the cap, or with no key, the image is left out (no broken
