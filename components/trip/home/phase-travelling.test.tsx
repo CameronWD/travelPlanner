@@ -116,7 +116,9 @@ vi.mock("@/components/trip/home/desktop/countdown-polaroid", () => ({
 }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
 vi.mock("@/components/trip/day-ideas", () => ({ DayIdeas: () => null }));
-vi.mock("@/components/trip/whats-around-sheet", () => ({ WhatsAroundSheet: () => null }));
+vi.mock("@/components/trip/whats-around-sheet", () => ({
+  WhatsAroundSheet: ({ allowNearMe }: { allowNearMe: boolean }) => <i data-testid="whats-around" data-near-me={String(allowNearMe)} />,
+}));
 vi.mock("@/components/trip/map-link", () => ({ MapLink: () => null }));
 vi.mock("@/components/trip/transport-countdown", () => ({ TransportCountdown: () => null }));
 vi.mock("@/components/trip/spend-so-far-card", () => ({ SpendSoFarCard: () => null }));
@@ -314,6 +316,19 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
     expect(sheet?.props.tripId).toBe("trip-1");
     expect(sheet?.props.stopId).toBe("stop-1");
     expect(sheet?.props.startPoints).toEqual([{ key: "stop:stop-1", label: "Munich", from: { kind: "stop", id: "stop-1" } }]);
+  });
+
+  it.each([
+    ["2000-01-01", "2999-01-10", true],
+    ["2026-01-01", "2026-01-10", false],
+  ])("passes allowNearMe = isWithinTrip to What's around (%s..%s -> %s)", async (startDate, endDate, within) => {
+    tripFindUniqueMock.mockResolvedValue({ startDate, endDate, homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: true });
+    vi.mocked((await import("@/lib/itinerary")).effectiveTodayISO).mockReturnValue("2026-01-05");
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    expect(findElementByType(tree, WhatsAroundSheet)?.props.allowNearMe).toBe(within);
   });
 
   it("renders no What's around entry point when the Trip has it off", async () => {
@@ -838,6 +853,17 @@ describe("PhaseTravelling desktop layout (spec D)", () => {
 
   const desktop = (extra: Record<string, unknown> = {}) =>
     PhaseTravelling({ tripId: "trip-1", userId: "me", layout: "desktop", cover: null, ...extra });
+
+  it.each([
+    ["2000-01-01", "2999-01-10", true],
+    ["2026-01-01", "2026-01-10", false],
+  ])("desktop Today tile gets allowNearMe = isWithinTrip (%s..%s -> %s)", async (startDate, endDate, within) => {
+    tripFindUniqueMock.mockResolvedValue({ startDate, endDate, homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: true });
+
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1", layout: "desktop", cover: null }));
+
+    expect(dom.querySelector('[data-testid="whats-around"]')?.getAttribute("data-near-me")).toBe(String(within));
+  });
 
   it("renders countdown, Spend so far, Today, Day map, then Today's journal last — in DOM order", async () => {
     const dom = toDom(await desktop());
