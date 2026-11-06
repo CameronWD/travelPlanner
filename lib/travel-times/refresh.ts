@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { dailyCap } from "@/lib/google-budget";
 import { hasServerKey } from "@/lib/google-fetch";
 import { takeGoogleQuota } from "@/lib/google-usage";
 import { computeRoute } from "@/lib/routes";
@@ -7,7 +8,6 @@ import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { ITEM_HOP_ORDER, parseHopKey, planTravelKeys, type HopItem } from "@/lib/travel-times/hops";
 import { saveTravelTime, settledTravelKeys } from "@/lib/travel-times/store";
 
-export const ROUTES_DAILY_CAP = 165;
 const MAX_CALLS_PER_RUN = 40;
 const CONCURRENCY = 4;
 
@@ -129,7 +129,7 @@ export async function refreshTripTravelTimes(tripId: string, opts: { now?: Date;
     while (!refused) {
       const next = queue.shift();
       if (next === undefined) return;
-      if (!(await takeGoogleQuota("routes", opts.dailyCap ?? ROUTES_DAILY_CAP))) {
+      if (!(await takeGoogleQuota("routes", opts.dailyCap ?? dailyCap("routes")))) {
         refused = true;
         return;
       }

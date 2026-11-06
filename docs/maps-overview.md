@@ -36,8 +36,8 @@ Env: `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`
 `lib/map/google-config.ts` returns `{ apiKey, mapId }` or `null`; **Advanced
 Markers require a Map ID**, so a missing Map ID counts as "not configured".
 
-**Cost rule.** Every Google API we call has a per-day quota of half its free
-monthly allowance ÷ 30, on a billing account shared with hometracker, so a
+**Cost rule.** Every Google API we call has a per-day quota of Teepee's share
+(now all) of its free monthly allowance ÷ 30, so a
 month inside the quota is $0 by construction. The quota table and budget alert
 are in DEPLOY.md §4j.
 
@@ -267,9 +267,9 @@ candidate or `null`.
 `point_of_interest`) calls the server action `venueDetailsForPick`, which fills
 opening hours and the link (only when empty) and business status. A city or a
 bare street address skips it. That is a Place Details **Enterprise**
-call. Google's quota is per method, so one GetPlace cap (165/day) covers the
+call. Google's quota is per method, so one GetPlace cap (333/day) covers the
 Essentials picks, the server lookups and Enterprise together. Teepee holds
-Enterprise to **15/day** itself with `takeGoogleQuota("venue-details", 15)`
+Enterprise to **33/day** itself with `dailyCap("venue-details")`
 (`lib/google-usage.ts`, table `GoogleUsage`, a per-UTC-day counter). Past it the
 pick still fills location; hours and link just do not fill. Overnight hours are
 split across days by `lib/opening-hours-google.ts`.
@@ -305,7 +305,7 @@ and NO-ANCHOR (nothing to look up; skipped). Only ACCEPT and NEW rows go in the
 plan. New Items and stays with no point are biased to their Stop's point; rough
 Stops get no timezone. Item hours, link and business status are fetched at
 execute time, only for venue matches against a real address, and fill only
-what is empty. It bypasses the app's 15/day Enterprise counter by design, so
+what is empty. It bypasses the app's 33/day Enterprise counter by design, so
 the runbook raises the console quotas for the hour (DEPLOY §4j). Not run inside
 `prisma migrate deploy`.
 
@@ -360,7 +360,7 @@ been looked up, and is shown as "(estimated)".
   backfill, Trips beyond 90 days, failed lookups.
 - **Cost guard.** One Compute Routes (Essentials mask) call per key; TRANSIT
   also bills Essentials. At most 40 calls per pass of one Trip refresh (the operator script loops passes until one fetches nothing or the day's cap stops it, and stops the whole run when every call in a pass fails), 4 concurrent, each gated by
-  `takeGoogleQuota("routes", 165)` (the day counter, same as DEPLOY §4j's
+  `dailyCap("routes")` (the day counter, same as DEPLOY §4j's
   quota; only the operator script can lift it, with `--cap`). Past it, hops stay estimated.
 - **Surprise views.** The real plan is refreshed first, then each Traveller's
   Surprise view of it: a hidden Surprise Item reaches readers as a placeholder
@@ -437,7 +437,7 @@ the page still works from data already in the page, and deep links still render.
    need no header changes. Adding a CSP later means allowing `maps.googleapis.com`
    and `maps.gstatic.com`.
 8. **Places quotas are per API method.** One GetPlace cap covers Essentials picks,
-   server lookups and Enterprise detail calls; Teepee holds Enterprise to 15/day
+   server lookups and Enterprise detail calls; Teepee holds Enterprise to 33/day
    with its own `GoogleUsage` counter (§6).
 9. **Storage stance.** Google's terms limit how long Places coordinates and Routes
    results may be cached; the app stores coordinates indefinitely, a known
@@ -464,7 +464,7 @@ To stand this up in another Next.js App Router project:
    keep the point-model logic in a pure `lib/` module.
 8. Copy `test/google-maps-mock.tsx` and mock `@vis.gl/react-google-maps` with it —
    see §8.
-9. Set a per-day quota on every Google API you call (half the free allowance ÷ 30
+9. Set a per-day quota on every Google API you call (your share of the free allowance ÷ 30
    is a safe rule) and a budget alert.
 
 ---

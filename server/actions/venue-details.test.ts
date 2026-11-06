@@ -24,9 +24,9 @@ describe("venueDetailsForPick", () => {
     fetchVenueDetailsMock.mockResolvedValue(DETAILS);
   });
 
-  it("returns the venue's details under the venue-details cap of 15", async () => {
+  it("returns the venue's details under the venue-details cap of 33", async () => {
     expect(await venueDetailsForPick("trip-1", "ChIJ1")).toEqual(DETAILS);
-    expect(takeGoogleQuotaMock).toHaveBeenCalledWith("venue-details", 15);
+    expect(takeGoogleQuotaMock).toHaveBeenCalledWith("venue-details", 33);
     expect(fetchVenueDetailsMock).toHaveBeenCalledWith("ChIJ1");
   });
 
