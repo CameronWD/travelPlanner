@@ -8,7 +8,7 @@
  *
  * Trips still to come, under way or undated go first, finished ones last.
  * --execute refreshes each Trip until a pass fetches nothing or Google's app
- * quota for the day (ROUTES_DAILY_CAP, or --cap) refuses; it stops at the first refusal,
+ * quota for the day (the Routes daily cap from lib/google-budget, or --cap) refuses; it stops at the first refusal,
  * and the rest fill on a later run or after their next plan write. It also stops when
  * every call in a pass failed (Google refusing: console quota, 429s).
  */

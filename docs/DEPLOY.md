@@ -536,15 +536,21 @@ bottom after the branch work is merged and before the push. Nothing in the code
 waits on it — without keys every map shows its fallback ("The map isn't available
 right now.") and the pages keep working.
 
-**Cost rule.** Every Google API Teepee calls gets a per-day quota of **half its
-free monthly allowance ÷ 30**. A month inside the quota cannot leave the free
-allowance, so the bill is $0 by construction. Free usage is granted per SKU **per
-billing account**, and this account is shared with hometracker (`ourhome`), which is
-why Teepee takes only half. (Follow-up in the hometracker repo: cap its quotas at the
-other half.)
+**Cost rule.** Every Google API Teepee calls gets a per-day quota of **Teepee's share
+(now all) of its free monthly allowance ÷ 30**. A month inside the quota cannot
+leave the free allowance, so the bill is $0 by construction. Free usage is granted
+per SKU **per billing account**; the account is no longer shared, because the
+property tracker's Google usage stopped on 2026-11-06. The share is `GOOGLE_SHARE`
+in `lib/google-budget.ts`. Free usage is per calendar month per billing account, so
+the console per-day quotas (step 6) must be at the share-1 values (333 for each
+Essentials method) **before** the deploy that ships `GOOGLE_SHARE = 1`: the app's
+own counters allow up to `dailyCap(...)`, and a console refusal is stored as an
+ERROR Travel time with a 24 h cooldown. Raise them on or after 2026-12-01, or
+earlier only once Billing → Reports shows the property tracker's November usage
+left room.
 
 1. **Project.** console.cloud.google.com → create project `teepee`, billing account
-   = the existing one (the same one hometracker uses).
+   = the existing one (the one hometracker used).
 2. **Enable APIs** (APIs & Services → Library): Maps JavaScript API, Places API (New),
    Geocoding API, Routes API.
 3. **Browser key** (Credentials → Create API key). Application restriction: HTTP
@@ -564,30 +570,30 @@ other half.)
    dark look and attach it to the Map ID; the app picks the scheme from the theme.
    Advanced Markers (the pins) require a Map ID.
 6. **Per-day quotas** (IAM & Admin → Quotas & System Limits, or each API's Quotas
-   tab; set a per-day limit on the request metric):
+   tab; set a per-day limit on the request metric). Do this before the deploy
+   that ships `GOOGLE_SHARE = 1` (see the cost rule above):
 
-   | API / SKU | Free monthly | Per-day quota (half ÷ 30) |
+   | API / SKU | Free monthly | Per-day quota (share ÷ 30) |
    |---|---|---|
-   | Maps JavaScript — Dynamic Maps | 10,000 | 150 |
-   | Geocoding (Essentials) | 10,000 | 165 |
-   | Routes — Compute Routes (Essentials; covers walk, drive and public transport) | 10,000 | 165 |
-   | Places — Place Details (GetPlace, one cap) | 10,000 | 165 |
-   | Places — Autocomplete ("Autocomplete Requests") | 10,000 | 165 |
+   | Maps JavaScript — Dynamic Maps | 10,000 | 333 |
+   | Geocoding (Essentials) | 10,000 | 333 |
+   | Routes — Compute Routes (Essentials; covers walk, drive and public transport) | 10,000 | 333 |
+   | Places — Place Details (GetPlace, one cap) | 10,000 | 333 |
+   | Places — Autocomplete ("Autocomplete Requests") | 10,000 | 333 |
    | Places — Text Search (IDs only — free) | unlimited | 1,000 (runaway cap) |
 
    Notes on the Places rows:
    - **Place Details is one cap.** Google quotas are per API method, not per SKU:
-     the single GetPlace cap of 165/day covers the Essentials picks, the server
+     the single GetPlace cap of 333/day covers the Essentials picks, the server
      venue lookups and the Enterprise calls (opening hours) together.
-   - **Enterprise is held to 15/day by Teepee, not the console.** The app's own
-     `GoogleUsage` counter (`takeGoogleQuota("venue-details", 15)`) gates every
+   - **Enterprise is held to 33/day by Teepee, not the console.** The app's own
+     `GoogleUsage` counter (`dailyCap("venue-details")`) gates every
      Enterprise call; past it a venue pick still fills the location but not the
      hours or link. Read today's count (UTC day) with
      `SELECT * FROM "GoogleUsage" WHERE day = to_char(now() at time zone 'utc','YYYY-MM-DD');`
    - **Autocomplete** bills per request only for abandoned sessions and for the
      first 12 requests of a session (a session that ends in a pick is covered by
-     the pick). 165/day is half of the 10,000/month free allowance (shared with
-     hometracker) ÷ 30; the app debounces 350 ms and starts at 3 characters.
+     the pick). 333/day is the whole 10,000/month free allowance ÷ 30; the app debounces 350 ms and starts at 3 characters.
 
    Re-read Google's pricing page for the current free allowances before typing
    numbers; the rule is the source of truth, the table is today's arithmetic.
@@ -642,7 +648,7 @@ other half.)
        every row and Text-Searches each Item, stay and Marker (with an
        Essentials GetPlace per venue found); the execute makes no location
        lookups, only the Enterprise GetPlace per planned venue Item (at most
-       61). The script bypasses Teepee's 15/day Enterprise counter by design,
+       61). The script bypasses Teepee's 33/day Enterprise counter by design,
        which is why the console quotas are what hold it.
     2. `npm run backfill:places` (the dry run). It prints every row as
        `kind id · "query" · old → new · km · VERDICT · [venue|address] matched address`
@@ -666,13 +672,13 @@ other half.)
        in a row stop it too), raise the quota and run the same command: written
        rows are skipped and Items whose details failed (listed at the end) are
        retried.
-    4. Put the Geocoding and GetPlace quotas back to 165. Delete the plan file.
+    4. Put the Geocoding and GetPlace quotas back to the step 6 value. Delete the plan file.
 13. **Fill Travel times** (last, after the places backfill: the backfill moves
     points without running the after-save hook that normally looks Travel times
     up, so every existing Trip starts with estimates).
     1. Raise the console quota for **Routes (Compute Routes Essentials)** to
        **500/day** for the hour. The app also counts Routes calls itself and
-       stops at 165/day, so the run below passes `--cap 500` to lift that too.
+       stops at its daily cap, so the run below passes `--cap 500` to lift that too.
     2. `npm run travel-times:refresh` (dry run). It prints how many keys each
        Trip needs (a count, not the keys), upcoming Trips first, and calls
        nothing.
@@ -683,9 +689,9 @@ other half.)
        fails (Google refusing: the console quota, or 429s), the run stops with
        an error instead of moving on to the next Trip: fix the quota and run it
        again (the keys that failed retry after their 24 h cooldown).
-    4. Put the console Routes quota back to 165. `--cap` only lifts the app's
+    4. Put the console Routes quota back to the step 6 value. `--cap` only lifts the app's
        cap for this script's run, but the run's calls still count against the
-       app's own counter for that UTC day, which is now past 165. So for the
+       app's own counter for that UTC day, which is now past the daily cap. So for the
        rest of that UTC day, saves in the app look nothing up and their new hops
        stay estimated; they fill on the next save (or operator run) after
        midnight UTC. That is expected.
