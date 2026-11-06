@@ -84,6 +84,7 @@ describe("without a server key", () => {
     expect(await reverseGeocode(48.8566, 2.3522)).toBeNull();
     expect(await locateVenue("Ichiran", "Shibuya")).toBeNull();
     expect(await fetchVenueDetails("ChIJVenue")).toBeNull();
+    expect(await lookUpBusinessStatus("ChIJVenue")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

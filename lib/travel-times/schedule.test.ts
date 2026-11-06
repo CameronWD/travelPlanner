@@ -63,6 +63,22 @@ describe("scheduleTravelTimes", () => {
     expect(m.refresh).toHaveBeenCalledTimes(3);
   });
 
+  it("a coalesced travel-times rerun happens before the single venue re-check", async () => {
+    const order: string[] = [];
+    const first = deferred();
+    m.refresh.mockImplementationOnce(async () => { await first.promise; order.push("travel"); }).mockImplementation(async () => void order.push("travel"));
+    m.venues.mockImplementation(async () => void order.push("venues"));
+    scheduleTravelTimes("t1");
+    scheduleTravelTimes("t1");
+    const [a, b] = m.after.mock.calls.map(([cb]) => cb);
+    const runs = [a()];
+    await vi.waitFor(() => expect(m.refresh).toHaveBeenCalledTimes(1));
+    runs.push(b());
+    first.resolve();
+    await Promise.all(runs);
+    expect(order).toEqual(["travel", "travel", "venues"]);
+  });
+
   it("re-checks venue statuses in the same pass, after the travel times", async () => {
     const order: string[] = [];
     m.refresh.mockImplementation(async () => void order.push("travel"));

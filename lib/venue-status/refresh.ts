@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { dailyCap } from "@/lib/google-budget";
 import { lookUpBusinessStatus } from "@/lib/geocode";
 import { takeGoogleQuota } from "@/lib/google-usage";
-import { tripTodayISO } from "@/lib/trip-today";
+import { orderPlanStops } from "@/lib/plan-order";
+import { currentTripTimezone, instantToZonedDateISO } from "@/lib/tz";
 
 const MAX_LOOKUPS_PER_RUN = 20;
 const STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
@@ -15,7 +16,7 @@ export async function refreshVenueStatuses(tripId: string, now = new Date()): Pr
   });
   if (!trip) return { checked: 0, skippedQuota: false };
   const end = trip.endDate ?? trip.startDate;
-  if (end && tripTodayISO(trip.stops) > end) return { checked: 0, skippedQuota: false };
+  if (end && instantToZonedDateISO(now, currentTripTimezone(orderPlanStops(trip.stops))) > end) return { checked: 0, skippedQuota: false };
 
   const cutoff = new Date(now.getTime() - STALE_AFTER_MS);
   const items = await db.item.findMany({

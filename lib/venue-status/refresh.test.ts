@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockDb } from "@/test/helpers/db-mock";
 
 vi.mock("@/lib/db", async () => {
@@ -26,6 +26,8 @@ function trip(over: Partial<{ startDate: string | null; endDate: string | null }
 const items = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `i${i}`, placeId: `p${i}` }));
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   vi.clearAllMocks();
   m.takeGoogleQuota.mockResolvedValue(true);
   m.lookUp.mockResolvedValue({ businessStatus: "OPERATIONAL" });
@@ -33,6 +35,8 @@ beforeEach(() => {
   db.item.findMany.mockResolvedValue([]);
   db.item.update.mockResolvedValue({});
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe("refreshVenueStatuses", () => {
   it("selects only venue Items unchecked or checked over 30 days ago, oldest first with nulls first, capped at 20", async () => {
