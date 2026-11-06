@@ -39,7 +39,7 @@ function targetFor(nav: HTMLElement, chip: HTMLElement, useDesktopRule: boolean,
   return useDesktopRule ? desktopStripScroll(input) : phoneStripScroll(input);
 }
 
-export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine; size: "desktop" | "phone" }) {
+export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: "public" | "early" | false }>; line: StopLine; size: "desktop" | "phone" }) {
   const phone = size === "phone";
   const tripHref = useTripHref(tripId);
   const carousel = useDayCarousel();
@@ -166,7 +166,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
           {dates.map((d) => {
             const dt = parseISODate(d.iso);
             const dots = dotsFor(d.count);
-            const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}`;
+            const label = `${formatDayLabel(d.iso)}, ${d.count === 0 ? "nothing planned" : `${d.count} ${d.count === 1 ? "thing" : "things"} planned`}${d.holiday === "public" ? ", public holiday" : d.holiday === "early" ? ", places close early" : ""}`;
             const href = tripHref(`/day/${d.iso}`);
             return (
               <AppLink
@@ -197,6 +197,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
                 <span className="mt-1 flex h-1.5 gap-1">
                   {Array.from({ length: dots }, (_, i) => <span key={i} data-dot className="size-1.5 rounded-full bg-current" />)}
                 </span>
+                {d.holiday ? <span data-holiday aria-hidden="true" className="absolute right-1.5 top-1.5 size-1.5 rotate-45 border border-current" /> : null}
                 {d.isToday ? <span data-today-underline aria-hidden="true" className="absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-coral" /> : null}
               </AppLink>
             );

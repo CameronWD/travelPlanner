@@ -28,6 +28,7 @@ import { effectiveTodayISO, type TransportDepartureEntry } from "@/lib/itinerary
 import { buildDayModel } from "@/lib/day-view-model";
 import { withDayMapHops } from "@/lib/day-map";
 import { homePointOf } from "@/lib/travel-times/hops";
+import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { readDayRows } from "@/lib/day-reads";
 import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
@@ -84,7 +85,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const today = tripTodayISO(stops);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
   const day = buildDayModel(rows, effectiveDate);
-  const travel = await loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip) });
+  const [travel, holidayLines] = await Promise.all([
+    loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip) }),
+    loadHolidayLines(tripId, [effectiveDate]),
+  ]);
 
   // Placeholders are hidden from this viewer, so never theirs to reveal.
   const revealNudges = userId
@@ -169,6 +173,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     totalDays: day.totalDays,
     // Today's Day title (CONTEXT.md "Day title"; the desktop Today tile's `dayTitle`).
     todaysDayTitle: day.dayTitle?.title ?? null,
+    holidays: holidayLines.get(effectiveDate) ?? [],
     dayPlan: day.dayPlan,
     hasEntries: day.hasEntries,
     attachmentsByTarget: day.attachmentsByTarget,

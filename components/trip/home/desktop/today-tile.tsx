@@ -1,7 +1,7 @@
 import type { Route } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Bed, CalendarDays, Plane } from "lucide-react";
+import { ArrowRight, Bed, CalendarDays, CalendarHeart, Plane } from "lucide-react";
 import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
 
@@ -12,6 +12,8 @@ export interface TodayTileProps {
   dateISO: string;
   /** Today's Day title (CONTEXT.md "Day title"), if any. */
   dayTitle?: string | null;
+  /** Public holiday lines for today (lib/holidays/trip-days.ts). */
+  holidays?: string[];
   /** Today's plan (the Phase's Timeline) — null when nothing is planned. */
   plan: ReactNode | null;
   /** The next departure from today on. */
@@ -27,7 +29,7 @@ const SECTION_HEADING = "text-[11px] font-extrabold uppercase tracking-[0.08em] 
  * Transport and tonight's stay in one white card, headed by the day label and
  * today's Day title. Links on to the full day view.
  */
-export function TodayTile({ dayHref, dateISO, dayTitle, plan, nextTransport, tonight }: TodayTileProps) {
+export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nextTransport, tonight }: TodayTileProps) {
   const leaves = nextTransport?.depTimeLabel
     ? `Leaves ${nextTransport.depTimeLabel}${nextTransport.depZone ? ` ${nextTransport.depZone}` : ""}`
     : null;
@@ -48,6 +50,12 @@ export function TodayTile({ dayHref, dateISO, dayTitle, plan, nextTransport, ton
         </Link>
       </div>
       {dayTitle ? <p className="mt-1 text-sm font-bold text-muted-foreground">{dayTitle}</p> : null}
+      {holidays.map((line) => (
+        <p key={line} role="note" className="mt-1 flex items-start gap-1.5 text-[13px] font-semibold leading-5 text-muted-foreground">
+          <CalendarHeart aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          {line}
+        </p>
+      ))}
 
       <section className="mt-4 min-h-0 flex-1">
         <h3 className={SECTION_HEADING}>Today&apos;s plan</h3>

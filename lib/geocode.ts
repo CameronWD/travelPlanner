@@ -19,6 +19,7 @@ export interface GeoCandidate {
   city: string | null;
   country: string | null;
   countryCode: string | null;
+  region: string | null;
   placeId: string | null;
   address: string | null;
 }
@@ -94,6 +95,7 @@ function buildCandidate(p: {
   const isRegion = types.some((t) => REGION_TYPES.has(t));
   const country = p.components.find((c) => c.types.includes("country"));
   const cityType = CITY_TYPES.find((t) => p.components.some((c) => c.types.includes(t)));
+  const region = p.components.find((c) => c.types.includes("administrative_area_level_1"))?.text || null;
   const city = cityType ? p.components.find((c) => c.types.includes(cityType))?.text || null : null;
   return {
     name: (isRegion ? address?.split(",")[0]?.trim() : address) ?? "",
@@ -102,6 +104,7 @@ function buildCandidate(p: {
     city,
     country: country?.text || null,
     countryCode: country?.short ? country.short.toLowerCase() : null,
+    region,
     placeId: typeof p.placeId === "string" && p.placeId ? p.placeId : null,
     address,
   };
@@ -159,6 +162,18 @@ async function placeDetails(placeId: string, fieldMask: string, key: string): Pr
     headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": fieldMask },
   });
   return isRecord(data) && typeof data.id === "string" ? data : null;
+}
+
+export async function lookUpRegion(placeId: string): Promise<{ countryCode: string; region: string | null } | null> {
+  const key = serverKey();
+  if (!key) return null;
+  const place = await placeDetails(placeId, "id,addressComponents", key);
+  if (!place) return null;
+  const components = readComponents(place.addressComponents, "longText", "shortText");
+  const country = components.find((c) => c.types.includes("country"))?.short;
+  if (!country) return null;
+  const region = components.find((c) => c.types.includes("administrative_area_level_1"))?.text || null;
+  return { countryCode: country.toLowerCase(), region };
 }
 
 async function findVenue(textQuery: string, near: LatLng | undefined, key: string): Promise<Lookup<GeoCandidate>> {

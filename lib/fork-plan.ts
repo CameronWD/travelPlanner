@@ -45,6 +45,8 @@ interface ForkSourceStop {
   chapterId: string | null;
   name: string;
   country: string | null;
+  countryCode?: string | null;
+  region?: string | null;
   lat: number | null;
   lng: number | null;
   placeId?: string | null;
@@ -79,6 +81,10 @@ interface ForkSourceTransport {
   arrLng: number | null;
   depPlaceId?: string | null;
   arrPlaceId?: string | null;
+  depCountryCode?: string | null;
+  depRegion?: string | null;
+  arrCountryCode?: string | null;
+  arrRegion?: string | null;
   reference: string | null;
   notes: string | null;
   sortOrder: number;
@@ -196,6 +202,8 @@ export interface ForkPlan {
     data: {
       name: string;
       country: string | null;
+      countryCode: string | null;
+      region: string | null;
       lat: number | null;
       lng: number | null;
       placeId: string | null;
@@ -230,6 +238,10 @@ export interface ForkPlan {
       arrLng: number | null;
       depPlaceId: string | null;
       arrPlaceId: string | null;
+      depCountryCode: string | null;
+      depRegion: string | null;
+      arrCountryCode: string | null;
+      arrRegion: string | null;
       reference: string | null;
       notes: string | null;
       sortOrder: number;
@@ -325,7 +337,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       sourceId: s.id,
       sourceChapterId: s.chapterId,
       data: {
-        name: s.name, country: s.country, lat: s.lat, lng: s.lng, placeId: s.placeId ?? null, timezone: s.timezone,
+        name: s.name, country: s.country, countryCode: s.countryCode ?? null, region: s.region ?? null, lat: s.lat, lng: s.lng, placeId: s.placeId ?? null, timezone: s.timezone,
         arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned,
         sortOrder: s.sortOrder, chapterSortOrder: s.chapterSortOrder, notes: s.notes, localTravelMode: s.localTravelMode ?? null,
         surprisePlannerId: s.surprisePlannerId ?? null, surpriseForIds: s.surpriseForIds ?? null,
@@ -339,6 +351,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         mode: t.mode, depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,
         depPlaceId: t.depPlaceId ?? null, arrPlaceId: t.arrPlaceId ?? null,
+        depCountryCode: t.depCountryCode ?? null, depRegion: t.depRegion ?? null, arrCountryCode: t.arrCountryCode ?? null, arrRegion: t.arrRegion ?? null,
         reference: t.reference, notes: t.notes, sortOrder: t.sortOrder,
         bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
       },

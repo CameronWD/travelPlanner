@@ -59,7 +59,7 @@ describe("buildDuplicatePlan", () => {
     const plan = buildDuplicatePlan(SOURCE, "x");
     const rome = plan.stops.find((s) => s.sourceId === "s1")!;
     expect(rome.data).toEqual({
-      name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, placeId: null, timezone: "Europe/Rome",
+      name: "Rome", country: "Italy", countryCode: null, region: null, lat: 41.9, lng: 12.5, placeId: null, timezone: "Europe/Rome",
       arriveDate: null, departDate: null, nights: 3, pinned: false,
       sortOrder: 0, chapterSortOrder: 0, notes: "near station", localTravelMode: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
@@ -119,6 +119,21 @@ describe("buildDuplicatePlan", () => {
     expect(plan.items[0].data.tryList).toBeNull();
   });
 
+  it("copies each stop's countryCode and region", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, stops: [{ ...SOURCE.stops[0], countryCode: "de", region: "Bavaria" }, SOURCE.stops[1]] }, "x");
+    expect(plan.stops[0].data).toMatchObject({ countryCode: "de", region: "Bavaria" });
+    expect(plan.stops[1].data).toMatchObject({ countryCode: null, region: null });
+  });
+
+  it("copies each Transport end's country and region; none copies as null", () => {
+    const plan = buildDuplicatePlan({
+      ...SOURCE,
+      transports: [{ ...SOURCE.transports[0], depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "it", arrRegion: "Tuscany" }],
+    }, "x");
+    expect(plan.transports[0].data).toMatchObject({ depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "it", arrRegion: "Tuscany" });
+    expect(buildDuplicatePlan(SOURCE, "x").transports[0].data).toMatchObject({ depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null });
+  });
+
   it("carries a null countryCode through when the source item has none", () => {
     const plan = buildDuplicatePlan(SOURCE, "x");
     const gelato = plan.items[1];
@@ -155,7 +170,8 @@ describe("buildDuplicatePlan", () => {
     expect(t.data).toEqual({
       mode: "TRAIN", depPlace: "Roma Termini", arrPlace: "Firenze",
       depAt: null, arrAt: null, reference: null, notes: null,
-      depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, depPlaceId: null, arrPlaceId: null, sortOrder: 0,
+      depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, depPlaceId: null, arrPlaceId: null,
+      depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null, sortOrder: 0,
       bookingState: "TO_BOOK", bookingStateSet: false,
     });
   });

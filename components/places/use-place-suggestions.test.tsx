@@ -23,7 +23,7 @@ afterEach(() => {
 
 describe("usePlaceSuggestions", () => {
   it("lists each prediction's id, main text and secondary text", async () => {
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Kyo"));
     await waitFor(() => expect(result.current.status).toBe("ok"));
     expect(result.current.suggestions).toEqual([{ id: "ChIJKyoto", mainText: "Kyoto", secondaryText: "Kyoto, Japan" }]);
@@ -31,14 +31,14 @@ describe("usePlaceSuggestions", () => {
 
   it("says empty when Google has nothing", async () => {
     mock.places.predictions = [];
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Zzzq"));
     await waitFor(() => expect(result.current.status).toBe("empty"));
   });
 
   it("searches what was typed before the places library loaded once it arrives", async () => {
     mock.places.loaded = false;
-    const { result, rerender } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result, rerender } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Kyo"));
     await new Promise((r) => setTimeout(r, 400));
     expect(mock.places.fetchAutocompleteSuggestions).not.toHaveBeenCalled();
@@ -49,7 +49,7 @@ describe("usePlaceSuggestions", () => {
   });
 
   it("a trailing space does not send the same input again", async () => {
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Kyo"));
     await waitFor(() => expect(mock.places.requests).toHaveLength(1));
     act(() => result.current.search("Kyo "));
@@ -66,13 +66,13 @@ describe("usePlaceSuggestions", () => {
 
   it("is unavailable when the Maps library failed to load", () => {
     mock.status.current = mock.module.APILoadingStatus.FAILED;
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     expect(result.current.available).toBe(false);
   });
 
   it("a pick with no location returns no place", async () => {
     mock.places.predictions = [{ ...KYOTO, lat: undefined, lng: undefined }];
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Kyo"));
     await waitFor(() => expect(result.current.suggestions).toHaveLength(1));
     let picked: unknown = "unset";
@@ -84,7 +84,7 @@ describe("usePlaceSuggestions", () => {
 
   it("a pick leaves out what Google didn't give", async () => {
     mock.places.predictions = [{ placeId: "ChIJJp", mainText: "Japan", lat: 36, lng: 138 }];
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Japa"));
     await waitFor(() => expect(result.current.suggestions).toHaveLength(1));
     let picked: unknown;
@@ -96,26 +96,26 @@ describe("usePlaceSuggestions", () => {
 
   it("a pick names the country in full where Google abbreviates it", async () => {
     mock.places.predictions = [{ placeId: "ChIJPdx", mainText: "Portland", secondaryText: "OR, USA", lat: 45.52, lng: -122.68, countryCode: "us", country: "United States" }];
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Portl"));
     await waitFor(() => expect(result.current.suggestions).toHaveLength(1));
-    let picked: { region?: string } | null = null;
+    let picked: { subtitle?: string } | null = null;
     await act(async () => {
       picked = await result.current.pick("ChIJPdx");
     });
-    expect(picked!.region).toBe("OR, United States");
+    expect(picked!.subtitle).toBe("OR, United States");
   });
 
-  it("a country pick has no region", async () => {
+  it("a country pick has no subtitle", async () => {
     mock.places.predictions = [{ placeId: "ChIJJp", mainText: "Japan", lat: 36, lng: 138, countryCode: "jp", country: "Japan" }];
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Japa"));
     await waitFor(() => expect(result.current.suggestions).toHaveLength(1));
-    let picked: { region?: string } | null = null;
+    let picked: { subtitle?: string } | null = null;
     await act(async () => {
       picked = await result.current.pick("ChIJJp");
     });
-    expect(picked).not.toHaveProperty("region");
+    expect(picked).not.toHaveProperty("subtitle");
   });
 
   async function pickOne(prediction: Record<string, unknown>) {
@@ -139,6 +139,22 @@ describe("usePlaceSuggestions", () => {
       ],
     });
     expect(picked).toMatchObject({ city: "Kyoto", country: "Japan" });
+  });
+
+  it("a pick carries the English name of its first-level area as region", async () => {
+    const picked = await pickOne({
+      placeId: "ChIJMu", mainText: "Munich", secondaryText: "Bavaria, Germany", lat: 48.13, lng: 11.58, countryCode: "de", country: "Germany",
+      components: [
+        { longText: "Munich", shortText: "Munich", types: ["locality", "political"] },
+        { longText: "Bavaria", shortText: "BY", types: ["administrative_area_level_1", "political"] },
+      ],
+    });
+    expect(picked).toMatchObject({ region: "Bavaria" });
+  });
+
+  it("a pick with no first-level area has no region", async () => {
+    const picked = await pickOne({ placeId: "ChIJSg", mainText: "Singapore", lat: 1.35, lng: 103.8, countryCode: "sg", country: "Singapore" });
+    expect(picked).not.toHaveProperty("region");
   });
 
   it("a venue pick takes its city from the locality, not the ward", async () => {
@@ -177,7 +193,7 @@ describe("usePlaceSuggestions", () => {
   });
 
   it("reset starts a new session", async () => {
-    const { result } = renderHook(() => usePlaceSuggestions({ kind: "region" }));
+    const { result } = renderHook(() => usePlaceSuggestions({ kind: "area" }));
     act(() => result.current.search("Kyo"));
     await waitFor(() => expect(mock.places.requests).toHaveLength(1));
     act(() => result.current.reset());

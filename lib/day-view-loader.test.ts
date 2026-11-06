@@ -22,6 +22,7 @@ const {
   tripTodayISOMock,
   getDayWeatherMock,
   loadSurpriseVisibilityMock,
+  loadHolidayLinesMock,
 } = vi.hoisted(() => ({
   tripFindUniqueMock: vi.fn(),
   stopFindManyMock: vi.fn(),
@@ -38,6 +39,7 @@ const {
   tripTodayISOMock: vi.fn(),
   getDayWeatherMock: vi.fn(),
   loadSurpriseVisibilityMock: vi.fn(),
+  loadHolidayLinesMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -58,6 +60,7 @@ vi.mock("@/lib/tz", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/tz")>();
   return { ...actual, todayISOInZone: todayISOInZoneMock };
 });
+vi.mock("@/lib/holidays/trip-days", () => ({ loadHolidayLines: loadHolidayLinesMock }));
 vi.mock("@/lib/trip-today", () => ({ tripTodayISO: tripTodayISOMock }));
 vi.mock("@/lib/weather", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/weather")>();
@@ -202,6 +205,7 @@ async function loadDay(date: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadHolidayLinesMock.mockResolvedValue(new Map());
   setup();
 });
 
@@ -256,7 +260,7 @@ describe("getDays — one day", () => {
     expect(d.strip.dates[0].iso).toBe("2026-12-04");
     expect(d.strip.dates[35].iso).toBe("2027-01-08");
     expect(d.strip.dates.find((s) => s.iso === "2026-12-11")?.count).toBe(3);
-    expect(d.strip.dates.find((s) => s.iso === "2026-12-12")).toEqual({ iso: "2026-12-12", count: 0, isCurrent: true, isToday: false });
+    expect(d.strip.dates.find((s) => s.iso === "2026-12-12")).toEqual({ iso: "2026-12-12", count: 0, isCurrent: true, isToday: false, holiday: false });
     expect(d.strip.dates.filter((s) => s.isCurrent)).toHaveLength(1);
     // The dot counts come from the dated Items already read (card 3.M) — no second grouped query.
     expect(itemGroupByMock).not.toHaveBeenCalled();
@@ -268,6 +272,22 @@ describe("getDays — one day", () => {
     expect(d.isLast).toBe(false);
     expect(d.prevDate).toBe("2026-12-11");
     expect(d.nextDate).toBe("2026-12-13");
+  });
+
+  it("carries the day's public holiday lines and flags the strip chip", async () => {
+    loadHolidayLinesMock.mockResolvedValue(new Map([["2026-12-12", ["Epiphany (Germany): public holiday, expect closures"]]]));
+    const d = await one("2026-12-12");
+    if (typeof d === "string") throw new Error(d);
+    expect(d.holidays).toEqual(["Epiphany (Germany): public holiday, expect closures"]);
+    expect(d.strip.dates.find((s) => s.iso === "2026-12-12")?.holiday).toBe("public");
+    expect(d.strip.dates.find((s) => s.iso === "2026-12-11")?.holiday).toBe(false);
+  });
+
+  it("flags a day with only an Observance as early closing, not a public holiday", async () => {
+    loadHolidayLinesMock.mockResolvedValue(new Map([["2026-12-12", ["Good Friday (Germany): many places close early"]]]));
+    const d = await one("2026-12-12");
+    if (typeof d === "string") throw new Error(d);
+    expect(d.strip.dates.find((s) => s.iso === "2026-12-12")?.holiday).toBe("early");
   });
 
   it("strip dots count Transport legs and check-ins/outs as well as Items (what the plan card counts)", async () => {

@@ -30,6 +30,8 @@ interface DuplicateSourceStop {
   id: string;
   name: string;
   country: string | null;
+  countryCode?: string | null;
+  region?: string | null;
   lat: number | null;
   lng: number | null;
   placeId?: string | null;
@@ -93,6 +95,10 @@ interface DuplicateSourceTransport {
   arrLng: number | null;
   depPlaceId?: string | null;
   arrPlaceId?: string | null;
+  depCountryCode?: string | null;
+  depRegion?: string | null;
+  arrCountryCode?: string | null;
+  arrRegion?: string | null;
 }
 
 interface DuplicateSourceChecklistItem {
@@ -120,7 +126,7 @@ export interface DuplicatePlan {
     sourceId: string;
     sourceChapterId: string | null;
     data: {
-      name: string; country: string | null; lat: number | null; lng: number | null; placeId: string | null; timezone: string | null;
+      name: string; country: string | null; countryCode: string | null; region: string | null; lat: number | null; lng: number | null; placeId: string | null; timezone: string | null;
       arriveDate: null; departDate: null; nights: number; pinned: false; sortOrder: number; chapterSortOrder: number; notes: string | null; localTravelMode: string | null;
       surprisePlannerId: string | null; surpriseForIds: string | null; surpriseRevealedAt: Date | null;
     };
@@ -145,7 +151,8 @@ export interface DuplicatePlan {
     data: {
       mode: string; depPlace: string | null; arrPlace: string | null; depAt: null; arrAt: null; reference: null; notes: null;
       depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
-      depPlaceId: string | null; arrPlaceId: string | null; sortOrder: number;
+      depPlaceId: string | null; arrPlaceId: string | null;
+      depCountryCode: string | null; depRegion: string | null; arrCountryCode: string | null; arrRegion: string | null; sortOrder: number;
       bookingState: BookingState; bookingStateSet: false;
     };
   }>;
@@ -181,6 +188,8 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
       data: {
         name: s.name,
         country: s.country,
+        countryCode: s.countryCode ?? null,
+        region: s.region ?? null,
         lat: s.lat,
         lng: s.lng,
         placeId: s.placeId ?? null,
@@ -242,6 +251,10 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         arrLng: t.arrLng,
         depPlaceId: t.depPlaceId ?? null,
         arrPlaceId: t.arrPlaceId ?? null,
+        depCountryCode: t.depCountryCode ?? null,
+        depRegion: t.depRegion ?? null,
+        arrCountryCode: t.arrCountryCode ?? null,
+        arrRegion: t.arrRegion ?? null,
         sortOrder: idx,
         // No reference is copied, so the leg starts at its mode's default: a drive needs no booking.
         bookingState: defaultBookingState(transportBookingSubject(t.mode)),

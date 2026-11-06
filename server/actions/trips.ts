@@ -71,6 +71,7 @@ export async function createTrip(
     homeLat,
     homeLng,
     homeCountryCode,
+    homeRegion,
     homePlaceId,
     fromShareToken,
   } = parsed.data;
@@ -100,17 +101,19 @@ export async function createTrip(
     homeLat: number | null;
     homeLng: number | null;
     homeCountryCode: string | null;
+    homeRegion: string | null;
     homePlaceId: string | null;
     homeTimezone: string | null;
   } | null = null;
   const trimmedHome = rawHomeName?.trim();
-  const homePick = pickedPlace({ placeId: homePlaceId, lat: homeLat, lng: homeLng, countryCode: homeCountryCode });
+  const homePick = pickedPlace({ placeId: homePlaceId, lat: homeLat, lng: homeLng, countryCode: homeCountryCode, region: homeRegion });
   if (trimmedHome && homePick) {
     homeFields = {
       homeName: trimmedHome,
       homeLat: homePick.lat,
       homeLng: homePick.lng,
       homeCountryCode: homePick.countryCode,
+      homeRegion: homePick.region,
       homePlaceId: homePick.placeId,
       homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: homePick.lat, lng: homePick.lng, countryCode: homePick.countryCode }),
     };
@@ -122,6 +125,7 @@ export async function createTrip(
       homeLat: geo?.lat ?? null,
       homeLng: geo?.lng ?? null,
       homeCountryCode: resolvedCountryCode,
+      homeRegion: geo?.region ?? null,
       homePlaceId: geo?.placeId ?? null,
       homeTimezone: resolveHomeTimezone({ timezone: homeTimezone, lat: geo?.lat, lng: geo?.lng, countryCode: resolvedCountryCode }),
     };
@@ -218,7 +222,7 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
     }
     // A Route copy carries the country; a bare name ("Paris") can land anywhere.
     const geo = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
-    out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined, placeId: geo?.placeId ?? undefined });
+    out.push({ ...s, lat: geo?.lat, lng: geo?.lng, countryCode: s.countryCode ?? geo?.countryCode ?? undefined, region: geo?.region ?? undefined, placeId: geo?.placeId ?? undefined });
   }
   return out;
 }
@@ -234,7 +238,7 @@ async function locateRoughStops(stops: RoughStopSeed[]) {
  */
 export type UpdateTripResult = ActionResult<{ slug?: string; homeTimezone?: string | null }>;
 
-type HomeCoordFields = { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null; homePlaceId: string | null };
+type HomeCoordFields = { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null; homeRegion: string | null; homePlaceId: string | null };
 
 /**
  * Update a Trip (PATCH, ADR 0075): name, dates, Hard end date and home
@@ -295,6 +299,7 @@ export async function updateTrip(
     lat: parsed.data.homeLat,
     lng: parsed.data.homeLng,
     countryCode: parsed.data.homeCountryCode,
+    region: parsed.data.homeRegion,
   });
 
   const datesChanged =
@@ -345,13 +350,13 @@ export async function updateTrip(
     if (nameCleared) {
       // Explicitly clear the coords and the zone — a cleared Home base has
       // no timezone, regardless of anything sent alongside it.
-      coordFields = { homeLat: null, homeLng: null, homeCountryCode: null, homePlaceId: null };
+      coordFields = { homeLat: null, homeLng: null, homeCountryCode: null, homeRegion: null, homePlaceId: null };
       timezoneUpdate = null;
     } else if (nameChanged || homePick) {
       const geo = homePick ?? foundPlace(await geocodePlaceDetailed(nextHomeName!));
       coordFields = geo
-        ? { homeLat: geo.lat, homeLng: geo.lng, homeCountryCode: geo.countryCode, homePlaceId: geo.placeId }
-        : { homeLat: null, homeLng: null, homeCountryCode: null, homePlaceId: null };
+        ? { homeLat: geo.lat, homeLng: geo.lng, homeCountryCode: geo.countryCode, homeRegion: geo.region, homePlaceId: geo.placeId }
+        : { homeLat: null, homeLng: null, homeCountryCode: null, homeRegion: null, homePlaceId: null };
 
       if (sentTimezone !== undefined) {
         timezoneUpdate = sentTimezone;

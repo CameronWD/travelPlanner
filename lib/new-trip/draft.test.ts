@@ -6,10 +6,10 @@ import {
 import type { PickedPlace } from "@/lib/picked-place";
 
 const TODAY = "2026-09-30";
-const PORTLAND = { name: "Portland", region: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us", placeId: "portland-id" };
+const PORTLAND = { name: "Portland", subtitle: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us", placeId: "portland-id" };
 // A draft stored before picks carried place IDs.
-const STORED_PORTLAND = { name: "Portland", region: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us" } as unknown as PickedPlace;
-const HANOI = { name: "Hanoi", region: "Vietnam", lat: 21.03, lng: 105.85, countryCode: "vn", placeId: "hanoi-id" };
+const STORED_PORTLAND = { name: "Portland", subtitle: "Oregon, United States", lat: 45.52, lng: -122.68, countryCode: "us" } as unknown as PickedPlace;
+const HANOI = { name: "Hanoi", subtitle: "Vietnam", lat: 21.03, lng: 105.85, countryCode: "vn", placeId: "hanoi-id" };
 const named = (over: Partial<Draft> = {}): Draft => ({ ...emptyDraft(false), name: "Kyoto", ...over });
 
 describe("draftReducer", () => {
@@ -163,6 +163,20 @@ describe("persistence", () => {
   it("round-trips", () => {
     const d = draftReducer(named({ step: 3 }), { type: "pick-home", place: PORTLAND });
     expect(parseDraft(serializeDraft(d), false)).toEqual(d);
+  });
+  it("reads a draft saved before Regions: the old region text becomes the subtitle", () => {
+    const { name, lat, lng, countryCode, placeId } = PORTLAND;
+    const bare = { name, lat, lng, countryCode, placeId };
+    const old = { ...named({ step: 3 }), homeName: "Portland", homePlace: { ...bare, region: "Oregon, United States" } };
+    const d = parseDraft(JSON.stringify(old), false)!;
+    expect(d.homePlace).toMatchObject({ subtitle: "Oregon, United States" });
+    expect(d.homePlace).not.toHaveProperty("region");
+    expect(toCreateInput(d)).not.toHaveProperty("homeRegion");
+  });
+  it("keeps a new-style place's region and subtitle", () => {
+    const place = { ...PORTLAND, subtitle: "Oregon, United States", region: "Oregon" };
+    const d = parseDraft(JSON.stringify({ ...named({ step: 3 }), homePlace: place }), false)!;
+    expect(d.homePlace).toEqual(place);
   });
   it("rejects junk", () => {
     expect(parseDraft("{nope", false)).toBeNull();

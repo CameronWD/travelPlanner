@@ -54,6 +54,8 @@ import type { TransportMode } from "@/lib/enum-values";
 import type { DayEntryEditor } from "@/lib/plan-entity-views";
 import type { AttachmentView } from "@/lib/attachment-view";
 import type { CostRow } from "@/lib/money/cost-row";
+import { holidayMark } from "@/lib/holidays/day";
+import { loadHolidayLines } from "@/lib/holidays/trip-days";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
 const BUFFER_DAYS = 2;
@@ -122,7 +124,9 @@ export interface DayViewData {
     lng: number | null;
     placeId?: string | null;
   } | null;
-  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean }>; line: StopLine };
+  strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: "public" | "early" | false }>; line: StopLine };
+  /** Public holidays where the Trip is on this day (lib/holidays/trip-days.ts), one line each. */
+  holidays: string[];
   journal: {
     open: boolean;
     mine: { body: string; updatedAt: Date | null; photo: AttachmentView | null; extraPhotos: AttachmentView[]; hiddenFromShares: boolean } | null;
@@ -201,7 +205,10 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
   if (read === "dateless" || read.alongside === null) return dates.map((d) => (wellFormed(d) ? ("dateless" as const) : ("invalid" as const)));
 
   const { rows, alongside } = read;
-  const travel = await loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip) });
+  const [travel, holidayLines] = await Promise.all([
+    loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip) }),
+    loadHolidayLines(tripId, tripDays(rows.startDate, rows.endDate)),
+  ]);
   const shared = shareAcrossDays(tripId, rows, alongside.costs, travel);
   return dates.map((d): DayResult => {
     if (!wellFormed(d)) return "invalid";
@@ -214,6 +221,7 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
       viewerId,
       journalEntries: alongside.journalEntries.filter((e) => e.date === date),
       journalPhotos: alongside.journalPhotos.filter((p) => p.targetId === date),
+      holidayLines,
     });
   });
 }
@@ -278,11 +286,12 @@ function projectDayView(
   rows: DayRows,
   model: DayModel & { dayPlan: DayPlan },
   shared: SharedDays,
-  day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"] },
+  day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"]; holidayLines: Map<string, string[]> },
 ): DayViewData {
   const { trip, startDate, endDate, items, transports } = rows;
   const { date, dayPlan, dayStop, freeForm, hasEntries, accommodations, tonight: bed } = model;
   const { stopById, today } = shared;
+  const { holidayLines } = day;
 
   const editor: DayEntryEditor = {
     ...shared.editorBase,
@@ -397,6 +406,7 @@ function projectDayView(
       count: (shared.itemsByDate.get(iso) ?? 0) + nonItemCount(iso),
       isCurrent: iso === date,
       isToday: iso === today,
+      holiday: holidayMark(holidayLines.get(iso)),
     })),
     line: shared.line,
   };
@@ -456,6 +466,7 @@ function projectDayView(
     nearby: model.nearby,
     tonight,
     strip,
+    holidays: holidayLines.get(date) ?? [],
     journal,
     feasibility,
     weatherInput: dayStop?.lat != null && dayStop?.lng != null ? { lat: dayStop.lat, lng: dayStop.lng, timezone: stopTimezone } : null,

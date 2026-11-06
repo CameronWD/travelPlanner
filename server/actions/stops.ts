@@ -74,10 +74,10 @@ async function requireStopAccess(stopId: string) {
 // the lookup only for a full pick with its place ID.
 async function stopPlace(input: { mode: "rough" | "scheduled"; name: string; country?: string; lat?: number; lng?: number; placeId?: string }) {
   if (input.lat !== undefined && input.lng !== undefined && (input.mode === "scheduled" || input.placeId !== undefined)) {
-    return { lat: input.lat, lng: input.lng, countryCode: null, placeId: input.placeId ?? null };
+    return { lat: input.lat, lng: input.lng, countryCode: null, region: null, placeId: input.placeId ?? null };
   }
   const found = await geocodePlaceDetailed([input.name, input.country].filter(Boolean).join(", "));
-  return found && { lat: found.lat, lng: found.lng, countryCode: found.countryCode ?? null, placeId: found.placeId };
+  return found && { lat: found.lat, lng: found.lng, countryCode: found.countryCode ?? null, region: found.region ?? null, placeId: found.placeId };
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +125,7 @@ export async function createStop(
     const lng = located?.lng;
     const placeId = located?.placeId ?? null;
     const derivedCountryCode = parsed.data.countryCode ?? located?.countryCode ?? null;
+    const derivedRegion = parsed.data.region ?? located?.region ?? null;
 
     // Chapter membership validation for rough stops is a pure read that doesn't
     // race with stop inserts, so it can run before the transaction.
@@ -198,6 +199,7 @@ export async function createStop(
             name,
             country: country ?? null,
             countryCode: derivedCountryCode,
+            region: derivedRegion,
             nights,
             chapterId: resolvedChapterId,
             chapterSortOrder,
@@ -238,6 +240,7 @@ export async function createStop(
           lng: lng ?? null,
           placeId,
           countryCode: derivedCountryCode,
+          region: derivedRegion,
           notes: notes ?? null,
           localTravelMode: parsed.data.localTravelMode ?? null,
           chapterId: null,
@@ -304,6 +307,7 @@ export async function createStop(
           name,
           country: country ?? null,
           countryCode: parsed.data.countryCode ?? appendRough?.countryCode ?? null,
+          region: parsed.data.region ?? appendRough?.region ?? null,
           nights,
           chapterId: appendChapterId,
           chapterSortOrder: 0,
@@ -333,6 +337,7 @@ export async function createStop(
   const lat = appendPlace?.lat;
   const lng = appendPlace?.lng;
   const appendCountryCode = parsed.data.countryCode ?? appendPlace?.countryCode ?? null;
+  const appendRegion = parsed.data.region ?? appendPlace?.region ?? null;
 
   const appendTimezone = resolveStopTimezone({ timezone: parsed.data.timezone, lat, lng, countryCode: appendCountryCode, country });
 
@@ -352,6 +357,7 @@ export async function createStop(
         lng: lng ?? null,
         placeId: appendPlace?.placeId ?? null,
         countryCode: appendCountryCode,
+        region: appendRegion,
         notes: notes ?? null,
         localTravelMode: parsed.data.localTravelMode ?? null,
         pinned: false,
@@ -392,7 +398,7 @@ export async function updateStop(
   }
 
   if (parsed.data.mode === "rough") {
-    const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode, placeId: pickedPlaceId } = parsed.data;
+    const { name, country, nights, chapterId, notes, lat: pickedLat, lng: pickedLng, countryCode: pickedCountryCode, region: pickedRegion, placeId: pickedPlaceId } = parsed.data;
 
     // ARCH-TEN-5: the client-supplied Chapter must be one of this Stop's own
     // plan — same Trip AND same Fork — before it is written (createStop's shape).
@@ -410,6 +416,7 @@ export async function updateStop(
     let updateRoughPlaceId: string | null = null;
     // A sent countryCode wins over the geocoder's, as in createStop and the scheduled branch.
     let updateRoughCountryCode: string | null = pickedCountryCode ?? null;
+    let updateRoughRegion: string | null = pickedRegion ?? null;
     if (pickedLat !== undefined && pickedLng !== undefined) {
       updateRoughLat = pickedLat;
       updateRoughLng = pickedLng;
@@ -421,6 +428,7 @@ export async function updateStop(
         updateRoughLng = updateRoughCoords.lng;
         updateRoughPlaceId = updateRoughCoords.placeId;
         updateRoughCountryCode = pickedCountryCode ?? updateRoughCoords.countryCode ?? null;
+        updateRoughRegion = pickedRegion ?? updateRoughCoords.region ?? null;
       }
     }
 
@@ -437,6 +445,7 @@ export async function updateStop(
             name,
             country: country ?? null,
             countryCode: updateRoughCountryCode,
+            region: updateRoughRegion,
             ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng } : {}),
             placeId: updateRoughPlaceId,
             nights,
@@ -468,6 +477,7 @@ export async function updateStop(
 
   // Best-effort geocode if coords are missing on update too
   let updateCountryCode: string | null = null;
+  let updateRegion: string | null = null;
   if (lat === undefined || lng === undefined) {
     const query = [name, country].filter(Boolean).join(", ");
     const coords = await geocodePlaceDetailed(query);
@@ -476,6 +486,7 @@ export async function updateStop(
       lng = coords.lng;
       placeId = coords.placeId;
       updateCountryCode = coords.countryCode ?? null;
+      updateRegion = coords.region ?? null;
     }
   }
 
@@ -495,6 +506,7 @@ export async function updateStop(
         lng: lng ?? null,
         placeId,
         countryCode: parsed.data.countryCode ?? updateCountryCode,
+        region: parsed.data.region ?? updateRegion,
         notes: notes ?? null,
         localTravelMode: parsed.data.localTravelMode ?? null,
       },
@@ -941,7 +953,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
         arriveDate: r.arriveDate,
         departDate: r.departDate,
         timezone,
-        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null, placeId: coords.placeId } : {}),
+        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null, region: coords.region ?? null, placeId: coords.placeId } : {}),
       },
     });
     // ADR 0038: if this stop had a prior arrive date and the flowed dates
@@ -1063,7 +1075,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
         arriveDate: r.arriveDate,
         departDate: r.departDate,
         timezone: s.timezone ?? tripTz,
-        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null, placeId: coords.placeId } : {}),
+        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null, region: coords.region ?? null, placeId: coords.placeId } : {}),
       },
     });
     // ADR 0038: if this stop had a prior arrive date and the flowed dates

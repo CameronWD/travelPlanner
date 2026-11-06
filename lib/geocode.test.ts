@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { geocodePlaceDetailed, reverseGeocode, locateVenue, lookUpPlace, lookUpVenue, fetchVenueDetails, VENUE_GUARD_KM } from "./geocode";
+import { geocodePlaceDetailed, reverseGeocode, locateVenue, lookUpPlace, lookUpVenue, fetchVenueDetails, lookUpRegion, VENUE_GUARD_KM } from "./geocode";
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
@@ -98,6 +98,7 @@ describe("geocodePlaceDetailed", () => {
       city: "Paris",
       country: "France",
       countryCode: "fr",
+      region: "Île-de-France",
       placeId: "ChIJParis",
       address: "Paris, France",
     });
@@ -106,6 +107,11 @@ describe("geocodePlaceDetailed", () => {
     expect(url.searchParams.get("address")).toBe("Paris");
     expect(url.searchParams.get("language")).toBe("en");
     expect(url.searchParams.get("key")).toBe(KEY);
+  });
+
+  it("has no region where Google gives no first-level area", async () => {
+    routeFetch({ geocode: { status: "OK", results: [SHIBUYA_ADDRESS] } });
+    expect((await geocodePlaceDetailed("1-22-7 Jinnan"))?.region).toBeNull();
   });
 
   it("names a non-locality by its full formatted address", async () => {
@@ -223,6 +229,7 @@ describe("locateVenue", () => {
       city: "Shibuya City",
       country: "Japan",
       countryCode: "jp",
+      region: null,
       placeId: "ChIJVenue",
       address: "1F 1-22-7 Jinnan, Shibuya City, Tokyo 150-0041, Japan",
       matched: "venue",
@@ -344,5 +351,38 @@ describe("fetchVenueDetails", () => {
   it("returns null when Place Details fails", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
     expect(await fetchVenueDetails("ChIJGone")).toBeNull();
+  });
+});
+
+describe("lookUpRegion", () => {
+  it("asks Place Details for addressComponents in English and returns the country and English Region", async () => {
+    routeFetch({
+      details: {
+        id: "ChIJMunich",
+        addressComponents: [
+          { longText: "Munich", shortText: "Munich", types: ["locality", "political"] },
+          { longText: "Bavaria", shortText: "BY", types: ["administrative_area_level_1", "political"] },
+          { longText: "Germany", shortText: "DE", types: ["country", "political"] },
+        ],
+      },
+    });
+    expect(await lookUpRegion("ChIJMunich")).toEqual({ countryCode: "de", region: "Bavaria" });
+    const [[url, init]] = fetchMock.mock.calls;
+    expect(String(url)).toContain("languageCode=en");
+    expect(init.headers).toMatchObject({ "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": "id,addressComponents" });
+  });
+
+  it("returns a null Region where the place has no first-level area", async () => {
+    routeFetch({
+      details: { id: "ChIJSg", addressComponents: [{ longText: "Singapore", shortText: "SG", types: ["country", "political"] }] },
+    });
+    expect(await lookUpRegion("ChIJSg")).toEqual({ countryCode: "sg", region: null });
+  });
+
+  it("returns null when Place Details fails or has no country", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
+    expect(await lookUpRegion("ChIJGone")).toBeNull();
+    routeFetch({ details: { id: "ChIJOdd", addressComponents: [] } });
+    expect(await lookUpRegion("ChIJOdd")).toBeNull();
   });
 });

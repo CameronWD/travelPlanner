@@ -1,0 +1,25 @@
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Holidays in Australia
+X-WR-TIMEZONE:UTC
+X-WR-CALDESC:Holidays and Observances in Australia
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20260404
+DTEND;VALUE=DATE:20260405
+DTSTAMP:20261106T054851Z
+UID:20260404_84b4chvorsoo6l73t3k8eiouj4@google.com
+CLASS:PUBLIC
+CREATED:20241101T103115Z
+DESCRIPTION:Public holiday in Australian Capital Territory\, New South Wale
+ s\, Northern Territory\, Queensland\, South Australia\, Victoria\, Heard an
+ d McDonald Islands
+LAST-MODIFIED:20241101T103115Z
+SEQUENCE:0
+STATUS:CONFIRMED
+SUMMARY:Holy Saturday (regional holiday)
+TRANSP:TRANSPARENT
+END:VEVENT
+END:VCALENDAR

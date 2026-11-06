@@ -213,7 +213,7 @@ export async function updateAccommodation(
   const { place } = await placeForSave({
     text: data.address ?? null,
     pick: pickedPlace(data),
-    before: { text: before.address, place: { lat: before.lat, lng: before.lng, countryCode: null, placeId: before.placeId } },
+    before: { text: before.address, place: { lat: before.lat, lng: before.lng, countryCode: null, region: null, placeId: before.placeId } },
     lookUp: geocodePlaceDetailed,
   });
 

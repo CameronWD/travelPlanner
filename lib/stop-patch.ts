@@ -12,7 +12,7 @@
  *    row's — unless the patch says where (TU-02) or the row has none — and
  *    is otherwise UNCHOSEN_TIMEZONE, so `updateStop` derives it from the
  *    final point and country (`resolveStopTimezone`, F3).
- *  - The point (lat/lng/countryCode/placeId) is the row's unless the patch
+ *  - The point (lat/lng/countryCode/region/placeId) is the row's unless the patch
  *    says where (a country, countryCode, lat, lng or placeId that differs
  *    from the row's, or a country sent with a new name); then only the
  *    patch's point counts and `updateStop` geocodes a missing one.
@@ -32,6 +32,7 @@ export type StopPatch = {
   name?: string;
   country?: string | null;
   countryCode?: string | null;
+  region?: string | null;
   placeId?: string | null;
   lat?: number | null;
   lng?: number | null;
@@ -48,6 +49,7 @@ export type StopPatchRow = {
   name: string;
   country: string | null;
   countryCode: string | null;
+  region?: string | null;
   placeId: string | null;
   lat: number | null;
   lng: number | null;
@@ -104,8 +106,8 @@ export function mergeStopPatch(current: StopPatchRow, patch: StopPatch): StopInp
     [differs(patch.countryCode, current.countryCode), differs(patch.lat, current.lat), differs(patch.lng, current.lng), newPlaceId].some(Boolean);
   // A rename that keeps the point (today's rule) is no longer that place: its ID goes.
   const point = saysWhere
-    ? { countryCode: patch.countryCode ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined, placeId: patch.placeId ?? undefined }
-    : { countryCode: current.countryCode ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: renamed ? undefined : (current.placeId ?? undefined) };
+    ? { countryCode: patch.countryCode ?? undefined, region: patch.region ?? undefined, lat: patch.lat ?? undefined, lng: patch.lng ?? undefined, placeId: patch.placeId ?? undefined }
+    : { countryCode: current.countryCode ?? undefined, region: current.region ?? undefined, lat: current.lat ?? undefined, lng: current.lng ?? undefined, placeId: renamed ? undefined : (current.placeId ?? undefined) };
   const notes = patched(patch.notes, current.notes);
   const localTravelMode = patched(patch.localTravelMode, current.localTravelMode);
   const place = {

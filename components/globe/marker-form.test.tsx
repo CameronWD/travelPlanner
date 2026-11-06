@@ -229,7 +229,7 @@ describe("MarkerForm — place search", () => {
 
   it("a dropped pin prefills from reverseGeocodeAction and stores its placeId", async () => {
     vi.mocked(reverseGeocodeAction).mockResolvedValue({
-      name: "Tokyo Tower, Japan", lat: 35.65, lng: 139.74, city: "Tokyo", country: "Japan", countryCode: "jp", placeId: "ChIJDrop", address: null,
+      name: "Tokyo Tower, Japan", lat: 35.65, lng: 139.74, city: "Tokyo", country: "Japan", countryCode: "jp", region: null, placeId: "ChIJDrop", address: null,
     });
     const user = userEvent.setup();
     render(<MarkerForm {...baseProps} prefill={{ lat: 35.65, lng: 139.74 }} />);

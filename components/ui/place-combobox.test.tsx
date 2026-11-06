@@ -75,9 +75,9 @@ describe("PlaceCombobox", () => {
     expect(screen.getByText(HINT)).toBeInTheDocument();
   });
 
-  it("renders its own APIProvider with the browser key", () => {
+  it("renders its own APIProvider with the browser key, asking Google for English names", () => {
     render(<Harness />);
-    expect(mock.providers.at(-1)).toEqual({ apiKey: "k" });
+    expect(mock.providers.at(-1)).toEqual({ apiKey: "k", language: "en" });
   });
 
   it("asks for suggestions after 3 characters and 350 ms, not before", () => {
@@ -96,10 +96,10 @@ describe("PlaceCombobox", () => {
 
   it.each([
     [undefined, ["(regions)"]],
-    ["region", ["(regions)"]],
+    ["area", ["(regions)"]],
     ["venue", undefined],
     ["any", undefined],
-  ] as const)("region kind asks for (regions); venue and any kinds don't filter (%s)", async (kind, types) => {
+  ] as const)("area kind asks for (regions); venue and any kinds don't filter (%s)", async (kind, types) => {
     render(<Harness kind={kind} />);
     await userEvent.type(input(), "Syd");
     await screen.findAllByRole("option");
@@ -107,7 +107,7 @@ describe("PlaceCombobox", () => {
     else expect(lastRequest()).not.toHaveProperty("includedPrimaryTypes");
   });
 
-  it("lists name and region, and highlights the first", async () => {
+  it("lists name and subtitle, and highlights the first", async () => {
     render(<Harness />);
     await userEvent.type(input(), "Syd");
     const options = await screen.findAllByRole("option");
@@ -128,7 +128,7 @@ describe("PlaceCombobox", () => {
     await waitFor(() => expect(onPick).toHaveBeenCalledTimes(1));
     expect(mock.places.fetchFields).toHaveBeenCalledTimes(1);
     expect(mock.places.fetchFields).toHaveBeenCalledWith({ fields: ["id", "location", "formattedAddress", "addressComponents"] });
-    expect(onPick).toHaveBeenCalledWith({ name: "Sydney", region: "NSW, Australia", lat: -33.87, lng: 151.21, country: "Australia", countryCode: "au", placeId: "ChIJSydAu", address: "Sydney NSW, Australia" });
+    expect(onPick).toHaveBeenCalledWith({ name: "Sydney", subtitle: "NSW, Australia", lat: -33.87, lng: 151.21, country: "Australia", countryCode: "au", placeId: "ChIJSydAu", address: "Sydney NSW, Australia" });
     expect(submitted).not.toHaveBeenCalled();
     expect(input()).toHaveValue("Sydney");
     expect(screen.queryByRole("listbox")).toBeNull();

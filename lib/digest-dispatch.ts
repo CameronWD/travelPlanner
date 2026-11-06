@@ -37,6 +37,7 @@
  */
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
+import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import {
   asTestDigest,
@@ -128,6 +129,7 @@ export async function collectDigestInput(opts: {
       payments: [],
       checklist: [],
       reminders: [],
+      publicHolidays: [],
       schedule: { transports: [], stays: [], items: [] },
     };
   }
@@ -326,7 +328,10 @@ export async function collectDigestInput(opts: {
       })
     : { transports: [], stays: [], items: [] };
 
-  return { tripId, tripRef: trip?.slug ?? tripId, slot, phase, payments, checklist, reminders, schedule };
+  const publicHolidays =
+    slot === "MORNING" && targetIsInTrip ? ((await loadHolidayLines(tripId, [localDate])).get(localDate) ?? []) : [];
+
+  return { tripId, tripRef: trip?.slug ?? tripId, slot, phase, payments, checklist, reminders, publicHolidays, schedule };
 }
 
 type TransportRow = {

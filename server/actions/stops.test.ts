@@ -809,6 +809,42 @@ describe("createStop countryCode and timezone fallback", () => {
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ countryCode: "it" }) });
   });
 
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a picked scheduled stop stores the picked region", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", { ...PICKED, region: "Tuscany" }, undefined, after);
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ region: "Tuscany" }) });
+  });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a picked rough stop stores the picked region", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Florence" });
+    await createStop("trip-1", { mode: "rough", name: "Florence", country: "Italy", nights: 3, lat: 43.77, lng: 11.25, countryCode: "it", placeId: "f-id", region: "Tuscany" }, undefined, after);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ region: "Tuscany" }) });
+  });
+
+  it.each([["append", undefined], ["insert", "a"]] as const)("%s: a looked-up stop stores the lookup's region", async (_, after) => {
+    stopFindFirstMock.mockResolvedValue(null);
+    queryRawMock.mockResolvedValue([{ id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null }]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Munich" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 48.1, lng: 11.6, countryCode: "de", region: "Bavaria", placeId: "m-id" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 48.1, lng: 11.6, countryCode: "de", region: "Bavaria", placeId: "m-id" });
+    await createStop("trip-1", { mode: "scheduled", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-22", departDate: "2026-12-24" }, undefined, after);
+    await createStop("trip-1", { mode: "rough", name: "Munich", nights: 2 }, undefined, after);
+    expect(stopCreateMock).toHaveBeenCalledTimes(2);
+    for (const [arg] of stopCreateMock.mock.calls) expect(arg.data).toMatchObject({ countryCode: "de", region: "Bavaria" });
+  });
+
+  it("a stop with no region anywhere stores null", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    await createStop("trip-1", PICKED);
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ region: null }) });
+  });
+
   it("rejects a countryCode that isn't two letters", async () => {
     const result = await createStop("trip-1", { ...PICKED, countryCode: "ITA" });
     expect(result.success).toBe(false);
@@ -1231,6 +1267,38 @@ describe("updateStop", () => {
       where: { id: "stop-r" },
       data: expect.objectContaining({ name: "Kyoto", lat: 35.01, lng: 135.77, countryCode: "jp" }),
     });
+  });
+
+  it("a picked place's region is stored on a rough edit, and replaces the old one", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-r", tripId: "trip-1", sortOrder: 2, arriveDate: null, departDate: null, nights: 3, pinned: false, region: "Old" });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("stop-r", { ...ROUGH_INPUT, name: "Munich", country: "Germany", lat: 48.1, lng: 11.6, countryCode: "de", region: "Bavaria" });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-r" }, data: expect.objectContaining({ region: "Bavaria" }) });
+    stopUpdateMock.mockClear();
+    await updateStop("stop-r", { ...ROUGH_INPUT, name: "Singapore", country: "Singapore", lat: 1.3, lng: 103.8, countryCode: "sg" });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-r" }, data: expect.objectContaining({ region: null }) });
+  });
+
+  it("an edit that doesn't move the place keeps the row's region", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-r", tripId: "trip-1", sortOrder: 2, name: "Munich", country: "Germany", countryCode: "de", region: "Bavaria", lat: 48.1, lng: 11.6, placeId: "m", arriveDate: null, departDate: null, nights: 3, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("stop-r", { notes: "hi" });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-r" }, data: expect.objectContaining({ region: "Bavaria" }) });
+  });
+
+  it("a looked-up edit stores the lookup's region", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 48.1, lng: 11.6, countryCode: "de", region: "Bavaria", placeId: "m-id" });
+    await updateStop("stop-1", { ...VALID_INPUT, name: "Munich" });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-1" }, data: expect.objectContaining({ region: "Bavaria" }) });
+  });
+
+  it("a picked place's region is stored on a scheduled edit", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await updateStop("stop-1", { ...VALID_INPUT, name: "Munich", lat: 48.1, lng: 11.6, countryCode: "de", region: "Bavaria" });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-1" }, data: expect.objectContaining({ region: "Bavaria" }) });
   });
 
   it("a picked place's countryCode is kept on a scheduled edit", async () => {
@@ -2123,6 +2191,18 @@ describe("firmUpSegment", () => {
     expect(accommodationFindManyMock).not.toHaveBeenCalled();
     expect(itemUpdateMock).not.toHaveBeenCalled();
     expect(accommodationUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("firming up an unlocated Stop stores the looked-up region", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "m", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Munich", country: "Germany" },
+    ]);
+    geocodePlaceDetailedMock.mockResolvedValueOnce({ lat: 48.1, lng: 11.6, countryCode: "de", region: "Bavaria", placeId: "m-id" });
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    await firmUpSegment({ tripId: "trip-1" });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "m" }, data: expect.objectContaining({ countryCode: "de", region: "Bavaria" }) });
   });
 
   it("a Fork's segment firm-up writes nothing to the Trip window (F4)", async () => {

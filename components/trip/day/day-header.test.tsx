@@ -154,4 +154,13 @@ describe("DayHeader", () => {
       expect(arrows.className).toContain("md:justify-start");
     });
   });
+  it("renders each public holiday line as a note under the header", () => {
+    render(<DayHeader tripId="t1" tripSlug="t1" eyebrow="E" heading="Tue 6 Jan" subLine="" subLineCompact="" holidays={["Epiphany (Germany): public holiday, expect closures", "Epiphany (Austria): public holiday, expect closures"]} dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
+    const notes = screen.getAllByRole("note");
+    expect(notes.map((n) => n.textContent)).toEqual(["Epiphany (Germany): public holiday, expect closures", "Epiphany (Austria): public holiday, expect closures"]);
+  });
+  it("renders no note when the day has no public holiday", () => {
+    render(<DayHeader tripId="t1" tripSlug="t1" eyebrow="E" heading="Tue 6 Jan" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
+    expect(screen.queryByRole("note")).toBeNull();
+  });
 });

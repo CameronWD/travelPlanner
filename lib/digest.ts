@@ -71,6 +71,8 @@ export interface DigestInput {
   payments: DigestPaymentLine[];
   checklist: DigestChecklistLine[];
   reminders: DigestReminderLine[];
+  /** MORNING: today's public holiday lines, already worded. Empty on EVENING. */
+  publicHolidays: string[];
   /** EVENING: tomorrow's plan. MORNING: today's. Empty outside "travelling". */
   schedule: {
     transports: DigestTransportLine[];
@@ -163,6 +165,7 @@ function collectLines(input: DigestInput): {
   let paymentLineCount = 0;
   let droppedCount = 0;
 
+  lines.push(...input.publicHolidays);
   for (const transport of input.schedule.transports) lines.push(formatTransport(transport));
   for (const stay of input.schedule.stays) lines.push(formatStay(stay));
   for (const item of input.schedule.items) lines.push(formatItem(item));
@@ -190,7 +193,7 @@ export function buildDigest(input: DigestInput): DigestPayload | null {
   if (input.slot === "MORNING") {
     const hasDeparture = input.schedule.transports.length > 0;
     const hasCheckOut = input.schedule.stays.some((stay) => stay.kind === "CHECK_OUT");
-    if (!hasDeparture && !hasCheckOut) return null;
+    if (!hasDeparture && !hasCheckOut && input.publicHolidays.length === 0) return null;
   }
 
   const { lines, paymentLineCount, droppedCount } = collectLines(input);

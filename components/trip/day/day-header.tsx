@@ -8,6 +8,7 @@ import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
 import { ShareTripButton } from "@/components/trip/share-chooser";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
+import { CalendarHeart } from "lucide-react";
 import { ViewTransition } from "@/components/ui/view-transition";
 
 const MAX_AVATARS = 5;
@@ -29,6 +30,7 @@ export interface DayHeaderProps {
   heading: string;
   subLine: string;
   subLineCompact: string;
+  holidays?: string[];
   /** The Day title line's content — `DayTitleInline` on the page; a plain string in tests. */
   dayTitle: React.ReactNode;
   prevHref: Route | null;
@@ -56,6 +58,7 @@ export function DayHeader({
   heading,
   subLine,
   subLineCompact,
+  holidays = [],
   dayTitle,
   prevHref,
   nextHref,
@@ -137,6 +140,12 @@ export function DayHeader({
           {addButton}
         </div>
       </header>
+      {holidays.map((line) => (
+        <p key={line} role="note" className="flex items-center justify-center gap-1.5 text-center text-[13px] font-semibold leading-5 text-muted-foreground">
+          <CalendarHeart aria-hidden="true" className="size-4 shrink-0" />
+          {line}
+        </p>
+      ))}
     </div>
   );
 }

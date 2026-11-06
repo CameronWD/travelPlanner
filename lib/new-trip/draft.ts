@@ -13,6 +13,7 @@ interface DraftStop {
   lat?: number;
   lng?: number;
   countryCode?: string;
+  region?: string;
   placeId?: string;
 }
 
@@ -129,6 +130,7 @@ export function toCreateInput(d: Draft, extra?: { fromShareToken?: string }): Cr
           homeLat: d.homePlace.lat,
           homeLng: d.homePlace.lng,
           ...(d.homePlace.countryCode ? { homeCountryCode: d.homePlace.countryCode } : {}),
+          ...(d.homePlace.region ? { homeRegion: d.homePlace.region } : {}),
         }
       : {}),
     ...(d.past && d.stops.length
@@ -137,6 +139,7 @@ export function toCreateInput(d: Draft, extra?: { fromShareToken?: string }): Cr
             name: s.name,
             ...(s.placeId && s.lat !== undefined && s.lng !== undefined ? { placeId: s.placeId, lat: s.lat, lng: s.lng } : {}),
             ...(s.countryCode ? { countryCode: s.countryCode } : {}),
+            ...(s.region ? { region: s.region } : {}),
           })),
         }
       : {}),
@@ -147,7 +150,7 @@ export function toCreateInput(d: Draft, extra?: { fromShareToken?: string }): Cr
 const STEP_OF: Record<string, Step> = {
   name: 1,
   startDate: 2, endDate: 2, hardEndDate: 2, roughMonth: 2,
-  homeName: 3, homeCurrency: 3, homeLat: 3, homeLng: 3, homeCountryCode: 3, stops: 3,
+  homeName: 3, homeCurrency: 3, homeLat: 3, homeLng: 3, homeCountryCode: 3, homeRegion: 3, stops: 3,
 };
 const SLOT_OF: Record<Step, keyof StepErrors> = { 1: "name", 2: "dates", 3: "home", 4: "form" };
 
@@ -185,6 +188,13 @@ export function serializeDraft(d: Draft): string {
   return JSON.stringify(d);
 }
 
+// Before Regions, a stored place's `region` held what is now `subtitle` ("Oregon, United States").
+function withoutLegacyRegion(place: PickedPlace): PickedPlace {
+  if (place.region === undefined || place.subtitle !== undefined) return place;
+  const { region, ...rest } = place;
+  return { ...rest, subtitle: region };
+}
+
 export function parseDraft(raw: string | null, past: boolean): Draft | null {
   if (!raw) return null;
   let v: Partial<Draft>;
@@ -197,7 +207,8 @@ export function parseDraft(raw: string | null, past: boolean): Draft | null {
   if (![1, 2, 3, 4].includes(v.step as number) || !CURRENCY_CODES.includes(v.homeCurrency as string)) return null;
   const stops = Array.isArray(v.stops) ? v.stops.filter((s) => s && typeof s.name === "string").slice(0, MAX_STOPS) : [];
   const dateMode = (["exact", "rough", "none"] as const).find((m) => m === v.dateMode) ?? "exact";
-  return { ...emptyDraft(past), ...v, stops, dateMode, roughMonth: isRoughMonth(v.roughMonth) ? v.roughMonth : undefined } as Draft;
+  const homePlace = v.homePlace && typeof v.homePlace === "object" ? withoutLegacyRegion(v.homePlace) : undefined;
+  return { ...emptyDraft(past), ...v, homePlace, stops, dateMode, roughMonth: isRoughMonth(v.roughMonth) ? v.roughMonth : undefined } as Draft;
 }
 
 export function initDraft({ past, initialName, initialStep, stored }: { past: boolean; initialName?: string; initialStep?: number; stored?: Draft | null }): Draft {

@@ -24,7 +24,7 @@ const FOUND = {
   lng: 139.7005,
   city: "Shibuya City",
   country: "Japan",
-  countryCode: "jp",
+  countryCode: "jp", region: null,
   placeId: "ChIJVenue",
   address: "1F 1-22-7 Jinnan, Shibuya City",
 };

@@ -9,6 +9,7 @@ function input(over: Partial<DigestInput> = {}): DigestInput {
     payments: [],
     checklist: [],
     reminders: [],
+    publicHolidays: [],
     schedule: { transports: [], stays: [], items: [] },
     ...over,
   };
@@ -17,6 +18,32 @@ function input(over: Partial<DigestInput> = {}): DigestInput {
 describe("buildDigest", () => {
   it("returns null when there is nothing to say", () => {
     expect(buildDigest(input())).toBeNull();
+  });
+
+  it("a MORNING with only a public holiday still sends, holiday line first", () => {
+    const d = buildDigest(
+      input({
+        slot: "MORNING",
+        publicHolidays: ["Boxing Day (Germany): public holiday, expect closures"],
+      }),
+    );
+    expect(d?.title).toBe("Today");
+    expect(d?.body.split("\n")[0]).toBe("Boxing Day (Germany): public holiday, expect closures");
+  });
+
+  it("a MORNING with neither a departure, a check-out nor a public holiday is still null", () => {
+    expect(buildDigest(input({ slot: "MORNING" }))).toBeNull();
+  });
+
+  it("public holiday lines count toward the line cap", () => {
+    const d = buildDigest(
+      input({
+        slot: "MORNING",
+        publicHolidays: ["h1", "h2"],
+        schedule: { transports: [], stays: [], items: ["a", "b", "c", "d", "e"].map((t) => ({ id: t, title: t, localTime: null })) },
+      }),
+    );
+    expect(d?.body.split("\n")).toEqual(["h1", "h2", "a", "b", "c", "d", "+1 more"]);
   });
 
   it("a Reminder line is its title alone (spec F8: notes are never read out)", () => {

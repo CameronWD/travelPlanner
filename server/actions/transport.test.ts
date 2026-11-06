@@ -1644,3 +1644,82 @@ describe("reorderTransports", () => {
     expect(lockSql).toContain('ORDER BY "id" ASC');
   });
 });
+
+describe("Transport ends know their country and Region", () => {
+  const row = {
+    id: "t1", tripId: "trip-1", forkId: null,
+    mode: "TRAIN", fromStopId: null, toStopId: null, anchorStopId: null, depIsHome: false, arrIsHome: false,
+    depPlace: "Munich Hbf", arrPlace: "Salzburg Hbf", depAt: null, arrAt: null,
+    reference: null, notes: null, bookingState: "TO_BOOK", bookingStateSet: false, bookBy: null,
+    depLat: 48.14, depLng: 11.56, depPlaceId: "muc-id", depCountryCode: "de", depRegion: "Bavaria",
+    arrLat: 47.81, arrLng: 13.05, arrPlaceId: "szg-id", arrCountryCode: "at", arrRegion: "Salzburg",
+  };
+
+  it("a picked end stores its country and Region", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+    await createTransport("trip-1", {
+      mode: "TRAIN",
+      depPlace: "Munich Hbf", depPlaceId: "muc-id", depLat: 48.14, depLng: 11.56, depCountryCode: "DE", depRegion: "Bavaria",
+      arrPlace: "Salzburg Hbf", arrPlaceId: "szg-id", arrLat: 47.81, arrLng: 13.05, arrCountryCode: "at", arrRegion: "Salzburg",
+    });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "at", arrRegion: "Salzburg",
+    }) });
+  });
+
+  it("a typed end takes its country and Region from the lookup", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+    geocodePlaceMock.mockResolvedValue({ lat: 48.14, lng: 11.56, placeId: "muc-id", countryCode: "DE", region: "Bavaria" });
+    await createTransport("trip-1", { mode: "TRAIN", depPlace: "Munich Hbf" });
+    expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: null, arrRegion: null,
+    }) });
+  });
+
+  it("a held end keeps its country and Region, looking nothing up", async () => {
+    transportFindUniqueMock.mockResolvedValue(row);
+    transportUpdateMock.mockResolvedValue({ ...row });
+    await updateTransport("t1", { reference: "RJ 63" });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "at", arrRegion: "Salzburg",
+    }) }));
+  });
+
+  it("a changed end replaces its country and Region; the other end is kept", async () => {
+    transportFindUniqueMock.mockResolvedValue(row);
+    transportUpdateMock.mockResolvedValue({ ...row });
+    await updateTransport("t1", {
+      depPlace: "Zurich HB", depPlaceId: "zrh-id", depLat: 47.38, depLng: 8.54, depCountryCode: "ch", depRegion: "Zurich",
+    });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      depCountryCode: "ch", depRegion: "Zurich", arrCountryCode: "at", arrRegion: "Salzburg",
+    }) }));
+  });
+
+  it("a changed typed end the lookup cannot find clears its country and Region", async () => {
+    transportFindUniqueMock.mockResolvedValue(row);
+    transportUpdateMock.mockResolvedValue({ ...row });
+    geocodePlaceMock.mockResolvedValue(null);
+    await updateTransport("t1", { depPlace: "Somewhere vague" });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      depCountryCode: null, depRegion: null, arrCountryCode: "at", arrRegion: "Salzburg",
+    }) }));
+  });
+
+  it("a Home end stores no country or Region", async () => {
+    transportFindUniqueMock.mockResolvedValue(row);
+    transportUpdateMock.mockResolvedValue({ ...row });
+    await updateTransport("t1", { depIsHome: true, fromStopId: null, depPlace: null });
+    expect(transportUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      depIsHome: true, depCountryCode: null, depRegion: null, arrCountryCode: "at", arrRegion: "Salzburg",
+    }) }));
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-2" });
+    await createTransport("trip-1", { mode: "FLIGHT", arrIsHome: true, arrPlace: "x", arrPlaceId: "p", arrLat: 1, arrLng: 2, arrCountryCode: "at", arrRegion: "Salzburg" });
+    expect(transportCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ arrIsHome: true, arrCountryCode: null, arrRegion: null }) });
+  });
+});

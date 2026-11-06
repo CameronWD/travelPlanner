@@ -81,13 +81,20 @@ A **Public holiday** or a named **Observance** is something the day
 - Rough Stops have no dates and so no Public holidays.
 
 ### B3. Source: Google Calendar's public-holiday calendars
-Fetched server-side with the server key through the Calendar API (free).
-Chosen over Nager.Date because Nager misses Indonesia's lunar and Islamic
-holidays, including Nyepi (Bali's airport closes).
-- **First task is a data check:** confirm the calendars let us separate
-  public holidays from observances, and see how regional holidays name their
-  Region. If they can't be separated, fall back to Nager.Date and record the
-  coverage gap.
+Fetched server-side from Google's **public iCal feeds** for each country
+(`https://calendar.google.com/calendar/ical/en.<name>%23holiday%40group.v.calendar.google.com/public/basic.ics`).
+These need no key and no Calendar API. Chosen over Nager.Date because Nager
+misses Indonesia's lunar and Islamic holidays, including Nyepi (Bali's
+airport closes).
+- **Data check, done 2026-11-06:** each event's `DESCRIPTION` starts with
+  "Public holiday", "Observance", or "Public holiday in <Region>, <Region>"
+  (English Region names, e.g. "Baden-Württemberg, Bavaria, Saxony-Anhalt"
+  for Epiphany). A half-day holiday adds "This is a half-day holiday."
+  (German Christmas Eve). Indonesia's 2026 feed has Nyepi and Idul Fitri.
+- **Feed names are Google's, not ISO codes** ("german", "uk",
+  "indonesian"; a few are ISO, such as "fj"). They live in a verified table
+  from country code to name. A country with no entry, or a failed fetch,
+  shows no holidays.
 - Cached server-side per country and year in a global table, refreshed when
   older than 30 days. Pages never call Google.
 - **Observances:** public holidays plus a short named list kept in code
@@ -195,10 +202,9 @@ re-checked.
 0. Raise the console quotas to the A1 share-1 values (333 per Essentials
    method) — on/after 2026-12-01 or after the November billing check. The
    push waits for this.
-1. Enable the **Google Calendar API** and the **Maps Static API** in the
-   `teepee` project.
-2. Server key API restrictions: add Calendar API and Maps Static API.
-   Browser key: add Maps Static API.
+1. Enable the **Maps Static API** in the `teepee` project. Holidays need no
+   API: the feeds are public.
+2. Server key and browser key API restrictions: add Maps Static API.
 3. Per-day quotas: Maps Static 333. Nearby Search (SearchNearby) 33 if
    offered per method.
 4. Local checks Claude can run headless: a Day with a Public holiday, Share

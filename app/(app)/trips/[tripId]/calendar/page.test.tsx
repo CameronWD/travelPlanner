@@ -27,6 +27,7 @@ vi.mock("@/lib/plan-reads", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/plan-reads")>();
   return { ...actual, readPlan: readPlanMock };
 });
+vi.mock("@/lib/holidays/trip-days", () => ({ loadHolidayLines: async () => new Map() }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),

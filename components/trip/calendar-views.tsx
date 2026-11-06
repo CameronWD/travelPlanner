@@ -112,9 +112,10 @@ export interface CalendarViewsProps {
    * Forwarded unchanged to both the agenda and month views.
    */
   dayTitles?: Record<string, { title: string; stopId: string }>;
+  holidayDates?: Record<string, string[]>;
 }
 
-export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems, todayISO, dayTitles }: CalendarViewsProps) {
+export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems, todayISO, dayTitles, holidayDates }: CalendarViewsProps) {
   const reduce = useReducedMotion();
 
   // useSyncExternalStore gives us the SSR-safe default (agenda on server) and
@@ -252,6 +253,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
                   todayISO={todayISO}
                   onDropItem={handleDropItem}
                   dayTitles={dayTitles}
+                  holidayDates={holidayDates}
                 />
               </div>
 

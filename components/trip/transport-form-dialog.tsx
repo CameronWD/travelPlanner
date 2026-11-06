@@ -61,6 +61,8 @@ interface EndPick {
   placeId: string;
   lat: number;
   lng: number;
+  countryCode?: string;
+  region?: string;
 }
 
 function nearStop(stop?: StopOption) {
@@ -68,7 +70,7 @@ function nearStop(stop?: StopOption) {
 }
 
 function endPick(p: PickedPlace): EndPick {
-  return { placeId: p.placeId, lat: p.lat, lng: p.lng };
+  return { placeId: p.placeId, lat: p.lat, lng: p.lng, countryCode: p.countryCode, region: p.region };
 }
 
 export interface StopOption {
@@ -522,9 +524,9 @@ function TransportForm({
         case "home":
           return { fromStopId: undefined, depIsHome: true, depPlace: undefined };
         case "stop":
-          return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: depPoint.trim() || undefined, ...(depPoint.trim() && depPick && { depPlaceId: depPick.placeId, depLat: depPick.lat, depLng: depPick.lng }) };
+          return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: depPoint.trim() || undefined, ...(depPoint.trim() && depPick && { depPlaceId: depPick.placeId, depLat: depPick.lat, depLng: depPick.lng, depCountryCode: depPick.countryCode, depRegion: depPick.region }) };
         case "place":
-          return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name, ...(fromValue.placeId && fromValue.lat !== undefined && fromValue.lng !== undefined && { depPlaceId: fromValue.placeId, depLat: fromValue.lat, depLng: fromValue.lng }) };
+          return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name, ...(fromValue.placeId && fromValue.lat !== undefined && fromValue.lng !== undefined && { depPlaceId: fromValue.placeId, depLat: fromValue.lat, depLng: fromValue.lng, depCountryCode: fromValue.countryCode, depRegion: fromValue.region }) };
         default:
           return { fromStopId: undefined, depIsHome: false, depPlace: undefined };
       }
@@ -536,9 +538,9 @@ function TransportForm({
         case "home":
           return { toStopId: undefined, arrIsHome: true, arrPlace: undefined };
         case "stop":
-          return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: arrPoint.trim() || undefined, ...(arrPoint.trim() && arrPick && { arrPlaceId: arrPick.placeId, arrLat: arrPick.lat, arrLng: arrPick.lng }) };
+          return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: arrPoint.trim() || undefined, ...(arrPoint.trim() && arrPick && { arrPlaceId: arrPick.placeId, arrLat: arrPick.lat, arrLng: arrPick.lng, arrCountryCode: arrPick.countryCode, arrRegion: arrPick.region }) };
         case "place":
-          return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name, ...(toValue.placeId && toValue.lat !== undefined && toValue.lng !== undefined && { arrPlaceId: toValue.placeId, arrLat: toValue.lat, arrLng: toValue.lng }) };
+          return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name, ...(toValue.placeId && toValue.lat !== undefined && toValue.lng !== undefined && { arrPlaceId: toValue.placeId, arrLat: toValue.lat, arrLng: toValue.lng, arrCountryCode: toValue.countryCode, arrRegion: toValue.region }) };
         default:
           return { toStopId: undefined, arrIsHome: false, arrPlace: undefined };
       }

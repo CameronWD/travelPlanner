@@ -75,10 +75,11 @@ async function validateStopBelongsToTrip(
 type EndsBefore = {
   depPlace: string | null; depLat: number | null; depLng: number | null; depPlaceId: string | null;
   arrPlace: string | null; arrLat: number | null; arrLng: number | null; arrPlaceId: string | null;
+  depCountryCode?: string | null; depRegion?: string | null; arrCountryCode?: string | null; arrRegion?: string | null;
 };
 
 async function endPlaces(
-  data: Pick<TransportInput, "depPlaceId" | "depLat" | "depLng" | "arrPlaceId" | "arrLat" | "arrLng">,
+  data: Pick<TransportInput, "depPlaceId" | "depLat" | "depLng" | "depCountryCode" | "depRegion" | "arrPlaceId" | "arrLat" | "arrLng" | "arrCountryCode" | "arrRegion">,
   text: { depPlace: string | null; arrPlace: string | null },
   before?: EndsBefore,
 ) {
@@ -87,18 +88,20 @@ async function endPlaces(
   const [dep, arr] = await Promise.all([
     end(
       text.depPlace,
-      pickedPlace({ placeId: data.depPlaceId, lat: data.depLat, lng: data.depLng }),
-      before ? { text: before.depPlace, place: { lat: before.depLat, lng: before.depLng, countryCode: null, placeId: before.depPlaceId } } : null,
+      pickedPlace({ placeId: data.depPlaceId, lat: data.depLat, lng: data.depLng, countryCode: data.depCountryCode, region: data.depRegion }),
+      before ? { text: before.depPlace, place: { lat: before.depLat, lng: before.depLng, countryCode: before.depCountryCode ?? null, region: before.depRegion ?? null, placeId: before.depPlaceId } } : null,
     ),
     end(
       text.arrPlace,
-      pickedPlace({ placeId: data.arrPlaceId, lat: data.arrLat, lng: data.arrLng }),
-      before ? { text: before.arrPlace, place: { lat: before.arrLat, lng: before.arrLng, countryCode: null, placeId: before.arrPlaceId } } : null,
+      pickedPlace({ placeId: data.arrPlaceId, lat: data.arrLat, lng: data.arrLng, countryCode: data.arrCountryCode, region: data.arrRegion }),
+      before ? { text: before.arrPlace, place: { lat: before.arrLat, lng: before.arrLng, countryCode: before.arrCountryCode ?? null, region: before.arrRegion ?? null, placeId: before.arrPlaceId } } : null,
     ),
   ]);
   return {
     depLat: dep.place.lat, depLng: dep.place.lng, depPlaceId: dep.place.placeId,
     arrLat: arr.place.lat, arrLng: arr.place.lng, arrPlaceId: arr.place.placeId,
+    depCountryCode: dep.place.countryCode, depRegion: dep.place.region,
+    arrCountryCode: arr.place.countryCode, arrRegion: arr.place.region,
   };
 }
 
@@ -271,6 +274,8 @@ export async function updateTransport(
     // A picked end (lib/place-save.ts) isn't an endpoint rule either; nothing is merged from the row.
     depPlaceId: patch.depPlaceId ?? undefined, depLat: patch.depLat ?? undefined, depLng: patch.depLng ?? undefined,
     arrPlaceId: patch.arrPlaceId ?? undefined, arrLat: patch.arrLat ?? undefined, arrLng: patch.arrLng ?? undefined,
+    depCountryCode: patch.depCountryCode ?? undefined, depRegion: patch.depRegion ?? undefined,
+    arrCountryCode: patch.arrCountryCode ?? undefined, arrRegion: patch.arrRegion ?? undefined,
   });
   if (!parsed.success) {
     return validationResult(parsed.error);
