@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { geocodePlaceDetailed, reverseGeocode, locateVenue, lookUpPlace, lookUpVenue, fetchVenueDetails, lookUpRegion, VENUE_GUARD_KM } from "./geocode";
+import { geocodePlaceDetailed, reverseGeocode, locateVenue, lookUpPlace, lookUpVenue, fetchVenueDetails, lookUpBusinessStatus, lookUpRegion, VENUE_GUARD_KM } from "./geocode";
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
@@ -351,6 +351,26 @@ describe("fetchVenueDetails", () => {
   it("returns null when Place Details fails", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
     expect(await fetchVenueDetails("ChIJGone")).toBeNull();
+  });
+});
+
+describe("lookUpBusinessStatus", () => {
+  it("asks Place Details for id and businessStatus only", async () => {
+    routeFetch({ details: { id: "ChIJVenue", businessStatus: "CLOSED_PERMANENTLY" } });
+    expect(await lookUpBusinessStatus("ChIJVenue")).toEqual({ businessStatus: "CLOSED_PERMANENTLY" });
+    const [[url, init]] = fetchMock.mock.calls;
+    expect(String(url).split("?")[0]).toBe("https://places.googleapis.com/v1/places/ChIJVenue");
+    expect(init.headers).toMatchObject({ "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": "id,businessStatus" });
+  });
+
+  it("returns a null status when Google omits it", async () => {
+    routeFetch({ details: { id: "ChIJVenue" } });
+    expect(await lookUpBusinessStatus("ChIJVenue")).toEqual({ businessStatus: null });
+  });
+
+  it("returns null when Place Details fails", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
+    expect(await lookUpBusinessStatus("ChIJGone")).toBeNull();
   });
 });
 

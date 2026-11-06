@@ -5,6 +5,7 @@ type Run = { again: boolean; done: Promise<void> };
 
 const running = new Map<string, Run>();
 let refreshModule: Promise<typeof import("./refresh")> | undefined;
+let venueModule: Promise<typeof import("@/lib/venue-status/refresh")> | undefined;
 
 function loadRefresh(): Promise<typeof import("./refresh")> {
   refreshModule ??= import("./refresh").catch((err) => {
@@ -12,6 +13,23 @@ function loadRefresh(): Promise<typeof import("./refresh")> {
     throw err;
   });
   return refreshModule;
+}
+
+function loadVenueRefresh(): Promise<typeof import("@/lib/venue-status/refresh")> {
+  venueModule ??= import("@/lib/venue-status/refresh").catch((err) => {
+    venueModule = undefined;
+    throw err;
+  });
+  return venueModule;
+}
+
+async function refreshVenues(tripId: string): Promise<void> {
+  try {
+    const { refreshVenueStatuses } = await loadVenueRefresh();
+    await refreshVenueStatuses(tripId);
+  } catch (err) {
+    console.error(`[venue-status] refresh failed for trip ${tripId}:`, err instanceof Error ? err.message : String(err));
+  }
 }
 
 function logFailure(tripId: string, err: unknown): void {
@@ -25,6 +43,7 @@ async function refreshUntilQuiet(tripId: string, run: Run): Promise<void> {
     do {
       run.again = false;
       await refreshTripTravelTimes(tripId).catch((err) => logFailure(tripId, err));
+      await refreshVenues(tripId);
     } while (run.again);
   } catch (err) {
     logFailure(tripId, err);
