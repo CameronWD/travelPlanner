@@ -91,6 +91,14 @@ describe("refreshHolidayFeeds", () => {
     expect(rows.get("de")?.status).toBe("OK");
   });
 
+  it("keeps the holidays of a stale OK row whose refetch fails, and reads them back", async () => {
+    seed("de", "OK", daysAgo(31));
+    fetchMock.mockResolvedValue({ status: 500, text: async () => "" });
+    await refreshHolidayFeeds(["de"], NOW);
+    expect(rows.get("de")).toMatchObject({ status: "ERROR", holidays: [HOLIDAY], fetchedAt: NOW });
+    expect((await readHolidayFeeds(["de"])).get("de")).toEqual([HOLIDAY]);
+  });
+
   it("stores ERROR when the fetch throws", async () => {
     fetchMock.mockRejectedValue(new Error("timeout"));
     await refreshHolidayFeeds(["de"], NOW);

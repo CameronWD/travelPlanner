@@ -20,8 +20,11 @@ export async function readHolidayFeeds(countryCodes: string[]): Promise<Map<stri
   const codes = normalise(countryCodes);
   const feeds = new Map<string, FeedHoliday[]>();
   if (codes.length === 0) return feeds;
-  const rows = await db.holidayFeed.findMany({ where: { countryCode: { in: codes }, status: "OK" } });
-  for (const row of rows) feeds.set(row.countryCode, row.holidays as FeedHoliday[]);
+  const rows = await db.holidayFeed.findMany({ where: { countryCode: { in: codes } } });
+  for (const row of rows) {
+    const holidays = row.holidays as FeedHoliday[];
+    if (holidays.length > 0) feeds.set(row.countryCode, holidays);
+  }
   return feeds;
 }
 
@@ -43,11 +46,11 @@ function isDue(row: { status: string; fetchedAt: Date } | undefined, now: Date):
   return false;
 }
 
-async function refreshOne(code: string, now: Date): Promise<void> {
+async function refreshOne(code: string, now: Date, kept: unknown): Promise<void> {
   const name = HOLIDAY_FEED_NAMES[code];
   const holidays = name ? await fetchFeed(name) : [];
   const status = !name ? "NONE" : holidays ? "OK" : "ERROR";
-  const data = { status, holidays: holidays ?? [], fetchedAt: now };
+  const data = { status, holidays: holidays ?? kept ?? [], fetchedAt: now };
   await db.holidayFeed.upsert({ where: { countryCode: code }, create: { countryCode: code, ...data }, update: data });
 }
 
@@ -59,7 +62,7 @@ export async function refreshHolidayFeeds(countryCodes: string[], now: Date = ne
   const due = codes.filter((c) => isDue(byCode.get(c), now));
   await Promise.all(
     due.map((c) =>
-      refreshOne(c, now).catch((err) =>
+      refreshOne(c, now, byCode.get(c)?.holidays).catch((err) =>
         console.error(`[holidays] refresh failed for ${c}:`, err instanceof Error ? err.message : String(err)),
       ),
     ),
