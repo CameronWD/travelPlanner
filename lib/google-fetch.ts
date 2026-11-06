@@ -2,7 +2,7 @@ import "server-only";
 
 export const GOOGLE_TIMEOUT_MS = 5_000;
 
-export type FetchResult = { ok: true; body: unknown } | { ok: false; reason: "http" | "timeout" | "network" | "parse" };
+export type FetchResult = { ok: true; body: unknown } | { ok: false; reason: "http" | "timeout" | "network" | "parse"; status?: number };
 
 export function serverKey(): string | null {
   return process.env.GOOGLE_MAPS_SERVER_KEY?.trim() || null;
@@ -17,7 +17,7 @@ export async function fetchJson(url: string, init: RequestInit = {}): Promise<Fe
   const timer = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
   try {
     const res = await fetch(url, { ...init, signal: controller.signal });
-    if (!res.ok) return { ok: false, reason: "http" };
+    if (!res.ok) return { ok: false, reason: "http", status: res.status };
     try {
       return { ok: true, body: await res.json() };
     } catch {

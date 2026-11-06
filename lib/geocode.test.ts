@@ -370,8 +370,13 @@ describe("lookUpBusinessStatus", () => {
   });
 
   it("returns null when Place Details fails", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
+    expect(await lookUpBusinessStatus("ChIJBroken")).toBeNull();
+  });
+
+  it("reports notFound when Google answers 404", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
-    expect(await lookUpBusinessStatus("ChIJGone")).toBeNull();
+    expect(await lookUpBusinessStatus("ChIJGone")).toEqual({ notFound: true });
   });
 });
 
