@@ -17,6 +17,11 @@ import { zoneLabel } from "@/lib/time-display";
 import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { cn } from "@/lib/cn";
+import { homeMapPoint } from "@/lib/route-map";
+import { staticMapUrl } from "@/lib/map/static-map";
+import { mapsConfig, staticMapId } from "@/lib/map/google-config";
+import { PrintMapImage } from "./print-map-image";
+import { loadRouteLegPaths } from "@/lib/travel-times/read";
 import { PrintButton } from "./print-button";
 import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/money/budget";
 import type { TransportMode } from "@/lib/enum-values";
@@ -93,6 +98,20 @@ export default async function PrintPage({
     arriveDate: s.arriveDate!,
     departDate: s.departDate!,
   }));
+
+  const maps = mapsConfig();
+  const mapImageUrl = maps
+    ? staticMapUrl({
+        key: maps.apiKey,
+        mapId: staticMapId() ?? maps.mapId,
+        width: 640,
+        height: 360,
+        stops: stops.map((s) => ({ id: s.id, lat: s.lat ?? null, lng: s.lng ?? null, sortOrder: s.sortOrder })),
+        home: homeMapPoint(trip),
+        showReturn: trip.roundTrip ?? false,
+        legPaths: await loadRouteLegPaths(stops, transports, homeMapPoint(trip)),
+      })
+    : null;
 
   // Surprise (ADR 0051): unfiltered, minimal — not `items`/`accommodations`
   // above (those are filtered for rendering and have no Accommodation
@@ -270,6 +289,8 @@ export default async function PrintPage({
             </span>
           </div>
         </div>
+
+        {mapImageUrl && <PrintMapImage src={mapImageUrl} alt={`Route map of ${trip.name}`} />}
 
         {/* ── Route (stops list) ── */}
         {stops.length > 0 && (

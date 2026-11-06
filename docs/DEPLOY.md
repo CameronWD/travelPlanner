@@ -552,7 +552,7 @@ left room.
 1. **Project.** console.cloud.google.com → create project `teepee`, billing account
    = the existing one (the one hometracker used).
 2. **Enable APIs** (APIs & Services → Library): Maps JavaScript API, Places API (New),
-   Geocoding API, Routes API.
+   Geocoding API, Routes API, Maps Static API.
 3. **Browser key** (Credentials → Create API key). Application restriction: HTTP
    referrers —
    - `https://teepeeapp.com/*`
@@ -560,9 +560,9 @@ left room.
    - the Vercel preview pattern (your team's `https://*-<team>.vercel.app/*`)
    - `http://localhost:3000/*`
 
-   API restriction: Maps JavaScript API and Places API (New) only.
-4. **Server key** (a second API key). API restriction: Routes API, Geocoding API and
-   Places API (New). Branches 2 and 3 (Places, Travel times) call these from the
+   API restriction: Maps JavaScript API, Maps Static API and Places API (New) only.
+4. **Server key** (a second API key). API restriction: Routes API, Geocoding API,
+   Places API (New) and Maps Static API. Branches 2 and 3 (Places, Travel times) call these from the
    server; the env var is set now so nothing needs touching later. Do not give it
    to the browser.
 5. **Map ID.** Google Maps Platform → Map Management → Create map ID: type
@@ -581,6 +581,14 @@ left room.
    | Places — Place Details (GetPlace, one cap) | 10,000 | 333 |
    | Places — Autocomplete ("Autocomplete Requests") | 10,000 | 333 |
    | Places — Text Search (IDs only — free) | unlimited | 1,000 (runaway cap) |
+   | Maps Static | 10,000 | 333 |
+
+   Note on the Maps Static row: the console quota is one per-project pool shared
+   by both keys. The app counts only Share-link-preview fetches
+   (`takeGoogleQuota("static-maps")`, UTC day); every Share page view and Print
+   page visit spends one uncounted load (the browser cache absorbs repeats). A
+   crawler burst can use the pool and break Share/Print images until Google's
+   Pacific-time reset; the images then fall back (the Share page shows the live map, Print omits the image).
 
    Notes on the Places rows:
    - **Place Details is one cap.** Google quotas are per API method, not per SKU:
@@ -614,6 +622,7 @@ left room.
    | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | browser key from step 3 |
    | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Map ID from step 5 |
    | `GOOGLE_MAPS_SERVER_KEY` | server key from step 4 |
+   | `NEXT_PUBLIC_GOOGLE_MAPS_STATIC_MAP_ID` | optional: a Map ID of platform type Static, only if the step 5 Map ID renders unstyled in images (step 11) |
 
 9. **Redeploy.** `NEXT_PUBLIC_*` values are inlined at build time: adding or changing
    the browser key or Map ID does nothing until a new build. Redeploy after step 8.
@@ -635,6 +644,11 @@ left room.
       **Autocomplete Session Usage** appears — proof that sessions terminate. If
       only "Autocomplete Requests" shows, every keystroke is billing per request:
       stop and fix before the push.
+    - **Static map images.** Open a Share link and a Print page locally; confirm
+      the image renders styled with the existing Map ID. If it renders unstyled
+      or errors, create a Map ID of platform type Static with the same Map Style
+      attached and set `NEXT_PUBLIC_GOOGLE_MAPS_STATIC_MAP_ID` (Vercel
+      Production+Preview and `.env.local`).
     - **Attribution.** Confirm Google's logo and attribution row is not covered
       on the Your travels card (title pill, chips, "Open Globe →" pill) and on
       the desktop Home route tile (view chips, inset cards), in light and dark.

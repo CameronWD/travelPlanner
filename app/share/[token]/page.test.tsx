@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 
 // share/[token]/page.tsx is an async Server Component with DB calls; invoke it
@@ -127,6 +127,10 @@ function share(overrides: Partial<typeof TRIP> = {}) {
 async function renderPage() {
   return render(await SharePage({ params: Promise.resolve({ token: "tok" }) }));
 }
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -798,6 +802,38 @@ describe("Share page is light-only (spec 2026-10-01 §A)", () => {
     await renderPage();
     const props = JSON.parse(screen.getByTestId("route-map").getAttribute("data-props")!);
     expect(props.theme).toBe("light");
+  });
+  it("shows the Static Maps image, not the live map, while Maps config exists", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "browser-key");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "map-id");
+    await renderPage();
+    const img = screen.getByRole("img", { name: /^Route map of / });
+    expect(img.getAttribute("src")).toContain("https://maps.googleapis.com/maps/api/staticmap");
+    expect(screen.getByRole("button", { name: "Explore map" })).toBeInTheDocument();
+    expect(screen.queryByTestId("route-map")).not.toBeInTheDocument();
+  });
+  it("uses the Static Map ID when set, else the Map ID", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "browser-key");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "map-id");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_STATIC_MAP_ID", "static-id");
+    await renderPage();
+    const src = screen.getByRole("img", { name: /^Route map of / }).getAttribute("src")!;
+    expect(new URL(src).searchParams.get("map_id")).toBe("static-id");
+  });
+  it("keeps the live map when fewer than two Stops are located", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "browser-key");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "map-id");
+    stopFindManyMock.mockResolvedValue([STOPS[0], { ...STOPS[1], lat: null, lng: null }]);
+    await renderPage();
+    expect(screen.getByTestId("route-map")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Explore map" })).not.toBeInTheDocument();
+  });
+  it("renders the live map straight away without Maps config", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
+    await renderPage();
+    expect(screen.getByTestId("route-map")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Explore map" })).not.toBeInTheDocument();
   });
   it("pins the phone address-bar colour to the light ground", async () => {
     const mod = await import("./page");

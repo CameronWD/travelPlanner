@@ -27,6 +27,9 @@ vi.mock("@/lib/plan-reads", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/plan-reads")>();
   return { ...actual, readPlan: readPlanMock };
 });
+const { mapsConfigMock } = vi.hoisted(() => ({ mapsConfigMock: vi.fn() }));
+vi.mock("@/lib/map/google-config", () => ({ mapsConfig: mapsConfigMock, staticMapId: () => "map-id" }));
+vi.mock("@/lib/travel-times/read", () => ({ loadRouteLegPaths: vi.fn(async () => ({})) }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: vi.fn(async () => ({ user: { id: "u-viewer", email: "v@example.com" }, membership: { role: "member" } })),
 }));
@@ -293,5 +296,34 @@ describe("Print view — phone-width route rows (LA-150)", () => {
     expect(ref.className).toMatch(/\bsm:basis-auto\b/);
     expect(ref.className).toMatch(/\bsm:ml-auto\b/);
     expect(ref.className).not.toMatch(/(^|\s)ml-auto(\s|$)/);
+  });
+});
+
+describe("Print view — route map image", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const located = () =>
+    rowsFrom({
+      trip: trip({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" }),
+      stops: [stop({ id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0, lat: 41.9, lng: 12.5 })],
+    });
+
+  it("renders the Static Maps image between the header and the Route, with its alt", async () => {
+    mapsConfigMock.mockReturnValue({ apiKey: "browser-key", mapId: "map-id" });
+    readPlanMock.mockResolvedValue(located());
+    const html = await renderPrint();
+    const img = html.match(/<img[^>]*>/)?.[0] ?? "";
+    expect(img).toContain('alt="Route map of Europe"');
+    expect(img).toContain("maps.googleapis.com/maps/api/staticmap");
+    expect(img).toMatch(/break-inside-avoid/);
+    expect(html.indexOf(img)).toBeLessThan(html.indexOf(">Route</h2>"));
+  });
+
+  it("renders no image without a Maps config", async () => {
+    mapsConfigMock.mockReturnValue(null);
+    readPlanMock.mockResolvedValue(located());
+    expect(await renderPrint()).not.toContain("<img");
   });
 });

@@ -59,6 +59,7 @@ export interface ShareOgCardProps {
   name: string;
   subLine: string;
   sketch: { points: { x: number; y: number }[]; vbH: number; solid: boolean } | null;
+  mapImage: string | null;
 }
 
 /**
@@ -66,7 +67,7 @@ export interface ShareOgCardProps {
  * name, sub line — with the cover polaroid. The cover is always the route
  * sketch (or the Mark), never the uploaded photo: there is no public photo route.
  */
-export function ShareOgCard({ name, subLine, sketch }: ShareOgCardProps): ReactElement {
+export function ShareOgCard({ name, subLine, sketch, mapImage }: ShareOgCardProps): ReactElement {
   return (
     <div style={{ width: 1200, height: 630, display: "flex", background: OG_COLOURS.coral, padding: 64, fontFamily: "Jakarta", color: OG_COLOURS.ink, position: "relative" }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", maxWidth: 680 }}>
@@ -75,8 +76,11 @@ export function ShareOgCard({ name, subLine, sketch }: ShareOgCardProps): ReactE
         <div style={{ display: "flex", marginTop: 24, fontSize: 34, fontWeight: 700 }}>{subLine}</div>
       </div>
       <div style={{ position: "absolute", right: 90, top: 90, display: "flex", transform: "rotate(4deg)", background: OG_COLOURS.card, border: `4px solid ${OG_COLOURS.ink}`, borderRadius: 16, padding: "14px 14px 40px", boxShadow: `12px 12px 0 ${OG_COLOURS.ink}` }}>
-        <div style={{ width: 280, height: 373, display: "flex", alignItems: "center", justifyContent: "center", background: OG_COLOURS.paper, border: `3px solid ${OG_COLOURS.ink}` }}>
-          {sketch ? (
+        <div style={{ width: 280, height: 373, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: OG_COLOURS.paper, border: `3px solid ${OG_COLOURS.ink}` }}>
+          {mapImage ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Satori, not the DOM
+            <img src={mapImage} width={280} height={373} alt="" style={{ width: 280, height: 373, objectFit: "cover" }} />
+          ) : sketch ? (
             <svg viewBox={`0 0 100 ${sketch.vbH}`} width={280} height={373}>
               <polyline
                 points={sketch.points.map((p) => `${p.x},${p.y}`).join(" ")}

@@ -34,7 +34,7 @@ describe("ShareOgCard", () => {
 
   it("draws the coral hero with the name, sub line and a polaroid polyline", () => {
     const html = renderToStaticMarkup(
-      ShareOgCard({ name: "Christmas in Europe", subLine: "Dec 2026 – Jan 2027", sketch: { ...sketch, solid: true } }),
+      ShareOgCard({ name: "Christmas in Europe", subLine: "Dec 2026 – Jan 2027", sketch: { ...sketch, solid: true }, mapImage: null }),
     );
     expect(html).toContain("Christmas in Europe");
     expect(html).toContain("Dec 2026 – Jan 2027");
@@ -46,13 +46,22 @@ describe("ShareOgCard", () => {
   });
 
   it("dashes the sketch before the trip is over", () => {
-    const html = renderToStaticMarkup(ShareOgCard({ name: "X", subLine: "Y", sketch: { ...sketch, solid: false } }));
+    const html = renderToStaticMarkup(ShareOgCard({ name: "X", subLine: "Y", sketch: { ...sketch, solid: false }, mapImage: null }));
     expect(html).toContain("stroke-dasharray");
   });
 
   it("falls back to the Mark when there is no sketch", () => {
-    const html = renderToStaticMarkup(ShareOgCard({ name: "X", subLine: "Y", sketch: null }));
+    const html = renderToStaticMarkup(ShareOgCard({ name: "X", subLine: "Y", sketch: null, mapImage: null }));
     expect(html).not.toContain("<polyline");
     expect(html).toContain('viewBox="0 0 48 48"');
+  });
+
+  it("shows the map image in the polaroid instead of the sketch", () => {
+    const html = renderToStaticMarkup(
+      ShareOgCard({ name: "X", subLine: "Y", sketch: { ...sketch, solid: true }, mapImage: "data:image/png;base64,AQID" }),
+    );
+    expect(html).toContain("<img");
+    expect(html).toContain("data:image/png;base64,AQID");
+    expect(html).not.toContain("<polyline");
   });
 });
