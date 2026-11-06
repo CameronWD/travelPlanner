@@ -215,6 +215,8 @@ async function load(
         openingHours: true,
         slotTime: true,
         arriveByMinutes: true,
+        businessStatus: true,
+        statusCheckedAt: true,
       },
     }),
     db.cost.findMany({

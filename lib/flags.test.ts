@@ -17,6 +17,7 @@ import {
   flagAccommodationCoverageGaps,
   flagMissingHomeConnection,
   flagReturnLegAfterHardEnd,
+  flagClosedVenue,
   SPREAD_DAY_THRESHOLD_KM,
   LONG_DRIVE_DAY_THRESHOLD_MIN,
   TIGHT_CONNECTION_BUFFER_MIN,
@@ -25,6 +26,7 @@ import {
   type FlagAccommodation,
   type FlagItem,
 } from "./flags";
+import { formatDayLabel } from "@/lib/dates";
 import { driveKey, hopKeys, planTravelKeys, type TravelLookup } from "@/lib/travel-times/hops";
 import { flagsToFindings } from "@/lib/review/from-flags";
 import { offeredFix } from "@/lib/review/fixed";
@@ -1337,5 +1339,50 @@ describe("detectFlags — hiddenStopIds (Surprise)", () => {
     expect(hiddenDays).toEqual([]);
     const ids = flags.map((f) => f.id);
     expect(ids).toEqual(expect.arrayContaining(["item-overlap-2026-07-06", "packed-day-2026-07-06", "spread-day-2026-07-06", "empty-day-2026-07-08"]));
+  });
+});
+
+describe("flagClosedVenue", () => {
+  const item = (over: Partial<FlagItem>): FlagItem => ({ id: "i1", title: "Trattoria", date: "2026-03-05", ...over });
+
+  it("warns that a scheduled venue closed for good", () => {
+    expect(flagClosedVenue([item({ businessStatus: "CLOSED_PERMANENTLY" })])).toEqual([
+      expect.objectContaining({
+        id: "item-closed-for-good-i1",
+        severity: "warning",
+        message: "Trattoria has closed for good. Find a replacement.",
+        targetType: "ITEM",
+        targetId: "i1",
+      }),
+    ]);
+  });
+
+  it("says a temporarily closed venue was closed when last checked, with both date labels", () => {
+    const [flag] = flagClosedVenue([item({ businessStatus: "CLOSED_TEMPORARILY", statusCheckedAt: new Date("2026-02-10T23:30:00Z") })]);
+    expect(flag).toMatchObject({
+      id: "item-closed-temporarily-i1",
+      severity: "info",
+      message: `Trattoria was temporarily closed when last checked on ${formatDayLabel("2026-02-10")}. Check it reopens before ${formatDayLabel("2026-03-05")}.`,
+    });
+  });
+
+  it("drops the date when it was never checked", () => {
+    const [flag] = flagClosedVenue([item({ businessStatus: "CLOSED_TEMPORARILY", statusCheckedAt: null, title: null })]);
+    expect(flag.message).toBe(`This thing to do was temporarily closed when last checked. Check it reopens before ${formatDayLabel("2026-03-05")}.`);
+  });
+
+  it("is silent for OPERATIONAL, a null status or an unscheduled Item", () => {
+    expect(flagClosedVenue([
+      item({ businessStatus: "OPERATIONAL" }),
+      item({ id: "i2", businessStatus: null }),
+      item({ id: "i3", businessStatus: "CLOSED_PERMANENTLY", date: null }),
+    ])).toEqual([]);
+  });
+
+  it("detectFlags drops it for a hidden Item", () => {
+    const closed = item({ businessStatus: "CLOSED_PERMANENTLY", stopId: "s1" });
+    const base = { stops: [], transports: [], accommodations: [], items: [closed], tripStart: "2026-03-01", tripEnd: "2026-03-10", today: "2026-03-01", travel: new Map() };
+    expect(detectFlags(base).map((f) => f.id)).toContain("item-closed-for-good-i1");
+    expect(detectFlags({ ...base, hiddenItemIds: ["i1"] }).map((f) => f.id)).not.toContain("item-closed-for-good-i1");
   });
 });

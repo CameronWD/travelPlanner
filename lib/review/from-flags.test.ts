@@ -21,9 +21,18 @@ describe("flagsToFindings (R8: current Flags restated as Findings)", () => {
     ]);
   });
 
+  it("titles the closed-venue Flags by their own rule, not Closed that day", () => {
+    const title = (id: string) => flagsToFindings([{ id, severity: "warning", message: "m.", targetType: "ITEM", targetId: "x" }])[0].title;
+    expect(title("item-closed-for-good-x")).toBe("Closed for good");
+    expect(title("item-closed-temporarily-x")).toBe("Temporarily closed");
+    expect(title("item-closed-x")).toBe("Closed that day");
+  });
+
   it("maps the planning Flags to closure, ticket and booking", () => {
     const cat = (id: string) => flagsToFindings([{ id, severity: "warning", message: "m.", targetType: "ITEM", targetId: "x" }])[0].category;
     expect(cat("item-before-open-x")).toBe("CLOSURE");
+    expect(cat("item-closed-for-good-x")).toBe("CLOSURE");
+    expect(cat("item-closed-temporarily-x")).toBe("CLOSURE");
     expect(cat("item-after-close-x")).toBe("CLOSURE");
     expect(cat("item-late-slot-x")).toBe("TICKET");
     expect(cat("book-by-overdue-x")).toBe("BOOKING");

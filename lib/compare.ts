@@ -94,6 +94,8 @@ interface CompareItem {
   arriveByMinutes?: number | null;
   bookingState?: string | null;
   bookBy?: string | null;
+  businessStatus?: string | null;
+  statusCheckedAt?: Date | string | null;
 }
 
 interface CompareTrip {
@@ -361,6 +363,8 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     arriveByMinutes: i.arriveByMinutes ?? null,
     bookingState: i.bookingState ?? null,
     bookBy: i.bookBy ?? null,
+    businessStatus: i.businessStatus ?? null,
+    statusCheckedAt: i.statusCheckedAt ?? null,
   }));
 
   // Determine tripStart and tripEnd for flag detection from scheduled stops.

@@ -16,6 +16,8 @@ import type { FindingCategory, FindingDraft } from "@/lib/review/types";
 
 /** Rule prefix (lib/flags.ts ids are `<prefix>-<target>` or the bare prefix). */
 const RULES: readonly { prefix: string; category: FindingCategory; title: string }[] = [
+  { prefix: "item-closed-for-good", category: "CLOSURE", title: "Closed for good" },
+  { prefix: "item-closed-temporarily", category: "CLOSURE", title: "Temporarily closed" },
   { prefix: "item-closed", category: "CLOSURE", title: "Closed that day" },
   { prefix: "item-before-open", category: "CLOSURE", title: "Before opening" },
   { prefix: "item-after-close", category: "CLOSURE", title: "After closing" },

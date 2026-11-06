@@ -52,7 +52,7 @@ export type ItemRow = {
   openingHours: string | null;
   /** CONTEXT.md "Try list" (R6) — the stored JSON string column; null = no list. */
   tryList: string | null;
-  notes: string | null; lat: number | null; lng: number | null; placeId: string | null; businessStatus: string | null; countryCode: string | null;
+  notes: string | null; lat: number | null; lng: number | null; placeId: string | null; businessStatus: string | null; statusCheckedAt: Date | null; countryCode: string | null;
   hiddenFromShares: boolean; sortOrder: number; photoAttachmentId: string | null; sourceItemId: string | null;
   surprisePlannerId: string | null; surpriseRevealedAt: Date | null; createdAt: Date; updatedAt: Date;
 };
@@ -111,7 +111,7 @@ export function item(o: Partial<ItemRow> = {}): ItemRow {
     category: "SIGHTSEEING", startTime: "10:00", endTime: "11:30", address: null, link: null, booking: null,
     bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null,
     openingHours: null, tryList: null,
-    notes: null, lat: null, lng: null, placeId: null, businessStatus: null, countryCode: null,
+    notes: null, lat: null, lng: null, placeId: null, businessStatus: null, statusCheckedAt: null, countryCode: null,
     hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
     sourceItemId: null, surprisePlannerId: null, surpriseRevealedAt: null, createdAt: NOW, updatedAt: NOW, ...o,
   };

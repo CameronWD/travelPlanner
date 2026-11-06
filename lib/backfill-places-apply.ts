@@ -57,7 +57,7 @@ export async function fillItemDetails(itemId: string, placeId: string): Promise<
       data: {
         ...(hours ? { openingHours: hours } : {}),
         ...(link ? { link } : {}),
-        ...(details.businessStatus ? { businessStatus: details.businessStatus } : {}),
+        ...(details.businessStatus ? { businessStatus: details.businessStatus, statusCheckedAt: new Date() } : {}),
       },
     });
     if (!hours) return;

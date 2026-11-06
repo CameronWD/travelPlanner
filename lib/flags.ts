@@ -126,6 +126,8 @@ export interface FlagItem {
   /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
   bookingState?: string | null;
   bookBy?: string | null;
+  businessStatus?: string | null;
+  statusCheckedAt?: Date | string | null;
 }
 
 export interface DetectFlagsInput {
@@ -1066,11 +1068,29 @@ function closedMessage(name: string, date: string, day: DayHours): string {
 export function flagClosedOnDay(items: FlagItem[]): Flag[] {
   const flags: Flag[] = [];
   for (const item of items) {
-    if (!item.date) continue;
+    if (!item.date || item.businessStatus === "CLOSED_PERMANENTLY") continue;
     const day = hoursOn(item.openingHours, item.date);
     if (!day?.closed) continue;
     const name = itemTitle(item) ?? "This thing to do";
     flags.push(itemFlag(item, `item-closed-${item.id}`, "warning", closedMessage(name, item.date, day)));
+  }
+  return flags;
+}
+
+export function flagClosedVenue(items: FlagItem[]): Flag[] {
+  const flags: Flag[] = [];
+  for (const item of items) {
+    if (!item.date) continue;
+    const name = itemTitle(item) ?? "This thing to do";
+    if (item.businessStatus === "CLOSED_PERMANENTLY") {
+      flags.push(itemFlag(item, `item-closed-for-good-${item.id}`, "warning", `${name} has closed for good. Find a replacement.`));
+    } else if (item.businessStatus === "CLOSED_TEMPORARILY") {
+      const checked = item.statusCheckedAt ? new Date(item.statusCheckedAt) : null;
+      const when = checked ? `when last checked on ${formatDayLabel(formatISODate(checked))}` : "when last checked";
+      flags.push(
+        itemFlag(item, `item-closed-temporarily-${item.id}`, "info", `${name} was temporarily closed ${when}. Check it reopens before ${formatDayLabel(item.date)}.`),
+      );
+    }
   }
   return flags;
 }
@@ -1095,7 +1115,7 @@ const clock = (hhmm: string) => (hhmm === "24:00" ? "midnight" : hhmm);
 export function flagOutsideOpeningHours(items: FlagItem[]): Flag[] {
   const flags: Flag[] = [];
   for (const item of items) {
-    if (!item.date || !item.startTime) continue;
+    if (!item.date || !item.startTime || item.businessStatus === "CLOSED_PERMANENTLY") continue;
     const day = hoursOn(item.openingHours, item.date);
     if (!day || day.closed || day.spans.length === 0) continue;
     const name = itemTitle(item) ?? "This thing to do";
@@ -1378,6 +1398,7 @@ export function detectFlags({
     ...(effectiveDeadline?.kind === "return-leg" ? [] : flagReturnLegAfterHardEnd(transports, hardEndDate, lastStopId, homeTimezone)),
     // Spec 2026-10-17 R7: the planning Flags, on what the viewer can see.
     ...flagClosedOnDay(planning.items),
+    ...flagClosedVenue(planning.items),
     ...flagOutsideOpeningHours(planning.items),
     ...flagLateForSlot(planning.items),
     ...(today

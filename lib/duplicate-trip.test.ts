@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { buildDuplicatePlan, type DuplicateSource } from "./duplicate-trip";
 
+const CHECKED = new Date("2026-10-01T00:00:00Z");
+
 const SOURCE: DuplicateSource = {
   name: "Europe 2026",
   homeCurrency: "AUD",
@@ -76,7 +78,7 @@ describe("buildDuplicatePlan", () => {
     expect(col.data).toEqual({
       title: "Colosseum", category: "SIGHTSEEING",
       date: null, startTime: null, endTime: null, booking: null,
-      lat: 41.89, lng: 12.49, countryCode: "it", placeId: null, businessStatus: null, address: "Rome", link: "x", notes: "n",
+      lat: 41.89, lng: 12.49, countryCode: "it", placeId: null, businessStatus: null, statusCheckedAt: null, address: "Rome", link: "x", notes: "n",
       sortOrder: 0, hiddenFromShares: true,
       openingHours: null, tryList: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,
@@ -209,13 +211,13 @@ describe("buildDuplicatePlan", () => {
     const plan = buildDuplicatePlan({
       ...SOURCE,
       stops: [{ ...SOURCE.stops[0], placeId: "rome-id" }, SOURCE.stops[1]],
-      items: [{ ...SOURCE.items[0], placeId: "colosseum-id", businessStatus: "OPERATIONAL" }, SOURCE.items[1]],
+      items: [{ ...SOURCE.items[0], placeId: "colosseum-id", businessStatus: "OPERATIONAL", statusCheckedAt: CHECKED }, SOURCE.items[1]],
       transports: [{ ...SOURCE.transports[0], depPlaceId: "termini-id", arrPlaceId: "smn-id" }],
     }, "x");
     expect(plan.stops[0].data.placeId).toBe("rome-id");
     expect(plan.stops[1].data.placeId).toBeNull();
-    expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL" });
-    expect(plan.items[1].data).toMatchObject({ placeId: null, businessStatus: null });
+    expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL", statusCheckedAt: CHECKED });
+    expect(plan.items[1].data).toMatchObject({ placeId: null, businessStatus: null, statusCheckedAt: null });
     expect(plan.transports[0].data).toMatchObject({ depPlaceId: "termini-id", arrPlaceId: "smn-id" });
   });
 

@@ -331,6 +331,7 @@ describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 20
     await loadFlagRows(TRIP_ID, "u1");
     expect(db.item.findMany.mock.calls[0][0].select).toEqual(expect.objectContaining({
       title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true,
+      businessStatus: true, statusCheckedAt: true,
     }));
     expect(db.transport.findMany.mock.calls[0][0].select).toEqual(expect.objectContaining({ bookingState: true, bookBy: true }));
     expect(db.accommodation.findMany.mock.calls[0][0].select).toEqual(expect.objectContaining({ bookingState: true, bookBy: true }));

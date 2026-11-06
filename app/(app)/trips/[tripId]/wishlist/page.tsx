@@ -103,6 +103,7 @@ export default async function WishlistPage({
             lat: true,
             lng: true,
             placeId: true,
+            businessStatus: true,
             sourceMarkerId: true,
             hiddenFromShares: true,
             photoAttachmentId: true,
@@ -330,6 +331,7 @@ export default async function WishlistPage({
     lat: item.lat,
     lng: item.lng,
     placeId: item.placeId,
+    businessStatus: item.businessStatus,
     hiddenFromShares: item.hiddenFromShares,
     photoUrl: itemPhotoUrl(item, attachmentsById),
   }));

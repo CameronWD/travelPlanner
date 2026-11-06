@@ -25,6 +25,7 @@ import type { AttachmentView } from "./attachment-list";
 import { CardActionCluster } from "./card-action-cluster";
 import { highlightAttrs } from "./card-highlight";
 import { ItemPhotoThumb } from "./item-photo-thumb";
+import { Badge } from "@/components/ui/badge";
 import { BookingStateBadge } from "./booking-state-badge";
 import { SlotFacts } from "./slot-facts";
 import { OpeningHoursLine } from "./opening-hours-line";
@@ -139,6 +140,8 @@ export function ItemCard({
               </span>
             )}
             <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} />
+            {item.businessStatus === "CLOSED_PERMANENTLY" && <Badge variant="destructive">Closed for good</Badge>}
+            {item.businessStatus === "CLOSED_TEMPORARILY" && <Badge variant="warning">Temporarily closed</Badge>}
           </div>
         ) : (
           <div className="min-w-0 flex-1">

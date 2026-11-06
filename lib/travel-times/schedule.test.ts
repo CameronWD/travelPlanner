@@ -5,10 +5,12 @@ const m = vi.hoisted(() => ({
   refresh: vi.fn(),
   hasServerKey: vi.fn(() => true),
   importFails: false,
+  venues: vi.fn(),
 }));
 vi.mock("next/server", () => ({ after: m.after }));
 vi.mock("@/lib/google-fetch", () => ({ hasServerKey: m.hasServerKey }));
 vi.mock("./refresh", () => ({ refreshTripTravelTimes: m.refresh }));
+vi.mock("@/lib/venue-status/refresh", () => ({ refreshVenueStatuses: m.venues }));
 
 import { afterEach } from "vitest";
 import { scheduleTravelTimes } from "./schedule";
@@ -23,6 +25,8 @@ function deferred() {
 beforeEach(() => {
   vi.clearAllMocks();
   m.hasServerKey.mockReturnValue(true);
+  m.venues.mockReset();
+  m.refresh.mockReset();
   m.after.mockImplementation(() => undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -57,6 +61,49 @@ describe("scheduleTravelTimes", () => {
     scheduleTravelTimes("t1");
     await m.after.mock.calls.at(-1)![0]();
     expect(m.refresh).toHaveBeenCalledTimes(3);
+  });
+
+  it("a coalesced travel-times rerun happens before the single venue re-check", async () => {
+    const order: string[] = [];
+    const first = deferred();
+    m.refresh.mockImplementationOnce(async () => { await first.promise; order.push("travel"); }).mockImplementation(async () => void order.push("travel"));
+    m.venues.mockImplementation(async () => void order.push("venues"));
+    scheduleTravelTimes("t1");
+    scheduleTravelTimes("t1");
+    const [a, b] = m.after.mock.calls.map(([cb]) => cb);
+    const runs = [a()];
+    await vi.waitFor(() => expect(m.refresh).toHaveBeenCalledTimes(1));
+    runs.push(b());
+    first.resolve();
+    await Promise.all(runs);
+    expect(order).toEqual(["travel", "travel", "venues"]);
+  });
+
+  it("re-checks venue statuses in the same pass, after the travel times", async () => {
+    const order: string[] = [];
+    m.refresh.mockImplementation(async () => void order.push("travel"));
+    m.venues.mockImplementation(async () => void order.push("venues"));
+    scheduleTravelTimes("t1");
+    expect(m.after).toHaveBeenCalledTimes(1);
+    await m.after.mock.calls[0][0]();
+    expect(order).toEqual(["travel", "venues"]);
+    expect(m.venues).toHaveBeenCalledWith("t1");
+  });
+
+  it("a failing venue re-check is swallowed and never blocks the travel times", async () => {
+    m.venues.mockRejectedValue(new Error("nope"));
+    m.refresh.mockResolvedValue(undefined);
+    scheduleTravelTimes("t1");
+    await expect(m.after.mock.calls[0][0]()).resolves.toBeUndefined();
+    expect(m.refresh).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith("[venue-status] refresh failed for trip t1:", "nope");
+  });
+
+  it("keyless: no venue re-check either", () => {
+    m.hasServerKey.mockReturnValue(false);
+    scheduleTravelTimes("t1");
+    expect(m.after).not.toHaveBeenCalled();
+    expect(m.venues).not.toHaveBeenCalled();
   });
 
   it("different Trips run side by side", async () => {

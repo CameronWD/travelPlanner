@@ -226,6 +226,18 @@ export async function locateVenue(title: string, address: string, opts: { near?:
 export const mapsLink = (placeId: string): string =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeId)}&query_place_id=${encodeURIComponent(placeId)}`;
 
+export async function lookUpBusinessStatus(placeId: string): Promise<{ businessStatus: string | null } | { notFound: true } | null> {
+  const key = serverKey();
+  if (!key) return null;
+  const url = new URL(`${PLACES_URL}/${encodeURIComponent(placeId)}`);
+  url.searchParams.set("languageCode", LANGUAGE);
+  const res = await fetchGoogleJson(url.toString(), { headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": "id,businessStatus" } });
+  if (!res.ok) return res.reason === "http" && res.status === 404 ? { notFound: true } : null;
+  const place = isRecord(res.body) && typeof res.body.id === "string" ? res.body : null;
+  if (!place) return null;
+  return { businessStatus: typeof place.businessStatus === "string" && place.businessStatus ? place.businessStatus : null };
+}
+
 export async function fetchVenueDetails(placeId: string): Promise<VenueDetails | null> {
   const key = serverKey();
   if (!key) return null;

@@ -8,6 +8,11 @@ describe("toItemCardItem", () => {
     ).toMatchObject({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2027-05-01" });
   });
 
+  it("carries the stored business status to the idea card", () => {
+    expect(toItemCardItem({ id: "i", title: "T", category: "FOOD", bookingStateSet: false, businessStatus: "CLOSED_PERMANENTLY" }).businessStatus).toBe("CLOSED_PERMANENTLY");
+    expect(toItemCardItem({ id: "i", title: "T", category: "FOOD", bookingStateSet: false }).businessStatus).toBeNull();
+  });
+
   it("an idea that never read it carries nulls", () => {
     expect(toItemCardItem({ id: "i", title: "T", category: "FOOD", bookingStateSet: false })).toMatchObject({ bookingState: null, bookingStateSet: false, bookBy: null });
   });

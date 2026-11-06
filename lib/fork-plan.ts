@@ -126,6 +126,7 @@ interface ForkSourceItem {
   lng: number | null;
   placeId?: string | null;
   businessStatus?: string | null;
+  statusCheckedAt?: Date | null;
   address: string | null;
   link: string | null;
   booking: string | null;
@@ -283,6 +284,7 @@ export interface ForkPlan {
       lng: number | null;
       placeId: string | null;
       businessStatus: string | null;
+      statusCheckedAt: Date | null;
       address: string | null;
       link: string | null;
       booking: string | null;
@@ -371,6 +373,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       data: {
         title: it.title, category: it.category, date: it.date, startTime: it.startTime, endTime: it.endTime,
         lat: it.lat, lng: it.lng, placeId: it.placeId ?? null, businessStatus: it.businessStatus ?? null,
+        statusCheckedAt: it.statusCheckedAt ?? null,
         address: it.address, link: it.link, booking: it.booking,
         notes: it.notes, sortOrder: it.sortOrder, sourceItemId: null,
         hiddenFromShares: it.hiddenFromShares ?? false,

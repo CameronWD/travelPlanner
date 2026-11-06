@@ -80,4 +80,9 @@ describe("IdeaSheet (spec 2026-10-02 §D)", () => {
     expect(screen.getByText(note)).not.toHaveClass("line-clamp-2");
     expect(screen.getByText(address)).not.toHaveClass("truncate");
   });
+
+  it("badges an idea whose venue has closed", () => {
+    renderSheet({ idea: { ...IDEA, businessStatus: "CLOSED_TEMPORARILY" } });
+    expect(screen.getByText("Temporarily closed")).toBeInTheDocument();
+  });
 });

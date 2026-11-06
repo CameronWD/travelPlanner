@@ -85,6 +85,11 @@ describe("readPlan", () => {
     expect(whereOf("item", 0)).toMatchObject({ OR: [{ stopId: { not: null } }, { date: { not: null } }] });
   });
 
+  it("the visible Item read carries what the closed-venue Flag needs", async () => {
+    await readPlan("trip-1", "u1", null);
+    expect(db.item.findMany.mock.calls[0][0].select).toMatchObject({ businessStatus: true, statusCheckedAt: true });
+  });
+
   it("a Fork id reads that Fork's rows", async () => {
     db.fork.findFirst.mockResolvedValue({ id: "fork-1", name: "Plan B" });
     const rows = await readPlan("trip-1", "u1", "fork-1");

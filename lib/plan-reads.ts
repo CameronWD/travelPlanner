@@ -128,6 +128,8 @@ const PLAN_ITEM_SELECT = {
   lat: true,
   lng: true,
   placeId: true,
+  businessStatus: true,
+  statusCheckedAt: true,
   hiddenFromShares: true,
   photoAttachmentId: true,
   sortOrder: true,

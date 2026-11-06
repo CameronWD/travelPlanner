@@ -95,6 +95,17 @@ describe("detectFlags: the planning Flags are Surprise-aware and plan-only (R7)"
   });
 });
 
+describe("a venue closed for good", () => {
+  const closedTue = hours({ week: { ...everyDay([["09:00", "18:00"]]), tue: [] } });
+  it("gets no closed-that-day Flag on top of the closed-for-good one", () => {
+    expect(flagClosedOnDay([item({ id: "i1", businessStatus: "CLOSED_PERMANENTLY", openingHours: closedTue })])).toEqual([]);
+  });
+  it("gets no before-opening or after-closing Flag", () => {
+    const day = hours({ week: everyDay([["10:00", "18:00"]]) });
+    expect(flagOutsideOpeningHours([item({ id: "i1", businessStatus: "CLOSED_PERMANENTLY", openingHours: day, startTime: "09:00", endTime: "19:00" })])).toEqual([]);
+  });
+});
+
 describe("flagOutsideOpeningHours (Before opening / After closing, warnings)", () => {
   const day = hours({ week: everyDay([["10:00", "18:00"]]) });
   const lunch = hours({ week: everyDay([["10:00", "12:00"], ["14:00", "18:00"]]) });

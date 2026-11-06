@@ -231,6 +231,8 @@ const FLAG_ITEM_SELECT = {
   arriveByMinutes: true,
   bookingState: true,
   bookBy: true,
+  businessStatus: true,
+  statusCheckedAt: true,
 } as const;
 
 export type FlagRows = {
