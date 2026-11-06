@@ -32,18 +32,19 @@ async function fetchFeed(name: string): Promise<FeedHoliday[] | null> {
   try {
     const res = await fetch(feedUrl(name), { signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS) });
     if (res.status !== 200) return null;
-    return parseHolidayIcs(await res.text());
+    const parsed = parseHolidayIcs(await res.text());
+    return parsed.length > 0 ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function isDue(row: { status: string; fetchedAt: Date } | undefined, now: Date): boolean {
+function isDue(code: string, row: { status: string; fetchedAt: Date } | undefined, now: Date): boolean {
   if (!row) return true;
   const age = now.getTime() - row.fetchedAt.getTime();
   if (row.status === "OK") return age > OK_MAX_AGE_MS;
   if (row.status === "ERROR") return age > ERROR_RETRY_MS;
-  return false;
+  return Boolean(HOLIDAY_FEED_NAMES[code]);
 }
 
 async function refreshOne(code: string, now: Date, kept: unknown): Promise<void> {
@@ -59,7 +60,7 @@ export async function refreshHolidayFeeds(countryCodes: string[], now: Date = ne
   if (codes.length === 0) return;
   const rows = await db.holidayFeed.findMany({ where: { countryCode: { in: codes } } });
   const byCode = new Map(rows.map((r) => [r.countryCode, r]));
-  const due = codes.filter((c) => isDue(byCode.get(c), now));
+  const due = codes.filter((c) => isDue(c, byCode.get(c), now));
   await Promise.all(
     due.map((c) =>
       refreshOne(c, now, byCode.get(c)?.holidays).catch((err) =>

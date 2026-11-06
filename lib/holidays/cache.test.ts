@@ -116,6 +116,20 @@ describe("refreshHolidayFeeds", () => {
     await refreshHolidayFeeds(["zz"], NOW);
     expect(db.holidayFeed.upsert).not.toHaveBeenCalled();
   });
+
+  it("fetches a NONE row once its country gains a feed name", async () => {
+    seed("fr", "NONE", daysAgo(100));
+    await refreshHolidayFeeds(["fr"], NOW);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(rows.get("fr")?.status).toBe("OK");
+  });
+
+  it("treats a 200 that parses to nothing as an error and keeps the held holidays", async () => {
+    seed("de", "OK", daysAgo(31));
+    fetchMock.mockResolvedValue({ status: 200, text: async () => "<html>consent</html>" });
+    await refreshHolidayFeeds(["de"], NOW);
+    expect(rows.get("de")).toMatchObject({ status: "ERROR", holidays: [HOLIDAY], fetchedAt: NOW });
+  });
 });
 
 describe("readHolidayFeeds", () => {

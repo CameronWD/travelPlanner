@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { holidayLine, holidaysOnDay } from "./day";
 import { parseHolidayIcs } from "./ics";
 
 function load(name: string) {
@@ -11,7 +12,7 @@ describe("parseHolidayIcs", () => {
   it("reads a regional public holiday with its unescaped Regions", () => {
     expect(load("german").find((h) => h.name.startsWith("Epiphany"))).toEqual({
       date: "2026-01-06",
-      name: "Epiphany (regional holiday)",
+      name: "Epiphany",
       kind: "public",
       regions: ["Baden-Württemberg", "Bavaria", "Saxony-Anhalt"],
       halfDay: false,
@@ -73,5 +74,20 @@ describe("parseHolidayIcs", () => {
       "END:VEVENT",
     ].join("\r\n");
     expect(parseHolidayIcs(ics)).toEqual([]);
+  });
+
+  it("strips Google's regional and half-day suffixes but keeps real parentheticals", () => {
+    const names = load("german").map((h) => h.name);
+    expect(names.some((n) => /\((regional holiday|half-day)\)/.test(n))).toBe(false);
+    expect(names).toContain("Christmas Eve");
+    expect(load("indonesian").some((h) => h.name.endsWith("(Nyepi)"))).toBe(true);
+  });
+
+  it("gives the exact copy end to end from the real German feed", () => {
+    const feeds = new Map([["de", load("german")]]);
+    const line = (date: string, region: string | null) => holidaysOnDay([{ countryCode: "de", region }], date, feeds).map(holidayLine);
+    expect(line("2026-01-06", "Bavaria")).toEqual(["Epiphany (Germany): public holiday, expect closures"]);
+    expect(line("2026-01-06", null)).toEqual(["Epiphany: public holiday in parts of Germany (Baden-Württemberg, Bavaria, Saxony-Anhalt)"]);
+    expect(line("2026-12-24", null)).toEqual(["Christmas Eve (Germany): half-day public holiday, many places close early"]);
   });
 });

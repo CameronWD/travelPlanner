@@ -55,7 +55,7 @@ function toHoliday(event: Map<string, string>): FeedHoliday | null {
   if (!kind) return null;
   return {
     date: `${start[1]}-${start[2]}-${start[3]}`,
-    name: unescapeText(summary).trim(),
+    name: unescapeText(summary).replace(/\s*\((?:regional holiday|half-day)\)\s*$/, "").trim(),
     kind: kind.kind,
     regions: kind.regions,
     halfDay: rest.some((l) => /^This is a half-day holiday\.?$/.test(l.trim())),
