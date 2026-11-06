@@ -190,6 +190,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     thingsToDo: day.thingsToDo,
     wishlistIdeas: day.ideasWishlist,
     nearby: day.nearby,
+    nearbyStarts: day.nearbyStarts,
     todaysJournal,
     revealNudges,
   };

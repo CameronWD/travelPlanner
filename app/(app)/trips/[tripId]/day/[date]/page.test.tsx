@@ -140,6 +140,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
       eyebrow: "IDEAS FOR STRASBOURG",
     },
     nearby: [],
+    whatsAround: { enabled: false, starts: [] },
     tonight: { id: "acc1", name: "Hôtel Cour du Corbeau", nightOf: { night: 3, of: 4 }, checkOut: "2026-12-14", address: null, confirmation: null, checkInTime: null, checkOutTime: null, notes: null, lat: null, lng: null },
     holidays: [],
     strip: { dates: [], line: { homeStart: null, homeEnd: null, segments: [] } },

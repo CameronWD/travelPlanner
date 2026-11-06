@@ -31,7 +31,7 @@ const itemRow = (o: Partial<DayRows["items"][number]>): DayRows["items"][number]
   bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, ...o,
 });
 const rows: DayRows = {
-  trip: { name: "Porto", startDate: "2027-06-01", endDate: "2027-06-04", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane", chaptersEnabled: false, roundTrip: true, homeLat: null, homeLng: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80 },
+  trip: { name: "Porto", startDate: "2027-06-01", endDate: "2027-06-04", homeCurrency: "AUD", homeName: "Brisbane", homeTimezone: "Australia/Brisbane", chaptersEnabled: false, whatsAroundEnabled: false, roundTrip: true, homeLat: null, homeLng: null, drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80 },
   startDate: "2027-06-01",
   endDate: "2027-06-04",
   stops: [{ id: "s1", name: "Porto", country: "Portugal", countryCode: "pt", timezone: "Europe/Lisbon", localTravelMode: null, arriveDate: "2027-06-01", departDate: "2027-06-04", sortOrder: 0, lat: null, lng: null, placeId: null, surprise: null }],

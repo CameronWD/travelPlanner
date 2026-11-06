@@ -7,6 +7,7 @@ import { DayIdeasRows } from "@/components/trip/day/day-ideas-rows";
 import { DayFeasibility, type DayFeasibilityEntry } from "@/components/trip/day-feasibility";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
+import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
 
 /**
  * The Day plan card (DAY_VIEW §2 "Left", §3.6): "Day plan" h2 with the count;
@@ -24,6 +25,16 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
   const phone = size === "phone";
   const dateLabel = formatDayLabel(data.date);
   const empty = !data.hasEntries && data.ideas.rows.length === 0;
+  const whatsAround = data.whatsAround.enabled ? (
+    <WhatsAroundSheet
+      tripId={data.tripId}
+      date={data.date}
+      dateLabel={dateLabel}
+      stopId={data.stop?.id ?? null}
+      startPoints={data.whatsAround.starts}
+      allowNearMe={data.phase === "travelling" && data.isToday}
+    />
+  ) : null;
   return (
     <section
       aria-labelledby={`day-plan-heading-${size}`}
@@ -44,6 +55,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
         <div data-slot="day-plan-empty" className="flex min-h-[12rem] flex-col items-center justify-center gap-3.5 text-center">
           <p className="text-sm font-semibold text-muted-foreground">Nothing planned</p>
           <div className="w-full">{addButton}</div>
+          {whatsAround}
         </div>
       ) : (
         <>
@@ -79,7 +91,10 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
               />
             )}
           </div>
-          <div>{addButton}</div>
+          <div className="flex flex-col gap-2.5">
+            {addButton}
+            {whatsAround ? <div>{whatsAround}</div> : null}
+          </div>
         </>
       )}
     </section>

@@ -116,6 +116,7 @@ vi.mock("@/components/trip/home/desktop/countdown-polaroid", () => ({
 }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
 vi.mock("@/components/trip/day-ideas", () => ({ DayIdeas: () => null }));
+vi.mock("@/components/trip/whats-around-sheet", () => ({ WhatsAroundSheet: () => null }));
 vi.mock("@/components/trip/map-link", () => ({ MapLink: () => null }));
 vi.mock("@/components/trip/transport-countdown", () => ({ TransportCountdown: () => null }));
 vi.mock("@/components/trip/spend-so-far-card", () => ({ SpendSoFarCard: () => null }));
@@ -140,6 +141,7 @@ const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-paymen
 const { DayIdeas } = await import("@/components/trip/day-ideas");
 const { NearbyWishlist } = await import("@/components/trip/nearby-wishlist");
 const { MapLink } = await import("@/components/trip/map-link");
+const { WhatsAroundSheet } = await import("@/components/trip/whats-around-sheet");
 
 // Server components aren't run through a renderer here (see file-header note),
 // so a mocked child is never actually invoked. To assert its props without
@@ -299,6 +301,28 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
 
     expect(findElementByType(tree, NearbyWishlist)).not.toBeNull();
     expect(findElementByType(tree, DayIdeas)).toBeNull();
+  });
+
+  it("mounts What's around with the Stop as the start point when the Trip has it on", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: true });
+    vi.mocked((await import("@/lib/itinerary")).effectiveTodayISO).mockReturnValue("2026-01-05");
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    const sheet = findElementByType(tree, WhatsAroundSheet);
+    expect(sheet?.props.tripId).toBe("trip-1");
+    expect(sheet?.props.stopId).toBe("stop-1");
+    expect(sheet?.props.startPoints).toEqual([{ key: "stop:stop-1", label: "Munich", from: { kind: "stop", id: "stop-1" } }]);
+  });
+
+  it("renders no What's around entry point when the Trip has it off", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: false });
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    expect(findElementByType(tree, WhatsAroundSheet)).toBeNull();
   });
 
   it("mounts DayIdeas (not NearbyWishlist) on a free-form day with the day's Stop's things to do", async () => {

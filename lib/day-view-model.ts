@@ -155,7 +155,7 @@ export const forecastOpensOn = (dateISO: string) => formatDayLabel(addDays(dateI
 
 interface DayTripRow {
   name: string; startDate: string | null; endDate: string | null; homeCurrency: string;
-  homeName: string | null; homeTimezone: string | null; chaptersEnabled: boolean; roundTrip: boolean;
+  homeName: string | null; homeTimezone: string | null; chaptersEnabled: boolean; whatsAroundEnabled: boolean; roundTrip: boolean;
   homeLat: number | null; homeLng: number | null; drivingWindingFactor: number; drivingAvgSpeedKph: number;
 }
 interface DayStopRow {
@@ -244,6 +244,27 @@ export interface DayModel {
   thingsToDo: Array<{ id: string; title: string; category: string; startTime: string | null; endTime: string | null }>;
   /** Wishlist ideas for the day's Stop (near it, or in its country); [] on a gap day. */
   ideasWishlist: DayIdeaResult[];
+  /** What's around start points, in order: tonight's stay, the Stop, then the day's located Items. */
+  nearbyStarts: NearbyStart[];
+}
+
+export interface NearbyStart {
+  key: string;
+  label: string;
+  from: { kind: "accommodation" | "stop" | "item"; id: string };
+}
+
+export function nearbyStartPoints(input: {
+  tonight: { id: string; lat: number | null; lng: number | null } | null;
+  stop: { id: string; name: string; lat: number | null; lng: number | null } | null;
+  items: Array<{ id: string; title: string; lat: number | null; lng: number | null }>;
+}): NearbyStart[] {
+  const located = (p: { lat: number | null; lng: number | null }) => p.lat != null && p.lng != null;
+  return [
+    ...(input.tonight && located(input.tonight) ? [{ key: `accommodation:${input.tonight.id}`, label: "Tonight's stay", from: { kind: "accommodation" as const, id: input.tonight.id } }] : []),
+    ...(input.stop && located(input.stop) ? [{ key: `stop:${input.stop.id}`, label: input.stop.name, from: { kind: "stop" as const, id: input.stop.id } }] : []),
+    ...input.items.filter(located).map((i) => ({ key: `item:${i.id}`, label: i.title, from: { kind: "item" as const, id: i.id } })),
+  ];
 }
 
 interface TripDerived {
@@ -367,5 +388,6 @@ export function buildDayModel(rows: DayRows, date: string): DayModel {
     ideasWishlist: dayStop
       ? dayIdeasWishlist({ stop: { lat: dayStop.lat, lng: dayStop.lng, countryCode: dayStop.countryCode }, candidates: rows.wishlist })
       : [],
+    nearbyStarts: nearbyStartPoints({ tonight, stop: dayStop, items: dayItems }),
   };
 }

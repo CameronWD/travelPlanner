@@ -20,6 +20,8 @@ export interface TodayTileProps {
   nextTransport: { label: string; depTimeLabel?: string | null; depZone?: string | null } | null;
   /** Tonight's stay. */
   tonight: { name: string; address: string | null } | null;
+  /** The "What's around" entry point — absent when the Trip has it off. */
+  whatsAround?: ReactNode;
 }
 
 const SECTION_HEADING = "text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground";
@@ -29,7 +31,7 @@ const SECTION_HEADING = "text-[11px] font-extrabold uppercase tracking-[0.08em] 
  * Transport and tonight's stay in one white card, headed by the day label and
  * today's Day title. Links on to the full day view.
  */
-export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nextTransport, tonight }: TodayTileProps) {
+export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nextTransport, tonight, whatsAround }: TodayTileProps) {
   const leaves = nextTransport?.depTimeLabel
     ? `Leaves ${nextTransport.depTimeLabel}${nextTransport.depZone ? ` ${nextTransport.depZone}` : ""}`
     : null;
@@ -41,13 +43,16 @@ export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nex
           <h2 className="font-display text-[26px] font-extrabold leading-none tracking-[-0.03em]">Today</h2>
           <span className="text-sm font-bold text-muted-foreground">{formatDayLabel(dateISO)}</span>
         </div>
-        <Link
-          href={dayHref}
-          className="inline-flex min-h-11 items-center gap-1 text-sm font-bold underline-offset-2 hover:underline"
-        >
-          Full day view
-          <ArrowRight className="size-4" aria-hidden="true" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-x-3">
+          {whatsAround}
+          <Link
+            href={dayHref}
+            className="inline-flex min-h-11 items-center gap-1 text-sm font-bold underline-offset-2 hover:underline"
+          >
+            Full day view
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
       {dayTitle ? <p className="mt-1 text-sm font-bold text-muted-foreground">{dayTitle}</p> : null}
       {holidays.map((line) => (

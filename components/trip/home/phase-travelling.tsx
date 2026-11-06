@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { CalendarDays, CalendarHeart, Bed, ArrowRight } from "lucide-react";
-import { formatLongDate } from "@/lib/dates";
+import { formatDayLabel, formatLongDate } from "@/lib/dates";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { countdownFor, type Countdown } from "@/lib/countdown";
@@ -15,6 +15,7 @@ import { Timeline } from "@/components/trip/timeline";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { DayIdeas } from "@/components/trip/day-ideas";
+import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
@@ -205,6 +206,7 @@ export async function PhaseTravelling({
           ) : (
             <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
           )}
+          {whatsAroundFor(tripId, model)}
         </div>
 
         {/* ── Right rail: tonight · where-you-are · spend · payments · reminders ── */}
@@ -333,6 +335,20 @@ export async function PhaseTravelling({
 // Desktop (lg+) — spec D
 // ---------------------------------------------------------------------------
 
+function whatsAroundFor(tripId: string, model: DatedTravellingHome) {
+  if (!model.trip.whatsAroundEnabled) return null;
+  return (
+    <WhatsAroundSheet
+      tripId={tripId}
+      date={model.effectiveDate}
+      dateLabel={formatDayLabel(model.effectiveDate)}
+      stopId={model.effectiveStop?.id ?? null}
+      startPoints={model.nearbyStarts}
+      allowNearMe={model.isWithinTrip}
+    />
+  );
+}
+
 /** The countdown tile's number: "Day N of M" inside the Trip's dates, the
  * same count the phone header shows (day 1 included — never "Today"). */
 function travellingCountdown(model: DatedTravellingHome): Countdown {
@@ -352,6 +368,7 @@ function TravellingDesktop({
   cover: CountdownTileProps["cover"];
 }) {
   const { effectiveDate, effectiveStop, spend, todaysJournal } = model;
+  const whatsAround = whatsAroundFor(tripId, model);
   const stopLine = effectiveStop
     ? effectiveStop.country
       ? `${effectiveStop.name}, ${effectiveStop.country}`
@@ -407,6 +424,7 @@ function TravellingDesktop({
           }
           nextTransport={model.nextTransport}
           tonight={model.tonightAccom ? { name: model.tonightAccom.name, address: model.tonightAccom.address } : null}
+          whatsAround={whatsAround}
         />
       }
       map={<DayMapPanel tripId={tripId} model={model.dayMapModel} variant="tile" mountWhen="desktop" />}

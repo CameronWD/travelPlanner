@@ -20,6 +20,14 @@ function renderTile(overrides: Partial<Props> = {}) {
 }
 
 describe("TodayTile", () => {
+  it("renders the What's around slot in the header row only when given one", () => {
+    const { unmount } = renderTile();
+    expect(screen.queryByTestId("whats-around")).toBeNull();
+    unmount();
+    renderTile({ whatsAround: <button data-testid="whats-around">What&apos;s around</button> });
+    expect(screen.getByRole("heading", { level: 2, name: "Today" }).closest("div")!.parentElement).toContainElement(screen.getByTestId("whats-around"));
+  });
+
   it("renders today's public holiday lines as notes under the date", () => {
     renderTile({ holidays: ["Epiphany (Germany): public holiday, expect closures"] });
     expect(screen.getByRole("note")).toHaveTextContent("Epiphany (Germany): public holiday, expect closures");

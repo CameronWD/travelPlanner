@@ -581,6 +581,7 @@ left room.
    | Places — Place Details (GetPlace, one cap) | 10,000 | 333 |
    | Places — Autocomplete ("Autocomplete Requests") | 10,000 | 333 |
    | Places — Text Search (IDs only — free) | unlimited | 1,000 (runaway cap) |
+| Places — Nearby Search (SearchNearby) | 1,000 (Enterprise) | 33 |
    | Maps Static | 10,000 | 333 |
 
    Note on the Maps Static row: the console quota is one per-project pool shared
