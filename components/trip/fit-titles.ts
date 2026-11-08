@@ -47,3 +47,43 @@ export function fitTitles(
   }
   return { shown };
 }
+
+export function fitRows(
+  titles: string[],
+  widthPx: number,
+  rows: number,
+  opts?: { charPx?: number; gapPx?: number; overflowPx?: number; itemPx?: number; maxTextPx?: number; widthsPx?: number[] },
+): { shown: number } {
+  const charPx = opts?.charPx ?? 6.5;
+  const gapPx = opts?.gapPx ?? 8;
+  const overflowPx = opts?.overflowPx ?? 32;
+  const itemPx = opts?.itemPx ?? 0;
+  const maxTextPx = opts?.maxTextPx ?? Infinity;
+
+  const n = titles.length;
+  if (n === 0) return { shown: 0 };
+
+  const maxRows = Math.max(1, rows);
+  const widths = titles.map((t, i) => opts?.widthsPx?.[i] || Math.min(t.length * charPx, maxTextPx) + itemPx);
+
+  const place = (reserve: number): number => {
+    let row = 1;
+    let used = 0;
+    for (let i = 0; i < n; i++) {
+      let nextUsed = used === 0 ? widths[i] : used + gapPx + widths[i];
+      let nextRow = row;
+      if (used > 0 && nextUsed > widthPx) {
+        nextRow = row + 1;
+        nextUsed = widths[i];
+      }
+      if (nextRow > maxRows) return i;
+      if (nextRow === maxRows && reserve > 0 && nextUsed + gapPx + reserve > widthPx) return i;
+      row = nextRow;
+      used = nextUsed;
+    }
+    return n;
+  };
+
+  if (place(0) === n) return { shown: n };
+  return { shown: Math.max(1, place(overflowPx)) };
+}

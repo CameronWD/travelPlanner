@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fitTitles } from "./fit-titles";
+import { fitRows, fitTitles } from "./fit-titles";
 
 describe("fitTitles", () => {
   it("shows all titles when they fit, else as many as fit leaving room for +N", () => {
@@ -24,5 +24,36 @@ describe("fitTitles", () => {
   it("itemPx charges each title a fixed chrome cost", () => {
     expect(fitTitles(["abc", "def"], 100).shown).toBe(2);
     expect(fitTitles(["abc", "def"], 100, { itemPx: 60 }).shown).toBe(1);
+  });
+});
+
+describe("fitRows", () => {
+  const o = { charPx: 10, gapPx: 10, overflowPx: 20, itemPx: 0 };
+
+  it("shows everything when it fits within the rows", () => {
+    expect(fitRows(["aaaa", "bbbb", "cccc"], 100, 2, o)).toEqual({ shown: 3 });
+  });
+
+  it("reserves room for +N on the last allowed row", () => {
+    expect(fitRows(["aaaa", "bbbb", "cccc"], 100, 1, o)).toEqual({ shown: 1 });
+    expect(fitRows(["aaaa", "bbbb", "cccc", "dddd", "eeee"], 100, 2, o)).toEqual({ shown: 3 });
+  });
+
+  it("caps a long title at maxTextPx", () => {
+    expect(fitRows(["x".repeat(100), "x".repeat(100)], 110, 1, { ...o, maxTextPx: 50 })).toEqual({ shown: 2 });
+  });
+
+  it("places a chip wider than the row alone on its row", () => {
+    expect(fitRows(["x".repeat(30), "aa", "bb"], 100, 3, o)).toEqual({ shown: 3 });
+  });
+
+  it("uses measured widths in place of the estimate", () => {
+    expect(fitRows(["a", "b", "c"], 100, 1, { gapPx: 10, overflowPx: 20, widthsPx: [30, 30, 30] })).toEqual({ shown: 2 });
+    expect(fitRows(["a", "b", "c"], 100, 1, { gapPx: 10, overflowPx: 20, widthsPx: [90, 30, 30] })).toEqual({ shown: 1 });
+  });
+
+  it("always shows one, and none for no titles", () => {
+    expect(fitRows(["a", "b"], 0, 0)).toEqual({ shown: 1 });
+    expect(fitRows([], 100, 3)).toEqual({ shown: 0 });
   });
 });
