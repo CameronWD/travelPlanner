@@ -29,16 +29,16 @@ const CHIP_EXIT_TRANSITION = { duration: 0.18, ease: EASE_EXIT };
  * exceeded"). The snapshot is a string so useSyncExternalStore sees a stable
  * primitive.
  */
-function useElementSize(ref: React.RefObject<HTMLElement | null>): { width: number; height: number } {
+function useElementSize(ref: React.RefObject<HTMLElement | null>, mounted: boolean): { width: number; height: number } {
   const subscribe = React.useCallback(
     (onStoreChange: () => void) => {
       const el = ref.current;
-      if (!el || typeof ResizeObserver === "undefined") return () => {};
+      if (!mounted || !el || typeof ResizeObserver === "undefined") return () => {};
       const observer = new ResizeObserver(() => onStoreChange());
       observer.observe(el);
       return () => observer.disconnect();
     },
-    [ref],
+    [ref, mounted],
   );
   const snapshot = React.useSyncExternalStore(
     subscribe,
@@ -67,14 +67,14 @@ const CHIP_CLASS =
 export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
   const { t } = useMotionTiming();
-  const { width, height } = useElementSize(chipsRef);
+  const { width, height } = useElementSize(chipsRef, ideas.length > 0);
   const rows = Math.max(1, Math.floor((height + 6) / (26 + 6)));
   const shown = width
     ? fitRows(
         ideas.map((i) => i.title),
         width,
         rows,
-        { charPx: 7, gapPx: 6, overflowPx: 40, itemPx: 44, maxTextPx: 160 },
+        { charPx: 6.5, gapPx: 6, overflowPx: 40, itemPx: 40, maxTextPx: 160 },
       ).shown
     : ideas.length;
   const visible = ideas.slice(0, shown);

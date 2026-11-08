@@ -91,7 +91,7 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
 
 describe("IdeasBox fills the height it is given", () => {
   const RO = class { cb: (entries: unknown[]) => void; constructor(cb: (entries: unknown[]) => void) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} };
-  const many = (n: number) => Array.from({ length: n }, (_, i) => idea(`m${i}`, "Museum visit"));
+  const many = (n: number) => Array.from({ length: n }, (_, i) => idea(`m${i}`, "Museum gallery"));
   const measure = (width: number, height: number) => {
     vi.stubGlobal("ResizeObserver", RO);
     return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width, height } as DOMRect);
@@ -110,7 +110,7 @@ describe("IdeasBox fills the height it is given", () => {
   it("fills the height it is given and shows no +N when everything fits", () => {
     const spy = measure(260, 90);
     render(<IdeasBox ideas={many(3)} onOpen={vi.fn()} onAdd={vi.fn()} />);
-    expect(screen.getAllByRole("button", { name: "Open Museum visit" })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Open Museum gallery" })).toHaveLength(3);
     expect(screen.queryByRole("button", { name: /more ideas/ })).toBeNull();
     spy.mockRestore();
   });
@@ -118,7 +118,7 @@ describe("IdeasBox fills the height it is given", () => {
   it("shows +N only once the rows run out", () => {
     const spy = measure(260, 90);
     render(<IdeasBox ideas={many(5)} onOpen={vi.fn()} onAdd={vi.fn()} />);
-    expect(screen.getAllByRole("button", { name: "Open Museum visit" })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Open Museum gallery" })).toHaveLength(3);
     expect(screen.getByRole("button", { name: "+2 more ideas" })).toBeInTheDocument();
     spy.mockRestore();
   });
@@ -126,9 +126,18 @@ describe("IdeasBox fills the height it is given", () => {
   it("a one-row box (the stacked card's floor) shows one row", () => {
     const spy = measure(260, 26);
     render(<IdeasBox ideas={many(3)} onOpen={vi.fn()} onAdd={vi.fn()} />);
-    expect(screen.getAllByRole("button", { name: "Open Museum visit" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Open Museum gallery" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "+2 more ideas" })).toBeInTheDocument();
     spy.mockRestore();
+  });
+
+  it("observes the chip area once the first idea arrives", () => {
+    const observed: Element[] = [];
+    vi.stubGlobal("ResizeObserver", class { observe(el: Element) { observed.push(el); } disconnect() {} });
+    const { rerender } = render(<IdeasBox ideas={[]} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    expect(observed).toHaveLength(0);
+    rerender(<IdeasBox ideas={IDEAS} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    expect(observed).toContain(screen.getByTestId("ideas-chips"));
   });
 
   it("takes itself out of the row's height so chips cannot grow it", () => {
