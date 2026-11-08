@@ -4,7 +4,7 @@ import * as React from "react";
 import { EyeOff } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
-import { fitTitles } from "@/components/trip/fit-titles";
+import { fitRows } from "@/components/trip/fit-titles";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import type { ThingToDo } from "./types";
@@ -18,21 +18,18 @@ const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
 const CHIP_EXIT_TRANSITION = { duration: 0.18, ease: EASE_EXIT };
 
 /**
- * Width of `ref`'s element, live via ResizeObserver. 0 on the server and in
- * jsdom (no ResizeObserver, no layout) — callers fall back to showing every
- * idea rather than trusting a bogus 0px measurement (copied from
- * components/trip/stop-day-list.tsx's useElementWidth).
+ * Width and height of `ref`'s element, live via ResizeObserver. 0 and 0 on the
+ * server and in jsdom (no ResizeObserver, no layout) — callers fall back to
+ * showing every idea rather than trusting a bogus 0px measurement.
  *
- * Deliberately NOT extended to also measure height: this box's own height
- * can depend on how many chips are shown (flex-wrap below), so feeding a
- * self-measured height back into the shown-count decision is a feedback
- * loop — showing more chips grows the box, which (on a height-based budget)
- * would allow showing still more, forever. "Maximum update depth exceeded"
- * is what that looks like in the browser (verified during task 28's
- * half-width top row fix). Width is safe: flex-wrap never changes this
- * element's width, only its height.
+ * Measuring height is safe only because the box is size-contained
+ * ([contain:size] below): its height comes from the Stay panel beside it,
+ * never from its chips, so the shown count cannot feed back into the height
+ * it is decided from (the old self-sizing box looped to "Maximum update depth
+ * exceeded"). The snapshot is a string so useSyncExternalStore sees a stable
+ * primitive.
  */
-function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
+function useElementSize(ref: React.RefObject<HTMLElement | null>): { width: number; height: number } {
   const subscribe = React.useCallback(
     (onStoreChange: () => void) => {
       const el = ref.current;
@@ -43,11 +40,16 @@ function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
     },
     [ref],
   );
-  return React.useSyncExternalStore(
+  const snapshot = React.useSyncExternalStore(
     subscribe,
-    () => ref.current?.getBoundingClientRect().width ?? 0,
-    () => 0,
+    () => {
+      const rect = ref.current?.getBoundingClientRect();
+      return `${rect?.width ?? 0}x${rect?.height ?? 0}`;
+    },
+    () => "0x0",
   );
+  const [width, height] = snapshot.split("x").map(Number);
+  return { width, height };
 }
 
 export interface IdeasBoxProps {
@@ -65,18 +67,14 @@ const CHIP_CLASS =
 export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
   const { t } = useMotionTiming();
-  const width = useElementWidth(chipsRef);
-  // How many chips show inline vs. behind "+N" is still decided by one
-  // row's width (unchanged) — see useElementWidth above for why a
-  // height/line budget isn't safe here. What changes is the container below
-  // (flex-wrap, no overflow-hidden): the shown chips, and the "+N" chip
-  // itself, now wrap onto further lines instead of being clipped off the
-  // half-width top row (task 28, spec 2026-10-04 §B).
+  const { width, height } = useElementSize(chipsRef);
+  const rows = Math.max(1, Math.floor((height + 6) / (26 + 6)));
   const shown = width
-    ? fitTitles(
+    ? fitRows(
         ideas.map((i) => i.title),
         width,
-        { charPx: 7, gapPx: 6, overflowPx: 40, itemPx: 44 },
+        rows,
+        { charPx: 7, gapPx: 6, overflowPx: 40, itemPx: 44, maxTextPx: 160 },
       ).shown
     : ideas.length;
   const visible = ideas.slice(0, shown);
@@ -113,44 +111,54 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5",
+        "flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 [contain:size]",
+        ideas.length > 0 ? "min-h-[74px]" : "min-h-[42px]",
         className,
       )}
     >
-      {ideas.length > 0 && (
-        <>
+      <div
+        data-testid="ideas-header"
+        className={cn("flex h-[26px] shrink-0 items-center gap-1.5", ideas.length > 0 ? "justify-between" : "justify-start")}
+      >
+        {ideas.length > 0 && (
           <TweenNumber
             value={ideas.length}
             format={(v) => `${Math.round(v)} ${Math.round(v) === 1 ? "IDEA" : "IDEAS"}`}
             durationSec={0.32}
             className="shrink-0 whitespace-nowrap text-[11px] font-extrabold tracking-[0.08em] tabular-nums"
           />
-          <div ref={chipsRef} className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
-            <AnimatePresence initial={false}>
-              {visible.map((idea) => (
-                <PresenceSpan key={idea.id} data-idea={idea.id} exit={{ opacity: 0, scale: 0.9, transition: t(CHIP_EXIT_TRANSITION, "exit") }} className="flex shrink-0">
-                  {chipFor(idea)}
-                </PresenceSpan>
-              ))}
-            </AnimatePresence>
-            {rest.length > 0 && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button type="button" aria-label={`+${rest.length} more ideas`} className={CHIP_CLASS}>
-                    +{rest.length}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="flex w-64 flex-col gap-1.5">
-                  {rest.map(chipFor)}
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
-        </>
+        )}
+        <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text">
+          + Add an idea
+        </button>
+      </div>
+      {ideas.length > 0 && (
+        <div
+          ref={chipsRef}
+          data-testid="ideas-chips"
+          className="flex min-h-0 flex-1 flex-wrap content-start items-start gap-1.5 overflow-hidden"
+        >
+          <AnimatePresence initial={false}>
+            {visible.map((idea) => (
+              <PresenceSpan key={idea.id} data-idea={idea.id} exit={{ opacity: 0, scale: 0.9, transition: t(CHIP_EXIT_TRANSITION, "exit") }} className="flex shrink-0">
+                {chipFor(idea)}
+              </PresenceSpan>
+            ))}
+          </AnimatePresence>
+          {rest.length > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" aria-label={`+${rest.length} more ideas`} className={CHIP_CLASS}>
+                  +{rest.length}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="flex w-64 flex-col gap-1.5">
+                {rest.map(chipFor)}
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
       )}
-      <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text">
-        + Add an idea
-      </button>
     </div>
   );
 }
