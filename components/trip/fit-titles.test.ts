@@ -47,6 +47,11 @@ describe("fitRows", () => {
     expect(fitRows(["x".repeat(30), "aa", "bb"], 100, 3, o)).toEqual({ shown: 3 });
   });
 
+  it("uses measured widths in place of the estimate", () => {
+    expect(fitRows(["a", "b", "c"], 100, 1, { gapPx: 10, overflowPx: 20, widthsPx: [30, 30, 30] })).toEqual({ shown: 2 });
+    expect(fitRows(["a", "b", "c"], 100, 1, { gapPx: 10, overflowPx: 20, widthsPx: [90, 30, 30] })).toEqual({ shown: 1 });
+  });
+
   it("always shows one, and none for no titles", () => {
     expect(fitRows(["a", "b"], 0, 0)).toEqual({ shown: 1 });
     expect(fitRows([], 100, 3)).toEqual({ shown: 0 });

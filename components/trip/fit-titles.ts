@@ -52,7 +52,7 @@ export function fitRows(
   titles: string[],
   widthPx: number,
   rows: number,
-  opts?: { charPx?: number; gapPx?: number; overflowPx?: number; itemPx?: number; maxTextPx?: number },
+  opts?: { charPx?: number; gapPx?: number; overflowPx?: number; itemPx?: number; maxTextPx?: number; widthsPx?: number[] },
 ): { shown: number } {
   const charPx = opts?.charPx ?? 6.5;
   const gapPx = opts?.gapPx ?? 8;
@@ -64,7 +64,7 @@ export function fitRows(
   if (n === 0) return { shown: 0 };
 
   const maxRows = Math.max(1, rows);
-  const widths = titles.map((t) => Math.min(t.length * charPx, maxTextPx) + itemPx);
+  const widths = titles.map((t, i) => opts?.widthsPx?.[i] || Math.min(t.length * charPx, maxTextPx) + itemPx);
 
   const place = (reserve: number): number => {
     let row = 1;

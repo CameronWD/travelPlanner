@@ -29,8 +29,8 @@ const CHIP_EXIT_TRANSITION = { duration: 0.18, ease: EASE_EXIT };
  * exceeded"). The snapshot is a string so useSyncExternalStore sees a stable
  * primitive.
  */
-function useElementSize(ref: React.RefObject<HTMLElement | null>, mounted: boolean): { width: number; height: number } {
-  const subscribe = React.useCallback(
+function useResizeSubscribe(ref: React.RefObject<HTMLElement | null>, mounted: boolean) {
+  return React.useCallback(
     (onStoreChange: () => void) => {
       const el = ref.current;
       if (!mounted || !el || typeof ResizeObserver === "undefined") return () => {};
@@ -40,6 +40,10 @@ function useElementSize(ref: React.RefObject<HTMLElement | null>, mounted: boole
     },
     [ref, mounted],
   );
+}
+
+function useElementSize(ref: React.RefObject<HTMLElement | null>, mounted: boolean): { width: number; height: number } {
+  const subscribe = useResizeSubscribe(ref, mounted);
   const snapshot = React.useSyncExternalStore(
     subscribe,
     () => {
@@ -52,6 +56,16 @@ function useElementSize(ref: React.RefObject<HTMLElement | null>, mounted: boole
   return { width, height };
 }
 
+function useChildWidths(ref: React.RefObject<HTMLElement | null>, mounted: boolean): number[] {
+  const subscribe = useResizeSubscribe(ref, mounted);
+  const snapshot = React.useSyncExternalStore(
+    subscribe,
+    () => Array.from(ref.current?.children ?? [], (child) => child.getBoundingClientRect().width).join(","),
+    () => "",
+  );
+  return snapshot ? snapshot.split(",").map(Number) : [];
+}
+
 export interface IdeasBoxProps {
   ideas: ThingToDo[];
   onOpen(idea: ThingToDo): void;
@@ -60,33 +74,51 @@ export interface IdeasBoxProps {
   className?: string;
 }
 
-const CHIP_CLASS =
-  "tap-target pressable inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold";
+const FACE_CLASS =
+  "inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card px-2.5 text-xs font-bold";
+const CHIP_CLASS = `tap-target pressable ${FACE_CLASS}`;
 
 /** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening the idea (spec 2026-10-02 §D); Pick a day lives inside the opened idea. */
 export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
+  const measureRef = React.useRef<HTMLDivElement>(null);
   const { t } = useMotionTiming();
   const { width, height } = useElementSize(chipsRef, ideas.length > 0);
+  const measured = useChildWidths(measureRef, ideas.length > 0);
   const rows = Math.max(1, Math.floor((height + 6) / (26 + 6)));
+  const fitOpts =
+    measured.length === ideas.length + 1 && measured.every((w) => w > 0)
+      ? { gapPx: 6, widthsPx: measured.slice(0, -1), overflowPx: measured[ideas.length] }
+      : { charPx: 6.5, gapPx: 6, overflowPx: 48, itemPx: 40, maxTextPx: 160 };
   const shown = width
     ? fitRows(
         ideas.map((i) => i.title),
         width,
         rows,
-        { charPx: 6.5, gapPx: 6, overflowPx: 40, itemPx: 40, maxTextPx: 160 },
+        fitOpts,
       ).shown
     : ideas.length;
   const visible = ideas.slice(0, shown);
   const rest = ideas.slice(shown);
 
+  const chipFace = (idea: ThingToDo) => (
+    <>
+      <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
+      <span className="min-w-0 max-w-[10rem] truncate">{idea.title}</span>
+      {idea.hiddenFromShares && !idea.surprise?.youAreSurprised && (
+        <span role="img" aria-label="Hidden from shares">
+          <EyeOff className="size-3" aria-hidden="true" />
+        </span>
+      )}
+      {idea.surprise && <SurpriseBadge view={idea.surprise} size="sm" className="border-0 px-1" />}
+    </>
+  );
+
   const chipFor = (idea: ThingToDo) =>
     // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to open.
     idea.surprise?.youAreSurprised ? (
-      <span key={idea.id} className={CHIP_CLASS.replace("tap-target pressable ", "")}>
-        <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
-        <span className="min-w-0 max-w-[10rem] truncate">{idea.title}</span>
-        <SurpriseBadge view={idea.surprise} size="sm" className="border-0 px-1" />
+      <span key={idea.id} className={cn(FACE_CLASS, "max-w-full")}>
+        {chipFace(idea)}
       </span>
     ) : (
       <button
@@ -94,24 +126,17 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
         type="button"
         aria-label={`Open ${idea.title}`}
         disabled={disabled}
-        className={CHIP_CLASS}
+        className={cn(CHIP_CLASS, "max-w-full")}
         onClick={() => onOpen(idea)}
       >
-        <span className={cn("size-[9px] rounded-full", categoryDotClass(idea.category))} aria-hidden="true" />
-        <span className="min-w-0 max-w-[10rem] truncate">{idea.title}</span>
-        {idea.hiddenFromShares && (
-          <span role="img" aria-label="Hidden from shares">
-            <EyeOff className="size-3" aria-hidden="true" />
-          </span>
-        )}
-        {idea.surprise && <SurpriseBadge view={idea.surprise} size="sm" className="border-0 px-1" />}
+        {chipFace(idea)}
       </button>
     );
 
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 [contain:size]",
+        "relative flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 [contain:size]",
         ideas.length > 0 ? "min-h-[74px]" : "min-h-[42px]",
         className,
       )}
@@ -140,7 +165,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
         >
           <AnimatePresence initial={false}>
             {visible.map((idea) => (
-              <PresenceSpan key={idea.id} data-idea={idea.id} exit={{ opacity: 0, scale: 0.9, transition: t(CHIP_EXIT_TRANSITION, "exit") }} className="flex shrink-0">
+              <PresenceSpan key={idea.id} data-idea={idea.id} exit={{ opacity: 0, scale: 0.9, transition: t(CHIP_EXIT_TRANSITION, "exit") }} className="flex max-w-full shrink-0">
                 {chipFor(idea)}
               </PresenceSpan>
             ))}
@@ -157,6 +182,23 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
               </PopoverContent>
             </Popover>
           )}
+        </div>
+      )}
+      {ideas.length > 0 && (
+        // Real chip widths (EyeOff, Surprise badge, all-caps titles) come from hidden copies that never depend on what is shown.
+        <div
+          ref={measureRef}
+          data-testid="ideas-measure"
+          aria-hidden="true"
+          inert
+          className="pointer-events-none invisible absolute left-0 top-0 flex w-max gap-1.5"
+        >
+          {ideas.map((idea) => (
+            <span key={idea.id} className={FACE_CLASS}>
+              {chipFace(idea)}
+            </span>
+          ))}
+          <span className={FACE_CLASS}>+{ideas.length}</span>
         </div>
       )}
     </div>

@@ -53,7 +53,7 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
     const more = await screen.findByRole("button", { name: /^\+\d more ideas$/ });
     expect(more.className).toContain("tap-target");
     await userEvent.click(more);
-    expect(await screen.findByText("Le Bon Marché")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Open Le Bon Marché" })).toBeInTheDocument();
     spy.mockRestore();
   });
 
@@ -65,7 +65,7 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
     expect(onOpen).toHaveBeenCalledWith(IDEAS[2]);
   });
 
-  it("the chip row wraps instead of clipping, so a narrow (half-width top row) box never hides its \"+N\" chip (task 28)", async () => {
+  it("a narrow (half-width top row) box accounts for every idea, as a chip or in a visible \"+N\" (task 28)", async () => {
     // Real ResizeObserver callbacks always receive an entries array (see the
     // overflow test above for why). A half-width desktop top row (spec
     // 2026-10-04 §B) narrows this box well below what both titles need.
@@ -77,7 +77,7 @@ describe("IdeasBox (PLAN.md §4.1)", () => {
     expect(chipsRow).not.toBeNull();
     // Both ideas are accounted for — as two titled chips, or one title plus
     // a visible "+1" — never a chip that overflowed past a clipped edge.
-    const secondShown = screen.queryByText("Sainte-Chapelle") ?? (await screen.findByRole("button", { name: /^\+1 more ideas$/ }));
+    const secondShown = within(chipsRow as HTMLElement).queryByText("Sainte-Chapelle") ?? (await screen.findByRole("button", { name: /^\+1 more ideas$/ }));
     expect(secondShown).not.toBeNull();
     expect(screen.getByRole("button", { name: "+ Add an idea" })).toBeInTheDocument();
     spy.mockRestore();
@@ -94,7 +94,9 @@ describe("IdeasBox fills the height it is given", () => {
   const many = (n: number) => Array.from({ length: n }, (_, i) => idea(`m${i}`, "Museum gallery"));
   const measure = (width: number, height: number) => {
     vi.stubGlobal("ResizeObserver", RO);
-    return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width, height } as DOMRect);
+    return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return (this.dataset.testid === "ideas-chips" ? { width, height } : { width: 0, height: 0 }) as DOMRect;
+    });
   };
 
   it("puts the count and Add an idea on a header line above the chips", () => {
@@ -151,6 +153,48 @@ describe("IdeasBox fills the height it is given", () => {
   });
 });
 
+describe("IdeasBox fits chips by their measured widths", () => {
+  const RO = class { cb: (entries: unknown[]) => void; constructor(cb: (entries: unknown[]) => void) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} };
+  const SHORT = [idea("a", "Tate"), idea("b", "Eye"), idea("c", "Shard")];
+  const measure = (chipWidths: number[]) => {
+    vi.stubGlobal("ResizeObserver", RO);
+    return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.testid === "ideas-chips") return { width: 260, height: 26 } as DOMRect;
+      const layer = this.parentElement;
+      if (layer?.dataset.testid === "ideas-measure") {
+        const i = Array.from(layer.children).indexOf(this);
+        return { width: i === layer.children.length - 1 ? 45 : chipWidths[i], height: 26 } as DOMRect;
+      }
+      return { width: 0, height: 0 } as DOMRect;
+    });
+  };
+
+  it("fits by the chips' real widths, not their estimates", () => {
+    const spy = measure([100, 100, 100]);
+    const { container } = render(<IdeasBox ideas={SHORT} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    expect(container.querySelectorAll("[data-idea]")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "+1 more ideas" })).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it("a wide chip (an EyeOff or Surprise one) takes the room it really needs", () => {
+    const spy = measure([200, 100, 100]);
+    const { container } = render(<IdeasBox ideas={SHORT} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    expect(container.querySelectorAll("[data-idea]")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "+2 more ideas" })).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it("the measuring copies are hidden, inert, and not chips", () => {
+    render(<IdeasBox ideas={SHORT} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    const layer = screen.getByTestId("ideas-measure");
+    expect(layer).toHaveAttribute("aria-hidden", "true");
+    expect(layer).toHaveAttribute("inert");
+    expect(layer.querySelector("button, [data-idea]")).toBeNull();
+    expect(layer.children).toHaveLength(SHORT.length + 1);
+  });
+});
+
 describe("IdeasBox, Surprise ideas (CONTEXT.md Surprise)", () => {
   const VIEW = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false };
 
@@ -164,7 +208,7 @@ describe("IdeasBox, Surprise ideas (CONTEXT.md Surprise)", () => {
 
   it("a placeholder chip reads Surprise with its badge and is not a button", () => {
     render(<IdeasBox ideas={[idea("s1", "Surprise", { category: "OTHER", surprise: { ...VIEW, youAreSurprised: true } })]} onOpen={vi.fn()} onAdd={vi.fn()} />);
-    expect(screen.getByText("Surprise")).toBeInTheDocument();
+    expect(within(screen.getByTestId("ideas-chips")).getByText("Surprise")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Surprise" })).toBeNull();
   });
