@@ -1,4 +1,5 @@
 import type { FeedHoliday } from "./ics";
+import { canonicalRegion, normRegion } from "./region-aliases";
 
 export type DayPlace = { countryCode: string; region: string | null };
 
@@ -20,10 +21,6 @@ export type DayHoliday = {
 };
 
 const SHOWN_OBSERVANCES = ["Christmas Eve", "New Year's Eve", "Good Friday"];
-
-function norm(s: string): string {
-  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
-}
 
 function stopCovers(s: PlacesOnDayInput["stops"][number], date: string): boolean {
   if (!s.arriveDate && !s.departDate) return false;
@@ -51,7 +48,7 @@ export function placesOnDay(input: PlacesOnDayInput): DayPlace[] {
 
   const seen = new Set<string>();
   return places.filter((p) => {
-    const key = `${p.countryCode.toLowerCase()}|${p.region ? norm(p.region) : ""}`;
+    const key = `${p.countryCode.toLowerCase()}|${p.region ? normRegion(canonicalRegion(p.countryCode, p.region)) : ""}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -66,8 +63,8 @@ export function holidaysOnDay(places: DayPlace[], date: string, feeds: Map<strin
     const feed = feeds.get(cc);
     if (!feed) continue;
 
-    const vocabulary = new Set(feed.flatMap((h) => h.regions ?? []).map(norm));
-    const region = place.region ? norm(place.region) : null;
+    const vocabulary = new Set(feed.flatMap((h) => h.regions ?? []).map(normRegion));
+    const region = place.region ? normRegion(canonicalRegion(cc, place.region)) : null;
 
     for (const h of feed) {
       if (h.date !== date) continue;
@@ -75,7 +72,7 @@ export function holidaysOnDay(places: DayPlace[], date: string, feeds: Map<strin
 
       let namedRegions: string[] | null = null;
       if (h.regions) {
-        if (region && h.regions.some((r) => norm(r) === region)) {
+        if (region && h.regions.some((r) => normRegion(r) === region)) {
           namedRegions = null;
         } else if (region && vocabulary.has(region)) {
           continue;

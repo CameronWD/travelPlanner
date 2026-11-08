@@ -96,6 +96,18 @@ describe("placesOnDay", () => {
   });
 });
 
+describe("placesOnDay across languages", () => {
+  it("dedupes a Region given in two languages", () => {
+    const places = placesOnDay({
+      ...base,
+      date: "2026-05-01",
+      stops: [stop("2026-05-01", "2026-05-10", "de", "Bayern"), stop("2026-05-01", "2026-05-10", "de", "Bavaria")],
+      home: null,
+    });
+    expect(places).toEqual([{ countryCode: "de", region: "Bayern" }]);
+  });
+});
+
 describe("holidaysOnDay", () => {
   const feeds = new Map<string, FeedHoliday[]>([
     ["de", load("german")],
@@ -120,7 +132,20 @@ describe("holidaysOnDay", () => {
   });
 
   it("falls back to named Regions for a Region outside the vocabulary", () => {
-    expect(epiphany("Bayern")[0]?.namedRegions).toEqual(["Baden-Württemberg", "Bavaria", "Saxony-Anhalt"]);
+    expect(epiphany("Atlantis")[0]?.namedRegions).toEqual(["Baden-Württemberg", "Bavaria", "Saxony-Anhalt"]);
+  });
+
+  it("matches Google's local-language Region names", () => {
+    expect(epiphany("Bayern")).toEqual(epiphany("Bavaria"));
+    expect(epiphany("Bayern")).toEqual([
+      { countryCode: "de", name: "Epiphany", kind: "public", halfDay: false, namedRegions: null },
+    ]);
+    expect(epiphany("Sachsen-Anhalt")[0]?.namedRegions).toBeNull();
+  });
+
+  it("hides a regional holiday for a local-language Region it does not list", () => {
+    expect(epiphany("Hessen")).toEqual([]);
+    expect(epiphany("Thüringen")).toEqual([]);
   });
 
   it("falls back to named Regions when the place has no Region", () => {
