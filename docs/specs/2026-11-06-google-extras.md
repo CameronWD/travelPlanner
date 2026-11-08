@@ -110,6 +110,12 @@ airport closes).
   be matched against the calendar's naming, the holiday shows with its
   regions named ("in parts of Germany: Bavaria, …") rather than being
   hidden.
+- Google names some Regions in the local language, and does so
+  inconsistently from place to place ("Bayern" for Munich Airport,
+  "Bavaria" for Munich). Before matching, a Region passes through a fixed
+  alias table for Germany, Switzerland and Malaysia (local names,
+  "Canton of …", "Federal Territory of …", "… Darul …"). Stored Regions
+  keep Google's wording.
 - The code's place-search kind `"region"` (cities and areas, used for Stop
   search) is renamed `"area"`, so it doesn't collide with **Region**.
 - Existing rows get a Region from a one-off operator script that reads the
