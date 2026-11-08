@@ -51,6 +51,7 @@ const LOOKUP = new Map<string, Map<string, string>>(
 
 function stripRules(region: string): string {
   return region
+    .trim()
     .replace(/^(canton of |federal territory of |wilayah persekutuan )/i, "")
     .replace(/\s+darul\b.*$/i, "")
     .trim();
