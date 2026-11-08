@@ -109,3 +109,11 @@
 
 ### Controller: real-browser check (after Task 2)
 - [ ] With the dev server up, open a Plan with an open Stop that has 6 or more ideas, at 1480×818. Check two things: the ideas fill the box's height with "+N" only at the end, and the Stop's row is no taller than its Stay panel. Then check at a card width under 640px: one row. Watch the console for no "Maximum update depth" error.
+
+## Amendments during execution (2026-11-09)
+
+- **Fix round 1 (browser measurement):** the estimate was calibrated to `charPx: 6.5`, `itemPx: 40`. Real chips measured about 5.6–5.9px per character plus 39px, and the old 7/44 left a whole row empty. The test fixtures became 14-character titles ("Museum gallery") so that one chip still fits per 260px row.
+- **Final review:** with a fixed height, any under-estimate (the EyeOff icon, a Surprise badge, all-caps or CJK titles, a two-digit "+N") clips chips and the "+N" trigger out of view. Chips are now fitted by their **measured** widths, read from a hidden, inert copy of each chip face plus a "+N" sample. `fitRows` gained `opts.widthsPx`. The estimate (`overflowPx: 48`) is only the fallback before the first measurement.
+- **Accepted residuals:**
+  - A one-row box narrower than its first chip plus "+N" (under about 250px, which desktop doesn't reach) can clip "+N", because the first chip always shows.
+  - A brief overflow can appear during the 180ms chip exit animation.
