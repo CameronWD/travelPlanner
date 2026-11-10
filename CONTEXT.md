@@ -254,6 +254,10 @@ _Avoid_: Checklist (that is trip-wide preparation), to-do, sub-items
 A list of tickable tasks. Three flavours: a **Pre-trip checklist** (visas, insurance, eSIM, with optional due dates), a **Packing list** (reusable across Trips via templates) and a **Shopping list** (what to buy before the Trip).
 _Avoid_: To-do, tasks
 
+**Packing list**:
+The Checklist of what to bring on a Trip, made of **personal** items — each belonging to one Traveller's own bag, packed only by them — and **Shared** items, which the Trip needs once and either Traveller may pack. A Shared item is claimed by packing it: ticking it records who packed it ("Adapter — packed by Cam"), so it answers whose bag it is in, and unticking returns it to unpacked Shared. A Trip's Packing lists are **Open** (each Traveller sees the others' personal items and can add to them, but never ticks them) or **Private** (each sees only their own and the Shared items); either Traveller may switch it, and it starts Open.
+_Avoid_: Communal (say Shared), assigned (a personal item has an owner, not an assignee)
+
 **Shopping list**:
 The Checklist of things to buy before a Trip. Its entries are of two sorts: a **Packing** item its Traveller has marked **Need to buy** (so one thing to pack and to buy is one row seen from two lists — ticking it on the Shopping list means *bought*, ticking it on the Packing list means *packed*, and removing it from the Shopping list only unmarks it while deleting it from Packing removes it from both), and a **standalone** item added directly to the Shopping list — flight snacks, a gift — that is not packed. Per Trip; never part of a packing template.
 _Avoid_: Shopping cart, to-buy list, wishlist (that is the Globe/Trip idea pool)
