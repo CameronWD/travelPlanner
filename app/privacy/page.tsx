@@ -53,10 +53,7 @@ export const metadata: Metadata = {
  * server/actions/ai.ts:51-55 loads every existing Item title on the Stop
  * and passes it as `existingTitles`, which lib/ai.ts:97-100 inlines
  * verbatim into the prompt ("Avoid suggesting: …") — Traveller-authored
- * content missing from a colon-introduced exhaustive list. The other two
- * AI paths were re-checked against server/actions/ai.ts line-by-line and
- * confirmed already accurate: aiDraftPackingList (:74-105) sends only
- * trip.name, trip.stops (name, country) and start/end date; the booking
+ * content missing from a colon-introduced exhaustive list. The booking
  * parse path (since replaced by lib/booking-import/, spec 2026-10-14) sent
  * only the pasted text itself, length-capped. Also added a
  * mechanism sentence on the GitHub artifact: who can download it is a repo
@@ -249,15 +246,14 @@ export default function PrivacyPage() {
             <span className="font-bold">
               Anthropic (Claude), an optional AI assist.
             </span>{" "}
-            It is off unless I turn it on. Teepee has an AI assist for three
-            things: suggesting activities, drafting a packing list, and
-            reading a booking you import (a Booking import). It only runs if I
+            It is off unless I turn it on. Teepee has an AI assist for two
+            things: suggesting activities and reading a booking you import (a
+            Booking import). It only runs if I
             have set an API key for it. That is a deployment setting, so it
             can be switched on or off without any change to this page. When
             it is on, Teepee sends: a stop&apos;s name and country, plus the
             titles of the items already on that stop (so it doesn&apos;t
-            repeat them), for a suggestion; the trip name with its stops and
-            dates, for a packing list; or, for a Booking import, the file you
+            repeat them), for a suggestion; or, for a Booking import, the file you
             choose to import or the entire text you paste in, to be read.
             That can include names, addresses and booking or confirmation
             numbers, since it is whatever you chose. Teepee keeps it only if
