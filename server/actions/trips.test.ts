@@ -238,6 +238,7 @@ import {
   setChaptersEnabled,
   setForksEnabled,
   setWhatsAroundEnabled,
+  setPackingListsOpen,
   removeTripMember,
   leaveTrip,
 } from "./trips";
@@ -2104,6 +2105,29 @@ describe("setWhatsAroundEnabled", () => {
 
     expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { whatsAroundEnabled: false } });
     expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
+  });
+});
+
+describe("setPackingListsOpen", () => {
+  it("is access-checked before the write", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setPackingListsOpen(TRIP_ID, false);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
+  });
+
+  it("lets any member set the flag and revalidates the trip and lists", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setPackingListsOpen(TRIP_ID, false);
+
+    expect(result).toEqual({ success: true });
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { packingListsOpen: false } });
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "lists");
+    expect(recordActivityMock).not.toHaveBeenCalled();
   });
 });
 

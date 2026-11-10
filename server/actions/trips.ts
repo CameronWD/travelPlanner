@@ -811,6 +811,21 @@ export async function setWhatsAroundEnabled(tripId: string, enabled: boolean): P
 }
 
 // ---------------------------------------------------------------------------
+// setPackingListsOpen
+// ---------------------------------------------------------------------------
+
+export async function setPackingListsOpen(tripId: string, open: boolean): Promise<UpdateTripResult> {
+  await requireTripAccess(tripId);
+
+  await db.trip.update({ where: { id: tripId }, data: { packingListsOpen: open } });
+
+  revalidateTrip(tripId, "trip");
+  revalidateTrip(tripId, "lists");
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // setForksEnabled
 // ---------------------------------------------------------------------------
 
