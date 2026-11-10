@@ -38,6 +38,8 @@ import { loadAttachmentIndexForMcp } from "../reads/attachments";
 import { loadAttachmentContentForMcp } from "../reads/attachment-content";
 import { loadAccommodationForMcp, loadItemForMcp, loadStopForMcp, loadTransportForMcp } from "../reads/entities";
 import { loadDayForMcp } from "../reads/day";
+import { packingVisibleWhere } from "@/lib/packing-access";
+import { loadPackingViewer } from "@/lib/packing-viewer";
 import { CHECKLIST_VIEW_SELECT, toChecklistView, toMcpIdea, WISHLIST_IDEA_SELECT } from "../reads/lists";
 import { loadBudget } from "@/lib/money/budget-loader";
 import { loadFlags } from "@/lib/flags-loader";
@@ -63,10 +65,11 @@ async function loadWishlist(tripId: string) {
 // ---------------------------------------------------------------------------
 
 async function loadChecklists(tripId: string) {
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+  const viewer = await loadPackingViewer(tripId, user.id);
   const [rawItems, templates] = await Promise.all([
     db.checklistItem.findMany({
-      where: { tripId },
+      where: { tripId, ...packingVisibleWhere(viewer) },
       orderBy: { sortOrder: "asc" },
       select: CHECKLIST_VIEW_SELECT,
     }),

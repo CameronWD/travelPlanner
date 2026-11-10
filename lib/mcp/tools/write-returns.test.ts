@@ -74,6 +74,7 @@ vi.mock("../reads/lists", () => ({
   loadWishlistIdeaForMcp: row(),
   loadVotesForMcp: vi.fn(async (itemId: string) => ({ itemId, votes: [] })),
 }));
+vi.mock("@/lib/packing-viewer", () => ({ loadPackingViewer: vi.fn(async (_t: string, userId: string) => ({ userId, open: true })) }));
 vi.mock("@/lib/reminder-reads", () => ({ readReminderItem: row(), listRemindersForTrip: vi.fn() }));
 
 // Access: every id is a real-plan row on trip-1 the caller can reach.

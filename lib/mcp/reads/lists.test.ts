@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   requireRowAccess: vi.fn(), requireTripAccess: vi.fn(), requireRealPlanRow: vi.fn(), loadSurpriseVisibility: vi.fn(),
-  checklistFindUnique: vi.fn(), checklistFindMany: vi.fn(), itemFindFirst: vi.fn(), voteFindMany: vi.fn(),
+  loadPackingViewer: vi.fn(), checklistFindUnique: vi.fn(), checklistFindMany: vi.fn(), itemFindFirst: vi.fn(), voteFindMany: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireRowAccess: m.requireRowAccess, requireTripAccess: m.requireTripAccess }));
+vi.mock("@/lib/packing-viewer", () => ({ loadPackingViewer: m.loadPackingViewer }));
 vi.mock("../real-plan", () => ({ requireRealPlanRow: m.requireRealPlanRow }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -23,11 +24,12 @@ import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibili
 import { loadChecklistItemForMcp, loadChecklistOfItemForMcp, loadVotesForMcp, loadWishlistIdeaForMcp } from "./lists";
 
 const cam = { id: "u1", name: "Cam", displayName: null, email: null, image: null };
-const ci = (id: string, sortOrder: number) => ({ id, kind: "PACKING", text: id, done: false, dueDate: null, sortOrder, buy: null });
+const ci = (id: string, sortOrder: number) => ({ id, kind: "PACKING", text: id, done: false, dueDate: null, sortOrder, buy: null, ownerId: null, owner: null, packedBy: null });
 
 beforeEach(() => {
   vi.clearAllMocks();
   m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PACKING" }, user: { id: "u1" } });
+  m.loadPackingViewer.mockResolvedValue({ userId: "u1", open: true });
   m.requireRealPlanRow.mockResolvedValue({ tripId: "trip-1" });
   m.requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
   m.loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
@@ -36,7 +38,7 @@ beforeEach(() => {
 describe("Checklist readers", () => {
   it("loadChecklistItemForMcp reads one item in get_checklists' shape, plus its list", async () => {
     m.checklistFindUnique.mockResolvedValue({ ...ci("ci-1", 0), buy: "NEEDED" });
-    expect(await loadChecklistItemForMcp("ci-1")).toEqual({ id: "ci-1", text: "ci-1", done: false, dueDate: null, buyState: "NEEDED", kind: "PACKING" });
+    expect(await loadChecklistItemForMcp("ci-1")).toEqual({ id: "ci-1", text: "ci-1", done: false, dueDate: null, buyState: "NEEDED", owner: null, packedBy: null, kind: "PACKING" });
     expect(m.requireRowAccess).toHaveBeenCalledWith("checklistItem", "ci-1");
   });
 
