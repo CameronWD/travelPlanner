@@ -11,6 +11,7 @@ import { Field } from "@/components/ui/field";
 import { Card, cardVariants } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RowActions } from "@/components/ui/row-actions";
+import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import {
   addChecklistItem,
   toggleChecklistItem,
@@ -133,6 +134,10 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
           }
         />
 
+        {entry.source === "packing" && entry.owner && (
+          <TravellerAvatar traveller={entry.owner} size={24} className="shrink-0" />
+        )}
+
         <div
           className={cn(
             "flex shrink-0 items-center gap-1",
@@ -142,18 +147,20 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
           )}
         >
           {entry.source === "packing" ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
-              onClick={remove}
-              disabled={pending}
-              aria-label="Remove"
-              title="Remove"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </Button>
+            entry.canUnmark && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
+                onClick={remove}
+                disabled={pending}
+                aria-label="Remove"
+                title="Remove"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </Button>
+            )
           ) : (
             <RowActions
               onDelete={() => requestDelete(entry.id)}

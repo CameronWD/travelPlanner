@@ -986,9 +986,14 @@ export function HelpGuide({
               <strong className="font-semibold">Pre-trip</strong> is the admin:
               visas, insurance, a travel SIM, telling the bank. Each line
               can carry a due date and whichever of you is doing it.{" "}
-              <strong className="font-semibold">Packing</strong> is the packing
-              list, and you can save one as a template to pull into your next
-              trip instead of starting from nothing. Pulling the details out
+              <strong className="font-semibold">Packing</strong> is split into
+              your own list, your partner&rsquo;s, and{" "}
+              <strong className="font-semibold">Shared</strong> for the things
+              you only need one of; whoever packs a Shared item gets their name
+              on it. You can see and add to each other&rsquo;s lists but only
+              tick your own, unless the trip&rsquo;s settings make packing
+              lists private. Save your list as a template to pull into your
+              next trip instead of starting from nothing. Pulling the details out
               of a booking email lives on{" "}
               <Go tripId={tripId} segment="plan">
                 Plan

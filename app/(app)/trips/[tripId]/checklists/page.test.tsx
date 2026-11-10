@@ -36,11 +36,26 @@ vi.mock("@/components/trip/reminders-card", () => ({
     </div>
   ),
 }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({})) }));
+vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({ user: { id: "u1" } })) }));
 vi.mock("@/lib/checklists", () => ({ sortChecklist: (items: unknown[]) => items }));
 vi.mock("@/server/actions/checklists", () => ({ listTemplates: vi.fn(async () => []) }));
 vi.mock("@/components/trip/checklist", () => ({ Checklist: () => <div data-testid="checklist" /> }));
-vi.mock("@/components/trip/shopping-list", () => ({ ShoppingList: () => <div data-testid="shopping-list" /> }));
+const { packingListProps, shoppingListProps } = vi.hoisted(() => ({
+  packingListProps: vi.fn(),
+  shoppingListProps: vi.fn(),
+}));
+vi.mock("@/components/trip/packing-list", () => ({
+  PackingList: (p: unknown) => {
+    packingListProps(p);
+    return <div data-testid="packing-list" />;
+  },
+}));
+vi.mock("@/components/trip/shopping-list", () => ({
+  ShoppingList: (p: unknown) => {
+    shoppingListProps(p);
+    return <div data-testid="shopping-list" />;
+  },
+}));
 vi.mock("@/components/trip/packing-templates-bar", () => ({ PackingTemplatesBar: () => null }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "trip-1") }));
@@ -69,7 +84,8 @@ describe("ChecklistsPage panels (LA-017)", () => {
     expect(screen.getByTestId("panel-packing")).toBeInTheDocument();
     expect(screen.queryByTestId("panel-booking")).toBeNull();
     expect(screen.queryByTestId("booking-parser")).toBeNull();
-    expect(screen.getAllByTestId("checklist").length).toBe(2);
+    expect(screen.getAllByTestId("checklist").length).toBe(1);
+    expect(screen.getByTestId("packing-list")).toBeInTheDocument();
   });
 });
 
@@ -120,6 +136,9 @@ describe("ChecklistsPage Shopping tab (Task 13, spec §G)", () => {
         sortOrder: 0,
         buy: "NEEDED",
         assignedTo: null,
+        ownerId: null,
+        owner: null,
+        packedBy: null,
       },
       {
         id: "shop-1",
@@ -138,6 +157,68 @@ describe("ChecklistsPage Shopping tab (Task 13, spec §G)", () => {
     expect(screen.getByTestId("panel-shopping")).toBeInTheDocument();
     expect(screen.getByTestId("panel-shopping-label").textContent).toContain("Shopping");
     expect(screen.getByTestId("panel-shopping-label").textContent).toContain("2");
+  });
+});
+
+describe("ChecklistsPage per-person Packing", () => {
+  const me = { id: "u1", name: "Cam", image: null };
+  const partner = { id: "u2", name: "Sam", image: null };
+  const packing = (id: string, ownerId: string | null, extra: Record<string, unknown> = {}) => ({
+    id,
+    kind: "PACKING",
+    text: id,
+    done: false,
+    dueDate: null,
+    sortOrder: 0,
+    buy: null,
+    assignedTo: null,
+    ownerId,
+    owner: ownerId === "u1" ? me : ownerId === "u2" ? partner : null,
+    packedBy: null,
+    ...extra,
+  });
+
+  async function renderWith(open: boolean, items: unknown[]) {
+    const { db } = await import("@/lib/db");
+    vi.mocked(db.trip.findUnique).mockResolvedValueOnce({
+      name: "Christmas in Europe",
+      startDate: "2026-12-04",
+      packingListsOpen: open,
+    } as never);
+    vi.mocked(db.checklistItem.findMany).mockResolvedValueOnce(items as never);
+    vi.mocked(db.tripMember.findMany).mockResolvedValueOnce([{ user: me }, { user: partner }] as never);
+    packingListProps.mockClear();
+    shoppingListProps.mockClear();
+    render(await ChecklistsPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+  }
+
+  it("Private never passes a partner's rows to the Packing list or the Shopping list", async () => {
+    await renderWith(false, [
+      packing("mine", "u1"),
+      packing("shared", null),
+      packing("theirs", "u2", { buy: "NEEDED" }),
+    ]);
+    const { sections, open, viewerId } = packingListProps.mock.calls[0][0];
+    expect(open).toBe(false);
+    expect(viewerId).toBe("u1");
+    expect(sections.others).toEqual([]);
+    const ids = [...sections.mine, ...sections.shared].map((r: { id: string }) => r.id);
+    expect(ids).toEqual(["mine", "shared"]);
+    const entries = shoppingListProps.mock.calls[0][0].entries as { id: string }[];
+    expect(entries.map((e) => e.id)).not.toContain("theirs");
+  });
+
+  it("Open: the Packing badge and header count Mine + Shared only", async () => {
+    await renderWith(true, [
+      packing("mine", "u1"),
+      packing("shared", null, { done: true }),
+      packing("theirs-1", "u2"),
+      packing("theirs-2", "u2"),
+    ]);
+    const { sections } = packingListProps.mock.calls[0][0];
+    expect(sections.others.map((o: { traveller: { id: string } }) => o.traveller.id)).toEqual(["u2"]);
+    expect(screen.getByTestId("panel-packing-label").textContent).toBe("Packing1");
+    expect(screen.getByText("1 packed of 2")).toBeInTheDocument();
   });
 });
 
