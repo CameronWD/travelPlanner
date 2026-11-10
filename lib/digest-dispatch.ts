@@ -36,6 +36,7 @@
  * cares about.
  */
 import { db } from "@/lib/db";
+import { packingVisibleWhere } from "@/lib/packing-access";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
@@ -218,7 +219,7 @@ export async function collectDigestInput(opts: {
     // date** scopes it to the three days before and the day itself).
     needEveningContent
       ? db.checklistItem.findMany({
-          where: { tripId, done: false, dueDate: { lte: windowEnd } },
+          where: { tripId, done: false, dueDate: { lte: windowEnd }, ...packingVisibleWhere({ userId, open: false }) },
           orderBy: { dueDate: "asc" },
           select: { id: true, text: true, dueDate: true },
         })

@@ -72,25 +72,27 @@ model User {
   sessions Session[]
 
   // Domain relations
-  createdTrips     Trip[]            @relation("TripCreatedBy")
-  forksCreated     Fork[]            @relation("ForkCreatedBy")
-  memberships        TripMember[]
-  notes              Note[]
-  votes              Vote[]
-  attachments        Attachment[]       @relation("AttachmentUploadedBy")
-  assignedTasks      ChecklistItem[]    @relation("ChecklistAssignedTo")
-  packingTemplates   PackingTemplate[]
-  pushSubscriptions  PushSubscription[]
-  journalEntries     JournalEntry[]
-  activities         Activity[]
-  globeMembership    GlobeMember?
-  globesCreated      Globe[]       @relation("GlobeCreatedBy")
-  markersCreated     Marker[]      @relation("MarkerCreatedBy")
-  digestPreferences  DigestPreference[]
-  digestDispatches   DigestDispatch[]
-  travellerDetails   TravellerDetails?
-  reviewsStarted     Review[]           @relation("ReviewStartedBy")
-  findingsActedOn    Finding[]          @relation("FindingStateBy")
+  createdTrips         Trip[]             @relation("TripCreatedBy")
+  forksCreated         Fork[]             @relation("ForkCreatedBy")
+  memberships          TripMember[]
+  notes                Note[]
+  votes                Vote[]
+  attachments          Attachment[]       @relation("AttachmentUploadedBy")
+  assignedTasks        ChecklistItem[]    @relation("ChecklistAssignedTo")
+  ownedChecklistItems  ChecklistItem[]    @relation("ChecklistOwner")
+  packedChecklistItems ChecklistItem[]    @relation("ChecklistPackedBy")
+  packingTemplates     PackingTemplate[]
+  pushSubscriptions    PushSubscription[]
+  journalEntries       JournalEntry[]
+  activities           Activity[]
+  globeMembership      GlobeMember?
+  globesCreated        Globe[]            @relation("GlobeCreatedBy")
+  markersCreated       Marker[]           @relation("MarkerCreatedBy")
+  digestPreferences    DigestPreference[]
+  digestDispatches     DigestDispatch[]
+  travellerDetails     TravellerDetails?
+  reviewsStarted       Review[]           @relation("ReviewStartedBy")
+  findingsActedOn      Finding[]          @relation("FindingStateBy")
 
   // Better Auth (ADR 0071) — core and OAuth-provider tables.
   authSessions       AuthSession[]
@@ -454,18 +456,18 @@ model OauthClientAssertion {
 // ---------------------------------------------------------------------------
 
 model Trip {
-  id           String @id @default(cuid())
-  name         String
-  startDate    String? // "YYYY-MM-DD" — null while the trip is a date-less idea
-  endDate      String? // "YYYY-MM-DD" — soft; only grows, to cover scheduled stops and the return leg home (F4, server/actions/trip-window.ts)
-  hardEndDate  String? // "YYYY-MM-DD" — optional traveller-set ceiling; never auto-extends (see ADR 0013)
-  roughMonth   String? // "YYYY-MM" — CONTEXT.md "Rough month". A wish, never a date: no date engine, Flags or Phase. Cleared whenever startDate is set.
+  id            String  @id @default(cuid())
+  name          String
+  startDate     String? // "YYYY-MM-DD" — null while the trip is a date-less idea
+  endDate       String? // "YYYY-MM-DD" — soft; only grows, to cover scheduled stops and the return leg home (F4, server/actions/trip-window.ts)
+  hardEndDate   String? // "YYYY-MM-DD" — optional traveller-set ceiling; never auto-extends (see ADR 0013)
+  roughMonth    String? // "YYYY-MM" — CONTEXT.md "Rough month". A wish, never a date: no date engine, Flags or Phase. Cleared whenever startDate is set.
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
   coverSmallKey String? // ~480px WebP copy of the cover (spec 2026-10-06 §H), stored at `${coverImageKey}-sm`; null = none yet, serve coverImageKey
-  coverFocalX  Float? // 0–1 across the cover photo: where its object-cover crop centres (spec E2); null = centre
-  coverFocalY  Float? // 0–1 down the cover photo; null = centre
-  coverAspect  Float? // width/height of the cover photo (spec F); null = not yet known. Portrait when < 0.9 — see lib/cover.ts isPortrait
-  homeCurrency String // ISO 4217, e.g. "AUD"
+  coverFocalX   Float? // 0–1 across the cover photo: where its object-cover crop centres (spec E2); null = centre
+  coverFocalY   Float? // 0–1 down the cover photo; null = centre
+  coverAspect   Float? // width/height of the cover photo (spec F); null = not yet known. Portrait when < 0.9 — see lib/cover.ts isPortrait
+  homeCurrency  String // ISO 4217, e.g. "AUD"
 
   // URL slug from the name (ADR 0064). Nullable only so the previous build's
   // INSERTs keep working during the migrate-then-build window (DEPLOY.md §4b);
@@ -506,39 +508,42 @@ model Trip {
   // no entry point renders and the search action refuses while off.
   whatsAroundEnabled Boolean @default(false)
 
+  // Packing lists are Open (everyone sees every list) or Private; CONTEXT.md "Packing list".
+  packingListsOpen Boolean @default(true)
+
   // Per-trip driving-estimate settings (used by drive-time hints + the
   // "long driving day" flag). Defaults suit mixed/winding roads.
   drivingWindingFactor Float @default(1.5)
   drivingAvgSpeedKph   Int   @default(80)
 
-  createdById  String
+  createdById String
 
   createdBy User @relation("TripCreatedBy", fields: [createdById], references: [id])
 
-  members        TripMember[]
-  invites        Invite[]
-  stops          Stop[]
-  transports     Transport[]
-  accommodations Accommodation[]
-  items          Item[]
-  costs          Cost[]
-  exchangeRates  ExchangeRate[]
-  notes          Note[]
-  votes          Vote[]
-  checklistItems ChecklistItem[]
-  attachments    Attachment[]
-  reminders      Reminder[]
-  shareLinks     ShareLink[]
-  calendarFeed   CalendarFeed?
-  journalEntries JournalEntry[]
-  chapters       Chapter[]
-  activities     Activity[]
+  members           TripMember[]
+  invites           Invite[]
+  stops             Stop[]
+  transports        Transport[]
+  accommodations    Accommodation[]
+  items             Item[]
+  costs             Cost[]
+  exchangeRates     ExchangeRate[]
+  notes             Note[]
+  votes             Vote[]
+  checklistItems    ChecklistItem[]
+  attachments       Attachment[]
+  reminders         Reminder[]
+  shareLinks        ShareLink[]
+  calendarFeed      CalendarFeed?
+  journalEntries    JournalEntry[]
+  chapters          Chapter[]
+  activities        Activity[]
   digestPreferences DigestPreference[]
   digestDispatches  DigestDispatch[]
   reviews           Review[]
   findings          Finding[]
 
-  forks          Fork[]
+  forks Fork[]
 
   slugHistory TripSlug[]
 
@@ -639,7 +644,7 @@ model Stop {
   timezone         String? // IANA — null while rough
   arriveDate       String? // "YYYY-MM-DD" — null while rough
   departDate       String? // "YYYY-MM-DD" — null while rough
-  nights           Int?    // rough duration, used while rough
+  nights           Int? // rough duration, used while rough
   sortOrder        Int
   pinned           Boolean @default(false) // dates fixed; ripple never moves it
   chapterId        String? // explicit chapter membership while rough
@@ -654,11 +659,11 @@ model Stop {
   surpriseForIds     String?
   surpriseRevealedAt DateTime?
 
-  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  fork           Fork?           @relation(fields: [forkId], references: [id], onDelete: Cascade)
-  chapter        Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
-  accommodations Accommodation[]
-  items          Item[]
+  trip             Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork             Fork?           @relation(fields: [forkId], references: [id], onDelete: Cascade)
+  chapter          Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+  accommodations   Accommodation[]
+  items            Item[]
   fromTransports   Transport[]     @relation("TransportFromStop")
   toTransports     Transport[]     @relation("TransportToStop")
   anchorTransports Transport[]     @relation("TransportAnchorStop")
@@ -699,7 +704,7 @@ model Chapter {
   tripId    String
   forkId    String?
   name      String
-  colour    String  // lib/chapter-colours.ts CHAPTER_COLOUR_VALUES
+  colour    String // lib/chapter-colours.ts CHAPTER_COLOUR_VALUES
   startDate String? // "YYYY-MM-DD" — null while rough
   endDate   String? // "YYYY-MM-DD" — null while rough
   sortOrder Int     @default(0)
@@ -716,31 +721,31 @@ model Chapter {
 }
 
 model Transport {
-  id         String    @id @default(cuid())
-  tripId     String
-  forkId     String?
-  fromStopId String?
-  toStopId   String?
-  mode       String // lib/enums.ts TRANSPORT_MODES
-  depPlace   String?
-  depAt      DateTime?
-  arrPlace   String?
-  depPlaceId String? // Google place ID of the departure end
-  arrPlaceId String? // Google place ID of the arrival end
-  arrAt      DateTime?
-  depLat     Float?
-  depLng     Float?
-  arrLat     Float?
-  arrLng     Float?
+  id             String    @id @default(cuid())
+  tripId         String
+  forkId         String?
+  fromStopId     String?
+  toStopId       String?
+  mode           String // lib/enums.ts TRANSPORT_MODES
+  depPlace       String?
+  depAt          DateTime?
+  arrPlace       String?
+  depPlaceId     String? // Google place ID of the departure end
+  arrPlaceId     String? // Google place ID of the arrival end
+  arrAt          DateTime?
+  depLat         Float?
+  depLng         Float?
+  arrLat         Float?
+  arrLng         Float?
   depCountryCode String? // ISO 3166-1 alpha-2, lowercase, of the departure end
   arrCountryCode String?
   depRegion      String? // English first-level area of the departure end
   arrRegion      String?
-  depIsHome  Boolean @default(false) // departs the trip's Home base (see ADR 0030)
-  arrIsHome  Boolean @default(false) // arrives the trip's Home base
-  reference  String?
-  notes      String?
-  sortOrder  Int       @default(0)
+  depIsHome      Boolean   @default(false) // departs the trip's Home base (see ADR 0030)
+  arrIsHome      Boolean   @default(false) // arrives the trip's Home base
+  reference      String?
+  notes          String?
+  sortOrder      Int       @default(0)
 
   // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — lib/enum-values.ts
   // BOOKING_STATES. Always the EFFECTIVE state: every writer stores
@@ -753,11 +758,11 @@ model Transport {
 
   anchorStopId String?
 
-  trip       Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  fork       Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
-  fromStop   Stop? @relation("TransportFromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
-  toStop     Stop? @relation("TransportToStop", fields: [toStopId], references: [id], onDelete: SetNull)
-  anchorStop Stop? @relation("TransportAnchorStop", fields: [anchorStopId], references: [id], onDelete: SetNull)
+  trip       Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork       Fork?      @relation(fields: [forkId], references: [id], onDelete: Cascade)
+  fromStop   Stop?      @relation("TransportFromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
+  toStop     Stop?      @relation("TransportToStop", fields: [toStopId], references: [id], onDelete: SetNull)
+  anchorStop Stop?      @relation("TransportAnchorStop", fields: [anchorStopId], references: [id], onDelete: SetNull)
   reminders  Reminder[]
 
   createdAt DateTime @default(now())
@@ -770,21 +775,21 @@ model Transport {
 }
 
 model Accommodation {
-  id           String  @id @default(cuid())
-  tripId       String
-  forkId       String?
-  stopId       String
-  name         String
-  address      String?
-  placeId      String? // Google place ID — set by a pick or the backfill
-  checkIn      String // "YYYY-MM-DD"
-  checkOut     String // "YYYY-MM-DD"
-  checkInTime  String? // "HH:mm" in the stop's local timezone — optional (CONTEXT.md Accommodation)
-  checkOutTime String? // "HH:mm"
-  confirmation String?
-  notes        String?
-  lat          Float?
-  lng          Float?
+  id              String  @id @default(cuid())
+  tripId          String
+  forkId          String?
+  stopId          String
+  name            String
+  address         String?
+  placeId         String? // Google place ID — set by a pick or the backfill
+  checkIn         String // "YYYY-MM-DD"
+  checkOut        String // "YYYY-MM-DD"
+  checkInTime     String? // "HH:mm" in the stop's local timezone — optional (CONTEXT.md Accommodation)
+  checkOutTime    String? // "HH:mm"
+  confirmation    String?
+  notes           String?
+  lat             Float?
+  lng             Float?
   // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — as Transport; a
   // `confirmation` means BOOKED, else TO_BOOK.
   bookingState    String  @default("TO_BOOK")
@@ -804,49 +809,49 @@ model Accommodation {
 }
 
 model Item {
-  id        String  @id @default(cuid())
-  tripId    String
-  forkId    String?
-  stopId    String?
-  title     String
-  category  String // lib/categories.ts CATEGORY_VALUES
-  date      String? // "YYYY-MM-DD" — null = unscheduled (wishlist)
-  startTime String? // "HH:mm" in the stop's local timezone
-  endTime   String? // "HH:mm"
-  lat       Float?
-  lng       Float?
-  countryCode String? // ISO 3166-1 alpha-2, lowercase, derived by geocoding — same as Stop/Marker
-  address   String?
-  placeId   String? // Google place ID — set by a pick or the backfill
-  businessStatus String? // Google: OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
-  statusCheckedAt DateTime? // when businessStatus was last read from Google
-  link      String?
-  booking   String?
-  notes     String?
+  id               String    @id @default(cuid())
+  tripId           String
+  forkId           String?
+  stopId           String?
+  title            String
+  category         String // lib/categories.ts CATEGORY_VALUES
+  date             String? // "YYYY-MM-DD" — null = unscheduled (wishlist)
+  startTime        String? // "HH:mm" in the stop's local timezone
+  endTime          String? // "HH:mm"
+  lat              Float?
+  lng              Float?
+  countryCode      String? // ISO 3166-1 alpha-2, lowercase, derived by geocoding — same as Stop/Marker
+  address          String?
+  placeId          String? // Google place ID — set by a pick or the backfill
+  businessStatus   String? // Google: OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
+  statusCheckedAt  DateTime? // when businessStatus was last read from Google
+  link             String?
+  booking          String?
+  notes            String?
   // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — as Transport; a
   // `booking` reference means BOOKED, else NONE (No booking needed).
-  bookingState    String   @default("NONE")
-  bookingStateSet Boolean  @default(false)
-  bookBy          String?  // "YYYY-MM-DD" — read only while To book
+  bookingState     String    @default("NONE")
+  bookingStateSet  Boolean   @default(false)
+  bookBy           String? // "YYYY-MM-DD" — read only while To book
   // CONTEXT.md "Slot time" (R3): the ticket's time, in the Stop's local timezone.
-  slotTime        String?  // "HH:mm"
-  arriveByMinutes Int?     // be there this many minutes before slotTime (0–720)
-  refundable      Boolean? // null = not known
+  slotTime         String? // "HH:mm"
+  arriveByMinutes  Int? // be there this many minutes before slotTime (0–720)
+  refundable       Boolean? // null = not known
   // CONTEXT.md "Opening hours" (R4): JSON as String (schema convention),
   // validated by lib/validations/opening-hours.ts. Copied onto a placed copy
   // (ideaCopyData) and written to the whole family (lib/item-family.ts), so
   // reads never join through sourceItemId.
-  openingHours    String?
+  openingHours     String?
   // CONTEXT.md "Try list" (spec 2026-10-17 R6): JSON as String (schema
   // convention), validated by lib/validations/try-list.ts; an empty list is
   // stored as null. Shared like openingHours: copied onto a placed copy
   // (ideaCopyData) and written to the whole family (lib/item-family.ts), so
   // reads never join through sourceItemId.
-  tryList         String?
-  sortOrder      Int     @default(0)
-  sourceItemId   String?
-  sourceMarkerId String?
-  hiddenFromShares Boolean @default(false) // CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller
+  tryList          String?
+  sortOrder        Int       @default(0)
+  sourceItemId     String?
+  sourceMarkerId   String?
+  hiddenFromShares Boolean   @default(false) // CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller
 
   // CONTEXT.md "Surprise" (spec 2026-10-12-tc-12). Null plannerId = not a
   // Surprise. forIds is a JSON array of User ids (schema convention: JSON as
@@ -866,12 +871,12 @@ model Item {
   /// this column is never shared between two Items.
   photoAttachmentId String?
 
-  trip         Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  fork         Fork?   @relation(fields: [forkId], references: [id], onDelete: Cascade)
-  stop         Stop?   @relation(fields: [stopId], references: [id], onDelete: SetNull)
-  sourceItem   Item?   @relation("ItemPlacedFrom", fields: [sourceItemId], references: [id], onDelete: SetNull)
-  placements   Item[]  @relation("ItemPlacedFrom")
-  sourceMarker Marker? @relation("ItemFromMarker", fields: [sourceMarkerId], references: [id], onDelete: SetNull)
+  trip         Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork         Fork?      @relation(fields: [forkId], references: [id], onDelete: Cascade)
+  stop         Stop?      @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  sourceItem   Item?      @relation("ItemPlacedFrom", fields: [sourceItemId], references: [id], onDelete: SetNull)
+  placements   Item[]     @relation("ItemPlacedFrom")
+  sourceMarker Marker?    @relation("ItemFromMarker", fields: [sourceMarkerId], references: [id], onDelete: SetNull)
   votes        Vote[]
   reminders    Reminder[]
 
@@ -887,20 +892,20 @@ model Item {
 }
 
 model Cost {
-  id             String    @id @default(cuid())
-  tripId         String
-  forkId         String?
-  costMinor      Int // minor units, always present
-  paidMinor      Int? // minor units — what was actually charged; null until paid
-  currency       String // ISO 4217
-  rateToHome     Float? // snapshotted FX rate at entry, or null if same currency
-  paidAt         DateTime?
-  dueDate        String? // "YYYY-MM-DD" — when an unpaid cost's money leaves the account (CONTEXT.md "Due date")
-  settlement     String    @default("BEFORE") // lib/enums.ts COST_SETTLEMENTS — BEFORE | ON_TRIP; which side of departure it's paid (CONTEXT.md "Settlement")
-  ownerType      String // lib/enums.ts COST_OWNER_TYPES
-  ownerId        String? // null when ownerType == OTHER
-  label          String? // names an OTHER cost (e.g. "Travel insurance")
-  category       String?
+  id         String    @id @default(cuid())
+  tripId     String
+  forkId     String?
+  costMinor  Int // minor units, always present
+  paidMinor  Int? // minor units — what was actually charged; null until paid
+  currency   String // ISO 4217
+  rateToHome Float? // snapshotted FX rate at entry, or null if same currency
+  paidAt     DateTime?
+  dueDate    String? // "YYYY-MM-DD" — when an unpaid cost's money leaves the account (CONTEXT.md "Due date")
+  settlement String    @default("BEFORE") // lib/enums.ts COST_SETTLEMENTS — BEFORE | ON_TRIP; which side of departure it's paid (CONTEXT.md "Settlement")
+  ownerType  String // lib/enums.ts COST_OWNER_TYPES
+  ownerId    String? // null when ownerType == OTHER
+  label      String? // names an OTHER cost (e.g. "Travel insurance")
+  category   String?
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
@@ -973,14 +978,19 @@ model ChecklistItem {
   sortOrder    Int     @default(0)
   assignedToId String?
   buy          String? // lib/enums.ts BUY_STATES: "NEEDED" | "BOUGHT"; Packing items only
+  ownerId      String? // Packing items only; null = Shared
+  packedById   String? // Packing items only; who ticked it
 
   trip       Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   assignedTo User? @relation("ChecklistAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  owner      User? @relation("ChecklistOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  packedBy   User? @relation("ChecklistPackedBy", fields: [packedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([tripId, kind, ownerId])
 }
 
 model Attachment {
@@ -999,9 +1009,9 @@ model Attachment {
   storageKey   String? // opaque key used by the Storage abstraction
   uploadedById String
 
-  trip       Trip? @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip       Trip?  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   globe      Globe? @relation(fields: [globeId], references: [id], onDelete: Cascade)
-  uploadedBy User @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
+  uploadedBy User   @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -1128,7 +1138,7 @@ model PushSubscription {
   timezone String? // IANA zone, re-reported by the Device on every visit (ADR 0047)
   label    String? // Coarse Device name from lib/device-label.ts; set once (ADR 0048)
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
   // Stamped by this Device's own browser on visit. A Device that loses
   // permission stops reporting, which is the ONLY way TEEPEE can notice —
   // the push service reports success either way (ADR 0048).
@@ -1302,7 +1312,7 @@ model FeedbackNote {
   /// ("beta"), or "local". Set by the server (lib/feedback/site.ts), never by
   /// the client. NULL = written before sites were recorded; counts as main
   /// (ADR 0040, amended 2026-09-26).
-  site      String?
+  site String?
 
   /// Snapshots, deliberately NOT foreign keys: feedback outlives both the Trip
   /// it was written about and the Traveller who wrote it (ADR 0040, amended

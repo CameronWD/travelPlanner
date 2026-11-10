@@ -527,18 +527,15 @@ export function checklistTickSummary(text: string, done: boolean): ActivitySumma
   return { summary: done ? `ticked off ${text}` : `un-ticked ${text}` };
 }
 
+export function packingMovedSummary(text: string, toName: string | null): ActivitySummary {
+  return {
+    summary: toName === null ? `moved "${text}" to Shared` : `moved "${text}" to ${toName}'s packing list`,
+  };
+}
+
 export function templateAppliedSummary(count: number, templateName: string): ActivitySummary {
   const items = count === 1 ? "1 item" : `${count} items`;
   return { summary: `added ${items} from the ${templateName} template to the packing list` };
-}
-
-/**
- * addChecklistItems (e.g. AI packing "Add all") — one line for the whole
- * batch, same shape as templateAppliedSummary but without a template name.
- */
-export function checklistItemsAddedSummary(count: number, kind: string): ActivitySummary {
-  const items = count === 1 ? "1 item" : `${count} items`;
-  return { summary: `added ${items} to ${checklistListName(kind)}` };
 }
 
 const VOTE_LEVEL_WORD: Record<VoteLevel, string> = {

@@ -19,8 +19,8 @@ import { ShoppingList } from "./shopping-list";
 import type { ShoppingEntry } from "@/lib/shopping-list";
 
 const entries: ShoppingEntry[] = [
-  { source: "packing", id: "p1", text: "Jacket", bought: false },
-  { source: "packing", id: "p2", text: "Adapter", bought: true },
+  { source: "packing", id: "p1", text: "Jacket", bought: false, owner: null, canUnmark: true },
+  { source: "packing", id: "p2", text: "Adapter", bought: true, owner: null, canUnmark: true },
   { source: "standalone", id: "s1", text: "Snacks", bought: false },
 ];
 
@@ -85,5 +85,35 @@ describe("ShoppingList", () => {
   it("empty entries shows an empty state and the add box", () => {
     render(<ShoppingList tripId="trip-1" entries={[]} />);
     expect(screen.getByRole("textbox", { name: /add a shopping item/i })).toBeInTheDocument();
+  });
+
+  it("a personal entry shows its owner's avatar; a Shared one shows none", () => {
+    render(
+      <ShoppingList
+        tripId="trip-1"
+        entries={[
+          { source: "packing", id: "p1", text: "Boots", bought: false, owner: { id: "sam", name: "Sam Lee", image: null }, canUnmark: false },
+          { source: "packing", id: "p2", text: "Tent", bought: false, owner: null, canUnmark: true },
+        ]}
+      />,
+    );
+    const rows = screen.getAllByRole("listitem");
+    expect(rows[0].textContent).toContain("SL");
+    expect(rows[1].textContent).not.toContain("SL");
+  });
+
+  it("no Remove control on an entry the viewer can't unmark, but it can still be ticked Bought", async () => {
+    const user = userEvent.setup();
+    render(
+      <ShoppingList
+        tripId="trip-1"
+        entries={[
+          { source: "packing", id: "p1", text: "Boots", bought: false, owner: { id: "sam", name: "Sam", image: null }, canUnmark: false },
+        ]}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /remove/i })).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: /^Boots/ }));
+    expect(setBuyState).toHaveBeenCalledWith("p1", "BOUGHT");
   });
 });

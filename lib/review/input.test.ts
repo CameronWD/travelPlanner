@@ -4,10 +4,11 @@ import { SAMPLE_PLAN } from "@/test/fixtures/review/sample-plan";
 const m = vi.hoisted(() => ({
   loadTripPlanView: vi.fn(), loadFlagRows: vi.fn(), flagsForRows: vi.fn(), loadTripProjection: vi.fn(),
   checklistItemFindMany: vi.fn(),
+  tripFindUniqueOrThrow: vi.fn(),
 }));
 const holidays = vi.hoisted(() => ({ loadHolidayLines: vi.fn() }));
 vi.mock("@/lib/holidays/trip-days", () => holidays);
-vi.mock("@/lib/db", () => ({ db: { checklistItem: { findMany: m.checklistItemFindMany } } }));
+vi.mock("@/lib/db", () => ({ db: { checklistItem: { findMany: m.checklistItemFindMany }, trip: { findUniqueOrThrow: m.tripFindUniqueOrThrow } } }));
 vi.mock("@/lib/mcp/reads/trip-plan", () => ({ loadTripPlanView: m.loadTripPlanView }));
 vi.mock("@/lib/flags-loader", () => ({ loadFlagRows: m.loadFlagRows, flagsForRows: m.flagsForRows }));
 vi.mock("@/lib/trip-projection-reads", () => ({ loadTripProjection: m.loadTripProjection }));
@@ -20,9 +21,10 @@ const PROJECTION = { projectedEnd: null, hardEndDate: null, deadline: null };
 const ROWS = { today: "2026-10-18" };
 const FLAG = { id: "f1", severity: "info", message: "Something.", targetType: "TRIP" };
 const CHECKLIST_ROWS = [
-  { kind: "PACKING", text: "Umbrella", done: false },
-  { kind: "PRETRIP", text: "Buy the 3-day Kansai pass", done: true },
+  { kind: "PACKING", text: "Umbrella", done: false, ownerId: null },
+  { kind: "PRETRIP", text: "Buy the 3-day Kansai pass", done: true, ownerId: null },
 ];
+const PERSONAL = { kind: "PACKING", text: "Rain jacket", done: true, ownerId: "u2" };
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -31,6 +33,7 @@ beforeEach(() => {
   m.flagsForRows.mockReturnValue([FLAG]);
   m.loadTripProjection.mockResolvedValue(PROJECTION);
   m.checklistItemFindMany.mockResolvedValue(CHECKLIST_ROWS);
+  m.tripFindUniqueOrThrow.mockResolvedValue({ packingListsOpen: true });
   holidays.loadHolidayLines.mockResolvedValue(new Map());
 });
 
@@ -66,8 +69,26 @@ describe("buildReviewInput", () => {
     expect(m.checklistItemFindMany).toHaveBeenCalledWith({
       where: { tripId: "trip-1", kind: { in: ["PACKING", "PRETRIP"] } },
       orderBy: { sortOrder: "asc" },
-      select: { kind: true, text: true, done: true },
+      select: { kind: true, text: true, done: true, ownerId: true },
     });
+    expect(input.checklists).toBe(
+      reviewChecklistsJson([
+        { list: "PACKING", text: "Umbrella", ticked: false },
+        { list: "PRETRIP", text: "Buy the 3-day Kansai pass", ticked: true },
+      ]),
+    );
+  });
+
+  it("an Open Trip's Review sees personal Packing items too", async () => {
+    m.checklistItemFindMany.mockResolvedValue([...CHECKLIST_ROWS, PERSONAL]);
+    const input = await buildReviewInput("trip-1");
+    expect(input.checklists).toContain("Rain jacket");
+  });
+
+  it("a Private Trip's Review sees Shared Packing and Pre-trip only", async () => {
+    m.tripFindUniqueOrThrow.mockResolvedValue({ packingListsOpen: false });
+    m.checklistItemFindMany.mockResolvedValue([...CHECKLIST_ROWS, PERSONAL]);
+    const input = await buildReviewInput("trip-1");
     expect(input.checklists).toBe(
       reviewChecklistsJson([
         { list: "PACKING", text: "Umbrella", ticked: false },

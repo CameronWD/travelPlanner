@@ -22,6 +22,7 @@ const {
   loadTransportForMcp,
   loadAccommodationForMcp,
   loadDayForMcp,
+  loadPackingViewer,
 } = vi.hoisted(() => ({
   requireTripAccess: vi.fn(),
   requireGlobeAccess: vi.fn(),
@@ -44,6 +45,7 @@ const {
   loadTransportForMcp: vi.fn(),
   loadAccommodationForMcp: vi.fn(),
   loadDayForMcp: vi.fn(),
+  loadPackingViewer: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
@@ -58,6 +60,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/server/actions/checklists", () => ({ listTemplates }));
+vi.mock("@/lib/packing-viewer", () => ({ loadPackingViewer }));
 vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip }));
 vi.mock("../reads/trip-plan", () => ({ loadTripPlanForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostsForMcp }));
@@ -88,6 +91,7 @@ describe("read tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
+    loadPackingViewer.mockResolvedValue({ userId: "u1", open: true });
     requireGlobeAccess.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
     // Each of these mocked loaders checks access first, same as the real ones.
     loadTripPlanForMcp.mockImplementation(async (tripId: string) => {
@@ -423,11 +427,32 @@ describe("read tools", () => {
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_checklists", arguments: { tripId: TRIP_ID } });
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
-      pretrip: [{ id: "c1", text: "Book flights", done: true, dueDate: "2026-01-01", buyState: null }],
-      packing: [{ id: "c2", text: "Socks", done: false, dueDate: null, buyState: null }],
-      shopping: [{ id: "c3", text: "Sunscreen", done: false, dueDate: null, buyState: "NEEDED" }],
+      pretrip: [{ id: "c1", text: "Book flights", done: true, dueDate: "2026-01-01", buyState: null, owner: null, packedBy: null }],
+      packing: [{ id: "c2", text: "Socks", done: false, dueDate: null, buyState: null, owner: null, packedBy: null }],
+      shopping: [{ id: "c3", text: "Sunscreen", done: false, dueDate: null, buyState: "NEEDED", owner: null, packedBy: null }],
       templates: [{ id: "t1", name: "Beach", itemCount: 5 }],
     });
+  });
+
+  it("get_checklists in a Private trip filters to Shared and own, and names owner and packer", async () => {
+    loadPackingViewer.mockResolvedValue({ userId: "u1", open: false });
+    const traveller = (id: string, name: string) => ({ id, name, image: null });
+    checklistItemFindMany.mockResolvedValue([
+      { id: "p1", kind: "PACKING", text: "Tent", done: true, dueDate: null, sortOrder: 0, buy: null, ownerId: null, owner: null, packedBy: traveller("u2", "Sam") },
+      { id: "p2", kind: "PACKING", text: "Hat", done: false, dueDate: null, sortOrder: 1, buy: null, ownerId: "u1", owner: traveller("u1", "Cam"), packedBy: null },
+    ]);
+    listTemplates.mockResolvedValue([]);
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_checklists", arguments: { tripId: TRIP_ID } });
+    expect(loadPackingViewer).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(checklistItemFindMany.mock.calls.at(-1)![0].where).toEqual({
+      tripId: TRIP_ID,
+      OR: [{ kind: { not: "PACKING" } }, { ownerId: null }, { ownerId: "u1" }],
+    });
+    expect(JSON.parse((r.content as { text: string }[])[0].text).packing).toEqual([
+      { id: "p1", text: "Tent", done: true, dueDate: null, buyState: null, owner: null, packedBy: "Sam" },
+      { id: "p2", text: "Hat", done: false, dueDate: null, buyState: null, owner: { id: "u1", name: "Cam" }, packedBy: null },
+    ]);
   });
 
   it("get_activity maps rows to headline/who/via, newest first and respects limit", async () => {

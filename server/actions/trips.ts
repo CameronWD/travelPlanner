@@ -657,6 +657,7 @@ export async function duplicateTrip(
       checklistItems: source.checklistItems,
     },
     name,
+    user.id,
   );
 
   const { trip: newTrip, slug } = await db.$transaction(async (tx) => {
@@ -811,6 +812,32 @@ export async function setWhatsAroundEnabled(tripId: string, enabled: boolean): P
 }
 
 // ---------------------------------------------------------------------------
+// setPackingListsOpen
+// ---------------------------------------------------------------------------
+
+export async function setPackingListsOpen(tripId: string, open: boolean): Promise<UpdateTripResult> {
+  await requireTripAccess(tripId);
+
+  await db.trip.update({ where: { id: tripId }, data: { packingListsOpen: open } });
+
+  // "TRIP" isn't a valid ActivityEntityType; CHECKLIST_ITEM is the closest fit
+  // for this packing-domain trip setting, as CHAPTER is for setChaptersEnabled.
+  await recordActivity({
+    tripId,
+    verb: "UPDATED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: null,
+    entityLabel: "",
+    changes: { summary: open ? "made packing lists open" : "made packing lists private" },
+  });
+
+  revalidateTrip(tripId, "trip");
+  revalidateTrip(tripId, "lists");
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // setForksEnabled
 // ---------------------------------------------------------------------------
 
@@ -925,6 +952,7 @@ export async function removeTripMember(
   // Surprise (CONTEXT.md): nobody else could reveal their Surprises.
   await revealSurprisesPlannedBy(tripId, userId);
   await db.tripMember.deleteMany({ where: { tripId, userId } });
+  await dropLeaversPacking(tripId, userId);
 
   if (target?.email) {
     await db.invite.deleteMany({
@@ -935,6 +963,11 @@ export async function removeTripMember(
   revalidateTrip(tripId, "travellers");
 
   return { success: true };
+}
+
+async function dropLeaversPacking(tripId: string, userId: string) {
+  await db.checklistItem.deleteMany({ where: { tripId, kind: "PACKING", ownerId: userId } });
+  await db.checklistItem.updateMany({ where: { tripId, packedById: userId }, data: { packedById: null } });
 }
 
 export type LeaveTripResult = ActionResult;
@@ -964,6 +997,7 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
   // Surprise (CONTEXT.md): nobody else could reveal their Surprises.
   await revealSurprisesPlannedBy(tripId, user.id);
   await db.tripMember.deleteMany({ where: { tripId, userId: user.id } });
+  await dropLeaversPacking(tripId, user.id);
 
   if (user.email) {
     await db.invite.deleteMany({

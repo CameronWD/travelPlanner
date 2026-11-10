@@ -35,6 +35,8 @@ const {
   itemCreateMock,
   transportCreateMock,
   checklistItemCreateMock,
+  checklistItemDeleteManyMock,
+  checklistItemUpdateManyMock,
   dayTitleCreateMock,
   forkFindManyMock,
   recomputeChapterSpansMock,
@@ -67,6 +69,8 @@ const {
   const itemCreateMock = vi.fn();
   const transportCreateMock = vi.fn();
   const checklistItemCreateMock = vi.fn();
+  const checklistItemDeleteManyMock = vi.fn();
+  const checklistItemUpdateManyMock = vi.fn();
   // Duplicate (ADR: "Dropped by Duplicate, which resets every date" —
   // CONTEXT.md "Day title") must never write DayTitle rows; this mock lets a
   // test assert that directly instead of only by omission.
@@ -128,6 +132,8 @@ const {
     itemCreateMock,
     transportCreateMock,
     checklistItemCreateMock,
+    checklistItemDeleteManyMock,
+    checklistItemUpdateManyMock,
     dayTitleCreateMock,
     forkFindManyMock,
     recomputeChapterSpansMock,
@@ -171,6 +177,7 @@ vi.mock("@/lib/db", () => ({
     attachment: {
       findMany: attachmentFindManyMock,
     },
+    checklistItem: { deleteMany: checklistItemDeleteManyMock, updateMany: checklistItemUpdateManyMock },
     tripMember: {
       deleteMany: memberDeleteManyMock,
       findUnique: memberFindUniqueMock,
@@ -238,6 +245,7 @@ import {
   setChaptersEnabled,
   setForksEnabled,
   setWhatsAroundEnabled,
+  setPackingListsOpen,
   removeTripMember,
   leaveTrip,
 } from "./trips";
@@ -2107,6 +2115,47 @@ describe("setWhatsAroundEnabled", () => {
   });
 });
 
+describe("setPackingListsOpen", () => {
+  it("is access-checked before the write", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setPackingListsOpen(TRIP_ID, false);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
+  });
+
+  it("lets any member set the flag and revalidates the trip and lists", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setPackingListsOpen(TRIP_ID, false);
+
+    expect(result).toEqual({ success: true });
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { packingListsOpen: false } });
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
+    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "lists");
+  });
+
+  it.each([
+    [false, "made packing lists private"],
+    [true, "made packing lists open"],
+  ])("open=%s records one Activity line: %s", async (open, summary) => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setPackingListsOpen(TRIP_ID, open);
+
+    expect(recordActivityMock).toHaveBeenCalledTimes(1);
+    expect(recordActivityMock).toHaveBeenCalledWith({
+      tripId: TRIP_ID,
+      verb: "UPDATED",
+      entityType: "CHECKLIST_ITEM",
+      entityId: null,
+      entityLabel: "",
+      changes: { summary },
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // removeTripMember
 // ---------------------------------------------------------------------------
@@ -2123,6 +2172,19 @@ describe("removeTripMember", () => {
 
     expect(revealSurprisesPlannedByMock).toHaveBeenCalledWith("t1", "u2");
     expect(revealSurprisesPlannedByMock.mock.invocationCallOrder[0]).toBeLessThan(memberDeleteManyMock.mock.invocationCallOrder[0]!);
+  });
+
+  it("Packing: deletes the removed Traveller's personal items and clears their ticks on the rest", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({ email: "traveller@example.com" });
+
+    await removeTripMember("t1", "u2");
+
+    expect(checklistItemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", kind: "PACKING", ownerId: "u2" } });
+    expect(checklistItemUpdateManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", packedById: "u2" }, data: { packedById: null } });
   });
 
   it("Surprise: reveals nothing when the removal is refused", async () => {
@@ -2322,6 +2384,18 @@ describe("leaveTrip", () => {
 
     expect(revealSurprisesPlannedByMock).toHaveBeenCalledWith("t1", "u2");
     expect(revealSurprisesPlannedByMock.mock.invocationCallOrder[0]).toBeLessThan(memberDeleteManyMock.mock.invocationCallOrder[0]!);
+  });
+
+  it("Packing: deletes the leaver's personal items and clears their ticks on the rest", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip("t1");
+
+    expect(checklistItemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", kind: "PACKING", ownerId: "u2" } });
+    expect(checklistItemUpdateManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", packedById: "u2" }, data: { packedById: null } });
   });
 
   it("Surprise: the owner's refused leave reveals nothing", async () => {

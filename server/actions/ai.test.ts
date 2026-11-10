@@ -19,20 +19,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const {
   requireTripAccessMock,
   suggestActivitiesMock,
-  draftPackingListMock,
   stopFindUniqueMock,
   itemFindManyMock,
-  tripFindUniqueMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
   suggestActivitiesMock: vi.fn(),
-  draftPackingListMock: vi.fn(),
   stopFindUniqueMock: vi.fn(),
   itemFindManyMock: vi.fn(),
-  tripFindUniqueMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -41,7 +37,6 @@ vi.mock("@/lib/guards", () => ({
 
 vi.mock("@/lib/ai", () => ({
   suggestActivities: suggestActivitiesMock,
-  draftPackingList: draftPackingListMock,
   isAiConfigured: vi.fn().mockReturnValue(true),
 }));
 
@@ -49,7 +44,6 @@ vi.mock("@/lib/db", () => ({
   db: {
     stop: { findUnique: stopFindUniqueMock },
     item: { findMany: itemFindManyMock },
-    trip: { findUnique: tripFindUniqueMock },
   },
 }));
 
@@ -65,10 +59,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
 
-import {
-  aiSuggestActivities,
-  aiDraftPackingList,
-} from "./ai";
+import { aiSuggestActivities } from "./ai";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
@@ -228,118 +219,6 @@ describe("aiSuggestActivities", () => {
     suggestActivitiesMock.mockResolvedValue({ ok: false, reason: "disabled" });
 
     const result = await aiSuggestActivities("trip-1", "stop-1");
-
-    expect(result).toEqual({
-      success: false,
-      code: "disabled",
-      errors: { _: ["AI features are not configured."] },
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// aiDraftPackingList
-// ---------------------------------------------------------------------------
-
-describe("aiDraftPackingList", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireTripAccessMock.mockResolvedValue({
-      user: { id: "user-1" },
-      membership: { role: "owner" },
-    });
-  });
-
-  it("calls requireTripAccess with the trip id", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      name: "Euro Trip",
-      startDate: "2025-06-01",
-      endDate: "2025-06-14",
-      stops: [],
-    });
-    draftPackingListMock.mockResolvedValue({ ok: true, data: { items: [] } });
-
-    await aiDraftPackingList("trip-1");
-
-    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
-  });
-
-  it("reads only the real plan's Stops (their names are outside any Surprise)", async () => {
-    tripFindUniqueMock.mockResolvedValue({ name: "Euro Trip", startDate: null, endDate: null, stops: [] });
-    draftPackingListMock.mockResolvedValue({ ok: true, data: { items: [] } });
-
-    await aiDraftPackingList("trip-1");
-
-    expect(tripFindUniqueMock.mock.calls[0][0].select.stops).toEqual({
-      where: { forkId: null },
-      orderBy: { sortOrder: "asc" },
-      select: { name: true, country: true },
-    });
-  });
-
-  it("returns error when trip not found", async () => {
-    tripFindUniqueMock.mockResolvedValue(null);
-
-    const result = await aiDraftPackingList("trip-99");
-
-    expect(result).toEqual({
-      success: false,
-      code: "error",
-      errors: { _: ["Trip not found"] },
-    });
-    expect(draftPackingListMock).not.toHaveBeenCalled();
-  });
-
-  it("calls draftPackingList with trip details and stops", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      name: "Summer Trip",
-      startDate: "2025-07-01",
-      endDate: "2025-07-21",
-      stops: [
-        { name: "Barcelona", country: "Spain" },
-        { name: "Lisbon", country: "Portugal" },
-      ],
-    });
-    draftPackingListMock.mockResolvedValue({ ok: true, data: { items: [] } });
-
-    await aiDraftPackingList("trip-1");
-
-    expect(draftPackingListMock).toHaveBeenCalledWith({
-      tripName: "Summer Trip",
-      stops: [
-        { name: "Barcelona", country: "Spain" },
-        { name: "Lisbon", country: "Portugal" },
-      ],
-      startDate: "2025-07-01",
-      endDate: "2025-07-21",
-    });
-  });
-
-  it("converts the lib's successful result into an ActionResult", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      name: "Test",
-      startDate: "2025-01-01",
-      endDate: "2025-01-07",
-      stops: [],
-    });
-    const libResult = { ok: true as const, data: { items: ["Passport", "Sunscreen"] } };
-    draftPackingListMock.mockResolvedValue(libResult);
-
-    const result = await aiDraftPackingList("trip-1");
-
-    expect(result).toEqual({ success: true, data: libResult.data });
-  });
-
-  it("returns disabled when the lib returns disabled", async () => {
-    tripFindUniqueMock.mockResolvedValue({
-      name: "Test",
-      startDate: "2025-01-01",
-      endDate: "2025-01-07",
-      stops: [],
-    });
-    draftPackingListMock.mockResolvedValue({ ok: false, reason: "disabled" });
-
-    const result = await aiDraftPackingList("trip-1");
 
     expect(result).toEqual({
       success: false,

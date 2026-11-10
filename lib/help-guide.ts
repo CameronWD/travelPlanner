@@ -364,6 +364,7 @@ export const GUIDE_UI_STRINGS = [
   // Getting ready
   "Pre-trip",
   "Packing",
+  "Shared",
   "Import a booking",
   "Create calendar feed",
   "Add Reminder",

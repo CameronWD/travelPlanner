@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { Checklist } from "@/components/trip/checklist";
+import { PackingList } from "@/components/trip/packing-list";
+import { buildPackingSections } from "@/lib/packing-sections";
+import { canSeePackingItem, type PackingViewer } from "@/lib/packing-access";
 import { ShoppingList } from "@/components/trip/shopping-list";
 import { buildShoppingEntries, shoppingOpenCount } from "@/lib/shopping-list";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
-import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
@@ -45,9 +46,7 @@ export default async function ChecklistsPage({
 }) {
   const { tripId } = await params;
 
-  await requireTripAccess(tripId);
-
-  const aiConfigured = isAiConfigured();
+  const { user } = await requireTripAccess(tripId);
 
   // One wave after the gate (spec 2026-10-06 §C). Reminders live here at every
   // width (Task 16): the desktop Home shows them only as "Sort these out" rows
@@ -63,7 +62,10 @@ export default async function ChecklistsPage({
     })
     .then((rows) => rows);
   const [trip, slug, rawItems, members, templates, stopsRaw, reminders, aboutOptions] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true } }),
+    db.trip.findUnique({
+      where: { id: tripId },
+      select: { name: true, startDate: true, packingListsOpen: true },
+    }),
     tripSlugFor(tripId),
     // All checklist items for this trip
     db.checklistItem.findMany({
@@ -78,10 +80,13 @@ export default async function ChecklistsPage({
         sortOrder: true,
         buy: true,
         assignedTo: { select: TRAVELLER_SELECT },
+        ownerId: true,
+        owner: { select: TRAVELLER_SELECT },
+        packedBy: { select: TRAVELLER_SELECT },
       },
     }),
     // Trip members for the assignee picker
-    db.tripMember.findMany({ where: { tripId }, select: { user: { select: TRAVELLER_SELECT } } }),
+    db.tripMember.findMany({ where: { tripId }, orderBy: { createdAt: "asc" }, select: { user: { select: TRAVELLER_SELECT } } }),
     // The current user's packing templates
     listTemplates(),
     stopsPromise,
@@ -91,13 +96,14 @@ export default async function ChecklistsPage({
 
   const memberList = members.map((m) => m.user);
   const today = tripTodayISO(stopsRaw);
+  const viewer: PackingViewer = { userId: user.id, open: trip?.packingListsOpen ?? false };
 
   // Split into kinds and sort
   const pretripItems = sortChecklist(
     rawItems.filter((i) => i.kind === "PRETRIP"),
   );
   const packingItems = sortChecklist(
-    rawItems.filter((i) => i.kind === "PACKING"),
+    rawItems.filter((i) => i.kind === "PACKING" && canSeePackingItem(i.ownerId, viewer)),
   );
   const shoppingItems = sortChecklist(
     rawItems.filter((i) => i.kind === "SHOPPING"),
@@ -109,16 +115,13 @@ export default async function ChecklistsPage({
     kind: i.kind as ChecklistKind,
     dueDate: i.dueDate ?? null,
   }));
-  const typedPackingItems = packingItems.map((i) => ({
-    ...i,
-    kind: i.kind as ChecklistKind,
-    dueDate: i.dueDate ?? null,
-  }));
+  const packingSections = buildPackingSections(packingItems, memberList, viewer);
+  const packingCounted = [...packingSections.mine, ...packingSections.shared];
 
   // Shopping tab (spec 2026-10-02 §G): Packing items flagged to buy, plus
   // standalone SHOPPING items. Count badge = NEEDED packing + unticked
   // standalone — the Checklists meta line and Home counts are unchanged.
-  const shoppingEntries = buildShoppingEntries(packingItems, shoppingItems);
+  const shoppingEntries = buildShoppingEntries(packingItems, shoppingItems, viewer);
   const shoppingOpen = shoppingOpenCount(shoppingEntries);
 
   return (
@@ -126,7 +129,7 @@ export default async function ChecklistsPage({
       <PageHeader
         eyebrow={tripEyebrow(trip?.name ?? "", trip?.startDate ?? null)}
         title="Checklists"
-        meta={checklistsMeta(pretripItems, packingItems)}
+        meta={checklistsMeta(pretripItems, packingCounted)}
         trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />}
       />
 
@@ -169,28 +172,23 @@ export default async function ChecklistsPage({
             label: (
               <>
                 Packing
-                {packingItems.length > 0 && (
+                {packingSections.total > 0 && (
                   <span className="rounded-full border-2 border-border bg-card px-1.5 text-[11px] font-extrabold tabular-nums text-foreground">
-                    {packingItems.filter((i) => !i.done).length}
+                    {packingSections.total - packingSections.packed}
                   </span>
                 )}
               </>
             ),
             content: (
               <div className="flex flex-col gap-4">
-                {/* AI packing list suggestions */}
-                <AiPackingSuggestions tripId={tripId} aiConfigured={aiConfigured} />
-
                 {/* Templates bar — above the list */}
                 <PackingTemplatesBar tripId={tripId} templates={templates} />
 
-                <Checklist
+                <PackingList
                   tripId={tripId}
-                  kind="PACKING"
-                  items={typedPackingItems}
-                  members={memberList}
-                  showDueDate={false}
-                  showAssignee={false}
+                  sections={packingSections}
+                  viewerId={user.id}
+                  open={viewer.open}
                 />
               </div>
             ),

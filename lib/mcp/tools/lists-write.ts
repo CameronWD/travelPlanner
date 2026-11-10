@@ -1,7 +1,8 @@
 /**
  * Write tools for Reminders and Checklists (spec 2026-10-09, Task 14): the
  * Reminder lifecycle, the three Checklist flavours (Pre-trip checklist,
- * Packing list, Shopping list — CONTEXT.md "Checklist"), the Packing ↔
+ * Packing list, Shopping list — CONTEXT.md "Checklist"; a Packing item is
+ * personal or Shared), the Packing ↔
  * Shopping "Need to buy" bridge, reordering, and Packing templates.
  *
  * Every write delegates to the same server actions the app itself uses
@@ -88,6 +89,8 @@ import {
   applyTemplate,
   listTemplates,
 } from "@/server/actions/checklists";
+import { loadPackingViewer } from "@/lib/packing-viewer";
+import type { PackingViewer } from "@/lib/packing-access";
 import { buyStateSchema } from "@/lib/enums";
 import { runTool, runWrite } from "../run-tool";
 import { readReminderItem } from "@/lib/reminder-reads";
@@ -207,12 +210,18 @@ export function registerListWriteTools(server: McpServer): void {
         kind: addableChecklistKind,
         text: z.string().trim().min(1),
         dueDate: isoDate.optional(),
+        whose: z
+          .union([z.literal("me"), z.literal("shared"), z.string()])
+          .optional()
+          .describe(
+            "Packing only: whose list: \"me\" (default), \"shared\", or a Traveller's user id (another Traveller's list only when the trip's packing lists are Open).",
+          ),
       },
     },
-    ({ tripId, ...rest }) =>
+    ({ tripId, whose, ...rest }) =>
       runWrite(
         "add_checklist_item",
-        () => addChecklistItem(tripId, rest),
+        () => addChecklistItem(tripId, { ...rest, ...(whose && whose !== "me" ? { owner: whose === "shared" ? "SHARED" : whose } : {}) }),
         async (done) => ({ checklistItem: await loadChecklistItemForMcp(done.id) }),
       ),
   );
@@ -261,7 +270,7 @@ export function registerListWriteTools(server: McpServer): void {
     "tick_checklist_item",
     {
       title: "Tick checklist item",
-      description: "Marks a checklist item done or not done.",
+      description: "Marks a checklist item done or not done. A Packing item on another Traveller's list can't be ticked.",
       inputSchema: { itemId: z.string(), done: z.boolean() },
     },
     ({ itemId, done }) =>
@@ -327,7 +336,7 @@ export function registerListWriteTools(server: McpServer): void {
     "save_packing_template",
     {
       title: "Save packing template",
-      description: "Saves the trip's current Packing list as a reusable template, owned by the acting Traveller.",
+      description: "Saves the acting Traveller's own Packing items and the Shared ones as a reusable template, owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), name: z.string().trim().min(1) },
     },
     ({ tripId, name }) =>
@@ -345,19 +354,21 @@ export function registerListWriteTools(server: McpServer): void {
     {
       title: "Apply packing template",
       description:
-        "Adds a saved Packing template's items to the trip's Packing list. Items already on the list (by text, case-insensitive) are skipped. The template must be owned by the acting Traveller.",
+        "Adds a saved Packing template's items to the trip: personal entries to the acting Traveller's own list, shared entries to Shared. Items already in that list (by text, case-insensitive) are skipped. The template must be owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), templateId: z.string() },
     },
     ({ tripId, templateId }) => {
       let before = new Set<string>();
+      let viewer!: PackingViewer;
       return runWrite(
         "apply_packing_template",
         async () => {
-          await requireTripAccess(tripId);
-          before = new Set((await readChecklist(tripId, "PACKING")).map((i) => i.id));
+          const { user } = await requireTripAccess(tripId);
+          viewer = await loadPackingViewer(tripId, user.id);
+          before = new Set((await readChecklist(tripId, "PACKING", viewer)).map((i) => i.id));
           return applyTemplate(tripId, templateId);
         },
-        async () => ({ added: (await readChecklist(tripId, "PACKING")).filter((i) => !before.has(i.id)) }),
+        async () => ({ added: (await readChecklist(tripId, "PACKING", viewer)).filter((i) => !before.has(i.id)) }),
       );
     },
   );

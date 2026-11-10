@@ -29,29 +29,10 @@ export const checklistItemSchema = z.object({
     .trim()
     .optional()
     .transform((v) => (v === "" ? undefined : v)),
+  owner: z.union([z.literal("SHARED"), z.string().trim().min(1)]).optional(),
 });
 
 export type ChecklistItemInput = z.input<typeof checklistItemSchema>;
-
-/**
- * A single text in a bulk add (addChecklistItems — e.g. AI packing "Add
- * all"). Same trim + max-length rule as checklistItemSchema's `text`, but
- * NOT `.min(1)`: a blank is a candidate for the caller to silently drop,
- * not a validation failure for the whole batch.
- */
-const checklistItemTextSchema = z
-  .string()
-  .trim()
-  .max(CHECKLIST_TEXT_MAX, `Text must be ${CHECKLIST_TEXT_MAX} characters or fewer`);
-
-/**
- * Schema for addChecklistItems — bulk-adding ChecklistItems in one write
- * with one Activity line, instead of one addChecklistItem call per item.
- */
-export const checklistItemsSchema = z.object({
-  kind: checklistKindSchema,
-  texts: z.array(checklistItemTextSchema),
-});
 
 /**
  * Schema for updating (partial) a ChecklistItem — kind is not editable

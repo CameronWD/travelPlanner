@@ -1,12 +1,11 @@
 /**
  * AI assistant seam: the shared Anthropic client and model config, plus the
- * Wishlist and Checklist calls. The Booking import's call lives in
+ * Wishlist call. The Booking import's call lives in
  * lib/booking-import/extract.ts.
  *
- * Two features live in this file: suggesting activities (suggestActivities)
- * and drafting a packing list (draftPackingList). The Booking import is a
- * separate seam in lib/booking-import/ (extractBooking) — it shares this
- * module's aiModel(), isAiConfigured(), anthropicClient() and
+ * One feature lives in this file: suggesting activities (suggestActivities).
+ * The Booking import is a separate seam in lib/booking-import/ (extractBooking)
+ * — it shares this module's aiModel(), isAiConfigured(), anthropicClient() and
  * zodOutputFormatHelper(), but its own prompt and schema live there.
  *
  * The module is env-gated:
@@ -140,67 +139,6 @@ Be specific and practical. Only output via the schema.`,
       ],
       output_config: {
         format: zodOutputFormat(SuggestActivitiesOutputSchema),
-      },
-    });
-
-    if (!response.parsed_output) {
-      return { ok: false, reason: "error", message: "AI returned no output" };
-    }
-
-    return { ok: true, data: response.parsed_output };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, reason: "error", message };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// draftPackingList
-// ---------------------------------------------------------------------------
-
-const DraftPackingListOutputSchema = z.object({
-  items: z.array(z.string()),
-});
-
-export type DraftPackingListOutput = z.infer<typeof DraftPackingListOutputSchema>;
-
-export async function draftPackingList(input: {
-  tripName: string;
-  stops: { name: string; country?: string }[];
-  startDate: string | null;
-  endDate: string | null;
-}): Promise<AiResult<DraftPackingListOutput>> {
-  if (!isAiConfigured()) {
-    return { ok: false, reason: "disabled" };
-  }
-
-  try {
-    const client = await anthropicClient();
-    const zodOutputFormat = await zodOutputFormatHelper();
-
-    const stopsList = input.stops
-      .map((s) => (s.country ? `${s.name}, ${s.country}` : s.name))
-      .join("; ");
-
-    const datesLine =
-      input.startDate && input.endDate
-        ? `Dates: ${input.startDate} to ${input.endDate}.`
-        : `Dates: not set yet.`;
-
-    const response = await client.messages.parse({
-      model: aiModel(),
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: `Draft a practical packing list for a trip named "${input.tripName}".
-${datesLine}
-Stops: ${stopsList || "unspecified"}.
-List each item as a short phrase (e.g. "Sunscreen SPF 50"). Include essentials, clothing, electronics, and anything specific to the destinations and season. Be concise and skip redundant items. Only output via the schema.`,
-        },
-      ],
-      output_config: {
-        format: zodOutputFormat(DraftPackingListOutputSchema),
       },
     });
 

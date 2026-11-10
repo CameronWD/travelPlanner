@@ -234,6 +234,8 @@ type ChecklistItemRow = {
   text: string;
   done: boolean;
   dueDate: string | null;
+  ownerId: string | null;
+  buy: string | null;
   assignedTo: TravellerLike | null;
 };
 

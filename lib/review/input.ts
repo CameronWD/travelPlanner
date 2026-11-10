@@ -21,19 +21,22 @@ import { reviewInputFromPlan, type ReviewChecklistEntry, type ReviewInput } from
  * fix only ever adds to Packing or Pre-trip (lib/review/types.ts CHECKLIST_FIX_LISTS).
  */
 export async function buildReviewInput(tripId: string): Promise<ReviewInput> {
-  const [plan, rows, projection, checklistRows] = await Promise.all([
+  const [plan, rows, projection, checklistRows, listsOpen] = await Promise.all([
     loadTripPlanView(tripId, null),
     loadFlagRows(tripId, null),
     loadTripProjection(tripId),
     db.checklistItem.findMany({
       where: { tripId, kind: { in: ["PACKING", "PRETRIP"] } },
       orderBy: { sortOrder: "asc" },
-      select: { kind: true, text: true, done: true },
+      select: { kind: true, text: true, done: true, ownerId: true },
     }),
+    db.trip.findUniqueOrThrow({ where: { id: tripId }, select: { packingListsOpen: true } }).then((t) => t.packingListsOpen),
   ]);
   const flags = rows ? flagsForRows(rows, projection) : [];
   const today = rows?.today ?? todayISOInZone(plan.trip.homeTimezone ?? "UTC");
-  const checklists: ReviewChecklistEntry[] = checklistRows.map((r) => ({ list: r.kind as ReviewChecklistEntry["list"], text: r.text, ticked: r.done }));
+  const checklists: ReviewChecklistEntry[] = checklistRows
+    .filter((r) => listsOpen || r.kind !== "PACKING" || r.ownerId === null)
+    .map((r) => ({ list: r.kind as ReviewChecklistEntry["list"], text: r.text, ticked: r.done }));
   const { startDate, endDate } = plan.trip;
   const dates: string[] = [];
   if (startDate && endDate) for (let d = startDate; d <= endDate; d = addDays(d, 1)) dates.push(d);

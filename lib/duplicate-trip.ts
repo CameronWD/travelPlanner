@@ -106,6 +106,7 @@ interface DuplicateSourceChecklistItem {
   kind: string;
   text: string;
   dueDate: string | null;
+  ownerId: string | null;
 }
 
 export interface DuplicateSource {
@@ -158,7 +159,7 @@ export interface DuplicatePlan {
       bookingState: BookingState; bookingStateSet: false;
     };
   }>;
-  checklistItems: Array<{ data: { kind: string; text: string; done: false; dueDate: null; assignedToId: null; sortOrder: number } }>;
+  checklistItems: Array<{ data: { kind: string; text: string; done: false; dueDate: null; assignedToId: null; ownerId: string | null; sortOrder: number } }>;
 }
 
 /** Whole nights between two YYYY-MM-DD dates (UTC midnight diff). */
@@ -169,7 +170,7 @@ function nightsBetween(arrive: string, depart: string): number {
   return Math.max(1, Math.round((d - a) / 86_400_000));
 }
 
-export function buildDuplicatePlan(source: DuplicateSource, newName: string): DuplicatePlan {
+export function buildDuplicatePlan(source: DuplicateSource, newName: string, duplicatorId: string): DuplicatePlan {
   // Every copied Stop is rough, so the copy's plan order (ADR 0038) is plain
   // sortOrder — each leg's slot is resolved against that, not the source's dates.
   const copyOrder = [...source.stops].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -264,8 +265,10 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         bookingStateSet: false,
       },
     })),
-    checklistItems: source.checklistItems.map((c, idx) => ({
-      data: { kind: c.kind, text: c.text, done: false, dueDate: null, assignedToId: null, sortOrder: idx },
-    })),
+    checklistItems: source.checklistItems
+      .filter((c) => c.kind !== "PACKING" || c.ownerId === null || c.ownerId === duplicatorId)
+      .map((c, idx) => ({
+        data: { kind: c.kind, text: c.text, done: false, dueDate: null, assignedToId: null, ownerId: c.ownerId, sortOrder: idx },
+      })),
   };
 }

@@ -23,6 +23,7 @@
  * the Item and Accommodation reads, as on the trip Home, so nothing inside a
  * Surprise hidden from them is read.
  */
+import { packingMineOrSharedWhere } from "@/lib/packing-access";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { tripSlugFor } from "@/lib/trip-slug-read";
@@ -63,7 +64,7 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
     trip.chaptersEnabled
       ? db.chapter.count({ where: { tripId, ...REAL_PLAN, startDate: null } })
       : Promise.resolve(0),
-    db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
+    db.checklistItem.count({ where: { tripId, ...packingMineOrSharedWhere(viewerId) } }),
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
     tripSlugFor(tripId),
   ]);

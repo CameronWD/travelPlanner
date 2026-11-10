@@ -2,15 +2,20 @@
  * Single-row reads for the Checklists and the Wishlist, in get_checklists'
  * and get_wishlist's shapes: the read-back of every list write (spec
  * 2026-10-16 F6). Checklists are trip-wide and never inside a Surprise.
+ * A Packing item is personal (an owner) or Shared (owner null), and a
+ * Private trip hides other Travellers' personal items from every read here.
  * Wishlist ideas carry the Surprise fragment anyway; a Vote's Item is
  * checked through `requireRealPlanRow`, which refuses one hidden from the
  * caller.
  */
 import { notFound } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireRowAccess, requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 import { sortChecklist } from "@/lib/checklists";
+import { packingVisibleWhere, type PackingViewer } from "@/lib/packing-access";
+import { loadPackingViewer } from "@/lib/packing-viewer";
 import { travellerName, TRAVELLER_SELECT, type TravellerLike } from "@/lib/traveller";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { requireRealPlanRow } from "../real-plan";
@@ -19,19 +24,34 @@ import { requireRealPlanRow } from "../real-plan";
 // Checklists
 // ---------------------------------------------------------------------------
 
-export const CHECKLIST_VIEW_SELECT = { id: true, kind: true, text: true, done: true, dueDate: true, sortOrder: true, buy: true } as const;
-type ChecklistRow = { id: string; kind: string; text: string; done: boolean; dueDate: string | null; sortOrder: number; buy: string | null };
+export const CHECKLIST_VIEW_SELECT = {
+  id: true, kind: true, text: true, done: true, dueDate: true, sortOrder: true, buy: true,
+  ownerId: true,
+  owner: { select: TRAVELLER_SELECT },
+  packedBy: { select: TRAVELLER_SELECT },
+} as const;
+type ChecklistRow = {
+  id: string; kind: string; text: string; done: boolean; dueDate: string | null; sortOrder: number; buy: string | null;
+  owner: TravellerLike | null; packedBy: TravellerLike | null;
+};
 
 /** One Checklist item as get_checklists lists it. */
-export interface McpChecklistItem { id: string; text: string; done: boolean; dueDate: string | null; buyState: string | null }
+export interface McpChecklistItem {
+  id: string; text: string; done: boolean; dueDate: string | null; buyState: string | null;
+  owner: { id: string; name: string } | null; packedBy: string | null;
+}
 
 export const toChecklistView = (i: ChecklistRow): McpChecklistItem => ({
   id: i.id, text: i.text, done: i.done, dueDate: i.dueDate, buyState: i.buy,
+  owner: i.kind === "PACKING" && i.owner ? { id: i.owner.id, name: travellerName(i.owner) } : null,
+  packedBy: i.kind === "PACKING" && i.packedBy ? travellerName(i.packedBy) : null,
 });
 
 /** One list in get_checklists' order. Callers have checked access. */
-export async function readChecklist(tripId: string, kind: string): Promise<McpChecklistItem[]> {
-  const rows = await db.checklistItem.findMany({ where: { tripId, kind }, orderBy: { sortOrder: "asc" }, select: CHECKLIST_VIEW_SELECT });
+export async function readChecklist(
+  tripId: string, kind: string, viewer: PackingViewer, where: Prisma.ChecklistItemWhereInput = {},
+): Promise<McpChecklistItem[]> {
+  const rows = await db.checklistItem.findMany({ where: { tripId, kind, ...where, ...packingVisibleWhere(viewer) }, orderBy: { sortOrder: "asc" }, select: CHECKLIST_VIEW_SELECT });
   return sortChecklist(rows).map(toChecklistView);
 }
 
@@ -45,8 +65,10 @@ export async function loadChecklistItemForMcp(itemId: string): Promise<McpCheckl
 
 /** The whole list a Checklist item is on, in its new order (move_checklist_item's read-back). */
 export async function loadChecklistOfItemForMcp(itemId: string): Promise<{ kind: string; items: McpChecklistItem[] }> {
-  const { row } = await requireRowAccess("checklistItem", itemId);
-  return { kind: row.kind, items: await readChecklist(row.tripId, row.kind) };
+  const { row, user } = await requireRowAccess("checklistItem", itemId);
+  const viewer = await loadPackingViewer(row.tripId, user.id);
+  const sameList = row.kind === "PACKING" ? { ownerId: row.ownerId } : {};
+  return { kind: row.kind, items: await readChecklist(row.tripId, row.kind, viewer, sameList) };
 }
 
 // ---------------------------------------------------------------------------

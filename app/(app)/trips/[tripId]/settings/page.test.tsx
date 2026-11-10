@@ -185,6 +185,7 @@ describe("Settings companion-column layout (LA-046)", () => {
       "Trip details",
       "Chapters",
       "What's around",
+      "Packing lists",
       "Offline",
       "Travellers",
       "Digest",

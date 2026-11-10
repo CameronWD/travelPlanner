@@ -4,7 +4,6 @@ import {
   ACTIVITY_ENTITY_TYPES,
   activityLine,
   checklistItemSummary,
-  checklistItemsAddedSummary,
   checklistTickSummary,
   dayTitleSummary,
   homeTimezoneSummary,
@@ -458,18 +457,6 @@ describe("TC-07 line builders", () => {
     );
     expect(templateAppliedSummary(1, "Beach").summary).toBe(
       "added 1 item from the Beach template to the packing list",
-    );
-  });
-
-  it("counts a bulk add's items, singular and plural, named by kind (AI packing Add all)", () => {
-    expect(checklistItemsAddedSummary(27, "PACKING").summary).toBe(
-      "added 27 items to the packing list",
-    );
-    expect(checklistItemsAddedSummary(1, "PRETRIP").summary).toBe(
-      "added 1 item to the pre-trip checklist",
-    );
-    expect(checklistItemsAddedSummary(3, "SHOPPING").summary).toBe(
-      "added 3 items to the shopping list",
     );
   });
 

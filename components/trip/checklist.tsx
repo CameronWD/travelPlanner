@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Clock3,
   ShoppingBasket,
+  ArrowRightLeft,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -38,14 +39,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { RowActions } from "@/components/ui/row-actions";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   addChecklistItem,
   updateChecklistItem,
   toggleChecklistItem,
   deleteChecklistItem,
   reorderChecklistItem,
   setBuyState,
+  movePackingItem,
 } from "@/server/actions/checklists";
 import type { ChecklistKind } from "@/lib/enum-values";
+import { toOwnerId, type PackingOwnerRef } from "@/lib/packing-access";
+import { travellerName, type TravellerLike } from "@/lib/traveller";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
@@ -73,7 +83,11 @@ export interface ChecklistItemRow {
   assignedTo?: ChecklistMember | null;
   /** A PACKING item's shopping state (spec 2026-10-02 §G): null | "NEEDED" | "BOUGHT". */
   buy: string | null;
+  ownerId?: string | null;
+  packedBy?: TravellerLike | null;
 }
+
+export type ChecklistMoveTarget = { to: PackingOwnerRef; label: string };
 
 interface ChecklistProps {
   tripId: string;
@@ -84,6 +98,13 @@ interface ChecklistProps {
   showDueDate?: boolean;
   /** Show assignee column (default: true for PRETRIP) */
   showAssignee?: boolean;
+  addOwner?: PackingOwnerRef;
+  addLabel?: string;
+  readOnly?: boolean;
+  showPackedBy?: boolean;
+  moveTargets?: ChecklistMoveTarget[];
+  // null shows only the add row; undefined keeps the default empty state.
+  emptyState?: React.ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,12 +182,16 @@ function AddItemForm({
   members,
   showDueDate,
   showAssignee,
+  owner,
+  addLabel,
 }: {
   tripId: string;
   kind: ChecklistKind;
   members?: ChecklistMember[];
   showDueDate?: boolean;
   showAssignee?: boolean;
+  owner?: PackingOwnerRef;
+  addLabel?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [text, setText] = React.useState("");
@@ -187,6 +212,7 @@ function AddItemForm({
         text: text.trim(),
         dueDate: dueDate || undefined,
         assignedToId: assignedToId || undefined,
+        ...(owner && { owner }),
       });
       if (result.success) {
         setText("");
@@ -212,7 +238,7 @@ function AddItemForm({
     <div className="@container">
       <form
         onSubmit={handleSubmit}
-        aria-label={kind === "PRETRIP" ? "Add a pre-trip task" : "Add a packing item"}
+        aria-label={addLabel ?? (kind === "PRETRIP" ? "Add a pre-trip task" : "Add a packing item")}
         className={cn(
           cardVariants({ dashed: true }),
           "flex flex-col gap-3 p-3.5 @min-[700px]:flex-row @min-[700px]:items-end @min-[700px]:p-[18px]",
@@ -222,7 +248,7 @@ function AddItemForm({
           <Field label="New item" error={error}>
             <Input
               placeholder={
-                kind === "PRETRIP" ? "e.g. Book airport taxi" : "e.g. Sunscreen"
+                addLabel ?? (kind === "PRETRIP" ? "e.g. Book airport taxi" : "e.g. Sunscreen")
               }
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -447,6 +473,9 @@ function ChecklistRow({
   showAssignee,
   today,
   onToggle,
+  readOnly,
+  showPackedBy,
+  moveTargets,
 }: {
   item: ChecklistItemRow;
   isFirst: boolean;
@@ -456,6 +485,9 @@ function ChecklistRow({
   showAssignee?: boolean;
   today: string;
   onToggle: () => void;
+  readOnly?: boolean;
+  showPackedBy?: boolean;
+  moveTargets?: ChecklistMoveTarget[];
 }) {
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
@@ -483,6 +515,65 @@ function ChecklistRow({
     });
   }
 
+  function moveTo(to: PackingOwnerRef) {
+    startTransition(async () => {
+      try {
+        const r = await movePackingItem(item.id, to);
+        if (!r.success) toastRefused(r.errors, "Couldn't move that item.");
+      } catch {
+        toastRejected("Couldn't move that item.");
+      }
+    });
+  }
+
+  const targets = moveTargets?.filter((t) => toOwnerId(t.to) !== (item.ownerId ?? null)) ?? [];
+
+  const label = (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="break-words">{item.text}</span>
+        {/* Shopping badge (spec 2026-10-02 §G): "To buy" / "Bought" on
+            a Packing item that's been flagged to buy. */}
+        {item.kind === "PACKING" && item.buy && (
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-full border-2 border-border px-1.5 text-[11px] font-extrabold uppercase tracking-wide",
+              item.buy === "BOUGHT" ? "bg-teal text-on-accent" : "bg-card text-foreground",
+            )}
+          >
+            <ShoppingBasket className="size-3" aria-hidden="true" />
+            {item.buy === "BOUGHT" ? "Bought" : "To buy"}
+          </span>
+        )}
+      </span>
+      {showPackedBy && item.done && item.packedBy && (
+        <span className="text-xs font-semibold text-muted-foreground">
+          packed by {travellerName(item.packedBy)}
+        </span>
+      )}
+      {/* Due date hint (never shown on a done item) */}
+      {showDueDate && status && (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 text-xs font-semibold",
+            status.variant === "overdue" && "text-destructive",
+            status.variant === "soon" && "text-sun-text",
+            status.variant === "normal" && "text-muted-foreground",
+          )}
+        >
+          {status.variant === "overdue" ? (
+            <AlertTriangle className="size-3" aria-hidden="true" />
+          ) : status.variant === "soon" ? (
+            <Clock3 className="size-3" aria-hidden="true" />
+          ) : (
+            <CalendarClock className="size-3" aria-hidden="true" />
+          )}
+          {status.label}
+        </span>
+      )}
+    </span>
+  );
+
   return (
     <>
       {confirmDialog}
@@ -502,54 +593,31 @@ function ChecklistRow({
           (pending || deleteIsPending) && "opacity-60",
         )}
       >
-        {/* Checkbox primitive: native input, named by the item text; the
-            whole ≥44px label row toggles. */}
-        <Checkbox
-          checked={item.done}
-          onChange={onToggle}
-          disabled={pending}
-          className="min-w-0 flex-1 py-1 text-sm font-semibold leading-snug"
-          label={
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <span className="break-words">{item.text}</span>
-                {/* Shopping badge (spec 2026-10-02 §G): "To buy" / "Bought" on
-                    a Packing item that's been flagged to buy. */}
-                {item.kind === "PACKING" && item.buy && (
-                  <span
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1 rounded-full border-2 border-border px-1.5 text-[11px] font-extrabold uppercase tracking-wide",
-                      item.buy === "BOUGHT" ? "bg-teal text-on-accent" : "bg-card text-foreground",
-                    )}
-                  >
-                    <ShoppingBasket className="size-3" aria-hidden="true" />
-                    {item.buy === "BOUGHT" ? "Bought" : "To buy"}
-                  </span>
-                )}
-              </span>
-              {/* Due date hint (never shown on a done item) */}
-              {showDueDate && status && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 text-xs font-semibold",
-                    status.variant === "overdue" && "text-destructive",
-                    status.variant === "soon" && "text-sun-text",
-                    status.variant === "normal" && "text-muted-foreground",
-                  )}
-                >
-                  {status.variant === "overdue" ? (
-                    <AlertTriangle className="size-3" aria-hidden="true" />
-                  ) : status.variant === "soon" ? (
-                    <Clock3 className="size-3" aria-hidden="true" />
-                  ) : (
-                    <CalendarClock className="size-3" aria-hidden="true" />
-                  )}
-                  {status.label}
-                </span>
+        {readOnly ? (
+          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 py-1 text-sm font-semibold leading-snug">
+            <span
+              aria-hidden="true"
+              className={cn(
+                "grid size-6 shrink-0 place-items-center rounded-[6px] border-2 border-input",
+                item.done ? "bg-primary text-primary-foreground" : "bg-card",
               )}
+            >
+              {item.done && <Check className="size-4" strokeWidth={3.5} />}
             </span>
-          }
-        />
+            <span className="sr-only">{item.done ? "Packed" : "Not packed"}</span>
+            <span className={cn(item.done && "text-muted-foreground line-through")}>{label}</span>
+          </div>
+        ) : (
+          // Checkbox primitive: native input, named by the item text; the
+          // whole ≥44px label row toggles.
+          <Checkbox
+            checked={item.done}
+            onChange={onToggle}
+            disabled={pending}
+            className="min-w-0 flex-1 py-1 text-sm font-semibold leading-snug"
+            label={label}
+          />
+        )}
 
         {/* Assignee avatar (kit: 24px) */}
         {showAssignee && item.assignedTo && (
@@ -560,58 +628,84 @@ function ChecklistRow({
             edge on hover/focus, so the label keeps the full width. Touch (no
             hover): always visible; on phones they drop to their own line so
             the item text isn't squeezed. */}
-        <div
-          className={cn(
-            "flex shrink-0 items-center gap-1",
-            "pointer-fine:absolute pointer-fine:inset-y-0 pointer-fine:right-0 pointer-fine:bg-card pointer-fine:pl-2",
-            "pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100",
-            "pointer-coarse:max-sm:-mt-1 pointer-coarse:max-sm:mb-1 pointer-coarse:max-sm:basis-full pointer-coarse:max-sm:justify-end",
-          )}
-        >
-          {item.kind === "PACKING" && !item.buy && (
+        {!readOnly && (
+          <div
+            className={cn(
+              "flex shrink-0 items-center gap-1",
+              "pointer-fine:absolute pointer-fine:inset-y-0 pointer-fine:right-0 pointer-fine:bg-card pointer-fine:pl-2",
+              "pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100",
+              "pointer-coarse:max-sm:-mt-1 pointer-coarse:max-sm:mb-1 pointer-coarse:max-sm:basis-full pointer-coarse:max-sm:justify-end",
+            )}
+          >
+            {item.kind === "PACKING" && !item.buy && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={ROW_ICON_BUTTON}
+                onClick={needToBuy}
+                disabled={pending}
+                aria-label="Need to buy"
+                title="Need to buy"
+              >
+                <ShoppingBasket className="size-4" aria-hidden="true" />
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className={ROW_ICON_BUTTON}
-              onClick={needToBuy}
-              disabled={pending}
-              aria-label="Need to buy"
-              title="Need to buy"
+              onClick={() => move("up")}
+              disabled={pending || isFirst}
+              aria-label="Move up"
             >
-              <ShoppingBasket className="size-4" aria-hidden="true" />
+              <ChevronUp className="size-4" aria-hidden="true" />
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={ROW_ICON_BUTTON}
-            onClick={() => move("up")}
-            disabled={pending || isFirst}
-            aria-label="Move up"
-          >
-            <ChevronUp className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={ROW_ICON_BUTTON}
-            onClick={() => move("down")}
-            disabled={pending || isLast}
-            aria-label="Move down"
-          >
-            <ChevronDown className="size-4" aria-hidden="true" />
-          </Button>
-          <RowActions
-            onEdit={() => setEditOpen(true)}
-            onDelete={() => requestDelete(item.id)}
-            editLabel="Edit Item"
-            deleteLabel="Delete Item"
-            disabled={pending || deleteIsPending}
-          />
-        </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={ROW_ICON_BUTTON}
+              onClick={() => move("down")}
+              disabled={pending || isLast}
+              aria-label="Move down"
+            >
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </Button>
+            {targets.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={ROW_ICON_BUTTON}
+                    disabled={pending}
+                    aria-label={`Move ${item.text}`}
+                    title="Move to another list"
+                  >
+                    <ArrowRightLeft className="size-4" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {targets.map((t) => (
+                    <DropdownMenuItem key={t.to} onSelect={() => moveTo(t.to)}>
+                      {t.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <RowActions
+              onEdit={() => setEditOpen(true)}
+              onDelete={() => requestDelete(item.id)}
+              editLabel="Edit Item"
+              deleteLabel="Delete Item"
+              disabled={pending || deleteIsPending}
+            />
+          </div>
+        )}
       </AnimatedItem>
     </>
   );
@@ -646,6 +740,12 @@ export function Checklist({
   members,
   showDueDate = true,
   showAssignee = true,
+  addOwner,
+  addLabel,
+  readOnly,
+  showPackedBy,
+  moveTargets,
+  emptyState,
 }: ChecklistProps) {
   // Resolved once here (not per-row) and threaded down to ChecklistRow —
   // SSR-safe via useSyncExternalStore, see subscribeToday/getTodaySnapshot above.
@@ -677,22 +777,28 @@ export function Checklist({
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <EmptyState
-          icon={Check}
-          tone="teal"
-          title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "No packing items yet"}
-          description={
-            kind === "PRETRIP"
-              ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."
-              : "Add what you need to pack, or apply a saved template to get started quickly."
-          }
-        />
+        {emptyState === undefined ? (
+          <EmptyState
+            icon={Check}
+            tone="teal"
+            title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "No packing items yet"}
+            description={
+              kind === "PRETRIP"
+                ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."
+                : "Add what you need to pack, or apply a saved template to get started quickly."
+            }
+          />
+        ) : (
+          emptyState
+        )}
         <AddItemForm
           tripId={tripId}
           kind={kind}
           members={members}
           showDueDate={showDueDate}
           showAssignee={showAssignee}
+          owner={addOwner}
+          addLabel={addLabel}
         />
       </div>
     );
@@ -718,6 +824,9 @@ export function Checklist({
             showDueDate={showDueDate}
             showAssignee={showAssignee}
             today={today}
+            readOnly={readOnly}
+            showPackedBy={showPackedBy}
+            moveTargets={moveTargets}
           />
         ))}
       </AnimatedList>
@@ -730,6 +839,8 @@ export function Checklist({
         members={members}
         showDueDate={showDueDate}
         showAssignee={showAssignee}
+        owner={addOwner}
+        addLabel={addLabel}
       />
     </div>
   );

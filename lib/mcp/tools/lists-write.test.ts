@@ -25,6 +25,7 @@ const {
   loadChecklistOfItemForMcp,
   readChecklist,
   listTemplates,
+  loadPackingViewer,
 } = vi.hoisted(() => ({
   addReminder: vi.fn(),
   updateReminder: vi.fn(),
@@ -49,7 +50,9 @@ const {
   loadChecklistOfItemForMcp: vi.fn(),
   readChecklist: vi.fn(),
   listTemplates: vi.fn(),
+  loadPackingViewer: vi.fn(),
 }));
+vi.mock("@/lib/packing-viewer", () => ({ loadPackingViewer }));
 
 vi.mock("@/server/actions/reminders", () => ({ addReminder, updateReminder, deleteReminder }));
 vi.mock("@/server/actions/checklists", () => ({
@@ -142,6 +145,7 @@ describe("reminder and checklist write tools", () => {
     loadChecklistItemForMcp.mockImplementation(async (id: string) => ({ id }));
     loadChecklistOfItemForMcp.mockImplementation(async (id: string) => ({ id }));
     readChecklist.mockResolvedValue([]);
+    loadPackingViewer.mockResolvedValue({ userId: "u1", open: false });
     listTemplates.mockResolvedValue([{ id: "tpl-1", name: "Europe winter", itemCount: 3 }]);
   });
 
@@ -289,6 +293,34 @@ describe("reminder and checklist write tools", () => {
     const c = await connectTestClient();
     await c.callTool({ name: "add_checklist_item", arguments: { tripId: TRIP_ID, kind: "PRETRIP", text: "Buy insurance" } });
     expect(addChecklistItem).toHaveBeenCalledWith(TRIP_ID, { kind: "PRETRIP", text: "Buy insurance" });
+  });
+
+  it("add_checklist_item whose: shared adds with owner SHARED", async () => {
+    addChecklistItem.mockResolvedValue({ success: true });
+    const c = await connectTestClient();
+    await c.callTool({ name: "add_checklist_item", arguments: { tripId: TRIP_ID, kind: "PACKING", text: "Tent", whose: "shared" } });
+    expect(addChecklistItem).toHaveBeenCalledWith(TRIP_ID, { kind: "PACKING", text: "Tent", owner: "SHARED" });
+  });
+
+  it("add_checklist_item whose: a user id adds with that owner", async () => {
+    addChecklistItem.mockResolvedValue({ success: true });
+    const c = await connectTestClient();
+    await c.callTool({ name: "add_checklist_item", arguments: { tripId: TRIP_ID, kind: "PACKING", text: "Hat", whose: "u2" } });
+    expect(addChecklistItem).toHaveBeenCalledWith(TRIP_ID, { kind: "PACKING", text: "Hat", owner: "u2" });
+  });
+
+  it("add_checklist_item whose: me or omitted passes no owner", async () => {
+    addChecklistItem.mockResolvedValue({ success: true });
+    const c = await connectTestClient();
+    await c.callTool({ name: "add_checklist_item", arguments: { tripId: TRIP_ID, kind: "PACKING", text: "Hat", whose: "me" } });
+    expect(addChecklistItem).toHaveBeenLastCalledWith(TRIP_ID, { kind: "PACKING", text: "Hat" });
+  });
+
+  it("tick_checklist_item on a partner's Packing item surfaces the refusal", async () => {
+    toggleChecklistItem.mockResolvedValue({ success: false, errors: { _: ["That's on someone else's packing list."] } });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "tick_checklist_item", arguments: { itemId: ITEM_ID, done: true } });
+    expect(JSON.stringify(r.content)).toContain("That's on someone else's packing list.");
   });
 
   it("add_checklist_item forwards dueDate when given", async () => {
@@ -557,7 +589,8 @@ describe("reminder and checklist write tools", () => {
       const c = await connectTestClient();
       expect(body(await c.callTool({ name: "apply_packing_template", arguments: { tripId: TRIP_ID, templateId: "tpl-1" } }))).toEqual({ added: [{ id: "new-1" }] });
       expect(requireTripAccess.mock.invocationCallOrder[0]).toBeLessThan(readChecklist.mock.invocationCallOrder[0]);
-      expect(readChecklist).toHaveBeenCalledWith(TRIP_ID, "PACKING");
+      expect(loadPackingViewer).toHaveBeenCalledWith(TRIP_ID, "u1");
+      expect(readChecklist).toHaveBeenCalledWith(TRIP_ID, "PACKING", { userId: "u1", open: false });
     });
 
     it("apply_packing_template on a Trip the Traveller can't open reads nothing", async () => {

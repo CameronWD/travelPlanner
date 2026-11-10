@@ -254,6 +254,10 @@ _Avoid_: Checklist (that is trip-wide preparation), to-do, sub-items
 A list of tickable tasks. Three flavours: a **Pre-trip checklist** (visas, insurance, eSIM, with optional due dates), a **Packing list** (reusable across Trips via templates) and a **Shopping list** (what to buy before the Trip).
 _Avoid_: To-do, tasks
 
+**Packing list**:
+The Checklist of what to bring on a Trip, made of **personal** items — each belonging to one Traveller's own bag, packed only by them — and **Shared** items, which the Trip needs once and either Traveller may pack. A Shared item is claimed by packing it: ticking it records who packed it ("Adapter — packed by Cam"), so it answers whose bag it is in, and unticking returns it to unpacked Shared. A Trip's Packing lists are **Open** (each Traveller sees the others' personal items and can add to them, but never ticks them) or **Private** (each sees only their own and the Shared items); either Traveller may switch it, and it starts Open.
+_Avoid_: Communal (say Shared), assigned (a personal item has an owner, not an assignee)
+
 **Shopping list**:
 The Checklist of things to buy before a Trip. Its entries are of two sorts: a **Packing** item its Traveller has marked **Need to buy** (so one thing to pack and to buy is one row seen from two lists — ticking it on the Shopping list means *bought*, ticking it on the Packing list means *packed*, and removing it from the Shopping list only unmarks it while deleting it from Packing removes it from both), and a **standalone** item added directly to the Shopping list — flight snacks, a gift — that is not packed. Per Trip; never part of a packing template.
 _Avoid_: Shopping cart, to-buy list, wishlist (that is the Globe/Trip idea pool)
@@ -275,7 +279,7 @@ A free-text comment left by either traveller on a Stop, Item or booking — ligh
 _Avoid_: Comment, remark; "notes" for a Note (say "a Note on the Item" vs "the Item's notes")
 
 **Activity**:
-A recorded thing a Traveller did on the Trip — created, changed or removed a Stop, Item, Transport, Accommodation, Chapter, Cost, **Day title**, **Reminder** or **Checklist** item, cast or changed a **Vote**, ticked off a **Pre-trip checklist** item, or left a Note — captured with who did it, when, and (for a change) which fields moved from what to what. The chronological list is the **Activity feed**; the Activity your *partner* has done since you last looked is your unread **notifications**, surfaced on a bell. Recorded for both Travellers (the feed is shared history) but you are never notified of your own Activity. Activity done through a **Claude connection** is still the Traveller's own, marked **via Claude** so a Claude session reads as one at a glance. Personal bookkeeping is deliberately *not* Activity: ticking the **Packing list** or **Shopping list**, reordering a Checklist, saving a template, and taking back a Vote.
+A recorded thing a Traveller did on the Trip — created, changed or removed a Stop, Item, Transport, Accommodation, Chapter, Cost, **Day title**, **Reminder** or **Checklist** item, cast or changed a **Vote**, ticked off a **Pre-trip checklist** item, or left a Note — captured with who did it, when, and (for a change) which fields moved from what to what. The chronological list is the **Activity feed**; the Activity your *partner* has done since you last looked is your unread **notifications**, surfaced on a bell. Recorded for both Travellers (the feed is shared history) but you are never notified of your own Activity. Activity done through a **Claude connection** is still the Traveller's own, marked **via Claude** so a Claude session reads as one at a glance. Personal bookkeeping is deliberately *not* Activity: ticking the **Packing list** or **Shopping list**, adding, changing or removing items on your own personal Packing list, reordering a Checklist, saving a template, and taking back a Vote.
 _Avoid_: Log, audit, event, history, update (as a noun)
 
 **Surprise**:

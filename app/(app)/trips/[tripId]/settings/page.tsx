@@ -25,6 +25,7 @@ import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estima
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
+import { PackingListsSwitch } from "@/components/trip/settings/packing-lists-switch";
 import { WhatsAroundSwitch } from "@/components/trip/settings/whats-around-switch";
 import { ChaptersSwitch } from "@/components/trip/settings/chapters-switch";
 import { SavedForOffline } from "@/components/trip/settings/saved-for-offline";
@@ -90,6 +91,7 @@ export default async function SettingsPage({
       chaptersEnabled: true,
       forksEnabled: true,
       whatsAroundEnabled: true,
+      packingListsOpen: true,
       members: {
         select: {
           userId: true,
@@ -198,6 +200,15 @@ export default async function SettingsPage({
             </CardHeader>
             <CardContent className="p-5 pt-3">
               <WhatsAroundSwitch tripId={tripId} enabled={trip.whatsAroundEnabled} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Packing lists</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <PackingListsSwitch tripId={tripId} open={trip.packingListsOpen} />
             </CardContent>
           </Card>
 

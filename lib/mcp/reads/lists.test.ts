@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   requireRowAccess: vi.fn(), requireTripAccess: vi.fn(), requireRealPlanRow: vi.fn(), loadSurpriseVisibility: vi.fn(),
-  checklistFindUnique: vi.fn(), checklistFindMany: vi.fn(), itemFindFirst: vi.fn(), voteFindMany: vi.fn(),
+  loadPackingViewer: vi.fn(), checklistFindUnique: vi.fn(), checklistFindMany: vi.fn(), itemFindFirst: vi.fn(), voteFindMany: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireRowAccess: m.requireRowAccess, requireTripAccess: m.requireTripAccess }));
+vi.mock("@/lib/packing-viewer", () => ({ loadPackingViewer: m.loadPackingViewer }));
 vi.mock("../real-plan", () => ({ requireRealPlanRow: m.requireRealPlanRow }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -23,11 +24,12 @@ import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibili
 import { loadChecklistItemForMcp, loadChecklistOfItemForMcp, loadVotesForMcp, loadWishlistIdeaForMcp } from "./lists";
 
 const cam = { id: "u1", name: "Cam", displayName: null, email: null, image: null };
-const ci = (id: string, sortOrder: number) => ({ id, kind: "PACKING", text: id, done: false, dueDate: null, sortOrder, buy: null });
+const ci = (id: string, sortOrder: number) => ({ id, kind: "PACKING", text: id, done: false, dueDate: null, sortOrder, buy: null, ownerId: null, owner: null, packedBy: null });
 
 beforeEach(() => {
   vi.clearAllMocks();
   m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PACKING" }, user: { id: "u1" } });
+  m.loadPackingViewer.mockResolvedValue({ userId: "u1", open: true });
   m.requireRealPlanRow.mockResolvedValue({ tripId: "trip-1" });
   m.requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
   m.loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
@@ -36,15 +38,34 @@ beforeEach(() => {
 describe("Checklist readers", () => {
   it("loadChecklistItemForMcp reads one item in get_checklists' shape, plus its list", async () => {
     m.checklistFindUnique.mockResolvedValue({ ...ci("ci-1", 0), buy: "NEEDED" });
-    expect(await loadChecklistItemForMcp("ci-1")).toEqual({ id: "ci-1", text: "ci-1", done: false, dueDate: null, buyState: "NEEDED", kind: "PACKING" });
+    expect(await loadChecklistItemForMcp("ci-1")).toEqual({ id: "ci-1", text: "ci-1", done: false, dueDate: null, buyState: "NEEDED", owner: null, packedBy: null, kind: "PACKING" });
     expect(m.requireRowAccess).toHaveBeenCalledWith("checklistItem", "ci-1");
   });
 
   it("loadChecklistOfItemForMcp reads the item's whole list in its order", async () => {
-    m.checklistFindMany.mockResolvedValue([ci("b", 1), ci("a", 0)]);
+    m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PRETRIP", ownerId: null }, user: { id: "u1" } });
+    m.checklistFindMany.mockResolvedValue([{ ...ci("b", 1), kind: "PRETRIP" }, { ...ci("a", 0), kind: "PRETRIP" }]);
     const out = await loadChecklistOfItemForMcp("ci-1");
-    expect(m.checklistFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1", kind: "PACKING" } }));
-    expect(out).toEqual({ kind: "PACKING", items: [expect.objectContaining({ id: "a" }), expect.objectContaining({ id: "b" })] });
+    expect(m.checklistFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1", kind: "PRETRIP" } }));
+    expect(out).toEqual({ kind: "PRETRIP", items: [expect.objectContaining({ id: "a" }), expect.objectContaining({ id: "b" })] });
+  });
+
+  it.each([
+    ["a personal item reads its owner's list", "u2"],
+    ["a Shared item reads Shared", null],
+  ])("loadChecklistOfItemForMcp: %s", async (_label, ownerId) => {
+    m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PACKING", ownerId }, user: { id: "u1" } });
+    m.checklistFindMany.mockResolvedValue([ci("a", 0)]);
+    await loadChecklistOfItemForMcp("ci-1");
+    expect(m.checklistFindMany.mock.calls[0][0].where).toEqual({ tripId: "trip-1", kind: "PACKING", ownerId });
+  });
+
+  it("loadChecklistOfItemForMcp keeps the Private filter on a Packing list", async () => {
+    m.loadPackingViewer.mockResolvedValue({ userId: "u1", open: false });
+    m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PACKING", ownerId: "u1" }, user: { id: "u1" } });
+    m.checklistFindMany.mockResolvedValue([]);
+    await loadChecklistOfItemForMcp("ci-1");
+    expect(m.checklistFindMany.mock.calls[0][0].where).toMatchObject({ ownerId: "u1", OR: expect.any(Array) });
   });
 });
 

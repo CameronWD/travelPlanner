@@ -951,6 +951,19 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("leaves another Traveller's personal Packing item out of the digest, whatever the Trip's setting", async () => {
+    dbData.checklistItem = [
+      { id: "mine", tripId: TRIP_ID, kind: "PACKING", ownerId: USER_ID, done: false, dueDate: TOMORROW, text: "Mine" },
+      { id: "shared", tripId: TRIP_ID, kind: "PACKING", ownerId: null, done: false, dueDate: TOMORROW, text: "Shared" },
+      { id: "theirs", tripId: TRIP_ID, kind: "PACKING", ownerId: "someone-else", done: false, dueDate: TOMORROW, text: "Theirs" },
+      { id: "pre", tripId: TRIP_ID, kind: "PRETRIP", ownerId: null, done: false, dueDate: TOMORROW, text: "Pre" },
+    ];
+
+    const input = await collect();
+
+    expect(input.checklist.map((c) => c.id).sort()).toEqual(["mine", "pre", "shared"]);
+  });
+
   it("keeps an overdue checklist item in the digest until it is done", async () => {
     // A Checklist item "persists until done" and keeps reappearing while
     // overdue (CONTEXT.md **Checklist**) — that property is the whole
