@@ -34,14 +34,16 @@ const SOURCE: DuplicateSource = {
       reference: "FR9521", notes: "platform 5", depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2 },
   ],
   checklistItems: [
-    { kind: "PRETRIP", text: "Renew passport", dueDate: "2026-07-01" },
-    { kind: "PACKING", text: "Chargers", dueDate: null },
+    { kind: "PRETRIP", text: "Renew passport", dueDate: "2026-07-01", ownerId: null },
+    { kind: "PACKING", text: "Chargers", dueDate: null, ownerId: null },
+    { kind: "PACKING", text: "My jacket", dueDate: null, ownerId: "me" },
+    { kind: "PACKING", text: "Partner hat", dueDate: null, ownerId: "partner" },
   ],
 };
 
 describe("buildDuplicatePlan", () => {
   it("sets trip name + copies currency and driving settings, no dates", () => {
-    const plan = buildDuplicatePlan(SOURCE, "Copy of Europe 2026");
+    const plan = buildDuplicatePlan(SOURCE, "Copy of Europe 2026", "me");
     expect(plan.trip).toEqual({
       name: "Copy of Europe 2026",
       homeCurrency: "AUD",
@@ -51,14 +53,14 @@ describe("buildDuplicatePlan", () => {
   });
 
   it("carries chapters but resets their dates (rough)", () => {
-    const plan = buildDuplicatePlan(SOURCE, "x");
+    const plan = buildDuplicatePlan(SOURCE, "x", "me");
     expect(plan.chapters).toEqual([
       { sourceId: "ch1", data: { name: "Italy", colour: "rose", startDate: null, endDate: null, sortOrder: 0 } },
     ]);
   });
 
   it("makes every stop rough: clears dates, clears pin, derives nights for scheduled stops, keeps place facts", () => {
-    const plan = buildDuplicatePlan(SOURCE, "x");
+    const plan = buildDuplicatePlan(SOURCE, "x", "me");
     const rome = plan.stops.find((s) => s.sourceId === "s1")!;
     expect(rome.data).toEqual({
       name: "Rome", country: "Italy", countryCode: null, region: null, lat: 41.9, lng: 12.5, placeId: null, timezone: "Europe/Rome",
@@ -72,7 +74,7 @@ describe("buildDuplicatePlan", () => {
   });
 
   it("turns all items into unscheduled wishlist items, clearing date/time/booking, keeping research", () => {
-    const plan = buildDuplicatePlan(SOURCE, "x");
+    const plan = buildDuplicatePlan(SOURCE, "x", "me");
     const col = plan.items[0];
     expect(col.sourceStopId).toBe("s1");
     expect(col.data).toEqual({
@@ -90,7 +92,7 @@ describe("buildDuplicatePlan", () => {
   // with the reference and the dates: the copy's rows take the column defaults.
   it("keeps an Item's Opening hours; leaves Booking state and Slot time to the defaults", () => {
     const hours = '{"week":{"mon":[]},"seasons":[],"closed":[]}';
-    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], openingHours: hours }] }, "x");
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], openingHours: hours }] }, "x", "me");
     expect(plan.items[0].data.openingHours).toBe(hours);
     for (const key of ["bookingState", "bookingStateSet", "bookBy", "slotTime", "arriveByMinutes", "refundable"]) {
       expect(plan.items[0].data).not.toHaveProperty(key);
@@ -101,7 +103,7 @@ describe("buildDuplicatePlan", () => {
   });
 
   it("a duplicated drive (a CAR leg) needs no booking (I4)", () => {
-    const plan = buildDuplicatePlan({ ...SOURCE, transports: [{ ...SOURCE.transports[0], mode: "CAR" }] }, "x");
+    const plan = buildDuplicatePlan({ ...SOURCE, transports: [{ ...SOURCE.transports[0], mode: "CAR" }] }, "x", "me");
     expect(plan.transports[0].data).toMatchObject({ mode: "CAR", bookingState: "NONE", bookingStateSet: false });
   });
 
@@ -109,7 +111,7 @@ describe("buildDuplicatePlan", () => {
   // keeps its entries — but a fresh Trip has tried nothing yet.
   it("keeps an Item's Try list with every tick reset to untried", () => {
     const list = JSON.stringify([{ id: "aaaa1111", text: "Drei im Weggla", tried: true }, { id: "bbbb2222", text: "Lebkuchen", tried: false }]);
-    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: list }] }, "x");
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: list }] }, "x", "me");
     expect(JSON.parse(plan.items[0].data.tryList!)).toEqual([
       { id: "aaaa1111", text: "Drei im Weggla", tried: false },
       { id: "bbbb2222", text: "Lebkuchen", tried: false },
@@ -117,12 +119,12 @@ describe("buildDuplicatePlan", () => {
   });
 
   it("an unreadable Try list is not copied", () => {
-    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: "not json" }] }, "x");
+    const plan = buildDuplicatePlan({ ...SOURCE, items: [{ ...SOURCE.items[0], tryList: "not json" }] }, "x", "me");
     expect(plan.items[0].data.tryList).toBeNull();
   });
 
   it("copies each stop's countryCode and region", () => {
-    const plan = buildDuplicatePlan({ ...SOURCE, stops: [{ ...SOURCE.stops[0], countryCode: "de", region: "Bavaria" }, SOURCE.stops[1]] }, "x");
+    const plan = buildDuplicatePlan({ ...SOURCE, stops: [{ ...SOURCE.stops[0], countryCode: "de", region: "Bavaria" }, SOURCE.stops[1]] }, "x", "me");
     expect(plan.stops[0].data).toMatchObject({ countryCode: "de", region: "Bavaria" });
     expect(plan.stops[1].data).toMatchObject({ countryCode: null, region: null });
   });
@@ -131,13 +133,13 @@ describe("buildDuplicatePlan", () => {
     const plan = buildDuplicatePlan({
       ...SOURCE,
       transports: [{ ...SOURCE.transports[0], depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "it", arrRegion: "Tuscany" }],
-    }, "x");
+    }, "x", "me");
     expect(plan.transports[0].data).toMatchObject({ depCountryCode: "de", depRegion: "Bavaria", arrCountryCode: "it", arrRegion: "Tuscany" });
-    expect(buildDuplicatePlan(SOURCE, "x").transports[0].data).toMatchObject({ depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null });
+    expect(buildDuplicatePlan(SOURCE, "x", "me").transports[0].data).toMatchObject({ depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null });
   });
 
   it("carries a null countryCode through when the source item has none", () => {
-    const plan = buildDuplicatePlan(SOURCE, "x");
+    const plan = buildDuplicatePlan(SOURCE, "x", "me");
     const gelato = plan.items[1];
     expect(gelato.data.countryCode).toBeNull();
   });
@@ -145,7 +147,7 @@ describe("buildDuplicatePlan", () => {
   // Review fix (Task 9): a hidden Item stays hidden in the duplicate;
   // a source item without the field (pre-migration-shaped row) copies as false.
   it("carries hiddenFromShares into the duplicate; a missing one copies as false", () => {
-    const plan = buildDuplicatePlan(SOURCE, "x");
+    const plan = buildDuplicatePlan(SOURCE, "x", "me");
     expect(plan.items[0].data.hiddenFromShares).toBe(true); // Colosseum
     expect(plan.items[1].data.hiddenFromShares).toBe(false); // Gelato somewhere
   });
@@ -158,13 +160,13 @@ describe("buildDuplicatePlan", () => {
       ...SOURCE,
       stops: [{ ...SOURCE.stops[0], surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt }, SOURCE.stops[1]],
       items: [{ ...SOURCE.items[0], surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt }, SOURCE.items[1]],
-    }, "x");
+    }, "x", "me");
     expect(plan.stops[0].data).toMatchObject({ surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt });
     expect(plan.items[0].data).toMatchObject({ surprisePlannerId: "cam", surpriseForIds: '["sam"]', surpriseRevealedAt: revealedAt });
   });
 
   it("keeps transport connections but strips times/reference/notes/cost-bearing fields", () => {
-    const plan = buildDuplicatePlan(SOURCE, "x");
+    const plan = buildDuplicatePlan(SOURCE, "x", "me");
     expect(plan.transports).toHaveLength(1);
     const t = plan.transports[0];
     expect(t.sourceFromStopId).toBe("s1");
@@ -178,11 +180,12 @@ describe("buildDuplicatePlan", () => {
     });
   });
 
-  it("copies checklist text, unticked, clearing due date and assignee", () => {
-    const plan = buildDuplicatePlan(SOURCE, "x");
+  it("copies checklist text and owner, unticked, clearing due date and assignee, dropping another Traveller's personal Packing", () => {
+    const plan = buildDuplicatePlan(SOURCE, "x", "me");
     expect(plan.checklistItems).toEqual([
-      { data: { kind: "PRETRIP", text: "Renew passport", done: false, dueDate: null, assignedToId: null, sortOrder: 0 } },
-      { data: { kind: "PACKING", text: "Chargers", done: false, dueDate: null, assignedToId: null, sortOrder: 1 } },
+      { data: { kind: "PRETRIP", text: "Renew passport", done: false, dueDate: null, assignedToId: null, ownerId: null, sortOrder: 0 } },
+      { data: { kind: "PACKING", text: "Chargers", done: false, dueDate: null, assignedToId: null, ownerId: null, sortOrder: 1 } },
+      { data: { kind: "PACKING", text: "My jacket", done: false, dueDate: null, assignedToId: null, ownerId: "me", sortOrder: 2 } },
     ]);
   });
 
@@ -203,6 +206,7 @@ describe("buildDuplicatePlan", () => {
         ],
       },
       "x",
+      "me",
     );
     expect(plan.transports.map((x) => x.sourceAnchorStopId)).toEqual(["s1", null, "s2", "s3"]);
   });
@@ -213,7 +217,7 @@ describe("buildDuplicatePlan", () => {
       stops: [{ ...SOURCE.stops[0], placeId: "rome-id" }, SOURCE.stops[1]],
       items: [{ ...SOURCE.items[0], placeId: "colosseum-id", businessStatus: "OPERATIONAL", statusCheckedAt: CHECKED }, SOURCE.items[1]],
       transports: [{ ...SOURCE.transports[0], depPlaceId: "termini-id", arrPlaceId: "smn-id" }],
-    }, "x");
+    }, "x", "me");
     expect(plan.stops[0].data.placeId).toBe("rome-id");
     expect(plan.stops[1].data.placeId).toBeNull();
     expect(plan.items[0].data).toMatchObject({ placeId: "colosseum-id", businessStatus: "OPERATIONAL", statusCheckedAt: CHECKED });
@@ -222,7 +226,7 @@ describe("buildDuplicatePlan", () => {
   });
 
   it("keeps a Stop's Local travel mode; none copies as null", () => {
-    const plan = buildDuplicatePlan({ ...SOURCE, stops: [{ ...SOURCE.stops[0], localTravelMode: "TRANSIT" }, SOURCE.stops[1]] }, "x");
+    const plan = buildDuplicatePlan({ ...SOURCE, stops: [{ ...SOURCE.stops[0], localTravelMode: "TRANSIT" }, SOURCE.stops[1]] }, "x", "me");
     expect(plan.stops[0].data.localTravelMode).toBe("TRANSIT");
     expect(plan.stops[1].data.localTravelMode).toBeNull();
   });

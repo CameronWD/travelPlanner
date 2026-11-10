@@ -657,6 +657,7 @@ export async function duplicateTrip(
       checklistItems: source.checklistItems,
     },
     name,
+    user.id,
   );
 
   const { trip: newTrip, slug } = await db.$transaction(async (tx) => {
@@ -940,6 +941,7 @@ export async function removeTripMember(
   // Surprise (CONTEXT.md): nobody else could reveal their Surprises.
   await revealSurprisesPlannedBy(tripId, userId);
   await db.tripMember.deleteMany({ where: { tripId, userId } });
+  await dropLeaversPacking(tripId, userId);
 
   if (target?.email) {
     await db.invite.deleteMany({
@@ -950,6 +952,11 @@ export async function removeTripMember(
   revalidateTrip(tripId, "travellers");
 
   return { success: true };
+}
+
+async function dropLeaversPacking(tripId: string, userId: string) {
+  await db.checklistItem.deleteMany({ where: { tripId, kind: "PACKING", ownerId: userId } });
+  await db.checklistItem.updateMany({ where: { tripId, packedById: userId }, data: { packedById: null } });
 }
 
 export type LeaveTripResult = ActionResult;
@@ -979,6 +986,7 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
   // Surprise (CONTEXT.md): nobody else could reveal their Surprises.
   await revealSurprisesPlannedBy(tripId, user.id);
   await db.tripMember.deleteMany({ where: { tripId, userId: user.id } });
+  await dropLeaversPacking(tripId, user.id);
 
   if (user.email) {
     await db.invite.deleteMany({

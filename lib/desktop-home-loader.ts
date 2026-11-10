@@ -24,6 +24,7 @@
  * whose day has come become the reveal nudge (CONTEXT.md Surprise).
  */
 import { cache } from "react";
+import { packingMineOrSharedWhere } from "@/lib/packing-access";
 import { db } from "@/lib/db";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
@@ -240,7 +241,7 @@ async function load(
     trip.chaptersEnabled
       ? db.chapter.count({ where: { tripId, ...REAL_PLAN, startDate: null } })
       : Promise.resolve(0),
-    db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
+    db.checklistItem.count({ where: { tripId, ...packingMineOrSharedWhere(viewerId) } }),
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
     tripSlugFor(tripId),
   ]);

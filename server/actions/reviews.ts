@@ -46,6 +46,7 @@ import { rescheduleItem, setOpeningHours, updateItem } from "@/server/actions/it
 import { updateTransport } from "@/server/actions/transport";
 import { updateAccommodation } from "@/server/actions/accommodation";
 import { addChecklistItem, deleteChecklistItem, setBuyState } from "@/server/actions/checklists";
+import { packingMineOrSharedWhere } from "@/lib/packing-access";
 
 type FixRowWithPlan = FixRow & { tripId: string; forkId: string | null };
 
@@ -259,7 +260,7 @@ async function applyChecklistFix(
   const choice = fix.list === "PRETRIP" ? "PACK" : CHECKLIST_CHOICES.find((c) => c === rawChoice);
   if (!choice) return formFail(CHECKLIST_FIX_COPY.choose, "invalid");
   const existing = await db.checklistItem.findMany({
-    where: { tripId: finding.tripId, kind: fix.list },
+    where: fix.list === "PACKING" ? { tripId: finding.tripId, ...packingMineOrSharedWhere(userId) } : { tripId: finding.tripId, kind: fix.list },
     select: { id: true, text: true, done: true, buy: true },
   });
   const plan = planChecklistFix(fix, choice, existing);
@@ -296,7 +297,7 @@ async function applyChecklistFix(
       await savePayload({ fix, done: "marked", itemId: plan.itemId, after: row });
       message = CHECKLIST_FIX_COPY.marked;
     } else {
-      const added = await guarded(() => addChecklistItem(finding.tripId, { kind: fix.list, text: fix.text }), COPY.gone);
+      const added = await guarded(() => addChecklistItem(finding.tripId, { kind: fix.list, text: fix.text, ...(fix.list === "PACKING" ? { owner: "SHARED" as const } : {}) }), COPY.gone);
       if (!added.success) {
         await release();
         return added;

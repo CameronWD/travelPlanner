@@ -35,6 +35,8 @@ const {
   itemCreateMock,
   transportCreateMock,
   checklistItemCreateMock,
+  checklistItemDeleteManyMock,
+  checklistItemUpdateManyMock,
   dayTitleCreateMock,
   forkFindManyMock,
   recomputeChapterSpansMock,
@@ -67,6 +69,8 @@ const {
   const itemCreateMock = vi.fn();
   const transportCreateMock = vi.fn();
   const checklistItemCreateMock = vi.fn();
+  const checklistItemDeleteManyMock = vi.fn();
+  const checklistItemUpdateManyMock = vi.fn();
   // Duplicate (ADR: "Dropped by Duplicate, which resets every date" —
   // CONTEXT.md "Day title") must never write DayTitle rows; this mock lets a
   // test assert that directly instead of only by omission.
@@ -128,6 +132,8 @@ const {
     itemCreateMock,
     transportCreateMock,
     checklistItemCreateMock,
+    checklistItemDeleteManyMock,
+    checklistItemUpdateManyMock,
     dayTitleCreateMock,
     forkFindManyMock,
     recomputeChapterSpansMock,
@@ -171,6 +177,7 @@ vi.mock("@/lib/db", () => ({
     attachment: {
       findMany: attachmentFindManyMock,
     },
+    checklistItem: { deleteMany: checklistItemDeleteManyMock, updateMany: checklistItemUpdateManyMock },
     tripMember: {
       deleteMany: memberDeleteManyMock,
       findUnique: memberFindUniqueMock,
@@ -2149,6 +2156,19 @@ describe("removeTripMember", () => {
     expect(revealSurprisesPlannedByMock.mock.invocationCallOrder[0]).toBeLessThan(memberDeleteManyMock.mock.invocationCallOrder[0]!);
   });
 
+  it("Packing: deletes the removed Traveller's personal items and clears their ticks on the rest", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({ email: "traveller@example.com" });
+
+    await removeTripMember("t1", "u2");
+
+    expect(checklistItemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", kind: "PACKING", ownerId: "u2" } });
+    expect(checklistItemUpdateManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", packedById: "u2" }, data: { packedById: null } });
+  });
+
   it("Surprise: reveals nothing when the removal is refused", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "u2", email: "traveller@example.com" },
@@ -2346,6 +2366,18 @@ describe("leaveTrip", () => {
 
     expect(revealSurprisesPlannedByMock).toHaveBeenCalledWith("t1", "u2");
     expect(revealSurprisesPlannedByMock.mock.invocationCallOrder[0]).toBeLessThan(memberDeleteManyMock.mock.invocationCallOrder[0]!);
+  });
+
+  it("Packing: deletes the leaver's personal items and clears their ticks on the rest", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip("t1");
+
+    expect(checklistItemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", kind: "PACKING", ownerId: "u2" } });
+    expect(checklistItemUpdateManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", packedById: "u2" }, data: { packedById: null } });
   });
 
   it("Surprise: the owner's refused leave reveals nothing", async () => {

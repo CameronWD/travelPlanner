@@ -86,6 +86,15 @@ describe("loadNextSteps reads (spec 2026-10-06 §C; TB-01, spec 2026-10-14)", ()
   });
 });
 
+describe("loadNextSteps: personal Packing lists", () => {
+  it("counts Packing for the viewer's own and Shared items only, so a partner's list does not hide the nudge", async () => {
+    await loadNextSteps("trip-1", "2026-06-01", "u1");
+    expect(db.checklistItem.count).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", kind: "PACKING", OR: [{ ownerId: null }, { ownerId: "u1" }] },
+    });
+  });
+});
+
 describe("loadNextSteps — Surprise (ADR 0051)", () => {
   it("asks loadFlagRows for the viewer, so Surprise visibility matches what they see", async () => {
     await loadNextSteps("trip-1", "2026-06-01", "u-viewer");

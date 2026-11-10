@@ -470,7 +470,7 @@ describe("applyFinding of a checklist fix (spec 2026-10-18 A2)", () => {
     packing();
     expect(await applyFinding("f1", "BUY")).toEqual({ success: true });
     expect(mdb.checklistItem.findMany).toHaveBeenCalledWith({
-      where: { tripId: "t1", kind: "PACKING" },
+      where: { tripId: "t1", kind: "PACKING", OR: [{ ownerId: null }, { ownerId: "u1" }] },
       select: { id: true, text: true, done: true, buy: true },
     });
     expect(mdb.finding.updateMany.mock.calls[0][0]).toEqual({
@@ -478,7 +478,7 @@ describe("applyFinding of a checklist fix (spec 2026-10-18 A2)", () => {
       data: { state: "APPLIED", stateById: "u1", stateAt: expect.any(Date), undoPayload: null },
     });
     expectAccessCheckedBeforeWrite(mdb.finding.updateMany, h.addChecklistItem);
-    expect(h.addChecklistItem).toHaveBeenCalledWith("t1", { kind: "PACKING", text: "Umbrella" });
+    expect(h.addChecklistItem).toHaveBeenCalledWith("t1", { kind: "PACKING", text: "Umbrella", owner: "SHARED" });
     expect(h.setBuyState).toHaveBeenCalledWith("c9", "NEEDED");
     expect(mdb.finding.updateMany.mock.calls[1][0].where).toEqual({ id: "f1", state: "APPLIED", stateById: "u1", undoPayload: null });
     expect(savedPayload()).toEqual({ fix, done: "added", itemId: "c9", after: { text: "Umbrella", done: false, buy: "NEEDED" } });
