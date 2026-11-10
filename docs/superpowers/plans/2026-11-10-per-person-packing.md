@@ -18,7 +18,10 @@
 - Refusal copy (exact): editing/ticking another Traveller's item → `"That's on someone else's packing list."`; adding to another Traveller's list while Private → `"This trip's packing lists are private."`; target not a member → `"They aren't on this trip."`.
 - Shared is represented as `ownerId: null`. The wire value for "Shared" in inputs is the string `"SHARED"`.
 - `assignedToId` stays Pre-trip only; do not reuse it for Packing.
-- Do not commit `AGENTS.md` (untracked, not ours).
+- Do not commit `AGENTS.md` (untracked, not ours). Stage files by explicit path, never `git add -A` / `git add .`.
+- Never run `feedback:pull`, `feedback:resolve` or `feedback:accept`, and never load `.env.production.local`.
+- Any Prisma command that touches a database (`migrate deploy`, `migrate dev`, `migrate diff` against a datasource, `db push`, seeds) must set `DATABASE_URL` inline to the local docker URL from `.env` / `.env.local`. Never let it resolve to Neon.
+- Every commit ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## Review Focus
 
@@ -191,7 +194,7 @@ export function buildPackingSections(rows: PackingRow[], members: Array<Travelle
 ```
 - `Checklist` (components/trip/checklist.tsx) gains optional props, all inert when absent so Pre-trip is untouched: `addOwner?: PackingOwnerRef` (passed as `owner` to `addChecklistItem`), `addLabel?: string` (aria-label/placeholder override), `readOnly?: boolean` (no tickbox — render a packed/unpacked state glyph with text "Packed"/"Not packed" for screen readers — and no edit/delete/reorder/buy controls; add row still shown), `showPackedBy?: boolean` (ticked row with `packedBy` shows `packed by {travellerName}`), `moveTargets?: Array<{ to: PackingOwnerRef; label: string }>` (row menu items calling `movePackingItem`, excluding the row's current list).
 - `PackingList` (client) props: `{ tripId; sections: PackingSections; viewerId; open: boolean }`. Renders "Mine", "Shared", then each other Traveller ("{name}") collapsed by default (reuse the repo's existing collapsible/disclosure primitive; look in `components/ui/`). Add rows: Mine → `addOwner = viewerId`, Shared → `"SHARED"`, other → their id with `addLabel` `"Add to {name}'s list"`. Move targets for manageable rows: "Move to Shared", "Move to me", and (Open only) "Move to {name}" per other member.
-- Page: reads `trip.packingListsOpen`, the viewer id (from `requireTripAccess` / existing session read), selects `ownerId` and `packedBy: { select: TRAVELLER_SELECT }`, filters rows with `canSeePackingItem`, member list with ids. Header `checklistsMeta(pretrip, mine+shared)`. Replaces the PACKING `<Checklist>` with `<PackingList>`; templates bar stays above it.
+- Page: reads `trip.packingListsOpen`, the viewer id (from `requireTripAccess` / existing session read), selects `ownerId` and `packedBy: { select: TRAVELLER_SELECT }`, filters rows with `canSeePackingItem`, member list with ids. Header `checklistsMeta(pretrip, mine+shared)`; the Packing tab badge (currently `packingItems.filter((i) => !i.done).length`, ~line 172) counts unpacked Mine + Shared only. Replaces the PACKING `<Checklist>` with `<PackingList>`; templates bar stays above it.
 - Help guide Checklists paragraph: replace the Packing sentence with: "**Packing** is split into your own list, your partner's, and **Shared** for the things you only need one of; whoever packs a Shared item gets their name on it. You can see and add to each other's lists but only tick your own, unless the trip's settings make packing lists private. Save your list as a template to pull into your next trip instead of starting from nothing."
 
 - [ ] **Step 1: Failing tests:**
@@ -199,7 +202,8 @@ export function buildPackingSections(rows: PackingRow[], members: Array<Travelle
   - `buildShoppingEntries`: packing entry carries `owner`; `canUnmark` false for partner's item.
   - `PackingList`: renders three section headings with partner collapsed; partner rows have no checkbox; Shared ticked row shows "packed by Cam"; adding in Shared calls `addChecklistItem(tripId, expect.objectContaining({ kind: "PACKING", owner: "SHARED" }))`; Private hides partner section and "Move to {name}".
   - `ShoppingList`: owner avatar rendered for a personal entry; no unmark control when `canUnmark` false.
-  - Page test: Private mode never passes partner rows to `PackingList` or Shopping entries.
+  - Page test: Private mode never passes partner rows to `PackingList` or Shopping entries; the Packing tab badge in Open mode excludes a partner's unpacked items.
+  - `lib/help-guide.ts` holds a registry of literal UI labels per help section with a test checking they exist — add/adjust entries for any new bolded label the copy or UI introduces (e.g. "Shared", "Open packing lists") and keep that test green.
 - [ ] **Step 2–4:** FAIL → implement → PASS, verification (include `components/trip/checklist.tsx` related tests to prove Pre-trip unchanged).
 - [ ] **Step 5:** Commit `feat(packing): Mine, Shared and partner sections on the Packing tab` with trailer line `Resolves-Feedback: cmw923ld8000808l6jb2xsstw` (plus the Co-Authored-By line).
 
@@ -231,9 +235,10 @@ export function buildPackingSections(rows: PackingRow[], members: Array<Travelle
 - `DuplicateSourceChecklistItem` gains `ownerId: string | null`; `buildDuplicatePlan(source, newName, duplicatorId: string)` drops PACKING items whose `ownerId` is neither null nor `duplicatorId`, copies `ownerId` (no `packedById`). Update the one caller.
 - Next steps / desktop Home: packing count uses `packingMineOrSharedWhere(viewerId)` (both loaders already have `viewerId`).
 - Digest `collectDigestInput`: checklist query's `where` adds `packingVisibleWhere({ userId, open: false })` (a Digest is one Traveller's, so it never carries another's personal items regardless of the setting).
+- Review input `buildReviewInput` (`lib/review/input.ts`): a Review's Findings are seen by every Traveller, so when the Trip is Private its PACKING rows are Shared items only (`ownerId: null`); when Open, unchanged. Add `lib/review/input.ts` to Files.
 - Review `applyChecklistFix`: the `existing` read for a PACKING fix adds `packingMineOrSharedWhere(userId)`; the `addChecklistItem` call passes `owner: "SHARED"` when `fix.list === "PACKING"`.
 
-- [ ] **Step 1: Failing tests:** leaveTrip deletes only the leaver's personal PACKING items and nulls their `packedById`; removeTripMember same for the removed user; `buildDuplicatePlan` keeps duplicator + Shared items, drops partner's, `ownerId` preserved; next-steps "no packing list" nudge present when only the partner has items; digest excludes partner's personal Packing item; review PACKING fix adds with `owner: "SHARED"` and ignores a partner's matching item when looking for an existing one.
+- [ ] **Step 1: Failing tests:** leaveTrip deletes only the leaver's personal PACKING items and nulls their `packedById`; removeTripMember same for the removed user; `buildDuplicatePlan` keeps duplicator + Shared items, drops partner's, `ownerId` preserved; next-steps "no packing list" nudge present when only the partner has items; digest excludes partner's personal Packing item; review input in Private excludes every personal Packing item (Open includes them); review PACKING fix adds with `owner: "SHARED"` and ignores a partner's matching item when looking for an existing one.
 - [ ] **Step 2–4:** FAIL → implement → PASS, verification.
 - [ ] **Step 5:** Commit `feat(packing): leaving, Duplicate, nudges, Digest and Review fixes respect personal lists`.
 
