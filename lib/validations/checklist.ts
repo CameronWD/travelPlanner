@@ -29,6 +29,7 @@ export const checklistItemSchema = z.object({
     .trim()
     .optional()
     .transform((v) => (v === "" ? undefined : v)),
+  owner: z.union([z.literal("SHARED"), z.string().trim().min(1)]).optional(),
 });
 
 export type ChecklistItemInput = z.input<typeof checklistItemSchema>;

@@ -30,6 +30,7 @@ const {
   queryRawMock,
   transactionMock,
   recordActivityMock,
+  loadPackingViewerMock,
 } = vi.hoisted(() => {
   const checklistItemUpdateMock = vi.fn();
   const queryRawMock = vi.fn();
@@ -68,10 +69,12 @@ const {
     queryRawMock,
     transactionMock,
     recordActivityMock: vi.fn().mockResolvedValue(undefined),
+    loadPackingViewerMock: vi.fn(),
   };
 });
 
 vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/lib/packing-viewer", () => ({ loadPackingViewer: loadPackingViewerMock }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 // requireChecklistItemAccess is now a thin adapter over requireRowAccess
@@ -130,6 +133,7 @@ import {
   applyTemplate,
   deleteTemplate,
   setBuyState,
+  movePackingItem,
 } from "./checklists";
 
 const VALID_PRETRIP_INPUT = {
@@ -149,6 +153,8 @@ const PRETRIP_ITEM = {
   text: "Travel insurance",
   done: false,
   dueDate: null,
+  ownerId: null,
+  buy: null,
   assignedTo: null,
 };
 
@@ -159,6 +165,7 @@ afterEach(() => {
     membership: { role: "owner" },
   });
   requireUserMock.mockResolvedValue({ id: "user-1" });
+  loadPackingViewerMock.mockResolvedValue({ userId: "user-1", open: false });
 });
 
 // ---------------------------------------------------------------------------
@@ -443,6 +450,7 @@ describe("deleteChecklistItem", () => {
       id: "ci-1",
       tripId: "trip-1",
       kind: "PACKING",
+      ownerId: null,
     });
     checklistItemDeleteMock.mockResolvedValue({});
 
@@ -947,5 +955,226 @@ describe("Activity", () => {
     packingTemplateFindUniqueMock.mockResolvedValue({ id: "t2", ownerId: "user-1" });
     await deleteTemplate("t2");
     expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Packing rules (per-person Packing lists)
+// ---------------------------------------------------------------------------
+
+const PACKING_ITEM = { ...PRETRIP_ITEM, kind: "PACKING", ownerId: null as string | null };
+const THEIRS = { ...PACKING_ITEM, ownerId: "user-2" };
+const NOT_YOURS = {
+  success: false,
+  errors: { _: ["That's on someone else's packing list."] },
+};
+
+describe("addChecklistItem (Packing)", () => {
+  it("defaults the owner to the caller", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    tripMemberFindUniqueMock.mockResolvedValue({ userId: "user-1" });
+    checklistItemCreateMock.mockResolvedValue({ id: "new" });
+
+    await addChecklistItem("trip-1", VALID_PACKING_INPUT);
+
+    expect(checklistItemCreateMock.mock.calls[0][0].data.ownerId).toBe("user-1");
+  });
+
+  it('owner "SHARED" creates ownerId null', async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateMock.mockResolvedValue({ id: "new" });
+
+    await addChecklistItem("trip-1", { ...VALID_PACKING_INPUT, owner: "SHARED" });
+
+    expect(checklistItemCreateMock.mock.calls[0][0].data.ownerId).toBeNull();
+  });
+
+  it("refuses another member's list when Private", async () => {
+    tripMemberFindUniqueMock.mockResolvedValue({ userId: "user-2" });
+
+    const result = await addChecklistItem("trip-1", { ...VALID_PACKING_INPUT, owner: "user-2" });
+
+    expect(result).toEqual({
+      success: false,
+      errors: { _: ["This trip's packing lists are private."] },
+    });
+    expect(checklistItemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("adds to another member's list when Open", async () => {
+    loadPackingViewerMock.mockResolvedValue({ userId: "user-1", open: true });
+    tripMemberFindUniqueMock.mockResolvedValue({ userId: "user-2" });
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateMock.mockResolvedValue({ id: "new" });
+
+    const result = await addChecklistItem("trip-1", { ...VALID_PACKING_INPUT, owner: "user-2" });
+
+    expect(result.success).toBe(true);
+    expect(checklistItemCreateMock.mock.calls[0][0].data.ownerId).toBe("user-2");
+  });
+
+  it("refuses a non-member owner", async () => {
+    tripMemberFindUniqueMock.mockResolvedValue(null);
+
+    const result = await addChecklistItem("trip-1", { ...VALID_PACKING_INPUT, owner: "stranger" });
+
+    expect(result).toEqual({ success: false, errors: { _: ["They aren't on this trip."] } });
+    expect(checklistItemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores owner on a non-Packing item", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateMock.mockResolvedValue({ id: "new" });
+
+    await addChecklistItem("trip-1", { ...VALID_PRETRIP_INPUT, owner: "user-2" });
+
+    expect(checklistItemCreateMock.mock.calls[0][0].data.ownerId).toBeNull();
+  });
+});
+
+describe("toggleChecklistItem (Packing)", () => {
+  it("records who packed a Shared item, and clears it on untick", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PACKING_ITEM });
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    await toggleChecklistItem("ci-1", true);
+    expect(checklistItemUpdateMock).toHaveBeenLastCalledWith({
+      where: { id: "ci-1" },
+      data: { done: true, packedById: "user-1" },
+    });
+
+    await toggleChecklistItem("ci-1", false);
+    expect(checklistItemUpdateMock).toHaveBeenLastCalledWith({
+      where: { id: "ci-1" },
+      data: { done: false, packedById: null },
+    });
+  });
+
+  it("refuses another Traveller's item and writes nothing", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...THEIRS });
+
+    expect(await toggleChecklistItem("ci-1", true)).toEqual(NOT_YOURS);
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateChecklistItem / deleteChecklistItem (Packing)", () => {
+  it("refuse another Traveller's item", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...THEIRS });
+
+    expect(await updateChecklistItem("ci-1", { text: "x" })).toEqual(NOT_YOURS);
+    expect(await deleteChecklistItem("ci-1")).toEqual(NOT_YOURS);
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+    expect(checklistItemDeleteMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("setBuyState (Packing ownership)", () => {
+  it("lets you flip NEEDED to BOUGHT on another's item when Open", async () => {
+    loadPackingViewerMock.mockResolvedValue({ userId: "user-1", open: true });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...THEIRS, buy: "NEEDED" });
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    const result = await setBuyState("ci-1", "BOUGHT");
+
+    expect(result.success).toBe(true);
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ci-1" },
+      data: { buy: "BOUGHT" },
+    });
+  });
+
+  it("refuses marking another's item to buy", async () => {
+    loadPackingViewerMock.mockResolvedValue({ userId: "user-1", open: true });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...THEIRS, buy: null });
+
+    expect(await setBuyState("ci-1", "NEEDED")).toEqual(NOT_YOURS);
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("reorderChecklistItem (Packing)", () => {
+  it("locks only same-owner siblings", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PACKING_ITEM, id: "ci-2", ownerId: "user-1" });
+    queryRawMock.mockResolvedValue([
+      { id: "ci-1", sortOrder: 0 },
+      { id: "ci-2", sortOrder: 1 },
+    ]);
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    await reorderChecklistItem("ci-2", "up");
+
+    const sql = (queryRawMock.mock.calls[0][0] as string[]).join(" ");
+    expect(sql).toContain('"ownerId" IS NOT DISTINCT FROM');
+    expect(queryRawMock.mock.calls[0]).toContain("user-1");
+  });
+
+  it("refuses another Traveller's item", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...THEIRS });
+
+    expect(await reorderChecklistItem("ci-1", "up")).toEqual(NOT_YOURS);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("movePackingItem", () => {
+  it("moves Shared to a partner when Open and records Activity", async () => {
+    loadPackingViewerMock.mockResolvedValue({ userId: "user-1", open: true });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PACKING_ITEM });
+    tripMemberFindUniqueMock.mockResolvedValue({
+      userId: "user-2",
+      user: { id: "user-2", name: "Sam", image: null },
+    });
+    checklistItemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    const result = await movePackingItem("ci-1", "user-2");
+
+    expect(result.success).toBe(true);
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ci-1" },
+      data: { ownerId: "user-2", sortOrder: 5 },
+    });
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "CHECKLIST_ITEM",
+        changes: { summary: `moved "Travel insurance" to Sam's packing list` },
+      }),
+    );
+  });
+
+  it("refuses moving to a partner when Private", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PACKING_ITEM });
+    tripMemberFindUniqueMock.mockResolvedValue({ userId: "user-2", user: { id: "user-2" } });
+
+    expect(await movePackingItem("ci-1", "user-2")).toEqual({
+      success: false,
+      errors: { _: ["This trip's packing lists are private."] },
+    });
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses moving a partner's item anywhere", async () => {
+    loadPackingViewerMock.mockResolvedValue({ userId: "user-1", open: true });
+    checklistItemFindUniqueMock.mockResolvedValue({ ...THEIRS });
+
+    expect(await movePackingItem("ci-1", "SHARED")).toEqual(NOT_YOURS);
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op success when the owner is unchanged", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PACKING_ITEM });
+
+    expect((await movePackingItem("ci-1", "SHARED")).success).toBe(true);
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-Packing item", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PRETRIP_ITEM, ownerId: null });
+
+    expect((await movePackingItem("ci-1", "user-1")).success).toBe(false);
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
   });
 });

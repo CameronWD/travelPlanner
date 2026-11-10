@@ -36,6 +36,8 @@ export const CHECKLIST_ITEM_ACTIVITY_SELECT = {
   text: true,
   done: true,
   dueDate: true,
+  ownerId: true,
+  buy: true,
   assignedTo: { select: TRAVELLER_SELECT },
 } as const;
 

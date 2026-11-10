@@ -527,6 +527,12 @@ export function checklistTickSummary(text: string, done: boolean): ActivitySumma
   return { summary: done ? `ticked off ${text}` : `un-ticked ${text}` };
 }
 
+export function packingMovedSummary(text: string, toName: string | null): ActivitySummary {
+  return {
+    summary: toName === null ? `moved "${text}" to Shared` : `moved "${text}" to ${toName}'s packing list`,
+  };
+}
+
 export function templateAppliedSummary(count: number, templateName: string): ActivitySummary {
   const items = count === 1 ? "1 item" : `${count} items`;
   return { summary: `added ${items} from the ${templateName} template to the packing list` };

@@ -19,10 +19,19 @@ import {
   checklistItemSummary,
   checklistTickSummary,
   entityLabel,
+  packingMovedSummary,
   templateAppliedSummary,
 } from "@/lib/activity";
 import { TRAVELLER_SELECT, travellerName, type TravellerLike } from "@/lib/traveller";
 import { revalidateTrip } from "@/lib/revalidate";
+import {
+  canAddPackingTo,
+  canManagePackingItem,
+  canSeePackingItem,
+  toOwnerId,
+  type PackingOwnerRef,
+} from "@/lib/packing-access";
+import { loadPackingViewer } from "@/lib/packing-viewer";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -47,8 +56,12 @@ type ChecklistItemAccess = {
   text: string;
   done: boolean;
   dueDate: string | null;
+  ownerId: string | null;
+  buy: string | null;
   assignedTo: TravellerLike | null;
 };
+
+const NOT_YOURS = "That's on someone else's packing list.";
 
 /** Diff row for describeChanges — the assignee as a name, never an id. */
 function activityRow(item: { text: string; dueDate: string | null; assignedTo: TravellerLike | null }) {
@@ -64,8 +77,17 @@ function activityRow(item: { text: string; dueDate: string | null; assignedTo: T
  * Returns the item (with the fields needed to record Activity) or throws
  * notFound().
  */
-async function requireChecklistItemAccess(itemId: string): Promise<ChecklistItemAccess> {
-  return (await requireRowAccess("checklistItem", itemId)).row;
+async function requireChecklistItemAccess(itemId: string) {
+  const { row, user } = await requireRowAccess("checklistItem", itemId);
+  return { item: row as ChecklistItemAccess, user };
+}
+
+async function isTripMember(tripId: string, userId: string): Promise<boolean> {
+  const membership = await db.tripMember.findUnique({
+    where: { tripId_userId: { tripId, userId } },
+    select: { userId: true },
+  });
+  return membership !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +106,6 @@ export async function addChecklistItem(
   input: ChecklistItemInput,
 ): Promise<ActionResult<{ id: string }>> {
   const { user } = await requireTripAccess(tripId);
-  void user; // used implicitly by the guard
 
   const parsed = checklistItemSchema.safeParse(input);
   if (!parsed.success) {
@@ -92,6 +113,17 @@ export async function addChecklistItem(
   }
 
   const data = parsed.data;
+
+  let ownerId: string | null = null;
+  if (data.kind === "PACKING") {
+    ownerId = toOwnerId(data.owner ?? user.id);
+    if (ownerId !== null && ownerId !== user.id && !(await isTripMember(tripId, ownerId))) {
+      return formFail("They aren't on this trip.");
+    }
+    if (!canAddPackingTo(ownerId, await loadPackingViewer(tripId, user.id))) {
+      return formFail("This trip's packing lists are private.");
+    }
+  }
 
   // Validate assignedToId is a member of this trip
   if (data.assignedToId) {
@@ -125,6 +157,7 @@ export async function addChecklistItem(
       done: false,
       dueDate: data.dueDate ?? null,
       assignedToId: data.assignedToId ?? null,
+      ownerId,
       sortOrder,
     },
     select: { id: true },
@@ -153,7 +186,11 @@ export async function updateChecklistItem(
   itemId: string,
   input: ChecklistItemUpdateInput,
 ): Promise<ChecklistActionResult> {
-  const item = await requireChecklistItemAccess(itemId);
+  const { item, user } = await requireChecklistItemAccess(itemId);
+  if (item.kind === "PACKING") {
+    const viewer = await loadPackingViewer(item.tripId, user.id);
+    if (!canManagePackingItem(item.ownerId, viewer)) return formFail(NOT_YOURS);
+  }
 
   const parsed = checklistItemUpdateSchema.safeParse(input);
   if (!parsed.success) {
@@ -210,11 +247,15 @@ export async function toggleChecklistItem(
   itemId: string,
   done: boolean,
 ): Promise<ChecklistActionResult> {
-  const item = await requireChecklistItemAccess(itemId);
+  const { item, user } = await requireChecklistItemAccess(itemId);
+  if (item.kind === "PACKING") {
+    const viewer = await loadPackingViewer(item.tripId, user.id);
+    if (!canManagePackingItem(item.ownerId, viewer)) return formFail(NOT_YOURS);
+  }
 
   await db.checklistItem.update({
     where: { id: itemId },
-    data: { done },
+    data: item.kind === "PACKING" ? { done, packedById: done ? user.id : null } : { done },
   });
 
   // ADR 0012 amendment 2026-10-11: only Pre-trip ticks are news to your
@@ -245,7 +286,7 @@ export async function setBuyState(
   itemId: string,
   buy: BuyState | null,
 ): Promise<ActionResult> {
-  const item = await requireChecklistItemAccess(itemId);
+  const { item, user } = await requireChecklistItemAccess(itemId);
 
   if (item.kind !== "PACKING") {
     return formFail("Only a Packing item can be marked to buy.");
@@ -255,6 +296,13 @@ export async function setBuyState(
   if (!parsedBuy.success) {
     return formFail("Invalid buy state.");
   }
+
+  const viewer = await loadPackingViewer(item.tripId, user.id);
+  const flipsBetweenBuyStates = item.buy !== null && parsedBuy.data !== null;
+  const allowed = flipsBetweenBuyStates
+    ? canSeePackingItem(item.ownerId, viewer)
+    : canManagePackingItem(item.ownerId, viewer);
+  if (!allowed) return formFail(NOT_YOURS);
 
   await db.checklistItem.update({
     where: { id: itemId },
@@ -271,7 +319,11 @@ export async function setBuyState(
 export async function deleteChecklistItem(
   itemId: string,
 ): Promise<ChecklistActionResult> {
-  const item = await requireChecklistItemAccess(itemId);
+  const { item, user } = await requireChecklistItemAccess(itemId);
+  if (item.kind === "PACKING") {
+    const viewer = await loadPackingViewer(item.tripId, user.id);
+    if (!canManagePackingItem(item.ownerId, viewer)) return formFail(NOT_YOURS);
+  }
 
   await db.checklistItem.delete({ where: { id: itemId } });
 
@@ -301,19 +353,33 @@ export async function reorderChecklistItem(
   itemId: string,
   direction: "up" | "down",
 ): Promise<ChecklistActionResult> {
-  const item = await requireChecklistItemAccess(itemId);
+  const { item, user } = await requireChecklistItemAccess(itemId);
+  if (item.kind === "PACKING") {
+    const viewer = await loadPackingViewer(item.tripId, user.id);
+    if (!canManagePackingItem(item.ownerId, viewer)) return formFail(NOT_YOURS);
+  }
 
   await db.$transaction(async (tx) => {
     // Lock this (trip, kind) checklist in sortOrder so a concurrent reorder blocks
     // until we commit, then re-reads the corrected order. Raw SQL because Prisma
     // can't express SELECT ... FOR UPDATE on findMany.
-    const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
-      SELECT "id", "sortOrder"
-      FROM "ChecklistItem"
-      WHERE "tripId" = ${item.tripId} AND "kind" = ${item.kind}
-      ORDER BY "sortOrder" ASC
-      FOR UPDATE
-    `;
+    const siblings =
+      item.kind === "PACKING"
+        ? await tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
+            SELECT "id", "sortOrder"
+            FROM "ChecklistItem"
+            WHERE "tripId" = ${item.tripId} AND "kind" = ${item.kind}
+              AND "ownerId" IS NOT DISTINCT FROM ${item.ownerId}
+            ORDER BY "sortOrder" ASC
+            FOR UPDATE
+          `
+        : await tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
+            SELECT "id", "sortOrder"
+            FROM "ChecklistItem"
+            WHERE "tripId" = ${item.tripId} AND "kind" = ${item.kind}
+            ORDER BY "sortOrder" ASC
+            FOR UPDATE
+          `;
 
     const idx = siblings.findIndex((s) => s.id === itemId);
     if (idx === -1) return; // item vanished mid-flight — nothing to do
@@ -332,6 +398,63 @@ export async function reorderChecklistItem(
       where: { id: neighbour.id },
       data: { sortOrder: current.sortOrder },
     });
+  });
+
+  revalidateTrip(item.tripId, "lists");
+  return { success: true };
+}
+
+/**
+ * Move a Packing item between lists (a Traveller's own, or Shared). Only the
+ * item's manager may move it, and only to a list they may add to.
+ */
+export async function movePackingItem(
+  itemId: string,
+  to: PackingOwnerRef,
+): Promise<ActionResult> {
+  const { item, user } = await requireChecklistItemAccess(itemId);
+
+  if (item.kind !== "PACKING") {
+    return formFail("Only a Packing item can be moved.");
+  }
+
+  const viewer = await loadPackingViewer(item.tripId, user.id);
+  if (!canManagePackingItem(item.ownerId, viewer)) return formFail(NOT_YOURS);
+
+  const toId = toOwnerId(to);
+  if (toId === item.ownerId) return { success: true };
+
+  let toName: string | null = null;
+  if (toId !== null) {
+    const member = await db.tripMember.findUnique({
+      where: { tripId_userId: { tripId: item.tripId, userId: toId } },
+      select: { user: { select: TRAVELLER_SELECT } },
+    });
+    if (!member) return formFail("They aren't on this trip.");
+    toName = travellerName(member.user);
+  }
+  if (!canAddPackingTo(toId, viewer)) {
+    return formFail("This trip's packing lists are private.");
+  }
+
+  const maxItem = await db.checklistItem.findFirst({
+    where: { tripId: item.tripId, kind: "PACKING" },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
+  await db.checklistItem.update({
+    where: { id: itemId },
+    data: { ownerId: toId, sortOrder: (maxItem?.sortOrder ?? -1) + 1 },
+  });
+
+  await recordActivity({
+    tripId: item.tripId,
+    verb: "UPDATED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: itemId,
+    entityLabel: entityLabel("CHECKLIST_ITEM", { text: item.text }),
+    changes: packingMovedSummary(item.text, toName),
   });
 
   revalidateTrip(item.tripId, "lists");
