@@ -71,7 +71,11 @@ AI packing suggestions: `components/trip/ai-packing-suggestions.tsx` (+ test), i
 
 ## Unchanged
 
-Pre-trip checklist (assignees stay), standalone Shopping items, Activity rules (Packing/Shopping ticks stay personal bookkeeping, adds are still Activity).
+Pre-trip checklist (assignees stay), standalone Shopping items. Packing/Shopping ticks stay personal bookkeeping.
+
+## Activity (amended after the final review, 2026-11-10)
+
+Adding, editing or removing an item on **your own** personal list is personal bookkeeping (no Activity), so Private never reads your list out on your partner's bell. Writes to Shared items, adding to another Traveller's list, and moving an item between lists are still Activity. Switching the Open/Private setting is recorded ("made packing lists private"/"open").
 
 ## Operator steps (Cam, after deploy)
 
