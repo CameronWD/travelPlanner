@@ -69,8 +69,8 @@ function SaveTemplateForm({
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        Saves the current packing list as a reusable template you can apply to
-        future trips.
+        Saves your packing items and the Shared ones as a reusable template you
+        can apply to future trips.
       </p>
       <Field label="Template name" required error={error}>
         <Input

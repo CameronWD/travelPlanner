@@ -64,6 +64,11 @@ type ChecklistItemAccess = {
 
 const NOT_YOURS = "That's on someone else's packing list.";
 
+// Edits to your own personal Packing list are bookkeeping, like ticks: not news.
+function isOwnPacking(kind: string, ownerId: string | null, userId: string): boolean {
+  return kind === "PACKING" && ownerId === userId;
+}
+
 /** Diff row for describeChanges — the assignee as a name, never an id. */
 function activityRow(item: { text: string; dueDate: string | null; assignedTo: TravellerLike | null }) {
   return {
@@ -164,14 +169,16 @@ export async function addChecklistItem(
     select: { id: true },
   });
 
-  await recordActivity({
-    tripId,
-    verb: "CREATED",
-    entityType: "CHECKLIST_ITEM",
-    entityId: created.id,
-    entityLabel: entityLabel("CHECKLIST_ITEM", { text: data.text }),
-    changes: checklistItemSummary("CREATED", data.text, data.kind),
-  });
+  if (!isOwnPacking(data.kind, ownerId, user.id)) {
+    await recordActivity({
+      tripId,
+      verb: "CREATED",
+      entityType: "CHECKLIST_ITEM",
+      entityId: created.id,
+      entityLabel: entityLabel("CHECKLIST_ITEM", { text: data.text }),
+      changes: checklistItemSummary("CREATED", data.text, data.kind),
+    });
+  }
 
   revalidateTrip(tripId, "lists");
   return { success: true, id: created.id };
@@ -228,14 +235,16 @@ export async function updateChecklistItem(
     select: { text: true, dueDate: true, assignedTo: { select: TRAVELLER_SELECT } },
   });
 
-  // Checklists and Reminders sit outside any Plan (plan: null): always recorded.
-  await recordUpdate("CHECKLIST_ITEM", {
-    tripId: item.tripId,
-    plan: null,
-    entityId: itemId,
-    before: activityRow(item),
-    after: activityRow(after),
-  });
+  // Checklists and Reminders sit outside any Plan (plan: null).
+  if (!isOwnPacking(item.kind, item.ownerId, user.id)) {
+    await recordUpdate("CHECKLIST_ITEM", {
+      tripId: item.tripId,
+      plan: null,
+      entityId: itemId,
+      before: activityRow(item),
+      after: activityRow(after),
+    });
+  }
 
   revalidateTrip(item.tripId, "lists");
   return { success: true };
@@ -328,14 +337,16 @@ export async function deleteChecklistItem(
 
   await db.checklistItem.delete({ where: { id: itemId } });
 
-  await recordActivity({
-    tripId: item.tripId,
-    verb: "DELETED",
-    entityType: "CHECKLIST_ITEM",
-    entityId: itemId,
-    entityLabel: entityLabel("CHECKLIST_ITEM", { text: item.text }),
-    changes: checklistItemSummary("DELETED", item.text, item.kind),
-  });
+  if (!isOwnPacking(item.kind, item.ownerId, user.id)) {
+    await recordActivity({
+      tripId: item.tripId,
+      verb: "DELETED",
+      entityType: "CHECKLIST_ITEM",
+      entityId: itemId,
+      entityLabel: entityLabel("CHECKLIST_ITEM", { text: item.text }),
+      changes: checklistItemSummary("DELETED", item.text, item.kind),
+    });
+  }
 
   revalidateTrip(item.tripId, "lists");
   return { success: true };
@@ -405,10 +416,6 @@ export async function reorderChecklistItem(
   return { success: true };
 }
 
-/**
- * Move a Packing item between lists (a Traveller's own, or Shared). Only the
- * item's manager may move it, and only to a list they may add to.
- */
 export async function movePackingItem(
   itemId: string,
   to: PackingOwnerRef,
@@ -422,6 +429,7 @@ export async function movePackingItem(
   const viewer = await loadPackingViewer(item.tripId, user.id);
   if (!canManagePackingItem(item.ownerId, viewer)) return formFail(NOT_YOURS);
 
+  if (typeof to !== "string" || to === "") return formFail("They aren't on this trip.");
   const toId = toOwnerId(to);
   if (toId === item.ownerId) return { success: true };
 
@@ -542,7 +550,7 @@ export async function applyTemplate(
     select: { text: true, sortOrder: true, ownerId: true },
   });
 
-  const ownTexts = existingItems.filter((i) => i.ownerId !== null).map((i) => i.text);
+  const ownTexts = existingItems.filter((i) => i.ownerId === user.id).map((i) => i.text);
   const sharedTexts = existingItems.filter((i) => i.ownerId === null).map((i) => i.text);
   const newPersonal = mergeTemplateTexts(
     ownTexts,

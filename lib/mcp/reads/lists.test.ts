@@ -43,10 +43,29 @@ describe("Checklist readers", () => {
   });
 
   it("loadChecklistOfItemForMcp reads the item's whole list in its order", async () => {
-    m.checklistFindMany.mockResolvedValue([ci("b", 1), ci("a", 0)]);
+    m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PRETRIP", ownerId: null }, user: { id: "u1" } });
+    m.checklistFindMany.mockResolvedValue([{ ...ci("b", 1), kind: "PRETRIP" }, { ...ci("a", 0), kind: "PRETRIP" }]);
     const out = await loadChecklistOfItemForMcp("ci-1");
-    expect(m.checklistFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1", kind: "PACKING" } }));
-    expect(out).toEqual({ kind: "PACKING", items: [expect.objectContaining({ id: "a" }), expect.objectContaining({ id: "b" })] });
+    expect(m.checklistFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1", kind: "PRETRIP" } }));
+    expect(out).toEqual({ kind: "PRETRIP", items: [expect.objectContaining({ id: "a" }), expect.objectContaining({ id: "b" })] });
+  });
+
+  it.each([
+    ["a personal item reads its owner's list", "u2"],
+    ["a Shared item reads Shared", null],
+  ])("loadChecklistOfItemForMcp: %s", async (_label, ownerId) => {
+    m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PACKING", ownerId }, user: { id: "u1" } });
+    m.checklistFindMany.mockResolvedValue([ci("a", 0)]);
+    await loadChecklistOfItemForMcp("ci-1");
+    expect(m.checklistFindMany.mock.calls[0][0].where).toEqual({ tripId: "trip-1", kind: "PACKING", ownerId });
+  });
+
+  it("loadChecklistOfItemForMcp keeps the Private filter on a Packing list", async () => {
+    m.loadPackingViewer.mockResolvedValue({ userId: "u1", open: false });
+    m.requireRowAccess.mockResolvedValue({ row: { id: "ci-1", tripId: "trip-1", kind: "PACKING", ownerId: "u1" }, user: { id: "u1" } });
+    m.checklistFindMany.mockResolvedValue([]);
+    await loadChecklistOfItemForMcp("ci-1");
+    expect(m.checklistFindMany.mock.calls[0][0].where).toMatchObject({ ownerId: "u1", OR: expect.any(Array) });
   });
 });
 

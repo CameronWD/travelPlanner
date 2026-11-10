@@ -9,6 +9,7 @@
  * caller.
  */
 import { notFound } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireRowAccess, requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
@@ -47,8 +48,10 @@ export const toChecklistView = (i: ChecklistRow): McpChecklistItem => ({
 });
 
 /** One list in get_checklists' order. Callers have checked access. */
-export async function readChecklist(tripId: string, kind: string, viewer: PackingViewer): Promise<McpChecklistItem[]> {
-  const rows = await db.checklistItem.findMany({ where: { tripId, kind, ...packingVisibleWhere(viewer) }, orderBy: { sortOrder: "asc" }, select: CHECKLIST_VIEW_SELECT });
+export async function readChecklist(
+  tripId: string, kind: string, viewer: PackingViewer, where: Prisma.ChecklistItemWhereInput = {},
+): Promise<McpChecklistItem[]> {
+  const rows = await db.checklistItem.findMany({ where: { tripId, kind, ...where, ...packingVisibleWhere(viewer) }, orderBy: { sortOrder: "asc" }, select: CHECKLIST_VIEW_SELECT });
   return sortChecklist(rows).map(toChecklistView);
 }
 
@@ -64,7 +67,8 @@ export async function loadChecklistItemForMcp(itemId: string): Promise<McpCheckl
 export async function loadChecklistOfItemForMcp(itemId: string): Promise<{ kind: string; items: McpChecklistItem[] }> {
   const { row, user } = await requireRowAccess("checklistItem", itemId);
   const viewer = await loadPackingViewer(row.tripId, user.id);
-  return { kind: row.kind, items: await readChecklist(row.tripId, row.kind, viewer) };
+  const sameList = row.kind === "PACKING" ? { ownerId: row.ownerId } : {};
+  return { kind: row.kind, items: await readChecklist(row.tripId, row.kind, viewer, sameList) };
 }
 
 // ---------------------------------------------------------------------------

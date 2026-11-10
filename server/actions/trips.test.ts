@@ -2134,7 +2134,25 @@ describe("setPackingListsOpen", () => {
     expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { packingListsOpen: false } });
     expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "trip");
     expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "lists");
-    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [false, "made packing lists private"],
+    [true, "made packing lists open"],
+  ])("open=%s records one Activity line: %s", async (open, summary) => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setPackingListsOpen(TRIP_ID, open);
+
+    expect(recordActivityMock).toHaveBeenCalledTimes(1);
+    expect(recordActivityMock).toHaveBeenCalledWith({
+      tripId: TRIP_ID,
+      verb: "UPDATED",
+      entityType: "CHECKLIST_ITEM",
+      entityId: null,
+      entityLabel: "",
+      changes: { summary },
+    });
   });
 });
 

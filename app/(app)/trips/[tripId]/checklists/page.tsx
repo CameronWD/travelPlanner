@@ -86,7 +86,7 @@ export default async function ChecklistsPage({
       },
     }),
     // Trip members for the assignee picker
-    db.tripMember.findMany({ where: { tripId }, select: { user: { select: TRAVELLER_SELECT } } }),
+    db.tripMember.findMany({ where: { tripId }, orderBy: { createdAt: "asc" }, select: { user: { select: TRAVELLER_SELECT } } }),
     // The current user's packing templates
     listTemplates(),
     stopsPromise,

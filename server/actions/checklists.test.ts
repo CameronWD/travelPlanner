@@ -575,7 +575,7 @@ describe("applyTemplate", () => {
       itemsJson: JSON.stringify(["Sunscreen", "Passport", "Camera"]),
     });
     checklistItemFindManyMock.mockResolvedValue([
-      { text: "Passport", sortOrder: 0 },
+      { text: "Passport", sortOrder: 0, ownerId: "user-1" },
     ]);
     checklistItemCreateManyMock.mockResolvedValue({ count: 2 });
 
@@ -640,7 +640,7 @@ describe("applyTemplate", () => {
       itemsJson: JSON.stringify(["SUNSCREEN"]),
     });
     checklistItemFindManyMock.mockResolvedValue([
-      { text: "sunscreen", sortOrder: 0 },
+      { text: "sunscreen", sortOrder: 0, ownerId: "user-1" },
     ]);
     checklistItemCreateManyMock.mockResolvedValue({ count: 0 });
 
@@ -677,7 +677,7 @@ describe("applyTemplate", () => {
       itemsJson: JSON.stringify(["Hat"]),
     });
     checklistItemFindManyMock.mockResolvedValue([
-      { text: "Hat", sortOrder: 0 },
+      { text: "Hat", sortOrder: 0, ownerId: "user-1" },
     ]);
 
     const result = await applyTemplate("trip-1", "tpl-1");
@@ -695,7 +695,7 @@ describe("applyTemplate", () => {
       itemsJson: JSON.stringify(["Camera", "Adapter"]),
     });
     checklistItemFindManyMock.mockResolvedValue([
-      { text: "Existing", sortOrder: 5 },
+      { text: "Existing", sortOrder: 5, ownerId: "user-1" },
     ]);
     checklistItemCreateManyMock.mockResolvedValue({ count: 2 });
 
@@ -1001,7 +1001,7 @@ describe("Activity", () => {
 
   it("applying a template that adds nothing records nothing", async () => {
     packingTemplateFindUniqueMock.mockResolvedValue({ id: "t1", ownerId: "user-1", name: "Beach", itemsJson: '["Sunscreen"]' });
-    checklistItemFindManyMock.mockResolvedValue([{ text: "Sunscreen", sortOrder: 0 }]);
+    checklistItemFindManyMock.mockResolvedValue([{ text: "Sunscreen", sortOrder: 0, ownerId: "user-1" }]);
     await applyTemplate("trip-1", "t1");
     expect(recordActivityMock).not.toHaveBeenCalled();
   });
@@ -1091,6 +1091,61 @@ describe("addChecklistItem (Packing)", () => {
     await addChecklistItem("trip-1", { ...VALID_PRETRIP_INPUT, owner: "user-2" });
 
     expect(checklistItemCreateMock.mock.calls[0][0].data.ownerId).toBeNull();
+  });
+});
+
+describe("Packing Activity", () => {
+  const MINE = { ...PACKING_ITEM, ownerId: "user-1" };
+
+  it("adding to your own list records nothing", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateMock.mockResolvedValue({ id: "new" });
+
+    await addChecklistItem("trip-1", VALID_PACKING_INPUT);
+
+    expect(checklistItemCreateMock).toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("editing or removing your own item records nothing", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...MINE });
+    checklistItemUpdateMock.mockResolvedValue({ text: "Hat", dueDate: null, assignedTo: null });
+
+    expect((await updateChecklistItem("ci-1", { text: "Hat" })).success).toBe(true);
+    expect((await deleteChecklistItem("ci-1")).success).toBe(true);
+
+    expect(checklistItemUpdateMock).toHaveBeenCalled();
+    expect(checklistItemDeleteMock).toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("adding, editing and removing a Shared item records each", async () => {
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateMock.mockResolvedValue({ id: "new" });
+    await addChecklistItem("trip-1", { ...VALID_PACKING_INPUT, owner: "SHARED" });
+    expect(recordActivityMock).toHaveBeenLastCalledWith(expect.objectContaining({ verb: "CREATED" }));
+
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PACKING_ITEM });
+    checklistItemUpdateMock.mockResolvedValue({ text: "Hat", dueDate: null, assignedTo: null });
+    await updateChecklistItem("ci-1", { text: "Hat" });
+    expect(recordActivityMock).toHaveBeenLastCalledWith(expect.objectContaining({ verb: "UPDATED" }));
+
+    await deleteChecklistItem("ci-1");
+    expect(recordActivityMock).toHaveBeenLastCalledWith(expect.objectContaining({ verb: "DELETED" }));
+    expect(recordActivityMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("adding to a partner's list records it", async () => {
+    loadPackingViewerMock.mockResolvedValue({ userId: "user-1", open: true });
+    tripMemberFindUniqueMock.mockResolvedValue({ userId: "user-2" });
+    checklistItemFindFirstMock.mockResolvedValue(null);
+    checklistItemCreateMock.mockResolvedValue({ id: "new" });
+
+    await addChecklistItem("trip-1", { ...VALID_PACKING_INPUT, owner: "user-2" });
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityId: "new", changes: { summary: "added Sunscreen to the packing list" } }),
+    );
   });
 });
 
@@ -1231,6 +1286,17 @@ describe("movePackingItem", () => {
     expect((await movePackingItem("ci-1", "SHARED")).success).toBe(true);
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
     expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 42, ""])("refuses a missing or malformed target (%s) before any lookup", async (to) => {
+    checklistItemFindUniqueMock.mockResolvedValue({ ...PACKING_ITEM, ownerId: "user-1" });
+
+    expect(await movePackingItem("ci-1", to as never)).toEqual({
+      success: false,
+      errors: { _: ["They aren't on this trip."] },
+    });
+    expect(tripMemberFindUniqueMock).not.toHaveBeenCalled();
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
   });
 
   it("refuses a non-Packing item", async () => {

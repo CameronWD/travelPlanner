@@ -214,7 +214,7 @@ export function registerListWriteTools(server: McpServer): void {
           .union([z.literal("me"), z.literal("shared"), z.string()])
           .optional()
           .describe(
-            "Packing only: whose list — \"me\" (default), \"shared\", or a Traveller's user id (another Traveller's list only when the trip's packing lists are Open).",
+            "Packing only: whose list: \"me\" (default), \"shared\", or a Traveller's user id (another Traveller's list only when the trip's packing lists are Open).",
           ),
       },
     },
@@ -336,7 +336,7 @@ export function registerListWriteTools(server: McpServer): void {
     "save_packing_template",
     {
       title: "Save packing template",
-      description: "Saves the trip's current Packing list as a reusable template, owned by the acting Traveller.",
+      description: "Saves the acting Traveller's own Packing items and the Shared ones as a reusable template, owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), name: z.string().trim().min(1) },
     },
     ({ tripId, name }) =>
@@ -354,7 +354,7 @@ export function registerListWriteTools(server: McpServer): void {
     {
       title: "Apply packing template",
       description:
-        "Adds a saved Packing template's items to the trip's Packing list. Items already on the list (by text, case-insensitive) are skipped. The template must be owned by the acting Traveller.",
+        "Adds a saved Packing template's items to the trip: personal entries to the acting Traveller's own list, shared entries to Shared. Items already in that list (by text, case-insensitive) are skipped. The template must be owned by the acting Traveller.",
       inputSchema: { tripId: z.string(), templateId: z.string() },
     },
     ({ tripId, templateId }) => {

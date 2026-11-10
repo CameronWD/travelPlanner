@@ -820,6 +820,17 @@ export async function setPackingListsOpen(tripId: string, open: boolean): Promis
 
   await db.trip.update({ where: { id: tripId }, data: { packingListsOpen: open } });
 
+  // "TRIP" isn't a valid ActivityEntityType; CHECKLIST_ITEM is the closest fit
+  // for this packing-domain trip setting, as CHAPTER is for setChaptersEnabled.
+  await recordActivity({
+    tripId,
+    verb: "UPDATED",
+    entityType: "CHECKLIST_ITEM",
+    entityId: null,
+    entityLabel: "",
+    changes: { summary: open ? "made packing lists open" : "made packing lists private" },
+  });
+
   revalidateTrip(tripId, "trip");
   revalidateTrip(tripId, "lists");
 
