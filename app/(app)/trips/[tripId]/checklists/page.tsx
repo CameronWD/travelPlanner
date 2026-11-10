@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { Checklist } from "@/components/trip/checklist";
@@ -9,7 +8,6 @@ import { ShoppingList } from "@/components/trip/shopping-list";
 import { buildShoppingEntries, shoppingOpenCount } from "@/lib/shopping-list";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
-import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
@@ -46,8 +44,6 @@ export default async function ChecklistsPage({
   const { tripId } = await params;
 
   await requireTripAccess(tripId);
-
-  const aiConfigured = isAiConfigured();
 
   // One wave after the gate (spec 2026-10-06 §C). Reminders live here at every
   // width (Task 16): the desktop Home shows them only as "Sort these out" rows
@@ -178,9 +174,6 @@ export default async function ChecklistsPage({
             ),
             content: (
               <div className="flex flex-col gap-4">
-                {/* AI packing list suggestions */}
-                <AiPackingSuggestions tripId={tripId} aiConfigured={aiConfigured} />
-
                 {/* Templates bar — above the list */}
                 <PackingTemplatesBar tripId={tripId} templates={templates} />
 

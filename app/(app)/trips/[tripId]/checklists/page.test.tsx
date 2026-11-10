@@ -37,13 +37,11 @@ vi.mock("@/components/trip/reminders-card", () => ({
   ),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({})) }));
-vi.mock("@/lib/ai", () => ({ isAiConfigured: vi.fn(() => false) }));
 vi.mock("@/lib/checklists", () => ({ sortChecklist: (items: unknown[]) => items }));
 vi.mock("@/server/actions/checklists", () => ({ listTemplates: vi.fn(async () => []) }));
 vi.mock("@/components/trip/checklist", () => ({ Checklist: () => <div data-testid="checklist" /> }));
 vi.mock("@/components/trip/shopping-list", () => ({ ShoppingList: () => <div data-testid="shopping-list" /> }));
 vi.mock("@/components/trip/packing-templates-bar", () => ({ PackingTemplatesBar: () => null }));
-vi.mock("@/components/trip/ai-packing-suggestions", () => ({ AiPackingSuggestions: () => null }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: vi.fn(async () => "trip-1") }));
 vi.mock("./checklists-layout", () => ({

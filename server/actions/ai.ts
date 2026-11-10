@@ -8,10 +8,8 @@ import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import {
   suggestActivities,
-  draftPackingList,
   type AiResult,
   type SuggestActivitiesOutput,
-  type DraftPackingListOutput,
 } from "@/lib/ai";
 
 /**
@@ -73,53 +71,6 @@ export async function aiSuggestActivities(
       stopName: stop.name,
       country: stop.country ?? undefined,
       existingTitles,
-    }),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// aiDraftPackingList
-// ---------------------------------------------------------------------------
-
-/**
- * Draft a packing list for a trip.
- *
- * - Access-checked via requireTripAccess.
- * - Returns a DRAFT — does not persist anything.
- */
-export async function aiDraftPackingList(
-  tripId: string,
-): Promise<ActionResult<{ data: DraftPackingListOutput }>> {
-  await requireTripAccess(tripId);
-
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: {
-      name: true,
-      startDate: true,
-      endDate: true,
-      stops: {
-        // Real plan only. Stop names are outside any Surprise, so no fragment.
-        where: { ...REAL_PLAN },
-        orderBy: { sortOrder: "asc" },
-        select: { name: true, country: true },
-      },
-    },
-  });
-
-  if (!trip) {
-    return formFail("Trip not found", "error");
-  }
-
-  return toAiActionResult(
-    await draftPackingList({
-      tripName: trip.name,
-      stops: trip.stops.map((s) => ({
-        name: s.name,
-        country: s.country ?? undefined,
-      })),
-      startDate: trip.startDate,
-      endDate: trip.endDate,
     }),
   );
 }

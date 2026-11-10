@@ -532,15 +532,6 @@ export function templateAppliedSummary(count: number, templateName: string): Act
   return { summary: `added ${items} from the ${templateName} template to the packing list` };
 }
 
-/**
- * addChecklistItems (e.g. AI packing "Add all") — one line for the whole
- * batch, same shape as templateAppliedSummary but without a template name.
- */
-export function checklistItemsAddedSummary(count: number, kind: string): ActivitySummary {
-  const items = count === 1 ? "1 item" : `${count} items`;
-  return { summary: `added ${items} to ${checklistListName(kind)}` };
-}
-
 const VOTE_LEVEL_WORD: Record<VoteLevel, string> = {
   MUST: "must-do",
   KEEN: "keen",

@@ -39,7 +39,7 @@ const ALLOWLIST: Record<string, string[]> = {
   ],
   "accommodation.ts": ["createAccommodation", "deleteAccommodation", "updateAccommodation"],
   "activity.ts": ["markAllRead"],
-  "ai.ts": ["aiDraftPackingList", "aiSuggestActivities"],
+  "ai.ts": ["aiSuggestActivities"],
   "attachments.ts": ["deleteAttachment", "linkAttachmentToItem", "setAttachmentTitle", "uploadAttachment"],
   "booking-import.ts": ["confirmProposal", "importBooking"],
   "calendar-feed.ts": [
@@ -60,7 +60,6 @@ const ALLOWLIST: Record<string, string[]> = {
   ],
   "checklists.ts": [
     "addChecklistItem",
-    "addChecklistItems",
     "applyTemplate",
     "deleteChecklistItem",
     "deleteTemplate",
