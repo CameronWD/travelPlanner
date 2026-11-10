@@ -80,6 +80,27 @@ export function sortByDueDate<T extends ChecklistItemLike>(items: T[]): T[] {
   });
 }
 
+export type TemplateEntry = { text: string; shared: boolean };
+
+export function parseTemplateItems(itemsJson: string): TemplateEntry[] | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(itemsJson);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(raw)) return null;
+  const entries: TemplateEntry[] = [];
+  for (const el of raw) {
+    if (typeof el === "string") {
+      entries.push({ text: el, shared: false });
+    } else if (el && typeof el === "object" && typeof (el as TemplateEntry).text === "string") {
+      entries.push({ text: (el as TemplateEntry).text, shared: (el as TemplateEntry).shared === true });
+    }
+  }
+  return entries;
+}
+
 // ---------------------------------------------------------------------------
 // Template merging
 // ---------------------------------------------------------------------------

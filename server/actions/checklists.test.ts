@@ -485,8 +485,9 @@ describe("deleteChecklistItem", () => {
 describe("saveAsTemplate", () => {
   it("serializes PACKING texts into itemsJson and creates a template", async () => {
     checklistItemFindManyMock.mockResolvedValue([
-      { text: "Sunscreen" },
-      { text: "Passport" },
+      { text: "Sunscreen", ownerId: "user-1" },
+      { text: "Adapter", ownerId: null },
+      { text: "Passport", ownerId: "user-1" },
     ]);
     packingTemplateCreateMock.mockResolvedValue({ id: "tpl-1" });
 
@@ -500,13 +501,34 @@ describe("saveAsTemplate", () => {
       data: {
         ownerId: "user-1",
         name: "Summer Essentials",
-        itemsJson: JSON.stringify(["Sunscreen", "Passport"]),
+        itemsJson: JSON.stringify([
+          { text: "Sunscreen", shared: false },
+          { text: "Passport", shared: false },
+          { text: "Adapter", shared: true },
+        ]),
       },
       select: { id: true },
     });
   });
 
-  it("queries ONLY PACKING items, ordered by sortOrder", async () => {
+  it("excludes another Traveller's items", async () => {
+    checklistItemFindManyMock.mockResolvedValue([]);
+    packingTemplateCreateMock.mockResolvedValue({ id: "tpl-1" });
+
+    await saveAsTemplate("trip-1", "Mine");
+
+    expect(checklistItemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tripId: "trip-1",
+          kind: "PACKING",
+          OR: [{ ownerId: null }, { ownerId: "user-1" }],
+        },
+      }),
+    );
+  });
+
+  it("queries only PACKING items, ordered by sortOrder", async () => {
     checklistItemFindManyMock.mockResolvedValue([]);
     packingTemplateCreateMock.mockResolvedValue({ id: "tpl-1" });
 
@@ -514,7 +536,7 @@ describe("saveAsTemplate", () => {
 
     expect(checklistItemFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { tripId: "trip-1", kind: "PACKING" },
+        where: expect.objectContaining({ tripId: "trip-1", kind: "PACKING" }),
         orderBy: { sortOrder: "asc" },
       }),
     );
@@ -569,6 +591,46 @@ describe("applyTemplate", () => {
     // Passport should NOT be in the data
     const createData = checklistItemCreateManyMock.mock.calls[0][0].data as Array<{ text: string }>;
     expect(createData.some((d) => d.text === "Passport")).toBe(false);
+  });
+
+  it("puts shared entries in Shared and personal in the caller's list, deduping each against its own section", async () => {
+    packingTemplateFindUniqueMock.mockResolvedValue({
+      id: "tpl-1",
+      ownerId: "user-1",
+      name: "Tpl",
+      itemsJson: JSON.stringify([
+        { text: "Adapter", shared: false },
+        { text: "adapter", shared: true },
+        { text: "Tent", shared: true },
+      ]),
+    });
+    checklistItemFindManyMock.mockResolvedValue([
+      { text: "Adapter", sortOrder: 0, ownerId: null },
+      { text: "Socks", sortOrder: 1, ownerId: "user-1" },
+    ]);
+    checklistItemCreateManyMock.mockResolvedValue({ count: 2 });
+
+    await applyTemplate("trip-1", "tpl-1");
+
+    expect(checklistItemCreateManyMock).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ text: "Adapter", ownerId: "user-1", sortOrder: 2 }),
+        expect.objectContaining({ text: "Tent", ownerId: null, sortOrder: 3 }),
+      ],
+    });
+  });
+
+  it("reports corrupted template data", async () => {
+    packingTemplateFindUniqueMock.mockResolvedValue({
+      id: "tpl-1",
+      ownerId: "user-1",
+      name: "Tpl",
+      itemsJson: "nope",
+    });
+
+    const result = await applyTemplate("trip-1", "tpl-1");
+
+    expect(result).toEqual({ success: false, errors: { _root: ["Template data is corrupted"] } });
   });
 
   it("is case-insensitive when skipping duplicates", async () => {

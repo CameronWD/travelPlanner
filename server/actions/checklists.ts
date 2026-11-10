@@ -10,7 +10,7 @@ import {
   type ChecklistItemInput,
   type ChecklistItemUpdateInput,
 } from "@/lib/validations/checklist";
-import { mergeTemplateTexts } from "@/lib/checklists";
+import { mergeTemplateTexts, parseTemplateItems, type TemplateEntry } from "@/lib/checklists";
 import { type ActionResult, formFail, validationResult } from "@/lib/action-result";
 import { buyStateSchema, type BuyState } from "@/lib/enums";
 import { recordActivity } from "@/lib/activity-record";
@@ -28,6 +28,7 @@ import {
   canAddPackingTo,
   canManagePackingItem,
   canSeePackingItem,
+  packingMineOrSharedWhere,
   toOwnerId,
   type PackingOwnerRef,
 } from "@/lib/packing-access";
@@ -484,20 +485,22 @@ export async function saveAsTemplate(
     return { success: false, errors: fieldErrors };
   }
 
-  // Collect PACKING item texts for this trip (sorted for determinism)
   const packingItems = await db.checklistItem.findMany({
-    where: { tripId, kind: "PACKING" },
+    where: { tripId, ...packingMineOrSharedWhere(user.id) },
     orderBy: { sortOrder: "asc" },
-    select: { text: true },
+    select: { text: true, ownerId: true },
   });
 
-  const texts = packingItems.map((i) => i.text);
+  const entries: TemplateEntry[] = [
+    ...packingItems.filter((i) => i.ownerId !== null).map((i) => ({ text: i.text, shared: false })),
+    ...packingItems.filter((i) => i.ownerId === null).map((i) => ({ text: i.text, shared: true })),
+  ];
 
   const template = await db.packingTemplate.create({
     data: {
       ownerId: user.id,
       name: parsed.data.name,
-      itemsJson: JSON.stringify(texts),
+      itemsJson: JSON.stringify(entries),
     },
     select: { id: true },
   });
@@ -526,40 +529,48 @@ export async function applyTemplate(
     notFound();
   }
 
-  let templateTexts: string[] = [];
-  try {
-    templateTexts = JSON.parse(template.itemsJson) as string[];
-  } catch {
+  const entries = parseTemplateItems(template.itemsJson);
+  if (!entries) {
     return {
       success: false,
       errors: { _root: ["Template data is corrupted"] },
     };
   }
 
-  // Fetch existing PACKING items for this trip
   const existingItems = await db.checklistItem.findMany({
-    where: { tripId, kind: "PACKING" },
-    select: { text: true, sortOrder: true },
+    where: { tripId, ...packingMineOrSharedWhere(user.id) },
+    select: { text: true, sortOrder: true, ownerId: true },
   });
 
-  const existingTexts = existingItems.map((i) => i.text);
-  const newTexts = mergeTemplateTexts(existingTexts, templateTexts);
+  const ownTexts = existingItems.filter((i) => i.ownerId !== null).map((i) => i.text);
+  const sharedTexts = existingItems.filter((i) => i.ownerId === null).map((i) => i.text);
+  const newPersonal = mergeTemplateTexts(
+    ownTexts,
+    entries.filter((e) => !e.shared).map((e) => e.text),
+  );
+  const newShared = mergeTemplateTexts(
+    sharedTexts,
+    entries.filter((e) => e.shared).map((e) => e.text),
+  );
+  const totalAdded = newPersonal.length + newShared.length;
 
-  if (newTexts.length === 0) {
-    // Nothing new to add
+  if (totalAdded === 0) {
     return { success: true };
   }
 
-  // sortOrder: start after current max
   const maxSortOrder = existingItems.reduce(
     (max, i) => Math.max(max, i.sortOrder),
     -1,
   );
 
-  const creates = newTexts.map((text, i) => ({
+  const creates = [
+    ...newPersonal.map((text) => ({ text, ownerId: user.id as string | null })),
+    ...newShared.map((text) => ({ text, ownerId: null as string | null })),
+  ].map((c, i) => ({
     tripId,
     kind: "PACKING",
-    text,
+    text: c.text,
+    ownerId: c.ownerId,
     done: false,
     sortOrder: maxSortOrder + 1 + i,
   }));
@@ -572,7 +583,7 @@ export async function applyTemplate(
     entityType: "CHECKLIST_ITEM",
     entityId: null,
     entityLabel: template.name,
-    changes: templateAppliedSummary(newTexts.length, template.name),
+    changes: templateAppliedSummary(totalAdded, template.name),
   });
 
   revalidateTrip(tripId, "lists");
@@ -591,16 +602,11 @@ export async function listTemplates(): Promise<TemplateListItem[]> {
     select: { id: true, name: true, itemsJson: true },
   });
 
-  return templates.map((t) => {
-    let count = 0;
-    try {
-      const items = JSON.parse(t.itemsJson) as unknown[];
-      count = Array.isArray(items) ? items.length : 0;
-    } catch {
-      // malformed json — treat as 0 items
-    }
-    return { id: t.id, name: t.name, itemCount: count };
-  });
+  return templates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    itemCount: parseTemplateItems(t.itemsJson)?.length ?? 0,
+  }));
 }
 
 /**

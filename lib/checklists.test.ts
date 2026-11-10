@@ -3,6 +3,7 @@ import {
   sortChecklist,
   sortByDueDate,
   mergeTemplateTexts,
+  parseTemplateItems,
 } from "@/lib/checklists";
 
 // ---------------------------------------------------------------------------
@@ -190,5 +191,23 @@ describe("mergeTemplateTexts", () => {
   it("skips blank strings in the template", () => {
     const result = mergeTemplateTexts([], ["  ", "", "Camera"]);
     expect(result).toEqual(["Camera"]);
+  });
+});
+
+describe("parseTemplateItems", () => {
+  it("reads legacy string elements as personal", () => {
+    expect(parseTemplateItems('["Socks"]')).toEqual([{ text: "Socks", shared: false }]);
+  });
+
+  it("round-trips the entry format", () => {
+    const entries = [
+      { text: "Socks", shared: false },
+      { text: "Tent", shared: true },
+    ];
+    expect(parseTemplateItems(JSON.stringify(entries))).toEqual(entries);
+  });
+
+  it("returns null for unparseable JSON", () => {
+    expect(parseTemplateItems("nope")).toBeNull();
   });
 });
