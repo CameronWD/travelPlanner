@@ -55,6 +55,7 @@ export async function createAttachmentFromFile(opts: {
   targetType: TargetType;
   targetId?: string | null;
   file: File;
+  title?: string | null;
   userId: string;
   /** reportError's `route` tag — defaults to this file, callers may name their own action. */
   route?: string;
@@ -70,6 +71,7 @@ export async function createAttachmentFromFile(opts: {
       targetType: opts.targetType,
       targetId: opts.targetId ?? null,
       filename: opts.file.name,
+      title: opts.title ?? null,
       mime: opts.file.type,
       size: opts.file.size,
       url: "", // placeholder — updated below

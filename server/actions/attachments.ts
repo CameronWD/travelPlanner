@@ -16,6 +16,7 @@ import { createAttachmentFromFile } from "@/lib/attachment-create";
 import { checkQuota } from "@/lib/storage-quota";
 import { type ActionResult, formFail } from "@/lib/action-result";
 import { revalidateTrip, revalidateGlobe } from "@/lib/revalidate";
+import { attachmentName, normalizeAttachmentTitle } from "@/lib/attachment-name";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -116,6 +117,7 @@ function findAttachmentForAccess(id: string) {
  *   - globeId     string (required for globe-scoped uploads; mutually exclusive with tripId)
  *   - targetType  TargetType (required)
  *   - targetId    string (optional)
+ *   - title       string (optional, trimmed; blank means none)
  *
  * Access-checked: the current user must be a member of the trip (trip path) or
  * own the globe (globe path).
@@ -154,6 +156,10 @@ export async function uploadAttachment(
       return formFail("Globe access denied.");
     }
 
+    const titleResult = normalizeAttachmentTitle(formData.get("title"));
+    if (!titleResult.ok) return formFail(titleResult.error);
+    const title = titleResult.title;
+
     // Validate the upload (mime + size)
     const validation = validateUpload({ mime: file.type, size: file.size });
     if (!validation.ok) {
@@ -174,6 +180,7 @@ export async function uploadAttachment(
         targetType,
         targetId: typeof targetId === "string" && targetId ? targetId : null,
         filename: file.name,
+        title,
         mime: file.type,
         size: file.size,
         url: "",
@@ -249,6 +256,10 @@ export async function uploadAttachment(
     await requireOutsideSurprise(user.id, { target: { targetType, targetId: uploadTargetId } });
   }
 
+  const titleResult = normalizeAttachmentTitle(formData.get("title"));
+  if (!titleResult.ok) return formFail(titleResult.error);
+  const title = titleResult.title;
+
   // Validate the upload (mime + size)
   const validation = validateUpload({ mime: file.type, size: file.size });
   if (!validation.ok) {
@@ -306,6 +317,7 @@ export async function uploadAttachment(
     targetType,
     targetId: typeof targetId === "string" && targetId ? targetId : null,
     file,
+    title,
     userId: user.id,
     route: "server/actions/attachments.ts#uploadAttachment",
   });
@@ -325,8 +337,8 @@ export async function uploadAttachment(
     verb: "CREATED",
     entityType: "ATTACHMENT",
     entityId: created.id,
-    entityLabel: file.name,
-    changes: { excerpt: file.name },
+    entityLabel: attachmentName({ filename: file.name, title }),
+    changes: { excerpt: attachmentName({ filename: file.name, title }) },
   });
 
   revalidateTrip(tripId, "journal");
@@ -377,8 +389,6 @@ export async function deleteAttachment(
   return { success: true };
 }
 
-const TITLE_MAX = 120;
-
 /**
  * Give a file a title (CONTEXT.md "Attachment"; spec 2026-10-02 §C) — the
  * name it is shown by wherever it is listed. Empty clears it.
@@ -388,11 +398,9 @@ export async function setAttachmentTitle(
   title: string,
 ): Promise<ActionResult> {
   const { attachment } = await requireAttachmentAccess(id);
-  const trimmed = title.trim();
-  if (trimmed.length > TITLE_MAX) {
-    return formFail(`Title must be ${TITLE_MAX} characters or fewer.`);
-  }
-  await db.attachment.update({ where: { id }, data: { title: trimmed.length === 0 ? null : trimmed } });
+  const normalized = normalizeAttachmentTitle(title);
+  if (!normalized.ok) return formFail(normalized.error);
+  await db.attachment.update({ where: { id }, data: { title: normalized.title } });
   if (attachment.tripId) revalidateTrip(attachment.tripId, "journal");
   else revalidateGlobe();
   return { success: true };

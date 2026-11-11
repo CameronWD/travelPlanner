@@ -18,12 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
-import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
+import { deleteAttachment } from "@/server/actions/attachments";
 import type { TargetType } from "@/lib/enum-values";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { toastRefused, toastRejected, firstErrorMessage } from "@/components/ui/action-failure";
-import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { ATTACHMENT_MIMES, mimeLabel } from "@/lib/attachment-mimes";
+import { StagedUploadTray, useStagedUploads } from "@/components/trip/staged-upload-tray";
 import { attachmentName } from "@/lib/attachment-name";
 import { formatBytes } from "@/lib/format-bytes";
 import { AttachmentLink } from "@/components/trip/attachment-link";
@@ -67,13 +68,6 @@ function MimeIcon({ mime, className }: { mime: string; className?: string }) {
     return <FileText className={cn("text-coral-text", className)} aria-hidden />;
   }
   return <File className={cn("text-muted-foreground", className)} aria-hidden />;
-}
-
-function mimeLabel(mime: string): string {
-  if (mime === "application/pdf") return "PDF";
-  if (mime === "text/plain") return "TXT";
-  if (mime.startsWith("image/")) return mime.split("/")[1].toUpperCase();
-  return "File";
 }
 
 /** Kit file tile label (together.jsx Files): "PDF" / "IMG" / "TXT" / "FILE". */
@@ -129,42 +123,15 @@ export function AttachmentList({
   onLink,
 }: AttachmentListProps) {
   const [isPending, startTransition] = React.useTransition();
-  const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const tray = useStagedUploads({ tripId, globeId, targetType, targetId });
+  const [dragging, setDragging] = React.useState(false);
   const { confirm, dialog } = useConfirm();
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadError(null);
-
-    startTransition(async () => {
-      // Phone photos routinely exceed the upload cap raw; shrink images
-      // client-side first (non-images pass through untouched).
-      const compressed = await compressImage(file);
-      const oversize = oversizeUploadMessage(compressed);
-      if (oversize) {
-        setUploadError(oversize);
-        if (inputRef.current) inputRef.current.value = "";
-        return;
-      }
-
-      const fd = new FormData();
-      if (tripId) fd.set("tripId", tripId);
-      if (globeId) fd.set("globeId", globeId);
-      fd.set("targetType", targetType);
-      if (targetId) fd.set("targetId", targetId);
-      fd.set("file", compressed);
-
-      const result = await uploadAttachment(fd);
-      if (!result.success) {
-        setUploadError(firstErrorMessage(result, "Couldn't upload that file."));
-      }
-      // Reset the file input so the same file can be re-selected after an error.
-      if (inputRef.current) inputRef.current.value = "";
-    });
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    void tray.addFiles(files);
   }
 
   async function handleDelete(id: string, filename: string) {
@@ -189,28 +156,37 @@ export function AttachmentList({
   }
 
   const inputId = `upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`;
-  const uploading = isPending && !deletingId;
+  const uploading = tray.uploading;
+  const busy = uploading || tray.preparing;
+
+  const dropTarget = {
+    "data-dragging": dragging ? "true" : undefined,
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(true);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+      setDragging(false);
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      void tray.addFiles(Array.from(e.dataTransfer.files));
+    },
+  };
 
   const fileInput = (
     <input
-      ref={inputRef}
       id={inputId}
       type="file"
-      accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain"
+      multiple
+      accept={ATTACHMENT_MIMES.join(",")}
       className="sr-only"
       onChange={handleFileChange}
-      disabled={isPending}
+      disabled={uploading}
     />
   );
-
-  const errorAlert = uploadError ? (
-    <p
-      role="alert"
-      className="rounded-md border-2 border-destructive bg-card px-3 py-2.5 text-sm font-medium text-foreground"
-    >
-      {uploadError}
-    </p>
-  ) : null;
 
   // ── Compact: dense list for dialogs, popovers and cards (unchanged shape) ──
   if (compact) {
@@ -302,25 +278,26 @@ export function AttachmentList({
           </AnimatedList>
         ) : null}
 
-        {errorAlert}
-
         {showUpload && (
           <div>
             {fileInput}
             <label
               htmlFor={inputId}
+              {...dropTarget}
               className={cn(
                 "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary",
-                isPending && "pointer-events-none opacity-50",
+                dragging && "border-primary bg-muted text-primary",
+                uploading && "opacity-50",
               )}
             >
-              {uploading ? (
+              {busy ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Upload className="size-4" />
               )}
-              Add file
+              Add files
             </label>
+            <StagedUploadTray tray={tray} compact />
           </div>
         )}
       </div>
@@ -335,7 +312,7 @@ export function AttachmentList({
     <>
     {dialog}
     <div className="flex flex-col gap-3">
-      {errorAlert}
+      <StagedUploadTray tray={tray} compact={false} />
       <AnimatedList
         as="ul"
         data-slot="file-grid"
@@ -346,22 +323,24 @@ export function AttachmentList({
             {fileInput}
             <label
               htmlFor={inputId}
+              {...dropTarget}
               className={cn(
                 "flex min-h-[90px] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border-soft p-4 text-center transition-colors hover:border-border md:min-h-[150px]",
                 "has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
-                isPending && "pointer-events-none opacity-50",
+                dragging && "border-primary bg-muted",
+                uploading && "opacity-50",
               )}
             >
-              {uploading ? (
+              {busy ? (
                 <Loader2 className="size-6 animate-spin" aria-hidden="true" />
               ) : (
                 <Paperclip className="size-6" aria-hidden="true" />
               )}
               <span className="font-display text-base font-extrabold tracking-[-0.02em]">
-                {uploading ? "Uploading…" : "Tap to add a file"}
+                {uploading ? "Uploading…" : tray.preparing ? "Preparing…" : "Tap or drop files"}
               </span>
               <span className="text-xs font-semibold text-muted-foreground">
-                PDF, photos or text, up to 4 MB
+                PDF, photos or text, up to 4 MB each
               </span>
             </label>
           </li>

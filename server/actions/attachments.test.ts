@@ -342,6 +342,61 @@ describe("uploadAttachment", () => {
     );
   });
 
+  it("stores a trimmed title on the trip attachment row", async () => {
+    await uploadAttachment(makeFormData({ title: "  Louvre tickets  " }));
+    expect(attachmentCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ title: "Louvre tickets", filename: "test.pdf" }),
+      }),
+    );
+  });
+
+  it("stores a title on a globe attachment row", async () => {
+    requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+    attachmentCreateMock.mockResolvedValue({ id: "at1", globeId: "g1" });
+    const fd = new FormData();
+    fd.set("globeId", "g1");
+    fd.set("targetType", "MARKER");
+    fd.set("targetId", "m1");
+    fd.set("title", "Museum pass");
+    fd.set("file", new File(["hello"], "tickets.pdf", { type: "application/pdf" }));
+    await uploadAttachment(fd);
+    expect(attachmentCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ title: "Museum pass" }) }),
+    );
+  });
+
+  it("stores no title when the title is blank or whitespace", async () => {
+    await uploadAttachment(makeFormData({ title: "   " }));
+    expect(attachmentCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ title: null }) }),
+    );
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ entityLabel: "test.pdf", changes: { excerpt: "test.pdf" } }),
+    );
+  });
+
+  it("refuses a title over 120 characters and writes nothing", async () => {
+    const result = await uploadAttachment(makeFormData({ title: "x".repeat(121) }));
+    expect(result).toEqual({
+      success: false,
+      errors: { _: ["Title must be 120 characters or fewer."] },
+    });
+    expect(attachmentCreateMock).not.toHaveBeenCalled();
+    expect(storageSaveMock).not.toHaveBeenCalled();
+  });
+
+  it("names the activity by the title when one is given", async () => {
+    const fd = makeFormData({
+      file: new File(["hello"], "boarding.pdf", { type: "application/pdf" }),
+      title: "Flight to Rome",
+    });
+    await uploadAttachment(fd);
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ entityLabel: "Flight to Rome", changes: { excerpt: "Flight to Rome" } }),
+    );
+  });
+
   it("refuses an over-quota upload with the Trip message and writes nothing", async () => {
     checkQuotaMock.mockResolvedValueOnce({
       ok: false,

@@ -28,6 +28,7 @@ import path from "node:path";
 // §X, same pattern as lib/ai.ts anthropicClient), so local-disk dev and every
 // route that never touches storage skip ~1 MB of SDK at cold start.
 import type { S3Client, S3ClientConfig } from "@aws-sdk/client-s3";
+import { ATTACHMENT_MIMES } from "@/lib/attachment-mimes";
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -356,14 +357,7 @@ export function generateKey(
 // ---------------------------------------------------------------------------
 
 /** MIME types that are allowed for upload. */
-const ALLOWED_MIMES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
-  "text/plain",
-]);
+const ALLOWED_MIMES = new Set<string>(ATTACHMENT_MIMES);
 
 /** Maximum upload size: 10 MiB. */
 export const MAX_BYTES = 10 * 1024 * 1024;
