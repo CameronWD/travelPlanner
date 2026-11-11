@@ -66,6 +66,19 @@ describe("TransportCountdown", () => {
     expect(queryByRole("link", { name: /BA123\.pdf/ })).toBeNull();
   });
 
+  it("a long unbroken filename wraps inside the card instead of overflowing", () => {
+    const depAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const name = "BoardingPass_BA0005_12NOV_SMITHJOHNMR.pdf";
+    const { getByRole, getByText } = render(
+      <TransportCountdown depAt={depAt} label="Flight BA123" attachments={[file({ id: "a1", title: null, filename: name })]} />,
+    );
+
+    const link = getByRole("link", { name });
+    expect(link.classList.contains("max-w-full")).toBe(true);
+    expect(link.classList.contains("min-w-0")).toBe(true);
+    expect(getByText(name).classList.contains("[overflow-wrap:anywhere]")).toBe(true);
+  });
+
   it("renders no file chips when the departure has no files", () => {
     const depAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
     const withEmpty = render(<TransportCountdown depAt={depAt} label="Flight BA123" attachments={[]} />);

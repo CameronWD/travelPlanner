@@ -74,10 +74,10 @@ export function TransportCountdown({ depAt, depTimeLabel, depZone, label, attach
               key={a.id}
               href={a.url}
               mime={a.mime}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border-2 border-border bg-card px-3.5 text-sm font-extrabold text-foreground"
+              className="inline-flex min-h-11 max-w-full min-w-0 items-center gap-1.5 rounded-full border-2 border-border bg-card px-3.5 text-sm font-extrabold text-foreground"
             >
               <Paperclip aria-hidden="true" className="size-4 shrink-0" />
-              {attachmentName(a)}
+              <span className="min-w-0 [overflow-wrap:anywhere]">{attachmentName(a)}</span>
             </AttachmentLink>
           ))}
         </div>
