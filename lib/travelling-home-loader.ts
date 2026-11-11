@@ -141,6 +141,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const nextTransport =
     nextTransportDep && nextTransportDep.transport.depAt
       ? {
+          id: nextTransportDep.transport.id,
           depAt: new Date(nextTransportDep.transport.depAt).toISOString(),
           depTimeLabel: nextTransportDep.depTimeLabel,
           // A Home departure has no fromStop of its own (CONTEXT.md "Home

@@ -170,6 +170,7 @@ export async function PhaseTravelling({
               depTimeLabel={nextTransport.depTimeLabel}
               depZone={nextTransport.depZone}
               label={nextTransport.label}
+              attachments={attachmentsByTarget[nextTransport.id] ?? []}
             />
           )}
 

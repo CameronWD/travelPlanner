@@ -120,7 +120,6 @@ vi.mock("@/components/trip/whats-around-sheet", () => ({
   WhatsAroundSheet: ({ allowNearMe }: { allowNearMe: boolean }) => <i data-testid="whats-around" data-near-me={String(allowNearMe)} />,
 }));
 vi.mock("@/components/trip/map-link", () => ({ MapLink: () => null }));
-vi.mock("@/components/trip/transport-countdown", () => ({ TransportCountdown: () => null }));
 vi.mock("@/components/trip/spend-so-far-card", () => ({ SpendSoFarCard: () => null }));
 vi.mock("@/components/trip/attachment-links", () => ({ AttachmentLinks: () => null }));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
@@ -1143,6 +1142,41 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
       },
     ];
   }
+
+  it("nextTransport carries the Transport's id", async () => {
+    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true });
+    buildItineraryMock.mockReturnValue(
+      dayPlanWithDeparture({
+        id: "tr-1", mode: "FLIGHT", fromStopId: null, toStopId: null, depPlace: null, arrPlace: null,
+        depAt: new Date("2030-01-01T00:00:00Z"), arrAt: null, reference: null, notes: null, depIsHome: false, arrIsHome: false,
+      }),
+    );
+
+    const model = await loadTravellingHome("trip-1", "next-transport-id");
+
+    expect(model.kind === "dated" && model.nextTransport?.id).toBe("tr-1");
+  });
+
+  it("the Up next card shows the next Transport's files", async () => {
+    const { within } = await import("@testing-library/react");
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true });
+    buildItineraryMock.mockReturnValue(
+      dayPlanWithDeparture({
+        id: "tr-1", mode: "FLIGHT", fromStopId: null, toStopId: null, depPlace: null, arrPlace: null,
+        depAt: new Date("2030-01-01T00:00:00Z"), arrAt: null, reference: null, notes: null, depIsHome: false, arrIsHome: false,
+      }),
+    );
+    attachmentFindManyMock.mockResolvedValue([
+      { id: "att-1", filename: "BA123.pdf", title: "Boarding pass", mime: "application/pdf", size: 1, url: "/api/attachments/att-1", uploadedById: "u1", createdAt: new Date(), targetId: "tr-1" },
+    ]);
+
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    const badge = [...dom.querySelectorAll("span")].find((el) => el.textContent?.startsWith("Next departure"))!;
+    const card = closestKitCard(badge)!;
+
+    expect(within(card).getByRole("link", { name: /Boarding pass/ }).getAttribute("href")).toBe("/api/attachments/att-1");
+  });
 
   it("labels a Home departure's countdown with the Trip's own Home timezone, not UTC", async () => {
     const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
