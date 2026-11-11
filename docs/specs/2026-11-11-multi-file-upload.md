@@ -29,6 +29,12 @@ photo, booking importer, and the "Save this item first" message on a new Item.
   etc.) stay in the tray with their error, to remove or retry. Nothing that
   succeeded is undone.
 - No count cap — the quota governs.
+- **Closing the host never loses a staged file** (decided 2026-11-11 after the
+  final review): if the tray goes away — the dialog's Save, Cancel, Escape,
+  backdrop, a popover's outside click — with valid files still staged (or still
+  being prepared), they are uploaded anyway with their titles. The outcome is
+  reported by toast, since the tray is gone: how many were added, and each
+  failure by name with its reason. To discard a staged file, remove it with ✕.
 - Inside the entity dialogs (rendered inside a `<form>`), the tray's buttons
   and the Enter key in a Title box never submit or close the dialog.
 
