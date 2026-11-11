@@ -19,13 +19,13 @@ export async function listPeople(): Promise<PersonView[]> {
         image: true,
         displayName: true,
         createdAt: true,
-        memberships: { select: { role: true } },
+        memberships: { where: { trip: { deletedAt: null } }, select: { role: true } },
         authSessions: { select: { updatedAt: true }, orderBy: { updatedAt: "desc" }, take: 1 },
         pushSubscriptions: { select: { lastSeenAt: true }, orderBy: { lastSeenAt: "desc" }, take: 1 },
       },
     }),
     db.invite.findMany({
-      where: { acceptedAt: { not: null } },
+      where: { acceptedAt: { not: null }, trip: { deletedAt: null } },
       select: {
         email: true,
         acceptedAt: true,

@@ -902,9 +902,9 @@ export type RemoveTripMemberResult = ActionResult;
  * survives the author leaving).
  *
  * Also deletes any still-pending Invite for the removed Traveller's email on
- * this trip. Without this, a stale Invite would silently re-admit them the
- * next time they sign in with that email (this matters more once a pending
- * Invite is sufficient to create an account on the deployment — Task 13).
+ * this trip. Without this, a stale Invite would silently put them back on
+ * the trip the next time they sign in with that email (an Invite no longer
+ * admits anyone to the deployment, but it still grants Trip access).
  * An already-accepted Invite (the historical record of how they joined) is
  * left alone, same as cancelInvite's convention.
  */

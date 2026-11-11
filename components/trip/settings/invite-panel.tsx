@@ -232,7 +232,7 @@ export function InvitePanel({
           </form>
           {inviteSuccess && (
             <p role="status" className="mt-2 text-sm text-teal-text">
-              Invite created. No email was sent. They&apos;ll join automatically the next time they sign in.
+              Invite created. No email was sent. They&apos;ll join the next time they sign in, once they have a spot.
             </p>
           )}
         </div>

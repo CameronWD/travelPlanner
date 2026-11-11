@@ -37,8 +37,8 @@ function stringOrNull(value: unknown): string | null {
 
 /**
  * ADR 0057's one door, as a pure module. Performs the same side effects
- * today's Auth.js `signIn` callback (lib/auth/auth.ts) performs — admit,
- * record — but returns a decision instead of a boolean/string, so Task 3's
+ * today's Auth.js `signIn` callback (lib/auth/auth.ts) performs — decides
+ * and records — but returns a decision instead of a boolean/string, so Task 3's
  * Better Auth hooks can translate it into whatever shape each hook needs
  * (including the send pass's "answer exactly as an accepted address would"
  * behaviour, which lives in the hook, not here).

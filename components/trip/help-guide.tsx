@@ -1642,7 +1642,8 @@ export function HelpGuide({
               names the person you want on it. Nothing is sent to them. The
               invite simply sits there marked{" "}
               <strong className="font-semibold">Pending</strong>, and turns into
-              real access the next time they sign in with that address. Tell
+              real access the next time they sign in with that address, once they
+              have a spot. Tell
               them yourself, in other words. You can cancel one while
               it&rsquo;s still pending.
             </p>

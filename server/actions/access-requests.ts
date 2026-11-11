@@ -62,7 +62,11 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
   });
 
   const invites = await db.invite.findMany({
-    where: { email: { in: rows.map((r) => r.email.trim().toLowerCase()) }, acceptedAt: null },
+    where: {
+      email: { in: rows.map((r) => r.email.trim().toLowerCase()) },
+      acceptedAt: null,
+      trip: { deletedAt: null },
+    },
     select: {
       email: true,
       trip: {
@@ -122,7 +126,7 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
  *
  * Refuses a request that is already resolved (`resolvedAt` set), whether by
  * this same action or by dismiss. `AccessRequest.email` is `@unique`, so
- * there is only ever one row per address — with two admin tabs open, a
+ * there is only ever one row per address. With two admin tabs open, a
  * dismiss in one followed by an unguarded approve in the other would grant
  * access AND overwrite `resolvedAt` while `status` stayed "dismissed",
  * leaving the one audit row contradicting itself (says declined, behaves
@@ -217,14 +221,10 @@ export async function dismissAccessRequest(id: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------------
-// Allowlist (AllowedEmail) — read + revoke
+// Allowlist (AllowedEmail) — revoke
 //
-// NEW requirement beyond the original brief: admission via a Trip Invite now
-// writes an AllowedEmail row (the lockout fix on this branch), which made
-// revocation two-sided. removeTripMember/leaveTrip delete the Invite, but
-// nothing deletes the allowlist row it produced — so someone removed from
-// the only Trip they were ever invited to keeps deployment-level sign-in,
-// with no revocation path short of raw SQL. This closes that gap.
+// Revoking a Spot deletes the AllowedEmail row. Nothing else writes the table
+// besides approving an Access request, and a Trip Invite does not admit.
 // ---------------------------------------------------------------------------
 
 /**

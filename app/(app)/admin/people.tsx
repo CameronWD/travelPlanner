@@ -92,11 +92,13 @@ export function PeoplePanel({ initial, now, viewerEmail }: PeoplePanelProps) {
               </span>
               <span className="truncate text-xs text-muted-foreground">{sourceLine(person.source)}</span>
               <span className="text-xs text-muted-foreground">
-                {person.joinedAt ? `Joined ${relativeTime(new Date(person.joinedAt), now)}` : "Not joined"}
+                {person.joinedAt ? `Joined ${relativeTime(new Date(person.joinedAt), now)}` : <>Joined <span>—</span></>}
                 {" · "}
-                {person.lastSeenAt
-                  ? `Last seen ${relativeTime(new Date(person.lastSeenAt), now)}`
-                  : "Not seen recently"}
+                {person.lastSeenAt ? (
+                  `Last seen ${relativeTime(new Date(person.lastSeenAt), now)}`
+                ) : (
+                  <>Last seen <span>—</span></>
+                )}
                 {" · "}
                 {`Owns ${person.tripsOwned} · On ${person.tripsOn}`}
               </span>

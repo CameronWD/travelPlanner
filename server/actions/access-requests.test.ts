@@ -467,7 +467,7 @@ describe("listAccessRequests", () => {
     const result = await listAccessRequests();
 
     expect(inviteFindManyMock).toHaveBeenCalledWith({
-      where: { email: { in: ["sam@example.com", "none@example.com"] }, acceptedAt: null },
+      where: { email: { in: ["sam@example.com", "none@example.com"] }, acceptedAt: null, trip: { deletedAt: null } },
       select: {
         email: true,
         trip: {

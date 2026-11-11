@@ -21,7 +21,7 @@ export default function TermsPage() {
       <LegalSection title="What this is">
         <p>
           I built Teepee and run it myself, as a personal project, for a
-          small invite-only group of friends and family. There&apos;s no
+          small group of friends and family. There&apos;s no
           company or support team behind it, and it isn&apos;t sold as a
           service.
         </p>

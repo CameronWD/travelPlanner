@@ -234,6 +234,8 @@ trusting the upstream value.
 
 ### 1.5 THE LOCKOUT REGRESSION — an invited Traveller signs in TWICE
 
+> Historical: `admitByTripInvite` was removed on 2026-11-11 (ADR 0057 amendment); Trip Invites no longer admit.
+
 **Why:** this is the single most important check in this document. Admission
 by a pending Invite used to be a **one-shot ticket**: the Invite is marked
 accepted moments after the first sign-in, so the predicate that admitted them

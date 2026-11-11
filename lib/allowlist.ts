@@ -23,13 +23,6 @@ import { db } from "@/lib/db";
  * "One door" means one predicate at one call site, not one storage location.
  * Shaped like isAdminEmail (lib/admin.ts): server-only, trimmed, lowercased.
  */
-export function envAllowedEmails(): string[] {
-  return (process.env.ALLOWED_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => e.length > 0);
-}
-
 export async function isAllowedEmail(
   email: string | null | undefined,
 ): Promise<boolean> {
@@ -41,4 +34,11 @@ export async function isAllowedEmail(
 
   const row = await db.allowedEmail.findUnique({ where: { email: needle } });
   return row !== null;
+}
+
+export function envAllowedEmails(): string[] {
+  return (process.env.ALLOWED_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0);
 }
