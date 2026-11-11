@@ -371,3 +371,14 @@ The consequence "Admission is TRANSITIVE" no longer holds: inviting someone
 to a Trip no longer lets them in. Approving that person's Access request
 revives their expired Trip Invites (spec section A, Task 2). The Globe
 exclusion stands trivially, since no Invite admits at all.
+
+## Amendment — 2026-11-11 (feat/dismissed-invited)
+
+**Dismissal is final, except when a Trip Invite is created after it.** A
+dismissed Access request comes back before the Admin if the person is later
+invited to a Trip. Invites no longer admit, so a Trip Owner's wish to bring
+someone on reaches the Admin only through the Access request; without this the
+person is refused forever and invisible to everyone.
+
+The reopen is computed, not written: nothing changes the request's status
+until the Admin acts on it. No push is sent. /privacy states the exception.

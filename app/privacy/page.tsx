@@ -73,8 +73,8 @@ export default function PrivacyPage() {
       title="Privacy"
       intro={
         <>
-          I run Teepee, a trip planner for people I have given a spot, for a small group of
-          friends and family. This page says what it collects about you,
+          I run Teepee, a trip planner for a small group of friends and family,
+          and only people I have given a spot can use it. This page says what it collects about you,
           who else sees it, and how long it is kept. If anything here is
           unclear, ask me.
         </>
@@ -168,7 +168,7 @@ export default function PrivacyPage() {
             granted an account. I can approve a request, which grants
             access, or dismiss it. A dismissed request is closed for good.
             It does not come back to the Admin queue, even if you sign in
-            again.
+            again, unless someone later invites you to one of their trips.
           </li>
           <li>
             <span className="font-bold">

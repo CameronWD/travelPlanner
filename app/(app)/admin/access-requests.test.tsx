@@ -56,6 +56,24 @@ describe("AccessRequestsPanel", () => {
     expect(screen.getByText("Invited to Bali 2027 by Cam")).toBeInTheDocument();
   });
 
+  it("labels a reopened request 'Dismissed earlier. Now invited to Bali 2027 by Cam.'", () => {
+    render(
+      <AccessRequestsPanel
+        initial={[
+          {
+            ...requests[0]!,
+            dismissedEarlier: true,
+            invitedTo: [{ tripName: "Bali 2027", ownerName: "Cam" }],
+          },
+        ]}
+        now={NOW}
+      />,
+    );
+    expect(
+      screen.getByText("Dismissed earlier. Now invited to Bali 2027 by Cam."),
+    ).toBeInTheDocument();
+  });
+
   it("Approve calls approveAccessRequest with the request id and removes the row on success", async () => {
     render(<AccessRequestsPanel initial={requests} now={NOW} />);
     await userEvent.click(screen.getByRole("button", { name: /approve/i }));
