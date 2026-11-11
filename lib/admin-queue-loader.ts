@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { reopenedByInvite } from "@/lib/reopened-requests";
 import type { AdminQueue } from "@/lib/admin-queue";
 
 /**
@@ -16,9 +17,10 @@ import type { AdminQueue } from "@/lib/admin-queue";
  * note is waiting whichever site it was written on (spec 2026-10-02 §A).
  */
 export async function countAdminQueue(): Promise<AdminQueue> {
-  const [accessRequests, feedbackNeedingReview] = await Promise.all([
+  const [pendingRequests, reopenedRequests, feedbackNeedingReview] = await Promise.all([
     db.accessRequest.count({ where: { resolvedAt: null } }),
+    reopenedByInvite(),
     db.feedbackNote.count({ where: { status: "NEEDS_REVIEW" } }),
   ]);
-  return { accessRequests, feedbackNeedingReview };
+  return { accessRequests: pendingRequests + reopenedRequests.length, feedbackNeedingReview };
 }

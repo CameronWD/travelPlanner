@@ -10,6 +10,7 @@ import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { siteUrl } from "@/lib/site-url";
 import { revalidateAdmin } from "@/lib/revalidate";
 import { travellerName } from "@/lib/traveller";
+import { reopenedByInvite } from "@/lib/reopened-requests";
 
 // ---------------------------------------------------------------------------
 // The /admin route's actions (ARCH-TEN-3c).
@@ -37,6 +38,8 @@ export interface AccessRequestView {
   attempts: number;
   /** Unaccepted Trip Invites to this address; the inviter is the Trip's Owner. */
   invitedTo: { tripName: string; ownerName: string }[];
+  /** Dismissed earlier, then invited to a Trip: back for a fresh decision. */
+  dismissedEarlier: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,10 +59,15 @@ export interface AccessRequestView {
 export async function listAccessRequests(): Promise<AccessRequestView[]> {
   await requireAdmin();
 
-  const rows = await db.accessRequest.findMany({
-    where: { resolvedAt: null },
-    orderBy: { createdAt: "asc" },
-  });
+  const [pending, reopened] = await Promise.all([
+    db.accessRequest.findMany({
+      where: { resolvedAt: null },
+      orderBy: { createdAt: "asc" },
+    }),
+    reopenedByInvite(),
+  ]);
+  const reopenedIds = new Set(reopened.map((r) => r.id));
+  const rows = [...pending, ...reopened];
 
   const invites = await db.invite.findMany({
     where: {
@@ -98,6 +106,7 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
     lastAttemptAt: row.lastAttemptAt.toISOString(),
     attempts: row.attempts,
     invitedTo: invitedByEmail.get(row.email.trim().toLowerCase()) ?? [],
+    dismissedEarlier: reopenedIds.has(row.id),
   }));
 
   return views.sort(
@@ -144,7 +153,8 @@ export async function approveAccessRequest(id: string): Promise<ActionResult<{ m
   if (!request) {
     return formFail("That access request no longer exists.");
   }
-  if (request.resolvedAt) {
+  const reopened = Boolean(request.resolvedAt) && (await reopenedByInvite(id)).length > 0;
+  if (request.resolvedAt && !reopened) {
     return formFail("That request has already been resolved.");
   }
 
@@ -167,7 +177,7 @@ export async function approveAccessRequest(id: string): Promise<ActionResult<{ m
 
   await db.accessRequest.update({
     where: { id },
-    data: { resolvedAt: new Date() },
+    data: reopened ? { status: "pending", resolvedAt: new Date() } : { resolvedAt: new Date() },
   });
 
   const now = new Date();
@@ -207,7 +217,7 @@ export async function dismissAccessRequest(id: string): Promise<ActionResult> {
   if (!request) {
     return formFail("That access request no longer exists.");
   }
-  if (request.resolvedAt) {
+  if (request.resolvedAt && (await reopenedByInvite(id)).length === 0) {
     return formFail("That request has already been resolved.");
   }
 

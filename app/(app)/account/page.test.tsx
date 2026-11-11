@@ -50,6 +50,7 @@ vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
 // own tests).
 vi.mock("@/lib/auth/client", () => ({ authClient: { signOut: vi.fn() } }));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
+vi.mock("@/lib/reopened-requests", () => ({ reopenedByInvite: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/db", () => ({
   db: {
     user: { findUnique: userFindUniqueMock },

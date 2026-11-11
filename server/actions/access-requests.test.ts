@@ -25,6 +25,7 @@ const {
   revalidateAdminMock,
   mailConfiguredMock,
   sendMailMock,
+  reopenedByInviteMock,
 } = vi.hoisted(() => ({
   requireAdminMock: vi.fn(),
   accessRequestFindUniqueMock: vi.fn(),
@@ -39,7 +40,10 @@ const {
   revalidateAdminMock: vi.fn(),
   mailConfiguredMock: vi.fn(() => false),
   sendMailMock: vi.fn(),
+  reopenedByInviteMock: vi.fn(),
 }));
+
+vi.mock("@/lib/reopened-requests", () => ({ reopenedByInvite: reopenedByInviteMock }));
 
 vi.mock("@/lib/guards", () => ({
   requireAdmin: requireAdminMock,
@@ -82,11 +86,14 @@ function mockAdmin(email: string = ADMIN.email, id: string = ADMIN.id) {
   requireAdminMock.mockResolvedValue({ id, email });
 }
 
+reopenedByInviteMock.mockResolvedValue([]);
+
 const ORIGINAL_ALLOWED_EMAILS = process.env.ALLOWED_EMAILS;
 
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
+  reopenedByInviteMock.mockReset().mockResolvedValue([]);
   mailConfiguredMock.mockReturnValue(false);
   sendMailMock.mockReset();
   if (ORIGINAL_ALLOWED_EMAILS === undefined) delete process.env.ALLOWED_EMAILS;
@@ -293,6 +300,44 @@ describe("approveAccessRequest", () => {
     expect(allowedEmailCreateMock).not.toHaveBeenCalled();
     expect(accessRequestUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("approves a reopened request: allowlists, sets status pending and resolvedAt, revives Invites", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({
+      id: "ar1",
+      email: "friend@example.com",
+      status: "dismissed",
+      resolvedAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    reopenedByInviteMock.mockResolvedValue([{ id: "ar1" }]);
+
+    const result = await approveAccessRequest("ar1");
+
+    expect(result).toEqual({ success: true, mailed: false });
+    expect(reopenedByInviteMock).toHaveBeenCalledWith("ar1");
+    expect(allowedEmailCreateMock).toHaveBeenCalled();
+    expect(accessRequestUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ar1" },
+      data: { status: "pending", resolvedAt: expect.any(Date) },
+    });
+    expect(inviteUpdateManyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("still refuses a dismissed request with no later Invite", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({
+      id: "ar1",
+      email: "friend@example.com",
+      status: "dismissed",
+      resolvedAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    reopenedByInviteMock.mockResolvedValue([]);
+
+    const result = await approveAccessRequest("ar1");
+
+    expect(result).toMatchObject({ success: false, errors: { _: ["That request has already been resolved."] } });
+    expect(allowedEmailCreateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -373,6 +418,25 @@ describe("dismissAccessRequest", () => {
     expect(result.success).toBe(false);
     expect(accessRequestUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("re-dismisses a reopened request, stamping a new resolvedAt", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({
+      id: "ar1",
+      email: "friend@example.com",
+      status: "dismissed",
+      resolvedAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    reopenedByInviteMock.mockResolvedValue([{ id: "ar1" }]);
+
+    const result = await dismissAccessRequest("ar1");
+
+    expect(result.success).toBe(true);
+    expect(accessRequestUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ar1" },
+      data: { status: "dismissed", resolvedAt: expect.any(Date) },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -434,6 +498,7 @@ describe("listAccessRequests", () => {
         lastAttemptAt: lastAttemptAt.toISOString(),
         attempts: 3,
         invitedTo: [],
+        dismissedEarlier: false,
       },
     ]);
   });
@@ -502,6 +567,27 @@ describe("listAccessRequests", () => {
     const result = await listAccessRequests();
 
     expect(result.map((r) => r.id)).toEqual(["old-invited", "new-invited", "old-plain", "new-plain"]);
+  });
+
+  it("includes reopened requests with dismissedEarlier true", async () => {
+    mockAdmin();
+    accessRequestFindManyMock.mockResolvedValue([row("pend", "a@example.com", 3)]);
+    reopenedByInviteMock.mockResolvedValue([row("reopened", "b@example.com", 1)]);
+    inviteFindManyMock.mockResolvedValue([
+      {
+        email: "b@example.com",
+        trip: { name: "T", members: [{ user: { id: "u", name: null, image: null, displayName: "O", email: "o@example.com" } }] },
+      },
+    ]);
+
+    const result = await listAccessRequests();
+
+    expect(result.map((r) => [r.id, r.dismissedEarlier])).toEqual([
+      ["reopened", true],
+      ["pend", false],
+    ]);
+    expect(result[0].invitedTo).toEqual([{ tripName: "T", ownerName: "O" }]);
+    expect(inviteFindManyMock.mock.calls[0][0].where.email).toEqual({ in: ["a@example.com", "b@example.com"] });
   });
 });
 

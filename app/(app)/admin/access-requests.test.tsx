@@ -24,6 +24,7 @@ const requests: AccessRequestView[] = [
     lastAttemptAt: "2026-09-21T12:00:00.000Z",
     attempts: 3,
     invitedTo: [],
+    dismissedEarlier: false,
   },
 ];
 

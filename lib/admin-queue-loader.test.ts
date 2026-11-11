@@ -9,11 +9,15 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+const reopenedByInviteMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/reopened-requests", () => ({ reopenedByInvite: reopenedByInviteMock }));
+
 import { countAdminQueue } from "./admin-queue-loader";
 
 beforeEach(() => {
   accessRequestCountMock.mockReset().mockResolvedValue(0);
   feedbackNoteCountMock.mockReset().mockResolvedValue(0);
+  reopenedByInviteMock.mockReset().mockResolvedValue([]);
 });
 
 describe("countAdminQueue", () => {
@@ -29,6 +33,12 @@ describe("countAdminQueue", () => {
   it("counts Access requests by resolvedAt, never status", async () => {
     await countAdminQueue();
     expect(accessRequestCountMock).toHaveBeenCalledWith({ where: { resolvedAt: null } });
+  });
+
+  it("counts pending plus reopened requests", async () => {
+    accessRequestCountMock.mockResolvedValue(2);
+    reopenedByInviteMock.mockResolvedValue([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    await expect(countAdminQueue()).resolves.toMatchObject({ accessRequests: 5 });
   });
 
   it("counts only NEEDS_REVIEW notes, from every site", async () => {
