@@ -39,20 +39,6 @@ export interface AccessRequestView {
   invitedTo: { tripName: string; ownerName: string }[];
 }
 
-export interface AllowedEmailView {
-  id: string;
-  email: string;
-  note: string | null;
-  /** ISO, or null for an ALLOWED_EMAILS entry — it has no row and no date. */
-  createdAt: string | null;
-  /**
-   * False for an ALLOWED_EMAILS (env-var) entry: it is not a database row,
-   * there is nothing here to delete, and revokeAllowedEmail refuses it
-   * rather than pretending a delete would work.
-   */
-  revocable: boolean;
-}
-
 // ---------------------------------------------------------------------------
 // Access requests
 // ---------------------------------------------------------------------------
@@ -242,58 +228,11 @@ export async function dismissAccessRequest(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 
 /**
- * Every current allowlist entry — both sources of `isAllowedEmail`
- * (lib/allowlist.ts): the `AllowedEmail` table, and the `ALLOWED_EMAILS` env
- * var. An address present in both is only listed once, as the (revocable)
- * database row — the env var is bootstrap/break-glass, and a row already
- * admits the same address on its own.
- */
-export async function listAllowedEmails(): Promise<AllowedEmailView[]> {
-  await requireAdmin();
-
-  const rows = await db.allowedEmail.findMany({ orderBy: { createdAt: "asc" } });
-  const dbViews: AllowedEmailView[] = rows.map((row) => ({
-    id: row.id,
-    email: row.email,
-    note: row.note,
-    createdAt: row.createdAt.toISOString(),
-    revocable: true,
-  }));
-
-  // Lowercased defensively, same reasoning as approveAccessRequest's write:
-  // every known writer of AllowedEmail.email already lowercases, but this
-  // dedup must not silently double-list the same address (once revocable,
-  // once "not revocable here") just because some row — hand-seeded, restored
-  // from a pre-normalisation backup, or written by a future path that
-  // forgets — isn't already lowercase.
-  const dbEmails = new Set(dbViews.map((v) => v.email.trim().toLowerCase()));
-  const raw = process.env.ALLOWED_EMAILS;
-  const envEmails = raw
-    ? raw
-        .split(",")
-        .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.length > 0)
-    : [];
-  const envViews: AllowedEmailView[] = [...new Set(envEmails)]
-    .filter((email) => !dbEmails.has(email))
-    .map((email) => ({
-      id: `env:${email}`,
-      email,
-      note: "Set via ALLOWED_EMAILS. Not revocable here.",
-      createdAt: null,
-      revocable: false,
-    }));
-
-  return [...dbViews, ...envViews];
-}
-
-/**
  * Revoke an admitted address.
  *
- * Refuses an `env:`-prefixed id (an ALLOWED_EMAILS entry, see
- * listAllowedEmails) outright — there is no row to delete, and pretending a
- * delete would work would be worse than saying so, since the address would
- * still sign in next time regardless.
+ * Refuses an `env:`-prefixed id (an ALLOWED_EMAILS entry) outright — there is
+ * no row to delete, and pretending a delete would work would be worse than
+ * saying so, since the address would still sign in next time regardless.
  *
  * Refuses to let an admin revoke their own address — the exact lockout this
  * whole feature exists to fix, in reverse: revoking the address that lets

@@ -73,7 +73,6 @@ import {
   approveAccessRequest,
   dismissAccessRequest,
   listAccessRequests,
-  listAllowedEmails,
   revokeAllowedEmail,
 } from "@/server/actions/access-requests";
 
@@ -503,87 +502,6 @@ describe("listAccessRequests", () => {
     const result = await listAccessRequests();
 
     expect(result.map((r) => r.id)).toEqual(["old-invited", "new-invited", "old-plain", "new-plain"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// listAllowedEmails
-// ---------------------------------------------------------------------------
-
-describe("listAllowedEmails", () => {
-  // Same leak-path reasoning as listAccessRequests above — this list is the
-  // full allowlist, not just pending requests.
-  it("a non-admin cannot list — requireAdmin rejects, and nothing is read", async () => {
-    requireAdminMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
-
-    await expect(listAllowedEmails()).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(allowedEmailFindManyMock).not.toHaveBeenCalled();
-  });
-
-  it("marks database rows as revocable", async () => {
-    mockAdmin();
-    const createdAt = new Date("2026-09-01T00:00:00.000Z");
-    allowedEmailFindManyMock.mockResolvedValue([
-      { id: "ae1", email: "friend@example.com", note: "approved", createdAt },
-    ]);
-    delete process.env.ALLOWED_EMAILS;
-
-    const result = await listAllowedEmails();
-
-    expect(result).toEqual([
-      {
-        id: "ae1",
-        email: "friend@example.com",
-        note: "approved",
-        createdAt: createdAt.toISOString(),
-        revocable: true,
-      },
-    ]);
-  });
-
-  it("surfaces ALLOWED_EMAILS entries as non-revocable, and never as a deletable row", async () => {
-    mockAdmin();
-    allowedEmailFindManyMock.mockResolvedValue([]);
-    process.env.ALLOWED_EMAILS = "bootstrap@example.com";
-
-    const result = await listAllowedEmails();
-
-    expect(result).toEqual([
-      expect.objectContaining({ email: "bootstrap@example.com", revocable: false }),
-    ]);
-  });
-
-  it("does not double-list an address that is in both ALLOWED_EMAILS and the AllowedEmail table", async () => {
-    mockAdmin();
-    const createdAt = new Date("2026-09-01T00:00:00.000Z");
-    allowedEmailFindManyMock.mockResolvedValue([
-      { id: "ae1", email: "both@example.com", note: null, createdAt },
-    ]);
-    process.env.ALLOWED_EMAILS = "Both@Example.com";
-
-    const result = await listAllowedEmails();
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ email: "both@example.com", revocable: true });
-  });
-
-  // I1: every known writer of AllowedEmail.email lowercases, but this dedup
-  // must not lean on that invariant either — a not-already-lowercase row
-  // (hand-seeded, a pre-normalisation backup, a future writer that forgets)
-  // must still be recognised as the same address as its ALLOWED_EMAILS
-  // counterpart, not double-listed once revocable and once not.
-  it("does not double-list when the DATABASE row's casing (not the env var's) is the mismatched one", async () => {
-    mockAdmin();
-    const createdAt = new Date("2026-09-01T00:00:00.000Z");
-    allowedEmailFindManyMock.mockResolvedValue([
-      { id: "ae1", email: "Both@Example.com", note: null, createdAt },
-    ]);
-    process.env.ALLOWED_EMAILS = "both@example.com";
-
-    const result = await listAllowedEmails();
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ revocable: true });
   });
 });
 
