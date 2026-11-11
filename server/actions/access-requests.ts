@@ -6,6 +6,7 @@ import { isUniqueConstraintError } from "@/lib/access-requests";
 import { type ActionResult, ok, formFail } from "@/lib/action-result";
 import { mailConfigured, sendMail } from "@/lib/mail";
 import { renderApprovalEmail } from "@/lib/approval-email";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { siteUrl } from "@/lib/site-url";
 import { revalidateAdmin } from "@/lib/revalidate";
 
@@ -143,6 +144,12 @@ export async function approveAccessRequest(id: string): Promise<ActionResult<{ m
   await db.accessRequest.update({
     where: { id },
     data: { resolvedAt: new Date() },
+  });
+
+  const now = new Date();
+  await db.invite.updateMany({
+    where: { email, acceptedAt: null, expiresAt: { lt: now } },
+    data: { expiresAt: new Date(now.getTime() + INVITE_EXPIRY_MS) },
   });
 
   // The email comes last and can never undo the approval above (spec

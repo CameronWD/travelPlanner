@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 
 /**
  * Tests for the /admin route's server actions (Task 15, ARCH-TEN-3c).
@@ -19,6 +20,7 @@ const {
   allowedEmailFindManyMock,
   allowedEmailFindUniqueMock,
   allowedEmailDeleteMock,
+  inviteUpdateManyMock,
   revalidateAdminMock,
   mailConfiguredMock,
   sendMailMock,
@@ -31,6 +33,7 @@ const {
   allowedEmailFindManyMock: vi.fn(),
   allowedEmailFindUniqueMock: vi.fn(),
   allowedEmailDeleteMock: vi.fn(),
+  inviteUpdateManyMock: vi.fn(),
   revalidateAdminMock: vi.fn(),
   mailConfiguredMock: vi.fn(() => false),
   sendMailMock: vi.fn(),
@@ -53,6 +56,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: allowedEmailFindUniqueMock,
       delete: allowedEmailDeleteMock,
     },
+    invite: { updateMany: inviteUpdateManyMock },
   },
 }));
 
@@ -80,6 +84,7 @@ function mockAdmin(email: string = ADMIN.email, id: string = ADMIN.id) {
 const ORIGINAL_ALLOWED_EMAILS = process.env.ALLOWED_EMAILS;
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
   mailConfiguredMock.mockReturnValue(false);
   sendMailMock.mockReset();
@@ -112,6 +117,22 @@ describe("approveAccessRequest", () => {
     // A second admin tab (or the same tab after a stale render) must not go
     // on serving the request as still-pending after this resolves it.
     expect(revalidateAdminMock).toHaveBeenCalledOnce();
+  });
+
+  it("approving revives the address's expired, unaccepted Trip Invites", async () => {
+    const now = new Date("2026-11-11T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "Sam@Example.com", resolvedAt: null });
+
+    await approveAccessRequest("ar1");
+
+    expect(inviteUpdateManyMock).toHaveBeenCalledTimes(1);
+    expect(inviteUpdateManyMock).toHaveBeenCalledWith({
+      where: { email: "sam@example.com", acceptedAt: null, expiresAt: { lt: now } },
+      data: { expiresAt: new Date(now.getTime() + INVITE_EXPIRY_MS) },
+    });
   });
 
   it("emails the approved address after the allowlist row and resolvedAt are written, when mail is configured", async () => {
@@ -278,6 +299,15 @@ describe("approveAccessRequest", () => {
 // ---------------------------------------------------------------------------
 
 describe("dismissAccessRequest", () => {
+  it("dismissing never touches Invites", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "x@example.com", resolvedAt: null });
+
+    await dismissAccessRequest("ar1");
+
+    expect(inviteUpdateManyMock).not.toHaveBeenCalled();
+  });
+
   it("sets status to dismissed and stamps resolvedAt, without granting access", async () => {
     mockAdmin();
     accessRequestFindUniqueMock.mockResolvedValue({
