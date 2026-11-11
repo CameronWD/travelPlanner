@@ -67,6 +67,8 @@ describe("AttachmentList", () => {
       container.querySelector('input[type="file"]') as HTMLInputElement,
       new File(["x"], "tickets.pdf", { type: "application/pdf" }),
     );
+    expect(uploadAttachment).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Add 1 file" }));
     expect(uploadAttachment).toHaveBeenCalledTimes(1);
     const fd = vi.mocked(uploadAttachment).mock.calls[0][0] as FormData;
     expect(fd.get("globeId")).toBe("g1");
@@ -84,6 +86,8 @@ describe("AttachmentList", () => {
       container.querySelector('input[type="file"]') as HTMLInputElement,
       new File(["x"], "insurance.pdf", { type: "application/pdf" }),
     );
+    expect(uploadAttachment).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Add 1 file" }));
     expect(uploadAttachment).toHaveBeenCalledTimes(1);
     const fd = vi.mocked(uploadAttachment).mock.calls[0][0] as FormData;
     expect(fd.get("tripId")).toBe("trip-1");
@@ -123,8 +127,7 @@ describe("AttachmentList", () => {
       <AttachmentList tripId="t" targetType="TRIP" attachments={[{ id: "a", filename: "x.pdf", mime: "application/pdf", size: 1000, url: "/x", uploadedById: "u1", createdAt: new Date() }]} />,
     );
     expect(container.querySelector(".border-dashed")).toBeTruthy();
-    // Kit copy (was "Drop files or browse"); nothing handles a drop, so "tap to add".
-    expect(screen.getByText(/tap to add a file/i)).toBeInTheDocument();
+    expect(screen.getByText(/tap or drop files/i)).toBeInTheDocument();
   });
 
   it("hides the upload trigger when showUpload={false} but still lists files", () => {
@@ -136,7 +139,7 @@ describe("AttachmentList", () => {
         showUpload={false}
       />,
     );
-    expect(screen.queryByText(/tap to add a file/i)).toBeNull();
+    expect(screen.queryByText(/tap or drop files/i)).toBeNull();
     expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
   });
 
@@ -216,6 +219,8 @@ describe("AttachmentList", () => {
     await user.upload(container.querySelector('input[type="file"]') as HTMLInputElement, raw);
 
     expect(compressImage).toHaveBeenCalledWith(raw);
+    expect(uploadAttachment).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Add 1 file" }));
     await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
     const fd = vi.mocked(uploadAttachment).mock.calls[0][0] as FormData;
     expect((fd.get("file") as File).name).toBe("photo.webp");
@@ -237,7 +242,100 @@ describe("AttachmentList", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/~4 MB/);
+    expect(screen.getByRole("button", { name: "Add files" })).toBeDisabled();
     expect(uploadAttachment).not.toHaveBeenCalled();
+  });
+
+  describe("staging tray", () => {
+    const pdf = (name: string) => new File(["x"], name, { type: "application/pdf" });
+    const jpg = (name: string) => new File(["x"], name, { type: "image/jpeg" });
+    const fileInput = (c: HTMLElement) => c.querySelector('input[type="file"]') as HTMLInputElement;
+
+    it("stages several picked files with a title box each, filename as placeholder", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+      await user.upload(fileInput(container), [pdf("a.pdf"), jpg("b.jpg")]);
+      expect(await screen.findByRole("textbox", { name: "Title for a.pdf" })).toHaveAttribute("placeholder", "a.pdf");
+      expect(screen.getByRole("textbox", { name: "Title for b.jpg" })).toHaveAttribute("placeholder", "b.jpg");
+      expect(screen.getByRole("button", { name: "Add 2 files" })).toBeInTheDocument();
+      expect(fileInput(container)).toHaveAttribute("multiple");
+    });
+
+    it("sends each file in its own request with its title, in order", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+      await user.upload(fileInput(container), [pdf("a.pdf"), jpg("b.jpg")]);
+      await user.type(await screen.findByRole("textbox", { name: "Title for a.pdf" }), "Flight");
+      await user.click(screen.getByRole("button", { name: "Add 2 files" }));
+      await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(2));
+      const [a, b] = vi.mocked(uploadAttachment).mock.calls.map((c) => c[0] as FormData);
+      expect(a.get("title")).toBe("Flight");
+      expect((a.get("file") as File).name).toBe("a.pdf");
+      expect((b.get("file") as File).name).toBe("b.jpg");
+      expect(b.get("title")).toBe("");
+      await waitFor(() => expect(screen.queryByText("Ready to add")).toBeNull());
+    });
+
+    it("refuses a disallowed type on staging and never sends it", async () => {
+      const user = userEvent.setup({ applyAccept: false });
+      const { container } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+      await user.upload(fileInput(container), [new File(["x"], "clip.mp4", { type: "video/mp4" }), pdf("a.pdf")]);
+      expect(await screen.findByText("Only PDFs, photos or text files can be added.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Add 1 file" }));
+      await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
+      expect(((vi.mocked(uploadAttachment).mock.calls[0][0] as FormData).get("file") as File).name).toBe("a.pdf");
+    });
+
+    it("keeps a server-rejected file in the tray with its reason and still uploads the rest", async () => {
+      const user = userEvent.setup();
+      vi.mocked(uploadAttachment)
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValueOnce({ success: false, errors: { _: ["This trip is out of space."] } })
+        .mockResolvedValueOnce({ success: true });
+      const { container } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+      await user.upload(fileInput(container), [pdf("a.pdf"), pdf("b.pdf"), pdf("c.pdf")]);
+      await user.click(await screen.findByRole("button", { name: "Add 3 files" }));
+      await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(3));
+      expect(await screen.findByText("This trip is out of space.")).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Title for b.pdf" })).toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: "Title for a.pdf" })).toBeNull();
+      expect(screen.queryByRole("textbox", { name: "Title for c.pdf" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Add 1 file" })).toBeInTheDocument();
+    });
+
+    it("remove takes a file out of the tray", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+      await user.upload(fileInput(container), [pdf("a.pdf"), pdf("b.pdf")]);
+      await user.click(await screen.findByRole("button", { name: "Remove a.pdf" }));
+      expect(screen.getByRole("button", { name: "Add 1 file" })).toBeInTheDocument();
+    });
+
+    it("resets the file input so the same file can be picked again", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+      await user.upload(fileInput(container), pdf("a.pdf"));
+      expect(fileInput(container).value).toBe("");
+    });
+
+    it.each([
+      ["compact", true],
+      ["full", false],
+    ])("%s: Enter in a title box and the tray's buttons never submit a surrounding form", async (_l, compact) => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn((e: FormEvent) => e.preventDefault());
+      const { container } = render(
+        <form onSubmit={onSubmit}>
+          <AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} compact={compact} />
+        </form>,
+      );
+      await user.upload(fileInput(container), [pdf("a.pdf"), pdf("b.pdf")]);
+      await user.type(await screen.findByRole("textbox", { name: "Title for a.pdf" }), "x{Enter}");
+      await user.click(screen.getByRole("button", { name: "Remove a.pdf" }));
+      await user.click(screen.getByRole("button", { name: "Add 1 file" }));
+      await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
   });
 
   // ── Playground kit restyle (Task 14) ──────────────────────────────────────
