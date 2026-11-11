@@ -187,11 +187,9 @@ export const authServer = betterAuth({
       create: {
         before: async (session, ctx) => {
           // Runs the door a second time on a sign-in validateUserInfo already
-          // admitted (a new User, or any Google sign-in). That is safe:
-          // admitByTripInvite is idempotent (`created` is false the second
-          // time) and admins are notified only when a row was created. The
-          // Google profile check already ran in validateUserInfo, so this pass
-          // asks as "magic-link" (no profile needed), except for dev login.
+          // admitted (a new User, or any Google sign-in). The Google profile
+          // check already ran in validateUserInfo, so this pass asks as
+          // "magic-link" (no profile needed), except for dev login.
           const user = await db.user.findUnique({ where: { id: session.userId }, select: { email: true } });
           const decision = await decideSignIn({
             email: user?.email,

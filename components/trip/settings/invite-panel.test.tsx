@@ -67,6 +67,24 @@ describe("InvitePanel", () => {
     expect(inviteToTrip).toHaveBeenCalledWith("trip1", "newperson@example.com");
   });
 
+  it("every pending invite says what happens if they don't have a spot yet", () => {
+    render(
+      <InvitePanel
+        tripId="trip1"
+        members={members}
+        pendingInvites={[...pendingInvites, { id: "inv2", email: "cat@example.com" }]}
+        canInvite
+        currentUserId="u1"
+        viewerIsOwner
+      />,
+    );
+    expect(
+      screen.getAllByText("If they don't have a spot yet, they'll wait on the waiting list until they're let in."),
+    ).toHaveLength(2);
+    expect(screen.getAllByText("Pending")).toHaveLength(2);
+    expect(screen.getByText(/once they have a spot\./)).toBeInTheDocument();
+  });
+
   it("a pending invite's cancel-X calls cancelInvite with the invite id", async () => {
     render(
       <InvitePanel

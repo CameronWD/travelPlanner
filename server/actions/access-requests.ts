@@ -6,8 +6,10 @@ import { isUniqueConstraintError } from "@/lib/access-requests";
 import { type ActionResult, ok, formFail } from "@/lib/action-result";
 import { mailConfigured, sendMail } from "@/lib/mail";
 import { renderApprovalEmail } from "@/lib/approval-email";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { siteUrl } from "@/lib/site-url";
 import { revalidateAdmin } from "@/lib/revalidate";
+import { travellerName } from "@/lib/traveller";
 
 // ---------------------------------------------------------------------------
 // The /admin route's actions (ARCH-TEN-3c).
@@ -33,20 +35,8 @@ export interface AccessRequestView {
   /** ISO. Their most recent attempt (repeat sign-in tries bump this). */
   lastAttemptAt: string;
   attempts: number;
-}
-
-export interface AllowedEmailView {
-  id: string;
-  email: string;
-  note: string | null;
-  /** ISO, or null for an ALLOWED_EMAILS entry — it has no row and no date. */
-  createdAt: string | null;
-  /**
-   * False for an ALLOWED_EMAILS (env-var) entry: it is not a database row,
-   * there is nothing here to delete, and revokeAllowedEmail refuses it
-   * rather than pretending a delete would work.
-   */
-  revocable: boolean;
+  /** Unaccepted Trip Invites to this address; the inviter is the Trip's Owner. */
+  invitedTo: { tripName: string; ownerName: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +61,35 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
     orderBy: { createdAt: "asc" },
   });
 
-  return rows.map((row) => ({
+  const invites = await db.invite.findMany({
+    where: {
+      email: { in: rows.map((r) => r.email.trim().toLowerCase()) },
+      acceptedAt: null,
+      trip: { deletedAt: null },
+    },
+    select: {
+      email: true,
+      trip: {
+        select: {
+          name: true,
+          members: {
+            where: { role: "owner" },
+            select: { user: { select: { id: true, name: true, image: true, displayName: true, email: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  const invitedByEmail = new Map<string, AccessRequestView["invitedTo"]>();
+  for (const invite of invites) {
+    const owner = invite.trip.members[0]?.user;
+    const list = invitedByEmail.get(invite.email) ?? [];
+    list.push({ tripName: invite.trip.name, ownerName: owner ? travellerName(owner) : "Traveller" });
+    invitedByEmail.set(invite.email, list);
+  }
+
+  const views = rows.map((row) => ({
     id: row.id,
     email: row.email,
     name: row.name,
@@ -79,7 +97,14 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
     createdAt: row.createdAt.toISOString(),
     lastAttemptAt: row.lastAttemptAt.toISOString(),
     attempts: row.attempts,
+    invitedTo: invitedByEmail.get(row.email.trim().toLowerCase()) ?? [],
   }));
+
+  return views.sort(
+    (a, b) =>
+      Number(b.invitedTo.length > 0) - Number(a.invitedTo.length > 0) ||
+      a.createdAt.localeCompare(b.createdAt),
+  );
 }
 
 /**
@@ -101,7 +126,7 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
  *
  * Refuses a request that is already resolved (`resolvedAt` set), whether by
  * this same action or by dismiss. `AccessRequest.email` is `@unique`, so
- * there is only ever one row per address — with two admin tabs open, a
+ * there is only ever one row per address. With two admin tabs open, a
  * dismiss in one followed by an unguarded approve in the other would grant
  * access AND overwrite `resolvedAt` while `status` stayed "dismissed",
  * leaving the one audit row contradicting itself (says declined, behaves
@@ -135,14 +160,20 @@ export async function approveAccessRequest(id: string): Promise<ActionResult<{ m
     });
   } catch (err) {
     if (!isUniqueConstraintError(err)) throw err;
-    // Already allowlisted (a duplicate approve, or another path — e.g.
-    // admitByTripInvite — already granted it). Fall through: the request
+    // Already allowlisted (a duplicate approve, or another path already
+    // granted it). Fall through: the request
     // still needs resolving either way.
   }
 
   await db.accessRequest.update({
     where: { id },
     data: { resolvedAt: new Date() },
+  });
+
+  const now = new Date();
+  await db.invite.updateMany({
+    where: { email, acceptedAt: null, expiresAt: { lt: now } },
+    data: { expiresAt: new Date(now.getTime() + INVITE_EXPIRY_MS) },
   });
 
   // The email comes last and can never undo the approval above (spec
@@ -190,69 +221,18 @@ export async function dismissAccessRequest(id: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------------
-// Allowlist (AllowedEmail) — read + revoke
+// Allowlist (AllowedEmail) — revoke
 //
-// NEW requirement beyond the original brief: admission via a Trip Invite now
-// writes an AllowedEmail row (the lockout fix on this branch), which made
-// revocation two-sided. removeTripMember/leaveTrip delete the Invite, but
-// nothing deletes the allowlist row it produced — so someone removed from
-// the only Trip they were ever invited to keeps deployment-level sign-in,
-// with no revocation path short of raw SQL. This closes that gap.
+// Revoking a Spot deletes the AllowedEmail row. Nothing else writes the table
+// besides approving an Access request, and a Trip Invite does not admit.
 // ---------------------------------------------------------------------------
-
-/**
- * Every current allowlist entry — both sources of `isAllowedEmail`
- * (lib/allowlist.ts): the `AllowedEmail` table, and the `ALLOWED_EMAILS` env
- * var. An address present in both is only listed once, as the (revocable)
- * database row — the env var is bootstrap/break-glass, and a row already
- * admits the same address on its own.
- */
-export async function listAllowedEmails(): Promise<AllowedEmailView[]> {
-  await requireAdmin();
-
-  const rows = await db.allowedEmail.findMany({ orderBy: { createdAt: "asc" } });
-  const dbViews: AllowedEmailView[] = rows.map((row) => ({
-    id: row.id,
-    email: row.email,
-    note: row.note,
-    createdAt: row.createdAt.toISOString(),
-    revocable: true,
-  }));
-
-  // Lowercased defensively, same reasoning as approveAccessRequest's write:
-  // every known writer of AllowedEmail.email already lowercases, but this
-  // dedup must not silently double-list the same address (once revocable,
-  // once "not revocable here") just because some row — hand-seeded, restored
-  // from a pre-normalisation backup, or written by a future path that
-  // forgets — isn't already lowercase.
-  const dbEmails = new Set(dbViews.map((v) => v.email.trim().toLowerCase()));
-  const raw = process.env.ALLOWED_EMAILS;
-  const envEmails = raw
-    ? raw
-        .split(",")
-        .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.length > 0)
-    : [];
-  const envViews: AllowedEmailView[] = [...new Set(envEmails)]
-    .filter((email) => !dbEmails.has(email))
-    .map((email) => ({
-      id: `env:${email}`,
-      email,
-      note: "Set via ALLOWED_EMAILS. Not revocable here.",
-      createdAt: null,
-      revocable: false,
-    }));
-
-  return [...dbViews, ...envViews];
-}
 
 /**
  * Revoke an admitted address.
  *
- * Refuses an `env:`-prefixed id (an ALLOWED_EMAILS entry, see
- * listAllowedEmails) outright — there is no row to delete, and pretending a
- * delete would work would be worse than saying so, since the address would
- * still sign in next time regardless.
+ * Refuses an `env:`-prefixed id (an ALLOWED_EMAILS entry) outright — there is
+ * no row to delete, and pretending a delete would work would be worse than
+ * saying so, since the address would still sign in next time regardless.
  *
  * Refuses to let an admin revoke their own address — the exact lockout this
  * whole feature exists to fix, in reverse: revoking the address that lets

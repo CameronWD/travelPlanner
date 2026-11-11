@@ -356,3 +356,18 @@ send pass would bypass the two-pass proof above, and the Google path is the
 common one. Dismiss stays silent, which is exactly what the refusal panel
 promises — telling someone they were declined would make the panel an
 oracle after the fact.
+
+## Amendment — 2026-11-11 (feat/teepee-full, spec 2026-11-11)
+
+**Teepee is Full.** Decision 2's Trip Invite clause and decision 4's
+admission write (`hasPendingTripInvite`, `admitByTripInvite`) are removed:
+only `isAllowedEmail` admits. A person whose only claim is a pending Trip
+Invite is refused at the door and recorded as an Access request like anyone
+else, on both magic-link passes and on Google. `AllowedEmail` rows already
+written with the note "admitted by Trip Invite" keep admitting, since
+`isAllowedEmail` reads them like any other row.
+
+The consequence "Admission is TRANSITIVE" no longer holds: inviting someone
+to a Trip no longer lets them in. Approving that person's Access request
+revives their expired Trip Invites (spec section A, Task 2). The Globe
+exclusion stands trivially, since no Invite admits at all.

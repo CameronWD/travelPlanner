@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 
 /**
  * Tests for the /admin route's server actions (Task 15, ARCH-TEN-3c).
@@ -19,6 +20,8 @@ const {
   allowedEmailFindManyMock,
   allowedEmailFindUniqueMock,
   allowedEmailDeleteMock,
+  inviteUpdateManyMock,
+  inviteFindManyMock,
   revalidateAdminMock,
   mailConfiguredMock,
   sendMailMock,
@@ -31,6 +34,8 @@ const {
   allowedEmailFindManyMock: vi.fn(),
   allowedEmailFindUniqueMock: vi.fn(),
   allowedEmailDeleteMock: vi.fn(),
+  inviteUpdateManyMock: vi.fn(),
+  inviteFindManyMock: vi.fn(),
   revalidateAdminMock: vi.fn(),
   mailConfiguredMock: vi.fn(() => false),
   sendMailMock: vi.fn(),
@@ -53,6 +58,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: allowedEmailFindUniqueMock,
       delete: allowedEmailDeleteMock,
     },
+    invite: { updateMany: inviteUpdateManyMock, findMany: inviteFindManyMock },
   },
 }));
 
@@ -67,7 +73,6 @@ import {
   approveAccessRequest,
   dismissAccessRequest,
   listAccessRequests,
-  listAllowedEmails,
   revokeAllowedEmail,
 } from "@/server/actions/access-requests";
 
@@ -80,6 +85,7 @@ function mockAdmin(email: string = ADMIN.email, id: string = ADMIN.id) {
 const ORIGINAL_ALLOWED_EMAILS = process.env.ALLOWED_EMAILS;
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
   mailConfiguredMock.mockReturnValue(false);
   sendMailMock.mockReset();
@@ -112,6 +118,22 @@ describe("approveAccessRequest", () => {
     // A second admin tab (or the same tab after a stale render) must not go
     // on serving the request as still-pending after this resolves it.
     expect(revalidateAdminMock).toHaveBeenCalledOnce();
+  });
+
+  it("approving revives the address's expired, unaccepted Trip Invites", async () => {
+    const now = new Date("2026-11-11T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "Sam@Example.com", resolvedAt: null });
+
+    await approveAccessRequest("ar1");
+
+    expect(inviteUpdateManyMock).toHaveBeenCalledTimes(1);
+    expect(inviteUpdateManyMock).toHaveBeenCalledWith({
+      where: { email: "sam@example.com", acceptedAt: null, expiresAt: { lt: now } },
+      data: { expiresAt: new Date(now.getTime() + INVITE_EXPIRY_MS) },
+    });
   });
 
   it("emails the approved address after the allowlist row and resolvedAt are written, when mail is configured", async () => {
@@ -278,6 +300,15 @@ describe("approveAccessRequest", () => {
 // ---------------------------------------------------------------------------
 
 describe("dismissAccessRequest", () => {
+  it("dismissing never touches Invites", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", email: "x@example.com", resolvedAt: null });
+
+    await dismissAccessRequest("ar1");
+
+    expect(inviteUpdateManyMock).not.toHaveBeenCalled();
+  });
+
   it("sets status to dismissed and stamps resolvedAt, without granting access", async () => {
     mockAdmin();
     accessRequestFindUniqueMock.mockResolvedValue({
@@ -366,6 +397,7 @@ describe("listAccessRequests", () => {
   it("only queries unresolved requests, by resolvedAt: null (not by status)", async () => {
     mockAdmin();
     accessRequestFindManyMock.mockResolvedValue([]);
+    inviteFindManyMock.mockResolvedValue([]);
 
     await listAccessRequests();
 
@@ -375,6 +407,7 @@ describe("listAccessRequests", () => {
 
   it("maps rows to the view shape", async () => {
     mockAdmin();
+    inviteFindManyMock.mockResolvedValue([]);
     const createdAt = new Date("2026-09-01T00:00:00.000Z");
     const lastAttemptAt = new Date("2026-09-05T00:00:00.000Z");
     accessRequestFindManyMock.mockResolvedValue([
@@ -400,89 +433,75 @@ describe("listAccessRequests", () => {
         createdAt: createdAt.toISOString(),
         lastAttemptAt: lastAttemptAt.toISOString(),
         attempts: 3,
+        invitedTo: [],
       },
     ]);
   });
-});
 
-// ---------------------------------------------------------------------------
-// listAllowedEmails
-// ---------------------------------------------------------------------------
-
-describe("listAllowedEmails", () => {
-  // Same leak-path reasoning as listAccessRequests above — this list is the
-  // full allowlist, not just pending requests.
-  it("a non-admin cannot list — requireAdmin rejects, and nothing is read", async () => {
-    requireAdminMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
-
-    await expect(listAllowedEmails()).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(allowedEmailFindManyMock).not.toHaveBeenCalled();
+  const row = (id: string, email: string, day: number) => ({
+    id,
+    email,
+    name: null,
+    image: null,
+    createdAt: new Date(Date.UTC(2026, 8, day)),
+    lastAttemptAt: new Date(Date.UTC(2026, 8, day)),
+    attempts: 1,
   });
 
-  it("marks database rows as revocable", async () => {
+  it("attaches each request's unaccepted Trip Invites as tripName + ownerName", async () => {
     mockAdmin();
-    const createdAt = new Date("2026-09-01T00:00:00.000Z");
-    allowedEmailFindManyMock.mockResolvedValue([
-      { id: "ae1", email: "friend@example.com", note: "approved", createdAt },
+    accessRequestFindManyMock.mockResolvedValue([
+      row("ar1", "Sam@Example.com", 1),
+      row("ar2", "none@example.com", 2),
     ]);
-    delete process.env.ALLOWED_EMAILS;
-
-    const result = await listAllowedEmails();
-
-    expect(result).toEqual([
+    inviteFindManyMock.mockResolvedValue([
       {
-        id: "ae1",
-        email: "friend@example.com",
-        note: "approved",
-        createdAt: createdAt.toISOString(),
-        revocable: true,
+        email: "sam@example.com",
+        trip: {
+          name: "Bali 2027",
+          members: [{ user: { id: "u1", name: "Cam W", image: null, displayName: "Cam", email: "cam@example.com" } }],
+        },
       },
     ]);
+
+    const result = await listAccessRequests();
+
+    expect(inviteFindManyMock).toHaveBeenCalledWith({
+      where: { email: { in: ["sam@example.com", "none@example.com"] }, acceptedAt: null, trip: { deletedAt: null } },
+      select: {
+        email: true,
+        trip: {
+          select: {
+            name: true,
+            members: {
+              where: { role: "owner" },
+              select: { user: { select: { id: true, name: true, image: true, displayName: true, email: true } } },
+            },
+          },
+        },
+      },
+    });
+    expect(result.find((r) => r.id === "ar1")!.invitedTo).toEqual([{ tripName: "Bali 2027", ownerName: "Cam" }]);
+    expect(result.find((r) => r.id === "ar2")!.invitedTo).toEqual([]);
   });
 
-  it("surfaces ALLOWED_EMAILS entries as non-revocable, and never as a deletable row", async () => {
+  it("lists invited requests first, each group oldest first", async () => {
     mockAdmin();
-    allowedEmailFindManyMock.mockResolvedValue([]);
-    process.env.ALLOWED_EMAILS = "bootstrap@example.com";
-
-    const result = await listAllowedEmails();
-
-    expect(result).toEqual([
-      expect.objectContaining({ email: "bootstrap@example.com", revocable: false }),
+    accessRequestFindManyMock.mockResolvedValue([
+      row("old-plain", "a@example.com", 1),
+      row("old-invited", "b@example.com", 2),
+      row("new-plain", "c@example.com", 3),
+      row("new-invited", "d@example.com", 4),
     ]);
-  });
+    const invite = (email: string) => ({
+      email,
+      trip: { name: "T", members: [{ user: { id: "u", name: null, image: null, displayName: "O", email: "o@example.com" } }] },
+    });
+    inviteFindManyMock.mockResolvedValue([invite("b@example.com"), invite("d@example.com")]);
 
-  it("does not double-list an address that is in both ALLOWED_EMAILS and the AllowedEmail table", async () => {
-    mockAdmin();
-    const createdAt = new Date("2026-09-01T00:00:00.000Z");
-    allowedEmailFindManyMock.mockResolvedValue([
-      { id: "ae1", email: "both@example.com", note: null, createdAt },
-    ]);
-    process.env.ALLOWED_EMAILS = "Both@Example.com";
+    const result = await listAccessRequests();
 
-    const result = await listAllowedEmails();
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ email: "both@example.com", revocable: true });
-  });
-
-  // I1: every known writer of AllowedEmail.email lowercases, but this dedup
-  // must not lean on that invariant either — a not-already-lowercase row
-  // (hand-seeded, a pre-normalisation backup, a future writer that forgets)
-  // must still be recognised as the same address as its ALLOWED_EMAILS
-  // counterpart, not double-listed once revocable and once not.
-  it("does not double-list when the DATABASE row's casing (not the env var's) is the mismatched one", async () => {
-    mockAdmin();
-    const createdAt = new Date("2026-09-01T00:00:00.000Z");
-    allowedEmailFindManyMock.mockResolvedValue([
-      { id: "ae1", email: "Both@Example.com", note: null, createdAt },
-    ]);
-    process.env.ALLOWED_EMAILS = "both@example.com";
-
-    const result = await listAllowedEmails();
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ revocable: true });
+    expect(result.map((r) => r.id)).toEqual(["old-invited", "new-invited", "old-plain", "new-plain"]);
   });
 });
 

@@ -8,7 +8,7 @@ import { ShareCta, ShareFooter, SHARE_FOOTER_COPY } from "./share-cta";
 const hrefs = { requestAccess: "/?panel=request&ref=share&t=abc" as Route, useRoute: "/?panel=sign-in&callbackUrl=x" as Route, fromScratch: "/?panel=sign-in&callbackUrl=y" as Route };
 
 describe("ShareTopBar (SHARE.md §2)", () => {
-  it("links both pills to Become a tester and says it's a shared trip on desktop", () => {
+  it("links both pills to Join the waiting list and says it's a shared trip on desktop", () => {
     render(<ShareTopBar requestAccessHref={hrefs.requestAccess} />);
     expect(screen.getByRole("link", { name: "Plan your own trip" })).toHaveAttribute("href", hrefs.requestAccess);
     expect(screen.getByRole("link", { name: "Plan your own" })).toHaveAttribute("href", hrefs.requestAccess);
@@ -17,10 +17,10 @@ describe("ShareTopBar (SHARE.md §2)", () => {
 });
 
 describe("ShareCta (spec §E.2)", () => {
-  it.each(["before", "during"] as const)("%s: in-testing copy and Become a tester", (stage) => {
+  it.each(["before", "during"] as const)("%s: waiting-list copy and Join the waiting list", (stage) => {
     render(<ShareCta stage={stage} stopCount={6} hrefs={hrefs} />);
-    expect(screen.getByText(/It's in testing for now\. Ask to be a tester\./)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Become a tester" })).toHaveAttribute("href", hrefs.requestAccess);
+    expect(screen.getByText(/It's full right now, but there's a waiting list\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Join the waiting list" })).toHaveAttribute("href", hrefs.requestAccess);
     expect(screen.queryByText(/free to start/i)).not.toBeInTheDocument();
   });
   it("after: Use this route with the stop count, and start from scratch", () => {
@@ -32,7 +32,7 @@ describe("ShareCta (spec §E.2)", () => {
   });
   it.each([
     ["after", 6, "Use this route"],
-    ["before", 6, "Become a tester"],
+    ["before", 6, "Join the waiting list"],
   ] as const)("%s: the %s button pops once when the card comes into view and loads on click (S10, S11)", async (stage, stopCount, name) => {
     render(<ShareCta stage={stage} stopCount={stopCount} hrefs={hrefs} />);
     const link = screen.getByRole("link", { name });
@@ -45,10 +45,10 @@ describe("ShareCta (spec §E.2)", () => {
     expect(link).toHaveAttribute("aria-busy", "true");
   });
 
-  it("after with no stops falls back to the Become a tester card", () => {
+  it("after with no stops falls back to the Join the waiting list card", () => {
     render(<ShareCta stage="after" stopCount={0} hrefs={hrefs} />);
     expect(screen.queryByRole("link", { name: "Use this route" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Become a tester" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Join the waiting list" })).toBeInTheDocument();
   });
   it("is a sun card with a hard shadow, no banned styles", () => {
     const { container } = render(<ShareCta stage="before" stopCount={1} hrefs={hrefs} />);

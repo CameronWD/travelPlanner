@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { requireAdmin } from "@/lib/guards";
-import { listAccessRequests, listAllowedEmails } from "@/server/actions/access-requests";
+import { listAccessRequests } from "@/server/actions/access-requests";
+import { listPeople } from "@/server/actions/people";
 import { listErrorReports } from "@/server/actions/error-reports";
 import { listFeedbackNeedingReview } from "@/server/actions/feedback";
 import { listReviewPermissions } from "@/server/actions/review-permission";
 import { CountBadge } from "@/components/ui/count-badge";
 import { AccessRequestsPanel } from "./access-requests";
-import { AllowedEmailsPanel } from "./allowed-emails";
 import { ErrorReportsPanel } from "./error-reports";
 import { FeedbackReviewPanel } from "./feedback-review";
+import { PeoplePanel } from "./people";
 import { ReviewPermissionsPanel } from "./review-permissions";
 
 export const metadata: Metadata = { title: "Admin" };
@@ -60,10 +61,10 @@ function Section({
 export default async function AdminPage() {
   const admin = await requireAdmin();
 
-  const [accessRequests, feedbackNeedingReview, allowedEmails, errorReports, reviewPermissions] = await Promise.all([
+  const [accessRequests, feedbackNeedingReview, people, errorReports, reviewPermissions] = await Promise.all([
     listAccessRequests(),
     listFeedbackNeedingReview(),
-    listAllowedEmails(),
+    listPeople(),
     listErrorReports(),
     listReviewPermissions(),
   ]);
@@ -102,8 +103,8 @@ export default async function AdminPage() {
         <FeedbackReviewPanel notes={feedbackNeedingReview} now={now} />
       </Section>
 
-      <Section id="adm-allow" title="Who can sign in" hint="The allowlist">
-        <AllowedEmailsPanel initial={allowedEmails} now={now} viewerEmail={viewerEmail} />
+      <Section id="adm-allow" title="People" hint="Everyone who can sign in or has an account">
+        <PeoplePanel initial={people} now={now} viewerEmail={viewerEmail} />
       </Section>
 
       {/* Spec 2026-10-17 R12: who may start a Review (Off, Limited, Unlimited). */}

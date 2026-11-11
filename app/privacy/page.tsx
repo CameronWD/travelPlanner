@@ -73,7 +73,7 @@ export default function PrivacyPage() {
       title="Privacy"
       intro={
         <>
-          I run Teepee, an invite-only trip planner, for a small group of
+          I run Teepee, a trip planner for people I have given a spot, for a small group of
           friends and family. This page says what it collects about you,
           who else sees it, and how long it is kept. If anything here is
           unclear, ask me.
@@ -158,12 +158,12 @@ export default function PrivacyPage() {
               Access requests, including from people who never get an
               account.
             </span>{" "}
-            Teepee is invite-only. If you try to sign in, with Google or by
-            asking for a sign-in link, and your address is not on the
-            invite list, sign-in is refused and no link is sent. The
+            Teepee is full: only people with a spot can sign in. If you try to sign in, with Google or by
+            asking for a sign-in link, and your address does not have a
+            spot, sign-in is refused and no link is sent. The
             refusal itself is recorded: your email, how many times
             you&apos;ve tried, and, from Google, your name and avatar. That
-            way I can see who has asked and decide whether to invite them.
+            way I can see who has asked and decide whether to give them a spot.
             So Teepee can hold a record about you even if you are never
             granted an account. I can approve a request, which grants
             access, or dismiss it. A dismissed request is closed for good.

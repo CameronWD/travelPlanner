@@ -181,8 +181,8 @@ describe("notifyAdmins", () => {
     // matched with `in` against an un-normalised, provider-cased stored
     // email (PrismaAdapter writes it straight from the OAuth profile) would
     // silently return zero rows here. Drive the mock off the REAL where
-    // shape our code sends — same style as lib/allowlist.test.ts's
-    // hasPendingTripInvite P0 tests — so a regression back to `in` fails
+    // shape our code sends — same style as the
+    // lib/allowlist.test.ts P0 tests — so a regression back to `in` fails
     // this test rather than passing it by coincidence.
     process.env.ADMIN_EMAILS = "admin@example.com";
     const storedAdmin = { id: "u1", email: "Admin@Example.com" };

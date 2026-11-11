@@ -23,6 +23,7 @@ const requests: AccessRequestView[] = [
     createdAt: "2026-09-20T12:00:00.000Z",
     lastAttemptAt: "2026-09-21T12:00:00.000Z",
     attempts: 3,
+    invitedTo: [],
   },
 ];
 
@@ -42,6 +43,16 @@ describe("AccessRequestsPanel", () => {
     expect(screen.getByText("Friend Person")).toBeInTheDocument();
     expect(screen.getByText("friend@example.com")).toBeInTheDocument();
     expect(screen.getByText("3 attempts")).toBeInTheDocument();
+  });
+
+  it("shows 'Invited to Bali 2027 by Cam' under an invited request", () => {
+    render(
+      <AccessRequestsPanel
+        initial={[{ ...requests[0]!, invitedTo: [{ tripName: "Bali 2027", ownerName: "Cam" }] }]}
+        now={NOW}
+      />,
+    );
+    expect(screen.getByText("Invited to Bali 2027 by Cam")).toBeInTheDocument();
   });
 
   it("Approve calls approveAccessRequest with the request id and removes the row on success", async () => {

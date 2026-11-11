@@ -170,9 +170,14 @@ export function InvitePanel({
                 className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-2"
               >
                 <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="flex-1 truncate text-sm text-foreground">
-                  {invite.email}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-foreground">
+                    {invite.email}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    If they don&apos;t have a spot yet, they&apos;ll wait on the waiting list until they&apos;re let in.
+                  </span>
+                </div>
                 <Badge variant="warning">Pending</Badge>
                 <Button
                   type="button"
@@ -196,8 +201,8 @@ export function InvitePanel({
         <div>
           <h4 className="mb-1 text-sm font-medium text-foreground">Add a traveller by email</h4>
           <p className="mb-3 max-w-reading text-xs text-muted-foreground">
-            No email is sent. An Invite is created here, and access activates automatically the
-            next time that person signs in with the matching email address.
+            No email is sent. An Invite is created here, and it turns into access the next time that
+            person signs in with the matching email address, once they have a spot.
           </p>
           <form onSubmit={handleInvite} noValidate className="flex items-end gap-2.5">
             <Field
@@ -227,7 +232,7 @@ export function InvitePanel({
           </form>
           {inviteSuccess && (
             <p role="status" className="mt-2 text-sm text-teal-text">
-              Invite created. No email was sent. They&apos;ll join automatically the next time they sign in.
+              Invite created. No email was sent. They&apos;ll join the next time they sign in, once they have a spot.
             </p>
           )}
         </div>
