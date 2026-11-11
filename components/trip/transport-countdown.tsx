@@ -1,22 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { Timer } from "lucide-react";
+import { Paperclip, Timer } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AttachmentLink } from "@/components/trip/attachment-link";
+import { attachmentName } from "@/lib/attachment-name";
+import type { AttachmentView } from "@/lib/attachment-view";
 
 interface TransportCountdownProps {
   depAt: string; // ISO string of the departure instant
   depTimeLabel?: string; // e.g. "14:30"
   depZone?: string | null; // e.g. "JST" — shown after the time label
   label: string; // e.g. "Flight BA123"
+  attachments?: AttachmentView[];
 }
 
 /**
  * Live countdown to a transport departure.
  * Recomputes every minute. Renders nothing if the departure has passed.
  */
-export function TransportCountdown({ depAt, depTimeLabel, depZone, label }: TransportCountdownProps) {
+export function TransportCountdown({ depAt, depTimeLabel, depZone, label, attachments }: TransportCountdownProps) {
   const [msLeft, setMsLeft] = React.useState(() => new Date(depAt).getTime() - Date.now());
 
   React.useEffect(() => {
@@ -61,6 +65,21 @@ export function TransportCountdown({ depAt, depTimeLabel, depZone, label }: Tran
             {depTimeLabel}
           </div>
           {depZone && <div className="mt-1 text-xs font-semibold">{depZone}</div>}
+        </div>
+      )}
+      {attachments && attachments.length > 0 && (
+        <div className="mt-3.5 flex flex-wrap gap-2">
+          {attachments.map((a) => (
+            <AttachmentLink
+              key={a.id}
+              href={a.url}
+              mime={a.mime}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border-2 border-border bg-card px-3.5 text-sm font-extrabold text-foreground"
+            >
+              <Paperclip aria-hidden="true" className="size-4 shrink-0" />
+              {attachmentName(a)}
+            </AttachmentLink>
+          ))}
         </div>
       )}
     </Card>
