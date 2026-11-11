@@ -371,7 +371,7 @@ Everything waiting on an **Admin**'s decision, counted together: the pending **A
 _Avoid_: notification, alert, inbox (that is the committed Feedback file), badge or dot (how it is shown, not what it is)
 
 **Invite**:
-A pending, email-addressed grant of access to a Trip, created by the Trip's **Owner** (or an **Admin**) — it names the email of the person being brought on. An Invite becomes Traveller membership automatically the next time that person is signed in under a matching email; it is never delivered as a link or message, so it lives only as a record on the Trip, not something the invitee receives. It is **Pending** until matched, and can be cancelled while still Pending. Distinct from a **Traveller** (an Invite is the not-yet-joined precursor) and from the read-only public **share link** (which grants no membership) — a Share link is the member-accessible way to let someone see a Trip without bringing them on as a Traveller (ADR 0052).
+A pending, email-addressed grant of access to a Trip, created by the Trip's **Owner** (or an **Admin**) — it names the email of the person being brought on. An Invite becomes Traveller membership automatically the next time that person is signed in under a matching email — but an Invite is **not** a way into TEEPEE: while TEEPEE is **Full**, someone without a **Spot** who is invited waits on the **Waiting list** like anyone else, and their Invite turns into membership only once an **Admin** lets them in; it is never delivered as a link or message, so it lives only as a record on the Trip, not something the invitee receives. It is **Pending** until matched, and can be cancelled while still Pending. Distinct from a **Traveller** (an Invite is the not-yet-joined precursor) and from the read-only public **share link** (which grants no membership) — a Share link is the member-accessible way to let someone see a Trip without bringing them on as a Traveller (ADR 0052).
 _Avoid_: invitation link/email, membership request, share
 
 **Sign-in link**:
@@ -380,7 +380,19 @@ _Avoid_: magic link (the industry term; say Sign-in link to a Traveller), passwo
 
 **Access request**:
 A person without an account asking for one. It is about TEEPEE itself, not about any Trip: someone who is not yet a **Traveller** asks to be let in, and an **Admin** either approves them — after which they can sign in and plan their own Trips, and are told so by email where the deployment can send mail — or dismisses them, which tells them nothing. Sharply distinct from an **Invite**, which is Trip-scoped and created by that Trip's **Owner** to bring a named person onto that one Trip. An Invite says "join my Trip"; an Access request asks "may I use TEEPEE at all".
-_Avoid_: invite, invitation (that's the Trip-scoped grant), signup, application, waitlist, approval (that's what an Admin does to a request, not the request itself)
+_Avoid_: invite, invitation (that's the Trip-scoped grant), signup, application, approval (that's what an Admin does to a request, not the request itself)
+
+**Waiting list**:
+What a Traveller-to-be is told they have joined when they ask for a **Spot** while TEEPEE is **Full**: the pending **Access request**s, named for the person reading the Landing rather than for the Admin deciding them. It is the only way in — someone invited to a Trip joins it too, and an Admin sees which Trip and Owner each such person is waiting on. Being on it promises nothing: approval is not guaranteed, and the Landing never says whether a given person is still waiting, dismissed or revoked.
+_Avoid_: waitlist (one word), queue (that's the **Admin queue**), application
+
+**Spot**:
+The standing to sign in to TEEPEE at all — what an Admin grants by approving an Access request, and what revoking takes away. Held per email, about the deployment, never about a Trip: removing someone from a Trip leaves their Spot alone.
+_Avoid_: seat, place, licence, allowlist (the storage, not the thing a person has)
+
+**Full**:
+TEEPEE's standing state: no one gets a **Spot** without an **Admin** granting it, and an **Invite** no longer brings a brand-new person in by itself. Said plainly to visitors ("Teepee is full right now") in place of the earlier "in testing".
+_Avoid_: closed, invite-only, beta, in testing (the retired wording)
 
 **Share link**:
 A labelled, read-only public window onto a Trip's **real plan**, made for one audience ("Mum & Dad", "The group chat") and handed out as a URL. A Trip may hold several at once, each with its own **scope** — which layers of detail that audience sees — and each revocable on its own, so cutting one audience off never touches another. A Share link grants no membership and no identity: whoever holds the URL sees the view, nothing more (contrast **Invite**, which becomes **Traveller** membership). A link's scope may also include the **Journal** — each arrived day's entries and their photos, attributed by display name — which is off unless chosen for that audience; a Journal entry its author kept off Share links never appears. A link may also carry **Contact details** — each Traveller's home mobile and travel number under their name — only when it already shows who is going, and off unless chosen for that audience. Whatever the scope, some things are *never* shared on any link: money, **Note**s, confirmation numbers and booking references, a Traveller's sign-in email, emergency contact and bank details — and any **Item** a Traveller has marked **hidden from shares** (a per-Item switch, off by default, for the surprise dinner or the thing you'd rather the group chat didn't see; the Item stays fully visible to every Traveller and is only ever dropped from Share links, never from the plan). Counts and lists every Stop of the real plan, rough ones included (a rough Stop shows its nights, not dates); only the dated day-by-day and the map are scheduled-only (ADR 0073). Always reads the real plan — never a **Fork**.
