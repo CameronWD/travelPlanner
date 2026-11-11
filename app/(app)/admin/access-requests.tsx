@@ -115,6 +115,11 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
                 <span className="truncate text-xs text-muted-foreground">
                   {request.email}
                 </span>
+                {request.invitedTo.map((invite, i) => (
+                  <span key={i} className="truncate text-xs text-muted-foreground">
+                    Invited to {invite.tripName} by {invite.ownerName}
+                  </span>
+                ))}
                 <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                   <span>First asked {relativeTime(new Date(request.createdAt), now)}</span>
                   <Badge variant="muted">

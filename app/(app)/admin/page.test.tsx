@@ -39,6 +39,7 @@ vi.mock("@/lib/db", () => ({
     allowedEmail: { findMany: allowedEmailFindManyMock, findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
     errorReport: { findMany: errorReportFindManyMock, findUnique: vi.fn(), delete: vi.fn() },
     feedbackNote: { findMany: feedbackNoteFindManyMock },
+    invite: { findMany: vi.fn().mockResolvedValue([]) },
     user: { findMany: userFindManyMock, updateMany: vi.fn() },
   },
 }));

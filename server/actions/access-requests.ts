@@ -9,6 +9,7 @@ import { renderApprovalEmail } from "@/lib/approval-email";
 import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { siteUrl } from "@/lib/site-url";
 import { revalidateAdmin } from "@/lib/revalidate";
+import { travellerName } from "@/lib/traveller";
 
 // ---------------------------------------------------------------------------
 // The /admin route's actions (ARCH-TEN-3c).
@@ -34,6 +35,8 @@ export interface AccessRequestView {
   /** ISO. Their most recent attempt (repeat sign-in tries bump this). */
   lastAttemptAt: string;
   attempts: number;
+  /** Unaccepted Trip Invites to this address; the inviter is the Trip's Owner. */
+  invitedTo: { tripName: string; ownerName: string }[];
 }
 
 export interface AllowedEmailView {
@@ -72,7 +75,31 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
     orderBy: { createdAt: "asc" },
   });
 
-  return rows.map((row) => ({
+  const invites = await db.invite.findMany({
+    where: { email: { in: rows.map((r) => r.email.trim().toLowerCase()) }, acceptedAt: null },
+    select: {
+      email: true,
+      trip: {
+        select: {
+          name: true,
+          members: {
+            where: { role: "owner" },
+            select: { user: { select: { id: true, name: true, image: true, displayName: true, email: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  const invitedByEmail = new Map<string, AccessRequestView["invitedTo"]>();
+  for (const invite of invites) {
+    const owner = invite.trip.members[0]?.user;
+    const list = invitedByEmail.get(invite.email) ?? [];
+    list.push({ tripName: invite.trip.name, ownerName: owner ? travellerName(owner) : "Traveller" });
+    invitedByEmail.set(invite.email, list);
+  }
+
+  const views = rows.map((row) => ({
     id: row.id,
     email: row.email,
     name: row.name,
@@ -80,7 +107,14 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
     createdAt: row.createdAt.toISOString(),
     lastAttemptAt: row.lastAttemptAt.toISOString(),
     attempts: row.attempts,
+    invitedTo: invitedByEmail.get(row.email.trim().toLowerCase()) ?? [],
   }));
+
+  return views.sort(
+    (a, b) =>
+      Number(b.invitedTo.length > 0) - Number(a.invitedTo.length > 0) ||
+      a.createdAt.localeCompare(b.createdAt),
+  );
 }
 
 /**

@@ -21,6 +21,7 @@ const {
   allowedEmailFindUniqueMock,
   allowedEmailDeleteMock,
   inviteUpdateManyMock,
+  inviteFindManyMock,
   revalidateAdminMock,
   mailConfiguredMock,
   sendMailMock,
@@ -34,6 +35,7 @@ const {
   allowedEmailFindUniqueMock: vi.fn(),
   allowedEmailDeleteMock: vi.fn(),
   inviteUpdateManyMock: vi.fn(),
+  inviteFindManyMock: vi.fn(),
   revalidateAdminMock: vi.fn(),
   mailConfiguredMock: vi.fn(() => false),
   sendMailMock: vi.fn(),
@@ -56,7 +58,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: allowedEmailFindUniqueMock,
       delete: allowedEmailDeleteMock,
     },
-    invite: { updateMany: inviteUpdateManyMock },
+    invite: { updateMany: inviteUpdateManyMock, findMany: inviteFindManyMock },
   },
 }));
 
@@ -396,6 +398,7 @@ describe("listAccessRequests", () => {
   it("only queries unresolved requests, by resolvedAt: null (not by status)", async () => {
     mockAdmin();
     accessRequestFindManyMock.mockResolvedValue([]);
+    inviteFindManyMock.mockResolvedValue([]);
 
     await listAccessRequests();
 
@@ -405,6 +408,7 @@ describe("listAccessRequests", () => {
 
   it("maps rows to the view shape", async () => {
     mockAdmin();
+    inviteFindManyMock.mockResolvedValue([]);
     const createdAt = new Date("2026-09-01T00:00:00.000Z");
     const lastAttemptAt = new Date("2026-09-05T00:00:00.000Z");
     accessRequestFindManyMock.mockResolvedValue([
@@ -430,8 +434,75 @@ describe("listAccessRequests", () => {
         createdAt: createdAt.toISOString(),
         lastAttemptAt: lastAttemptAt.toISOString(),
         attempts: 3,
+        invitedTo: [],
       },
     ]);
+  });
+
+  const row = (id: string, email: string, day: number) => ({
+    id,
+    email,
+    name: null,
+    image: null,
+    createdAt: new Date(Date.UTC(2026, 8, day)),
+    lastAttemptAt: new Date(Date.UTC(2026, 8, day)),
+    attempts: 1,
+  });
+
+  it("attaches each request's unaccepted Trip Invites as tripName + ownerName", async () => {
+    mockAdmin();
+    accessRequestFindManyMock.mockResolvedValue([
+      row("ar1", "Sam@Example.com", 1),
+      row("ar2", "none@example.com", 2),
+    ]);
+    inviteFindManyMock.mockResolvedValue([
+      {
+        email: "sam@example.com",
+        trip: {
+          name: "Bali 2027",
+          members: [{ user: { id: "u1", name: "Cam W", image: null, displayName: "Cam", email: "cam@example.com" } }],
+        },
+      },
+    ]);
+
+    const result = await listAccessRequests();
+
+    expect(inviteFindManyMock).toHaveBeenCalledWith({
+      where: { email: { in: ["sam@example.com", "none@example.com"] }, acceptedAt: null },
+      select: {
+        email: true,
+        trip: {
+          select: {
+            name: true,
+            members: {
+              where: { role: "owner" },
+              select: { user: { select: { id: true, name: true, image: true, displayName: true, email: true } } },
+            },
+          },
+        },
+      },
+    });
+    expect(result.find((r) => r.id === "ar1")!.invitedTo).toEqual([{ tripName: "Bali 2027", ownerName: "Cam" }]);
+    expect(result.find((r) => r.id === "ar2")!.invitedTo).toEqual([]);
+  });
+
+  it("lists invited requests first, each group oldest first", async () => {
+    mockAdmin();
+    accessRequestFindManyMock.mockResolvedValue([
+      row("old-plain", "a@example.com", 1),
+      row("old-invited", "b@example.com", 2),
+      row("new-plain", "c@example.com", 3),
+      row("new-invited", "d@example.com", 4),
+    ]);
+    const invite = (email: string) => ({
+      email,
+      trip: { name: "T", members: [{ user: { id: "u", name: null, image: null, displayName: "O", email: "o@example.com" } }] },
+    });
+    inviteFindManyMock.mockResolvedValue([invite("b@example.com"), invite("d@example.com")]);
+
+    const result = await listAccessRequests();
+
+    expect(result.map((r) => r.id)).toEqual(["old-invited", "new-invited", "old-plain", "new-plain"]);
   });
 });
 
