@@ -17,7 +17,8 @@ const FIRST = "first@reopened.test";
 const EARLY = "early@reopened.test";
 const GONE = "gone@reopened.test";
 const FRESH = "fresh@reopened.test";
-const EMAILS = [FIRST, EARLY, GONE, FRESH];
+const SPOT = "spot@reopened.test";
+const EMAILS = [FIRST, EARLY, GONE, FRESH, SPOT];
 const T0 = new Date("2026-11-01T00:00:00.000Z");
 const HOUR = 60 * 60 * 1000;
 
@@ -74,12 +75,16 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Reopened requests (real Postgr
     await invite(TRIP_ID, EARLY, new Date(T0.getTime() - HOUR), "reopened-t2");
     await dismissed(GONE);
     await invite(DELETED_TRIP_ID, GONE, new Date(T0.getTime() + HOUR), "reopened-t3");
+    await dismissed(SPOT);
+    await db.allowedEmail.create({ data: { email: SPOT } });
+    await invite(TRIP_ID, SPOT, new Date(T0.getTime() + HOUR), "reopened-t5");
 
     const list = await actions.listAccessRequests();
     const byEmail = new Map(list.map((r) => [r.email, r]));
     expect(byEmail.get(FIRST)).toMatchObject({ dismissedEarlier: true, invitedTo: [{ tripName: TRIP_ID, ownerName: expect.any(String) }] });
     expect(byEmail.has(EARLY)).toBe(false);
     expect(byEmail.has(GONE)).toBe(false);
+    expect(byEmail.has(SPOT)).toBe(false);
     expect((await countAdminQueue()).accessRequests).toBe(baseline + 1);
 
     expect((await actions.dismissAccessRequest(first.id)).success).toBe(true);

@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const accessRequestFindManyMock = vi.hoisted(() => vi.fn());
 const inviteFindManyMock = vi.hoisted(() => vi.fn());
+const allowedEmailFindManyMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({
   db: {
     accessRequest: { findMany: accessRequestFindManyMock },
     invite: { findMany: inviteFindManyMock },
+    allowedEmail: { findMany: allowedEmailFindManyMock },
   },
 }));
 
@@ -17,6 +19,8 @@ const dismissed = (id: string, email: string) => ({ id, email, status: "dismisse
 beforeEach(() => {
   accessRequestFindManyMock.mockReset().mockResolvedValue([]);
   inviteFindManyMock.mockReset().mockResolvedValue([]);
+  allowedEmailFindManyMock.mockReset().mockResolvedValue([]);
+  delete process.env.ALLOWED_EMAILS;
 });
 
 describe("reopenedByInvite", () => {
@@ -41,6 +45,21 @@ describe("reopenedByInvite", () => {
 
   it("onlyId restricts the dismissed lookup to that id", async () => {
     await reopenedByInvite("a");
-    expect(accessRequestFindManyMock).toHaveBeenCalledWith({ where: { status: "dismissed", id: "a" } });
+    expect(accessRequestFindManyMock).toHaveBeenCalledWith({ where: { status: "dismissed", resolvedAt: { not: null }, id: "a" } });
+  });
+
+  it("excludes a dismissed request whose email already has a Spot (AllowedEmail row)", async () => {
+    accessRequestFindManyMock.mockResolvedValue([dismissed("a", "Sam@Example.com")]);
+    inviteFindManyMock.mockResolvedValue([{ email: "sam@example.com", createdAt: new Date("2026-11-02T00:00:00.000Z") }]);
+    allowedEmailFindManyMock.mockResolvedValue([{ email: "sam@example.com" }]);
+    await expect(reopenedByInvite()).resolves.toEqual([]);
+    expect(allowedEmailFindManyMock).toHaveBeenCalledWith({ where: { email: { in: ["sam@example.com"] } }, select: { email: true } });
+  });
+
+  it("excludes one listed in ALLOWED_EMAILS", async () => {
+    process.env.ALLOWED_EMAILS = " Sam@Example.com , other@example.com";
+    accessRequestFindManyMock.mockResolvedValue([dismissed("a", "sam@example.com")]);
+    inviteFindManyMock.mockResolvedValue([{ email: "sam@example.com", createdAt: new Date("2026-11-02T00:00:00.000Z") }]);
+    await expect(reopenedByInvite()).resolves.toEqual([]);
   });
 });

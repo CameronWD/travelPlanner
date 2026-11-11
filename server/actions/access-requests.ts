@@ -49,12 +49,9 @@ export interface AccessRequestView {
 /**
  * Every Access request still awaiting a decision.
  *
- * Filtered by `resolvedAt: null`, NOT `status: "pending"` — approving a
- * request deliberately never touches `status` (the AccessRequest table stays
- * an audit trail; approval must not add a third status value alongside
- * "pending" | "dismissed"), so a resolved-by-approval row is still
- * `status: "pending"` and would wrongly reappear here under a status filter.
- * `resolvedAt` is the one field both approve and dismiss always stamp.
+ * Pending requests (`resolvedAt` null) plus dismissed requests reopened by a
+ * later Trip Invite. Filtered by `resolvedAt`, not `status`: approving stamps
+ * `resolvedAt`, so an approved row must not reappear here.
  */
 export async function listAccessRequests(): Promise<AccessRequestView[]> {
   await requireAdmin();
@@ -144,7 +141,8 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
  * Emails the address after the grant when mail is configured; the result's
  * `mailed` says whether it went.
  *
- * Does NOT set `status` — see listAccessRequests' doc comment.
+ * Leaves `status` alone, except a reopened (dismissed) request, which goes back
+ * to "pending" so the approved row has the usual shape.
  */
 export async function approveAccessRequest(id: string): Promise<ActionResult<{ mailed: boolean }>> {
   const admin = await requireAdmin();
