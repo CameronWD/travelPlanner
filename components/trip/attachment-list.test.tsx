@@ -18,6 +18,7 @@ import { compressImage } from "@/lib/image-compress";
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
+import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
 
 import { AttachmentList } from "./attachment-list";
 import type { AttachmentView } from "./attachment-list";
@@ -514,6 +515,95 @@ describe("AttachmentList", () => {
           ),
         );
         expect(uploadAttachment).not.toHaveBeenCalled();
+      });
+
+      describe("offline wording", () => {
+        const setOnline = (value: boolean) =>
+          Object.defineProperty(window.navigator, "onLine", { value, configurable: true });
+        afterEach(() => setOnline(true));
+
+        it("after close, a thrown upload while offline toasts the offline message", async () => {
+          const user = userEvent.setup();
+          vi.mocked(uploadAttachment).mockRejectedValueOnce(new Error("network"));
+          const { container, unmount } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+          await user.upload(fileInput(container), pdf("a.pdf"));
+          await screen.findByRole("button", { name: "Add 1 file" });
+          setOnline(false);
+          unmount();
+          await waitFor(() =>
+            expect(toast).toHaveBeenCalledWith({
+              variant: "destructive",
+              title: "Couldn't add a.pdf",
+              description: OFFLINE_MESSAGE,
+            }),
+          );
+        });
+
+        it("after close, a thrown upload while online keeps the generic reason", async () => {
+          const user = userEvent.setup();
+          vi.mocked(uploadAttachment).mockRejectedValueOnce(new Error("boom"));
+          const { container, unmount } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+          await user.upload(fileInput(container), pdf("a.pdf"));
+          await screen.findByRole("button", { name: "Add 1 file" });
+          unmount();
+          await waitFor(() =>
+            expect(toast).toHaveBeenCalledWith({
+              variant: "destructive",
+              title: "Couldn't add a.pdf",
+              description: "Couldn't upload that file.",
+            }),
+          );
+        });
+
+        it("after close, a server refusal keeps its reason even when offline", async () => {
+          const user = userEvent.setup();
+          vi.mocked(uploadAttachment).mockResolvedValueOnce({
+            success: false,
+            errors: { _: ["This trip is out of space."] },
+          });
+          const { container, unmount } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+          await user.upload(fileInput(container), pdf("a.pdf"));
+          await screen.findByRole("button", { name: "Add 1 file" });
+          setOnline(false);
+          unmount();
+          await waitFor(() =>
+            expect(toast).toHaveBeenCalledWith({
+              variant: "destructive",
+              title: "Couldn't add a.pdf",
+              description: "This trip is out of space.",
+            }),
+          );
+        });
+
+        it("while open, an offline thrown upload leaves the row error unchanged", async () => {
+          const user = userEvent.setup();
+          vi.mocked(uploadAttachment).mockRejectedValueOnce(new Error("network"));
+          const { container } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+          await user.upload(fileInput(container), pdf("a.pdf"));
+          setOnline(false);
+          await user.click(await screen.findByRole("button", { name: "Add 1 file" }));
+          expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload that file.");
+          expect(toast).not.toHaveBeenCalled();
+        });
+
+        it("after close, an offline staging failure keeps its own message", async () => {
+          const user = userEvent.setup({ applyAccept: false });
+          const prepared = deferred<File>();
+          vi.mocked(compressImage).mockImplementationOnce(() => prepared.promise);
+          const { container, unmount } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+          const photo = jpg("a.jpg");
+          await user.upload(fileInput(container), [photo, new File(["x"], "clip.mp4", { type: "video/mp4" })]);
+          setOnline(false);
+          unmount();
+          prepared.resolve(photo);
+          await waitFor(() =>
+            expect(toast).toHaveBeenCalledWith({
+              variant: "destructive",
+              title: "Couldn't add clip.mp4",
+              description: "Only PDFs, photos or text files can be added.",
+            }),
+          );
+        });
       });
 
       it("StrictMode's dev remount neither uploads nor toasts", async () => {

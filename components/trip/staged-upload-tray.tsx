@@ -13,6 +13,7 @@ import { ATTACHMENT_TITLE_MAX, attachmentName } from "@/lib/attachment-name";
 import { isAttachmentMime, mimeLabel } from "@/lib/attachment-mimes";
 import { toast } from "@/components/ui/use-toast";
 import { formatBytes } from "@/lib/format-bytes";
+import { failureMessage } from "@/components/ui/failure-message";
 
 export interface StagedFile {
   key: string;
@@ -67,7 +68,7 @@ export function useStagedUploads(target: UploadTarget) {
     return s.error === null && !claimed.current.has(s.key);
   }
 
-  async function send(row: StagedFile): Promise<string | null> {
+  async function send(row: StagedFile): Promise<{ reason: string; thrown: boolean } | null> {
     const t = targetRef.current;
     const fd = new FormData();
     if (t.tripId) fd.set("tripId", t.tripId);
@@ -78,9 +79,9 @@ export function useStagedUploads(target: UploadTarget) {
     fd.set("title", row.title);
     try {
       const result = await uploadAttachment(fd);
-      return result.success ? null : firstErrorMessage(result, UPLOAD_FAILED);
+      return result.success ? null : { reason: firstErrorMessage(result, UPLOAD_FAILED), thrown: false };
     } catch {
-      return UPLOAD_FAILED;
+      return { reason: UPLOAD_FAILED, thrown: true };
     }
   }
 
@@ -94,13 +95,16 @@ export function useStagedUploads(target: UploadTarget) {
       if (outcome) {
         update((prev) => prev.filter((s) => s.key !== row.key));
         if (failure === null) outcome.added++;
-        else outcome.failures.push({ name: nameOf(row), reason: failure });
+        else {
+          const reason = failure.thrown ? failureMessage(failure.reason) : failure.reason;
+          outcome.failures.push({ name: nameOf(row), reason });
+        }
         return;
       }
       update((prev) =>
         failure === null
           ? prev.filter((s) => s.key !== row.key)
-          : prev.map((s) => (s.key === row.key ? { ...s, uploadError: failure } : s)),
+          : prev.map((s) => (s.key === row.key ? { ...s, uploadError: failure.reason } : s)),
       );
     });
     uploadQueue.current = run;
