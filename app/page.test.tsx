@@ -55,10 +55,10 @@ describe("RootPage", () => {
   it("opens the request panel for ?panel=request, and denied still wins", async () => {
     authMock.mockResolvedValue(null);
     const { unmount } = render(await RootPage({ searchParams: Promise.resolve({ panel: "request" }) }));
-    expect(screen.getByRole("dialog", { name: "Want to test it?" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Teepee is full" })).toBeInTheDocument();
     unmount();
     render(await RootPage({ searchParams: Promise.resolve({ panel: "request", error: "AccessDenied" }) }));
-    expect(screen.getByRole("dialog", { name: "Teepee is in testing." })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Teepee is full right now." })).toBeInTheDocument();
   });
 
   describe("signed out, the callbackUrl rides on Google sign-in", () => {
@@ -108,7 +108,7 @@ describe("RootPage", () => {
   it("opens the denied panel for ?error=AccessDenied and ignores other errors", async () => {
     authMock.mockResolvedValue(null);
     const { unmount } = render(await RootPage({ searchParams: Promise.resolve({ error: "AccessDenied" }) }));
-    expect(screen.getByRole("dialog", { name: "Teepee is in testing." })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Teepee is full right now." })).toBeInTheDocument();
     unmount();
     render(await RootPage({ searchParams: Promise.resolve({ error: "Configuration" }) }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

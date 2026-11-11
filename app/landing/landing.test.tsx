@@ -70,12 +70,12 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(within(desktop()).getByText("Machiya near Gion")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/\bhotel\b|\bstay\b|staying/i);
   });
-  it("each tree has Sign in + Become a tester under the hero; no Start a trip / Sign up / Log in (C2, C3)", () => {
+  it("each tree has Sign in + Join the waiting list under the hero; no Start a trip / Sign up / Log in (C2, C3)", () => {
     render(<Landing />);
     for (const tree of [desktop(), phone()]) {
       expect(within(tree).getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-      expect(within(tree).getByRole("button", { name: "Become a tester" })).toBeInTheDocument();
-      expect(within(tree).getByText("Teepee is in testing")).toBeInTheDocument();
+      expect(within(tree).getByRole("button", { name: "Join the waiting list" })).toBeInTheDocument();
+      expect(within(tree).getByText("Teepee is full right now")).toBeInTheDocument();
       const legal = within(tree).getByRole("navigation", { name: "Legal" });
       expect(within(legal).getByRole("link", { name: "Privacy" })).toBeInTheDocument();
       expect(within(legal).getByRole("link", { name: "Terms" })).toBeInTheDocument();
@@ -93,12 +93,12 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("accessDenied opens the denied panel on load", () => {
     render(<Landing accessDenied />);
-    expect(screen.getByRole("dialog", { name: "Teepee is in testing." })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Teepee is full right now." })).toBeInTheDocument();
   });
   it("the buttons follow the hero body in document order, and the phone cards follow the buttons (C5)", () => {
     render(<Landing />);
     const body = within(phone()).getByText("Stops, trains, beds and budget. On your own or together.");
-    const req = within(phone()).getByRole("button", { name: "Become a tester" });
+    const req = within(phone()).getByRole("button", { name: "Join the waiting list" });
     const cards = within(phone()).getByTestId("sample-cards-phone");
     expect(body.compareDocumentPosition(req) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(req.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -122,11 +122,11 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     render(<Landing />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
-  it("wires a real Become a tester click through to the Sign in panel", async () => {
+  it("wires a real Join the waiting list click through to the Sign in panel", async () => {
     render(<Landing />);
-    const req = within(phone()).getByRole("button", { name: "Become a tester" });
+    const req = within(phone()).getByRole("button", { name: "Join the waiting list" });
     await userEvent.click(req);
-    const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
+    const dialog = screen.getByRole("dialog", { name: "Teepee is full" });
     expect(within(dialog).getByText("Apple sign-in is on the way.")).toBeInTheDocument();
   });
   it("with the Sign-in link configured, the Sign in panel holds the email field in both modes (spec 2026-10-01 §B3)", async () => {
@@ -135,8 +135,8 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     await userEvent.click(within(desktop()).getByRole("button", { name: "Sign in" }));
     expect(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Email" })).toBeInTheDocument();
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
-    await userEvent.click(within(desktop()).getByRole("button", { name: "Become a tester" }));
-    expect(within(screen.getByRole("dialog", { name: "Want to test it?" })).getByRole("textbox", { name: "Email" })).toBeInTheDocument();
+    await userEvent.click(within(desktop()).getByRole("button", { name: "Join the waiting list" }));
+    expect(within(screen.getByRole("dialog", { name: "Teepee is full" })).getByRole("textbox", { name: "Email" })).toBeInTheDocument();
   });
   it("phone: the hero is centred and the legal row sits centred on one line; desktop keeps start alignment (LANDING.md §2.1)", () => {
     render(<Landing />);
@@ -155,6 +155,6 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     expect(screen.getByRole("dialog", { name: "That link didn't work" })).toBeInTheDocument();
     unmount();
     render(<Landing linkExpired accessDenied />);
-    expect(screen.getByRole("dialog", { name: "Teepee is in testing." })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Teepee is full right now." })).toBeInTheDocument();
   });
 });

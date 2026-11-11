@@ -13,7 +13,7 @@ function setup() {
   );
 }
 
-const DENIED = "You don't have access yet. I've been told you tried. If someone invited you, ask them to check.";
+const DENIED = "You don't have a spot yet. I've noted your request, and if a spot opens up for you I'll email you. Not everyone gets one.";
 
 describe("Sign in panel (spec collage §1.1)", () => {
   afterEach(() => {
@@ -25,32 +25,32 @@ describe("Sign in panel (spec collage §1.1)", () => {
   });
 
 
-  it("renders Sign in and Become a tester buttons and the Legal line; no dialog until clicked", () => {
+  it("renders Sign in and Join the waiting list buttons and the Legal line; no dialog until clicked", () => {
     setup();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Become a tester" })).toBeInTheDocument();
-    expect(screen.getByText("Teepee is in testing")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Join the waiting list" })).toBeInTheDocument();
+    expect(screen.getByText("Teepee is full right now")).toBeInTheDocument();
     const legal = screen.getByRole("navigation", { name: "Legal" });
-    expect(within(legal).queryByText("Teepee is in testing")).not.toBeInTheDocument();
+    expect(within(legal).queryByText("Teepee is full right now")).not.toBeInTheDocument();
     expect(within(legal).getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(within(legal).getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
     expect(within(legal).getByRole("link", { name: "Privacy" }).className).toContain("tap-target");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/sign up|log ?in/i);
   });
-  it("Sign in opens 'Come on in' with the testing line and the passed controls, in light mode", async () => {
+  it("Sign in opens 'Come on in' with the full line and the passed controls, in light mode", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     const dialog = screen.getByRole("dialog", { name: "Come on in" });
-    expect(within(dialog).getByText("Teepee is in testing. Sign in with the account you were invited with.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Teepee is full right now. If you already have a spot, sign in below.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     expect(dialog.closest('[data-theme="light"]')).not.toBeNull();
   });
-  it("Become a tester opens 'Want to test it?' with the request line; Close closes it", async () => {
+  it("Join the waiting list opens 'Teepee is full' with the request line; Close closes it", async () => {
     setup();
-    await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
-    const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
-    expect(within(dialog).getByText("Teepee is in testing, by invitation only. Sign in and I'll get your details. There's nothing else to fill in.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Join the waiting list" }));
+    const dialog = screen.getByRole("dialog", { name: "Teepee is full" });
+    expect(within(dialog).getByText("There's no room for new people right now. Sign in below to ask for a spot. There's nothing else to fill in.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -62,7 +62,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
       </SignInPanelProvider>,
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Want to test it?")).toBeInTheDocument();
+    expect(screen.getByText("Teepee is full")).toBeInTheDocument();
   });
 
   it("initialMode 'denied' opens the panel on load with the neutral denied copy and the controls", () => {
@@ -71,7 +71,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
         <LandingActions size="lg" />
       </SignInPanelProvider>,
     );
-    const dialog = screen.getByRole("dialog", { name: "Teepee is in testing." });
+    const dialog = screen.getByRole("dialog", { name: "Teepee is full right now." });
     expect(within(dialog).getByText(DENIED)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
   });
@@ -93,11 +93,11 @@ describe("Sign in panel (spec collage §1.1)", () => {
   });
   it("restores focus to the opener when the panel closes (Radix triggerRef is null with no DialogTrigger)", async () => {
     setup();
-    const trigger = screen.getByRole("button", { name: "Become a tester" });
+    const trigger = screen.getByRole("button", { name: "Join the waiting list" });
     trigger.focus();
     expect(trigger).toHaveFocus();
     await userEvent.click(trigger);
-    const dialog = screen.getByRole("dialog", { name: "Want to test it?" });
+    const dialog = screen.getByRole("dialog", { name: "Teepee is full" });
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
@@ -124,7 +124,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
   it("never says invite-only as a product statement (spec 2026-10-01 §G)", async () => {
     setup();
     expect(document.body.textContent).not.toMatch(/invite-only/i);
-    await userEvent.click(screen.getByRole("button", { name: "Become a tester" }));
+    await userEvent.click(screen.getByRole("button", { name: "Join the waiting list" }));
     expect(document.body.textContent).not.toMatch(/invite-only/i);
   });
 

@@ -6,8 +6,8 @@ import { PendingLink } from "./pending-link";
 
 // ---------------------------------------------------------------------------
 // Share page CTA card (SHARE.md §9, spec §E.2, ADR 0057). Before/during and
-// an After with no stops to copy all land on the same "Become a tester" card
-// (Teepee is in testing, spec 2026-10-01 §G); only an After with stops offers
+// an After with no stops to copy all land on the same "Join the waiting list" card
+// (Teepee is full, spec 2026-10-01 §G); only an After with stops offers
 // the Use this route copy.
 // ---------------------------------------------------------------------------
 
@@ -50,7 +50,7 @@ export function ShareCta({
         <p className="mt-2 max-w-[560px] break-words text-[15px] font-semibold leading-[1.45] lg:text-[17px]">
           {showUseThisRoute
             ? `Start a trip with the same ${stopCount} stop${stopCount === 1 ? "" : "s"}. You pick the dates.`
-            : "Teepee keeps the route, the days and the money in one place, for everyone who's going. It's in testing for now. Ask to be a tester."}
+            : "Teepee keeps the route, the days and the money in one place, for everyone who's going. It's full right now, but there's a waiting list."}
         </p>
       </div>
       {showUseThisRoute ? (
@@ -70,7 +70,7 @@ export function ShareCta({
       ) : (
         <ShareReveal rise={false} className="tp-reveal-pop">
           <PendingLink href={hrefs.requestAccess} className={CTA_BUTTON}>
-            Become a tester
+            Join the waiting list
           </PendingLink>
         </ShareReveal>
       )}

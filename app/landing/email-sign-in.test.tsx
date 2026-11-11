@@ -8,7 +8,7 @@ vi.mock("@/lib/auth/client", () => ({
   authClient: { signIn: { magicLink: magicLinkMock } },
 }));
 
-const SENT = "If that address is on the list, a link is on its way. Check your inbox.";
+const SENT = "If you already have a spot, a sign-in link is on its way. If not, I've noted your request.";
 
 beforeEach(() => {
   magicLinkMock.mockReset();

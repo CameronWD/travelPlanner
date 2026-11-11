@@ -8,11 +8,11 @@ import { cn } from "@/lib/cn";
 
 /**
  * The Landing's way in (spec 2026-09-29 collage, C2/C3; wording spec
- * 2026-10-01 §G): "Sign in" and "Become a tester" under the hero open one
+ * 2026-10-01 §G): "Sign in" and "Join the waiting list" under the hero open one
  * small panel — the shared Dialog, a bottom sheet on phones and a centred
  * dialog from sm. Both modes hold the same Google controls; a refused Google
- * sign-in already records an Access request (lib/auth/auth.ts), so "Become a
- * tester" only changes the words around them.
+ * sign-in already records an Access request (lib/auth/auth.ts), so "Join the
+ * waiting list" only changes the words around them.
  *
  * A refused sign-in redirects Auth.js back to "/?error=AccessDenied"
  * (lib/auth/auth.ts pages.error); the Landing passes `initialMode="denied"` so
@@ -30,22 +30,20 @@ type Mode = "sign-in" | "request" | "denied" | "link-expired";
 const COPY: Record<Mode, { title: string; line: string }> = {
   "sign-in": {
     title: "Come on in",
-    line: "Teepee is in testing. Sign in with the account you were invited with.",
+    line: "Teepee is full right now. If you already have a spot, sign in below.",
   },
   request: {
-    title: "Want to test it?",
-    line: "Teepee is in testing, by invitation only. Sign in and I'll get your details. There's nothing else to fill in.",
+    title: "Teepee is full",
+    line: "There's no room for new people right now. Sign in below to ask for a spot. There's nothing else to fill in.",
   },
   // One neutral message for everyone Auth.js refuses — a brand-new stranger,
   // someone waiting, dismissed or revoked. Telling a reader which bucket they
   // are in would make this panel an oracle about the Admin's decisions
-  // (2026-09-26 final fix wave, I2). The title changed on 2026-10-01 (§G:
-  // "in testing" is the reason, the gate is unchanged); the line was cut to
-  // this on 2026-10-08 (spec §H) and still says nothing about where a
-  // request stands.
+  // (2026-09-26 final fix wave, I2). It never claims the reader is on the
+  // waiting list (ADR 0057).
   denied: {
-    title: "Teepee is in testing.",
-    line: "You don't have access yet. I've been told you tried. If someone invited you, ask them to check.",
+    title: "Teepee is full right now.",
+    line: "You don't have a spot yet. I've noted your request, and if a spot opens up for you I'll email you. Not everyone gets one.",
   },
   // A spent or expired Sign-in link (`/?error=Verification`). Says nothing
   // about whether the address is on the list — the same controls let them
@@ -127,7 +125,7 @@ export function LandingActions({ size, align = "start" }: { size: "md" | "lg"; a
           Sign in
         </Button>
         <Button type="button" variant="secondary" size={size} className={grow} onClick={() => open("request")}>
-          Become a tester
+          Join the waiting list
         </Button>
       </div>
       {/* One line even at 393px; centred under the phone hero (LANDING.md §2.1). */}
@@ -137,7 +135,7 @@ export function LandingActions({ size, align = "start" }: { size: "md" | "lg"; a
           align === "center" && "justify-center",
         )}
       >
-        <span>Teepee is in testing</span>
+        <span>Teepee is full right now</span>
         <span aria-hidden="true">·</span>
         <nav aria-label="Legal" className="flex items-center gap-x-1.5">
           <Link href="/privacy" className="tap-target underline underline-offset-2">
