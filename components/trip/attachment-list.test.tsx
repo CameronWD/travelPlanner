@@ -327,10 +327,12 @@ describe("AttachmentList", () => {
       const { container } = render(
         <form onSubmit={onSubmit}>
           <AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} compact={compact} />
+          <button type="submit">Save</button>
         </form>,
       );
       await user.upload(fileInput(container), [pdf("a.pdf"), pdf("b.pdf")]);
       await user.type(await screen.findByRole("textbox", { name: "Title for a.pdf" }), "x{Enter}");
+      expect(onSubmit).not.toHaveBeenCalled();
       await user.click(screen.getByRole("button", { name: "Remove a.pdf" }));
       await user.click(screen.getByRole("button", { name: "Add 1 file" }));
       await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
