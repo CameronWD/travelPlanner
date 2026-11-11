@@ -135,8 +135,8 @@ export async function approveAccessRequest(id: string): Promise<ActionResult<{ m
     });
   } catch (err) {
     if (!isUniqueConstraintError(err)) throw err;
-    // Already allowlisted (a duplicate approve, or another path — e.g.
-    // admitByTripInvite — already granted it). Fall through: the request
+    // Already allowlisted (a duplicate approve, or another path already
+    // granted it). Fall through: the request
     // still needs resolving either way.
   }
 

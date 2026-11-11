@@ -1,6 +1,5 @@
 import "server-only";
-import { isAllowedEmail, hasPendingTripInvite, admitByTripInvite } from "@/lib/allowlist";
-import { notifyAdmins } from "@/lib/admin-notify";
+import { isAllowedEmail } from "@/lib/allowlist";
 import { recordAccessRequest } from "@/lib/access-requests";
 import { reportError } from "@/lib/error-sink";
 
@@ -24,17 +23,11 @@ export type DoorDecision =
 
 export interface DoorDeps {
   isAllowedEmail: typeof isAllowedEmail;
-  hasPendingTripInvite: typeof hasPendingTripInvite;
-  admitByTripInvite: typeof admitByTripInvite;
-  notifyAdmins: typeof notifyAdmins;
   recordAccessRequest: typeof recordAccessRequest;
 }
 
 const defaultDeps: DoorDeps = {
   isAllowedEmail,
-  hasPendingTripInvite,
-  admitByTripInvite,
-  notifyAdmins,
   recordAccessRequest,
 };
 
@@ -44,7 +37,7 @@ function stringOrNull(value: unknown): string | null {
 
 /**
  * ADR 0057's one door, as a pure module. Performs the same side effects
- * today's Auth.js `signIn` callback (lib/auth/auth.ts) performs — admit, notify,
+ * today's Auth.js `signIn` callback (lib/auth/auth.ts) performs — admit,
  * record — but returns a decision instead of a boolean/string, so Task 3's
  * Better Auth hooks can translate it into whatever shape each hook needs
  * (including the send pass's "answer exactly as an accepted address would"
@@ -71,12 +64,6 @@ export async function decideSignIn(
   const email = input.email?.trim().toLowerCase();
   if (!email) return { allow: false, reason: "no-email" };
 
-  // The magic-link SEND pass (before any token or mail is sent) vs the CLICK
-  // pass (after the token has been verified) — or, for Google, its one and
-  // only pass. Only the click proves the mailbox; the send pass is just
-  // someone typing an address.
-  const sending = input.method === "magic-link" && input.pass === "send";
-
   if (input.method === "magic-link") {
     // Sign-in link (spec 2026-10-01 §B2). The link itself — only ever
     // delivered to this address — is the proof of ownership, so the
@@ -101,33 +88,6 @@ export async function decideSignIn(
     return { allow: false, reason: "refused" };
   }
   if (allowed) return { allow: true, email };
-
-  const invited = await deps.hasPendingTripInvite(email);
-  if (invited) {
-    // On the Sign-in link's send pass, only permit the mail. Promotion and
-    // the admin push wait for the click pass: anyone can TYPE an invited
-    // address, and admitting on that would grant a durable AllowedEmail row
-    // (and notify) without owning the mailbox.
-    if (sending) return { allow: true, email };
-
-    // Admission by Invite is otherwise a one-shot ticket: the Invite gets
-    // marked accepted moments after this, so a second hasPendingTripInvite
-    // check for the same address would come back false — locking out anyone
-    // whose session lapses or who signs out. Promote them into the durable
-    // allowlist instead (lib/allowlist.ts, admitByTripInvite).
-    const { created } = await deps.admitByTripInvite(email);
-    if (created) {
-      // Fire once, on the admission that actually created the AllowedEmail
-      // row, not on every subsequent sign-in. notifyAdmins never throws, so
-      // awaiting it here cannot fail this sign-in.
-      await deps.notifyAdmins(
-        "New Traveller joined by invitation",
-        `${email} was admitted to Teepee via a Trip Invite.`,
-        "/admin",
-      );
-    }
-    return { allow: true, email };
-  }
 
   // Refused: record (or bump) the Access request — from Google's verified
   // profile, or from the bare address for a Sign-in link — then decline.

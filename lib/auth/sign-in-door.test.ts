@@ -15,21 +15,14 @@ import { decideSignIn, type DoorDeps } from "@/lib/auth/sign-in-door";
 function makeDeps(overrides: Partial<DoorDeps> = {}): DoorDeps {
   return {
     isAllowedEmail: vi.fn().mockResolvedValue(false),
-    hasPendingTripInvite: vi.fn().mockResolvedValue(false),
-    admitByTripInvite: vi.fn().mockResolvedValue({ created: false }),
-    notifyAdmins: vi.fn().mockResolvedValue(undefined),
     recordAccessRequest: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
 
 describe("decideSignIn", () => {
-  it("admits a Traveller holding an unexpired pending Trip Invite, and promotes them into AllowedEmail", async () => {
-    const deps = makeDeps({
-      isAllowedEmail: vi.fn().mockResolvedValue(false),
-      hasPendingTripInvite: vi.fn().mockResolvedValue(true),
-      admitByTripInvite: vi.fn().mockResolvedValue({ created: true }),
-    });
+  it("refuses a Google sign-in for an address whose only claim is a pending Trip Invite, and records an Access request", async () => {
+    const deps = makeDeps({ isAllowedEmail: vi.fn().mockResolvedValue(false) });
 
     await expect(
       decideSignIn(
@@ -37,89 +30,35 @@ describe("decideSignIn", () => {
           email: "invited@example.com",
           method: "google",
           pass: "sign-in",
-          profile: { email_verified: true },
-        },
-        deps,
-      ),
-    ).resolves.toEqual({ allow: true, email: "invited@example.com" });
-
-    expect(deps.admitByTripInvite).toHaveBeenCalledWith("invited@example.com");
-    // NEW REQUIREMENT: growth by Invite must be visible, not silent — the
-    // first admission notifies admins.
-    expect(deps.notifyAdmins).toHaveBeenCalledTimes(1);
-    expect(deps.notifyAdmins).toHaveBeenCalledWith(
-      expect.stringContaining("invitation"),
-      expect.stringContaining("invited@example.com"),
-      expect.any(String),
-    );
-  });
-
-  it("stays admitted on a SECOND sign-in after the Invite has been accepted (the one-shot-ticket lifecycle bug)", async () => {
-    const isAllowedEmail = vi.fn();
-    const hasPendingTripInvite = vi.fn();
-    const admitByTripInvite = vi.fn().mockResolvedValue({ created: true });
-    const notifyAdmins = vi.fn().mockResolvedValue(undefined);
-    const deps = makeDeps({ isAllowedEmail, hasPendingTripInvite, admitByTripInvite, notifyAdmins });
-
-    isAllowedEmail.mockResolvedValue(false);
-    hasPendingTripInvite.mockResolvedValue(true);
-
-    await expect(
-      decideSignIn(
-        {
-          email: "invited@example.com",
-          method: "google",
-          pass: "sign-in",
-          profile: { email_verified: true },
-        },
-        deps,
-      ),
-    ).resolves.toEqual({ allow: true, email: "invited@example.com" });
-    expect(admitByTripInvite).toHaveBeenCalledTimes(1);
-    expect(notifyAdmins).toHaveBeenCalledTimes(1);
-
-    // events.signIn / app layout mark the Invite accepted right after — so
-    // hasPendingTripInvite would now say false — but the upsert above
-    // landed, so isAllowedEmail says true instead.
-    hasPendingTripInvite.mockResolvedValue(false);
-    isAllowedEmail.mockResolvedValue(true);
-
-    await expect(
-      decideSignIn(
-        {
-          email: "invited@example.com",
-          method: "google",
-          pass: "sign-in",
-          profile: { email_verified: true },
-        },
-        deps,
-      ),
-    ).resolves.toEqual({ allow: true, email: "invited@example.com" });
-    // No second promotion needed — isAllowedEmail short-circuits first.
-    expect(admitByTripInvite).toHaveBeenCalledTimes(1);
-    expect(notifyAdmins).toHaveBeenCalledTimes(1);
-  });
-
-  it("does NOT admit on a Globe Invite (hasPendingTripInvite is Trip-only, so false here means refused)", async () => {
-    const deps = makeDeps();
-
-    await expect(
-      decideSignIn(
-        {
-          email: "globe-invited@example.com",
-          method: "google",
-          pass: "sign-in",
-          profile: { email_verified: true },
+          profile: { email_verified: true, name: "Invited Person", picture: "https://example.com/i.jpg" },
         },
         deps,
       ),
     ).resolves.toEqual({ allow: false, reason: "refused" });
 
     expect(deps.recordAccessRequest).toHaveBeenCalledWith({
-      email: "globe-invited@example.com",
-      name: null,
-      image: null,
+      email: "invited@example.com",
+      name: "Invited Person",
+      image: "https://example.com/i.jpg",
     });
+  });
+
+  it("an address admitted earlier by Invite (an AllowedEmail row) still signs in", async () => {
+    const deps = makeDeps({ isAllowedEmail: vi.fn().mockResolvedValue(true) });
+
+    await expect(
+      decideSignIn(
+        {
+          email: "invited@example.com",
+          method: "google",
+          pass: "sign-in",
+          profile: { email_verified: true },
+        },
+        deps,
+      ),
+    ).resolves.toEqual({ allow: true, email: "invited@example.com" });
+
+    expect(deps.recordAccessRequest).not.toHaveBeenCalled();
   });
 
   it("refuses Google sign-in when the email is not verified, and does NOT record an Access request", async () => {
@@ -164,7 +103,6 @@ describe("decideSignIn", () => {
     ).resolves.toEqual({ allow: true, email: "you@example.com" });
 
     expect(deps.isAllowedEmail).not.toHaveBeenCalled();
-    expect(deps.hasPendingTripInvite).not.toHaveBeenCalled();
   });
 
   it("refuses dev-login outright in production, belt-and-braces with the provider registration guard", async () => {
@@ -193,7 +131,6 @@ describe("decideSignIn", () => {
       ),
     ).resolves.toEqual({ allow: true, email: "cam@example.com" });
 
-    expect(deps.hasPendingTripInvite).not.toHaveBeenCalled();
   });
 
   it("refuses an unlisted, uninvited email, and records an Access request from the verified profile", async () => {
@@ -316,30 +253,19 @@ describe("decideSignIn", () => {
     });
   });
 
-  it("permits the SEND for a pending Trip Invite on the magic-link send pass, without promoting or notifying", async () => {
-    const deps = makeDeps({ hasPendingTripInvite: vi.fn().mockResolvedValue(true) });
+  it("magic-link send pass for an invited-but-unadmitted address is refused like a stranger", async () => {
+    const deps = makeDeps();
 
     await expect(
       decideSignIn({ email: "invited@example.com", method: "magic-link", pass: "send" }, deps),
-    ).resolves.toEqual({ allow: true, email: "invited@example.com" });
+    ).resolves.toEqual({ allow: false, reason: "refused" });
 
-    expect(deps.admitByTripInvite).not.toHaveBeenCalled();
-    expect(deps.notifyAdmins).not.toHaveBeenCalled();
-    expect(deps.recordAccessRequest).not.toHaveBeenCalled();
-  });
-
-  it("promotes and notifies for a pending Trip Invite on the magic-link CLICK pass", async () => {
-    const deps = makeDeps({
-      hasPendingTripInvite: vi.fn().mockResolvedValue(true),
-      admitByTripInvite: vi.fn().mockResolvedValue({ created: true }),
+    expect(deps.recordAccessRequest).toHaveBeenCalledWith({
+      email: "invited@example.com",
+      name: null,
+      image: null,
+      notify: false,
     });
-
-    await expect(
-      decideSignIn({ email: "invited@example.com", method: "magic-link", pass: "sign-in" }, deps),
-    ).resolves.toEqual({ allow: true, email: "invited@example.com" });
-
-    expect(deps.admitByTripInvite).toHaveBeenCalledTimes(1);
-    expect(deps.notifyAdmins).toHaveBeenCalledTimes(1);
   });
 
   it("passes the address to the predicates lowercased and trimmed", async () => {
@@ -351,34 +277,5 @@ describe("decideSignIn", () => {
     ).resolves.toEqual({ allow: true, email: "cam@example.com" });
 
     expect(isAllowedEmail).toHaveBeenCalledWith("cam@example.com");
-  });
-
-  it("the send pass never admits by invite more than the mail (does not call admitByTripInvite or notifyAdmins)", async () => {
-    const deps = makeDeps({ hasPendingTripInvite: vi.fn().mockResolvedValue(true) });
-
-    const result = await decideSignIn(
-      { email: "invited@example.com", method: "magic-link", pass: "send" },
-      deps,
-    );
-
-    expect(result).toEqual({ allow: true, email: "invited@example.com" });
-    expect(deps.admitByTripInvite).not.toHaveBeenCalled();
-    expect(deps.notifyAdmins).not.toHaveBeenCalled();
-  });
-
-  it("admitByTripInvite that created nothing does not notify", async () => {
-    const deps = makeDeps({
-      hasPendingTripInvite: vi.fn().mockResolvedValue(true),
-      admitByTripInvite: vi.fn().mockResolvedValue({ created: false }),
-    });
-
-    const result = await decideSignIn(
-      { email: "invited@example.com", method: "google", pass: "sign-in", profile: { email_verified: true } },
-      deps,
-    );
-
-    expect(result).toEqual({ allow: true, email: "invited@example.com" });
-    expect(deps.admitByTripInvite).toHaveBeenCalledTimes(1);
-    expect(deps.notifyAdmins).not.toHaveBeenCalled();
   });
 });
