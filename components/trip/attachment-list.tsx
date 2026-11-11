@@ -132,6 +132,7 @@ export function AttachmentList({
   const [isPending, startTransition] = React.useTransition();
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const tray = useStagedUploads({ tripId, globeId, targetType, targetId });
+  const [dragging, setDragging] = React.useState(false);
   const { confirm, dialog } = useConfirm();
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -163,6 +164,20 @@ export function AttachmentList({
 
   const inputId = `upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`;
   const uploading = tray.uploading;
+
+  const dropTarget = {
+    "data-dragging": dragging ? "true" : undefined,
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      if (!uploading) setDragging(true);
+    },
+    onDragLeave: () => setDragging(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      if (!uploading) void tray.addFiles(Array.from(e.dataTransfer.files));
+    },
+  };
 
   const fileInput = (
     <input
@@ -271,8 +286,10 @@ export function AttachmentList({
             {fileInput}
             <label
               htmlFor={inputId}
+              {...dropTarget}
               className={cn(
                 "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary",
+                dragging && "border-primary bg-muted text-primary",
                 uploading && "pointer-events-none opacity-50",
               )}
             >
@@ -309,9 +326,11 @@ export function AttachmentList({
             {fileInput}
             <label
               htmlFor={inputId}
+              {...dropTarget}
               className={cn(
                 "flex min-h-[90px] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border-soft p-4 text-center transition-colors hover:border-border md:min-h-[150px]",
                 "has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
+                dragging && "border-primary bg-muted",
                 uploading && "pointer-events-none opacity-50",
               )}
             >

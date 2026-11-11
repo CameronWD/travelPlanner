@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FormEvent } from "react";
 
@@ -337,6 +337,48 @@ describe("AttachmentList", () => {
       await user.click(screen.getByRole("button", { name: "Add 1 file" }));
       await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
       expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    describe.each([
+      ["compact", true, "Add files"],
+      ["full", false, "Tap or drop files"],
+    ])("drag and drop (%s)", (_layout, compact, targetText) => {
+      const target = () => screen.getByText(targetText).closest("label") as HTMLElement;
+
+      it("dropping files onto the upload target stages them", async () => {
+        render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} compact={compact} />);
+        fireEvent.drop(target(), {
+          dataTransfer: { files: [pdf("a.pdf"), new File(["x"], "b.png", { type: "image/png" })] },
+        });
+        expect(await screen.findByRole("button", { name: "Add 2 files" })).toBeInTheDocument();
+        expect(uploadAttachment).not.toHaveBeenCalled();
+      });
+
+      it("highlights the target while dragging and clears it on drop", async () => {
+        render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} compact={compact} />);
+        expect(target()).not.toHaveAttribute("data-dragging");
+        fireEvent.dragOver(target(), { dataTransfer: { files: [] } });
+        expect(target()).toHaveAttribute("data-dragging", "true");
+        fireEvent.drop(target(), { dataTransfer: { files: [pdf("a.pdf")] } });
+        expect(target()).not.toHaveAttribute("data-dragging");
+        await screen.findByRole("button", { name: "Add 1 file" });
+      });
+
+      it("a dropped file of a disallowed type is refused on its row", async () => {
+        render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} compact={compact} />);
+        fireEvent.drop(target(), {
+          dataTransfer: { files: [new File(["x"], "clip.mp4", { type: "video/mp4" })] },
+        });
+        expect(await screen.findByText("Only PDFs, photos or text files can be added.")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^Add/ })).toBeDisabled();
+      });
+
+      it("dragleave clears the highlight", () => {
+        render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} compact={compact} />);
+        fireEvent.dragOver(target(), { dataTransfer: { files: [] } });
+        fireEvent.dragLeave(target());
+        expect(target()).not.toHaveAttribute("data-dragging");
+      });
     });
   });
 
