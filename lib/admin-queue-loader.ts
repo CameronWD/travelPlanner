@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { reopenedByInvite } from "@/lib/reopened-requests";
 import type { AdminQueue } from "@/lib/admin-queue";
 
 /**
@@ -9,16 +10,17 @@ import type { AdminQueue } from "@/lib/admin-queue";
  * Not a guard and not an action: the callers (app/(app)/layout.tsx and
  * app/(app)/account/page.tsx) gate on isAdminEmail first, so a non-Admin
  * never pays for these two counts, and nothing here is reachable over the
- * network. Pending Access requests are `resolvedAt IS NULL`, never `status`
- * — approving stamps resolvedAt and leaves status "pending"
- * (server/actions/access-requests.ts listAccessRequests). Needs-review
- * notes count from every site: beta and main share the database, and a
- * note is waiting whichever site it was written on (spec 2026-10-02 §A).
+ * network. It counts pending Access requests (`resolvedAt IS NULL`, never
+ * `status`), dismissed ones reopened by a later Invite, and Needs-review
+ * notes. Needs-review notes count from every site: beta and main share the
+ * database, and a note is waiting whichever site it was written on (spec
+ * 2026-10-02 §A).
  */
 export async function countAdminQueue(): Promise<AdminQueue> {
-  const [accessRequests, feedbackNeedingReview] = await Promise.all([
+  const [pendingRequests, reopenedRequests, feedbackNeedingReview] = await Promise.all([
     db.accessRequest.count({ where: { resolvedAt: null } }),
+    reopenedByInvite(),
     db.feedbackNote.count({ where: { status: "NEEDS_REVIEW" } }),
   ]);
-  return { accessRequests, feedbackNeedingReview };
+  return { accessRequests: pendingRequests + reopenedRequests.length, feedbackNeedingReview };
 }

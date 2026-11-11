@@ -117,7 +117,9 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
                 </span>
                 {request.invitedTo.map((invite, i) => (
                   <span key={i} className="truncate text-xs text-muted-foreground">
-                    Invited to {invite.tripName} by {invite.ownerName}
+                    {request.dismissedEarlier
+                      ? `Dismissed earlier. Now invited to ${invite.tripName} by ${invite.ownerName}.`
+                      : `Invited to ${invite.tripName} by ${invite.ownerName}`}
                   </span>
                 ))}
                 <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">

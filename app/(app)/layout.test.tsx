@@ -36,6 +36,7 @@ const userFindUniqueMock = vi.hoisted(() =>
     photoUpdatedAt: null,
   }),
 );
+vi.mock("@/lib/reopened-requests", () => ({ reopenedByInvite: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/db", () => ({
   db: {
     accessRequest: { count: accessRequestCountMock },
