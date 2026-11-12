@@ -9,6 +9,7 @@ function makeNudges(overrides: Partial<NudgeInput> = {}): NudgeInput {
     hasPackingList: true,
     hasPretripList: true,
     unbookedTransportCount: 0,
+    bookingConfirmationsToAdd: 0,
     hasHomeBase: true,
     hasOutboundLeg: true,
     hasReturnLeg: true,
@@ -26,6 +27,31 @@ const warn = (id: string): Flag => ({ id, severity: "warning", message: `warn ${
 const info = (id: string): Flag => ({ id, severity: "info", message: `info ${id}`, targetType: "DAY", date: "2026-07-01" });
 
 describe("buildNextSteps", () => {
+  it("nudges to add booking confirmations, boosted in final-prep, absent at zero", () => {
+    const run = (phase: "planning" | "final-prep", n: number) =>
+      buildNextSteps({ flags: [], phase, nudges: makeNudges({ bookingConfirmationsToAdd: n }), tripBasePath: "/trips/t" })
+        .find((s) => s.id === "nudge-booking-confirmations");
+    expect(run("planning", 3)).toMatchObject({
+      title: "Add booking confirmations (3)",
+      subtitle: "Booked, but no ticket or confirmation attached.",
+      href: "/trips/t/files",
+      severity: "info",
+    });
+    expect(run("planning", 0)).toBeUndefined();
+  });
+
+  it("ranks the booking confirmations nudge at 21, or 7 in final-prep", () => {
+    const ids = (phase: "planning" | "final-prep") =>
+      buildNextSteps({
+        flags: [],
+        phase,
+        nudges: makeNudges({ bookingConfirmationsToAdd: 1, unbookedTransportCount: 1, hasPackingList: false, hasPretripList: false }),
+        tripBasePath: "/trips/t",
+      }).map((s) => s.id);
+    expect(ids("planning")).toEqual(["nudge-unbooked-transport", "nudge-booking-confirmations", "nudge-packing", "nudge-pretrip"]);
+    expect(ids("final-prep")).toEqual(["nudge-packing", "nudge-booking-confirmations", "nudge-pretrip", "nudge-unbooked-transport"]);
+  });
+
   it("returns an empty list when there is nothing to do", () => {
     expect(buildNextSteps({ flags: [], phase: "planning", nudges: NO_NUDGES, tripBasePath: "/trips/t" })).toEqual([]);
   });

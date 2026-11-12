@@ -46,6 +46,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   loadSurpriseVisibilityMock.mockImplementation(async () => actual.NO_SURPRISES);
   return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
+vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd: async () => [] }));
 vi.mock("@/lib/db", () => ({
   db: {
     stop: { findMany: stopFindManyMock, count: stopCountMock },
