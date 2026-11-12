@@ -2249,6 +2249,7 @@ export function ItineraryManager({
         homeCurrency={homeCurrency}
         costs={openIdea ? thingsToDoItemCostsById?.get(openIdea.idea.id) : undefined}
         attachments={openIdea ? (attachmentsByItemId?.get(openIdea.idea.id) ?? []) : []}
+        needsConfirmation={openIdea ? needsConfirmation.has(openIdea.idea.id) : false}
         onClose={() => setOpenIdea(null)}
         onPickDay={(_item, d) => {
           if (openIdea) void handleScheduleThing(openIdea.idea, d);

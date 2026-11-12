@@ -12,7 +12,6 @@ import { PresenceSpan } from "./presence";
 import { TweenNumber } from "./tween-number";
 import { useMotionTiming } from "./use-motion-timing";
 import { SurpriseBadge } from "./surprise-badge";
-import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 
 /** MOTION.md P7: a scheduled idea's chip shrinks and fades out. */
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
@@ -73,7 +72,6 @@ export interface IdeasBoxProps {
   onAdd(): void;
   disabled?: boolean;
   className?: string;
-  needsConfirmationIds?: ReadonlySet<string>;
 }
 
 const FACE_CLASS =
@@ -81,7 +79,7 @@ const FACE_CLASS =
 const CHIP_CLASS = `tap-target pressable ${FACE_CLASS}`;
 
 /** PLAN.md §4.1 ideas box: chips per unscheduled thing-to-do, each opening the idea (spec 2026-10-02 §D); Pick a day lives inside the opened idea. */
-export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className, needsConfirmationIds }: IdeasBoxProps) {
+export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: IdeasBoxProps) {
   const chipsRef = React.useRef<HTMLDivElement>(null);
   const measureRef = React.useRef<HTMLDivElement>(null);
   const { t } = useMotionTiming();
@@ -180,12 +178,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className, ne
                 </button>
               </PopoverTrigger>
               <PopoverContent align="end" className="flex w-64 flex-col gap-1.5">
-                {rest.map((idea) => (
-                  <div key={idea.id} className="flex min-w-0 flex-col items-start gap-0.5">
-                    {chipFor(idea)}
-                    {needsConfirmationIds?.has(idea.id) && <BookingConfirmationMarker kind="ITEM" id={idea.id} />}
-                  </div>
-                ))}
+                {rest.map(chipFor)}
               </PopoverContent>
             </Popover>
           )}

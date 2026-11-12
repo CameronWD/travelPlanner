@@ -1,24 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { IdeasBox } from "./ideas-box";
 
 const idea = (id: string, title: string, extra = {}) => ({ id, bookingStateSet: false, title, category: "SIGHTSEEING", startTime: null, endTime: null, ...extra });
 const IDEAS = [idea("i1", "Musée d'Orsay"), idea("i2", "Sainte-Chapelle", { hiddenFromShares: true }), idea("i3", "Le Bon Marché")];
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
-
-describe("IdeasBox booking confirmation marker", () => {
-  it("marks an overflowed idea that needs a confirmation", async () => {
-    vi.stubGlobal("ResizeObserver", class { cb: (entries: unknown[]) => void; constructor(cb: (entries: unknown[]) => void) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} });
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 80, height: 32, top: 0, left: 0, right: 80, bottom: 32, x: 0, y: 0, toJSON() {} } as DOMRect);
-    render(<IdeasBox ideas={IDEAS} onOpen={vi.fn()} onAdd={vi.fn()} needsConfirmationIds={new Set(["i3"])} />);
-    await userEvent.click(await screen.findByRole("button", { name: /more ideas/ }));
-    expect(await screen.findByText("No booking confirmation yet")).toBeInTheDocument();
-  });
-});
 
 describe("IdeasBox (PLAN.md §4.1)", () => {
   it("labels the count and renders one chip per idea, EyeOff on hidden ones", () => {

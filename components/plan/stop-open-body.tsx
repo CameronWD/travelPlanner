@@ -149,7 +149,7 @@ export function StopOpenBody({
             onOpen={onOpenAccommodation}
             onAdd={onAddStay}
           />
-          <IdeasBox ideas={ideas} onOpen={onOpenIdea} onAdd={onAddIdea} needsConfirmationIds={needsConfirmationIds} />
+          <IdeasBox ideas={ideas} onOpen={onOpenIdea} onAdd={onAddIdea} />
         </div>
       </div>
 
