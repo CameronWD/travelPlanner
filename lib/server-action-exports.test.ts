@@ -40,6 +40,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "activity.ts": ["markAllRead"],
   "ai.ts": ["aiSuggestActivities"],
   "attachments.ts": ["deleteAttachment", "linkAttachmentToItem", "setAttachmentTitle", "uploadAttachment"],
+  "booking-confirmation.ts": ["setNothingToAttach"],
   "booking-import.ts": ["confirmProposal", "importBooking"],
   "calendar-feed.ts": [
     "createCalendarFeed",
