@@ -7,6 +7,7 @@ import { orderPlanStops } from "@/lib/plan-order";
 import { chapterForStop } from "@/lib/chapters";
 import { stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatNights } from "@/lib/dates";
+import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enum-values";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -87,7 +88,7 @@ export default async function TripPlanPage({
   const v = rows.visibility;
 
   // The page's own (non-Plan) reads in ONE wave once the Plan is known (spec 2026-10-06 §C).
-  const [allAttachments, allNotes, dayTitleRows, remindersAbout] = await Promise.all([
+  const [allAttachments, allNotes, dayTitleRows, remindersAbout, confirmationsToAdd] = await Promise.all([
     // All attachments for this trip's entities in one query
     db.attachment.findMany({
       where: {
@@ -136,7 +137,10 @@ export default async function TripPlanPage({
     }),
     // Every Reminder about a Stop, Item or leg, any date, grouped by the thing (spec F8).
     readRemindersAbout(tripId, v),
+    // Real plan only: a what-if plan has no Booking confirmations to chase.
+    activeForkId ? Promise.resolve([]) : loadBookingConfirmationsToAdd(tripId, user.id),
   ]);
+  const needsConfirmationIds = confirmationsToAdd.map((c) => c.id);
 
   const trip = rows.trip;
   const slug = trip.slug ?? tripId;
@@ -418,6 +422,7 @@ export default async function TripPlanPage({
               remindersByItemId={remindersAbout.byItemId}
               remindersByTransportId={remindersAbout.byTransportId}
               thingsToDoItemCostsById={thingsToDoItemCostsById}
+              needsConfirmationIds={needsConfirmationIds}
               initialStops={ordered.map((stop) => ({
                 ...stop,
                 accommodations: stop.accommodations.map((acc) => ({

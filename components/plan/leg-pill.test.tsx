@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Plane } from "lucide-react";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { LegPill, LegRow } from "./leg-pill";
 
 const FLIGHT = { icon: Plane, label: "Flight CDG → FCO", sub: "Tue 15 Dec 10:05", missing: false, accessibleName: "Flight from Paris to Rome, Tuesday 15 December 10:05. Edit." };
@@ -176,5 +178,14 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
   it("a Booked leg's accessible name is unchanged", () => {
     render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="BOOKED" />);
     expect(screen.getByRole("button", { name: FLIGHT.accessibleName })).toBeInTheDocument();
+  });
+
+  it("marks a booked leg with no confirmation, except on a compact pill", () => {
+    const { rerender } = render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
+    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    rerender(<LegPill label={FLIGHT} onClick={vi.fn()} marker={{ kind: "TRANSPORT", id: "t1" }} />);
+    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+    rerender(<LegPill label={FLIGHT} onClick={vi.fn()} compact marker={{ kind: "TRANSPORT", id: "t1" }} />);
+    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
   });
 });

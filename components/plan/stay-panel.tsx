@@ -18,11 +18,13 @@ import {
 import type { AccommodationCardAccommodation } from "@/components/trip/accommodation-card";
 import type { CostRow } from "@/server/actions/costs";
 import { plural } from "@/lib/plural";
+import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 
 /** One Accommodation as the stay panel lists it: the card's fields plus its Costs and file count. */
 export interface StayPanelAccommodation extends AccommodationCardAccommodation {
   costs?: CostRow[];
   attachmentCount?: number;
+  needsConfirmation?: boolean;
 }
 
 export interface StayPanelProps {
@@ -108,6 +110,11 @@ function StayBlock({
           <Paperclip className="size-3 shrink-0" aria-hidden="true" />
           {plural(files, "file")}
         </p>
+      )}
+      {a.needsConfirmation && (
+        <div className="relative z-10 w-fit max-w-full">
+          <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
+        </div>
       )}
     </li>
   );

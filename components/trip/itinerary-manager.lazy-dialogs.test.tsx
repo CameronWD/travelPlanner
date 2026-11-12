@@ -37,6 +37,7 @@ vi.mock("@/server/actions/day-titles", () => ({}));
 vi.mock("@/server/actions/item-photo", () => ({}));
 vi.mock("@/server/actions/places", () => ({}));
 vi.mock("@/server/actions/surprise", () => ({}));
+vi.mock("@/server/actions/booking-confirmation", () => ({}));
 
 describe("ItineraryManager initial import graph (spec 2026-10-06 §P)", () => {
   // The Plan editor's first import is slow to transform (~2.9s).

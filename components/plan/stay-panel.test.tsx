@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { StayPanel, type StayPanelAccommodation } from "./stay-panel";
 import { formatMoney } from "@/lib/money/money";
 
@@ -157,5 +159,14 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
   it("a Booked stay shows no To book badge", () => {
     render(<StayPanel {...props({ accommodations: [{ ...HOTEL, bookingState: "BOOKED" }] })} />);
     expect(within(screen.getByTestId("stay-block")).queryByText("To book")).not.toBeInTheDocument();
+  });
+});
+
+describe("StayPanel booking confirmation marker", () => {
+  it("marks a stay that needs a confirmation, and only that one", () => {
+    const { rerender } = render(<StayPanel {...props()} />);
+    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    rerender(<StayPanel {...props({ accommodations: [{ ...HOTEL, needsConfirmation: true }] })} />);
+    expect(within(screen.getByTestId("stay-block")).getByText("No booking confirmation yet")).toBeInTheDocument();
   });
 });

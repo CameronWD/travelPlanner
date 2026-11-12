@@ -29,6 +29,8 @@ const { readRemindersAbout } = vi.hoisted(() => ({
   ),
 }));
 vi.mock("@/lib/reminder-reads", () => ({ readRemindersAbout }));
+const { loadBookingConfirmationsToAdd } = vi.hoisted(() => ({ loadBookingConfirmationsToAdd: vi.fn(async () => [] as { kind: string; id: string }[]) }));
+vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd }));
 const { readPlanMock, readTripShellMock } = vi.hoisted(() => ({ readPlanMock: vi.fn(), readTripShellMock: vi.fn() }));
 vi.mock("@/lib/plan-reads", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/plan-reads")>();
@@ -361,6 +363,16 @@ describe("Plan page with stops (LA-038)", () => {
   // Task 7: a Reminder about a Stop is read by readRemindersAbout (not
   // listRemindersForTrip's date-filtered/capped "upcoming" feed), grouped by
   // stopId for the Stop card's own "Reminders" line.
+  it("hands the manager the ids of things that still need a Booking confirmation", async () => {
+    scenario.stops = [STOP];
+    loadBookingConfirmationsToAdd.mockResolvedValueOnce([{ kind: "TRANSPORT", id: "t9" }, { kind: "ITEM", id: "i4" }]);
+
+    await renderPlan();
+
+    expect(loadBookingConfirmationsToAdd).toHaveBeenCalledWith("trip-1", "owner-1");
+    expect(itineraryManagerCapture.props?.needsConfirmationIds).toEqual(["t9", "i4"]);
+  });
+
   it("groups a Stop's reminders by stopId and passes them to ItineraryManager", async () => {
     scenario.stops = [STOP];
     readRemindersAbout.mockResolvedValueOnce({

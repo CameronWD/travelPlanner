@@ -16,6 +16,8 @@ vi.mock("@/server/actions/costs", () => ({
   deleteCost: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { AccommodationRow } from "./accommodation-row";
 
 const accommodation = {
@@ -158,4 +160,11 @@ it("defaultOpen starts expanded (the stay panel opens a block this way)", () => 
   render(<AccommodationRow accommodation={accommodation} stop={stop} defaultOpen />);
   expect(screen.getByRole("button", { name: /Hotel du Louvre/, expanded: true })).toBeInTheDocument();
   expect(screen.getByTestId("accommodation-card")).toBeInTheDocument();
+});
+
+it("marks a stay that needs a confirmation, and only that one", () => {
+  const { rerender } = render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+  expect(screen.queryByText("No booking confirmation yet")).not.toBeInTheDocument();
+  rerender(<AccommodationRow accommodation={accommodation} stop={stop} needsConfirmation />);
+  expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
 });
