@@ -6,6 +6,8 @@ const { requireTripAccess, readDayRows, stopFindMany } = vi.hoisted(() => ({
   stopFindMany: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
+const { loadNeedsConfirmation } = vi.hoisted(() => ({ loadNeedsConfirmation: vi.fn() }));
+vi.mock("./confirmations", () => ({ loadNeedsConfirmation }));
 vi.mock("@/lib/day-reads", () => ({ readDayRows }));
 // `readDayRows` is mocked wholesale, so it never actually calls the
 // `alongside` callback `loadDayForMcp` passes it (the real one queries
@@ -51,6 +53,7 @@ const rows: DayRows = {
 
 describe("loadDayForMcp", () => {
   beforeEach(() => {
+    loadNeedsConfirmation.mockResolvedValue(new Set());
     vi.clearAllMocks();
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
     readDayRows.mockResolvedValue({ rows, visibility: {}, alongside: [{ id: "s1", name: "Porto" }] });
@@ -152,7 +155,7 @@ describe("loadDayForMcp", () => {
   it("lists the check-in in the timeline on its day, timed", async () => {
     const day = await loadDayForMcp("trip-1", "2027-06-01");
     if ("success" in day) throw new Error("expected a day");
-    expect(day.timeline).toContainEqual({ kind: "check-in", accommodationId: "a1", name: "Casa", time: "15:00", bookingState: "BOOKED", bookBy: null });
+    expect(day.timeline).toContainEqual({ kind: "check-in", accommodationId: "a1", name: "Casa", time: "15:00", bookingState: "BOOKED", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false });
   });
 
   it("legs, check-ins, check-outs and tonight carry Booking state and book-by, as get_trip_plan's legs and stays do", async () => {

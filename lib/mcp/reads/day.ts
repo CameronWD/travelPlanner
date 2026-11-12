@@ -19,6 +19,7 @@ import { resolvedDayHops } from "@/lib/day-map";
 import { homePointOf } from "@/lib/travel-times/hops";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
+import { loadNeedsConfirmation } from "./confirmations";
 import { toMcpDayItem, toMcpSurprise, type McpDayItem, type McpSurprise } from "./plan-shapes";
 
 /** CONTEXT.md "Booking state", as get_trip_plan's legs and stays carry it. */
@@ -27,6 +28,9 @@ interface McpBooking {
   bookingState: BookingState;
   /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
   bookBy: string | null;
+  nothingToAttach: boolean;
+  /** True when it is Booked, has no file and nothing-to-attach is off: ask the Traveller for the ticket or confirmation. */
+  needsBookingConfirmation: boolean;
 }
 
 /** One entry of a day's timeline, in the Day view's order (`orderDayEntries`). */
@@ -99,12 +103,13 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
 
   const filesFor = (_kind: string, id: string) =>
     (model.attachmentsByTarget[id] ?? []).map((a) => ({ id: a.id, title: a.title ?? a.filename }));
+  const needsConfirmation = await loadNeedsConfirmation(tripId, user.id);
   const stopName = new Map(stopRows.map((s) => [s.id, s.name]));
-  const item = (e: ItemEntry): McpDayItem => toMcpDayItem(e.item, filesFor, stopName);
+  const item = (e: ItemEntry): McpDayItem => toMcpDayItem(e.item, filesFor, stopName, needsConfirmation);
   // The timeline's legs and stays are itinerary entries; their Booking state
   // comes from the day's own rows, as stored (get_trip_plan's rule).
   const booking = new Map<string, McpBooking>(
-    [...rows.transports, ...rows.accommodations].map((r) => [r.id, { bookingState: r.bookingState, bookBy: r.bookBy }]),
+    [...rows.transports, ...rows.accommodations].map((r) => [r.id, { bookingState: r.bookingState, bookBy: r.bookBy, nothingToAttach: r.nothingToAttach ?? false, needsBookingConfirmation: needsConfirmation.has(r.id) }]),
   );
   const bookingOf = (id: string): McpBooking => booking.get(id)!;
   const home = rows.trip.homeName ?? "Home";
@@ -168,7 +173,7 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
     stop: s ? { id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate!, departDate: s.departDate!, surprise: toMcpSurprise(s.surprise) } : null,
     travelDay: dayPlan.transportEntries.length > 0, // the Day view's own rule (lib/day-view-loader.ts)
     tonight: bed
-      ? { id: bed.id, name: bed.name, address: bed.address, checkIn: bed.checkIn, checkOut: bed.checkOut, confirmation: bed.confirmation, notes: bed.notes, nightOf: nightOfStay(date, bed.checkIn, bed.checkOut), bookingState: bed.bookingState, bookBy: bed.bookBy }
+      ? { id: bed.id, name: bed.name, address: bed.address, checkIn: bed.checkIn, checkOut: bed.checkOut, confirmation: bed.confirmation, notes: bed.notes, nightOf: nightOfStay(date, bed.checkIn, bed.checkOut), bookingState: bed.bookingState, bookBy: bed.bookBy, nothingToAttach: bed.nothingToAttach ?? false, needsBookingConfirmation: needsConfirmation.has(bed.id) }
       : null,
     timeline,
     anytime: ordered.anytime.map(item),

@@ -19,6 +19,8 @@ const m = vi.hoisted(() => ({
   loadDayTitles: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess }));
+const { loadNeedsConfirmation } = vi.hoisted(() => ({ loadNeedsConfirmation: vi.fn() }));
+vi.mock("./confirmations", () => ({ loadNeedsConfirmation }));
 vi.mock("../real-plan", () => ({ requireRealPlanRow: m.requireRealPlanRow }));
 vi.mock("./attachments", () => ({ loadTripAttachments: m.loadTripAttachments }));
 vi.mock("./costs", () => ({ readMcpCosts: m.readMcpCosts }));
@@ -51,6 +53,7 @@ const note = { id: "n1", body: "Book ahead" };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadNeedsConfirmation.mockResolvedValue(new Set());
   m.requireRealPlanRow.mockResolvedValue({ tripId: "trip-1" });
   m.requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
   m.loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
@@ -77,6 +80,7 @@ describe("loadItemForMcp", () => {
       id: "i1", title: "Castle", category: "SIGHTSEEING", startTime: "10:00", endTime: null, address: "Sintra",
       link: null, booking: "#448", notes: "Be there 15 min early", bookingState: "BOOKED", bookBy: null,
       slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null, tryList: null,
+      nothingToAttach: false, needsBookingConfirmation: false,
       owningStop: { id: "s1", name: "Sintra Town" },
       files: [file], surprise: null, date: "2027-06-02", stopId: "s1", costs: [cost], notesOnItem: [note],
     });
@@ -118,7 +122,7 @@ describe("loadAccommodationForMcp", () => {
     expect(m.requireRealPlanRow).toHaveBeenCalledWith("accommodation", "a1");
     expect(out).toEqual({
       id: "a1", name: "Casa", address: null, checkIn: "2027-06-01", checkOut: "2027-06-04", confirmation: "X1", notes: null,
-      files: [], stopId: "s1", costs: [cost],
+      files: [], stopId: "s1", costs: [cost], needsBookingConfirmation: false,
     });
   });
 

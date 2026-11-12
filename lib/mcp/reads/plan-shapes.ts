@@ -52,6 +52,10 @@ export interface McpAccommodation {
   bookingState: BookingState;
   /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
   bookBy: string | null;
+  /** True when a Traveller said there is nothing to attach (CONTEXT.md Booking confirmation). */
+  nothingToAttach: boolean;
+  /** True when it is Booked, has no file and nothing-to-attach is off: ask the Traveller for the ticket or confirmation. */
+  needsBookingConfirmation: boolean;
   files: McpFileRef[];
 }
 
@@ -77,6 +81,10 @@ interface McpThingToDo {
   openingHours: OpeningHours | null;
   /** CONTEXT.md "Try list": [{ id, text, tried }] in order, the same shape set_try_list takes; null = none. */
   tryList: TryList | null;
+  /** True when a Traveller said there is nothing to attach (CONTEXT.md Booking confirmation). */
+  nothingToAttach: boolean;
+  /** True when it is Booked, has no file and nothing-to-attach is off: ask the Traveller for the ticket or confirmation. */
+  needsBookingConfirmation: boolean;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -112,6 +120,10 @@ export interface McpDayItem {
    * one owner. Null for a dated thing with no Stop.
    */
   owningStop: McpOwningStop | null;
+  /** True when a Traveller said there is nothing to attach (CONTEXT.md Booking confirmation). */
+  nothingToAttach: boolean;
+  /** True when it is Booked, has no file and nothing-to-attach is off: ask the Traveller for the ticket or confirmation. */
+  needsBookingConfirmation: boolean;
   files: McpFileRef[];
   surprise: McpSurprise | null;
 }
@@ -190,6 +202,10 @@ export interface McpTransport {
   bookingState: BookingState;
   /** YYYY-MM-DD it should be booked by; only while TO_BOOK. */
   bookBy: string | null;
+  /** True when a Traveller said there is nothing to attach (CONTEXT.md Booking confirmation). */
+  nothingToAttach: boolean;
+  /** True when it is Booked, has no file and nothing-to-attach is off: ask the Traveller for the ticket or confirmation. */
+  needsBookingConfirmation: boolean;
   files: McpFileRef[];
 }
 
@@ -235,7 +251,7 @@ export interface McpTripSummary {
 
 export const MCP_ACCOMMODATION_SELECT = {
   id: true, name: true, address: true, checkIn: true, checkOut: true, confirmation: true, notes: true,
-  bookingState: true, bookBy: true,
+  bookingState: true, bookBy: true, nothingToAttach: true,
 } as const;
 
 const MCP_STOP_FIELDS = {
@@ -254,7 +270,7 @@ export const MCP_THING_TO_DO_SELECT = {
   id: true, title: true, category: true, startTime: true, endTime: true,
   address: true, link: true, booking: true, notes: true, stopId: true,
   bookingState: true, bookBy: true, slotTime: true, arriveByMinutes: true, refundable: true,
-  openingHours: true, tryList: true,
+  openingHours: true, tryList: true, nothingToAttach: true,
 } as const;
 
 export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } as const;
@@ -262,7 +278,7 @@ export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } a
 export const MCP_TRANSPORT_SELECT = {
   id: true, mode: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true,
   depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true, notes: true,
-  bookingState: true, bookBy: true,
+  bookingState: true, bookBy: true, nothingToAttach: true,
 } as const;
 
 export const MCP_CHAPTER_SELECT = { id: true, name: true, startDate: true, endDate: true } as const;
@@ -280,7 +296,7 @@ export const MCP_TRIP_SELECT = {
  * the rows take the string and the shapes below name it as the union, as
  * lib/plan-reads.ts does.
  */
-type AccommodationRow = Omit<McpAccommodation, "files" | "bookingState"> & { bookingState: string };
+type AccommodationRow = Omit<McpAccommodation, "files" | "bookingState" | "needsBookingConfirmation"> & { bookingState: string };
 
 export interface McpStopRow {
   id: string; name: string; countryCode: string | null; timezone: string | null;
@@ -295,7 +311,7 @@ export interface McpStopRow {
 export interface McpItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
   address: string | null; link: string | null; booking: string | null; notes: string | null; stopId: string | null;
-  bookingState: string; bookBy: string | null;
+  bookingState: string; bookBy: string | null; nothingToAttach: boolean;
   slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null;
   /** The stored column: a JSON string, or null. Parse at the row edge with `withOpeningHours`/`parseOpeningHours` before building a shape — never hand this straight to a shape that expects `OpeningHours`. */
   openingHours: string | null;
@@ -306,8 +322,10 @@ export interface McpItemRow {
 export interface McpTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
   depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null; notes: string | null;
-  bookingState: string; bookBy: string | null;
+  bookingState: string; bookBy: string | null; nothingToAttach: boolean;
 }
+
+export type NeedsConfirmation = ReadonlySet<string>;
 
 export type FilesFor = (kind: "STOP" | "ACCOMMODATION" | "TRANSPORT" | "ITEM", id: string) => McpFileRef[];
 
@@ -343,22 +361,23 @@ function mcpSlot(i: {
   };
 }
 
-export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor): McpAccommodation {
-  return { ...a, bookingState: a.bookingState as BookingState, files: filesFor("ACCOMMODATION", a.id) };
+export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor, needsConfirmation: NeedsConfirmation): McpAccommodation {
+  return { ...a, bookingState: a.bookingState as BookingState, needsBookingConfirmation: needsConfirmation.has(a.id), files: filesFor("ACCOMMODATION", a.id) };
 }
 
-function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined): McpThingToDo {
+function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined, needsConfirmation: NeedsConfirmation): McpThingToDo {
   return {
     id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
     notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, ...mcpSlot(i),
     openingHours: parseOpeningHours(i.openingHours),
     tryList: parseTryList(i.tryList),
+    nothingToAttach: i.nothingToAttach, needsBookingConfirmation: needsConfirmation.has(i.id),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(view),
   };
 }
 
 /** A dated thing to do on a day (get_trip_plan's `days[].items`, get_day's timeline). Its `openingHours` has already been parsed at the row edge (`StopDayItem.openingHours` is the model, never the stored string). */
-export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpDayItem {
+export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>, needsConfirmation: NeedsConfirmation): McpDayItem {
   return {
     id: i.id, title: i.title, category: i.category,
     startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
@@ -366,6 +385,7 @@ export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: 
     bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
     openingHours: i.openingHours ?? null,
     tryList: i.tryList ?? null,
+    nothingToAttach: i.nothingToAttach ?? false, needsBookingConfirmation: needsConfirmation.has(i.id),
     owningStop: owningStopRef(i.stopId, stopNameById),
     files: filesFor("ITEM", i.id), surprise: toMcpSurprise(i.surprise),
   };
@@ -383,9 +403,9 @@ export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: 
  */
 type DatedItem = Omit<McpItemRow, "openingHours" | "tryList"> & { openingHours: OpeningHours | null; tryList: TryList | null; surprise: SurpriseView | null };
 
-export function toMcpItem(i: DatedItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>): McpItem {
+export function toMcpItem(i: DatedItem, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>, needsConfirmation: NeedsConfirmation): McpItem {
   return {
-    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState }, filesFor, stopNameById),
+    ...toMcpDayItem({ ...i, bookingState: i.bookingState as BookingState }, filesFor, stopNameById, needsConfirmation),
     date: i.date,
     stopId: i.stopId,
   };
@@ -408,7 +428,7 @@ export function withPlaceholders(
       .map((p) => ({
         id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
         address: p.address, link: p.link, booking: p.booking, notes: p.notes, stopId: p.stopId,
-        bookingState: p.bookingState, bookBy: p.bookBy,
+        bookingState: p.bookingState, bookBy: p.bookBy, nothingToAttach: false,
         slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable,
         openingHours: p.openingHours,
         tryList: p.tryList,
@@ -433,19 +453,20 @@ export function buildMcpStops(input: {
   hiddenStopIds: ReadonlySet<string>;
   itemView: (id: string) => SurpriseView | null;
   filesFor: FilesFor;
+  needsConfirmation: NeedsConfirmation;
   /** Every real-plan Stop's name, for `owningStop` (R5); a hidden Surprise Stop keeps its name (its shell). */
   stopNameById: ReadonlyMap<string, string>;
   /** The real plan's Transports: a Car leg at a Stop makes its inferred mode Drive. */
   planTransports: { mode: string; fromStopId: string | null; toStopId: string | null }[];
 }): { stops: McpStop[]; coveredItemIds: Set<string> } {
-  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor, stopNameById, planTransports } = input;
+  const { stops, thingsToDo, datedItems, dayTitles, hiddenStopIds, itemView, filesFor, needsConfirmation, stopNameById, planTransports } = input;
   const openStops = stops.filter((s) => !hiddenStopIds.has(s.id));
 
   const thingsToDoByStopId = new Map<string, McpThingToDo[]>();
   for (const i of thingsToDo) {
     if (!i.stopId) continue;
     const list = thingsToDoByStopId.get(i.stopId) ?? [];
-    list.push(toMcpThingToDo(i, filesFor, itemView(i.id)));
+    list.push(toMcpThingToDo(i, filesFor, itemView(i.id), needsConfirmation));
     thingsToDoByStopId.set(i.stopId, list);
   }
 
@@ -458,7 +479,7 @@ export function buildMcpStops(input: {
       : buildStopDays(stop.arriveDate!, stop.departDate!, dayItemsByStopId.get(stop.id) ?? []).map((day) => ({
           date: day.dateISO,
           dayTitle: dayTitles.get(day.dateISO)?.title ?? null,
-          items: [...day.timed, ...day.untimed].map((i) => toMcpDayItem(i, filesFor, stopNameById)),
+          items: [...day.timed, ...day.untimed].map((i) => toMcpDayItem(i, filesFor, stopNameById, needsConfirmation)),
         }));
     return {
       id: stop.id, name: stop.name, countryCode: stop.countryCode, rough, nights: stop.nights,
@@ -466,7 +487,7 @@ export function buildMcpStops(input: {
       notes: stop.notes, timezone: stop.timezone,
       localTravelMode: effectiveLocalMode(stop, planTransports) === "DRIVE" ? "drive" : "public_transport",
       localTravelModeSet: stop.localTravelMode !== null,
-      accommodations: stop.accommodations.map((a) => toMcpAccommodation(a, filesFor)),
+      accommodations: stop.accommodations.map((a) => toMcpAccommodation(a, filesFor, needsConfirmation)),
       thingsToDo: thingsToDoByStopId.get(stop.id) ?? [],
       days,
       files: filesFor("STOP", stop.id),
@@ -480,7 +501,7 @@ export function buildMcpStops(input: {
 /** One Transport leg, each end in its own zone (`transportTimeDisplay`, the Plan editor's rule). */
 export function toMcpTransport(
   t: McpTransportRow,
-  ctx: { stopNameById: ReadonlyMap<string, string>; tzById: ReadonlyMap<string, string | null>; homeTimezone: string | null; filesFor: FilesFor },
+  ctx: { stopNameById: ReadonlyMap<string, string>; tzById: ReadonlyMap<string, string | null>; homeTimezone: string | null; filesFor: FilesFor; needsConfirmation: NeedsConfirmation },
 ): McpTransport {
   const endpoint = (stopId: string | null, isHome: boolean): McpTransportEndpoint => {
     if (isHome) return { home: true };
@@ -503,6 +524,7 @@ export function toMcpTransport(
     departs: local(t.depAt, shown.dep), arrives: local(t.arrAt, shown.arr), dayDelta: shown.dayDelta,
     reference: t.reference, notes: t.notes,
     bookingState: t.bookingState as BookingState, bookBy: t.bookBy,
+    nothingToAttach: t.nothingToAttach, needsBookingConfirmation: ctx.needsConfirmation.has(t.id),
     files: ctx.filesFor("TRANSPORT", t.id),
   };
 }

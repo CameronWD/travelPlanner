@@ -13,7 +13,7 @@ export const SAMPLE_TODAY = "2026-10-18";
 const KYOTO = { id: "kyoto", name: "Kyoto" };
 const SURPRISE = { plannedBy: "Cam", for: ["Xanni"], youAreSurprised: true };
 const dayItem = {
-  address: null, link: null, booking: null, notes: null, bookingState: "NONE" as const, bookBy: null,
+  address: null, link: null, booking: null, notes: null, bookingState: "NONE" as const, bookBy: null, nothingToAttach: false, needsBookingConfirmation: false,
   slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" as const, openingHours: null, tryList: null,
   owningStop: KYOTO, files: [], surprise: null,
 };
@@ -31,13 +31,13 @@ export const SAMPLE_PLAN: McpTripPlan = {
       accommodations: [
         {
           id: "ryokan", name: "Ryokan Yachiyo", address: "34 Nanzenji Fukuchicho, Sakyo Ward, Kyoto", checkIn: "2026-11-01", checkOut: "2026-11-05",
-          confirmation: "YCH-55821", notes: "Late check-in after 21:00 requested, not confirmed yet.", bookingState: "BOOKED", bookBy: null, files: [],
+          confirmation: "YCH-55821", notes: "Late check-in after 21:00 requested, not confirmed yet.", bookingState: "BOOKED", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, files: [],
         },
       ],
       thingsToDo: [
         {
           id: "nishiki", title: "Nishiki Market", category: "FOOD", address: "Nishiki Market, Nakagyo Ward, Kyoto", link: null, booking: null, notes: null,
-          bookingState: "NONE", bookBy: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null,
+          bookingState: "NONE", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null,
           tryList: [{ id: "tako1", text: "Tako tamago", tried: false }], files: [], surprise: null,
         },
       ],
@@ -66,11 +66,11 @@ export const SAMPLE_PLAN: McpTripPlan = {
       depAt: "2026-10-31T23:00:00.000Z", arrAt: "2026-11-01T08:30:00.000Z",
       departs: { at: "2026-10-31T23:00:00.000Z", localTime: "10:00", localDate: "2026-11-01", zone: "AEDT" },
       arrives: { at: "2026-11-01T08:30:00.000Z", localTime: "17:30", localDate: "2026-11-01", zone: "JST" },
-      dayDelta: 0, reference: "QF-ABC123", notes: null, bookingState: "BOOKED", bookBy: null, files: [],
+      dayDelta: 0, reference: "QF-ABC123", notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, files: [],
     },
     {
       id: "train", mode: "TRAIN", from: { stopId: "kyoto", name: "Kyoto" }, to: { stopId: "secret", name: "Hakone" }, depPlace: "Kyoto Station", arrPlace: "Odawara",
-      depAt: null, arrAt: null, departs: null, arrives: null, dayDelta: 0, reference: null, notes: null, bookingState: "TO_BOOK", bookBy: null, files: [],
+      depAt: null, arrAt: null, departs: null, arrives: null, dayDelta: 0, reference: null, notes: null, bookingState: "TO_BOOK", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, files: [],
     },
   ],
   chapters: [],

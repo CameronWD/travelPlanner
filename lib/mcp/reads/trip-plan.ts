@@ -25,6 +25,7 @@ import { loadDayTitles } from "@/lib/day-titles-loader";
 import { travellerName, TRAVELLER_SELECT } from "@/lib/traveller";
 import { loadSurpriseVisibility, maskSurpriseStops } from "@/lib/surprise-visibility";
 import { loadTripAttachments } from "./attachments";
+import { loadNeedsConfirmation } from "./confirmations";
 import { ownerKey } from "./owners";
 import {
   buildMcpStops,
@@ -83,7 +84,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
 export async function loadTripPlanView(tripId: string, viewerId: string | null): Promise<McpTripPlan> {
   const v = await loadSurpriseVisibility(tripId, viewerId);
 
-  const [trip, stopsRaw, transportsRaw, chaptersRaw, thingsToDoItems, scheduledItems, members, { byOwner }] = await Promise.all([
+  const [trip, stopsRaw, transportsRaw, chaptersRaw, thingsToDoItems, scheduledItems, members, { byOwner }, needsConfirmation] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: MCP_TRIP_SELECT }),
     db.stop.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: mcpStopSelect(v.where.accommodation) }),
     db.transport.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: MCP_TRANSPORT_SELECT }),
@@ -93,6 +94,7 @@ export async function loadTripPlanView(tripId: string, viewerId: string | null):
     db.item.findMany({ where: { tripId, ...REAL_PLAN, date: { not: null }, ...v.where.item }, orderBy: [{ date: "asc" }, { sortOrder: "asc" }], select: MCP_DATED_ITEM_SELECT }),
     db.tripMember.findMany({ where: { tripId }, orderBy: { createdAt: "asc" }, select: { role: true, user: { select: TRAVELLER_SELECT } } }),
     loadTripAttachments(tripId, v),
+    loadNeedsConfirmation(tripId, viewerId),
   ]);
 
   const filesFor: FilesFor = (kind, id) => byOwner.get(ownerKey(kind, id)) ?? [];
@@ -106,7 +108,7 @@ export async function loadTripPlanView(tripId: string, viewerId: string | null):
 
   const built = buildMcpStops({
     stops, thingsToDo: thingsToDoItems, datedItems, dayTitles, hiddenStopIds,
-    itemView: (id) => v.views.items.get(id) ?? null, filesFor, stopNameById, planTransports: transportsRaw,
+    itemView: (id) => v.views.items.get(id) ?? null, filesFor, needsConfirmation, stopNameById, planTransports: transportsRaw,
   });
 
   const tzById = new Map(stops.map((s) => [s.id, s.timezone]));
@@ -115,11 +117,11 @@ export async function loadTripPlanView(tripId: string, viewerId: string | null):
   return {
     trip: toMcpTrip(tripId, trip, byOwner.get(ownerKey("TRIP", tripId)) ?? []),
     stops: built.stops,
-    transports: transportsRaw.map((t) => toMcpTransport(t, { stopNameById, tzById, homeTimezone, filesFor })),
+    transports: transportsRaw.map((t) => toMcpTransport(t, { stopNameById, tzById, homeTimezone, filesFor, needsConfirmation })),
     chapters: chaptersRaw,
     unplacedDatedItems: datedItems
       .filter((i) => !built.coveredItemIds.has(i.id))
-      .map((i) => ({ ...toMcpItem(i, filesFor, stopNameById), date: i.date as string })),
+      .map((i) => ({ ...toMcpItem(i, filesFor, stopNameById, needsConfirmation), date: i.date as string })),
     travellers: members.map((m) => ({
       id: m.user.id,
       name: travellerName(m.user),
