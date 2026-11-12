@@ -92,6 +92,7 @@ interface ForkSourceTransport {
   bookingState?: string | null;
   bookingStateSet?: boolean | null;
   bookBy?: string | null;
+  nothingToAttach?: boolean;
 }
 
 interface ForkSourceAccommodation {
@@ -112,6 +113,7 @@ interface ForkSourceAccommodation {
   bookingState?: string | null;
   bookingStateSet?: boolean | null;
   bookBy?: string | null;
+  nothingToAttach?: boolean;
 }
 
 interface ForkSourceItem {
@@ -149,6 +151,7 @@ interface ForkSourceItem {
   bookingState?: string | null;
   bookingStateSet?: boolean | null;
   bookBy?: string | null;
+  nothingToAttach?: boolean;
   /** CONTEXT.md "Slot time" / "Opening hours" (R3, R4). */
   slotTime?: string | null;
   arriveByMinutes?: number | null;
@@ -249,6 +252,7 @@ export interface ForkPlan {
       bookingState: string;
       bookingStateSet: boolean;
       bookBy: string | null;
+      nothingToAttach: boolean;
     };
   }>;
   accommodations: Array<{
@@ -268,6 +272,7 @@ export interface ForkPlan {
       bookingState: string;
       bookingStateSet: boolean;
       bookBy: string | null;
+      nothingToAttach: boolean;
     };
   }>;
   items: Array<{
@@ -298,6 +303,7 @@ export interface ForkPlan {
       bookingState: string;
       bookingStateSet: boolean;
       bookBy: string | null;
+      nothingToAttach: boolean;
       slotTime: string | null;
       arriveByMinutes: number | null;
       refundable: boolean | null;
@@ -355,7 +361,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         depPlaceId: t.depPlaceId ?? null, arrPlaceId: t.arrPlaceId ?? null,
         depCountryCode: t.depCountryCode ?? null, depRegion: t.depRegion ?? null, arrCountryCode: t.arrCountryCode ?? null, arrRegion: t.arrRegion ?? null,
         reference: t.reference, notes: t.notes, sortOrder: t.sortOrder,
-        bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null,
+        bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null, nothingToAttach: t.nothingToAttach ?? false,
       },
     })),
     accommodations: source.accommodations.map((a) => ({
@@ -364,7 +370,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut,
         checkInTime: a.checkInTime ?? null, checkOutTime: a.checkOutTime ?? null,
         confirmation: a.confirmation, notes: a.notes, lat: a.lat, lng: a.lng, placeId: a.placeId ?? null,
-        bookingState: effectiveBookingState("ACCOMMODATION", a, a.confirmation), bookingStateSet: a.bookingStateSet ?? false, bookBy: a.bookBy ?? null,
+        bookingState: effectiveBookingState("ACCOMMODATION", a, a.confirmation), bookingStateSet: a.bookingStateSet ?? false, bookBy: a.bookBy ?? null, nothingToAttach: a.nothingToAttach ?? false,
       },
     })),
     items: source.items.map((it) => ({
@@ -379,7 +385,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         hiddenFromShares: it.hiddenFromShares ?? false,
         surprisePlannerId: it.surprisePlannerId ?? null, surpriseForIds: it.surpriseForIds ?? null,
         surpriseRevealedAt: it.surpriseRevealedAt ?? null,
-        bookingState: effectiveBookingState("ITEM", it, it.booking), bookingStateSet: it.bookingStateSet ?? false, bookBy: it.bookBy ?? null,
+        bookingState: effectiveBookingState("ITEM", it, it.booking), bookingStateSet: it.bookingStateSet ?? false, bookBy: it.bookBy ?? null, nothingToAttach: it.nothingToAttach ?? false,
         slotTime: it.slotTime ?? null, arriveByMinutes: it.arriveByMinutes ?? null, refundable: it.refundable ?? null,
         openingHours: it.openingHours ?? null,
         tryList: it.tryList ?? null,

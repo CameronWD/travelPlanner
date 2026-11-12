@@ -51,6 +51,7 @@ export function placeholderItem(o: Partial<PlaceholderItem> & { id: string }): P
     bookingState: "NONE",
     bookingStateSet: false,
     bookBy: null,
+    nothingToAttach: false,
     slotTime: null,
     arriveByMinutes: null,
     refundable: null,

@@ -41,6 +41,7 @@ export interface PlaceholderItem {
   bookingState: "NONE";
   bookingStateSet: false;
   bookBy: null;
+  nothingToAttach: false;
   slotTime: null;
   arriveByMinutes: null;
   refundable: null;
@@ -198,6 +199,7 @@ export async function loadSurpriseVisibility(
       bookingState: "NONE" as const,
       bookingStateSet: false as const,
       bookBy: null,
+      nothingToAttach: false as const,
       slotTime: null,
       arriveByMinutes: null,
       refundable: null,

@@ -65,7 +65,9 @@ export function defaultBookingFields(subject: BookingSubject): BookingFields {
  * its book-by date while To book) carries over; an un-chosen idea's copy
  * re-derives, and the reference is never copied, so it needs no booking.
  */
-export function copiedBookingFields(source: BookingCurrent): BookingFields {
+export function copiedBookingFields(
+  source: BookingCurrent & { nothingToAttach?: boolean },
+): BookingFields & { nothingToAttach: boolean } {
   const columns = bookingStateWrite("ITEM", source, undefined, null);
-  return { ...columns, bookBy: activeBookBy(columns.bookingState, source.bookBy) };
+  return { ...columns, bookBy: activeBookBy(columns.bookingState, source.bookBy), nothingToAttach: source.nothingToAttach ?? false };
 }
