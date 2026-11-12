@@ -47,8 +47,12 @@ function MockList({ attachments, testId }: { attachments: MockFile[]; testId: st
     </ul>
   );
 }
+const filesIndexProps = vi.hoisted(() => vi.fn());
 vi.mock("@/components/trip/files-index", () => ({
-  FilesIndex: ({ tripAttachments, sections }: { tripAttachments: MockFile[]; sections: Array<{ type: string; label: string; attachments: MockFile[] }> }) => (
+  FilesIndex: (props: { tripAttachments: MockFile[]; sections: Array<{ type: string; label: string; attachments: MockFile[] }> }) => {
+    filesIndexProps(props);
+    const { tripAttachments, sections } = props;
+    return (
     <div>
       <MockList attachments={tripAttachments} testId="list-TRIP" />
       {sections.map((s) => (
@@ -58,7 +62,8 @@ vi.mock("@/components/trip/files-index", () => ({
         </div>
       ))}
     </div>
-  ),
+    );
+  },
 }));
 const loadFileOwnersMock = vi.hoisted(() => vi.fn().mockResolvedValue(new Map()));
 vi.mock("@/lib/files-index-loader", async (importOriginal) => {
@@ -122,6 +127,29 @@ describe("Files kit shape (Task 14)", () => {
       { targetType: "STOP", targetId: "s-rome" },
       { targetType: "ITEM", targetId: "i-gone" },
     ]);
+  });
+});
+
+describe("Files move targets", () => {
+  it("labels Items and Stays with their Stop, and offers Wishlist ideas as their own group", async () => {
+    const { db } = await import("@/lib/db");
+    const findItems = db.item.findMany as ReturnType<typeof vi.fn>;
+    findItems.mockImplementation(async (args: { where: { stopId?: unknown } }) =>
+      args.where.stopId === null
+        ? [{ id: "w1", title: "Ramen crawl" }]
+        : args.where.stopId
+          ? [{ id: "i1", title: "Dinner", stop: { name: "Paris" } }]
+          : [],
+    );
+    (db.accommodation.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: "a1", name: "Hotel Lux", stop: { name: "Paris" } }]);
+    render(await FilesPage({ params: Promise.resolve({ tripId: "t1" }) }));
+    const targets = (filesIndexProps.mock.lastCall?.[0].moveTargets ?? []) as Array<{ label: string; options: Array<{ label: string }> }>;
+    const labels = (g: string) => targets.find((x) => x.label === g)?.options.map((o) => o.label);
+    expect(labels("Things to do")).toEqual(["Dinner · Paris"]);
+    expect(labels("Stays")).toEqual(["Hotel Lux · Paris"]);
+    expect(labels("Wishlist")).toEqual(["Ramen crawl"]);
+    findItems.mockReset().mockResolvedValue([]);
+    (db.accommodation.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 });
 

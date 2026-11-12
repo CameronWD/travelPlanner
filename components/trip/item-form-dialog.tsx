@@ -965,7 +965,7 @@ function ItemForm({
 
       {/* Booking state (CONTEXT.md): a reference implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
-      {item?.id && bookingField.shown === "BOOKED" && (
+      {!forkId && item?.id && bookingField.shown === "BOOKED" && (
         <NothingToAttachSwitch kind="ITEM" id={item.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
       )}
 

@@ -886,7 +886,7 @@ function TransportForm({
 
         {/* Booking state (CONTEXT.md): a tentative leg is To book; a typed reference implies Booked until the Traveller picks. */}
         <BookingStateField field={bookingField} errors={errors} disabled={isPending} />
-        {transport?.id && bookingField.shown === "BOOKED" && (
+        {!forkId && transport?.id && bookingField.shown === "BOOKED" && (
           <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={nothingToAttach} onChange={setNothingToAttach} />
         )}
 

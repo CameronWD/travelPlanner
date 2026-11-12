@@ -298,7 +298,7 @@ function AccommodationForm({
 
       {/* Booking state (CONTEXT.md): a stay is To book; a confirmation implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
-      {accommodation?.id && bookingField.shown === "BOOKED" && (
+      {!forkId && accommodation?.id && bookingField.shown === "BOOKED" && (
         <NothingToAttachSwitch kind="ACCOMMODATION" id={accommodation.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
       )}
 

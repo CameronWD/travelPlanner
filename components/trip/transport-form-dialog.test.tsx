@@ -2048,6 +2048,11 @@ describe("TransportFormDialog: Nothing to attach switch", () => {
     expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
   });
 
+  it("is absent on a What-if (Fork) plan, where it could only fail", () => {
+    render(<TransportFormDialog {...baseProps} transport={booked} forkId="fork-1" />);
+    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+  });
+
   it("hides while the form's state is To book, and is never on a new thing", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<TransportFormDialog {...baseProps} transport={booked} />);

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { moveAttachment } from "@/server/actions/attachments";
-import { firstErrorMessage } from "@/components/ui/action-failure";
+import { SOMETHING_WENT_WRONG, firstErrorMessage } from "@/components/ui/action-failure";
 import type { MoveTargetGroup } from "@/lib/attachment-move";
 
 export interface FileMoveDialogProps {
@@ -25,9 +25,13 @@ export function FileMoveDialog({ attachmentId, targets, onDone }: FileMoveDialog
     const option = targets.flatMap((g) => g.options).find((o) => o.value === value);
     if (!option) return;
     startTransition(async () => {
-      const result = await moveAttachment(attachmentId, option.target);
-      if (result.success) onDone();
-      else setError(firstErrorMessage(result, "Couldn't move that file."));
+      try {
+        const result = await moveAttachment(attachmentId, option.target);
+        if (result.success) onDone();
+        else setError(firstErrorMessage(result, "Couldn't move that file."));
+      } catch {
+        setError(SOMETHING_WENT_WRONG);
+      }
     });
   }
 

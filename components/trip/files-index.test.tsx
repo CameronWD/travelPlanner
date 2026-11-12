@@ -1,3 +1,4 @@
+import { SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import type { Route } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -94,6 +95,16 @@ describe("FilesIndex", () => {
     await userEvent.selectOptions(within(dialog).getByLabelText("Move to"), "TRIP");
     await userEvent.click(within(dialog).getByRole("button", { name: "Move" }));
     expect(await within(dialog).findByText("Remove it as the photo first.")).toBeInTheDocument();
+  });
+
+  it("shows SOMETHING_WENT_WRONG inside the dialog when the Move action throws", async () => {
+    moveAttachment.mockRejectedValue(new Error("not found"));
+    renderIndex();
+    await userEvent.click(screen.getByRole("button", { name: "Move trip.pdf" }));
+    const dialog = await screen.findByRole("dialog", { name: "Move file" });
+    await userEvent.selectOptions(within(dialog).getByLabelText("Move to"), "TRIP");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Move" }));
+    expect(await within(dialog).findByText(SOMETHING_WENT_WRONG)).toBeInTheDocument();
   });
 
   it("lists Booking confirmations to add above the other groups, one link each", () => {

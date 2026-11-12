@@ -112,11 +112,12 @@ export default async function FilesPage({
     }
   }
 
-  const [moveStops, moveTransports, moveStays, moveItems] = await Promise.all([
+  const [moveWishlist, moveStops, moveTransports, moveStays, moveItems] = await Promise.all([
+    db.item.findMany({ where: { tripId, ...REAL_PLAN, stopId: null, date: null, ...v.where.item }, select: { id: true, title: true }, orderBy: { sortOrder: "asc" } }),
     db.stop.findMany({ where: { tripId, ...REAL_PLAN, id: { notIn: v.hiddenStopIds } }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } }),
     db.transport.findMany({ where: { tripId, ...REAL_PLAN }, select: { id: true, fromStopId: true, toStopId: true }, orderBy: { sortOrder: "asc" } }),
-    db.accommodation.findMany({ where: { tripId, ...REAL_PLAN, ...v.where.accommodation }, select: { id: true, name: true }, orderBy: { checkIn: "asc" } }),
-    db.item.findMany({ where: { tripId, ...REAL_PLAN, stopId: { not: null }, ...v.where.item }, select: { id: true, title: true }, orderBy: { sortOrder: "asc" } }),
+    db.accommodation.findMany({ where: { tripId, ...REAL_PLAN, ...v.where.accommodation }, select: { id: true, name: true, stop: { select: { name: true } } }, orderBy: { checkIn: "asc" } }),
+    db.item.findMany({ where: { tripId, ...REAL_PLAN, stopId: { not: null }, ...v.where.item }, select: { id: true, title: true, stop: { select: { name: true } } }, orderBy: { sortOrder: "asc" } }),
   ]);
   const transportOwners = await loadFileOwners(tripId, slug, moveTransports.map((t) => ({ targetType: "TRANSPORT" as const, targetId: t.id })));
   const moveTargets: MoveTargetGroup[] = [
@@ -126,8 +127,9 @@ export default async function FilesPage({
       label: "Transport",
       options: moveTransports.map((x) => ({ value: `TRANSPORT:${x.id}`, label: transportOwners.get(ownerKey("TRANSPORT", x.id))?.label ?? "Transport", target: { type: "TRANSPORT", id: x.id } })),
     },
-    { label: "Stays", options: moveStays.map((x) => ({ value: `ACCOMMODATION:${x.id}`, label: x.name, target: { type: "ACCOMMODATION", id: x.id } })) },
-    { label: "Things to do", options: moveItems.map((x) => ({ value: `ITEM:${x.id}`, label: x.title, target: { type: "ITEM", id: x.id } })) },
+    { label: "Stays", options: moveStays.map((x) => ({ value: `ACCOMMODATION:${x.id}`, label: `${x.name} · ${x.stop.name}`, target: { type: "ACCOMMODATION", id: x.id } })) },
+    { label: "Things to do", options: moveItems.map((x) => ({ value: `ITEM:${x.id}`, label: x.stop ? `${x.title} · ${x.stop.name}` : x.title, target: { type: "ITEM", id: x.id } })) },
+    { label: "Wishlist", options: moveWishlist.map((x) => ({ value: `ITEM:${x.id}`, label: x.title, target: { type: "ITEM", id: x.id } })) },
   ].filter((g) => g.options.length > 0) as MoveTargetGroup[];
   const sections: FilesSection[] = (Array.from(grouped.entries()) as Array<[TargetType, AttachmentView[]]>).map(([type, attachments]) => ({
     type,
