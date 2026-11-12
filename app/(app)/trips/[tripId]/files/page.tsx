@@ -8,7 +8,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import type { AttachmentView } from "@/components/trip/attachment-list";
-import { FilesIndex, type FilesSection, type LinkTargetGroup } from "@/components/trip/files-index";
+import { FilesIndex, type FilesSection } from "@/components/trip/files-index";
+import type { MoveTargetGroup } from "@/lib/attachment-move";
+import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { TargetType } from "@/lib/enum-values";
 import { TARGET_TYPES } from "@/lib/enum-values";
@@ -72,13 +74,22 @@ export default async function FilesPage({
     },
   });
 
-  const owners = await loadFileOwners(
-    tripId,
-    slug,
-    rows.filter((r) => r.targetType !== "TRIP").map((r) => ({ targetType: r.targetType as TargetType, targetId: r.targetId })),
-  );
+  const [confirmations, photoRows] = await Promise.all([
+    loadBookingConfirmationsToAdd(tripId, user.id),
+    db.item.findMany({ where: { tripId, photoAttachmentId: { not: null } }, select: { photoAttachmentId: true } }),
+  ]);
+  const owners = await loadFileOwners(tripId, slug, [
+    ...rows.filter((r) => r.targetType !== "TRIP").map((r) => ({ targetType: r.targetType as TargetType, targetId: r.targetId })),
+    ...confirmations.map((c) => ({ targetType: c.kind, targetId: c.id })),
+  ]);
+  const toAdd = confirmations.flatMap((c) => {
+    const owner = owners.get(ownerKey(c.kind, c.id));
+    return owner?.href ? [{ kind: c.kind, id: c.id, label: owner.label, href: owner.href }] : [];
+  });
+  const photoIds = new Set(photoRows.map((i) => i.photoAttachmentId));
   const withOwner = (r: (typeof rows)[number]): AttachmentView => ({
     ...r,
+    movable: r.targetType !== "JOURNAL" && !photoIds.has(r.id),
     owner: r.targetType === "TRIP" ? null : r.targetId ? (owners.get(ownerKey(r.targetType as TargetType, r.targetId)) ?? REMOVED_OWNER) : REMOVED_OWNER,
   });
 
@@ -101,19 +112,23 @@ export default async function FilesPage({
     }
   }
 
-  const linkItems = await db.item.findMany({
-    where: { tripId, ...REAL_PLAN, ...v.where.item },
-    select: { id: true, title: true, stopId: true, stop: { select: { name: true, sortOrder: true } } },
-    orderBy: [{ sortOrder: "asc" }],
-  });
-  const byStop = new Map<string, LinkTargetGroup & { order: number }>();
-  for (const it of linkItems) {
-    const key = it.stopId ?? "wishlist";
-    const group = byStop.get(key) ?? { stopName: it.stop?.name ?? "Wishlist", items: [], order: it.stop?.sortOrder ?? Number.MAX_SAFE_INTEGER };
-    group.items.push({ id: it.id, title: it.title });
-    byStop.set(key, group);
-  }
-  const linkTargets: LinkTargetGroup[] = [...byStop.values()].sort((a, b) => a.order - b.order).map(({ stopName, items }) => ({ stopName, items }));
+  const [moveStops, moveTransports, moveStays, moveItems] = await Promise.all([
+    db.stop.findMany({ where: { tripId, ...REAL_PLAN, id: { notIn: v.hiddenStopIds } }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } }),
+    db.transport.findMany({ where: { tripId, ...REAL_PLAN }, select: { id: true, fromStopId: true, toStopId: true }, orderBy: { sortOrder: "asc" } }),
+    db.accommodation.findMany({ where: { tripId, ...REAL_PLAN, ...v.where.accommodation }, select: { id: true, name: true }, orderBy: { checkIn: "asc" } }),
+    db.item.findMany({ where: { tripId, ...REAL_PLAN, stopId: { not: null }, ...v.where.item }, select: { id: true, title: true }, orderBy: { sortOrder: "asc" } }),
+  ]);
+  const transportOwners = await loadFileOwners(tripId, slug, moveTransports.map((t) => ({ targetType: "TRANSPORT" as const, targetId: t.id })));
+  const moveTargets: MoveTargetGroup[] = [
+    { label: "Trip", options: [{ value: "TRIP", label: "The whole trip", target: { type: "TRIP" } }] },
+    { label: "Stops", options: moveStops.map((x) => ({ value: `STOP:${x.id}`, label: x.name, target: { type: "STOP", id: x.id } })) },
+    {
+      label: "Transport",
+      options: moveTransports.map((x) => ({ value: `TRANSPORT:${x.id}`, label: transportOwners.get(ownerKey("TRANSPORT", x.id))?.label ?? "Transport", target: { type: "TRANSPORT", id: x.id } })),
+    },
+    { label: "Stays", options: moveStays.map((x) => ({ value: `ACCOMMODATION:${x.id}`, label: x.name, target: { type: "ACCOMMODATION", id: x.id } })) },
+    { label: "Things to do", options: moveItems.map((x) => ({ value: `ITEM:${x.id}`, label: x.title, target: { type: "ITEM", id: x.id } })) },
+  ].filter((g) => g.options.length > 0) as MoveTargetGroup[];
   const sections: FilesSection[] = (Array.from(grouped.entries()) as Array<[TargetType, AttachmentView[]]>).map(([type, attachments]) => ({
     type,
     label: TARGET_TYPE_LABELS[type],
@@ -156,7 +171,7 @@ export default async function FilesPage({
         <p className="text-sm text-muted-foreground">Files from the last 200 MB are kept on this device for offline use.</p>
       ) : null}
 
-      <FilesIndex tripId={tripId} tripAttachments={tripAttachments} sections={sections} linkTargets={linkTargets} />
+      <FilesIndex tripId={tripId} tripAttachments={tripAttachments} sections={sections} moveTargets={moveTargets} toAdd={toAdd} />
 
       {/* ── Empty state when there are no files at all ── */}
       {!hasAny ? (

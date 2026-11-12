@@ -8,8 +8,12 @@ vi.mock("@/lib/db", () => ({
   db: {
     attachment: { findMany: vi.fn().mockResolvedValue([]), aggregate: vi.fn().mockResolvedValue({ _sum: { size: 0 } }) },
     item: { findMany: vi.fn().mockResolvedValue([]) },
+    stop: { findMany: vi.fn().mockResolvedValue([]) },
+    transport: { findMany: vi.fn().mockResolvedValue([]) },
+    accommodation: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
+vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn(async () => ({ user: { id: "u-viewer" }, membership: { role: "member" } })) }));
 // Surprise (ADR 0051): the page asks the visibility loader and spreads its
 // fragments into its own queries; the loader itself is tested on its own.
@@ -122,7 +126,7 @@ describe("Files kit shape (Task 14)", () => {
 });
 
 describe("Files — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
-  it("lists no file inside a Surprise the viewer may not see, and offers none of its Items to link to", async () => {
+  it("lists no file inside a Surprise the viewer may not see, and offers none of its Items to move a file to", async () => {
     const { db } = await import("@/lib/db");
     loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ hiddenStopIds: ["s-secret"] }));
     render(await FilesPage({ params: Promise.resolve({ tripId: "t1" }) }));
@@ -131,7 +135,10 @@ describe("Files — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
       expect.objectContaining({ where: { tripId: "t1", ...MARKER_WHERE.attachment } }),
     );
     expect(db.item.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ where: { tripId: "t1", forkId: null, ...MARKER_WHERE.item } }),
+      expect.objectContaining({ where: { tripId: "t1", forkId: null, stopId: { not: null }, ...MARKER_WHERE.item } }),
+    );
+    expect(db.stop.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { tripId: "t1", forkId: null, id: { notIn: ["s-secret"] } } }),
     );
   });
 });

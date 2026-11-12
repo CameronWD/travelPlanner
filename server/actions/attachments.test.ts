@@ -144,7 +144,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
 });
 
 import * as attachmentsActions from "./attachments";
-import { uploadAttachment, deleteAttachment, setAttachmentTitle, linkAttachmentToItem, moveAttachment } from "./attachments";
+import { uploadAttachment, deleteAttachment, setAttachmentTitle, moveAttachment } from "./attachments";
 
 const TRIP_ID = "trip-1";
 const ATTACHMENT_ID = "attach-1";
@@ -854,46 +854,6 @@ describe("setAttachmentTitle", () => {
   });
 });
 
-describe("linkAttachmentToItem", () => {
-  it("links a Trip-level file to an Item on the same trip", async () => {
-    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
-    itemFindFirstMock.mockResolvedValue({ id: "item-1" });
-    const result = await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
-    expect(itemFindFirstMock).toHaveBeenCalledWith({ where: { id: "item-1", tripId: TRIP_ID }, select: { id: true } });
-    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "ITEM", targetId: "item-1" } });
-    expect(result).toEqual({ success: true });
-    expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "journal");
-  });
-
-  it("refuses an Item that is not on this trip, writing nothing", async () => {
-    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
-    itemFindFirstMock.mockResolvedValue(null);
-    const result = await linkAttachmentToItem(ATTACHMENT_ID, "other-trip-item");
-    expect(result).toEqual({ success: false, errors: { _: ["That item isn't on this trip."] } });
-    expect(attachmentUpdateMock).not.toHaveBeenCalled();
-  });
-
-  it("null unlinks back to Trip-level", async () => {
-    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), targetType: "ITEM", targetId: "item-1" });
-    await linkAttachmentToItem(ATTACHMENT_ID, null);
-    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRIP", targetId: null } });
-  });
-
-  it("refuses a file uploaded on a Stop, Transport or Accommodation", async () => {
-    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), targetType: "STOP", targetId: "s1" });
-    const result = await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
-    expect(result).toEqual({ success: false, errors: { _: ["Only trip-level files can be linked to an item."] } });
-    expect(attachmentUpdateMock).not.toHaveBeenCalled();
-  });
-
-  it("checks access before any write", async () => {
-    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
-    itemFindFirstMock.mockResolvedValue({ id: "item-1" });
-    await linkAttachmentToItem(ATTACHMENT_ID, "item-1");
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentUpdateMock);
-  });
-});
-
 describe("moveAttachment", () => {
   it("moves a Trip file onto a Transport", async () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
@@ -1022,19 +982,6 @@ describe("Surprise write guard", () => {
 
     expect(attachmentCreateMock).not.toHaveBeenCalled();
     expect(storageSaveMock).not.toHaveBeenCalled();
-  });
-
-  it("linkAttachmentToItem refuses an Item the caller is surprised by", async () => {
-    attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
-    itemFindFirstMock.mockResolvedValue({ id: "item-9" });
-    requireOutsideSurpriseMock.mockImplementation(async (_v: string, ref: { itemId?: string }) => {
-      if (ref.itemId === "item-9") throw new Error("NEXT_NOT_FOUND");
-      return null;
-    });
-
-    await expect(linkAttachmentToItem(ATTACHMENT_ID, "item-9")).rejects.toThrow("NEXT_NOT_FOUND");
-
-    expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 
   it("a globe-scoped file skips the Surprise check", async () => {

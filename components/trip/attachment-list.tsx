@@ -12,7 +12,7 @@ import {
   Loader2,
   Paperclip,
   Pencil,
-  Link2,
+  MoveRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,8 +52,8 @@ export interface AttachmentListProps {
   showUpload?: boolean;
   /** Files page only: open the Rename dialog for this file. */
   onRename?: (att: AttachmentView) => void;
-  /** Files page only: open the Link-to dialog for this file (Trip-level and Item files). */
-  onLink?: (att: AttachmentView) => void;
+  /** Files page only: open the Move dialog for this file. */
+  onMove?: (att: AttachmentView) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ export function AttachmentList({
   compact = false,
   showUpload = true,
   onRename,
-  onLink,
+  onMove,
 }: AttachmentListProps) {
   const [isPending, startTransition] = React.useTransition();
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
@@ -234,16 +234,16 @@ export function AttachmentList({
                       <Pencil className="size-4" aria-hidden="true" />
                     </Button>
                   )}
-                  {onLink && (
+                  {onMove && att.movable !== false && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       className={cn("size-8 hover:bg-muted")}
-                      aria-label={`Link ${attachmentName(att)} to an Item`}
-                      onClick={() => onLink(att)}
+                      aria-label={`Move ${attachmentName(att)}`}
+                      onClick={() => onMove(att)}
                     >
-                      <Link2 className="size-4" aria-hidden="true" />
+                      <MoveRight className="size-4" aria-hidden="true" />
                     </Button>
                   )}
                   <AttachmentLink
@@ -401,16 +401,16 @@ export function AttachmentList({
                     <Pencil className="size-[18px]" aria-hidden="true" />
                   </Button>
                 )}
-                {onLink && (
+                {onMove && att.movable !== false && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className={cn(CARD_ACTION, "hover:bg-muted")}
-                    aria-label={`Link ${attachmentName(att)} to an Item`}
-                    onClick={() => onLink(att)}
+                    aria-label={`Move ${attachmentName(att)}`}
+                    onClick={() => onMove(att)}
                   >
-                    <Link2 className="size-[18px]" aria-hidden="true" />
+                    <MoveRight className="size-[18px]" aria-hidden="true" />
                   </Button>
                 )}
                 <AttachmentLink

@@ -819,7 +819,7 @@ describe("AttachmentList", () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn((e: FormEvent) => e.preventDefault());
     const onRename = vi.fn();
-    const onLink = vi.fn();
+    const onMove = vi.fn();
     render(
       <form onSubmit={onSubmit}>
         <AttachmentList
@@ -829,28 +829,28 @@ describe("AttachmentList", () => {
           attachments={[sampleAttachments[0]]}
           compact={compact}
           onRename={onRename}
-          onLink={onLink}
+          onMove={onMove}
         />
       </form>,
     );
 
     for (const name of [
       /rename boarding-pass\.pdf/i,
-      /link boarding-pass\.pdf to an item/i,
+      /move boarding-pass\.pdf/i,
       /delete boarding-pass\.pdf/i,
     ]) {
       expect(screen.getByRole("button", { name })).toHaveAttribute("type", "button");
     }
 
     await user.click(screen.getByRole("button", { name: /rename boarding-pass\.pdf/i }));
-    await user.click(screen.getByRole("button", { name: /link boarding-pass\.pdf to an item/i }));
+    await user.click(screen.getByRole("button", { name: /move boarding-pass\.pdf/i }));
     await user.click(screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }));
 
     expect(
       await screen.findByRole("heading", { name: /Delete "boarding-pass\.pdf"\?/i }),
     ).toBeInTheDocument();
     expect(onRename).toHaveBeenCalledTimes(1);
-    expect(onLink).toHaveBeenCalledTimes(1);
+    expect(onMove).toHaveBeenCalledTimes(1);
     expect(onSubmit).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Delete" }));

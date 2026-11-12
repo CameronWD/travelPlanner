@@ -407,34 +407,6 @@ export async function setAttachmentTitle(
   return { success: true };
 }
 
-/**
- * Link a Trip-level file to an Item on the same Trip, or (null) unlink it
- * back to Trip-level. Files uploaded on a Stop, Transport or Accommodation
- * stay where they were put — moving those is a different feature.
- */
-export async function linkAttachmentToItem(
-  id: string,
-  itemId: string | null,
-): Promise<ActionResult> {
-  const { attachment, userId } = await requireAttachmentAccess(id);
-  if (!attachment.tripId) {
-    return formFail("Only a trip's files can be linked to an item.");
-  }
-  if (attachment.targetType !== "TRIP" && attachment.targetType !== "ITEM") {
-    return formFail("Only trip-level files can be linked to an item.");
-  }
-  if (itemId) {
-    const item = await db.item.findFirst({ where: { id: itemId, tripId: attachment.tripId }, select: { id: true } });
-    if (!item) return formFail("That item isn't on this trip.");
-    await requireOutsideSurprise(userId, { itemId });
-    await db.attachment.update({ where: { id }, data: { targetType: "ITEM", targetId: itemId } });
-  } else {
-    await db.attachment.update({ where: { id }, data: { targetType: "TRIP", targetId: null } });
-  }
-  revalidateTrip(attachment.tripId, "journal");
-  return { success: true };
-}
-
 const MOVE_KINDS = { STOP: "stop", TRANSPORT: "transport", ACCOMMODATION: "accommodation", ITEM: "item" } as const;
 
 export async function moveAttachment(id: string, target: MoveTarget): Promise<ActionResult> {
