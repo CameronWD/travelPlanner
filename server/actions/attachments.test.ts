@@ -931,6 +931,13 @@ describe("moveAttachment", () => {
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("refuses a Journal photo", async () => {
+    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), targetType: "JOURNAL", targetId: "2026-07-10" });
+    const result = await moveAttachment(ATTACHMENT_ID, { type: "TRIP" });
+    expect(result).toEqual({ success: false, errors: { _: ["Journal photos stay with their day."] } });
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("refuses a Globe file", async () => {
     attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow({ tripId: undefined }), tripId: null, globeId: "g1" });
     const result = await moveAttachment(ATTACHMENT_ID, { type: "TRIP" });

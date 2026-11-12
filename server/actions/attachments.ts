@@ -440,6 +440,7 @@ const MOVE_KINDS = { STOP: "stop", TRANSPORT: "transport", ACCOMMODATION: "accom
 export async function moveAttachment(id: string, target: MoveTarget): Promise<ActionResult> {
   const { attachment } = await requireAttachmentAccess(id);
   if (!attachment.tripId) return formFail("Only a trip's files can be moved.");
+  if (attachment.targetType === "JOURNAL") return formFail("Journal photos stay with their day.");
   const photoOf = await db.item.findFirst({ where: { photoAttachmentId: id } });
   if (photoOf) return formFail("Remove it as the photo first.");
   if (target.type === "TRIP") {
