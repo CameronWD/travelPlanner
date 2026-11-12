@@ -53,6 +53,7 @@ export interface ThingToDo {
   bookingState?: BookingState | null;
   /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
   bookingStateSet: boolean;
+  nothingToAttach?: boolean;
   /** YYYY-MM-DD the thing should be booked by; only while To book. */
   bookBy?: string | null;
   /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
@@ -88,6 +89,7 @@ export function toItemCardItem(it: StopDayItem | ThingToDo): ItemCardItem {
     booking: it.booking ?? null,
     bookingState: it.bookingState ?? null,
     bookingStateSet: it.bookingStateSet,
+    nothingToAttach: it.nothingToAttach ?? false,
     bookBy: it.bookBy ?? null,
     slotTime: it.slotTime ?? null,
     arriveByMinutes: it.arriveByMinutes ?? null,

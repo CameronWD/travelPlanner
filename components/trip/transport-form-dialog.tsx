@@ -51,6 +51,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { resolveTransportSlot, canSitBeforeFirstStop, creationAnchor, HEAD_SLOT } from "@/lib/transport-anchor";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
+import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
 import { transportBookingSubject } from "@/lib/booking-state";
 
 // ---------------------------------------------------------------------------
@@ -884,6 +885,9 @@ function TransportForm({
 
         {/* Booking state (CONTEXT.md): a tentative leg is To book; a typed reference implies Booked until the Traveller picks. */}
         <BookingStateField field={bookingField} errors={errors} disabled={isPending} />
+{transport?.id && bookingField.shown === "BOOKED" && (
+  <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={transport.nothingToAttach ?? false} />
+)}
 
         {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
         <div className="flex flex-col gap-2">

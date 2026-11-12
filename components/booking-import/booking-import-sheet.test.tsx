@@ -5,6 +5,7 @@ import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
 import type { BookingImportResult, ProposalBase } from "@/lib/booking-import/types";
 
 const m = vi.hoisted(() => ({ importBooking: vi.fn(), confirmProposal: vi.fn(), uploadAttachment: vi.fn() }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/server/actions/booking-import", () => ({ importBooking: m.importBooking, confirmProposal: m.confirmProposal }));
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: m.uploadAttachment, deleteAttachment: vi.fn() }));

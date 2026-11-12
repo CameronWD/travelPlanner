@@ -24,6 +24,8 @@ export interface ItemCardItem {
   bookingState?: BookingState | null;
   /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
   bookingStateSet: boolean;
+  /** CONTEXT.md "Nothing to attach": the Traveller said this booking has nothing to attach; the edit dialog's switch shows it. */
+  nothingToAttach?: boolean;
   /** YYYY-MM-DD the thing should be booked by; only while To book. */
   bookBy?: string | null;
   /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
@@ -67,6 +69,8 @@ export interface TransportCardTransport {
   bookingState?: BookingState | null;
   /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
   bookingStateSet: boolean;
+  /** CONTEXT.md "Nothing to attach": the Traveller said this booking has nothing to attach; the edit dialog's switch shows it. */
+  nothingToAttach?: boolean;
   /** YYYY-MM-DD the thing should be booked by; only while To book. */
   bookBy?: string | null;
   notes?: string | null;
@@ -97,6 +101,8 @@ export interface AccommodationCardAccommodation {
   bookingState?: BookingState | null;
   /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
   bookingStateSet: boolean;
+  /** CONTEXT.md "Nothing to attach": the Traveller said this booking has nothing to attach; the edit dialog's switch shows it. */
+  nothingToAttach?: boolean;
   /** YYYY-MM-DD the thing should be booked by; only while To book. */
   bookBy?: string | null;
   notes?: string | null;

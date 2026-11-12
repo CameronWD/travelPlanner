@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
 import type { ImportContext, ProposalBase, Proposal, StopProposal } from "@/lib/booking-import/types";
 import { previewStopMap } from "@/lib/booking-import/preview";
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 
 // The form dialogs' server actions (as their own tests mock them), so nothing reaches a database.
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));

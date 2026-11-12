@@ -3,6 +3,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn(async () => ({ success: true })) }));
+import { setNothingToAttach } from "@/server/actions/booking-confirmation";
 vi.mock("@vis.gl/react-google-maps", () => mock.module);
 vi.mock("@/server/actions/accommodation", () => ({
   createAccommodation: vi.fn().mockResolvedValue({ success: true }),
@@ -918,5 +921,36 @@ describe("AccommodationFormDialog address search", () => {
     const input = vi.mocked(createAccommodation).mock.calls[0][0];
     expect(input.address).toBe("123 Main St");
     expect(input.placeId).toBeUndefined();
+  });
+});
+
+
+describe("AccommodationFormDialog: Nothing to attach switch", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const booked = { ...existingAccommodation, bookingState: "BOOKED" as const, bookingStateSet: true };
+
+  it("shows on an existing thing that is Booked, with its stored value", () => {
+    render(<AccommodationFormDialog {...baseProps} accommodation={{ ...booked, nothingToAttach: true }} />);
+    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("hides while the form's state is To book, and is never on a new thing", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<AccommodationFormDialog {...baseProps} accommodation={booked} />);
+    await user.click(screen.getByRole("radio", { name: "To book" }));
+    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    unmount();
+    render(<AccommodationFormDialog {...baseProps} />);
+    await user.click(screen.getByRole("radio", { name: "Booked" }));
+    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+  });
+
+  it("toggling saves through its own action and is not part of the form's patch", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} accommodation={booked} />);
+    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("ACCOMMODATION", booked.id, true));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(vi.mocked(updateAccommodation).mock.calls.at(-1)!.some((a) => JSON.stringify(a).includes("nothingToAttach"))).toBe(false);
   });
 });

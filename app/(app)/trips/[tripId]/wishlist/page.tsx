@@ -92,6 +92,7 @@ export default async function WishlistPage({
             booking: true,
             bookingState: true,
             bookingStateSet: true,
+            nothingToAttach: true,
             bookBy: true,
             slotTime: true,
             arriveByMinutes: true,
@@ -319,6 +320,7 @@ export default async function WishlistPage({
     booking: item.booking,
     bookingState: item.bookingState as BookingState, // a stored BOOKING_STATES value (lib/booking-state.ts)
     bookingStateSet: item.bookingStateSet,
+    nothingToAttach: item.nothingToAttach,
     bookBy: item.bookBy,
     slotTime: item.slotTime,
     arriveByMinutes: item.arriveByMinutes,

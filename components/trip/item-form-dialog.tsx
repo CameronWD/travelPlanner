@@ -37,6 +37,7 @@ import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
+import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
 import { OpeningHoursEditor } from "@/components/trip/opening-hours-editor";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { TryListEditor, draftFromTryList, tryListPayload } from "@/components/trip/try-list-editor";
@@ -963,6 +964,9 @@ function ItemForm({
 
       {/* Booking state (CONTEXT.md): a reference implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
+{item?.id && bookingField.shown === "BOOKED" && (
+  <NothingToAttachSwitch kind="ITEM" id={item.id} value={item.nothingToAttach ?? false} className="sm:col-span-2" />
+)}
 
       {/* Notes */}
       <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">
