@@ -47,7 +47,12 @@ const {
 
 // Surprise (ADR 0051): the loader reads through the visibility loader first;
 // nothing is hidden unless a test says so.
-const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
+const { loadSurpriseVisibilityMock, loadBookingConfirmationsToAddMock } = vi.hoisted(() => ({
+  loadSurpriseVisibilityMock: vi.fn(),
+  loadBookingConfirmationsToAddMock: vi.fn(async () => [] as { kind: string; id: string }[]),
+}));
+vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd: loadBookingConfirmationsToAddMock }));
+
 // Records the Timeline's props (it renders nothing here).
 type TimelineProps = { todayISO?: string; day: { dateISO: string } };
 const { timelineMock } = vi.hoisted(() => ({ timelineMock: vi.fn<(props: TimelineProps) => null>(() => null) }));
@@ -1156,6 +1161,22 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
     const model = await loadTravellingHome("trip-1", "next-transport-id");
 
     expect(model.kind === "dated" && model.nextTransport?.id).toBe("tr-1");
+  });
+
+  it("carries the ids of bookings with no confirmation for the Timeline", async () => {
+    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true });
+    buildItineraryMock.mockReturnValue(
+      dayPlanWithDeparture({
+        id: "tr-1", mode: "FLIGHT", fromStopId: null, toStopId: null, depPlace: null, arrPlace: null,
+        depAt: new Date("2030-01-01T00:00:00Z"), arrAt: null, reference: null, notes: null, depIsHome: false, arrIsHome: false,
+      }),
+    );
+    loadBookingConfirmationsToAddMock.mockResolvedValueOnce([{ kind: "TRANSPORT", id: "tr-1" }]);
+
+    const model = await loadTravellingHome("trip-1", "needs-confirmation-user");
+
+    expect(model.kind === "dated" && model.needsConfirmationIds).toEqual(["tr-1"]);
   });
 
   it("the Up next card shows the next Transport's files", async () => {

@@ -30,6 +30,7 @@ import { withDayMapHops } from "@/lib/day-map";
 import { homePointOf } from "@/lib/travel-times/hops";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
+import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { readDayRows } from "@/lib/day-reads";
 import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
@@ -85,9 +86,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const today = tripTodayISO(stops);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
   const day = buildDayModel(rows, effectiveDate);
-  const [travel, holidayLines] = await Promise.all([
+  const [travel, holidayLines, confirmationsToAdd] = await Promise.all([
     loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip) }),
     loadHolidayLines(tripId, [effectiveDate]),
+    userId ? loadBookingConfirmationsToAdd(tripId, userId) : Promise.resolve([]),
   ]);
 
   // Placeholders are hidden from this viewer, so never theirs to reveal.
@@ -178,6 +180,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     dayPlan: day.dayPlan,
     hasEntries: day.hasEntries,
     attachmentsByTarget: day.attachmentsByTarget,
+    needsConfirmationIds: confirmationsToAdd.map((c) => c.id),
     tonightAccom: day.tonight,
     nextTransport,
     effectiveStop: day.dayPlan?.stop ?? null,
