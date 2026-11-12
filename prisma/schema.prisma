@@ -755,6 +755,7 @@ model Transport {
   bookingState    String  @default("TO_BOOK")
   bookingStateSet Boolean @default(false)
   bookBy          String? // "YYYY-MM-DD" — read only while To book (lib/booking-state.ts activeBookBy)
+  nothingToAttach Boolean @default(false)
 
   anchorStopId String?
 
@@ -795,6 +796,7 @@ model Accommodation {
   bookingState    String  @default("TO_BOOK")
   bookingStateSet Boolean @default(false)
   bookBy          String? // "YYYY-MM-DD" — read only while To book
+  nothingToAttach Boolean @default(false)
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
@@ -833,6 +835,7 @@ model Item {
   bookingState     String    @default("NONE")
   bookingStateSet  Boolean   @default(false)
   bookBy           String? // "YYYY-MM-DD" — read only while To book
+  nothingToAttach  Boolean @default(false)
   // CONTEXT.md "Slot time" (R3): the ticket's time, in the Stop's local timezone.
   slotTime         String? // "HH:mm"
   arriveByMinutes  Int? // be there this many minutes before slotTime (0–720)

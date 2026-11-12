@@ -4,10 +4,19 @@ import * as React from "react";
 import type { TargetType } from "@/lib/enum-values";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 import { FileTitleDialog } from "@/components/trip/file-title-dialog";
-import { FileLinkDialog, type LinkTargetGroup } from "@/components/trip/file-link-dialog";
+import { FileMoveDialog } from "@/components/trip/file-move-dialog";
+import type { MoveTargetGroup } from "@/lib/attachment-move";
+import type { ConfirmationKind } from "@/lib/booking-confirmation";
+import Link from "next/link";
+import type { FileOwner } from "@/lib/attachment-view";
 import { FILES_SECTION_HEADER_CLASS } from "@/components/trip/files-section-class";
 
-export type { LinkTargetGroup };
+export interface ConfirmationToAddRow {
+  kind: ConfirmationKind;
+  id: string;
+  label: string;
+  href: NonNullable<FileOwner["href"]>;
+}
 
 export interface FilesSection {
   type: TargetType;
@@ -16,29 +25,48 @@ export interface FilesSection {
 }
 
 /**
- * The Files page's body (spec 2026-10-02 §C): Trip-level files with the
- * upload tile, then one section per owner type. Owns the Rename and Link-to
- * dialogs so the server page stays a loader. Link-to shows on Trip-level
- * files and on Item files (to unlink); files uploaded on a Stop, Transport
- * or Accommodation stay where they were put.
+ * The Files page's body (spec 2026-10-02 §C): Booking confirmations still to
+ * add, Trip-level files with the upload tile, then one section per owner
+ * type. Owns the Rename and Move dialogs so the server page stays a loader.
  */
 export function FilesIndex({
   tripId,
   tripAttachments,
   sections,
-  linkTargets,
+  moveTargets,
+  toAdd,
 }: {
   tripId: string;
   tripAttachments: AttachmentView[];
   sections: FilesSection[];
-  linkTargets: LinkTargetGroup[];
+  moveTargets: MoveTargetGroup[];
+  toAdd: ConfirmationToAddRow[];
 }) {
   const [renaming, setRenaming] = React.useState<AttachmentView | null>(null);
-  const [linking, setLinking] = React.useState<{ att: AttachmentView; itemId: string | null } | null>(null);
+  const [moving, setMoving] = React.useState<AttachmentView | null>(null);
 
   return (
     <>
-      <AttachmentList tripId={tripId} targetType="TRIP" attachments={tripAttachments} onRename={setRenaming} onLink={(att) => setLinking({ att, itemId: null })} />
+      {toAdd.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2 pt-2">
+            <h3 className={FILES_SECTION_HEADER_CLASS}>Booking confirmations to add</h3>
+            <span className="text-xs font-semibold tabular-nums text-muted-foreground">{toAdd.length}</span>
+            <span aria-hidden="true" className="h-px flex-1 bg-border-soft" />
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {toAdd.map((row) => (
+              <li key={`${row.kind}:${row.id}`} className="text-sm font-semibold">
+                <Link href={row.href} className="text-foreground underline-offset-2 hover:underline">
+                  {row.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <AttachmentList tripId={tripId} targetType="TRIP" attachments={tripAttachments} onRename={setRenaming} onMove={setMoving} />
 
       {sections.map((section) => (
         <div key={section.type} className="flex flex-col gap-3">
@@ -53,13 +81,13 @@ export function FilesIndex({
             attachments={section.attachments}
             showUpload={false}
             onRename={setRenaming}
-            onLink={section.type === "ITEM" ? (att) => setLinking({ att, itemId: att.targetId ?? null }) : undefined}
+            onMove={setMoving}
           />
         </div>
       ))}
 
       <FileTitleDialog file={renaming ? { id: renaming.id, title: renaming.title } : null} onOpenChange={(o) => !o && setRenaming(null)} />
-      <FileLinkDialog file={linking ? { id: linking.att.id, itemId: linking.itemId } : null} targets={linkTargets} onOpenChange={(o) => !o && setLinking(null)} />
+      {moving ? <FileMoveDialog attachmentId={moving.id} targets={moveTargets} onDone={() => setMoving(null)} /> : null}
     </>
   );
 }

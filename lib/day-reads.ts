@@ -79,7 +79,7 @@ export async function readDayRows<X>(
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
         lat: true, lng: true, placeId: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
         slotTime: true, arriveByMinutes: true, refundable: true, openingHours: true, tryList: true,
-        bookingState: true, bookingStateSet: true, bookBy: true,
+        bookingState: true, bookingStateSet: true, nothingToAttach: true, bookBy: true,
       },
     }),
     db.transport.findMany({
@@ -88,7 +88,7 @@ export async function readDayRows<X>(
       select: {
         id: true, mode: true, fromStopId: true, toStopId: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true,
         depLat: true, depLng: true, depPlaceId: true, arrLat: true, arrLng: true, arrPlaceId: true, reference: true, notes: true, sortOrder: true,
-        anchorStopId: true, depIsHome: true, arrIsHome: true, bookingState: true, bookingStateSet: true, bookBy: true,
+        anchorStopId: true, depIsHome: true, arrIsHome: true, bookingState: true, bookingStateSet: true, nothingToAttach: true, bookBy: true,
       },
     }),
     // Every stay of the Trip; buildDayModel keeps the ones that touch a day.
@@ -98,7 +98,7 @@ export async function readDayRows<X>(
       select: {
         id: true, stopId: true, name: true, address: true, checkIn: true, checkOut: true,
         checkInTime: true, checkOutTime: true, confirmation: true, notes: true, lat: true, lng: true, placeId: true,
-        bookingState: true, bookingStateSet: true, bookBy: true,
+        bookingState: true, bookingStateSet: true, nothingToAttach: true, bookBy: true,
       },
     }),
     // Wishlist ideas (trip-wide, unscheduled — ADR 0022), located or not: the nearby rail and Day ideas.
@@ -141,7 +141,7 @@ export async function readDayRows<X>(
       sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, placeId: p.placeId, address: p.address, link: p.link,
       booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
       slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable, openingHours: p.openingHours, tryList: p.tryList,
-      bookingState: p.bookingState, bookingStateSet: p.bookingStateSet, bookBy: p.bookBy,
+      bookingState: p.bookingState, bookingStateSet: p.bookingStateSet, nothingToAttach: p.nothingToAttach, bookBy: p.bookBy,
       surprise: p.surprise,
     })),
   ];

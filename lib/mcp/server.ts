@@ -12,6 +12,7 @@ import { registerTripStopWriteTools } from "./tools/trips-stops-write";
 import { registerPlanWriteTools } from "./tools/plan-write";
 import { registerBookingsWriteTools } from "./tools/bookings-write";
 import { registerBookingStateTools } from "./tools/booking-state-write";
+import { registerNothingToAttachTool } from "./tools/nothing-to-attach";
 import { registerListWriteTools } from "./tools/lists-write";
 import { registerMakeItFitTools } from "./tools/make-it-fit";
 import { registerReviewReadTools, registerReviewRunTool } from "./tools/reviews";
@@ -31,6 +32,7 @@ export const MCP_INSTRUCTIONS = [
   "A Day title names one day of a Stop's stay, for example 'Sintra day trip'. A Note is a free-text comment between the Travellers, left on a thing; it is never edited, only deleted (delete_note) and said again (add_note). It is not a thing to do's own notes, which are part of the Item and edited with update_thing_to_do. Never put a schedule in a Note, schedule real things to do instead.",
   "A Cost belongs on what it pays for: a Transport, Accommodation or thing to do. An Other cost is only for standalone money like insurance, visas or an eSIM. Settlement is when it gets paid, Before you go (the default) or On the trip. A Due date is when committed money leaves the account.",
   "Booking state (bookingState: No booking needed, To book or Booked, plus an optional bookBy date) says whether a thing still needs booking. A reference on it implies Booked unless the Traveller has chosen a state themselves. Change it with set_booking_state.",
+  "A Booked thing with needsBookingConfirmation true has no ticket or confirmation file yet; you cannot upload files, so tell the user, or use set_nothing_to_attach if they say there is nothing to attach.",
   "Checklists: PRETRIP is tasks like visas, insurance and bookings to make, PACKING is things to pack, SHOPPING is things to buy. A Checklist item persists until ticked. A Reminder is a dated note said once, the evening before its date. Use a Reminder for 'remember to print the tickets on the 27th', and a Checklist item for 'get travel insurance'.",
   "A Surprise is a Stop or a thing to do that one Traveller is arranging for another. If a Stop or item comes back with surprise.youAreSurprised true, it is being arranged for the person you are acting as: do not suggest, research, guess or ask what is inside it, and do not try to add to it or change it. Just say it is a surprise planned by the person named in surprise.plannedBy. If youAreSurprised is false, you can see inside and help plan it. The names in surprise.for must not see it, so never put its contents anywhere they would read (a Note on another Stop, a Reminder, a checklist). set_surprise makes a Stop or item a surprise, and reveal_surprise ends it (planner only).",
   "leave_feedback sends a Feedback note to Teepee's operator about the software itself (a bug, a confusing screen, a wish), the same as the app's Feedback button. Use it when the user asks to leave feedback or report a problem with Teepee, and tell them whether it is open or waiting for review.",
@@ -72,6 +74,7 @@ export function buildMcpServer(caller: McpCaller): McpServer {
   registerPlanWriteTools(server);
   registerBookingsWriteTools(server);
   registerBookingStateTools(server);
+  registerNothingToAttachTool(server);
   registerListWriteTools(server);
   registerMakeItFitTools(server);
   registerReviewReadTools(server);

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { StopSheet, pickTopDay } from "./stop-sheet";
 import { daySlots } from "@/lib/plan/day-density";
 
@@ -160,5 +162,19 @@ describe("StopSheet, a Surprise (CONTEXT.md Surprise)", () => {
     expect(within(fri).getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
     expect(within(fri).queryByRole("button", { name: /Surprise/ })).toBeNull();
     expect(props.onEditItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("StopSheet booking confirmation marker", () => {
+  it("marks a day row and an idea that need a confirmation", async () => {
+    renderSheet({ needsConfirmationIds: new Set(["b", "i1"]) });
+    expect(within(screen.getByTestId("sheet-day-2026-12-11")).getByText("No booking confirmation yet")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
+    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+  });
+
+  it("shows nothing when none needs one", () => {
+    renderSheet();
+    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
   });
 });

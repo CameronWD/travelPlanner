@@ -71,13 +71,17 @@ describe("defaultBookingFields / copiedBookingFields", () => {
 
   it("a placed copy keeps the idea's chosen state and book-by date", () => {
     expect(copiedBookingFields({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2026-11-20" }))
-      .toEqual({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2026-11-20" });
+      .toEqual({ bookingState: "TO_BOOK", bookingStateSet: true, bookBy: "2026-11-20", nothingToAttach: false });
     expect(copiedBookingFields({ bookingState: "BOOKED", bookingStateSet: true, bookBy: null }))
-      .toEqual({ bookingState: "BOOKED", bookingStateSet: true, bookBy: null });
+      .toEqual({ bookingState: "BOOKED", bookingStateSet: true, bookBy: null, nothingToAttach: false });
   });
 
   it("an un-chosen idea's copy re-derives without the reference (which is not copied)", () => {
     expect(copiedBookingFields({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null }))
-      .toEqual({ bookingState: "NONE", bookingStateSet: false, bookBy: null });
+      .toEqual({ bookingState: "NONE", bookingStateSet: false, bookBy: null, nothingToAttach: false });
+  });
+
+  it("carries nothingToAttach", () => {
+    expect(copiedBookingFields({ bookingState: "BOOKED", bookingStateSet: true, bookBy: null, nothingToAttach: true }).nothingToAttach).toBe(true);
   });
 });

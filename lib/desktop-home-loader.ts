@@ -49,6 +49,7 @@ import { computeProjection } from "@/lib/trip-projection";
 import { orderPlanStops } from "@/lib/plan-order";
 import { buildCostLabelMap } from "@/lib/money/cost-labels";
 import { buildUpcomingPayments, type UpcomingPayment } from "@/lib/money/upcoming-payments";
+import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { buildStillToBook, type StillToBookRow } from "@/lib/still-to-book";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { instantToZonedDateISO } from "@/lib/tz";
@@ -163,6 +164,7 @@ async function load(
     packingCount,
     pretripCount,
     slug,
+    bookingConfirmationsToAdd,
   ] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -244,6 +246,7 @@ async function load(
     db.checklistItem.count({ where: { tripId, ...packingMineOrSharedWhere(viewerId) } }),
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
     tripSlugFor(tripId),
+    loadBookingConfirmationsToAdd(tripId, viewerId),
   ]);
   const base = tripPath(slug);
   // A hidden real-plan Item still holds its slot: a placeholder titled
@@ -388,6 +391,7 @@ async function load(
       hiddenStopIds: v.hiddenStopIds,
       hiddenItemIds: v.hiddenItemIds,
       today,
+      bookingConfirmationsToAdd: bookingConfirmationsToAdd.length,
       surprisesToReveal: surprisesToReveal({ views: v.views, viewerId, today, stops: allStopsRaw, items: itemRows }),
       limit: Number.POSITIVE_INFINITY,
       travel,
@@ -408,6 +412,7 @@ async function load(
         hasPackingList: packingCount > 0,
         hasPretripList: pretripCount > 0,
         unbookedTransportCount: transports.filter((t) => !t.depAt).length,
+        bookingConfirmationsToAdd: bookingConfirmationsToAdd.length,
         hasHomeBase: !!tripHomeBase(trip),
         hasOutboundLeg: true,
         hasReturnLeg: true,

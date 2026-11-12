@@ -16,6 +16,8 @@ const m = vi.hoisted(() => ({
   record: vi.fn(),
   report: vi.fn(),
   confirm: vi.fn(),
+  upload: vi.fn(),
+  files: vi.fn(),
 }));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: m.requireTripAccess, requirePlanAccess: m.requirePlanAccess }));
 vi.mock("@/lib/ai", () => ({ isAiConfigured: m.isAiConfigured, aiModel: () => "claude-haiku-5-5" }));
@@ -25,8 +27,10 @@ vi.mock("@/lib/booking-import/load-context", () => ({ loadImportContext: m.load 
 vi.mock("@/lib/ai-usage", () => ({ recordAiUsage: m.record }));
 vi.mock("@/lib/error-sink", () => ({ reportError: m.report }));
 vi.mock("@/lib/booking-import/confirm", () => ({ confirmProposalFor: m.confirm }));
+vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: m.upload }));
+vi.mock("@/lib/booking-import/confirmation-files", () => ({ bookingConfirmationFiles: m.files }));
 
-import { confirmProposal, importBooking } from "./booking-import";
+import { attachImportedBooking, confirmProposal, importBooking } from "./booking-import";
 
 const USAGE = { inputTokens: 5_200, outputTokens: 900, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const LISBON = { id: "s-lis", name: "Lisbon", country: "Portugal", countryCode: "pt", timezone: "Europe/Lisbon", arriveDate: "2026-12-02", departDate: "2026-12-08", sortOrder: 0 };
@@ -160,5 +164,45 @@ describe("confirmProposal", () => {
     expect(await confirmProposal("trip-1", request, "fork-1")).toEqual({ success: true, createdId: "t-new", createdStops: {} });
     expect(m.confirm).toHaveBeenCalledWith("trip-1", `u${user}`, request, "fork-1");
     expectAccessCheckedBeforeWrite(m.requirePlanAccess, m.confirm);
+  });
+});
+
+describe("attachImportedBooking", () => {
+  const original = new File(["x"], "mail.eml", { type: "message/rfc822" });
+  const fields = { tripId: "trip-1", targetType: "TRANSPORT", targetId: "t-1", file: original };
+
+  it("sends every file taken from the original through uploadAttachment, one form each", async () => {
+    const a = new File(["a"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["b"], "b.pdf", { type: "application/pdf" });
+    m.files.mockResolvedValue([a, b]);
+    m.upload.mockResolvedValue({ success: true, id: "att" });
+    expect(await attachImportedBooking(form(fields))).toEqual({ success: true });
+    expect(m.upload).toHaveBeenCalledTimes(2);
+    const sent = m.upload.mock.calls.map(([fd]) => [fd.get("tripId"), fd.get("targetType"), fd.get("targetId"), (fd.get("file") as File).name]);
+    expect(sent).toEqual([["trip-1", "TRANSPORT", "t-1", "a.pdf"], ["trip-1", "TRANSPORT", "t-1", "b.pdf"]]);
+  });
+
+  it("returns the first failure", async () => {
+    m.files.mockResolvedValue([new File(["a"], "a.pdf"), new File(["b"], "b.pdf")]);
+    const failure = { success: false, errors: { _: ["no space"] } };
+    m.upload.mockResolvedValueOnce(failure).mockResolvedValue({ success: true });
+    expect(await attachImportedBooking(form(fields))).toBe(failure);
+  });
+
+  it("succeeds with nothing to send", async () => {
+    m.files.mockResolvedValue([]);
+    expect((await attachImportedBooking(form(fields))).success).toBe(true);
+    expect(m.upload).not.toHaveBeenCalled();
+  });
+
+  it("checks access before parsing or uploading anything", async () => {
+    m.requireTripAccess.mockRejectedValueOnce(new Error("denied"));
+    await expect(attachImportedBooking(form(fields))).rejects.toThrow("denied");
+    expect(m.files).not.toHaveBeenCalled();
+    expect(m.upload).not.toHaveBeenCalled();
+  });
+
+  it("refuses a form with no file", async () => {
+    expect((await attachImportedBooking(form({ tripId: "trip-1", targetType: "TRANSPORT", targetId: "t-1" }))).success).toBe(false);
   });
 });

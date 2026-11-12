@@ -16,6 +16,7 @@ import { createAttachmentFromFile } from "@/lib/attachment-create";
 import { checkQuota } from "@/lib/storage-quota";
 import { type ActionResult, formFail } from "@/lib/action-result";
 import { revalidateTrip, revalidateGlobe } from "@/lib/revalidate";
+import type { MoveTarget } from "@/lib/attachment-move";
 import { attachmentName, normalizeAttachmentTitle } from "@/lib/attachment-name";
 
 // ---------------------------------------------------------------------------
@@ -406,30 +407,23 @@ export async function setAttachmentTitle(
   return { success: true };
 }
 
-/**
- * Link a Trip-level file to an Item on the same Trip, or (null) unlink it
- * back to Trip-level. Files uploaded on a Stop, Transport or Accommodation
- * stay where they were put — moving those is a different feature.
- */
-export async function linkAttachmentToItem(
-  id: string,
-  itemId: string | null,
-): Promise<ActionResult> {
-  const { attachment, userId } = await requireAttachmentAccess(id);
-  if (!attachment.tripId) {
-    return formFail("Only a trip's files can be linked to an item.");
-  }
-  if (attachment.targetType !== "TRIP" && attachment.targetType !== "ITEM") {
-    return formFail("Only trip-level files can be linked to an item.");
-  }
-  if (itemId) {
-    const item = await db.item.findFirst({ where: { id: itemId, tripId: attachment.tripId }, select: { id: true } });
-    if (!item) return formFail("That item isn't on this trip.");
-    await requireOutsideSurprise(userId, { itemId });
-    await db.attachment.update({ where: { id }, data: { targetType: "ITEM", targetId: itemId } });
-  } else {
+const MOVE_KINDS = { STOP: "stop", TRANSPORT: "transport", ACCOMMODATION: "accommodation", ITEM: "item" } as const;
+
+export async function moveAttachment(id: string, target: MoveTarget): Promise<ActionResult> {
+  const { attachment } = await requireAttachmentAccess(id);
+  if (!attachment.tripId) return formFail("Only a trip's files can be moved.");
+  if (attachment.targetType === "JOURNAL") return formFail("Journal photos stay with their day.");
+  const photoOf = await db.item.findFirst({ where: { photoAttachmentId: id } });
+  if (photoOf) return formFail("Remove it as the photo first.");
+  if (target.type === "TRIP") {
     await db.attachment.update({ where: { id }, data: { targetType: "TRIP", targetId: null } });
+  } else {
+    const kind = Object.hasOwn(MOVE_KINDS, target.type) ? MOVE_KINDS[target.type] : null;
+    if (!kind || typeof target.id !== "string") return formFail("That isn't on this trip.");
+    const { row } = await requireRowAccess(kind, target.id, { realPlanOnly: true });
+    if (row.tripId !== attachment.tripId) return formFail("That isn't on this trip.");
+    await db.attachment.update({ where: { id }, data: { targetType: target.type, targetId: target.id } });
   }
-  revalidateTrip(attachment.tripId, "journal");
+  revalidateTrip(attachment.tripId, "plan", "journal");
   return { success: true };
 }

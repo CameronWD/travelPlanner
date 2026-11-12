@@ -52,6 +52,7 @@ export interface StopOpenBodyProps {
   onEditItem(item: StopDayItem): void;
   onGiveDates(): void;
   onOpenExtras(kind: ExtrasKind): void;
+  needsConfirmationIds?: ReadonlySet<string>;
 }
 
 interface ExtrasLink {
@@ -95,6 +96,7 @@ export function StopOpenBody({
   onEditItem,
   onGiveDates,
   onOpenExtras,
+  needsConfirmationIds,
 }: StopOpenBodyProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const collapsed = useCollapsedDays(tripId);
@@ -176,6 +178,7 @@ export function StopOpenBody({
               onAdd={onAddPlan}
               onEditItem={onEditItem}
               onScheduleIdea={onScheduleIdea}
+              needsConfirmationIds={needsConfirmationIds}
             />
           ))}
         </div>

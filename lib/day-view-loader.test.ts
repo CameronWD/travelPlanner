@@ -23,6 +23,7 @@ const {
   getDayWeatherMock,
   loadSurpriseVisibilityMock,
   loadHolidayLinesMock,
+  loadBookingConfirmationsToAddMock,
 } = vi.hoisted(() => ({
   tripFindUniqueMock: vi.fn(),
   stopFindManyMock: vi.fn(),
@@ -40,7 +41,9 @@ const {
   getDayWeatherMock: vi.fn(),
   loadSurpriseVisibilityMock: vi.fn(),
   loadHolidayLinesMock: vi.fn(),
+  loadBookingConfirmationsToAddMock: vi.fn(async () => [] as { kind: string; id: string }[]),
 }));
+vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd: loadBookingConfirmationsToAddMock }));
 
 vi.mock("@/lib/db", () => ({
   db: {

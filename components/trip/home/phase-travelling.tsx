@@ -94,6 +94,7 @@ export async function PhaseTravelling({
     dayPlan,
     hasEntries,
     attachmentsByTarget,
+    needsConfirmationIds,
     tonightAccom,
     nextTransport,
     effectiveStop,
@@ -180,7 +181,7 @@ export async function PhaseTravelling({
             </h3>
             <div className="mt-2.5">
               {dayPlan && hasEntries ? (
-                <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} todayISO={today} />
+                <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} todayISO={today} needsConfirmationIds={needsConfirmationIds} />
               ) : (
                 <EmptyState
                   icon={CalendarDays}
@@ -420,6 +421,7 @@ function TravellingDesktop({
                 itemDirections={model.itemDirections}
                 attachmentsByTarget={model.attachmentsByTarget}
                 todayISO={model.today}
+                needsConfirmationIds={model.needsConfirmationIds}
               />
             ) : null
           }

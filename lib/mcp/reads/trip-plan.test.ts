@@ -27,6 +27,8 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
+const { loadNeedsConfirmation } = vi.hoisted(() => ({ loadNeedsConfirmation: vi.fn() }));
+vi.mock("./confirmations", () => ({ loadNeedsConfirmation }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: { findUnique: tripFindUnique },
@@ -55,6 +57,7 @@ const TRIP_ID = "trip-1";
 
 describe("loadTripPlanForMcp", () => {
   beforeEach(() => {
+    loadNeedsConfirmation.mockResolvedValue(new Set());
     vi.clearAllMocks();
     loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
@@ -218,7 +221,7 @@ describe("loadTripPlanForMcp", () => {
     const plan = await loadTripPlanForMcp(TRIP_ID);
     const stopA = plan.stops[0]!;
     expect(stopA.thingsToDo).toEqual([
-      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null, tryList: null, files: [], surprise: null },
+      { id: "item-todo", title: "Visit museum", category: "ACTIVITY", address: null, link: null, booking: null, notes: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null, tryList: null, needsBookingConfirmation: false, files: [], surprise: null },
     ]);
   });
 
@@ -247,6 +250,8 @@ describe("loadTripPlanForMcp", () => {
           refundable: "UNKNOWN",
           openingHours: null,
           tryList: null,
+          nothingToAttach: false,
+          needsBookingConfirmation: false,
           owningStop: { id: "stopA", name: "Tokyo" },
           files: [],
           surprise: null,
@@ -286,8 +291,24 @@ describe("loadTripPlanForMcp", () => {
         dayDelta: 0,
         reference: "QF1",
         notes: null,
+        needsBookingConfirmation: false,
         files: [],
       },
+    ]);
+  });
+
+  it("marks a Booked leg that needs a Booking confirmation, from one loader call per read", async () => {
+    transportFindMany.mockResolvedValue([
+      { id: "t-fileless", mode: "TRAIN", fromStopId: "stopA", toStopId: null, depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false },
+      { id: "t-filed", mode: "TRAIN", fromStopId: "stopA", toStopId: null, depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: true },
+    ]);
+    loadNeedsConfirmation.mockResolvedValue(new Set(["t-fileless"]));
+    const plan = await loadTripPlanForMcp(TRIP_ID);
+    expect(loadNeedsConfirmation).toHaveBeenCalledTimes(1);
+    expect(loadNeedsConfirmation).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(plan.transports.map((t) => [t.id, t.nothingToAttach, t.needsBookingConfirmation])).toEqual([
+      ["t-fileless", false, true],
+      ["t-filed", true, false],
     ]);
   });
 
@@ -788,6 +809,7 @@ describe("loadTripPlanForMcp", () => {
           id: "item-a-dinner", title: "Surprise", category: "OTHER", startTime: "19:00", endTime: null,
           address: null, link: null, booking: null, notes: null, bookingState: "NONE", bookBy: null,
           slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null, tryList: null,
+          nothingToAttach: false, needsBookingConfirmation: false,
           owningStop: { id: "stopA", name: "Tokyo" }, files: [],
           surprise: { plannedBy: "Cam", for: ["Sam"], youAreSurprised: true },
         },

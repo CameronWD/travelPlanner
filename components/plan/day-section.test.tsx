@@ -47,6 +47,18 @@ function renderDay(p = {}) {
   return { props, ...render(<DaySection {...props} />) };
 }
 
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
+
+describe("DaySection booking confirmation marker", () => {
+  it("marks only the rows that need a confirmation", () => {
+    const { unmount } = renderDay();
+    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    unmount();
+    renderDay({ needsConfirmationIds: new Set(["b"]) });
+    expect(screen.getAllByText("No booking confirmation yet")).toHaveLength(1);
+  });
+});
+
 describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
   it("a region named by its date toggle, open, with a sun head", () => {
     renderDay();

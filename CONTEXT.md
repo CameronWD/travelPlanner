@@ -161,7 +161,7 @@ The adaptive front door of a Trip — the screen you land on. It reads the Trip'
 _Avoid_: Dashboard, landing (and don't conflate with Summary, which is the full report; the **Home base** is the trip's physical origin, an unrelated thing)
 
 **Next steps**:
-The ranked list of what to do next on a Trip, shown on the **Home**. Combines **Flags** (problems already detected) with forward nudges that aren't problems — rough Stops to firm up, Stops with no Accommodation, undated Chapters, a missing packing list, unbooked Transport — each linking to where you act on it.
+The ranked list of what to do next on a Trip, shown on the **Home**. Combines **Flags** (problems already detected) with forward nudges that aren't problems — rough Stops to firm up, Stops with no Accommodation, undated Chapters, a missing packing list, unbooked Transport, Booked things with no **Booking confirmation** yet — each linking to where you act on it.
 _Avoid_: To-do, tasks, suggestions, actions
 
 ### Supporting concepts
@@ -267,12 +267,16 @@ Where a deleted **Trip** waits for 30 days before it is gone for good. Deleting 
 _Avoid_: Trash, bin, archive (an archived Trip would still be readable — this one is not), soft delete (the implementation, not the concept)
 
 **Attachment**:
-A file (PDF/image) stored against a Trip, Transport, Accommodation, Item, or a Globe **Marker** — tickets, confirmations, passport scans, screenshots. Most Attachments are trip-scoped (owned by a Trip); a Marker's Attachments are **Globe-scoped** (owned by the account-level Globe, since a Marker is not part of any Trip). An Attachment may carry a **title** — a name a Traveller gives it, as they add the file or any time after, shown in place of the filename wherever it is listed (its **Activity** line included); the original filename is never changed. **Files** is the Trip's complete index of its Attachments: every file, grouped by what it is attached to, each naming its owner and linking there, so a file is found from Files as readily as from the Stop or Item it belongs to; a Trip-level file can be linked to an **Item** from Files, and unlinked again.
+A file (PDF/image) stored against a Trip, Transport, Accommodation, Item, or a Globe **Marker** — tickets, confirmations, passport scans, screenshots. Most Attachments are trip-scoped (owned by a Trip); a Marker's Attachments are **Globe-scoped** (owned by the account-level Globe, since a Marker is not part of any Trip). An Attachment may carry a **title** — a name a Traveller gives it, as they add the file or any time after, shown in place of the filename wherever it is listed (its **Activity** line included); the original filename is never changed. **Files** is the Trip's complete index of its Attachments: every file, grouped by what it is attached to, each naming its owner and linking there, so a file is found from Files as readily as from the Stop or Item it belongs to. From Files any of the Trip's files can be **moved** onto the Trip itself, a Stop, a Transport, an Accommodation or an Item — the fix for a file put on the wrong thing — except an **Item photo**, which stays with its Item until it is no longer the photo. Files also lists, first, the Booked things with no **Booking confirmation** yet.
 _Avoid_: Document, upload, file (as the concept — "Files" is only the page's name)
 
 **Item photo**:
 The one image an **Item** may carry as its visual reference — the cathedral you mean to see — shown as a thumbnail wherever the Item is listed and full-size on demand. It is an **Attachment** singled out as the Item's photo, not a separate kind of file; any further images stay ordinary Attachments. Scheduling a **Wishlist** idea gives the placed copy its own copy of the photo, so removing one never removes the other. Like every Attachment it is never shown on a **Share link**.
 _Avoid_: Thumbnail, cover, image (a Traveller's photo is their **Profile photo**), picture
+
+**Booking confirmation**:
+Any **Attachment** on a **Booked** Transport, Accommodation or Item, other than an **Item photo**: the ticket, boarding pass, hotel confirmation or rental voucher that proves the booking. It is a role an Attachment plays, not a kind of file; TEEPEE never checks what the file says. A Booked thing on the **real plan** without one has **no Booking confirmation yet**, and the Trip nudges for it until the thing is over (the leg departed, the stay checked out, the Item's day gone), never for a Traveller **surprised** by what it sits in; a thing that is To book or needs no booking never does, and neither does one a Traveller has marked **Nothing to attach** (the confirmation lives in an airline's app, say) — a choice made per thing and shared by every Traveller on the Trip. Distinct from a **confirmation number** or **booking reference**, which is the code typed into the thing and is what makes it Booked.
+_Avoid_: Ticket (as the general term), proof of booking, unfiled, "confirmation" on its own
 
 **Note**:
 A free-text comment left by either traveller on a Stop, Item or booking — lightweight collaboration between the two of you. A Note is said, not drafted: it is never edited, only deleted (by any Traveller on the Trip) and, if need be, said again. Distinct from an Item's own notes — the description written into the Item itself, which is part of the Item and edited with it.
@@ -315,7 +319,7 @@ Whether a thing on the Trip still has to be booked — one of **No booking neede
 _Avoid_: Status (too broad), tentative/confirmed (say To book / Booked), reserved, ticketed; Paid (that is the Cost)
 
 **Booking import**:
-One run of the importer on a Trip: a Traveller drops a booking file (a PDF, a screenshot or photo, an email) or pastes its text, and TEEPEE reads it and comes back with the **Proposals** it found. Nothing changes on the Trip until a Proposal is confirmed. One booking can yield several Proposals — a return flight, a multi-leg train, a stay plus a car.
+One run of the importer on a Trip: a Traveller drops a booking file (a PDF, a screenshot or photo, an email) or pastes its text, and TEEPEE reads it and comes back with the **Proposals** it found. Nothing changes on the Trip until a Proposal is confirmed. One booking can yield several Proposals — a return flight, a multi-leg train, a stay plus a car. A booking dropped as a PDF or image (or an email carrying PDFs) becomes the **Booking confirmation** of every Proposal confirmed from it, each its own copy; pasted text leaves nothing to attach.
 _Avoid_: AI import, parse, upload (uploading an **Attachment** is a different thing)
 
 **Proposal**:

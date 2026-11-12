@@ -6,7 +6,7 @@ import { IdeasBox } from "./ideas-box";
 const idea = (id: string, title: string, extra = {}) => ({ id, bookingStateSet: false, title, category: "SIGHTSEEING", startTime: null, endTime: null, ...extra });
 const IDEAS = [idea("i1", "Musée d'Orsay"), idea("i2", "Sainte-Chapelle", { hiddenFromShares: true }), idea("i3", "Le Bon Marché")];
 
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("IdeasBox (PLAN.md §4.1)", () => {
   it("labels the count and renders one chip per idea, EyeOff on hidden ones", () => {

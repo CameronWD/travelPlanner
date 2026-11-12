@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ItemCard, type ItemCardItem } from "@/components/trip/item-card";
 import { DayPickerMenu } from "@/components/trip/day-picker-menu";
 import type { AttachmentView } from "@/components/trip/attachment-list";
+import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 import type { CostRow } from "@/server/actions/costs";
 
 export interface IdeaSheetProps {
@@ -15,12 +16,13 @@ export interface IdeaSheetProps {
   homeCurrency?: string;
   costs?: CostRow[];
   attachments?: AttachmentView[];
+  needsConfirmation?: boolean;
   onClose(): void;
   onPickDay(idea: ItemCardItem, dateISO: string): void;
   onEdit(idea: ItemCardItem): void;
 }
 
-export function IdeaSheet({ tripId, idea, days, homeCurrency, costs, attachments, onClose, onPickDay, onEdit }: IdeaSheetProps) {
+export function IdeaSheet({ tripId, idea, days, homeCurrency, costs, attachments, needsConfirmation = false, onClose, onPickDay, onEdit }: IdeaSheetProps) {
   return (
     <Dialog open={idea !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent aria-describedby={undefined}>
@@ -30,6 +32,7 @@ export function IdeaSheet({ tripId, idea, days, homeCurrency, costs, attachments
               <DialogTitle>{idea.title}</DialogTitle>
             </DialogHeader>
             <ItemCard item={idea} mode="wishlist" expanded tripId={tripId} homeCurrency={homeCurrency} costs={costs} attachments={attachments} />
+            {needsConfirmation && <BookingConfirmationMarker kind="ITEM" id={idea.id} />}
             <div className="flex flex-wrap gap-2">
               {days.length > 0 && (
                 <DayPickerMenu

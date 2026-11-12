@@ -142,6 +142,7 @@ export interface ItineraryTransport {
   bookingState?: BookingState | null;
   /** True when the Traveller chose the state (the dialog then keeps it when the reference changes). */
   bookingStateSet: boolean;
+  nothingToAttach?: boolean;
   /** YYYY-MM-DD the thing should be booked by; only while To book. */
   bookBy?: string | null;
   notes?: string | null;
@@ -205,6 +206,7 @@ interface ItineraryManagerProps {
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
    */
   thingsToDoItemCostsById?: Map<string, CostRow[]>;
+  needsConfirmationIds?: string[];
   /** Scheduled items keyed by stopId (date != null) — drives each open stop's day strip. */
   dayItemsByStopId?: Map<string, StopDayItem[]>;
   /** Reminders keyed by stopId (Task 7) — drives the open body's reminders link. */
@@ -476,6 +478,7 @@ export function ItineraryManager({
   forkId,
   thingsToDoByStopId,
   thingsToDoItemCostsById,
+  needsConfirmationIds,
   dayItemsByStopId,
   dayTitles,
   remindersByStopId,
@@ -1142,6 +1145,7 @@ export function ItineraryManager({
   const stopIndex = new Map(stops.map((s, i) => [s.id, i] as const));
   // ADR 0049 rule 3: a Changeover day's plan names its owning Stop on the other card.
   const stopNames = new Map(stops.map((s) => [s.id, s.name] as const));
+  const needsConfirmation = React.useMemo(() => new Set(needsConfirmationIds ?? []), [needsConfirmationIds]);
   const stopOptions: StopOption[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
@@ -1307,6 +1311,7 @@ export function ItineraryManager({
         label={legLabel(t, stops, homeBaseName, homeTimezone)}
         bookingState={t.bookingState}
         bookBy={t.bookBy}
+        marker={needsConfirmation.has(t.id) ? { kind: "TRANSPORT", id: t.id } : null}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);
@@ -1455,6 +1460,7 @@ export function ItineraryManager({
         attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
         currentUserId={currentUserId}
         forkId={forkId ?? null}
+        needsConfirmation={needsConfirmation.has(acc.id)}
       />
     ));
   }
@@ -1510,6 +1516,7 @@ export function ItineraryManager({
                     accommodations={stop.accommodations.map((a) => ({
                       ...a,
                       attachmentCount: attachmentsByAccommodationId?.get(a.id)?.length ?? 0,
+                      needsConfirmation: needsConfirmation.has(a.id),
                     }))}
                     counts={{
                       files: attachmentsByStopId?.get(stop.id)?.length ?? 0,
@@ -1528,6 +1535,7 @@ export function ItineraryManager({
                     onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
                     onGiveDates={() => handleAdjustDates(stop)}
                     onOpenExtras={(kind) => setExtras({ stopId: stop.id, kind })}
+                    needsConfirmationIds={needsConfirmation}
                   />
                 )}
               </StopRow>
@@ -2216,6 +2224,7 @@ export function ItineraryManager({
           onEditDates={() => handleAdjustDates(sheetStop)}
           onActions={() => setActionsStopId(sheetStop.id)}
           onSetNights={sheetStop.surprise?.youAreSurprised ? undefined : (n) => void handleSetNights(sheetStop.id, n)}
+          needsConfirmationIds={needsConfirmation}
         />
       )}
 
@@ -2241,6 +2250,7 @@ export function ItineraryManager({
         homeCurrency={homeCurrency}
         costs={openIdea ? thingsToDoItemCostsById?.get(openIdea.idea.id) : undefined}
         attachments={openIdea ? (attachmentsByItemId?.get(openIdea.idea.id) ?? []) : []}
+        needsConfirmation={openIdea ? needsConfirmation.has(openIdea.idea.id) : false}
         onClose={() => setOpenIdea(null)}
         onPickDay={(_item, d) => {
           if (openIdea) void handleScheduleThing(openIdea.idea, d);

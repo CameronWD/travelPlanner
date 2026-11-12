@@ -75,6 +75,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
                   showUnschedule
                   editor={data.editor}
                   todayISO={data.today}
+                  needsConfirmationIds={data.needsConfirmationIds}
                 />
                 <DayMapPanel tripId={data.tripId} model={data.dayMap} />
                 <DayFeasibility entries={data.feasibility as DayFeasibilityEntry[]} />

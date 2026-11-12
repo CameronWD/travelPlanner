@@ -13,6 +13,7 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => ({ success: true })) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 
 import { PlanBody } from "./plan-body";
 import { StopOpenBody } from "./stop-open-body";

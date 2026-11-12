@@ -11,6 +11,7 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => ({ success: true })) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <button>Make it fit</button> }));
 vi.mock("@/server/actions/trips", () => ({ setTripHardEndDate: vi.fn() }));
 

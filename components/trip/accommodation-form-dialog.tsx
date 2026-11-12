@@ -29,6 +29,7 @@ import { seedCostFormState } from "@/lib/money/cost-form-state";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
+import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
 import type { ProposedAccommodationInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
@@ -189,6 +190,7 @@ function AccommodationForm({
     accommodation?.confirmation ?? proposed?.confirmation ?? "",
   );
   const bookingField = useBookingStateField("ACCOMMODATION", accommodation ?? seedFromProposal(proposed), confirmation);
+  const [nothingToAttach, setNothingToAttach] = React.useState(accommodation?.nothingToAttach ?? false);
   const [notes, setNotes] = React.useState(accommodation?.notes ?? proposed?.notes ?? "");
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
@@ -296,6 +298,9 @@ function AccommodationForm({
 
       {/* Booking state (CONTEXT.md): a stay is To book; a confirmation implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
+      {!forkId && accommodation?.id && bookingField.shown === "BOOKED" && (
+        <NothingToAttachSwitch kind="ACCOMMODATION" id={accommodation.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
+      )}
 
       {/* Dates — own sub-grid so they always pair. */}
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">

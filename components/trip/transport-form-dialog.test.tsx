@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn(async () => ({ success: true })) }));
+import { setNothingToAttach } from "@/server/actions/booking-confirmation";
 vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
@@ -2033,5 +2036,50 @@ describe("TransportFormDialog: places on the ends", () => {
     const patch = vi.mocked(updateTransport).mock.calls[0][1];
     expect(patch).not.toHaveProperty("depPlaceId");
     expect(patch).not.toHaveProperty("arrPlaceId");
+  });
+});
+
+describe("TransportFormDialog: Nothing to attach switch", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const booked = { ...existingTransport, bookingState: "BOOKED" as const, bookingStateSet: true };
+
+  it("shows on an existing thing that is Booked, with its stored value", () => {
+    render(<TransportFormDialog {...baseProps} transport={{ ...booked, nothingToAttach: true }} />);
+    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("is absent on a What-if (Fork) plan, where it could only fail", () => {
+    render(<TransportFormDialog {...baseProps} transport={booked} forkId="fork-1" />);
+    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+  });
+
+  it("hides while the form's state is To book, and is never on a new thing", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<TransportFormDialog {...baseProps} transport={booked} />);
+    await user.click(screen.getByRole("radio", { name: "To book" }));
+    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    unmount();
+    render(<TransportFormDialog {...baseProps} />);
+    await user.click(screen.getByRole("radio", { name: "Booked" }));
+    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+  });
+
+  it("toggling saves through its own action and is not part of the form's patch", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={booked} />);
+    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("TRANSPORT", booked.id, true));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(vi.mocked(updateTransport).mock.calls.at(-1)!.some((a) => JSON.stringify(a).includes("nothingToAttach"))).toBe(false);
+  });
+
+  it("keeps a toggled value when the state is flipped away from Booked and back", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={booked} />);
+    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await waitFor(() => expect(setNothingToAttach).toHaveBeenCalled());
+    await user.click(screen.getByRole("radio", { name: "To book" }));
+    await user.click(screen.getByRole("radio", { name: "Booked" }));
+    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
   });
 });

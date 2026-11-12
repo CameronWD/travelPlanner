@@ -16,6 +16,7 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: vi.fn(async () => ({ success: true })) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 
 import { useMotionTiming, REDUCED_EXIT, REDUCED_FADE } from "./use-motion-timing";
 import { StopRow } from "./stop-row";

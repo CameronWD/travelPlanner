@@ -64,3 +64,19 @@ describe("buildTripNextSteps: the planning Flags (spec 2026-10-17 R7)", () => {
     expect(steps.map((s) => s.id)).not.toContain("item-closed-i1");
   });
 });
+
+describe("buildTripNextSteps: booking confirmations", () => {
+  const input = {
+    tripBasePath: "/trips/t", phase: "planning" as const, tripStart: "2026-12-06", tripEnd: "2026-12-12", roundTrip: false, home: null,
+    datedStops: [{ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-12", timezone: "Europe/Berlin", sortOrder: 0, lat: null, lng: null }],
+    roughStopCount: 0, allStops: [{ id: "nbg", name: "Nuremberg" }], transports: [], accommodations: [], items: [],
+    projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
+    travel: new Map(), today: "2026-12-01",
+  };
+
+  it("passes the count through, and defaults to none", () => {
+    const withCount = buildTripNextSteps({ ...input, bookingConfirmationsToAdd: 2 });
+    expect(withCount.find((s) => s.id === "nudge-booking-confirmations")?.title).toBe("Add booking confirmations (2)");
+    expect(buildTripNextSteps(input).map((s) => s.id)).not.toContain("nudge-booking-confirmations");
+  });
+});

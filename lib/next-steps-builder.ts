@@ -60,6 +60,7 @@ export interface BuildTripNextStepsInput {
   today: string;
   /** The viewer's own Surprises whose day has come (lib/next-steps.ts); omitted → none. */
   surprisesToReveal?: SurpriseToReveal[];
+  bookingConfirmationsToAdd?: number;
   /** Cap on the ranked list (buildNextSteps defaults to 4); pass Infinity for all. */
   limit?: number;
   /** Stored Travel times (required; an empty Map estimates), every plan Stop as keyed, and the Home point (lib/flags.ts DetectFlagsInput). */
@@ -113,6 +114,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
       hasPackingList: input.hasPackingList,
       hasPretripList: input.hasPretripList,
       unbookedTransportCount: input.transports.filter((t) => !t.depAt).length,
+      bookingConfirmationsToAdd: input.bookingConfirmationsToAdd ?? 0,
       hasHomeBase: !!input.home,
       hasOutboundLeg: hasOutboundLeg(input.transports, firstStop?.id ?? null),
       hasReturnLeg: hasReturnLeg(input.transports, lastStop?.id ?? null),

@@ -169,7 +169,7 @@ interface DayItemRow {
   link: string | null; booking: string | null; notes: string | null; hiddenFromShares: boolean;
   photoAttachmentId: string | null; surprise: SurpriseView | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state). */
-  bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
+  bookingState: BookingState; bookingStateSet: boolean; nothingToAttach?: boolean; bookBy: string | null;
   /** CONTEXT.md "Slot time" — the ticket's time, how early to be there, and whether it can be refunded. */
   slotTime: string | null; arriveByMinutes: number | null; refundable: boolean | null;
   /** CONTEXT.md "Opening hours" — the place's hours; null = not known. */
@@ -182,13 +182,13 @@ interface DayTransportRow {
   depAt: Date | null; arrAt: Date | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
   depPlaceId: string | null; arrPlaceId: string | null;
   reference: string | null; notes: string | null; sortOrder: number; anchorStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
-  bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
+  bookingState: BookingState; bookingStateSet: boolean; nothingToAttach?: boolean; bookBy: string | null;
 }
 interface DayAccommodationRow {
   id: string; stopId: string; name: string; address: string | null; checkIn: string; checkOut: string;
   checkInTime: string | null; checkOutTime: string | null; confirmation: string | null; notes: string | null;
   lat: number | null; lng: number | null; placeId: string | null;
-  bookingState: BookingState; bookingStateSet: boolean; bookBy: string | null;
+  bookingState: BookingState; bookingStateSet: boolean; nothingToAttach?: boolean; bookBy: string | null;
 }
 interface DayWishlistRow { id: string; title: string; category: string; lat: number | null; lng: number | null; countryCode: string | null }
 interface DayAttachmentRow {
@@ -302,7 +302,7 @@ function deriveTrip(rows: DayRows): TripDerived {
         id: i.id, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime,
         stopId: i.stopId, address: i.address, link: i.link, booking: i.booking, notes: i.notes,
         hiddenFromShares: i.hiddenFromShares, photoUrl: itemPhotoUrl(i, attachmentsById), surprise: i.surprise,
-        bookingState: i.bookingState, bookingStateSet: i.bookingStateSet, bookBy: i.bookBy,
+        bookingState: i.bookingState, bookingStateSet: i.bookingStateSet, nothingToAttach: i.nothingToAttach, bookBy: i.bookBy,
         slotTime: i.slotTime, arriveByMinutes: i.arriveByMinutes, refundable: i.refundable,
         openingHours: i.openingHours, tryList: i.tryList,
       })),
@@ -310,13 +310,13 @@ function deriveTrip(rows: DayRows): TripDerived {
         id: t.id, mode: t.mode as TransportMode, fromStopId: t.fromStopId, toStopId: t.toStopId,
         depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         reference: t.reference, notes: t.notes, depIsHome: t.depIsHome, arrIsHome: t.arrIsHome,
-        bookingState: t.bookingState, bookingStateSet: t.bookingStateSet, bookBy: t.bookBy,
+        bookingState: t.bookingState, bookingStateSet: t.bookingStateSet, nothingToAttach: t.nothingToAttach, bookBy: t.bookBy,
       })),
       // Every stay (TB-10): a day's check-in/out entries never depend on which day was asked for.
       accommodations: rows.accommodations.map((a) => ({
         id: a.id, stopId: a.stopId, name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut,
         checkInTime: a.checkInTime, checkOutTime: a.checkOutTime, confirmation: a.confirmation, notes: a.notes,
-        bookingState: a.bookingState, bookingStateSet: a.bookingStateSet, bookBy: a.bookBy,
+        bookingState: a.bookingState, bookingStateSet: a.bookingStateSet, nothingToAttach: a.nothingToAttach, bookBy: a.bookBy,
       })),
       homeTimezone: rows.trip.homeTimezone,
     }),

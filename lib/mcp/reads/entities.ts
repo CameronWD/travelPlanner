@@ -22,13 +22,14 @@ import { requireRealPlanRow } from "../real-plan";
 import { loadTripAttachments, type TripAttachmentsResult } from "./attachments";
 import { readMcpCosts, type McpCost } from "./costs";
 import { readMcpNotes, type McpNote } from "./notes";
+import { loadNeedsConfirmation } from "./confirmations";
 import { ownerKey } from "./owners";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { withTryList } from "@/lib/try-list-stored";
 import {
   buildMcpStops, MCP_ACCOMMODATION_SELECT, MCP_CHAPTER_SELECT, MCP_DATED_ITEM_SELECT, MCP_THING_TO_DO_SELECT, MCP_TRANSPORT_SELECT,
   MCP_TRIP_SELECT, mcpStopSelect, toMcpAccommodation, toMcpItem, toMcpTransport, toMcpTrip, withPlaceholders,
-  type FilesFor, type McpAccommodation, type McpChapter, type McpItem, type McpStop, type McpTransport, type McpTripSummary,
+  type FilesFor, type McpAccommodation, type NeedsConfirmation, type McpChapter, type McpItem, type McpStop, type McpTransport, type McpTripSummary,
 } from "./plan-shapes";
 
 export interface McpItemDetail extends McpItem {
@@ -44,11 +45,17 @@ async function visibilityFor(tripId: string): Promise<SurpriseVisibility> {
   return loadSurpriseVisibility(tripId, user.id);
 }
 
+async function visibilityAndConfirmations(tripId: string): Promise<{ v: SurpriseVisibility; needsConfirmation: NeedsConfirmation }> {
+  const { user } = await requireTripAccess(tripId);
+  const [v, needsConfirmation] = await Promise.all([loadSurpriseVisibility(tripId, user.id), loadNeedsConfirmation(tripId, user.id)]);
+  return { v, needsConfirmation };
+}
+
 const filesFrom = ({ byOwner }: TripAttachmentsResult): FilesFor => (kind, id) => byOwner.get(ownerKey(kind, id)) ?? [];
 
 export async function loadItemForMcp(itemId: string): Promise<McpItemDetail> {
   const { tripId } = await requireRealPlanRow("item", itemId);
-  const v = await visibilityFor(tripId);
+  const { v, needsConfirmation } = await visibilityAndConfirmations(tripId);
   const row = await db.item.findFirst({ where: { id: itemId, tripId, ...REAL_PLAN, ...v.where.item }, select: MCP_DATED_ITEM_SELECT });
   if (!row) notFound();
   const [files, { costs }, notesOnItem, owner] = await Promise.all([
@@ -63,6 +70,7 @@ export async function loadItemForMcp(itemId: string): Promise<McpItemDetail> {
       { ...withTryList(withOpeningHours(row)), surprise: v.views.items.get(itemId) ?? null },
       filesFrom(files),
       new Map(owner ? [[owner.id, owner.name]] : []),
+      needsConfirmation,
     ),
     costs,
     notesOnItem,
@@ -71,7 +79,7 @@ export async function loadItemForMcp(itemId: string): Promise<McpItemDetail> {
 
 export async function loadTransportForMcp(transportId: string): Promise<McpTransportDetail> {
   const { tripId } = await requireRealPlanRow("transport", transportId);
-  const v = await visibilityFor(tripId);
+  const { v, needsConfirmation } = await visibilityAndConfirmations(tripId);
   const [trip, t] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true } }),
     db.transport.findUnique({ where: { id: transportId }, select: MCP_TRANSPORT_SELECT }),
@@ -90,6 +98,7 @@ export async function loadTransportForMcp(transportId: string): Promise<McpTrans
       tzById: new Map(ends.map((s) => [s.id, s.timezone])),
       homeTimezone: trip?.homeTimezone ?? null,
       filesFor: filesFrom(files),
+      needsConfirmation,
     }),
     costs,
   };
@@ -97,7 +106,7 @@ export async function loadTransportForMcp(transportId: string): Promise<McpTrans
 
 export async function loadAccommodationForMcp(accommodationId: string): Promise<McpAccommodationDetail> {
   const { tripId } = await requireRealPlanRow("accommodation", accommodationId);
-  const v = await visibilityFor(tripId);
+  const { v, needsConfirmation } = await visibilityAndConfirmations(tripId);
   const row = await db.accommodation.findFirst({
     where: { id: accommodationId, tripId, ...REAL_PLAN, ...v.where.accommodation },
     select: { ...MCP_ACCOMMODATION_SELECT, stopId: true },
@@ -108,7 +117,7 @@ export async function loadAccommodationForMcp(accommodationId: string): Promise<
     loadTripAttachments(tripId, v, { targetIds: [accommodationId] }),
     readMcpCosts(tripId, v, { ownerType: "ACCOMMODATION", ownerId: accommodationId }),
   ]);
-  return { ...toMcpAccommodation(stay, filesFrom(files)), stopId, costs };
+  return { ...toMcpAccommodation(stay, filesFrom(files), needsConfirmation), stopId, costs };
 }
 
 export async function loadChapterForMcp(chapterId: string): Promise<McpChapter> {
@@ -138,7 +147,7 @@ export async function loadTripSummaryForMcp(tripId: string): Promise<McpTripSumm
  */
 export async function readMcpStops(tripId: string, stopIds: readonly string[]): Promise<McpStop[]> {
   if (stopIds.length === 0) return [];
-  const v = await visibilityFor(tripId);
+  const { v, needsConfirmation } = await visibilityAndConfirmations(tripId);
   const rows = await db.stop.findMany({
     where: { tripId, ...REAL_PLAN, id: { in: [...stopIds] } },
     orderBy: { sortOrder: "asc" },
@@ -208,7 +217,7 @@ export async function readMcpStops(tripId: string, stopIds: readonly string[]): 
 
   return buildMcpStops({
     stops, thingsToDo, datedItems, dayTitles, hiddenStopIds: hidden,
-    itemView: (id) => v.views.items.get(id) ?? null, filesFor: filesFrom(files), stopNameById, planTransports,
+    itemView: (id) => v.views.items.get(id) ?? null, filesFor: filesFrom(files), needsConfirmation, stopNameById, planTransports,
   }).stops;
 }
 

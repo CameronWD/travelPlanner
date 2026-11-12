@@ -24,8 +24,7 @@ import { formError } from "@/components/ui/action-failure";
 import { cn } from "@/lib/cn";
 import { formatDateRange, formatNights, nightsBetween } from "@/lib/dates";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
-import { uploadAttachment } from "@/server/actions/attachments";
-import { confirmProposal, importBooking } from "@/server/actions/booking-import";
+import { attachImportedBooking, confirmProposal, importBooking } from "@/server/actions/booking-import";
 import { ProposalCard, type ProposalStatus } from "./proposal-card";
 import { ProposalEditor } from "./proposal-editor";
 
@@ -80,7 +79,6 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
   const [notice, setNotice] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const keptFile = React.useRef<File | null>(null);
-  const attached = React.useRef(false);
   const createdStops = React.useRef<Record<string, string>>({});
   // A proposed Stop's clientId while some confirm() call is already creating
   // it: a sibling confirm needing the same Stop awaits this instead of
@@ -103,7 +101,6 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     setEditing(null);
     setNotice(null);
     keptFile.current = null;
-    attached.current = false;
     createdStops.current = {};
     pendingStops.current = {};
     confirming.current = new Set();
@@ -138,18 +135,14 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
 
   async function attachOriginal(kind: Proposal["kind"], id: string) {
     const file = keptFile.current;
-    // Pasted text and .eml attach nothing (validateUpload takes images and PDFs only).
-    // A Stop is never the booking's home: confirming a New stop first leaves
-    // the file for the first Transport, Accommodation or Item (final review #4).
-    if (kind === "stop" || attached.current || !file || /\.eml$/i.test(file.name) || file.type === "message/rfc822") return;
-    attached.current = true;
+    if (kind === "stop" || !file) return;
     const fd = new FormData();
     fd.set("file", file);
     fd.set("tripId", tripId);
     fd.set("targetType", TARGET_TYPE[kind]);
     fd.set("targetId", id);
     try {
-      const r = await uploadAttachment(fd);
+      const r = await attachImportedBooking(fd);
       if (!r.success) setNotice(M.attachFailed);
     } catch {
       setNotice(M.attachFailed);

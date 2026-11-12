@@ -11,8 +11,9 @@ export interface AttachmentView {
   uploadedById: string;
   createdAt: Date;
   owner?: FileOwner | null;
-  /** The owner's id, when the row carries it (Files page); lets Link-to preselect the current Item. */
   targetId?: string | null;
+  /** False on files Move would refuse (an Item's photo, a Journal photo); the Files page hides Move for them. */
+  movable?: boolean;
 }
 
 /** What a file is attached to, as Files shows it: a name, and a link to where it lives (null when the owner is gone). */

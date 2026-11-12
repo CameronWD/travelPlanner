@@ -122,6 +122,20 @@ it("carries Booking state, book-by, Slot time and Opening hours into the variant
   });
 });
 
+it("copies nothingToAttach on transports, accommodations and items", () => {
+  const plan = buildForkPlan({
+    ...source,
+    transports: [{ ...source.transports[0], nothingToAttach: true }],
+    accommodations: [{ ...source.accommodations[0], nothingToAttach: true }],
+    items: [{ ...source.items[0], nothingToAttach: true }],
+  });
+  expect(plan.transports[0].data.nothingToAttach).toBe(true);
+  expect(plan.accommodations[0].data.nothingToAttach).toBe(true);
+  expect(plan.items[0].data.nothingToAttach).toBe(true);
+  const bare = buildForkPlan(source);
+  expect(bare.transports[0].data.nothingToAttach).toBe(false);
+});
+
 it("a source row without the new columns copies the derived state and nulls", () => {
   const plan = buildForkPlan(source); // every fixture row has a reference
   expect(plan.transports[0].data).toMatchObject({ bookingState: "BOOKED", bookingStateSet: false, bookBy: null });

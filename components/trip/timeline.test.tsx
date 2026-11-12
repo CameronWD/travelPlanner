@@ -19,6 +19,7 @@ vi.mock("@/server/actions/items", () => ({
   rescheduleItem: vi.fn(),
   tickTryEntry: vi.fn(),
 }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 // The day page's click-to-open island — stubbed so these tests see only
 // whether Timeline wraps a row title, and for which kind of entity.
 vi.mock("./day-entry-link", () => ({
@@ -1348,5 +1349,29 @@ describe("Try list on the Timeline (CONTEXT.md Try list)", () => {
     render(<Timeline day={placeholder} variant="day" />);
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByText(/tried/)).toBeNull();
+  });
+});
+
+describe("Timeline: booking confirmation marker", () => {
+  const MARKER = /No booking confirmation yet/;
+
+  it("marks a timed item, an untimed item, a transport row and a check-in row listed by id", () => {
+    render(<Timeline day={dayPlan} variant="day" needsConfirmationIds={[ITEM_ID, UNTIMED_ITEM_ID]} />);
+    expect(screen.getAllByText(MARKER)).toHaveLength(2);
+    render(<Timeline day={dayPlanWithTransport} variant="day" needsConfirmationIds={["tr-1"]} />);
+    expect(screen.getAllByText(MARKER)).toHaveLength(3);
+    render(<Timeline day={dayPlanWithCheckin} variant="day" needsConfirmationIds={["acc-1"]} />);
+    expect(screen.getAllByText(MARKER)).toHaveLength(4);
+  });
+
+  it("shows nothing when the id is not listed or the prop is absent", () => {
+    render(<Timeline day={dayPlan} variant="day" needsConfirmationIds={["other"]} />);
+    render(<Timeline day={dayPlanWithCheckin} variant="day" />);
+    expect(screen.queryByText(MARKER)).toBeNull();
+  });
+
+  it("never marks the check-out row", () => {
+    render(<Timeline day={dayPlanWithCheckout} variant="day" needsConfirmationIds={["acc-1"]} />);
+    expect(screen.queryByText(MARKER)).toBeNull();
   });
 });

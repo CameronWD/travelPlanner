@@ -8,6 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock("@/server/actions/costs", () => ({ createCost: vi.fn(), updateCost: vi.fn(), deleteCost: vi.fn() }));
 vi.mock("@/server/actions/notes", () => ({ createNote: vi.fn(), deleteNote: vi.fn() }));
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), deleteAttachment: vi.fn() }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
 
 const IDEA: ItemCardItem = {
@@ -37,6 +38,16 @@ function renderSheet(over: Partial<React.ComponentProps<typeof IdeaSheet>> = {})
   render(<IdeaSheet {...props} />);
   return props;
 }
+
+describe("IdeaSheet booking confirmation marker", () => {
+  it("shows the marker in the opened idea only when it needs a confirmation", () => {
+    const { unmount } = render(<IdeaSheet tripId="t1" idea={IDEA} days={DAYS} onClose={vi.fn()} onPickDay={vi.fn()} onEdit={vi.fn()} />);
+    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    unmount();
+    render(<IdeaSheet tripId="t1" idea={IDEA} days={DAYS} needsConfirmation onClose={vi.fn()} onPickDay={vi.fn()} onEdit={vi.fn()} />);
+    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+  });
+});
 
 describe("IdeaSheet (spec 2026-10-02 §D)", () => {
   it("opens as a dialog named after the idea, showing its notes, link and booking reference", () => {

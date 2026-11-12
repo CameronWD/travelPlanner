@@ -12,6 +12,7 @@ import userEvent from "@testing-library/user-event";
 // ── Mock all server actions the component (and its children) import ──────────
 // Must be declared before the component import so vi.mock hoisting works.
 
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/server/actions/stops", () => ({
   deleteStop: vi.fn().mockResolvedValue({ success: true }),

@@ -7,6 +7,7 @@ import type { LegLabel } from "@/lib/plan/leg-label";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { BOOKING_STATE_LABELS, bookByLabel } from "@/lib/booking-state-copy";
 import type { BookingState } from "@/lib/enum-values";
+import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 
 export interface LegRowProps {
   kind: "legs" | "missing" | "line";
@@ -59,8 +60,8 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
                       data-station-dot
                       aria-hidden
                       className={cn(
-                        "absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border bg-card",
-                        compact ? "left-[-13px]" : "left-[-19px]",
+                        "absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border bg-card",
+                        compact ? "left-[-13px] top-3.5" : "left-[-19px] top-[17px]",
                       )}
                     />
                   ) : null}
@@ -81,17 +82,18 @@ export interface LegPillProps {
   compact?: boolean;
   bookingState?: BookingState | null;
   bookBy?: string | null;
+  marker?: { kind: "TRANSPORT"; id: string } | null;
 }
 
 /** A single leg on the strip: a real transport, or the dashed "missing" prompt (PLAN.md §2). */
-export function LegPill({ label, onClick, compact, bookingState, bookBy }: LegPillProps) {
+export function LegPill({ label, onClick, compact, bookingState, bookBy, marker }: LegPillProps) {
   const Icon = label.icon;
   // An explicit aria-label overrides name-from-content, so the visual
   // BookingStateBadge below would otherwise go unheard. Speak the same copy
   // here instead, and hide the badge from the accessibility tree.
   const bookingText = bookingState === "TO_BOOK" ? (bookBy ? bookByLabel(bookBy) : BOOKING_STATE_LABELS.TO_BOOK) : null;
   const accessibleName = bookingText ? `${label.accessibleName} ${bookingText}.` : label.accessibleName;
-  return (
+  const pill = (
     <button
       type="button"
       aria-label={accessibleName}
@@ -124,5 +126,12 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy }: LegPi
         </>
       )}
     </button>
+  );
+  if (!marker || compact) return pill;
+  return (
+    <div className="flex min-w-0 max-w-full flex-col items-start gap-0.5">
+      {pill}
+      <BookingConfirmationMarker kind={marker.kind} id={marker.id} />
+    </div>
   );
 }

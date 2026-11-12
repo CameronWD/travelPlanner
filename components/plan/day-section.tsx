@@ -22,6 +22,7 @@ import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
 import { IdeaPickerMenu } from "./idea-picker-menu";
 import { SurpriseBadge } from "./surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
+import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 import type { ThingToDo } from "./types";
 
 /** dnd-kit draggable id prefix for a scheduled Item row (the plan page's drag handler reads the row's `data`, never its id). */
@@ -189,10 +190,11 @@ interface DayRowProps {
   isNew: boolean;
   onRiseInEnd(): void;
   onEditItem(item: StopDayItem): void;
+  needsConfirmation: boolean;
 }
 
 /** One scheduled Item row: draggable onto another day section (deviation 1 — no within-day reorder). */
-function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
+function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEditItem, needsConfirmation }: DayRowProps) {
   // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to edit or move.
   const placeholder = item.surprise?.youAreSurprised ?? false;
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
@@ -279,6 +281,11 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
           </span>
         )}
       </div>
+      {needsConfirmation && (
+        <div className="col-span-2 col-start-4 -mt-1 pb-1.5">
+          <BookingConfirmationMarker kind="ITEM" id={item.id} />
+        </div>
+      )}
     </div>
   );
 }
@@ -320,6 +327,7 @@ export interface DaySectionProps {
   onAdd(dateISO: string): void;
   onEditItem(item: StopDayItem): void;
   onScheduleIdea(idea: ThingToDo, dateISO: string): void;
+  needsConfirmationIds?: ReadonlySet<string>;
 }
 
 /**
@@ -346,6 +354,7 @@ export function DaySection({
   onAdd,
   onEditItem,
   onScheduleIdea,
+  needsConfirmationIds,
 }: DaySectionProps) {
   const tripHref = useTripHref(tripId);
   const { t } = useMotionTiming();
@@ -479,6 +488,7 @@ export function DaySection({
                       setSeen((cur) => ({ ids: cur.ids, fresh: new Set([...cur.fresh].filter((id) => id !== item.id)) }))
                     }
                     onEditItem={onEditItem}
+                    needsConfirmation={needsConfirmationIds?.has(item.id) ?? false}
                   />
                 ))}
                 <div className="flex items-center justify-between px-3.5 py-2">

@@ -24,6 +24,7 @@ vi.mock("@/server/actions/items", () => ({
 }));
 // Timeline imports the day page's DayEntryLink (edit dialogs → server actions
 // → db). The Agenda never passes an editor, so it is never rendered here.
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 vi.mock("@/components/trip/day-entry-link", () => ({ DayEntryLink: () => null }));
 
 import { AgendaView } from "./agenda-view";

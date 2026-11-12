@@ -15,6 +15,7 @@ import {
 } from "./plan-shapes";
 
 const noFiles = () => [];
+const none = new Set<string>();
 const stop = (o: Partial<McpStopRow> = {}): McpStopRow => ({
   id: "s1", name: "Porto", countryCode: "pt", timezone: "Europe/Lisbon",
   arriveDate: "2027-06-01", departDate: "2027-06-04", nights: null, pinned: false,
@@ -22,7 +23,7 @@ const stop = (o: Partial<McpStopRow> = {}): McpStopRow => ({
 });
 const item = (o: Partial<McpItemRow> = {}): McpItemRow => ({
   id: "i1", title: "Tour", category: "ACTIVITY", date: null, startTime: null, endTime: null,
-  address: null, link: null, booking: null, notes: null, stopId: null, bookingState: "NONE", bookBy: null,
+  address: null, link: null, booking: null, notes: null, stopId: null, bookingState: "NONE", bookBy: null, nothingToAttach: false,
   openingHours: null, tryList: null, ...o,
 });
 const surpriseView = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true } as never;
@@ -45,7 +46,7 @@ describe("buildMcpStops", () => {
       dayTitles: new Map([["2027-06-04", { title: "Changeover", stopId: "s2" }]]),
       hiddenStopIds: new Set(),
       itemView: () => null,
-      filesFor: noFiles,
+      filesFor: noFiles, needsConfirmation: none,
       stopNameById: new Map(),
       planTransports: [],
     });
@@ -59,7 +60,7 @@ describe("buildMcpStops", () => {
     const { stops } = buildMcpStops({
       stops: [stop({ notes: null, surprise: surpriseView })],
       thingsToDo: [], datedItems: [datedItem({ id: "c1", date: "2027-06-02" })],
-      dayTitles: new Map(), hiddenStopIds: new Set(["s1"]), itemView: () => null, filesFor: noFiles,
+      dayTitles: new Map(), hiddenStopIds: new Set(["s1"]), itemView: () => null, filesFor: noFiles, needsConfirmation: none,
       stopNameById: new Map(),
       planTransports: [],
     });
@@ -69,7 +70,7 @@ describe("buildMcpStops", () => {
   it("a rough Stop has rough true and no days", () => {
     const { stops } = buildMcpStops({
       stops: [stop({ arriveDate: null, departDate: null, nights: 3 })],
-      thingsToDo: [], datedItems: [], dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      thingsToDo: [], datedItems: [], dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles, needsConfirmation: none,
       stopNameById: new Map(),
       planTransports: [],
     });
@@ -85,7 +86,7 @@ describe("buildMcpStops", () => {
         datedItem({ id: "lunch", date: "2027-06-04", startTime: "12:00", stopId: "s1" }),
         datedItem({ id: "train", date: "2027-06-04", startTime: "09:00" }),
       ],
-      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles, needsConfirmation: none,
       stopNameById: new Map([["s1", "Porto"], ["s2", "Lisbon"]]),
       planTransports: [],
     });
@@ -99,7 +100,7 @@ const placeholder = (o: { id?: string; forkId?: string | null } = {}) => ({
   id: "p1", tripId: "t", forkId: null, stopId: "s1", date: "2027-06-01", startTime: "19:00", endTime: null,
   title: "Surprise" as const, category: "OTHER" as const, address: null, link: null, booking: null, notes: null,
   lat: null, lng: null, placeId: null, businessStatus: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
-  sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null,
+  sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null, nothingToAttach: false as const,
   slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, surprise: surpriseView,
   ...o,
 });
@@ -130,7 +131,7 @@ describe("opening hours (CONTEXT.md Opening hours)", () => {
       stops: [stop()],
       thingsToDo: [item({ id: "t1", stopId: "s1", openingHours: serializeOpeningHours(hours) })],
       datedItems: [datedItem({ id: "d1", date: "2027-06-02", openingHours: '{"week":"?"}' })],
-      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles, needsConfirmation: none,
       stopNameById: new Map(),
       planTransports: [],
     });
@@ -150,17 +151,18 @@ describe("opening hours (CONTEXT.md Opening hours)", () => {
 describe("toMcpItem / toMcpTransport", () => {
   it("toMcpItem carries the date and owning Stop alongside the day-item fields", () => {
     expect(
-      toMcpItem(datedItem({ id: "i1", date: "2027-06-02", stopId: "s1" }), noFiles, new Map([["s1", "Porto"]])),
+      toMcpItem(datedItem({ id: "i1", date: "2027-06-02", stopId: "s1" }), noFiles, new Map([["s1", "Porto"]]), none),
     ).toEqual({
       id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
       bookingState: "NONE", bookBy: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN",
       openingHours: null, tryList: null, owningStop: { id: "s1", name: "Porto" },
+      nothingToAttach: false, needsBookingConfirmation: false,
     });
   });
 
   it("every shape carries Booking state; a placeholder is never To book", () => {
-    expect(toMcpItem(datedItem({ id: "i1", date: "2027-06-02", stopId: "s1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }), noFiles, new Map()))
+    expect(toMcpItem(datedItem({ id: "i1", date: "2027-06-02", stopId: "s1", bookingState: "TO_BOOK", bookBy: "2027-05-01" }), noFiles, new Map(), none))
       .toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-01" });
     const [p] = withPlaceholders([], { views: { stops: new Map(), items: new Map() }, placeholderItems: [placeholder({ id: "p1" })] });
     expect(p).toMatchObject({ bookingState: "NONE", bookBy: null });
@@ -180,9 +182,9 @@ describe("toMcpItem / toMcpTransport", () => {
       {
         id: "t1", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, arrIsHome: false,
         depPlace: null, arrPlace: null, depAt: new Date("2027-05-31T22:00:00Z"), arrAt: new Date("2027-06-01T10:00:00Z"),
-        reference: "QF1", notes: null, bookingState: "TO_BOOK", bookBy: "2027-05-01",
+        reference: "QF1", notes: null, bookingState: "TO_BOOK", bookBy: "2027-05-01", nothingToAttach: false,
       },
-      { stopNameById: new Map([["s1", "Porto"]]), tzById: new Map([["s1", "Europe/Lisbon"]]), homeTimezone: "Australia/Sydney", filesFor: noFiles },
+      { stopNameById: new Map([["s1", "Porto"]]), tzById: new Map([["s1", "Europe/Lisbon"]]), homeTimezone: "Australia/Sydney", filesFor: noFiles, needsConfirmation: none },
     );
     expect(t.from).toEqual({ home: true });
     expect(t.to).toEqual({ stopId: "s1", name: "Porto" });
@@ -195,17 +197,17 @@ describe("toMcpItem / toMcpTransport", () => {
 describe("Slot time in the Claude reads (R3)", () => {
   it("a thing to do and a day item read the slot, the margin and refundability", () => {
     const row = datedItem({ id: "i1", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false });
-    expect(toMcpItem(row, noFiles, new Map())).toMatchObject({ startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" });
+    expect(toMcpItem(row, noFiles, new Map(), none)).toMatchObject({ startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: "NO" });
     const { stops } = buildMcpStops({
       stops: [stop()], thingsToDo: [item({ id: "t1", stopId: "s1", slotTime: "19:30", refundable: true })], datedItems: [],
-      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles, needsConfirmation: none,
       stopNameById: new Map(),
       planTransports: [],
     });
     expect(stops[0].thingsToDo[0]).toMatchObject({ slotTime: "19:30", arriveByMinutes: null, refundable: "YES" });
   });
   it("a row read without the columns says none / UNKNOWN", () => {
-    expect(toMcpItem(datedItem(), noFiles, new Map())).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
+    expect(toMcpItem(datedItem(), noFiles, new Map(), none)).toMatchObject({ slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" });
   });
 });
 
@@ -217,7 +219,7 @@ describe("Try list (CONTEXT.md Try list)", () => {
       stops: [stop()],
       thingsToDo: [item({ id: "t1", stopId: "s1", tryList: JSON.stringify(list) })],
       datedItems: [datedItem({ id: "d1", date: "2027-06-02", tryList: "nope" })],
-      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles,
+      dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles, needsConfirmation: none,
       stopNameById: new Map(),
       planTransports: [],
     });
@@ -226,7 +228,7 @@ describe("Try list (CONTEXT.md Try list)", () => {
   });
 
   it("toMcpItem carries it; a hidden Surprise's placeholder never does", () => {
-    expect(toMcpItem(datedItem({ id: "i1", date: "2027-06-02", tryList: JSON.stringify(list) }), noFiles, new Map()).tryList).toEqual(list);
+    expect(toMcpItem(datedItem({ id: "i1", date: "2027-06-02", tryList: JSON.stringify(list) }), noFiles, new Map(), none).tryList).toEqual(list);
     const out = withPlaceholders([], { placeholderItems: [placeholder()], views: { stops: new Map(), items: new Map() } });
     expect(out[0].tryList).toBeNull();
   });
