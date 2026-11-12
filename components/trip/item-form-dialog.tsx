@@ -589,6 +589,7 @@ function ItemForm({
   const filledByPick = React.useRef<{ hours: OpeningHours | null; link: string | null }>({ hours: null, link: null });
   const [booking, setBooking] = React.useState(item?.booking ?? proposed?.booking ?? "");
   const bookingField = useBookingStateField("ITEM", item ?? seedFromProposal(proposed), booking);
+  const [nothingToAttach, setNothingToAttach] = React.useState(item?.nothingToAttach ?? false);
   const [notes, setNotes] = React.useState(item?.notes ?? proposed?.notes ?? "");
   const [hiddenFromShares, setHiddenFromShares] = React.useState(item?.hiddenFromShares ?? false);
   // CONTEXT.md "Opening hours" — sent only when changed, like the Surprise:
@@ -964,9 +965,9 @@ function ItemForm({
 
       {/* Booking state (CONTEXT.md): a reference implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
-{item?.id && bookingField.shown === "BOOKED" && (
-  <NothingToAttachSwitch kind="ITEM" id={item.id} value={item.nothingToAttach ?? false} className="sm:col-span-2" />
-)}
+      {item?.id && bookingField.shown === "BOOKED" && (
+        <NothingToAttachSwitch kind="ITEM" id={item.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
+      )}
 
       {/* Notes */}
       <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">

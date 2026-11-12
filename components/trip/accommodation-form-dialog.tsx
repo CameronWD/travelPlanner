@@ -190,6 +190,7 @@ function AccommodationForm({
     accommodation?.confirmation ?? proposed?.confirmation ?? "",
   );
   const bookingField = useBookingStateField("ACCOMMODATION", accommodation ?? seedFromProposal(proposed), confirmation);
+  const [nothingToAttach, setNothingToAttach] = React.useState(accommodation?.nothingToAttach ?? false);
   const [notes, setNotes] = React.useState(accommodation?.notes ?? proposed?.notes ?? "");
 
   // Inline cost fields: a saved single Cost, else a Proposal's Cost (Booking
@@ -297,9 +298,9 @@ function AccommodationForm({
 
       {/* Booking state (CONTEXT.md): a stay is To book; a confirmation implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
-{accommodation?.id && bookingField.shown === "BOOKED" && (
-  <NothingToAttachSwitch kind="ACCOMMODATION" id={accommodation.id} value={accommodation.nothingToAttach ?? false} className="sm:col-span-2" />
-)}
+      {accommodation?.id && bookingField.shown === "BOOKED" && (
+        <NothingToAttachSwitch kind="ACCOMMODATION" id={accommodation.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
+      )}
 
       {/* Dates — own sub-grid so they always pair. */}
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">

@@ -1910,7 +1910,6 @@ describe("ItemFormDialog address search", () => {
   });
 });
 
-
 describe("ItemFormDialog: Nothing to attach switch", () => {
   beforeEach(() => vi.clearAllMocks());
   const booked = { ...existingItem, bookingState: "BOOKED" as const, bookingStateSet: true };
@@ -1938,5 +1937,15 @@ describe("ItemFormDialog: Nothing to attach switch", () => {
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("ITEM", booked.id, true));
     await user.click(screen.getByRole("button", { name: /save changes|save/i }));
     expect(vi.mocked(updateItem).mock.calls.at(-1)!.some((a) => JSON.stringify(a).includes("nothingToAttach"))).toBe(false);
+  });
+
+  it("keeps a toggled value when the state is flipped away from Booked and back", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={booked} />);
+    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await waitFor(() => expect(setNothingToAttach).toHaveBeenCalled());
+    await user.click(screen.getByRole("radio", { name: "To book" }));
+    await user.click(screen.getByRole("radio", { name: "Booked" }));
+    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
   });
 });

@@ -2039,7 +2039,6 @@ describe("TransportFormDialog: places on the ends", () => {
   });
 });
 
-
 describe("TransportFormDialog: Nothing to attach switch", () => {
   beforeEach(() => vi.clearAllMocks());
   const booked = { ...existingTransport, bookingState: "BOOKED" as const, bookingStateSet: true };
@@ -2067,5 +2066,15 @@ describe("TransportFormDialog: Nothing to attach switch", () => {
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("TRANSPORT", booked.id, true));
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(vi.mocked(updateTransport).mock.calls.at(-1)!.some((a) => JSON.stringify(a).includes("nothingToAttach"))).toBe(false);
+  });
+
+  it("keeps a toggled value when the state is flipped away from Booked and back", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={booked} />);
+    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await waitFor(() => expect(setNothingToAttach).toHaveBeenCalled());
+    await user.click(screen.getByRole("radio", { name: "To book" }));
+    await user.click(screen.getByRole("radio", { name: "Booked" }));
+    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
   });
 });

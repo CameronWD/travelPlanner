@@ -40,6 +40,6 @@ describe("BookingConfirmationMarker", () => {
     vi.mocked(setNothingToAttach).mockRejectedValueOnce(new Error("offline"));
     render(<BookingConfirmationMarker kind="ITEM" id="i1" />);
     await userEvent.click(screen.getByRole("button", { name: "Nothing to attach" }));
-    expect(await screen.findByText("Couldn't save that. Try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't do that. Nothing changed. Try again.")).toBeInTheDocument();
   });
 });

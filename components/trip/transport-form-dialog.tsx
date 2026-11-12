@@ -490,6 +490,7 @@ function TransportForm({
   );
   const [reference, setReference] = React.useState(transport?.reference ?? proposed?.reference ?? "");
   const bookingField = useBookingStateField(transportBookingSubject(mode), transport ?? seedFromProposal(proposed), reference);
+  const [nothingToAttach, setNothingToAttach] = React.useState(transport?.nothingToAttach ?? false);
   const [notesText, setNotesText] = React.useState(transport?.notes ?? proposed?.notes ?? "");
   // Car with no times yet shows a drive estimate instead of empty Leaves/
   // Arrives cards; "Add times" reveals them without waiting for a real time.
@@ -885,9 +886,9 @@ function TransportForm({
 
         {/* Booking state (CONTEXT.md): a tentative leg is To book; a typed reference implies Booked until the Traveller picks. */}
         <BookingStateField field={bookingField} errors={errors} disabled={isPending} />
-{transport?.id && bookingField.shown === "BOOKED" && (
-  <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={transport.nothingToAttach ?? false} />
-)}
+        {transport?.id && bookingField.shown === "BOOKED" && (
+          <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={nothingToAttach} onChange={setNothingToAttach} />
+        )}
 
         {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
         <div className="flex flex-col gap-2">

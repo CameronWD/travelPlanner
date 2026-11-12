@@ -3,10 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { setNothingToAttach } from "@/server/actions/booking-confirmation";
-import { formError } from "@/components/ui/action-failure";
+import { SOMETHING_WENT_WRONG, formError } from "@/components/ui/action-failure";
 import type { ConfirmationKind } from "@/lib/booking-confirmation";
-
-const SAVE_FAILED = "Couldn't save that. Try again.";
 
 export function BookingConfirmationMarker({ kind, id }: { kind: ConfirmationKind; id: string }) {
   const router = useRouter();
@@ -19,12 +17,12 @@ export function BookingConfirmationMarker({ kind, id }: { kind: ConfirmationKind
       try {
         const result = await setNothingToAttach(kind, id, true);
         if (!result.success) {
-          setError(formError(result) ?? SAVE_FAILED);
+          setError(formError(result) ?? SOMETHING_WENT_WRONG);
           return;
         }
         router.refresh();
       } catch {
-        setError(SAVE_FAILED);
+        setError(SOMETHING_WENT_WRONG);
       }
     });
   }
