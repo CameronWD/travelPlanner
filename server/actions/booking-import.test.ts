@@ -195,6 +195,13 @@ describe("attachImportedBooking", () => {
     expect(m.upload).not.toHaveBeenCalled();
   });
 
+  it("checks access before parsing or uploading anything", async () => {
+    m.requireTripAccess.mockRejectedValueOnce(new Error("denied"));
+    await expect(attachImportedBooking(form(fields))).rejects.toThrow("denied");
+    expect(m.files).not.toHaveBeenCalled();
+    expect(m.upload).not.toHaveBeenCalled();
+  });
+
   it("refuses a form with no file", async () => {
     expect((await attachImportedBooking(form({ tripId: "trip-1", targetType: "TRANSPORT", targetId: "t-1" }))).success).toBe(false);
   });

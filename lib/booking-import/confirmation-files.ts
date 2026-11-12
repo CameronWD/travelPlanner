@@ -1,5 +1,5 @@
 import PostalMime from "postal-mime";
-import { checkBookingFile } from "./limits";
+import { checkBookingFile, MAX_EML_ATTACHMENTS } from "./limits";
 
 export async function bookingConfirmationFiles(file: File): Promise<File[]> {
   const check = checkBookingFile({ name: file.name, type: file.type, size: file.size });
@@ -14,7 +14,8 @@ export async function bookingConfirmationFiles(file: File): Promise<File[]> {
   }
   const files: File[] = [];
   for (const a of email.attachments) {
-    if (typeof a.content === "string") continue;
+    if (files.length >= MAX_EML_ATTACHMENTS) break;
+    if (a.related || typeof a.content === "string") continue;
     if (a.mimeType !== "application/pdf" && !/\.pdf$/i.test(a.filename ?? "")) continue;
     files.push(new File([new Uint8Array(a.content)], a.filename ?? "attachment.pdf", { type: "application/pdf" }));
   }

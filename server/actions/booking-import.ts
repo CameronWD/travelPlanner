@@ -123,6 +123,9 @@ export async function confirmProposal(tripId: string, request: ConfirmRequest, f
 }
 
 export async function attachImportedBooking(formData: FormData): Promise<AttachmentActionResult> {
+  const tripId = formData.get("tripId");
+  if (typeof tripId !== "string" || !tripId) return formFail("Invalid trip.");
+  await requireTripAccess(tripId);
   const file = formData.get("file");
   if (!(file instanceof File)) return formFail("No file provided.");
   for (const part of await bookingConfirmationFiles(file)) {

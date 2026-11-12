@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_EML_ATTACHMENTS } from "./limits";
 import { bookingConfirmationFiles } from "./confirmation-files";
 
 const eml = (parts: string[]) =>
@@ -45,5 +46,11 @@ describe("bookingConfirmationFiles", () => {
 
   it("returns nothing for other files", async () => {
     expect(await bookingConfirmationFiles(new File(["hi"], "n.txt", { type: "text/plain" }))).toEqual([]);
+  });
+
+  it("takes at most MAX_EML_ATTACHMENTS PDFs from an email", async () => {
+    const many = Array.from({ length: MAX_EML_ATTACHMENTS + 2 }, (_, i) => att(`p${i}.pdf`, "application/pdf", `%PDF-${i}`));
+    const f = new File([eml(many)], "m.eml", { type: "message/rfc822" });
+    expect(await bookingConfirmationFiles(f)).toHaveLength(MAX_EML_ATTACHMENTS);
   });
 });
