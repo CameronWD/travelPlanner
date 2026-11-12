@@ -2,8 +2,9 @@
 
 import { aiModel, isAiConfigured } from "@/lib/ai";
 import { NO_TOKENS } from "@/lib/ai-pricing";
-import { fail, FORM_ERROR_KEY } from "@/lib/action-result";
+import { fail, formFail, FORM_ERROR_KEY } from "@/lib/action-result";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { bookingConfirmationFiles } from "@/lib/booking-import/confirmation-files";
 import { buildProposals } from "@/lib/booking-import/build";
 import { confirmProposalFor } from "@/lib/booking-import/confirm";
 import { extractBooking } from "@/lib/booking-import/extract";
@@ -20,6 +21,7 @@ import type {
 import { reportError } from "@/lib/error-sink";
 import { requireTripAccess, requirePlanAccess } from "@/lib/guards";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { uploadAttachment, type AttachmentActionResult } from "./attachments";
 
 const ROUTE = "booking-import";
 
@@ -118,4 +120,20 @@ export async function importBooking(formData: FormData): Promise<BookingImportRe
 export async function confirmProposal(tripId: string, request: ConfirmRequest, forkId?: string | null): Promise<ConfirmProposalResult> {
   const { user, plan } = await requirePlanAccess(tripId, forkId);
   return confirmProposalFor(tripId, user.id, request, plan);
+}
+
+export async function attachImportedBooking(formData: FormData): Promise<AttachmentActionResult> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) return formFail("No file provided.");
+  for (const part of await bookingConfirmationFiles(file)) {
+    const fd = new FormData();
+    for (const key of ["tripId", "targetType", "targetId"]) {
+      const value = formData.get(key);
+      if (typeof value === "string") fd.set(key, value);
+    }
+    fd.set("file", part);
+    const r = await uploadAttachment(fd);
+    if (!r.success) return r;
+  }
+  return { success: true };
 }

@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { BOOKING_IMPORT_MESSAGES as M } from "@/lib/booking-import/messages";
 import type { BookingImportResult, ProposalBase } from "@/lib/booking-import/types";
 
-const m = vi.hoisted(() => ({ importBooking: vi.fn(), confirmProposal: vi.fn(), uploadAttachment: vi.fn() }));
+const m = vi.hoisted(() => ({ importBooking: vi.fn(), confirmProposal: vi.fn(), attachImportedBooking: vi.fn() }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
-vi.mock("@/server/actions/booking-import", () => ({ importBooking: m.importBooking, confirmProposal: m.confirmProposal }));
-vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: m.uploadAttachment, deleteAttachment: vi.fn() }));
+vi.mock("@/server/actions/booking-import", () => ({ importBooking: m.importBooking, confirmProposal: m.confirmProposal, attachImportedBooking: m.attachImportedBooking }));
+vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), deleteAttachment: vi.fn() }));
 vi.mock("@/server/actions/costs", () => ({ createCost: vi.fn(), updateCost: vi.fn(), deleteCost: vi.fn() }));
 vi.mock("@/server/actions/notes", () => ({ createNote: vi.fn(), deleteNote: vi.fn() }));
 vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.importBooking.mockResolvedValue(RESULT);
   m.confirmProposal.mockResolvedValue({ success: true, createdId: "t-new", createdStops: { s1: "stop-new" } });
-  m.uploadAttachment.mockResolvedValue({ success: true, id: "att-1" });
+  m.attachImportedBooking.mockResolvedValue({ success: true, id: "att-1" });
 });
 
 describe("BookingImportSheet", () => {
@@ -88,7 +88,7 @@ describe("BookingImportSheet", () => {
     expect((m.importBooking.mock.calls[1][0] as FormData).get("file")).toBeInstanceOf(File);
   });
 
-  it("confirming a dependent saves its Stop with it, then attaches the original once", async () => {
+  it("confirming a dependent saves its Stop with it, then attaches the original to each booking", async () => {
     open();
     const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });
     await userEvent.upload(screen.getByLabelText("Booking file"), pdf);
@@ -99,15 +99,26 @@ describe("BookingImportSheet", () => {
     expect(request.proposal.clientId).toBe("p1");
     expect(request.proposedStops.map((s: { clientId: string }) => s.clientId)).toEqual(["s1"]);
     expect(request.resolvedStops).toEqual({});
-    await waitFor(() => expect(m.uploadAttachment).toHaveBeenCalledTimes(1));
-    const upload = m.uploadAttachment.mock.calls[0][0] as FormData;
+    await waitFor(() => expect(m.attachImportedBooking).toHaveBeenCalledTimes(1));
+    const upload = m.attachImportedBooking.mock.calls[0][0] as FormData;
     expect([upload.get("tripId"), upload.get("targetType"), upload.get("targetId")]).toEqual(["trip-1", "TRANSPORT", "t-new"]);
 
     m.confirmProposal.mockResolvedValue({ success: true, createdId: "a-new", createdStops: {} });
     await userEvent.click(within(screen.getByTestId("proposal-p2")).getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(2));
     expect(m.confirmProposal.mock.calls[1][1]).toMatchObject({ proposedStops: [], resolvedStops: { s1: "stop-new" } });
-    expect(m.uploadAttachment).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(m.attachImportedBooking).toHaveBeenCalledTimes(2));
+    const second = m.attachImportedBooking.mock.calls[1][0] as FormData;
+    expect([second.get("targetType"), second.get("targetId")]).toEqual(["ACCOMMODATION", "a-new"]);
+  });
+
+  it("an .eml original is kept and sent", async () => {
+    open();
+    const eml = new File(["From: a@b.c"], "confirmation.eml", { type: "message/rfc822" });
+    await userEvent.upload(screen.getByLabelText("Booking file"), eml);
+    await userEvent.click(within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(m.attachImportedBooking).toHaveBeenCalledTimes(1));
+    expect((m.attachImportedBooking.mock.calls[0][0] as FormData).get("file")).toBe(eml);
   });
 
   it("confirming the New stop first leaves the original file for the booking confirmed next (final review #4)", async () => {
@@ -120,12 +131,12 @@ describe("BookingImportSheet", () => {
     await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(1));
     expect(m.confirmProposal.mock.calls[0][1].proposal.clientId).toBe("s1");
     await within(group).findByText("Added");
-    expect(m.uploadAttachment).not.toHaveBeenCalled();
+    expect(m.attachImportedBooking).not.toHaveBeenCalled();
 
     m.confirmProposal.mockResolvedValueOnce({ success: true, createdId: "t-new", createdStops: {} });
     await userEvent.click(within(screen.getByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
-    await waitFor(() => expect(m.uploadAttachment).toHaveBeenCalledTimes(1));
-    const upload = m.uploadAttachment.mock.calls[0][0] as FormData;
+    await waitFor(() => expect(m.attachImportedBooking).toHaveBeenCalledTimes(1));
+    const upload = m.attachImportedBooking.mock.calls[0][0] as FormData;
     expect([upload.get("targetType"), upload.get("targetId")]).toEqual(["TRANSPORT", "t-new"]);
   });
 
@@ -149,7 +160,7 @@ describe("BookingImportSheet", () => {
     await userEvent.click(within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
     expect(await within(screen.getByTestId("proposal-p1")).findByRole("alert")).toHaveTextContent("Arrival must be after departure");
     expect(within(screen.getByRole("region", { name: "New stop: Lisbon" })).getByText("Added")).toBeInTheDocument();
-    expect(m.uploadAttachment).not.toHaveBeenCalled(); // pasted text attaches nothing anyway
+    expect(m.attachImportedBooking).not.toHaveBeenCalled(); // pasted text attaches nothing anyway
   });
 
   it("discarding a proposed Stop discards what depends on it", async () => {
@@ -188,16 +199,16 @@ describe("BookingImportSheet", () => {
     expect(m.confirmProposal.mock.calls[1][1]).toMatchObject({ proposedStops: [], resolvedStops: { s1: "stop-new" } });
   });
 
-  it("a successful confirm from pasted text never calls uploadAttachment", async () => {
+  it("a successful confirm from pasted text never calls attachImportedBooking", async () => {
     open();
     await pasteAndRead();
     await userEvent.click(within(await screen.findByTestId("proposal-p1")).getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(m.confirmProposal).toHaveBeenCalledTimes(1));
-    expect(m.uploadAttachment).not.toHaveBeenCalled();
+    expect(m.attachImportedBooking).not.toHaveBeenCalled();
   });
 
   it("a failed upload shows the attachFailed notice and the record stays confirmed", async () => {
-    m.uploadAttachment.mockResolvedValue({ success: false, errors: { _: ["no space"] } });
+    m.attachImportedBooking.mockResolvedValue({ success: false, errors: { _: ["no space"] } });
     open();
     const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });
     await userEvent.upload(screen.getByLabelText("Booking file"), pdf);
