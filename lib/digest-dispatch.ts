@@ -56,6 +56,8 @@ import { buildDigestPayload, sendPush } from "@/lib/push";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildCostLabelMap, costLabel } from "@/lib/money/cost-labels";
 import { formatMoney } from "@/lib/money/money";
+import { applyFxRatesToCosts } from "@/lib/money/budget";
+import { paymentAmountLabel, upcomingHomeMinor } from "@/lib/money/upcoming-payments";
 import { addDays, daysBetween } from "@/lib/dates";
 import { endpointLabel } from "@/lib/home-base";
 import {
@@ -110,6 +112,7 @@ export async function collectDigestInput(opts: {
       homeName: true,
       homeCountryCode: true,
       homeTimezone: true,
+      homeCurrency: true,
       deletedAt: true,
     },
   });
@@ -204,6 +207,7 @@ export async function collectDigestInput(opts: {
             dueDate: true,
             costMinor: true,
             currency: true,
+            rateToHome: true,
             label: true,
             ownerType: true,
             ownerId: true,
@@ -299,6 +303,7 @@ export async function collectDigestInput(opts: {
     tripId,
     localDate,
     dueCosts,
+    homeCurrency: trip.homeCurrency,
     hasOwnedCosts: ownedCosts.length > 0,
     transportRows,
     stopById,
@@ -387,6 +392,7 @@ type DueCostRow = {
   dueDate: string | null;
   costMinor: number;
   currency: string;
+  rateToHome: number | null;
   label: string | null;
   ownerType: string;
   ownerId: string | null;
@@ -404,12 +410,13 @@ async function buildPaymentLines(args: {
   tripId: string;
   localDate: string;
   dueCosts: DueCostRow[];
+  homeCurrency: string;
   hasOwnedCosts: boolean;
   transportRows: TransportRow[];
   stopById: Map<string, StopRow>;
   v: SurpriseVisibility;
 }): Promise<DigestPaymentLine[]> {
-  const { tripId, localDate, dueCosts, hasOwnedCosts, transportRows, stopById, v } = args;
+  const { tripId, localDate, dueCosts, homeCurrency, hasOwnedCosts, transportRows, stopById, v } = args;
   if (dueCosts.length === 0) return [];
 
   let ownerNames = new Map<string, string>();
@@ -437,12 +444,38 @@ async function buildPaymentLines(args: {
     });
   }
 
-  return dueCosts.map((cost) => ({
-    id: cost.id,
-    label: costLabel(cost, ownerNames),
-    amountLabel: formatMoney(cost.costMinor, cost.currency),
-    daysUntil: daysBetween(localDate, cost.dueDate!),
-  }));
+  const exchangeRates = await db.exchangeRate.findMany({
+    where: { tripId },
+    select: { base: true, quote: true, rate: true },
+  });
+  const rateById = new Map(
+    applyFxRatesToCosts({
+      costs: dueCosts.map((c) => ({
+        ...c,
+        paidMinor: null,
+        paidAt: null,
+        category: null,
+      })),
+      exchangeRates,
+      homeCurrency,
+    }).map((c) => [c.id, c.rateToHome] as const),
+  );
+
+  return dueCosts.map((cost) => {
+    const homeMinor = upcomingHomeMinor(
+      { costMinor: cost.costMinor, currency: cost.currency, rateToHome: rateById.get(cost.id) },
+      homeCurrency,
+    );
+    return {
+      id: cost.id,
+      label: costLabel(cost, ownerNames),
+      amountLabel: paymentAmountLabel(
+        { costMinor: cost.costMinor, currency: cost.currency, homeMinor, homeCurrency },
+        formatMoney,
+      ),
+      daysUntil: daysBetween(localDate, cost.dueDate!),
+    };
+  });
 }
 
 /**

@@ -25,6 +25,7 @@ const {
   accommodationFindManyMock,
   itemFindManyMock,
   stopFindManyMock,
+  exchangeRateFindManyMock,
   digestPreferenceFindUniqueMock,
   digestDispatchCreateMock,
   digestDispatchDeleteMock,
@@ -48,6 +49,7 @@ const {
     stop: [],
     tripMember: [],
     pushSubscription: [],
+    exchangeRate: [],
   };
 
   /** Minimal Prisma `where` evaluator: equality, null, in/gte/lte/not, OR/AND/NOT. */
@@ -99,6 +101,7 @@ const {
     accommodationFindManyMock: findMany("accommodation"),
     itemFindManyMock: findMany("item"),
     stopFindManyMock: findMany("stop"),
+    exchangeRateFindManyMock: findMany("exchangeRate"),
     digestPreferenceFindUniqueMock: vi.fn(),
     digestDispatchCreateMock: vi.fn(),
     digestDispatchDeleteMock: vi.fn(),
@@ -121,6 +124,7 @@ vi.mock("@/lib/db", () => ({
     accommodation: { findMany: accommodationFindManyMock },
     item: { findMany: itemFindManyMock },
     stop: { findMany: stopFindManyMock },
+    exchangeRate: { findMany: exchangeRateFindManyMock },
     tripMember: { findMany: vi.fn(async () => dbData.tripMember) },
     digestPreference: { findUnique: digestPreferenceFindUniqueMock },
     digestDispatch: {
@@ -178,14 +182,14 @@ const TOMORROW = "2026-12-02";
 /** Trip that is still being planned on LOCAL_DATE (departs 2026-12-20). */
 function seedPlanningTrip() {
   dbData.trip = [
-    { id: TRIP_ID, startDate: "2026-12-20", endDate: "2026-12-30", homeName: "Sydney" },
+    { id: TRIP_ID, startDate: "2026-12-20", endDate: "2026-12-30", homeName: "Sydney", homeCurrency: "AUD" },
   ];
 }
 
 /** Trip that is under way on LOCAL_DATE. */
 function seedTravellingTrip() {
   dbData.trip = [
-    { id: TRIP_ID, startDate: "2026-11-25", endDate: "2026-12-10", homeName: "Sydney" },
+    { id: TRIP_ID, startDate: "2026-11-25", endDate: "2026-12-10", homeName: "Sydney", homeCurrency: "AUD" },
   ];
 }
 
@@ -743,6 +747,22 @@ function collect(over: Partial<Parameters<typeof collectDigestInput>[0]> = {}) {
   });
 }
 
+function fxCost(over: Record<string, unknown> = {}) {
+  return {
+    id: "cost-fx",
+    tripId: TRIP_ID,
+    forkId: null,
+    paidAt: null,
+    dueDate: LOCAL_DATE,
+    costMinor: 24000,
+    currency: "GBP",
+    label: "Hotel",
+    ownerType: "OTHER",
+    ownerId: null,
+    ...over,
+  };
+}
+
 describe("collectDigestInput", () => {
   it("exposes a three-day lookahead", () => {
     expect(DIGEST_LOOKAHEAD_DAYS).toBe(3);
@@ -838,6 +858,32 @@ describe("collectDigestInput", () => {
     // formatMoney's en-AU default renders a foreign currency by code, and
     // separates it with a non-breaking space.
     expect(input.payments[0].amountLabel.replace(/ /g, " ")).toBe("GBP 240.00");
+  });
+
+  it("prices a foreign payment in Home currency with the original in brackets", async () => {
+    dbData.exchangeRate = [{ tripId: TRIP_ID, base: "GBP", quote: "AUD", rate: 1.95 }];
+    dbData.cost = [fxCost()];
+
+    const input = await collect();
+
+    expect(input.payments[0].amountLabel.replace(/\u00a0/g, " ")).toBe("$468.00 (GBP 240.00)");
+  });
+
+  it("uses the cost's snapshot rate before the trip's table", async () => {
+    dbData.exchangeRate = [{ tripId: TRIP_ID, base: "GBP", quote: "AUD", rate: 1.95 }];
+    dbData.cost = [fxCost({ rateToHome: 2 })];
+
+    const input = await collect();
+
+    expect(input.payments[0].amountLabel.replace(/\u00a0/g, " ")).toBe("$480.00 (GBP 240.00)");
+  });
+
+  it("does not read exchange rates on a MORNING slot", async () => {
+    dbData.cost = [fxCost()];
+
+    await collect({ slot: "MORNING" });
+
+    expect(exchangeRateFindManyMock).not.toHaveBeenCalled();
   });
 
   it("leaves On the trip costs out of the payments — only Before you go costs are upcoming payments", async () => {
@@ -1020,7 +1066,7 @@ describe("collectDigestInput", () => {
 
   it("leaves the schedule empty when the target day is after the trip ends", async () => {
     dbData.trip = [
-      { id: TRIP_ID, startDate: "2026-11-01", endDate: "2026-11-20", homeName: "Sydney" },
+      { id: TRIP_ID, startDate: "2026-11-01", endDate: "2026-11-20", homeName: "Sydney", homeCurrency: "AUD" },
     ];
     dbData.item = [
       { id: "item-1", tripId: TRIP_ID, forkId: null, date: "2026-12-02", title: "Museum", startTime: "10:00" },
