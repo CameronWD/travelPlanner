@@ -97,14 +97,14 @@ export function TripCostTile({
     <Card tone="sun" radius="xl" shadow={3} className="relative flex h-full min-h-0 overflow-hidden text-on-accent">
       {link}
       {hasCover ? (
-        <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col p-[22px]">
+        <div className="pointer-events-none relative z-10 flex min-h-0 min-w-0 flex-1 flex-col p-[22px]">
           {totalBlock}
           <div className="mt-3.5">{progress}</div>
           <div className="mt-auto border-t-2 border-border pt-3">
             <p className={EYEBROW}>Next payment</p>
             {nextPayment ? (
               <>
-                <p className="text-[15px] font-bold">
+                <p className="truncate text-[15px] font-bold">
                   {nextAmount} · {nextPayment.label}
                 </p>
                 {due}

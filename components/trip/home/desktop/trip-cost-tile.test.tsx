@@ -86,6 +86,13 @@ describe("TripCostTile", () => {
     expect(text).not.toContain("(");
   });
 
+  it("truncates the cover-layout next payment line", () => {
+    renderTile({
+      nextPayment: { amountMinor: 12_000, currency: "EUR", homeMinor: 19_800, label: "Long hotel name", dueDate: "2026-12-03" },
+    });
+    expect(screen.getByText(/Long hotel name/)).toHaveClass("truncate");
+  });
+
   it("says 'Nothing due' when there is no upcoming payment", () => {
     renderTile({ nextPayment: null });
     expect(screen.getByText("Nothing due")).toBeInTheDocument();
