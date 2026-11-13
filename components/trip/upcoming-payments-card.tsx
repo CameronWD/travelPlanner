@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/money/money";
 import { tripPath } from "@/lib/trip-path";
-import type { UpcomingPayment } from "@/lib/money/upcoming-payments";
+import { paymentAmountLabel, type UpcomingPayment } from "@/lib/money/upcoming-payments";
 
 interface UpcomingPaymentsCardProps {
   payments: UpcomingPayment[];
@@ -49,7 +49,7 @@ export function UpcomingPaymentsCard({ payments, tripSlug }: UpcomingPaymentsCar
               >
                 <span className="min-w-0 flex-1 truncate font-extrabold text-foreground">{payment.label}</span>
                 <span className="shrink-0 tabular-nums font-extrabold text-foreground">
-                  {formatMoney(payment.costMinor, payment.currency)}
+                  {paymentAmountLabel(payment, formatMoney)}
                 </span>
                 {/* Overdue is a state, so it takes the status token, not an accent hue. */}
                 {overdue ? (

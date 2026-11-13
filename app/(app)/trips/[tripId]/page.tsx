@@ -474,6 +474,7 @@ async function renderDesktopHome({
                 ? {
                     amountMinor: nextPayment.costMinor,
                     currency: nextPayment.currency,
+                    homeMinor: nextPayment.homeMinor,
                     label: nextPayment.label,
                     dueDate: nextPayment.dueDate,
                   }

@@ -2,6 +2,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money/money";
+import { paymentAmountLabel } from "@/lib/money/upcoming-payments";
 import { paidPct } from "@/lib/money/summary-lines";
 import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 interface TripCostNextPayment {
   amountMinor: number;
   currency: string;
+  homeMinor: number | null;
   label: string;
   /** YYYY-MM-DD */
   dueDate: string;
@@ -72,6 +74,13 @@ export function TripCostTile({
     </Link>
   );
 
+  const nextAmount = nextPayment
+    ? paymentAmountLabel(
+        { costMinor: nextPayment.amountMinor, currency: nextPayment.currency, homeMinor: nextPayment.homeMinor, homeCurrency: currency },
+        formatMoneyNarrow,
+      )
+    : null;
+
   const due = nextPayment ? (
     <p className="text-[13px] text-on-accent-muted">Due {formatDayLabel(nextPayment.dueDate)}</p>
   ) : null;
@@ -96,7 +105,7 @@ export function TripCostTile({
             {nextPayment ? (
               <>
                 <p className="text-[15px] font-bold">
-                  {formatMoneyNarrow(nextPayment.amountMinor, nextPayment.currency)} · {nextPayment.label}
+                  {nextAmount} · {nextPayment.label}
                 </p>
                 {due}
               </>
@@ -116,7 +125,7 @@ export function TripCostTile({
             {nextPayment ? (
               <>
                 <p className="mt-2 font-display text-[28px] font-extrabold leading-none">
-                  {formatMoneyNarrow(nextPayment.amountMinor, nextPayment.currency)}
+                  {nextAmount}
                 </p>
                 <p className="mt-1 truncate text-sm font-semibold">{nextPayment.label}</p>
                 <div className="mt-auto">{due}</div>
