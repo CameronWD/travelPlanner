@@ -76,6 +76,13 @@ describe("TripCostTile", () => {
     expect(due.textContent).not.toContain("€");
   });
 
+  it("shows the currency code on the original when it shares the Home symbol", () => {
+    const { container } = renderTile({
+      nextPayment: { amountMinor: 15_000, currency: "USD", homeMinor: 24_750, label: "Rental car", dueDate: "2026-12-03" },
+    });
+    expect((container.textContent ?? "").replace(/\u00a0/g, " ")).toContain("$247.50 (USD 150.00)");
+  });
+
   it.each([true, false])("shows a foreign next payment in its own currency when there is no rate (hasCover %s)", (hasCover) => {
     const { container } = renderTile({
       hasCover,

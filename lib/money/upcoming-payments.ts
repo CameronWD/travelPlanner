@@ -1,7 +1,7 @@
 import { daysBetween } from "@/lib/dates";
 import { costLabel } from "@/lib/money/cost-labels";
 import { isOnTrip } from "@/lib/enum-values";
-import { convertMinor } from "@/lib/money/money";
+import { convertMinor, currencySymbol, formatMoney } from "@/lib/money/money";
 
 export interface UpcomingPayment {
   costId: string;
@@ -81,5 +81,7 @@ export function paymentAmountLabel(
   if (p.homeMinor === null || p.currency.toUpperCase() === p.homeCurrency.toUpperCase()) {
     return format(p.costMinor, p.currency);
   }
-  return `${format(p.homeMinor, p.homeCurrency)} (${format(p.costMinor, p.currency)})`;
+  // Narrow symbols collide ($ for USD/NZD/AUD); the code keeps the original unambiguous.
+  const originalFormat = currencySymbol(p.currency) === currencySymbol(p.homeCurrency) ? formatMoney : format;
+  return `${format(p.homeMinor, p.homeCurrency)} (${originalFormat(p.costMinor, p.currency)})`;
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { formatMoneyNarrow } from "@/lib/money/money";
 import { buildUpcomingPayments, paymentAmountLabel, type UpcomingPaymentsInput } from "./upcoming-payments";
 
 const cost = (o: Partial<UpcomingPaymentsInput["costs"][number]> & { id: string }): UpcomingPaymentsInput["costs"][number] => ({
@@ -148,5 +149,15 @@ describe("paymentAmountLabel", () => {
 
   it("shows only the own amount when the currency is Home", () => {
     expect(paymentAmountLabel({ costMinor: 10000, currency: "aud", homeMinor: 10000, homeCurrency: "AUD" }, fmt)).toBe("aud 10000");
+  });
+
+  it("shows the code on the original when its symbol matches the Home symbol", () => {
+    const label = paymentAmountLabel({ costMinor: 15000, currency: "USD", homeMinor: 24750, homeCurrency: "AUD" }, formatMoneyNarrow);
+    expect(label.replace(/\u00a0/g, " ")).toBe("$247.50 (USD 150.00)");
+  });
+
+  it("keeps the symbol on the original when it differs from the Home symbol", () => {
+    const label = paymentAmountLabel({ costMinor: 12000, currency: "EUR", homeMinor: 19800, homeCurrency: "AUD" }, formatMoneyNarrow);
+    expect(label.replace(/\u00a0/g, " ")).toBe("$198.00 (€120.00)");
   });
 });

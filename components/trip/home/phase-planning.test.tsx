@@ -565,6 +565,32 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     expect(html(rem)).toContain("Book the ferry");
   });
 
+  it.each([
+    ["USD", "(USD 150.00)"],
+    ["EUR", "(€"],
+  ])("shows a %s Next payment as the Home amount with the original in brackets", async (currency, expected) => {
+    const { StatTile } = await import("@/components/trip/home/stat-tile");
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 120000, paidTotalMinor: 30000 } });
+    costFindManyMock.mockResolvedValue([
+      {
+        id: "c1", costMinor: 15000, currency, rateToHome: 1.65, paidAt: null, dueDate: "2025-12-08",
+        ownerType: "OTHER", ownerId: null, label: "Deposit",
+      },
+    ]);
+    const tree = await PhasePlanning({
+      tripId: "trip-1", userId: "u-viewer",
+      trip: { ...baseTrip, homeCurrency: "AUD" },
+      today: "2025-12-01",
+      phase: "planning",
+      reminderItems: [],
+    });
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const [, next] = findAllByType(tree, StatTile);
+    const html = renderToStaticMarkup(next as Parameters<typeof renderToStaticMarkup>[0]).replace(/\u00a0/g, " ");
+    expect(html).toContain(expected);
+    expect(html).toContain("$247.5 (");
+  });
+
   it("draws the home map at a 4/3 tile aspect, not a fixed full-width height", async () => {
     stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
       Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
