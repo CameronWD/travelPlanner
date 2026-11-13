@@ -1,12 +1,15 @@
 import { daysBetween } from "@/lib/dates";
 import { costLabel } from "@/lib/money/cost-labels";
 import { isOnTrip } from "@/lib/enum-values";
+import { convertMinor, currencySymbol, formatMoney } from "@/lib/money/money";
 
 export interface UpcomingPayment {
   costId: string;
   label: string;
   costMinor: number;
   currency: string;
+  homeMinor: number | null;
+  homeCurrency: string;
   dueDate: string;
   /** Days from `today` to `dueDate`; negative means overdue. */
   daysUntil: number;
@@ -17,6 +20,7 @@ export interface UpcomingPaymentsInput {
     id: string;
     costMinor: number;
     currency: string;
+    rateToHome?: number | null;
     paidAt: Date | null;
     dueDate: string | null;
     ownerType: string;
@@ -26,6 +30,7 @@ export interface UpcomingPaymentsInput {
     settlement?: string;
   }[];
   ownerNames: Map<string, string>;
+  homeCurrency: string;
   /** YYYY-MM-DD */
   today: string;
 }
@@ -46,6 +51,8 @@ export function buildUpcomingPayments(input: UpcomingPaymentsInput): UpcomingPay
       label: costLabel(c, input.ownerNames),
       costMinor: c.costMinor,
       currency: c.currency,
+      homeMinor: upcomingHomeMinor(c, input.homeCurrency),
+      homeCurrency: input.homeCurrency,
       dueDate: c.dueDate as string,
       daysUntil: daysBetween(input.today, c.dueDate as string),
     }));
@@ -54,4 +61,27 @@ export function buildUpcomingPayments(input: UpcomingPaymentsInput): UpcomingPay
     if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
     return a.label.localeCompare(b.label);
   });
+}
+
+export function upcomingHomeMinor(
+  cost: { costMinor: number; currency: string; rateToHome?: number | null },
+  homeCurrency: string,
+): number | null {
+  if (cost.currency.toUpperCase() === homeCurrency.toUpperCase()) return cost.costMinor;
+  if (typeof cost.rateToHome === "number") {
+    return convertMinor(cost.costMinor, cost.currency, homeCurrency, cost.rateToHome);
+  }
+  return null;
+}
+
+export function paymentAmountLabel(
+  p: { costMinor: number; currency: string; homeMinor: number | null; homeCurrency: string },
+  format: (amountMinor: number, currency: string) => string,
+): string {
+  if (p.homeMinor === null || p.currency.toUpperCase() === p.homeCurrency.toUpperCase()) {
+    return format(p.costMinor, p.currency);
+  }
+  // Narrow symbols collide ($ for USD/NZD/AUD); the code keeps the original unambiguous.
+  const originalFormat = currencySymbol(p.currency) === currencySymbol(p.homeCurrency) ? formatMoney : format;
+  return `${format(p.homeMinor, p.homeCurrency)} (${originalFormat(p.costMinor, p.currency)})`;
 }

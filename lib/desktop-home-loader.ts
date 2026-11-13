@@ -326,9 +326,12 @@ async function load(
     })),
   });
   // Surprise: the lines leave out money inside a Surprise hidden from the viewer.
+  const rateById = new Map(costsWithRates.map((c) => [c.id, c.rateToHome] as const));
   const hiddenOwners = new Set(v.hiddenOwnerIds);
-  const lineCosts = costs.filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId));
-  const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, today });
+  const lineCosts = costs
+    .filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId))
+    .map((c) => ({ ...c, rateToHome: rateById.get(c.id) ?? null }));
+  const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, homeCurrency, today });
 
   // Still to book (spec 2026-10-17 R2): `itemRows`/`accommodations` already
   // carry the Surprise fragments; Wishlist ideas (no Stop, no date) are not in the plan.

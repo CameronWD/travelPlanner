@@ -13,7 +13,7 @@ function renderTile(overrides: Partial<Props> = {}) {
       costTotalMinor={1_110_000}
       paidTotalMinor={400_000}
       currency="AUD"
-      nextPayment={{ amountMinor: 11_520, currency: "AUD", label: "Kuta pool villa", dueDate: "2026-12-01" }}
+      nextPayment={{ amountMinor: 11_520, currency: "AUD", homeMinor: 11_520, label: "Kuta pool villa", dueDate: "2026-12-01" }}
       {...overrides}
     />,
   );
@@ -61,8 +61,43 @@ describe("TripCostTile", () => {
   });
 
   it("uses the narrow symbol for the next payment, like the total", () => {
-    renderTile({ currency: "EUR", nextPayment: { amountMinor: 11_520, currency: "EUR", label: "Villa", dueDate: "2026-12-01" } });
+    renderTile({ currency: "EUR", nextPayment: { amountMinor: 11_520, currency: "EUR", homeMinor: 11_520, label: "Villa", dueDate: "2026-12-01" } });
     expect(screen.getByText(/€115\.20 · Villa/)).toBeInTheDocument();
+  });
+
+  it.each([true, false])("shows a foreign next payment in Home currency with the original in brackets (hasCover %s)", (hasCover) => {
+    const { container } = renderTile({
+      hasCover,
+      nextPayment: { amountMinor: 12_000, currency: "EUR", homeMinor: 19_800, label: "Hotel Kaiser", dueDate: "2026-12-03" },
+    });
+    expect((container.textContent ?? "").replace(/\u00a0/g, " ")).toContain("$198.00 (€120.00)");
+    const due = screen.getByText(/^Due /);
+    expect(due.textContent).toBe("Due Thu 3 Dec");
+    expect(due.textContent).not.toContain("€");
+  });
+
+  it("shows the currency code on the original when it shares the Home symbol", () => {
+    const { container } = renderTile({
+      nextPayment: { amountMinor: 15_000, currency: "USD", homeMinor: 24_750, label: "Rental car", dueDate: "2026-12-03" },
+    });
+    expect((container.textContent ?? "").replace(/\u00a0/g, " ")).toContain("$247.50 (USD 150.00)");
+  });
+
+  it.each([true, false])("shows a foreign next payment in its own currency when there is no rate (hasCover %s)", (hasCover) => {
+    const { container } = renderTile({
+      hasCover,
+      nextPayment: { amountMinor: 12_000, currency: "EUR", homeMinor: null, label: "Hotel Kaiser", dueDate: "2026-12-03" },
+    });
+    const text = (container.textContent ?? "").replace(/\u00a0/g, " ");
+    expect(text).toContain("€120.00");
+    expect(text).not.toContain("(");
+  });
+
+  it("truncates the cover-layout next payment line", () => {
+    renderTile({
+      nextPayment: { amountMinor: 12_000, currency: "EUR", homeMinor: 19_800, label: "Long hotel name", dueDate: "2026-12-03" },
+    });
+    expect(screen.getByText(/Long hotel name/)).toHaveClass("truncate");
   });
 
   it("says 'Nothing due' when there is no upcoming payment", () => {

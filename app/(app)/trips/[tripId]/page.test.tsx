@@ -533,7 +533,7 @@ describe("Trip Home, composed with its layout", () => {
           { id: "s2", name: "Nowhere", sortOrder: 1, lat: null, lng: null, countryCode: null, arriveDate: null, departDate: null, nights: 1 },
         ],
         budget: { grandTotal: { costTotalMinor: 1_110_000, paidTotalMinor: 400_000 } },
-        upcomingPayments: [{ costId: "c1", label: "Kuta pool villa", costMinor: 11_520, currency: "AUD", dueDate: "2099-05-20", daysUntil: 3 }],
+        upcomingPayments: [{ costId: "c1", label: "Kuta pool villa", costMinor: 11_520, currency: "AUD", homeMinor: 11_520, homeCurrency: "AUD", dueDate: "2099-05-20", daysUntil: 3 }],
         steps: [{ id: "nudge-packing", title: "Start your packing list", href: "/trips/trip-1/checklists", severity: "info", source: "nudge" }],
       };
       await renderTripHome();

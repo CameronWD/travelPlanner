@@ -1,12 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { UpcomingPaymentsCard } from "./upcoming-payments-card";
+import { formatMoney } from "@/lib/money/money";
 import type { UpcomingPayment } from "@/lib/money/upcoming-payments";
 
 const payment = (o: Partial<UpcomingPayment> & { costId: string }): UpcomingPayment => ({
   label: "Hotel Lutetia",
   costMinor: 45000,
   currency: "EUR",
+  homeMinor: 45000,
+  homeCurrency: "AUD",
   dueDate: "2026-10-01",
   daysUntil: 3,
   ...o,
@@ -28,6 +31,18 @@ describe("UpcomingPaymentsCard", () => {
     expect(screen.getByText("Hotel Lutetia")).toBeInTheDocument();
     expect(screen.getByText(/450\.00/)).toBeInTheDocument();
     expect(screen.getByText("comes out in 3 days")).toBeInTheDocument();
+  });
+
+  it("shows a foreign payment as Home amount with the original in brackets", () => {
+    render(
+      <UpcomingPaymentsCard
+        payments={[payment({ costId: "a", costMinor: 12000, currency: "EUR", homeMinor: 19800, homeCurrency: "AUD" })]}
+        tripId="trip-1"
+        tripSlug="trip-1"
+      />,
+    );
+    const expected = `${formatMoney(19800, "AUD")} (${formatMoney(12000, "EUR")})`;
+    expect(screen.getByRole("link").textContent).toContain(expected);
   });
 
   it("shows 'comes out tomorrow' for daysUntil === 1", () => {

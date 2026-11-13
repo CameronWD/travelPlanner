@@ -19,6 +19,7 @@ import type { RouteMapStop } from "@/components/trip/route-map";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
 import { formatMoneyCompact } from "@/lib/money/money";
+import { paymentAmountLabel } from "@/lib/money/upcoming-payments";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
@@ -201,7 +202,7 @@ export async function PhasePlanning({
       className="hidden lg:flex"
       tone="teal"
       label="Next payment"
-      value={nextPayment ? formatMoneyCompact(nextPayment.costMinor, nextPayment.currency) : "Nothing due"}
+      value={nextPayment ? paymentAmountLabel(nextPayment, formatMoneyCompact) : "Nothing due"}
       sub={nextPayment ? `${nextPayment.label} · ${paymentWhen(nextPayment.daysUntil)}` : "No unpaid cost has a due date"}
       href={tripPath(slug, "/budget")}
     />,
