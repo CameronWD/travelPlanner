@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildUpcomingPayments, type UpcomingPaymentsInput } from "./upcoming-payments";
+import { buildUpcomingPayments, paymentAmountLabel, type UpcomingPaymentsInput } from "./upcoming-payments";
 
 const cost = (o: Partial<UpcomingPaymentsInput["costs"][number]> & { id: string }): UpcomingPaymentsInput["costs"][number] => ({
   costMinor: 10000,
@@ -22,6 +22,7 @@ describe("buildUpcomingPayments", () => {
         cost({ id: "none", dueDate: null }),
       ],
       ownerNames: new Map(),
+      homeCurrency: "AUD",
       today: "2026-09-14",
     });
     expect(rows.map((r) => r.costId)).toEqual(["b", "a"]);
@@ -35,6 +36,7 @@ describe("buildUpcomingPayments", () => {
         cost({ id: "legacy", dueDate: "2026-10-02" }),
       ],
       ownerNames: new Map(),
+      homeCurrency: "AUD",
       today: "2026-09-14",
     });
     expect(rows.map((r) => r.costId)).toEqual(["before", "legacy"]);
@@ -48,6 +50,7 @@ describe("buildUpcomingPayments", () => {
         cost({ id: "overdue", dueDate: "2026-09-10" }),
       ],
       ownerNames: new Map(),
+      homeCurrency: "AUD",
       today: "2026-09-14",
     });
     const byId = new Map(rows.map((r) => [r.costId, r]));
@@ -63,6 +66,7 @@ describe("buildUpcomingPayments", () => {
         cost({ id: "a", dueDate: "2026-10-01", label: "Airport transfer" }),
       ],
       ownerNames: new Map(),
+      homeCurrency: "AUD",
       today: "2026-09-14",
     });
     expect(rows.map((r) => r.costId)).toEqual(["a", "z"]);
@@ -74,6 +78,7 @@ describe("buildUpcomingPayments", () => {
         cost({ id: "acc", dueDate: "2026-10-01", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null, costMinor: 45000, currency: "EUR" }),
       ],
       ownerNames: new Map([["acc-1", "Hotel Lutetia"]]),
+      homeCurrency: "AUD",
       today: "2026-09-14",
     });
     expect(rows).toEqual([
@@ -82,6 +87,8 @@ describe("buildUpcomingPayments", () => {
         label: "Hotel Lutetia",
         costMinor: 45000,
         currency: "EUR",
+        homeMinor: null,
+        homeCurrency: "AUD",
         dueDate: "2026-10-01",
         daysUntil: 17,
       },
@@ -93,8 +100,53 @@ describe("buildUpcomingPayments", () => {
       buildUpcomingPayments({
         costs: [cost({ id: "paid", dueDate: "2026-10-01", paidAt: new Date() })],
         ownerNames: new Map(),
+        homeCurrency: "AUD",
         today: "2026-09-14",
       }),
     ).toEqual([]);
+  });
+});
+
+describe("home-currency amount", () => {
+  const run = (c: ReturnType<typeof cost>) =>
+    buildUpcomingPayments({ costs: [c], ownerNames: new Map(), homeCurrency: "AUD", today: "2026-09-14" })[0];
+
+  it("converts a foreign cost to the Home currency with its rate", () => {
+    const r = run(cost({ id: "e", currency: "EUR", costMinor: 12000, rateToHome: 1.65, dueDate: "2026-12-03" }));
+    expect(r.homeMinor).toBe(19800);
+    expect(r.homeCurrency).toBe("AUD");
+    expect(r.costMinor).toBe(12000);
+    expect(r.currency).toBe("EUR");
+  });
+
+  it("leaves homeMinor null for a foreign cost with no rate", () => {
+    const r = run(cost({ id: "e", currency: "EUR", rateToHome: null, dueDate: "2026-12-03" }));
+    expect(r.homeMinor).toBeNull();
+  });
+
+  it("converts a zero-decimal currency through minor units", () => {
+    const r = run(cost({ id: "j", currency: "JPY", costMinor: 10000, rateToHome: 0.011, dueDate: "2026-12-03" }));
+    expect(r.homeMinor).toBe(11000);
+  });
+
+  it("treats a lower-case same currency as Home", () => {
+    const r = run(cost({ id: "a", currency: "aud", dueDate: "2026-12-03" }));
+    expect(r.homeMinor).toBe(10000);
+  });
+});
+
+describe("paymentAmountLabel", () => {
+  const fmt = (m: number, c: string) => `${c} ${m}`;
+
+  it("shows Home first with the own amount in brackets for a foreign cost", () => {
+    expect(paymentAmountLabel({ costMinor: 12000, currency: "EUR", homeMinor: 19800, homeCurrency: "AUD" }, fmt)).toBe("AUD 19800 (EUR 12000)");
+  });
+
+  it("falls back to the own amount with no Home amount", () => {
+    expect(paymentAmountLabel({ costMinor: 12000, currency: "EUR", homeMinor: null, homeCurrency: "AUD" }, fmt)).toBe("EUR 12000");
+  });
+
+  it("shows only the own amount when the currency is Home", () => {
+    expect(paymentAmountLabel({ costMinor: 10000, currency: "aud", homeMinor: 10000, homeCurrency: "AUD" }, fmt)).toBe("aud 10000");
   });
 });

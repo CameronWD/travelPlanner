@@ -7,6 +7,8 @@ const payment = (o: Partial<UpcomingPayment> & { costId: string }): UpcomingPaym
   label: "Hotel Lutetia",
   costMinor: 45000,
   currency: "EUR",
+  homeMinor: 45000,
+  homeCurrency: "AUD",
   dueDate: "2026-10-01",
   daysUntil: 3,
   ...o,

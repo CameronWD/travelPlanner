@@ -69,6 +69,7 @@ vi.mock("@/lib/db", () => ({
     transport: { findMany: transportFindManyMock },
     accommodation: { findMany: accommodationFindManyMock },
     cost: { findMany: costFindManyMock },
+    exchangeRate: { findMany: async () => [] },
     reminder: { findMany: reminderFindManyMock },
     chapter: { findMany: chapterFindManyMock },
     attachment: { findMany: attachmentFindManyMock },

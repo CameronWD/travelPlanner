@@ -64,7 +64,7 @@ vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }
 vi.mock("@/lib/dates", () => ({ daysBetween: vi.fn(), formatDayLabel: vi.fn((s: string) => s) }));
 vi.mock("@/lib/trip-phase", () => ({ describePhase: vi.fn() }));
 vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn() }));
-vi.mock("@/lib/money/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
+vi.mock("@/lib/money/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn((i: { costs: unknown[] }) => i.costs) }));
 vi.mock("@/lib/next-steps", () => ({ buildNextSteps: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(), hasOutboundLeg: vi.fn(), hasReturnLeg: vi.fn() }));
 vi.mock("@/server/actions/stops", () => ({}));

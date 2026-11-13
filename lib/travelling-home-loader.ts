@@ -39,6 +39,7 @@ import type { TransportMode } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { buildCostLabelMap } from "@/lib/money/cost-labels";
 import { buildUpcomingPayments } from "@/lib/money/upcoming-payments";
+import { applyFxRatesToCosts } from "@/lib/money/budget";
 import { loadTodaysJournal } from "@/lib/journal-loader";
 import { surprisesToReveal } from "@/lib/next-steps-builder";
 import { revealSurpriseStep } from "@/lib/next-steps";
@@ -49,7 +50,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // Reminders are NOT read here: the Reminders card is rendered by the trip
   // Home page in every Phase, not only while Travelling.
   const read = await readDayRows(tripId, userId, async (ctx) => {
-    const [costs, todaysJournal, slug] = await Promise.all([
+    const [costs, exchangeRates, todaysJournal, slug] = await Promise.all([
       db.cost.findMany({
         where: { tripId, ...REAL_PLAN },
         select: {
@@ -57,6 +58,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
           ownerType: true, ownerId: true, label: true, category: true, settlement: true,
         },
       }),
+      db.exchangeRate.findMany({ where: { tripId }, select: { base: true, quote: true, rate: true } }),
       // Today's journal (spec K) — never for a day still ahead (CONTEXT.md
       // "Journal"): before day 1 the Trip's real today hasn't arrived, so
       // there's nothing to load or write. The day journaled is today clamped
@@ -70,14 +72,14 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       // For the reveal nudges' links; cache()d, so the Phase's own read is free.
       tripSlugFor(tripId),
     ]);
-    return { costs, todaysJournal, slug };
+    return { costs, exchangeRates, todaysJournal, slug };
   });
   if (read === "missing") notFound();
   // A date-less trip has no calendar to anchor "today" against — the Phase
   // renders its empty treatment.
   if (read === "dateless") return { kind: "no-dates" as const };
 
-  const { rows, visibility: v, alongside: { costs, todaysJournal, slug } } = read;
+  const { rows, visibility: v, alongside: { costs, exchangeRates, todaysJournal, slug } } = read;
   const { trip, startDate, endDate, stops, items, transports, accommodations, chapters } = rows;
   const base = tripPath(slug);
 
@@ -134,9 +136,12 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // `today` (trip-timezone "now"), not `effectiveDate` — a due date can fall
   // outside the trip. Surprise: the lines leave out money inside a Surprise
   // hidden from the viewer.
+  const rateById = new Map(applyFxRatesToCosts({ costs, exchangeRates, homeCurrency }).map((c) => [c.id, c.rateToHome] as const));
   const hiddenOwners = new Set(v.hiddenOwnerIds);
-  const lineCosts = costs.filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId));
-  const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, today });
+  const lineCosts = costs
+    .filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId))
+    .map((c) => ({ ...c, rateToHome: rateById.get(c.id) ?? null }));
+  const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, homeCurrency, today });
 
   // The next departure, resolved for display (TransportCountdown on the
   // phone, the desktop Today tile).
