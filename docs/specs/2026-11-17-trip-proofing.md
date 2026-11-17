@@ -287,13 +287,17 @@ items sorted as "can wait".
 ## Cam's steps (after the branch is merged and deployed)
 
 1. Confirm the deploy is live (also closes Feedback `cmwdagfzt000108l323mrgv7v`).
-2. Vercel: `STORAGE_DRIVER=r2` and the R2 variables; the four VAPID
-   variables; Node version; `CRON_SECRET` matches GitHub.
+2. Vercel, BEFORE this deploys: `STORAGE_DRIVER=r2` and the R2 variables
+   (production now refuses local-disk storage, so uploads and file opens
+   error without it). Also the four VAPID variables; Node version;
+   `CRON_SECRET` matches GitHub.
 3. GitHub: failed-workflow emails on; run "Digest cron" once by hand.
 4. Neon November usage; Google quotas on 1 Dec; Anthropic spend limit;
    clear `/admin` errors; Recently deleted empty.
-5. Both phones, after the final deploy: sign out and in once (new session
-   length), open every section, "Save again" until it shows the full count,
-   then airplane mode: cold launch from the home screen, open a PDF ticket,
-   tap through each section.
+5. Both phones, after the final deploy: open the app once online (that
+   alone moves an existing sign-in to the new session length; do NOT sign
+   out, which clears the saved copy), open every section including Plan,
+   "Save again" until it reads "Saved for offline", then airplane mode:
+   cold launch from the home screen, open a PDF ticket (one over 4.5 MB if
+   there is one), tap through each section.
 6. `npm run travel-times:refresh -- --execute`.
