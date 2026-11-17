@@ -439,6 +439,10 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).toContain("function lastTripMessagePath(data)");
   });
 
+  it("redirects an unsaved query to the saved page exactly as lib/offline.ts does (ADR 0077)", () => {
+    expect(SW_SOURCE).toContain("function queryFallbackPath(url, mode, exactServable, plainServable) {\n  if (mode !== 'navigate' || exactServable || !plainServable) return null;\n  const { pathname, search } = new URL(url);\n  return search ? pathname : null;\n}");
+  });
+
   it("answers a slow navigation from its saved copy exactly as lib/offline.ts does (spec 2026-11-17 §A5, ADR 0077)", () => {
     expect(SW_SOURCE).toContain(`const NAVIGATION_TIMEOUT_MS = ${NAVIGATION_TIMEOUT_MS};`);
     expect(SW_SOURCE).toContain(`const SAVED_COPY_HEADER = '${SAVED_COPY_HEADER}';`);
@@ -1280,5 +1284,139 @@ describe("public/sw.js — a slow network falls back to the saved copy (spec A5)
   it("ignores a WAS_SAVED_COPY message with no port", () => {
     const { dispatch } = loadServiceWorker({ caches: matchingCaches().api });
     expect(() => dispatch("message", { data: { type: WAS_SAVED_COPY_MESSAGE, url: "/x" } })).not.toThrow();
+  });
+});
+
+describe("public/sw.js — an unsaved query falls back to the saved page (ADR 0077)", () => {
+  const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
+  const BASE = "https://teepee.example/trips/a/budget";
+  const QUERY = `${BASE}?by=place`;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function savePages(c: ReturnType<typeof fakeCaches>, pages: Record<string, string>) {
+    const store = await c.api.open("teepee-pages-v1");
+    for (const [path, body] of Object.entries(pages)) {
+      await store.put(new Request(`https://teepee.example${path}`), new Response(body));
+    }
+  }
+
+  function open(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, request: unknown) {
+    let answered: Promise<Response> | undefined;
+    const waits: Promise<unknown>[] = [];
+    dispatch("fetch", {
+      request,
+      resultingClientId: "client-1",
+      respondWith: (p: Promise<Response>) => {
+        answered = p;
+      },
+      waitUntil: (p: Promise<unknown>) => {
+        waits.push(p);
+      },
+    });
+    return { answered: answered!, waits };
+  }
+
+  async function settle(waits: Promise<unknown>[]) {
+    let seen = -1;
+    while (seen !== waits.length) {
+      seen = waits.length;
+      await Promise.all(waits);
+    }
+  }
+
+  function offline() {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError("offline"));
+    globalThis.fetch = fetchMock as never;
+    return fetchMock;
+  }
+
+  it("offline, a query on a saved page redirects to the plain path, which is then the saved copy with no second fetch", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/budget": "money" });
+    const fetchMock = offline();
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = vi.fn();
+    getClient.mockResolvedValue({ postMessage });
+
+    const redirect = await open(dispatch, navigation(QUERY)).answered;
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("Location")).toBe(BASE);
+
+    const follow = open(dispatch, navigation(BASE));
+    const response = await follow.answered;
+    await settle(follow.waits);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await response.text()).toBe("money");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: BASE });
+  });
+
+  it("the exact URL, when saved, is served directly with no redirect", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/budget": "money", "/trips/a/budget?by=place": "money-by-place" });
+    offline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await open(dispatch, navigation(QUERY)).answered;
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("money-by-place");
+  });
+
+  it("with neither saved, a query navigation gets offline.html", async () => {
+    const c = matchingCaches();
+    const statics = await c.api.open("teepee-static-dev");
+    await statics.put(new Request("https://teepee.example/offline.html"), new Response("offline-page"));
+    offline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await open(dispatch, navigation(QUERY)).answered;
+
+    expect(await response.text()).toBe("offline-page");
+  });
+
+  it("a slow network on a query navigation redirects the same way", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/budget": "money" });
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => {})) as never;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const nav = open(dispatch, navigation(QUERY));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS);
+    const redirect = await nav.answered;
+
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("Location")).toBe(BASE);
+  });
+
+  it("a 5xx on a query navigation redirects the same way", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/budget": "money" });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("boom", { status: 503 })) as never;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const redirect = await open(dispatch, navigation(QUERY)).answered;
+
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("Location")).toBe(BASE);
+  });
+
+  it("a request that is not a navigation is never redirected", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/budget": "money" });
+    offline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await open(dispatch, { url: QUERY, method: "GET", mode: "cors", headers: new Headers() }).answered;
+
+    expect(response.status).toBe(503);
   });
 });

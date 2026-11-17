@@ -194,6 +194,12 @@ function isServerFailure(status) {
   return status >= 500;
 }
 
+function queryFallbackPath(url, mode, exactServable, plainServable) {
+  if (mode !== 'navigate' || exactServable || !plainServable) return null;
+  const { pathname, search } = new URL(url);
+  return search ? pathname : null;
+}
+
 function savedCopyResponse(response) {
   const headers = new Headers(response.headers);
   headers.set(SAVED_COPY_HEADER, '1');
@@ -627,7 +633,14 @@ async function savedCopy(request) {
     if (start) return { redirect: start };
   }
   const cached = await servableCached(request);
-  return cached ? { cached } : null;
+  if (cached) return { cached };
+  if (request.mode === 'navigate' && new URL(request.url).search) {
+    const { pathname } = new URL(request.url);
+    const plain = await caches.match(new URL(pathname, self.location.origin).href);
+    const redirect = queryFallbackPath(request.url, request.mode, false, !!plain && isServableCacheHit('navigate', plain));
+    if (redirect) return { redirect };
+  }
+  return null;
 }
 
 async function offlineResponse(event) {

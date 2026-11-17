@@ -60,6 +60,12 @@ copy sat in the cache.
    `withoutSavedCopyRecord`, `wasSavedCopy`, `wasSavedCopyQueryPath` and the
    record's limits) live in `lib/offline.ts` and are mirrored in
    `public/sw.js`.
+7. **An unsaved query falls back to the saved page.** A navigation that fails,
+   times out or answers 5xx, with no servable entry for its exact URL but one
+   for the same path without a query, is answered with a 302 to that path
+   (`queryFallbackPath`); the follow-up is read from the cache and marked as
+   a saved copy. A redirect, not the plain body at the query URL, so the
+   address and the router's pathname agree.
 
 ## Considered options
 

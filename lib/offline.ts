@@ -437,6 +437,15 @@ export function isServerFailure(status: number): boolean {
   return status >= 500;
 }
 
+// A link that adds a query to a saved page (`?by=place`) has no entry of its own:
+// pages are saved without one. The worker redirects to the plain path rather than
+// serving its body at the query URL, so the address and the page agree. Mirrored in sw.js.
+export function queryFallbackPath(url: string, mode: string, exactServable: boolean, plainServable: boolean): string | null {
+  if (mode !== 'navigate' || exactServable || !plainServable) return null;
+  const { pathname, search } = new URL(url);
+  return search ? pathname : null;
+}
+
 export function savedCopyResponse(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set(SAVED_COPY_HEADER, '1');
