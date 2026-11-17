@@ -28,7 +28,7 @@ export interface ReleaseNote {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     publishedAt: "2026-11-17T00:00:00Z",
-    text: "Travelling: no signal now opens your saved trip, tickets work offline, and Home leads with today. Tap a booking to read it first.",
+    text: "Travelling: no signal opens your saved trip, tickets work offline, and Home leads with today. On a phone, tap a booking to read it first.",
   },
   {
     publishedAt: "2026-10-09T00:00:00Z",

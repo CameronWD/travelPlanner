@@ -1162,7 +1162,7 @@ export function HelpGuide({
               You won&rsquo;t always have signal. Open the app with none and it
               opens your saved trip instead of a dead end. Pages you&rsquo;ve
               already opened keep working, and so do the tickets and booking
-              files you saved for offline. On a slow connection the saved copy
+              files saved for offline. On a slow connection the saved copy
               shows after a few seconds rather than hanging, and a saved page
               from another day says so. The trip you opened last is kept on your
               phone on purpose.{" "}
