@@ -17,7 +17,6 @@ import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { DayIdeas } from "@/components/trip/day-ideas";
 import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
 import { MapLink } from "@/components/trip/map-link";
-import { TransportCountdown } from "@/components/trip/transport-countdown";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
@@ -27,11 +26,12 @@ import { TravellingDesktopGrid } from "@/components/trip/home/desktop/desktop-ho
 import { CountdownTile, type CountdownTileProps } from "@/components/trip/home/desktop/countdown-tile";
 import { SpendSoFarTile } from "@/components/trip/home/desktop/spend-so-far-tile";
 import { TodayTile } from "@/components/trip/home/desktop/today-tile";
-import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
-
-/** Exported for className assertion in tests — must match the JSX below. */
-export const TRAVELLING_DESKTOP_GRID_CLASS =
-  `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start`;
+import { HOME_STACK } from "@/components/trip/home/spacing";
+import { NowNextCard } from "@/components/trip/home/now-next-card";
+import { QuickActions } from "@/components/trip/home/quick-actions";
+import { StillToBookCard } from "@/components/trip/home/still-to-book-card";
+import { CopyConfirmationButton } from "@/components/trip/home/copy-confirmation-button";
+import { STILL_TO_BOOK_LIMIT_PHONE } from "@/lib/still-to-book";
 
 export async function PhaseTravelling({
   tripId,
@@ -96,12 +96,14 @@ export async function PhaseTravelling({
     attachmentsByTarget,
     needsConfirmationIds,
     tonightAccom,
-    nextTransport,
+    nowNext,
+    localMode,
     effectiveStop,
     stopLocated,
     spend,
     homeCurrency,
     upcomingPayments,
+    stillToBook,
     dayMapModel,
     itemDirections,
     freeForm,
@@ -112,16 +114,26 @@ export async function PhaseTravelling({
     revealNudges,
     holidays,
   } = model;
+  const nowNextFiles =
+    nowNext.kind === "in-transit" || nowNext.kind === "next-departure" ? (attachmentsByTarget[nowNext.transportId] ?? []) : [];
 
+  // Spec 2026-11-17 C: the phone Today view leads with right now, in this
+  // order; everything after Upcoming payments keeps its old relative order.
   return (
     <div className={HOME_STACK}>
-      {/* ── Header (kit Today: "Day 6 of 12" label over the date) ── */}
-      <div className="flex flex-col gap-1 pt-2">
+      {/* ── Day line (kit Today: "Day 6 of 12 · Paris" over the date) ── */}
+      <div className="flex flex-col gap-1 pt-2" data-testid="day-line">
         {isWithinTrip && (
           <p className="flex flex-wrap items-center gap-1.5 text-label text-muted-foreground">
             <span>
               Day {dayNum} of {totalDays}
             </span>
+            {effectiveStop && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{effectiveStop.name}</span>
+              </>
+            )}
             {currentChapter && (
               <>
                 <span aria-hidden="true">·</span>
@@ -157,148 +169,164 @@ export async function PhaseTravelling({
         )}
       </div>
 
-      {/* ── Two-column desktop grid (kit Today: main column + side rail) ── */}
-      {/* Mobile: single column; cards stack in natural order (up next + plan first, rail below). */}
-      <div className={TRAVELLING_DESKTOP_GRID_CLASS} data-testid="today-grid">
-        {/* ── Main column: up next · today's plan · day-map · ideas ── */}
-        <div className={`${HOME_STACK} lg:order-1`}>
-          <RevealNudges nudges={revealNudges} />
+      <RevealNudges nudges={revealNudges} />
 
-          {/* Next transport countdown (kit "Up next" card) */}
-          {nextTransport && (
-            <TransportCountdown
-              depAt={nextTransport.depAt}
-              depTimeLabel={nextTransport.depTimeLabel}
-              depZone={nextTransport.depZone}
-              label={nextTransport.label}
-              attachments={attachmentsByTarget[nextTransport.id] ?? []}
+      <div className="flex flex-col gap-2" data-testid="now-next">
+        <NowNextCard
+          nowNext={nowNext}
+          tripId={tripId}
+          dayMapHref={tripPath(slug, `/day/${effectiveDate}`)}
+          localMode={localMode}
+        />
+        {nowNextFiles.length > 0 && <AttachmentLinks attachments={nowNextFiles} />}
+      </div>
+
+      <Card className="p-3.5 lg:p-5" data-testid="todays-plan">
+        <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
+          Today&apos;s plan
+        </h3>
+        <div className="mt-2.5">
+          {dayPlan && hasEntries ? (
+            <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} todayISO={today} needsConfirmationIds={needsConfirmationIds} />
+          ) : (
+            <EmptyState
+              icon={CalendarDays}
+              tone="sun"
+              title="Nothing planned"
+              description="Nothing is scheduled for this day yet."
+              className="py-5"
             />
           )}
+        </div>
+      </Card>
 
-          <Card className="p-3.5 lg:p-5">
-            <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
-              Today&apos;s plan
-            </h3>
-            <div className="mt-2.5">
-              {dayPlan && hasEntries ? (
-                <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} todayISO={today} needsConfirmationIds={needsConfirmationIds} />
-              ) : (
-                <EmptyState
-                  icon={CalendarDays}
-                  tone="sun"
-                  title="Nothing planned"
-                  description="Nothing is scheduled for this day yet."
-                  className="py-5"
+      {/* Tonight's accommodation (kit "Tonight" card on the stay fill), with
+          the Day view Tonight card's details shown open. */}
+      {tonightAccom && (
+        <Card tone="lilac" className="p-4 lg:p-5" data-testid="tonights-stay">
+          <h3 className="text-label">Tonight&apos;s stay</h3>
+          <div className="mt-1.5 flex items-start gap-2.5">
+            <Bed className="mt-1 size-5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-xl font-extrabold leading-tight tracking-[-0.03em]">
+                {tonightAccom.name}
+              </p>
+              {tonightAccom.address && (
+                <div className="mt-1 flex items-center gap-1 text-[13px] font-semibold">
+                  <span className="truncate">{tonightAccom.address}</span>
+                  <MapLink
+                    lat={tonightAccom.lat}
+                    lng={tonightAccom.lng}
+                    address={tonightAccom.address}
+                    label={tonightAccom.name}
+                    placeId={tonightAccom.placeId}
+                    className="shrink-0 text-foreground"
+                  />
+                </div>
+              )}
+              {!tonightAccom.address && (
+                <MapLink
+                  lat={tonightAccom.lat}
+                  lng={tonightAccom.lng}
+                  label={tonightAccom.name}
+                  placeId={tonightAccom.placeId}
+                  className="mt-1 text-[13px] font-semibold text-foreground"
                 />
               )}
+              {tonightAccom.confirmation && (
+                <div className="flex items-center gap-2 text-[13px] font-semibold">
+                  <span>Confirmation</span>
+                  <span className="min-w-0 truncate font-mono">{tonightAccom.confirmation}</span>
+                  <CopyConfirmationButton confirmation={tonightAccom.confirmation} />
+                </div>
+              )}
+              {tonightAccom.checkInTime && (
+                <p className="text-[13px] font-semibold">{`Check-in ${tonightAccom.checkInTime}`}</p>
+              )}
+              {tonightAccom.notes && (
+                <p className="mt-1 whitespace-pre-line text-[13px] font-medium">{tonightAccom.notes}</p>
+              )}
+              <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
             </div>
-          </Card>
+          </div>
+        </Card>
+      )}
 
-          {/* Day map (collapsed toggle) */}
-          <DayMapPanel tripId={tripId} model={dayMapModel} />
-
-          {/* Day ideas on free-form days; Nearby Wishlist on planned days */}
-          {freeForm ? (
-            <DayIdeas
-              tripId={tripId}
-              date={effectiveDate}
-              thingsToDo={thingsToDo}
-              wishlistIdeas={wishlistIdeas}
-            />
-          ) : (
-            <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
-          )}
-          {whatsAroundFor(tripId, model)}
-        </div>
-
-        {/* ── Right rail: tonight · where-you-are · spend · payments · reminders ── */}
-        <div className={`${HOME_STACK} lg:order-2`} data-home-aside>
-          {/* Tonight's accommodation (kit "Tonight" card on the stay fill) */}
-          {tonightAccom && (
-            <Card tone="lilac" className="p-4 lg:p-5">
-              <h3 className="text-label">Tonight&apos;s stay</h3>
-              <div className="mt-1.5 flex items-start gap-2.5">
-                <Bed className="mt-1 size-5 shrink-0" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-display text-xl font-extrabold leading-tight tracking-[-0.03em]">
-                    {tonightAccom.name}
-                  </p>
-                  {tonightAccom.address && (
-                    <div className="mt-1 flex items-center gap-1 text-[13px] font-semibold">
-                      <span className="truncate">{tonightAccom.address}</span>
-                      <MapLink
-                        lat={tonightAccom.lat}
-                        lng={tonightAccom.lng}
-                        address={tonightAccom.address}
-                        label={tonightAccom.name}
-                        placeId={tonightAccom.placeId}
-                        className="shrink-0 text-foreground"
-                      />
-                    </div>
-                  )}
-                  {!tonightAccom.address && (
-                    <MapLink
-                      lat={tonightAccom.lat}
-                      lng={tonightAccom.lng}
-                      label={tonightAccom.name}
-                      placeId={tonightAccom.placeId}
-                      className="mt-1 text-[13px] font-semibold text-foreground"
-                    />
-                  )}
-                  <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Where you are */}
-          {effectiveStop && (
-            <Card className="p-4">
-              <h3 className="text-label text-muted-foreground">Where you are</h3>
-              <div className="mt-1.5 flex items-center gap-2">
-                {/* No decorative pin here: MapLink below renders the real one,
-                    and help-legend.tsx teaches that glyph as "has a location"
-                    (HG-02/HG-10, missed instance found as SW-02). */}
-                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-                  <span className="font-display text-xl font-extrabold tracking-[-0.03em] text-foreground">
-                    {effectiveStop.name}
-                  </span>
-                  {effectiveStop.country && (
-                    <span className="text-[13px] font-semibold text-muted-foreground">
-                      {effectiveStop.country}
-                    </span>
-                  )}
-                </div>
-                {/* Gate on real coordinates explicitly: MapLink's own fallback
-                    (address || label) would otherwise treat the name/country
-                    label as a searchable "location" for every stop, firing the
-                    pin even where no location is on record. */}
-                {stopLocated?.lat != null && stopLocated?.lng != null && (
-                  <MapLink
-                    lat={stopLocated.lat}
-                    lng={stopLocated.lng}
-                    placeId={stopLocated.placeId}
-                    label={
-                      effectiveStop.country
-                        ? `${effectiveStop.name}, ${effectiveStop.country}`
-                        : effectiveStop.name
-                    }
-                    className="text-muted-foreground hover:text-foreground"
-                  />
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Spend so far (compact glance) */}
-          <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
-
-          {/* Upcoming payments */}
-          <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} tripSlug={slug} />
-
-          {reminders}
-        </div>
+      <div data-testid="quick-actions">
+        <QuickActions tripId={tripId} phase="travelling" />
       </div>
+
+      {stillToBook.length > 0 && (
+        <div data-testid="still-to-book">
+          <StillToBookCard rows={stillToBook} limit={STILL_TO_BOOK_LIMIT_PHONE} planHref={tripPath(slug, "/plan")} />
+        </div>
+      )}
+
+      {upcomingPayments.length > 0 && (
+        <div data-testid="upcoming-payments">
+          <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} tripSlug={slug} />
+        </div>
+      )}
+
+      {/* Where you are */}
+      {effectiveStop && (
+        <Card className="p-4">
+          <h3 className="text-label text-muted-foreground">Where you are</h3>
+          <div className="mt-1.5 flex items-center gap-2">
+            {/* No decorative pin here: MapLink below renders the real one,
+                and help-legend.tsx teaches that glyph as "has a location"
+                (HG-02/HG-10, missed instance found as SW-02). */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+              <span className="font-display text-xl font-extrabold tracking-[-0.03em] text-foreground">
+                {effectiveStop.name}
+              </span>
+              {effectiveStop.country && (
+                <span className="text-[13px] font-semibold text-muted-foreground">
+                  {effectiveStop.country}
+                </span>
+              )}
+            </div>
+            {/* Gate on real coordinates explicitly: MapLink's own fallback
+                (address || label) would otherwise treat the name/country
+                label as a searchable "location" for every stop, firing the
+                pin even where no location is on record. */}
+            {stopLocated?.lat != null && stopLocated?.lng != null && (
+              <MapLink
+                lat={stopLocated.lat}
+                lng={stopLocated.lng}
+                placeId={stopLocated.placeId}
+                label={
+                  effectiveStop.country
+                    ? `${effectiveStop.name}, ${effectiveStop.country}`
+                    : effectiveStop.name
+                }
+                className="text-muted-foreground hover:text-foreground"
+              />
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Spend so far (compact glance) */}
+      <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
+
+      {reminders}
+
+      {/* Day map (collapsed toggle) */}
+      <DayMapPanel tripId={tripId} model={dayMapModel} />
+
+      {/* Day ideas on free-form days; Nearby Wishlist on planned days */}
+      {freeForm ? (
+        <DayIdeas
+          tripId={tripId}
+          date={effectiveDate}
+          thingsToDo={thingsToDo}
+          wishlistIdeas={wishlistIdeas}
+        />
+      ) : (
+        <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
+      )}
+      {whatsAroundFor(tripId, model)}
 
       {/* ── Quick links ── */}
       <div className="flex flex-wrap gap-2">

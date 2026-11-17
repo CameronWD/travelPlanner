@@ -248,7 +248,7 @@ export default async function TripHomePage({
 
   const phoneTree = (
     <>
-      {phase === "planning" || phase === "final-prep" ? null : cover}
+      {phase === "planning" || phase === "final-prep" || phase === "travelling" ? null : cover}
       {phaseEl}
     </>
   );
@@ -259,7 +259,7 @@ export default async function TripHomePage({
   return (
     <>
       <span hidden data-trip-phase={phase} />
-      <WhatsNewBanner className="mb-6" />
+      <WhatsNewBanner className={cn("mb-6", phase === "travelling" && "max-lg:hidden")} />
       {reviewLine ? <ReviewHomeLine text={reviewLine.text} href={reviewLine.href} className="mb-6" /> : null}
       <div className={`${HOME_STACK} lg:hidden`}>{phoneTree}</div>
       {await renderDesktopHome({

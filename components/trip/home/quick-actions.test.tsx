@@ -12,6 +12,15 @@ describe("QuickActions (spec 2026-10-06 §F)", () => {
     render(<QuickActions tripId="t1" phase="travelling" />);
     expect(screen.getByRole("link", { name: "Add a cost" })).toHaveAttribute("href", "/trips/t1/budget?add=cost");
   });
+  it("while Travelling the actions are Add a cost, Journal, Files, Checklists, in that order", () => {
+    render(<QuickActions tripId="t1" phase="travelling" />);
+    expect(screen.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Add a cost", "/trips/t1/budget?add=cost"],
+      ["Journal", "/trips/t1/journal"],
+      ["Files", "/trips/t1/files"],
+      ["Checklists", "/trips/t1/checklists"],
+    ]);
+  });
   it("…and while Planning", () => {
     render(<QuickActions tripId="t1" phase="planning" />);
     expect(screen.getByRole("link", { name: "Add a cost" })).toHaveAttribute("href", "/trips/t1/budget?add=cost");

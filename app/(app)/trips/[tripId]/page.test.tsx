@@ -393,6 +393,18 @@ describe("Trip Home, composed with its layout", () => {
       expect(props.box).toBe("band");
     });
 
+    it("leaves the cover and hides What's new on a phone while Travelling", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: "2020-01-01", endDate: "2035-01-01" });
+      await renderTripHome();
+      expect(screen.queryByTestId("cover-art")).not.toBeInTheDocument();
+      expect(screen.getByTestId("whats-new")).toHaveClass("max-lg:hidden");
+    });
+
+    it("keeps What's new visible on a Past trip", async () => {
+      await renderTripHome();
+      expect(screen.getByTestId("whats-new")).not.toHaveClass("max-lg:hidden");
+    });
+
     it("keeps the full-width cover for a Past trip", async () => {
       await renderTripHome(); // BASE_TRIP is January 2026 → past
       const cover = screen.getByTestId("cover-art");

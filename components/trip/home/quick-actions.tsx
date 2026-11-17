@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { MapPin, ListChecks, NotebookPen, Receipt, Plus } from "lucide-react";
+import { MapPin, ListChecks, NotebookPen, Paperclip, Receipt, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TripPhase } from "@/lib/trip-phase";
 import { useTripSlug } from "@/components/trip/use-trip-href";
@@ -28,8 +28,10 @@ function actionsFor(tripRef: string, phase: TripPhase): QuickAction[] {
       ];
     case "travelling":
       return [
-        { label: "Journal", href: tripPath(tripRef, "/journal"), icon: NotebookPen },
         { label: "Add a cost", href: tripPath(tripRef, "/budget?add=cost"), icon: Receipt },
+        { label: "Journal", href: tripPath(tripRef, "/journal"), icon: NotebookPen },
+        { label: "Files", href: tripPath(tripRef, "/files"), icon: Paperclip },
+        { label: "Checklists", href: tripPath(tripRef, "/checklists"), icon: ListChecks },
       ];
     default: // planning | final-prep | past
       return [

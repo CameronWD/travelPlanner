@@ -27,16 +27,16 @@ import { tripTodayISO } from "@/lib/trip-today";
 import { effectiveTodayISO, type TransportDepartureEntry } from "@/lib/itinerary";
 import { buildDayModel } from "@/lib/day-view-model";
 import { withDayMapHops } from "@/lib/day-map";
-import { homePointOf } from "@/lib/travel-times/hops";
+import { effectiveLocalMode, homePointOf } from "@/lib/travel-times/hops";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { readDayRows } from "@/lib/day-reads";
 import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
-import { zoneLabel } from "@/lib/time-display";
-import type { TransportMode } from "@/lib/enum-values";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { resolveEndpointZones, zoneLabel } from "@/lib/time-display";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
+import { REAL_PLAN, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
 import { buildCostLabelMap } from "@/lib/money/cost-labels";
 import { buildUpcomingPayments } from "@/lib/money/upcoming-payments";
 import { applyFxRatesToCosts } from "@/lib/money/budget";
@@ -46,12 +46,14 @@ import { revealSurpriseStep } from "@/lib/next-steps";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { nowNext, whereYouAre, type NowNextTimed } from "@/lib/now-next";
+import { buildStillToBook } from "@/lib/still-to-book";
+import { instantToZonedDateISO } from "@/lib/tz";
 
 async function loadTravellingHomeUncached(tripId: string, userId: string | null) {
   // Reminders are NOT read here: the Reminders card is rendered by the trip
   // Home page in every Phase, not only while Travelling.
   const read = await readDayRows(tripId, userId, async (ctx) => {
-    const [costs, exchangeRates, todaysJournal, slug] = await Promise.all([
+    const [costs, exchangeRates, todaysJournal, slug, thingsToBook] = await Promise.all([
       db.cost.findMany({
         where: { tripId, ...REAL_PLAN },
         select: {
@@ -65,28 +67,33 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       // there's nothing to load or write. The day journaled is today clamped
       // to the Trip's own range — the same day this Phase treats as "today".
       ctx.stopRows.then((rows) => {
-        const tripToday = tripTodayISO(rows);
+        const tripToday = tripTodayISO(rows, ctx.trip.homeTimezone);
         return userId && tripToday >= ctx.startDate
           ? loadTodaysJournal(tripId, effectiveTodayISO(tripToday, ctx.startDate, ctx.endDate), userId)
           : null;
       }),
       // For the reveal nudges' links; cache()d, so the Phase's own read is free.
       tripSlugFor(tripId),
+      // Still to book: the day read holds only dated Items, so a Stop's undated things to do are read here.
+      db.item.findMany({
+        where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, bookingState: "TO_BOOK", ...ctx.visibility.where.item },
+        select: { id: true, title: true, stopId: true, date: true, bookingState: true, bookBy: true },
+      }),
     ]);
-    return { costs, exchangeRates, todaysJournal, slug };
+    return { costs, exchangeRates, todaysJournal, slug, thingsToBook };
   });
   if (read === "missing") notFound();
   // A date-less trip has no calendar to anchor "today" against — the Phase
   // renders its empty treatment.
   if (read === "dateless") return { kind: "no-dates" as const };
 
-  const { rows, visibility: v, alongside: { costs, exchangeRates, todaysJournal, slug } } = read;
+  const { rows, visibility: v, alongside: { costs, exchangeRates, todaysJournal, slug, thingsToBook } } = read;
   const { trip, startDate, endDate, stops, items, transports, accommodations, chapters } = rows;
   const base = tripPath(slug);
 
   // Trip's reference-timezone "today" (things-to-fix P0-2); every read above
   // is the real plan (dated views follow the real plan — CONTEXT.md).
-  const today = tripTodayISO(stops);
+  const today = tripTodayISO(stops, trip.homeTimezone);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
   const day = buildDayModel(rows, effectiveDate);
   const [travel, holidayLines, confirmationsToAdd] = await Promise.all([
@@ -143,6 +150,31 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     .filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId))
     .map((c) => ({ ...c, rateToHome: rateById.get(c.id) ?? null }));
   const upcomingPayments = buildUpcomingPayments({ costs: lineCosts, ownerNames, homeCurrency, today });
+
+  // Still to book, built as the Planning Home's is (lib/desktop-home-loader.ts).
+  const tzById = new Map(stops.map((s) => [s.id, s.timezone] as const));
+  const stillToBook = buildStillToBook(
+    [
+      ...[...items, ...thingsToBook].map((i) => ({
+        kind: "ITEM" as const, id: i.id, label: i.title, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, date: i.date, stopId: i.stopId,
+      })),
+      ...transports.map((t) => {
+        const { depTz } = resolveEndpointZones(
+          t.fromStopId ? (tzById.get(t.fromStopId) ?? null) : null,
+          t.toStopId ? (tzById.get(t.toStopId) ?? null) : null,
+          { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: trip.homeTimezone },
+        );
+        return {
+          kind: "TRANSPORT" as const, id: t.id, label: ownerNames.get(t.id) ?? "Transport", bookingState: t.bookingState, bookBy: t.bookBy,
+          date: t.depAt ? instantToZonedDateISO(t.depAt, depTz) : null, stopId: t.anchorStopId ?? t.fromStopId ?? t.toStopId,
+        };
+      }),
+      ...accommodations.map((a) => ({
+        kind: "ACCOMMODATION" as const, id: a.id, label: a.name, bookingState: a.bookingState, bookBy: a.bookBy, date: a.checkIn, stopId: a.stopId,
+      })),
+    ],
+    base,
+  );
 
   // The next departure, resolved for display (TransportCountdown on the
   // phone, the desktop Today tile).
@@ -227,9 +259,11 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     nowNext: nowNextCard,
     effectiveStop: here,
     stopLocated: here ?? undefined,
+    localMode: here ? effectiveLocalMode(here, transports) : null,
     spend,
     homeCurrency,
     upcomingPayments,
+    stillToBook,
     dayMapModel: withDayMapHops(day.dayMap, rows, effectiveDate, travel),
     itemDirections: day.itemDirections,
     freeForm: day.freeForm,
