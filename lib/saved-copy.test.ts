@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { savedCopyState, savedCopyLineContent, isSavedCopyMessage, savedCopyAnswer } from "./saved-copy";
+import { savedCopyState, savedCopyLineContent, savedCopyMessagePath, savedCopyAnswer } from "./saved-copy";
 
 describe("savedCopyState", () => {
   const base = { renderedToday: "2026-12-10", zone: "Europe/Berlin", now: new Date("2026-12-11T06:00:00Z"), servedAsSavedCopy: false };
@@ -60,9 +60,10 @@ describe("savedCopyLineContent", () => {
 
 describe("worker messages", () => {
   it("recognises the pushed message and the pull answer", () => {
-    expect(isSavedCopyMessage({ type: "SAVED_COPY", url: "/x" })).toBe(true);
-    expect(isSavedCopyMessage({ type: "LAST_TRIP" })).toBe(false);
-    expect(isSavedCopyMessage(null)).toBe(false);
+    expect(savedCopyMessagePath({ type: "SAVED_COPY", url: "https://teepee.example/trips/a/plan?x=1" })).toBe("/trips/a/plan");
+    expect(savedCopyMessagePath({ type: "SAVED_COPY" })).toBeNull();
+    expect(savedCopyMessagePath({ type: "LAST_TRIP", url: "/x" })).toBeNull();
+    expect(savedCopyMessagePath(null)).toBeNull();
     expect(savedCopyAnswer({ savedCopy: true })).toBe(true);
     expect(savedCopyAnswer({ savedCopy: false })).toBe(false);
     expect(savedCopyAnswer(undefined)).toBe(false);

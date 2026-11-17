@@ -53,8 +53,15 @@ export function savedCopyLineContent({
   };
 }
 
-export function isSavedCopyMessage(data: unknown): boolean {
-  return typeof data === "object" && data !== null && (data as { type?: unknown }).type === SAVED_COPY_MESSAGE;
+export function savedCopyMessagePath(data: unknown): string | null {
+  if (typeof data !== "object" || data === null) return null;
+  const { type, url } = data as { type?: unknown; url?: unknown };
+  if (type !== SAVED_COPY_MESSAGE || typeof url !== "string") return null;
+  try {
+    return new URL(url, "https://teepee.invalid").pathname;
+  } catch {
+    return null;
+  }
 }
 
 export function savedCopyAnswer(data: unknown): boolean {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -590,6 +590,23 @@ describe('a slow network falls back to the saved copy (spec A5, ADR 0077)', () =
   it('tells the page it opened as a saved copy', () => {
     expect(SAVED_COPY_MESSAGE).toBe('SAVED_COPY');
     expect(savedCopyMessage('https://teepee.example/trips/a')).toEqual({ type: 'SAVED_COPY', url: 'https://teepee.example/trips/a' });
+  });
+});
+
+describe('shouldStoreResponse', () => {
+  it('stores an ok response', () => {
+    expect(shouldStoreResponse(false, { ok: true, redirected: false })).toBe(true);
+    expect(shouldStoreResponse(true, { ok: true, redirected: false })).toBe(true);
+  });
+
+  it('never stores a failure', () => {
+    expect(shouldStoreResponse(false, { ok: false, redirected: false })).toBe(false);
+    expect(shouldStoreResponse(true, { ok: false, redirected: false })).toBe(false);
+  });
+
+  it('refuses a redirected response only for a warm\'s ask for bytes', () => {
+    expect(shouldStoreResponse(true, { ok: true, redirected: true })).toBe(false);
+    expect(shouldStoreResponse(false, { ok: true, redirected: true })).toBe(true);
   });
 });
 

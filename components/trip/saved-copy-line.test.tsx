@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 
+let mockPathname: string | null = "/";
+vi.mock("next/navigation", () => ({ usePathname: () => mockPathname }));
+
 const props = { tripRef: "munich", startDate: "2026-12-08", endDate: "2026-12-14", renderedToday: "2026-12-10", zone: "Europe/Berlin" };
 
 async function load() {
@@ -31,6 +34,7 @@ function stubWorker(answer: boolean | null) {
 }
 
 beforeEach(() => {
+  mockPathname = "/";
   vi.useFakeTimers({ toFake: ["Date"] });
 });
 afterEach(() => {
@@ -89,7 +93,7 @@ describe("SavedCopyLine", () => {
     const SavedCopyLine = await load();
     const { container } = render(<SavedCopyLine {...props} />);
     expect(container).toBeEmptyDOMElement();
-    act(() => worker.push({ type: "SAVED_COPY", url: "https://teepee.example/trips/munich" }));
+    act(() => worker.push({ type: "SAVED_COPY", url: "https://teepee.example/" }));
     expect(screen.getByText("Saved copy. Reload when you're back online")).toBeInTheDocument();
   });
 
@@ -123,5 +127,63 @@ describe("SavedCopyLine", () => {
     const SavedCopyLine = await load();
     const { container } = render(<SavedCopyLine {...props} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("the saved-copy flag belongs to its path: a soft navigation to another page clears the line", async () => {
+    vi.setSystemTime(new Date("2026-12-10T12:00:00Z"));
+    const worker = stubWorker(null);
+    mockPathname = "/trips/x";
+    const SavedCopyLine = await load();
+    const { rerender } = render(<SavedCopyLine {...props} />);
+    act(() => worker.push({ type: "SAVED_COPY", url: "https://teepee.example/trips/x" }));
+    expect(screen.getByText("Saved copy. Reload when you're back online")).toBeInTheDocument();
+
+    mockPathname = "/trips/x/budget";
+    rerender(<SavedCopyLine {...props} />);
+    expect(screen.queryByText("Saved copy. Reload when you're back online")).toBeNull();
+  });
+
+  it("a saved copy of Trip A does not mark Trip B opened later in the same document", async () => {
+    vi.setSystemTime(new Date("2026-12-10T12:00:00Z"));
+    const worker = stubWorker(null);
+    mockPathname = "/trips/a";
+    const SavedCopyLine = await load();
+    const first = render(<SavedCopyLine {...props} />);
+    act(() => worker.push({ type: "SAVED_COPY", url: "https://teepee.example/trips/a" }));
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    first.unmount();
+
+    mockPathname = "/trips/b";
+    const { container } = render(<SavedCopyLine {...props} tripRef="b" />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("a pull answer of false clears the flag for that path", async () => {
+    vi.setSystemTime(new Date("2026-12-10T12:00:00Z"));
+    const worker = stubWorker(true);
+    const SavedCopyLine = await load();
+    const first = render(<SavedCopyLine {...props} />);
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    first.unmount();
+
+    (worker.controller!.postMessage as ReturnType<typeof vi.fn>).mockImplementation((_m: unknown, ports: MessagePort[]) => {
+      ports[0].postMessage({ savedCopy: false });
+    });
+    const { container } = render(<SavedCopyLine {...props} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("the date-driven line stays after a soft navigation", async () => {
+    vi.setSystemTime(new Date("2026-12-12T06:00:00Z"));
+    stubWorker(null);
+    mockPathname = "/trips/munich";
+    const SavedCopyLine = await load();
+    const { rerender } = render(<SavedCopyLine {...props} />);
+    mockPathname = "/trips/munich/budget";
+    rerender(<SavedCopyLine {...props} />);
+    expect(screen.getByRole("link", { name: "Open today" })).toHaveAttribute("href", "/trips/munich/day/2026-12-12");
   });
 });

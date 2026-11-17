@@ -6,9 +6,8 @@ import { requireTripAccess } from "@/lib/guards";
 import { tripPath } from "@/lib/trip-path";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
-import { tripTodayISO } from "@/lib/trip-today";
 import { orderPlanStops } from "@/lib/plan-order";
-import { currentTripTimezone } from "@/lib/tz";
+import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
 import { defaultDayISO } from "@/lib/day-view-default";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
@@ -93,8 +92,8 @@ export default async function TripLayout({
   }
   const slug = trip.slug ?? tripId;
 
-  const today = tripTodayISO(trip.stops, trip.homeTimezone);
   const tripZone = currentTripTimezone(orderPlanStops(trip.stops), trip.homeTimezone);
+  const today = todayISOInZone(tripZone);
   // The Days tab's one-hop target (ADR 0063). A date-less Trip goes straight
   // to Plan — where day/page.tsx would redirect it — because a link whose
   // server redirect lands on the page already shown (Days tapped on Plan)

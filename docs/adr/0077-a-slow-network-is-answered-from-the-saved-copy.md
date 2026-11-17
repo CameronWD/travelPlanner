@@ -44,8 +44,9 @@ copy sat in the cache.
    page's message queue flushes at DOMContentLoaded, before React hydrates
    and listens, and `resultingClientId` may be empty on some browsers. So the
    worker also keeps a short-lived in-memory record of the paths it just
-   answered with a saved copy (60 seconds, 8 entries, cleared when the same
-   path is next answered from the network), and the page asks it on mount
+   answered with a saved copy (60 seconds, 8 entries). The record for a path is
+   cleared whenever that path is next navigated to, and a saved-copy answer
+   records it again, and the page asks it on mount
    with `{ type: 'WAS_SAVED_COPY', url }` over a `MessageChannel`, getting
    `{ savedCopy: boolean }` back. The saved-copy line (spec B3) uses the
    answer and honours the pushed message if it does arrive.
@@ -55,8 +56,10 @@ copy sat in the cache.
    (network-first, but an image request), static chunks and every other
    request behave as before. The rules (`NAVIGATION_TIMEOUT_MS`,
    `SAVED_COPY_HEADER`, `SAVED_COPY_MESSAGE`, `isServerFailure`,
-   `savedCopyResponse`, `savedCopyMessage`) live in `lib/offline.ts` and are
-   mirrored in `public/sw.js`.
+   `savedCopyResponse`, `savedCopyMessage`, `WAS_SAVED_COPY_MESSAGE`, `withSavedCopyRecord`,
+   `withoutSavedCopyRecord`, `wasSavedCopy`, `wasSavedCopyQueryPath` and the
+   record's limits) live in `lib/offline.ts` and are mirrored in
+   `public/sw.js`.
 
 ## Considered options
 

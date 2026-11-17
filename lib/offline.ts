@@ -166,12 +166,8 @@ function attributeOf(tag: string, name: string): string | null {
   return match ? (match[1] ?? match[2]) : null;
 }
 
-/**
- * The same-origin `/_next/static/` scripts and stylesheets a page's HTML
- * references, once each, in document order. A page saved for offline needs
- * them to be interactive; one for a section never opened since the last deploy
- * would otherwise lack its chunks.
- */
+// A page saved for offline needs its scripts and styles to be interactive; one
+// for a section never opened since the last deploy would otherwise lack its chunks.
 export function assetUrlsIn(html: string): string[] {
   const urls: string[] = [];
   for (const [tag] of html.matchAll(/<(?:script|link)\b[^>]*>/gi)) {
@@ -264,26 +260,18 @@ export function isCoverRoute(url: string): boolean {
   }
 }
 
-/**
- * The query flag a warm adds to an Attachment or cover request so the serve
- * route answers 200 with the bytes instead of redirecting to storage, which
- * the worker could not keep (spec 2026-11-17 §A2). Mirrored in sw.js.
- */
+// Makes the serve route answer 200 with the bytes instead of redirecting to
+// storage, which the worker could not keep (spec 2026-11-17 §A2). Mirrored in sw.js.
 export const OFFLINE_BYTES_PARAM = 'offline';
 
-/** The URL the warmer fetches for `path`: files carry OFFLINE_BYTES_PARAM, pages are left alone. */
 export function warmUrlFor(path: string): string {
   const url = new URL(path, 'https://warm.invalid').href;
   if (!isAttachmentRoute(url) && !isCoverRoute(url)) return path;
   return `${path}${path.includes('?') ? '&' : '?'}${OFFLINE_BYTES_PARAM}=1`;
 }
 
-/**
- * The key a file response is cached under: its URL without OFFLINE_BYTES_PARAM,
- * so the plain link the app renders hits the bytes a warm saved. Cut from the
- * string rather than re-serialised: the cache matches the exact URL, and the
- * pages render `?v=` with encodeURIComponent. Mirrored in sw.js.
- */
+// Cut from the string rather than re-serialised: the cache matches the exact
+// URL, and the pages render `?v=` with encodeURIComponent. Mirrored in sw.js.
 export function fileCacheKey(url: string): string {
   const queryAt = url.indexOf('?');
   if (queryAt === -1) return url;
@@ -416,11 +404,8 @@ export function isPinnedCacheEntry(url: string): boolean {
   }
 }
 
-/**
- * A response reached by following a redirect has `redirected === true`, and a
- * browser refuses to use one to answer a navigation. Never store it as-is: a
- * fresh Response over the same body carries no redirect. Mirrored in sw.js.
- */
+// A browser refuses a `redirected` response as the answer to a navigation, so
+// a stored copy is rebuilt without the flag. Mirrored in sw.js.
 export function storableResponse(response: Response): Response {
   if (!response.redirected) return response;
   return new Response(response.body, {
@@ -430,18 +415,13 @@ export function storableResponse(response: Response): Response {
   });
 }
 
-/** True when the request carries the warm's ask for bytes (`offline=1`). Mirrored in sw.js. */
 export function asksForBytes(url: string): boolean {
   const queryAt = url.indexOf('?');
   if (queryAt === -1) return false;
   return url.slice(queryAt + 1).split('&').includes(`${OFFLINE_BYTES_PARAM}=1`);
 }
 
-/**
- * Whether a cache hit may answer the request. A redirected entry never
- * answers a navigation, nor a warm's ask for bytes: entries kept before
- * redirects were stripped are replaced by the warm's own fetch. Mirrored in sw.js.
- */
+// Entries kept before redirects were stripped are replaced by the warm's own fetch. Mirrored in sw.js.
 export function isServableCacheHit(mode: string, cached: { redirected: boolean }, bytesRequested = false): boolean {
   return !(cached.redirected && (mode === 'navigate' || bytesRequested));
 }
@@ -496,6 +476,12 @@ export function wasSavedCopyQueryPath(data: unknown): string | null {
   if (typeof data !== 'object' || data === null) return null;
   const { type, url } = data as { type?: unknown; url?: unknown };
   return type === WAS_SAVED_COPY_MESSAGE && typeof url === 'string' ? url : null;
+}
+
+// A warm's file that came back redirected (a login page, say) is not the bytes
+// asked for: keeping it would make a later warm count it as saved. Mirrored in sw.js.
+export function shouldStoreResponse(bytesRequested: boolean, response: { ok: boolean; redirected: boolean }): boolean {
+  return response.ok && !(bytesRequested && response.redirected);
 }
 
 /** How many of the oldest entries to drop to get back under `limit`. */

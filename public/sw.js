@@ -173,6 +173,11 @@ function asksForBytes(url) {
   return url.slice(queryAt + 1).split('&').includes(OFFLINE_BYTES_PARAM + '=1');
 }
 
+/** Mirrors shouldStoreResponse() in lib/offline.ts. */
+function shouldStoreResponse(bytesRequested, response) {
+  return response.ok && !(bytesRequested && response.redirected);
+}
+
 /** Mirrors isServableCacheHit() in lib/offline.ts. */
 function isServableCacheHit(mode, cached, bytesRequested) {
   return !(cached.redirected && (mode === 'navigate' || bytesRequested));
@@ -456,7 +461,7 @@ async function cacheFirst(request) {
     if (cached) return cached;
 
     const response = await fetch(request);
-    if (response.ok) {
+    if (shouldStoreResponse(asksForBytes(request.url), response)) {
       const store = cacheStoreFor(request.url);
       const cache = await caches.open(CACHE_NAMES[store]);
       cache
@@ -508,7 +513,7 @@ async function networkFirst(event) {
 function fetchAndKeep(event) {
   const { request } = event;
   return fetch(request).then((response) => {
-    if (response.ok) {
+    if (shouldStoreResponse(asksForBytes(request.url), response)) {
       const store = cacheStoreFor(request.url);
       const copy = storableResponse(response.clone());
       event.waitUntil(

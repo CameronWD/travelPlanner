@@ -1,19 +1,22 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { WAS_SAVED_COPY_MESSAGE } from "@/lib/offline";
-import { isSavedCopyMessage, savedCopyAnswer, savedCopyLineContent, savedCopyState } from "@/lib/saved-copy";
+import { savedCopyMessagePath, savedCopyAnswer, savedCopyLineContent, savedCopyState } from "@/lib/saved-copy";
 
-let servedAsSavedCopy = false;
+// The path the worker answered with a saved copy: a later page the router
+// fetches in this document is fresh, so the flag belongs to that path alone.
+let savedCopyPath: string | null = null;
 const listeners = new Set<() => void>();
 
 function notify() {
   for (const listener of listeners) listener();
 }
 
-function markSavedCopy() {
-  if (servedAsSavedCopy) return;
-  servedAsSavedCopy = true;
+function setSavedCopyPath(path: string | null) {
+  if (savedCopyPath === path) return;
+  savedCopyPath = path;
   notify();
 }
 
@@ -22,15 +25,18 @@ function markSavedCopy() {
 function askWorker() {
   const controller = navigator.serviceWorker?.controller;
   if (!controller) return;
+  const path = window.location.pathname;
   const channel = new MessageChannel();
   channel.port1.onmessage = (event) => {
-    if (savedCopyAnswer(event.data)) markSavedCopy();
+    if (savedCopyAnswer(event.data)) setSavedCopyPath(path);
+    else if (savedCopyPath === path) setSavedCopyPath(null);
   };
-  controller.postMessage({ type: WAS_SAVED_COPY_MESSAGE, url: window.location.pathname }, [channel.port2]);
+  controller.postMessage({ type: WAS_SAVED_COPY_MESSAGE, url: path }, [channel.port2]);
 }
 
 function onWorkerMessage(event: MessageEvent) {
-  if (isSavedCopyMessage(event.data)) markSavedCopy();
+  const path = savedCopyMessagePath(event.data);
+  if (path !== null) setSavedCopyPath(path);
 }
 
 function onVisible() {
@@ -75,11 +81,11 @@ export function SavedCopyLine({
   renderedToday: string;
   zone: string;
 }) {
-  // The snapshot is the device's today when the page is stale, else "": a primitive, and "" on the server and while hydrating, so nothing flashes.
+  const pathname = usePathname();
   const deviceToday = useSyncExternalStore(
     subscribe,
     () => {
-      const state = savedCopyState({ renderedToday, zone, now: new Date(), servedAsSavedCopy });
+      const state = savedCopyState({ renderedToday, zone, now: new Date(), servedAsSavedCopy: savedCopyPath === pathname });
       return state.stale ? state.deviceToday : NOT_STALE;
     },
     () => NOT_STALE,

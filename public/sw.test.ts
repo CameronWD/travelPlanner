@@ -446,6 +446,7 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).toContain("function isServerFailure(status) {\n  return status >= 500;\n}");
     expect(SW_SOURCE).toContain("function savedCopyResponse(response)");
     expect(SW_SOURCE).toContain("headers.set(SAVED_COPY_HEADER, '1');");
+    expect(SW_SOURCE).toContain("function shouldStoreResponse(bytesRequested, response) {\n  return response.ok && !(bytesRequested && response.redirected);\n}");
     expect(SW_SOURCE).toContain("function savedCopyMessage(url) {\n  return { type: SAVED_COPY_MESSAGE, url };\n}");
     expect(SW_SOURCE).toContain(`const WAS_SAVED_COPY_MESSAGE = '${WAS_SAVED_COPY_MESSAGE}';`);
     expect(SW_SOURCE).toContain(`const SAVED_COPY_RECORD_TTL_MS = ${SAVED_COPY_RECORD_TTL_MS};`);
@@ -677,6 +678,32 @@ describe("public/sw.js — files saved for offline as bytes (spec A2)", () => {
     const files = c.stores.get("teepee-files-v1")!;
     expect(files.keys.map((k) => k.url)).toEqual(["https://teepee.example/api/attachments/a1"]);
     expect(await files.bodies.get("https://teepee.example/api/attachments/a1")!.text()).toBe("pdf-bytes");
+  });
+
+  it("an offline=1 response that came back redirected is returned but never stored", async () => {
+    const c = matchingCaches();
+    const fetchMock = vi.fn().mockResolvedValue(redirectedResponse("login-page"));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await fetchThrough(dispatch, "https://teepee.example/api/attachments/a1?offline=1");
+    expect(await response.text()).toBe("login-page");
+    expect(c.stores.get("teepee-files-v1")?.keys ?? []).toEqual([]);
+
+    fetchMock.mockResolvedValue(new Response("pdf-bytes"));
+    const later = await fetchThrough(dispatch, "https://teepee.example/api/attachments/a1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await later.text()).toBe("pdf-bytes");
+  });
+
+  it("an offline=1 response that is not ok is never stored", async () => {
+    const c = matchingCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("nope", { status: 403 }));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await fetchThrough(dispatch, "https://teepee.example/api/attachments/a1?offline=1");
+
+    expect(c.stores.get("teepee-files-v1")?.keys ?? []).toEqual([]);
   });
 
   it("a later plain request is a cache hit", async () => {
