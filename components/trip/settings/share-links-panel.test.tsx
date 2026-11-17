@@ -315,4 +315,18 @@ describe("ShareLinksPanel failures (spec 2026-10-06 §E)", () => {
     );
     Object.defineProperty(navigator, "onLine", { value: true, writable: true, configurable: true });
   });
+
+  it("leaves 6px between a Label field's label and its input so the focus ring clears it", async () => {
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+
+    const inputs = screen.getAllByLabelText(/^label$/i);
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) {
+      const wrapper = input.parentElement as HTMLElement;
+      expect(wrapper).toHaveClass("gap-1.5");
+      expect(wrapper).not.toHaveClass("space-y-1");
+    }
+  });
 });

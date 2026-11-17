@@ -334,7 +334,7 @@ function LinkRow({
 
       {editing && (
         <div className="space-y-3 rounded-xl bg-muted/30 p-3">
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1.5">
             <label htmlFor={`label-${link.id}`} className="text-xs font-medium text-muted-foreground">
               Label
             </label>
@@ -432,7 +432,7 @@ export function ShareLinksPanel({
 
       {creating && (
         <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-4">
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="new-link-label" className="text-xs font-medium text-muted-foreground">
               Label
             </label>
