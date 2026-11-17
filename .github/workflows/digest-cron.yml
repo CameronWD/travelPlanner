@@ -28,8 +28,11 @@ name: Digest cron
 #
 # Any non-2xx response from a *configured* endpoint fails the job, with the
 # status and response body in the log, so GitHub emails the owner: nobody can
-# deploy a fix mid-trip, but a loud failure is how the owner finds out. curl
-# runs without --fail so the status and body are printed before the job exits.
+# deploy a fix mid-trip, but a loud failure is how the owner finds out. A cold
+# start (the database idle-suspends) is retried twice, 20 s apart, before the
+# job fails: curl itself retries HTTP 500, 502, 503 and 504, and the route is
+# idempotent. curl runs without --fail so the final attempt's status and body
+# (the response file is rewritten on each retry) are printed before the job exits.
 # A transport-level problem (DNS, TLS, connection refused) makes curl exit
 # non-zero and fails the job the same way.
 on:
@@ -86,7 +89,7 @@ jobs:
       - name: Hit the digest endpoint
         if: steps.config.outputs.configured == 'true'
         run: |
-          status=$(curl --silent --show-error --output response.txt --write-out '%{http_code}' \
+          status=$(curl --silent --show-error --retry 2 --retry-delay 20 --output response.txt --write-out '%{http_code}' \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_URL}/api/cron/digest")
           echo "Digest endpoint responded with HTTP ${status}"

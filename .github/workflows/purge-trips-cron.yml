@@ -4,6 +4,7 @@ name: Purge trips cron
 # Restore window (ADR 0067), scheduling their cover and Attachment blobs for
 # the retention sweep first (lib/trip-purge.ts). Auth, skip-when-unconfigured
 # and failing loudly on any non-2xx all mirror digest-cron.yml — see docs/DEPLOY.md §5.
+# A cold start is retried twice (curl --retry 2, 20 s apart) before the job fails.
 
 on:
   schedule:
@@ -32,7 +33,7 @@ jobs:
       - name: Hit the purge-trips endpoint
         if: steps.config.outputs.configured == 'true'
         run: |
-          status=$(curl --silent --show-error --output response.txt --write-out '%{http_code}' \
+          status=$(curl --silent --show-error --retry 2 --retry-delay 20 --output response.txt --write-out '%{http_code}' \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_URL}/api/cron/purge-trips")
           echo "Purge-trips endpoint responded with HTTP ${status}"
