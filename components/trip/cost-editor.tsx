@@ -33,6 +33,7 @@ import type { FieldErrors } from "@/lib/action-result";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toastRefused, toastRejected, formError } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -242,6 +243,8 @@ export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormD
       const result = await updateCost(cost.id, toPatch(parsed.input, OWNED_CLEARABLE));
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
+    } catch {
+      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }
@@ -314,6 +317,8 @@ export function CostEditor({
       } else {
         setErrors(result.errors);
       }
+    } catch {
+      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }
@@ -335,6 +340,8 @@ export function CostEditor({
       } else {
         setErrors(result.errors);
       }
+    } catch {
+      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }

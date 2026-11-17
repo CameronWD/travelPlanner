@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -18,7 +18,16 @@ import {
   addChecklistItem,
   deleteChecklistItem,
   setBuyState,
+  updateChecklistItem,
 } from "@/server/actions/checklists";
+import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
+
+function goOffline() {
+  Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+}
+afterEach(() => {
+  Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+});
 
 // Fixed "today" for deterministic due-date tests.
 const FIXED_TODAY = "2026-07-14";
@@ -394,5 +403,37 @@ describe("Checklist", () => {
     await act(async () => resolve({ success: false, errors: { _: ["Couldn't update that item."] } }));
     expect(box).not.toBeChecked();
     expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update that item." });
+  });
+});
+
+describe("Checklist offline (trip-proofing B4)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("add keeps the typed text and says why when the save rejects offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addChecklistItem).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<Checklist tripId="trip-1" kind="PRETRIP" items={seedItems} showDueDate={false} showAssignee={false} />);
+    const input = screen.getByPlaceholderText(/book airport taxi/i);
+    await user.type(input, "Pack passport");
+    goOffline();
+    await user.click(screen.getByRole("button", { name: /add/i }));
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(input).toHaveValue("Pack passport");
+  });
+
+  it("edit keeps the dialog and typed text and says why when the save rejects offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateChecklistItem).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<Checklist tripId="trip-1" kind="PRETRIP" items={[seedItems[0]]} showDueDate={false} showAssignee={false} />);
+    await user.click(screen.getByRole("button", { name: "Edit Item" }));
+    const input = screen.getByRole("textbox", { name: /^text/i });
+    await user.clear(input);
+    await user.type(input, "Book a later taxi");
+    goOffline();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(input).toHaveValue("Book a later taxi");
   });
 });

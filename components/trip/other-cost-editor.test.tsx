@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -9,6 +9,7 @@ vi.mock("@/server/actions/costs", () => ({
 }));
 import { createCost, updateCost } from "@/server/actions/costs";
 
+import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
 import { OtherCostFormDialog } from "./other-cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 import { todayLocalISO } from "@/lib/dates";
@@ -39,6 +40,13 @@ const sampleCost: CostRow = {
 function renderForm(cost?: CostRow) {
   return render(<OtherCostFormDialog {...baseProps} cost={cost} />);
 }
+
+function goOffline() {
+  Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+}
+afterEach(() => {
+  Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+});
 
 describe("OtherCostFormDialog form behaviour", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -291,5 +299,37 @@ describe("OtherCostFormDialog Travelling defaults (spec 2026-10-06 §K)", () => 
     await user.type(paid, "45");
     await user.type(screen.getByLabelText(/cost amount/i), "0");
     expect(paid).toHaveValue("45");
+  });
+});
+
+describe("OtherCostFormDialog offline (trip-proofing B4)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("add keeps the typed amount and says why when the save rejects offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createCost).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    renderForm();
+    const amount = screen.getByLabelText(/cost amount/i);
+    await user.clear(amount);
+    await user.type(amount, "12.50");
+    goOffline();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByLabelText(/cost amount/i)).toHaveValue("12.50");
+  });
+
+  it("edit keeps the typed amount and says why when the save rejects offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateCost).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    renderForm(sampleCost);
+    const amount = screen.getByLabelText(/cost amount/i);
+    await user.clear(amount);
+    await user.type(amount, "99.00");
+    goOffline();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByLabelText(/cost amount/i)).toHaveValue("99.00");
   });
 });

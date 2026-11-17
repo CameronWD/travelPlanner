@@ -15,6 +15,7 @@ import {
 import { aboutFromPick, aboutPickValue, reminderAboutLabel, type ReminderAboutOptions } from "@/lib/reminder-about";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,18 +130,22 @@ function AddReminderForm({
     setError(null);
 
     startTransition(async () => {
-      const result = await addReminder(tripId, {
-        title,
-        date,
-        ...(notes.trim() ? { notes } : {}),
-        ...aboutFromPick(pick),
-      });
-      if (result.success) {
-        reset();
-        onAdded();
-      } else {
-        const msg = Object.values(result.errors).flat()[0];
-        setError(msg ?? "Couldn't add that reminder. Try again.");
+      try {
+        const result = await addReminder(tripId, {
+          title,
+          date,
+          ...(notes.trim() ? { notes } : {}),
+          ...aboutFromPick(pick),
+        });
+        if (result.success) {
+          reset();
+          onAdded();
+        } else {
+          const msg = Object.values(result.errors).flat()[0];
+          setError(msg ?? "Couldn't add that reminder. Try again.");
+        }
+      } catch {
+        setError(failureMessage("Couldn't add that reminder. Try again."));
       }
     });
   }

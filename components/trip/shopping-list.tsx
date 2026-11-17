@@ -11,6 +11,8 @@ import { Field } from "@/components/ui/field";
 import { Card, cardVariants } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RowActions } from "@/components/ui/row-actions";
+import { toastRejected } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import {
   addChecklistItem,
@@ -39,15 +41,19 @@ function AddShoppingItemForm({ tripId }: { tripId: string }) {
     }
     setError("");
     startTransition(async () => {
-      const result = await addChecklistItem(tripId, {
-        kind: "SHOPPING",
-        text: text.trim(),
-      });
-      if (result.success) {
-        setText("");
-      } else {
-        const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Couldn't add that item. Try again.");
+      try {
+        const result = await addChecklistItem(tripId, {
+          kind: "SHOPPING",
+          text: text.trim(),
+        });
+        if (result.success) {
+          setText("");
+        } else {
+          const firstError = Object.values(result.errors)[0]?.[0];
+          setError(firstError ?? "Couldn't add that item. Try again.");
+        }
+      } catch {
+        setError(failureMessage("Couldn't add that item. Try again."));
       }
     });
   }
@@ -95,17 +101,25 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
 
   function toggle() {
     startTransition(async () => {
-      if (entry.source === "packing") {
-        await setBuyState(entry.id, entry.bought ? "NEEDED" : "BOUGHT");
-      } else {
-        await toggleChecklistItem(entry.id, !entry.bought);
+      try {
+        if (entry.source === "packing") {
+          await setBuyState(entry.id, entry.bought ? "NEEDED" : "BOUGHT");
+        } else {
+          await toggleChecklistItem(entry.id, !entry.bought);
+        }
+      } catch {
+        toastRejected("Couldn't update that item.");
       }
     });
   }
 
   function remove() {
     startTransition(async () => {
-      await setBuyState(entry.id, null);
+      try {
+        await setBuyState(entry.id, null);
+      } catch {
+        toastRejected("Couldn't update that item.");
+      }
     });
   }
 

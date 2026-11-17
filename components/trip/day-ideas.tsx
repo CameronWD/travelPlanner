@@ -19,6 +19,7 @@ import { cn } from "@/lib/cn";
 import type { DayIdeaResult } from "@/lib/nearby";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
+import { toastRejected } from "@/components/ui/action-failure";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { categoryDotClass } from "@/components/trip/category-dot";
@@ -73,6 +74,8 @@ export function DayIdeas({
             description: firstError,
           });
         }
+      } catch {
+        toastRejected("Couldn't add item.");
       } finally {
         setPendingId(null);
       }

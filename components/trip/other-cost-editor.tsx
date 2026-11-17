@@ -12,6 +12,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -344,6 +345,8 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
       const result = cost ? await updateCost(cost.id, toPatch(parsed.input, OTHER_COST_CLEARABLE)) : await createCost(tripId, parsed.input);
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
+    } catch {
+      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }

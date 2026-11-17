@@ -59,6 +59,7 @@ import { travellerName, type TravellerLike } from "@/lib/traveller";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -207,20 +208,24 @@ function AddItemForm({
     }
     setError("");
     startTransition(async () => {
-      const result = await addChecklistItem(tripId, {
-        kind,
-        text: text.trim(),
-        dueDate: dueDate || undefined,
-        assignedToId: assignedToId || undefined,
-        ...(owner && { owner }),
-      });
-      if (result.success) {
-        setText("");
-        setDueDate("");
-        setAssignedToId("");
-      } else {
-        const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Couldn't add that item. Try again.");
+      try {
+        const result = await addChecklistItem(tripId, {
+          kind,
+          text: text.trim(),
+          dueDate: dueDate || undefined,
+          assignedToId: assignedToId || undefined,
+          ...(owner && { owner }),
+        });
+        if (result.success) {
+          setText("");
+          setDueDate("");
+          setAssignedToId("");
+        } else {
+          const firstError = Object.values(result.errors)[0]?.[0];
+          setError(firstError ?? "Couldn't add that item. Try again.");
+        }
+      } catch {
+        setError(failureMessage("Couldn't add that item. Try again."));
       }
     });
   }
@@ -345,17 +350,21 @@ function EditItemForm({
     }
     setError("");
     startTransition(async () => {
-      const result = await updateChecklistItem(item.id, {
-        text: text.trim(),
-        // Pass the raw value: "" is an explicit clear, the schema maps it to null.
-        dueDate,
-        assignedToId,
-      });
-      if (result.success) {
-        onClose();
-      } else {
-        const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Couldn't save that item. Try again.");
+      try {
+        const result = await updateChecklistItem(item.id, {
+          text: text.trim(),
+          // Pass the raw value: "" is an explicit clear, the schema maps it to null.
+          dueDate,
+          assignedToId,
+        });
+        if (result.success) {
+          onClose();
+        } else {
+          const firstError = Object.values(result.errors)[0]?.[0];
+          setError(firstError ?? "Couldn't save that item. Try again.");
+        }
+      } catch {
+        setError(failureMessage("Couldn't save that item. Try again."));
       }
     });
   }
@@ -505,13 +514,21 @@ function ChecklistRow({
 
   function needToBuy() {
     startTransition(async () => {
-      await setBuyState(item.id, "NEEDED");
+      try {
+        await setBuyState(item.id, "NEEDED");
+      } catch {
+        toastRejected("Couldn't update that item.");
+      }
     });
   }
 
   function move(direction: "up" | "down") {
     startTransition(async () => {
-      await reorderChecklistItem(item.id, direction);
+      try {
+        await reorderChecklistItem(item.id, direction);
+      } catch {
+        toastRejected("Couldn't move that item.");
+      }
     });
   }
 

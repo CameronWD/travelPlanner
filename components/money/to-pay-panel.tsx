@@ -51,7 +51,7 @@ export function ToPayPanel({
           : await markCostPaid(row.id, row.paidMinor ?? row.costMinor, todayLocalISO());
         if (!r.success) toast({ variant: "destructive", title: "Couldn't update that cost." });
       } catch {
-        toast({ variant: "destructive", title: "Couldn't update that cost." });
+        toastRejected("Couldn't update that cost.");
       } finally {
         setPendingId(null);
       }
