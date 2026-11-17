@@ -45,6 +45,53 @@ function firstLine(notes: string | null | undefined): string | null {
   return notes?.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? null;
 }
 
+function StayMapLink({ a, className }: { a: StayPanelAccommodation; className: string }) {
+  return <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className={className} />;
+}
+
+function StayCost({ cost, paid, className }: { cost: string; paid: ReturnType<typeof costPaidState>; className?: string }) {
+  return (
+    <p className={cn("flex items-center gap-1.5", className)}>
+      <span className="font-semibold text-foreground">{cost}</span>
+      {paid === "paid" ? <Badge variant="teal">Paid</Badge> : <Badge variant="muted">Unpaid</Badge>}
+    </p>
+  );
+}
+
+function StayToBook({ a }: { a: StayPanelAccommodation }) {
+  return (
+    <p className="flex items-center gap-1.5">
+      <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
+    </p>
+  );
+}
+
+function StayNote({ note }: { note: string }) {
+  return (
+    <p className="flex min-w-0 items-center gap-1">
+      <StickyNote className="size-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">{note}</span>
+    </p>
+  );
+}
+
+function StayFiles({ count }: { count: number }) {
+  return (
+    <p className="flex items-center gap-1">
+      <Paperclip className="size-3 shrink-0" aria-hidden="true" />
+      {plural(count, "file")}
+    </p>
+  );
+}
+
+function StayMarker({ id }: { id: string }) {
+  return (
+    <div className="relative z-10 w-fit max-w-full">
+      <BookingConfirmationMarker kind="ACCOMMODATION" id={id} />
+    </div>
+  );
+}
+
 function StayBlock({
   a,
   homeCurrency,
@@ -91,7 +138,7 @@ function StayBlock({
         {a.address && (
           <p className="flex min-w-0 items-center gap-1">
             <span className="truncate">{a.address}</span>
-            <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="relative z-10 text-foreground/80" />
+            <StayMapLink a={a} className="relative z-10 text-foreground/80" />
           </p>
         )}
         {a.confirmation && (
@@ -100,34 +147,11 @@ function StayBlock({
             {a.confirmation}
           </p>
         )}
-        {a.bookingState === "TO_BOOK" && (
-          <p className="flex items-center gap-1.5">
-            <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
-          </p>
-        )}
-        {cost && (
-          <p className="flex items-center gap-1.5">
-            <span className="font-semibold text-foreground">{cost}</span>
-            {paid === "paid" ? <Badge variant="teal">Paid</Badge> : <Badge variant="muted">Unpaid</Badge>}
-          </p>
-        )}
-        {note && (
-          <p className="flex min-w-0 items-center gap-1">
-            <StickyNote className="size-3 shrink-0" aria-hidden="true" />
-            <span className="truncate">{note}</span>
-          </p>
-        )}
-        {files > 0 && (
-          <p className="flex items-center gap-1">
-            <Paperclip className="size-3 shrink-0" aria-hidden="true" />
-            {plural(files, "file")}
-          </p>
-        )}
-        {a.needsConfirmation && (
-          <div className="relative z-10 w-fit max-w-full">
-            <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
-          </div>
-        )}
+        {a.bookingState === "TO_BOOK" && <StayToBook a={a} />}
+        {cost && <StayCost cost={cost} paid={paid} />}
+        {note && <StayNote note={note} />}
+        {files > 0 && <StayFiles count={files} />}
+        {a.needsConfirmation && <StayMarker id={a.id} />}
       </div>
       <StayCard
         data-testid="stay-card"
@@ -154,47 +178,24 @@ function StayBlock({
               <StayField heading="Where">
                 <p className="flex min-w-0 items-center gap-1.5 text-sm">
                   <span className="min-w-0 truncate">{a.address}</span>
-                  <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="relative z-10 shrink-0 text-foreground/80" />
+                  <StayMapLink a={a} className="relative z-10 shrink-0 text-foreground/80" />
                 </p>
               </StayField>
             )}
             {hasBooking && (
               <StayField heading="Booking">
                 {a.confirmation && <StayConfirmation value={a.confirmation} />}
-                {a.bookingState === "TO_BOOK" && (
-                  <p className="flex items-center gap-1.5">
-                    <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
-                  </p>
-                )}
-                {cost && (
-                  <p className="flex items-center gap-1.5 text-sm">
-                    <span className="font-semibold">{cost}</span>
-                    {paid === "paid" ? <Badge variant="teal">Paid</Badge> : <Badge variant="muted">Unpaid</Badge>}
-                  </p>
-                )}
+                {a.bookingState === "TO_BOOK" && <StayToBook a={a} />}
+                {cost && <StayCost cost={cost} paid={paid} className="text-sm" />}
               </StayField>
             )}
           </div>
         </div>
         {hasMore && (
           <div data-testid="stay-card-more" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground/70">
-            {note && (
-              <p className="flex min-w-0 items-center gap-1">
-                <StickyNote className="size-3 shrink-0" aria-hidden="true" />
-                <span className="truncate">{note}</span>
-              </p>
-            )}
-            {files > 0 && (
-              <p className="flex items-center gap-1">
-                <Paperclip className="size-3 shrink-0" aria-hidden="true" />
-                {plural(files, "file")}
-              </p>
-            )}
-            {a.needsConfirmation && (
-              <div className="relative z-10 w-fit max-w-full">
-                <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
-              </div>
-            )}
+            {note && <StayNote note={note} />}
+            {files > 0 && <StayFiles count={files} />}
+            {a.needsConfirmation && <StayMarker id={a.id} />}
           </div>
         )}
       </StayCard>
