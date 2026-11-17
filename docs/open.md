@@ -18,6 +18,7 @@ Paths marked A: are under `docs/archive/`.
 - **Where you are card** The phone Home keeps a leftover "Where you are" card beside Now / next (redundant, not contradictory).
 - **Day map** "Day map" lands at the top of the Day view, where the map is a collapsed panel.
 - **Check-in** "Check-in" shows on every night of a stay, not only the first.
+- **Trip header** On the phone Home the Trip header (name, dates, avatars, Share, bell) takes about 250px before the day line.
 - **Row tap at 640px** Rows open the edit form at 640px and up (phone landscape).
 - **What's around in transit** "What's around" while in transit creates a dated Item with no Stop.
 - **Open today zone** "Open today" uses the saved copy's zone, so a copy rendered in Bali and read in Europe shows Bali's today.
