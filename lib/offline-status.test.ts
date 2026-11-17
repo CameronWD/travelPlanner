@@ -12,6 +12,8 @@ import {
   takeWarmRequest,
   currentBuildId,
   isIncomplete,
+  recordFileShortfall,
+  forgetOfflineSaves,
 } from "./offline-status";
 
 const DONE = { total: 3, saved: 3, pagesFailed: 0 };
@@ -165,5 +167,74 @@ describe("takeWarmRequest (spec 2026-10-06 §A)", () => {
     requestWarm("t1");
     resetOfflineStatus();
     expect(takeWarmRequest("t1")).toBe(false);
+  });
+});
+
+describe("recordFileShortfall", () => {
+  it("takes a lost file off the last full count without a new save time", () => {
+    finishWarm("t1", { total: 12, saved: 12, pagesFailed: 0 }, 1_000);
+    recordFileShortfall("t1", { total: 3, saved: 2 }, 5_000);
+    expect(getStatus("t1")).toMatchObject({ state: "saved", total: 12, saved: 11, ranAt: 5_000, savedAt: 1_000, pagesFailed: false });
+    expect(isIncomplete(getStatus("t1"))).toBe(true);
+    resetOfflineStatus();
+    expect(getStatus("t1")).toMatchObject({ total: 12, saved: 11, ranAt: 5_000, savedAt: 1_000 });
+  });
+
+  it("makes the count whole again once every file is stored", () => {
+    finishWarm("t1", { total: 12, saved: 11, pagesFailed: 0 }, 1_000);
+    recordFileShortfall("t1", { total: 3, saved: 3 }, 5_000);
+    expect(getStatus("t1")).toMatchObject({ total: 12, saved: 12, savedAt: 1_000 });
+    expect(isIncomplete(getStatus("t1"))).toBe(false);
+  });
+
+  it("changes nothing, and tells no one, when the shortfall is the same", () => {
+    finishWarm("t1", { total: 12, saved: 11, pagesFailed: 0 }, 1_000);
+    const before = getStatus("t1");
+    const listener = vi.fn();
+    const unsubscribe = subscribe(listener);
+    recordFileShortfall("t1", { total: 3, saved: 2 }, 5_000);
+    unsubscribe();
+    expect(getStatus("t1")).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("uses the files' own count for a save recorded before counts were kept", () => {
+    window.localStorage.setItem("teepee.offline.savedAt.t1", "1000");
+    recordFileShortfall("t1", { total: 3, saved: 2 }, 5_000);
+    expect(getStatus("t1")).toMatchObject({ total: 3, saved: 2, ranAt: 5_000, savedAt: 1_000 });
+  });
+
+  it("records nothing for such a save when no file was lost", () => {
+    window.localStorage.setItem("teepee.offline.savedAt.t1", "1000");
+    recordFileShortfall("t1", { total: 3, saved: 3 }, 5_000);
+    expect(getStatus("t1")).toMatchObject({ total: null, saved: null, ranAt: null });
+  });
+});
+
+describe("forgetOfflineSaves", () => {
+  it("removes every Trip's save from storage and from memory, and tells the row", () => {
+    finishWarm("t1", DONE, 1_000);
+    finishWarm("t2", { total: 4, saved: 3, pagesFailed: 1 }, 2_000);
+    window.localStorage.setItem("teepee.other", "kept");
+    const listener = vi.fn();
+    const unsubscribe = subscribe(listener);
+
+    forgetOfflineSaves();
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalled();
+    expect(getStatus("t1")).toMatchObject({ state: "idle", savedAt: null, total: null });
+    expect(getStatus("t2")).toMatchObject({ state: "idle", ranAt: null });
+    expect(Object.keys(window.localStorage)).toEqual(["teepee.other"]);
+  });
+
+  it("does not throw when storage is blocked", () => {
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    finishWarm("t1", DONE, 1_000);
+    expect(() => forgetOfflineSaves()).not.toThrow();
+    expect(getStatus("t1").state).toBe("idle");
+    vi.restoreAllMocks();
   });
 });

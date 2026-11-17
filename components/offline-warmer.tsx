@@ -1,8 +1,22 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, subscribe, takeWarmRequest } from "@/lib/offline-status";
-import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, warmUrlFor, type ConnectionHint } from "@/lib/offline";
+import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, recordFileShortfall, subscribe, takeWarmRequest } from "@/lib/offline-status";
+import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
+
+const FILE_STORED_RETRY_MS = 250;
+
+// The worker writes a file to the cache as its body arrives, a moment after
+// the page has read the same bytes, so a first miss gets one more look.
+async function fileIsStored(path: string): Promise<boolean> {
+  if (typeof caches === "undefined") return true;
+  for (let look = 0; look < 2; look++) {
+    if (look > 0) await new Promise((resolve) => setTimeout(resolve, FILE_STORED_RETRY_MS));
+    const hit = await caches.match(path).catch(() => undefined);
+    if (hit && !hit.redirected) return true;
+  }
+  return false;
+}
 
 function subscribeToController(onChange: () => void): () => void {
   if (!("serviceWorker" in navigator)) return () => {};
@@ -112,12 +126,21 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
           // Files ask for their bytes (never a storage redirect); the worker
           // keeps them under the plain path, which is what caches.match checks.
           const response = await fetch(warmUrlFor(path), { cache: "no-store" });
-          if (!response.ok || (isFile && response.redirected)) {
+          // The header marks an older copy the worker answered with because the
+          // network failed: not a fresh save.
+          if (!response.ok || (isFile && response.redirected) || response.headers.get(SAVED_COPY_HEADER)) {
             if (!isFile) pagesFailed++;
             continue;
           }
+          if (isFile) {
+            // Saved means the bytes are in the cache, not that the headers arrived:
+            // a download that drops rejects here, and a failed write is a miss.
+            await response.arrayBuffer();
+            if (await fileIsStored(path)) savedCount++;
+            continue;
+          }
           // A page is only as saved as the scripts and styles it loads.
-          const assets = isFile ? [] : assetUrlsIn(await response.text()).filter((a) => !assetsSeen.has(a));
+          const assets = assetUrlsIn(await response.text()).filter((a) => !assetsSeen.has(a));
           savedCount++;
           for (const asset of assets) {
             if (cancelled) return;
@@ -139,9 +162,11 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
           if (!isFile) pagesFailed++;
         }
       }
+      if (cancelled) return;
       // Only a run that warmed the pages counts as a save (its timestamp is
-      // what the 6-hour skip reads).
-      if (!cancelled && warmPages) finishWarm(tripId, { total, saved: savedCount, pagesFailed });
+      // what the 6-hour skip reads). A run of files alone still reports one it lost.
+      if (warmPages) finishWarm(tripId, { total, saved: savedCount, pagesFailed });
+      else recordFileShortfall(tripId, { total, saved: savedCount });
     };
     // Defer to idle so it never competes with the page the user is viewing.
     const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;

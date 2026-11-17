@@ -188,11 +188,38 @@ export function finishWarm(tripId: string, result: WarmResult, at: number = Date
   update(tripId, { state: "saved", savedAt: at, savedBuild: build, ...counts });
 }
 
+// A run inside the fresh window fetches only files. What it lost or got back
+// changes the counts the row reads, never savedAt: the pages were not fetched.
+export function recordFileShortfall(tripId: string, files: { total: number; saved: number }, at: number = Date.now()): void {
+  const current = getStatus(tripId);
+  const missing = files.total - files.saved;
+  if (current.total === null && missing === 0) return;
+  const total = current.total ?? files.total;
+  const saved = Math.max(0, total - missing);
+  if (current.total === total && current.saved === saved) return;
+  writeCounts(tripId, total, saved, at, false);
+  update(tripId, { total, saved, ranAt: at });
+}
+
 /** A warm that stopped early (left the Trip, went offline) falls back to what was last known. */
 export function cancelWarm(tripId: string): void {
   const current = getStatus(tripId);
   if (current.state !== "saving") return;
   update(tripId, { state: current.savedAt === null && current.ranAt === null ? "idle" : "saved" });
+}
+
+const ALL_STORAGE_PREFIX = "teepee.offline.";
+
+// Sign-out empties the cache, so every Trip's "Saved for offline" goes with it.
+export function forgetOfflineSaves(): void {
+  try {
+    const keys = Object.keys(window.localStorage).filter((key) => key.startsWith(ALL_STORAGE_PREFIX));
+    for (const key of keys) window.localStorage.removeItem(key);
+  } catch {
+    // Storage blocked: the in-memory state below is still forgotten.
+  }
+  for (const [tripId, status] of statuses) statuses.set(tripId, { ...IDLE, requestId: status.requestId });
+  notify();
 }
 
 /** Tests only: forget every Trip's in-memory state (storage is left alone). */

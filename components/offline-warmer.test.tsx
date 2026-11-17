@@ -308,7 +308,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       const stale = new Response("");
       Object.defineProperty(stale, "redirected", { value: true });
-      vi.stubGlobal("caches", { match: vi.fn(async () => stale) });
+      vi.stubGlobal("caches", { match: vi.fn(async () => (fetchMock.mock.calls.length ? new Response("") : stale)) });
       render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/a1?offline=1", { cache: "no-store" }));
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
@@ -342,6 +342,123 @@ describe("OfflineWarmer", () => {
       window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 4, saved: 3, at: Date.now() - 60_000, pagesFailed: true }));
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1", { cache: "no-store" }));
+    });
+  });
+
+  describe("a file counts only once its bytes are in the cache", () => {
+    const FILE = "/api/attachments/a1";
+
+    function brokenDownload() {
+      let sent = false;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (sent) return controller.error(new TypeError("connection lost"));
+          sent = true;
+          controller.enqueue(new TextEncoder().encode("half"));
+        },
+      });
+      return new Response(body, { status: 200 });
+    }
+
+    it("a file whose download drops part way is not saved", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      fetchMock.mockImplementation(async (url: string) => (url.includes("/api/attachments/") ? brokenDownload() : new Response("")));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 1, pagesFailed: false }));
+    });
+
+    it("a file the cache never receives is not saved, after one more look", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      const matchMock = vi.fn(async () => undefined);
+      vi.stubGlobal("caches", { match: matchMock });
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 1 }));
+      expect(matchMock.mock.calls.filter((c) => (c as unknown[])[0] === FILE)).toHaveLength(3);
+    });
+
+    it("a file the cache holds on the second look is saved", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      let looks = 0;
+      vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === FILE && ++looks === 3 ? new Response("") : undefined)) });
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 2 }));
+    });
+
+    it("looks under the plain path, with the flag stripped", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      const matchMock = vi.fn(async () => (fetchMock.mock.calls.length ? new Response("") : undefined));
+      vi.stubGlobal("caches", { match: matchMock });
+      render(<OfflineWarmer tripId="t1" paths={["/api/trips/t1/cover?v=k"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
+      expect(matchMock.mock.calls.map((c) => (c as unknown[])[0])).toEqual(["/api/trips/t1/cover?v=k", "/api/trips/t1/cover?v=k"]);
+    });
+  });
+
+  describe("an older copy is not a fresh save", () => {
+    const olderCopy = () => new Response("<html>", { status: 200, headers: { "X-Teepee-Saved-Copy": "1" } });
+
+    it("a page the worker answered from the cache is a page failure, and no save is stamped", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      fetchMock.mockImplementation(async (url: string) => (url === "/b" ? olderCopy() : new Response("")));
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} />);
+      await vi.waitFor(() => expect(getStatus("t1").total).toBe(3));
+      expect(getStatus("t1")).toMatchObject({ state: "saved", total: 3, saved: 2, pagesFailed: true, savedAt: null, savedBuild: null });
+      expect(window.localStorage.getItem("teepee.offline.savedAt.t1")).toBeNull();
+    });
+
+    it("Save again on a dead connection keeps the earlier save time", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      const earlier = Date.now() - 7 * 60 * 60_000;
+      markSaved("t1", earlier);
+      fetchMock.mockImplementation(async () => olderCopy());
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 0, pagesFailed: true }));
+      expect(getStatus("t1").savedAt).toBe(earlier);
+    });
+  });
+
+  describe("a run inside the 6 hours that fetches only files", () => {
+    const pagesCached = () =>
+      vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p.startsWith("/trips/") ? new Response("") : undefined)) });
+
+    it("records a file it lost, without a new save time", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      pagesCached();
+      const savedAt = Date.now() - 60 * 60_000;
+      markSaved("t1", savedAt);
+      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 12, saved: 12, at: savedAt, pagesFailed: false }));
+      fetchMock.mockImplementation(async () => new Response("", { status: 413 }));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/new"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ state: "saved", total: 12, saved: 11, pagesFailed: false }));
+      expect(getStatus("t1").savedAt).toBe(savedAt);
+      expect(fetchMock).not.toHaveBeenCalledWith("/trips/t1", expect.anything());
+      expect(JSON.parse(window.localStorage.getItem("teepee.offline.counts.t1")!)).toMatchObject({ total: 12, saved: 11, pagesFailed: false });
+    });
+
+    it("clears the shortfall once the file is stored", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", {
+        match: vi.fn(async (p: string) => (p.startsWith("/trips/") || fetchMock.mock.calls.length ? new Response("") : undefined)),
+      });
+      const savedAt = Date.now() - 60 * 60_000;
+      markSaved("t1", savedAt);
+      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 12, saved: 11, at: savedAt, pagesFailed: false }));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 12, saved: 12 }));
+      expect(getStatus("t1").savedAt).toBe(savedAt);
+    });
+
+    it("leaves the counts alone when nothing changed", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
+      const savedAt = Date.now() - 60 * 60_000;
+      markSaved("t1", savedAt);
+      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 12, saved: 12, at: savedAt, pagesFailed: false }));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1"]} />);
+      await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 20));
+      expect(getStatus("t1").ranAt).toBe(savedAt);
     });
   });
 
@@ -444,7 +561,7 @@ describe("OfflineWarmer", () => {
 
     it("fetches no assets for a file", async () => {
       stubNavigator({ onLine: true, hasController: true });
-      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      vi.stubGlobal("caches", { match: vi.fn(async () => (fetchMock.mock.calls.length ? new Response("") : undefined)) });
       serve({ "/api/attachments/a1?offline=1": page });
       render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));

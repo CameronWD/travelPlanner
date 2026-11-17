@@ -6,7 +6,7 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 
 import { SavedForOffline } from "./saved-for-offline";
 import { OfflineWarmer } from "@/components/offline-warmer";
-import { beginWarm, finishWarm, getStatus, resetOfflineStatus } from "@/lib/offline-status";
+import { beginWarm, finishWarm, forgetOfflineSaves, getStatus, recordFileShortfall, resetOfflineStatus } from "@/lib/offline-status";
 import { toast } from "@/components/ui/use-toast";
 
 // Same stubs as components/offline-warmer.test.tsx: the "Save again" test
@@ -160,5 +160,22 @@ describe("SavedForOffline", () => {
     const button = screen.getByRole("button", { name: "Save again" });
     expect(button).toBeDisabled();
     expect(screen.getByText("Offline saving needs the installed app.")).toBeInTheDocument();
+  });
+
+  it("goes back to Not saved yet when sign-out forgets the save", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 3, saved: 3, pagesFailed: 0 });
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Saved for offline");
+    act(() => forgetOfflineSaves());
+    expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
+  });
+
+  it("reads Saved N of M after a later run lost a file", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 12, saved: 12, pagesFailed: 0 });
+    render(<SavedForOffline tripId="t1" />);
+    act(() => recordFileShortfall("t1", { total: 2, saved: 1 }));
+    expect(screen.getByRole("status")).toHaveTextContent("Saved 11 of 12");
   });
 });
