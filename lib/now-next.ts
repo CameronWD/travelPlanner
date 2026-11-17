@@ -129,10 +129,12 @@ type WhereTransport = Pick<NowNextTransport, "fromStopId" | "toStopId" | "depAt"
 type TimedLeg = WhereTransport & { depAt: Date };
 
 const earliestDeparture = (legs: TimedLeg[]) => new Date(Math.min(...legs.map((t) => t.depAt.getTime())));
-const lastArrival = (legs: TimedLeg[]) => new Date(Math.max(...legs.map((t) => (t.arrAt ?? t.depAt).getTime())));
+const landed = (t: TimedLeg) => t.arrAt ?? t.depAt;
 
 // Timed legs beat the calendar: a stay starts when the last leg into it lands and ends when the first
 // leg out departs, so a multi-leg day is in transit (null) throughout, whatever order the legs come in.
+// Only legs inside the handover count (leaving on or after the start of the depart date, landing
+// before the end of the arrive date), so a day trip mid-stay matters only while it is moving.
 export function whereYouAre(
   stops: readonly WhereStop[],
   transports: readonly WhereTransport[],
@@ -144,18 +146,27 @@ export function whereYouAre(
     (s): s is WhereStop & { arriveDate: string; departDate: string } => s.arriveDate != null && s.departDate != null,
   );
   const timed = transports.filter((t): t is TimedLeg => t.depAt != null);
-  const midnight = (dateISO: string, s: WhereStop) => zonedWallTimeToInstant(dateISO, "00:00", s.timezone ?? "UTC");
-  const stays = plan.map((s) => ({ stop: s, from: midnight(s.arriveDate, s), until: midnight(addDays(s.departDate, 1), s) }));
+  const dayStart = (dateISO: string, s: WhereStop) => zonedWallTimeToInstant(dateISO, "00:00", s.timezone ?? "UTC");
+  const dayEnd = (dateISO: string, s: WhereStop) => dayStart(addDays(dateISO, 1), s);
+  const stays = plan.map((s) => ({ stop: s, from: dayStart(s.arriveDate, s), until: dayEnd(s.departDate, s) }));
+  // With no arrival time, the arriving stay can't start before its arrive date does.
+  const arrivedBy = (legs: TimedLeg[], arriving: (typeof stays)[number]) =>
+    new Date(Math.max(...legs.map((t) => t.arrAt?.getTime() ?? Math.max(t.depAt.getTime(), arriving.from.getTime()))));
 
-  const intoFirst = timed.filter((t) => t.toStopId === plan[0]?.id);
-  if (intoFirst.length) stays[0].from = lastArrival(intoFirst);
+  const first = stays[0];
+  const intoFirst = timed.filter((t) => t.toStopId === first?.stop.id && landed(t) < dayEnd(first.stop.arriveDate, first.stop));
+  if (intoFirst.length) first.from = arrivedBy(intoFirst, first);
   for (let i = 1; i < stays.length; i++) {
     const leaving = stays[i - 1];
     const arriving = stays[i];
-    const legs = timed.filter((t) => t.fromStopId === leaving.stop.id || t.toStopId === arriving.stop.id);
+    const opens = dayStart(leaving.stop.departDate, leaving.stop);
+    const closes = dayEnd(arriving.stop.arriveDate, arriving.stop);
+    const legs = timed.filter(
+      (t) => (t.fromStopId === leaving.stop.id || t.toStopId === arriving.stop.id) && t.depAt >= opens && landed(t) < closes,
+    );
     if (legs.length) {
       leaving.until = earliestDeparture(legs);
-      arriving.from = lastArrival(legs);
+      arriving.from = arrivedBy(legs, arriving);
     } else if (leaving.stop.departDate === arriving.stop.arriveDate) {
       const noon = zonedWallTimeToInstant(leaving.stop.departDate, "12:00", leaving.stop.timezone ?? "UTC");
       leaving.until = noon;
@@ -163,7 +174,7 @@ export function whereYouAre(
     }
   }
   const last = stays[stays.length - 1];
-  const outOfLast = timed.filter((t) => t.fromStopId === last?.stop.id);
+  const outOfLast = timed.filter((t) => t.fromStopId === last?.stop.id && t.depAt >= dayStart(last.stop.departDate, last.stop));
   if (outOfLast.length) last.until = earliestDeparture(outOfLast);
 
   const here = stays.findLast((s) => s.from <= now && now < s.until);
