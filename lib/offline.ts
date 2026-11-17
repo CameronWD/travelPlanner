@@ -467,6 +467,37 @@ export function savedCopyMessage(url: string): { type: typeof SAVED_COPY_MESSAGE
   return { type: SAVED_COPY_MESSAGE, url };
 }
 
+// The page pulls what the worker just did (ADR 0077): a pushed message can reach
+// a client before its page listens, so the worker also remembers, in memory and
+// briefly, the paths it answered with a saved copy. Mirrored in sw.js.
+export const WAS_SAVED_COPY_MESSAGE = 'WAS_SAVED_COPY';
+export const SAVED_COPY_RECORD_TTL_MS = 60000;
+export const SAVED_COPY_RECORD_LIMIT = 8;
+
+export interface SavedCopyRecord {
+  path: string;
+  at: number;
+}
+
+export function withSavedCopyRecord(records: SavedCopyRecord[], path: string, now: number): SavedCopyRecord[] {
+  const live = records.filter((r) => r.path !== path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+  return [...live, { path, at: now }].slice(-SAVED_COPY_RECORD_LIMIT);
+}
+
+export function withoutSavedCopyRecord(records: SavedCopyRecord[], path: string): SavedCopyRecord[] {
+  return records.filter((r) => r.path !== path);
+}
+
+export function wasSavedCopy(records: SavedCopyRecord[], path: string, now: number): boolean {
+  return records.some((r) => r.path === path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+}
+
+export function wasSavedCopyQueryPath(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const { type, url } = data as { type?: unknown; url?: unknown };
+  return type === WAS_SAVED_COPY_MESSAGE && typeof url === 'string' ? url : null;
+}
+
 /** How many of the oldest entries to drop to get back under `limit`. */
 export function evictionCount(entries: number, limit: number | null): number {
   if (limit === null) return 0;

@@ -35,16 +35,22 @@ copy sat in the cache.
    `event.waitUntil` and refreshes the cache when it lands, through
    `storableResponse` as every stored response does. If it fails later,
    nothing happens. A 5xx is never cached.
-5. **The page is told.** A copy served this way carries the response header
-   `X-Teepee-Saved-Copy: 1`, and the worker posts
+5. **The page is told, and can ask.** A copy served this way carries the
+   response header `X-Teepee-Saved-Copy: 1`, and the worker posts
    `{ type: 'SAVED_COPY', url }` to the client the navigation creates
    (`event.resultingClientId`). That client exists only once the response
    arrives, so the worker asks for it every 100 ms for up to 5 seconds and
-   never holds the response back. The saved-copy line (spec B3) listens for
-   the message. A copy served because the fetch failed outright is not
-   marked: marking is for the timeout and the 5xx, and the page relies on
-   the browser's online and offline events for that case. A failure while
-   `navigator.onLine` is still true therefore shows no line.
+   never holds the response back. A pushed message alone is unreliable: a
+   page's message queue flushes at DOMContentLoaded, before React hydrates
+   and listens, and `resultingClientId` may be empty on some browsers. So the
+   worker also keeps a short-lived in-memory record of the paths it just
+   answered with a saved copy (60 seconds, 8 entries, cleared when the same
+   path is next answered from the network), and the page asks it on mount
+   with `{ type: 'WAS_SAVED_COPY', url }` over a `MessageChannel`, getting
+   `{ savedCopy: boolean }` back. The saved-copy line (spec B3) uses the
+   answer and honours the pushed message if it does arrive.
+   A copy served because the fetch failed outright is marked the same way
+   (header, message, record), as is the page an offline `/` redirects to.
 6. **Navigations only.** Attachments (cache-first), the trip cover
    (network-first, but an image request), static chunks and every other
    request behave as before. The rules (`NAVIGATION_TIMEOUT_MS`,
@@ -69,10 +75,13 @@ copy sat in the cache.
   was saved, by the warm or by a visit. The saved-copy line (spec B3) says
   so. The background fetch refreshes only the page that timed out, and only
   if it lands; on a connection that stays slow the next tap times out again.
+  A restarted worker forgets its record, so the line then rests on the pushed
+  message and on the date check.
 - A cold start slower than 4 seconds on a good connection shows the saved
   copy once. That is the cost of the 4-second line, accepted over a hang:
-  opening the same page again shows what the background fetch brought back,
-  and the database is warm by then.
+  opening the same page again still races the network first, and the copy it
+  falls back to is the one the background fetch refreshed, if that landed. The
+  database is warm by then, so the second try is usually fast.
 - A slow network on a page that was never saved still waits: there is
   nothing to show instead.
 - **Signed-out safety.** The timeout does not widen who can see a cached
@@ -81,8 +90,10 @@ copy sat in the cache.
   an expired session: its cache stays, and a slow network now shows that
   user's saved copy where the network would have redirected to sign-in
   (ARCH-TEN-12 in `docs/open.md`). Accepted for this trip.
-- The message depends on `FetchEvent.resultingClientId`. Where a browser does
-  not provide it, only the header marks the copy, and page script cannot read
-  a navigation's headers. Support on iOS Safari is unverified.
+- The pushed message depends on `FetchEvent.resultingClientId`. Where a
+  browser does not provide it, the page's pull still works, because it asks
+  `navigator.serviceWorker.controller` by URL path. Page script cannot read a
+  navigation's headers, so the header is for tests and devtools. Support for
+  `resultingClientId` on iOS Safari is unverified.
 - Verifying this needs `next build` and `next start`: the worker is not
   registered under `next dev` (ADR 0016).

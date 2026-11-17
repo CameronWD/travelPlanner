@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -590,6 +590,43 @@ describe('a slow network falls back to the saved copy (spec A5, ADR 0077)', () =
   it('tells the page it opened as a saved copy', () => {
     expect(SAVED_COPY_MESSAGE).toBe('SAVED_COPY');
     expect(savedCopyMessage('https://teepee.example/trips/a')).toEqual({ type: 'SAVED_COPY', url: 'https://teepee.example/trips/a' });
+  });
+});
+
+describe('the page asks whether it was a saved copy (ADR 0077)', () => {
+  it('a path is remembered for 60 seconds', () => {
+    const records = withSavedCopyRecord([], '/trips/a', 1000);
+    expect(SAVED_COPY_RECORD_TTL_MS).toBe(60000);
+    expect(wasSavedCopy(records, '/trips/a', 1000 + 59999)).toBe(true);
+    expect(wasSavedCopy(records, '/trips/a', 1000 + 60000)).toBe(false);
+    expect(wasSavedCopy(records, '/trips/b', 1000)).toBe(false);
+  });
+
+  it('recording a path again refreshes it, and old entries drop out', () => {
+    let records = withSavedCopyRecord([], '/trips/a', 0);
+    records = withSavedCopyRecord(records, '/trips/b', 5000);
+    records = withSavedCopyRecord(records, '/trips/a', 70000);
+    expect(records).toEqual([{ path: '/trips/a', at: 70000 }]);
+  });
+
+  it('keeps only the newest few', () => {
+    let records: ReturnType<typeof withSavedCopyRecord> = [];
+    for (let i = 0; i < SAVED_COPY_RECORD_LIMIT + 3; i++) records = withSavedCopyRecord(records, `/p${i}`, i);
+    expect(records).toHaveLength(SAVED_COPY_RECORD_LIMIT);
+    expect(records[0].path).toBe('/p3');
+  });
+
+  it('a fresh answer forgets the path', () => {
+    const records = withSavedCopyRecord(withSavedCopyRecord([], '/trips/a', 0), '/trips/b', 0);
+    expect(withoutSavedCopyRecord(records, '/trips/a').map((r) => r.path)).toEqual(['/trips/b']);
+  });
+
+  it('reads the asked path from a WAS_SAVED_COPY message only', () => {
+    expect(WAS_SAVED_COPY_MESSAGE).toBe('WAS_SAVED_COPY');
+    expect(wasSavedCopyQueryPath({ type: 'WAS_SAVED_COPY', url: '/trips/a' })).toBe('/trips/a');
+    expect(wasSavedCopyQueryPath({ type: 'WAS_SAVED_COPY' })).toBeNull();
+    expect(wasSavedCopyQueryPath({ type: 'LAST_TRIP', url: '/x' })).toBeNull();
+    expect(wasSavedCopyQueryPath(null)).toBeNull();
   });
 });
 

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { META_CACHE_NAME, BUILD_META_PATH, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE } from "../lib/offline";
+import { META_CACHE_NAME, BUILD_META_PATH, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT } from "../lib/offline";
 import { RESERVED_TRIP_SLUGS } from "../lib/trip-slug";
 
 /**
@@ -447,6 +447,14 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).toContain("function savedCopyResponse(response)");
     expect(SW_SOURCE).toContain("headers.set(SAVED_COPY_HEADER, '1');");
     expect(SW_SOURCE).toContain("function savedCopyMessage(url) {\n  return { type: SAVED_COPY_MESSAGE, url };\n}");
+    expect(SW_SOURCE).toContain(`const WAS_SAVED_COPY_MESSAGE = '${WAS_SAVED_COPY_MESSAGE}';`);
+    expect(SW_SOURCE).toContain(`const SAVED_COPY_RECORD_TTL_MS = ${SAVED_COPY_RECORD_TTL_MS};`);
+    expect(SW_SOURCE).toContain(`const SAVED_COPY_RECORD_LIMIT = ${SAVED_COPY_RECORD_LIMIT};`);
+    expect(SW_SOURCE).toContain("function withSavedCopyRecord(records, path, now) {\n  const live = records.filter((r) => r.path !== path && now - r.at < SAVED_COPY_RECORD_TTL_MS);\n  return [...live, { path, at: now }].slice(-SAVED_COPY_RECORD_LIMIT);\n}");
+    expect(SW_SOURCE).toContain("function withoutSavedCopyRecord(records, path) {\n  return records.filter((r) => r.path !== path);\n}");
+    expect(SW_SOURCE).toContain("function wasSavedCopy(records, path, now) {\n  return records.some((r) => r.path === path && now - r.at < SAVED_COPY_RECORD_TTL_MS);\n}");
+    expect(SW_SOURCE).toContain("function wasSavedCopyQueryPath(data)");
+    expect(SW_SOURCE).toContain("return data.type === WAS_SAVED_COPY_MESSAGE && typeof data.url === 'string' ? data.url : null;");
   });
 });
 
@@ -1151,5 +1159,99 @@ describe("public/sw.js — a slow network falls back to the saved copy (spec A5)
 
     expect(postMessage).toHaveBeenCalledTimes(1);
     expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: PLAN });
+  });
+
+  function ask(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, url: string) {
+    const postMessage = vi.fn();
+    dispatch("message", { data: { type: WAS_SAVED_COPY_MESSAGE, url }, ports: [{ postMessage }] });
+    return postMessage;
+  }
+
+  it("answers the page's question: yes for a slow saved copy, no for a fresh one", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    slowNetwork();
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    withClient(getClient);
+
+    expect(ask(dispatch, "/trips/a/plan")).toHaveBeenCalledWith({ savedCopy: false });
+    const nav = open(dispatch, navigation(PLAN));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS);
+    await nav.answered;
+
+    expect(ask(dispatch, "/trips/a/plan")).toHaveBeenCalledWith({ savedCopy: true });
+    expect(ask(dispatch, "/trips/a/budget")).toHaveBeenCalledWith({ savedCopy: false });
+  });
+
+  it("a copy served after the fetch was rejected is marked, announced and remembered", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = withClient(getClient);
+
+    const nav = open(dispatch, navigation(PLAN));
+    const response = await nav.answered;
+    await settle(nav.waits);
+
+    expect(await response.text()).toBe("saved-plan");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: PLAN });
+    expect(ask(dispatch, "/trips/a/plan")).toHaveBeenCalledWith({ savedCopy: true });
+  });
+
+  it("a rejected non-navigation request is not marked", async () => {
+    const c = matchingCaches();
+    const cover = "https://teepee.example/api/trips/t1/cover?v=k";
+    const files = await c.api.open("teepee-files-v1");
+    await files.put(new Request(cover), new Response("saved-cover"));
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await open(dispatch, new Request(cover)).answered;
+
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBeNull();
+  });
+
+  it("offline /, then the Trip it opens, is marked as a saved copy", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a": "trip-home" });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = withClient(getClient);
+
+    const redirect = await open(dispatch, navigation("https://teepee.example/")).answered;
+    expect(redirect.status).toBe(302);
+    const home = open(dispatch, navigation("https://teepee.example/trips/a"));
+    const response = await home.answered;
+    await settle(home.waits);
+
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: "https://teepee.example/trips/a" });
+    expect(ask(dispatch, "/trips/a")).toHaveBeenCalledWith({ savedCopy: true });
+  });
+
+  it("opening the same page again on a good connection forgets the record", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    globalThis.fetch = vi.fn().mockRejectedValueOnce(new TypeError("offline")).mockResolvedValue(new Response("fresh-plan"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    withClient(getClient);
+
+    await open(dispatch, navigation(PLAN)).answered;
+    expect(ask(dispatch, "/trips/a/plan")).toHaveBeenCalledWith({ savedCopy: true });
+    const fresh = await open(dispatch, navigation(PLAN)).answered;
+
+    expect(await fresh.text()).toBe("fresh-plan");
+    expect(ask(dispatch, "/trips/a/plan")).toHaveBeenCalledWith({ savedCopy: false });
+  });
+
+  it("ignores a WAS_SAVED_COPY message with no port", () => {
+    const { dispatch } = loadServiceWorker({ caches: matchingCaches().api });
+    expect(() => dispatch("message", { data: { type: WAS_SAVED_COPY_MESSAGE, url: "/x" } })).not.toThrow();
   });
 });

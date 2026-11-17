@@ -199,6 +199,35 @@ function savedCopyMessage(url) {
   return { type: SAVED_COPY_MESSAGE, url };
 }
 
+// Mirrors WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT,
+// withSavedCopyRecord(), withoutSavedCopyRecord(), wasSavedCopy() and
+// wasSavedCopyQueryPath() in lib/offline.ts.
+const WAS_SAVED_COPY_MESSAGE = 'WAS_SAVED_COPY';
+const SAVED_COPY_RECORD_TTL_MS = 60000;
+const SAVED_COPY_RECORD_LIMIT = 8;
+
+function withSavedCopyRecord(records, path, now) {
+  const live = records.filter((r) => r.path !== path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+  return [...live, { path, at: now }].slice(-SAVED_COPY_RECORD_LIMIT);
+}
+
+function withoutSavedCopyRecord(records, path) {
+  return records.filter((r) => r.path !== path);
+}
+
+function wasSavedCopy(records, path, now) {
+  return records.some((r) => r.path === path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+}
+
+function wasSavedCopyQueryPath(data) {
+  if (typeof data !== 'object' || data === null) return null;
+  return data.type === WAS_SAVED_COPY_MESSAGE && typeof data.url === 'string' ? data.url : null;
+}
+
+// In memory only: a restarted worker forgets, and the page then relies on the
+// pushed message and the date check.
+let savedCopyRecords = [];
+
 /** Mirrors OFFLINE_BYTES_PARAM in lib/offline.ts: a warm's ask for the bytes, never a redirect. */
 const OFFLINE_BYTES_PARAM = 'offline';
 
@@ -405,6 +434,10 @@ self.addEventListener('message', (event) => {
         .catch((err) => console.warn('[SW] cache clear failed:', err))
     );
   }
+  const askedPath = wasSavedCopyQueryPath(data);
+  if (askedPath !== null && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ savedCopy: wasSavedCopy(savedCopyRecords, askedPath, Date.now()) });
+  }
   const lastTrip = lastTripMessagePath(data);
   if (lastTrip) event.waitUntil(recordLastTrip(lastTrip).catch(() => {}));
 });
@@ -455,6 +488,7 @@ async function networkFirst(event) {
   const { request } = event;
 
   if (request.mode === 'navigate') {
+    savedCopyRecords = withoutSavedCopyRecord(savedCopyRecords, new URL(request.url).pathname);
     const redirect = takeOfflineRedirect(request.url);
     if (redirect) {
       const cached = await servableCached(request);
@@ -467,7 +501,7 @@ async function networkFirst(event) {
     return await (request.mode === 'navigate' ? navigationAnswer(event, network) : network);
   } catch (err) {
     console.warn('[SW] network-first fetch failed, falling back to cache:', err);
-    return offlineResponse(request);
+    return offlineResponse(event);
   }
 }
 
@@ -510,6 +544,7 @@ async function navigationAnswer(event, network) {
 }
 
 function announceSavedCopy(event, cached) {
+  savedCopyRecords = withSavedCopyRecord(savedCopyRecords, new URL(event.request.url).pathname, Date.now());
   event.waitUntil(postSavedCopy(event.resultingClientId, event.request.url).catch(() => {}));
   return savedCopyResponse(cached);
 }
@@ -538,7 +573,7 @@ async function recordLastTrip(path) {
 
 // The offline redirect from `/` was decided a moment ago with the network
 // down or slow, so the navigation that follows it reads the cache without
-// asking the network again; after a slow network it is marked as the saved
+// asking the network again; after a slow or failed network it is marked as the saved
 // copy. In memory only: a restarted worker just asks the network.
 const OFFLINE_REDIRECT_TTL_MS = 10000;
 let offlineRedirect = null;
@@ -590,10 +625,11 @@ async function savedCopy(request) {
   return cached ? { cached } : null;
 }
 
-async function offlineResponse(request) {
+async function offlineResponse(event) {
+  const { request } = event;
   const copy = await savedCopy(request);
-  if (copy && copy.redirect) return redirectToSavedTrip(copy.redirect, false);
-  if (copy) return copy.cached;
+  if (copy && copy.redirect) return redirectToSavedTrip(copy.redirect, true);
+  if (copy) return request.mode === 'navigate' ? announceSavedCopy(event, copy.cached) : copy.cached;
 
   if (request.mode === 'navigate') {
     const fallback = await caches.match('/offline.html').catch(() => null);

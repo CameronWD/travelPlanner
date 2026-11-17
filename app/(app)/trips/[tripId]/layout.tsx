@@ -7,6 +7,8 @@ import { tripPath } from "@/lib/trip-path";
 import { formatDateRange } from "@/lib/dates";
 import { tripTitle } from "@/lib/page-title";
 import { tripTodayISO } from "@/lib/trip-today";
+import { orderPlanStops } from "@/lib/plan-order";
+import { currentTripTimezone } from "@/lib/tz";
 import { defaultDayISO } from "@/lib/day-view-default";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +24,7 @@ import { NotificationBell } from "@/components/trip/notification-bell";
 import { ShareChooserMount, ShareTripButton } from "@/components/trip/share-chooser";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
+import { SavedCopyLine } from "@/components/trip/saved-copy-line";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
 import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks } from "@/lib/trip-shell-reads";
@@ -91,6 +94,7 @@ export default async function TripLayout({
   const slug = trip.slug ?? tripId;
 
   const today = tripTodayISO(trip.stops, trip.homeTimezone);
+  const tripZone = currentTripTimezone(orderPlanStops(trip.stops), trip.homeTimezone);
   // The Days tab's one-hop target (ADR 0063). A date-less Trip goes straight
   // to Plan — where day/page.tsx would redirect it — because a link whose
   // server redirect lands on the page already shown (Days tapped on Plan)
@@ -146,6 +150,13 @@ export default async function TripLayout({
 
         <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
           <div className="mx-auto flex w-full max-w-page-wide flex-col">
+            <SavedCopyLine
+              tripRef={slug}
+              startDate={trip.startDate}
+              endDate={trip.endDate}
+              renderedToday={today}
+              zone={tripZone}
+            />
             {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
             <TripHeaderFrame>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
