@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl } from "./maps";
+import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl, directionsFromHereUrl } from "./maps";
 
 // ---------------------------------------------------------------------------
 // mapsUrl
@@ -287,5 +287,30 @@ describe("place IDs", () => {
     const q = new URL(googleDirectionsUrl([{ lat: 1, lng: 1 }, { lat: 2, lng: 2 }, { lat: 3, lng: 3 }])!).searchParams;
     expect(q.has("waypoint_place_ids")).toBe(false);
     expect(q.has("origin_place_id")).toBe(false);
+  });
+});
+
+describe("directionsFromHereUrl", () => {
+  it("sends coordinates as the destination with no origin", () => {
+    const { google } = directionsFromHereUrl({ lat: 48.8566, lng: 2.3522 }, "TRANSIT");
+    expect(google).toBe("https://www.google.com/maps/dir/?api=1&destination=48.8566%2C2.3522&travelmode=transit");
+    expect(google).not.toContain("origin");
+  });
+
+  it("URL-encodes an address destination", () => {
+    const { google } = directionsFromHereUrl({ address: "10 Downing Street, London" }, "DRIVE");
+    expect(google).toBe("https://www.google.com/maps/dir/?api=1&destination=10+Downing+Street%2C+London&travelmode=driving");
+  });
+
+  it("maps the Local travel mode to a Google travelmode, unset meaning transit", () => {
+    const at = { lat: 1, lng: 2 };
+    expect(directionsFromHereUrl(at, "DRIVE").google).toContain("travelmode=driving");
+    expect(directionsFromHereUrl(at, "TRANSIT").google).toContain("travelmode=transit");
+    expect(directionsFromHereUrl(at, null).google).toContain("travelmode=transit");
+  });
+
+  it("returns an Apple URL with no source address", () => {
+    const { apple } = directionsFromHereUrl({ lat: 1, lng: 2 }, "DRIVE");
+    expect(apple).toBe("https://maps.apple.com/?daddr=1%2C2&dirflg=d");
   });
 });

@@ -1,3 +1,5 @@
+import type { LocalMode } from "@/lib/travel-times/hops";
+
 /**
  * Pure map/directions URL builders.
  *
@@ -123,4 +125,24 @@ export function appleDirectionsUrl(points: DirectionsPoint[]): string | null {
   if (tokens.length < 2) return null;
   const params = new URLSearchParams({ saddr: tokens[0], daddr: tokens[tokens.length - 1] });
   return `https://maps.apple.com/?${params.toString()}`;
+}
+
+const GOOGLE_TRAVEL_MODE: Record<LocalMode, string> = { DRIVE: "driving", TRANSIT: "transit" };
+
+/**
+ * Directions to a destination from wherever the Traveller is standing: no
+ * origin is sent, so both apps start from the device's current location.
+ * An unset Local travel mode is transit, the same default the travel times use.
+ */
+export function directionsFromHereUrl(
+  dest: { lat: number; lng: number } | { address: string },
+  mode: LocalMode | null,
+): { google: string; apple: string } {
+  const destination = "address" in dest ? dest.address : `${dest.lat},${dest.lng}`;
+  const google = new URLSearchParams({ api: "1", destination, travelmode: GOOGLE_TRAVEL_MODE[mode ?? "TRANSIT"] });
+  const apple = new URLSearchParams({ daddr: destination, dirflg: mode === "DRIVE" ? "d" : "r" });
+  return {
+    google: `https://www.google.com/maps/dir/?${google.toString()}`,
+    apple: `https://maps.apple.com/?${apple.toString()}`,
+  };
 }
