@@ -22,7 +22,7 @@ import {
 
 const A = { lat: 35, lng: 135 };
 const NEAR = { lat: 35.01, lng: 135 };
-const FAR2 = { lat: 35.02, lng: 135 };
+const FAR2 = { lat: 35.03, lng: 135 };
 const FAR = { lat: 35.1, lng: 135 };
 const OPTS = { windingFactor: 1.3, avgSpeedKph: 60 };
 const NOW = new Date("2026-11-01T00:00:00.000Z");
@@ -164,9 +164,21 @@ describe("hopKeys", () => {
   const near = pointKey(NEAR);
   const far = pointKey(FAR2);
 
-  it("asks for a WALK row only under 2 km", () => {
+  it("asks for a WALK row only under 3 km", () => {
     expect(hopKeys(A, NEAR, "DRIVE", null, NOW)).toEqual([`WALK|${a}|${near}`, `DRIVE|${a}|${near}`]);
     expect(hopKeys(A, FAR2, "DRIVE", null, NOW)).toEqual([`DRIVE|${a}|${far}`]);
+  });
+
+  it("wants a WALK key for a hop 2.6 km apart", () => {
+    const p = { lat: 35.0234, lng: 135 };
+    expect(haversineKm(A, p)).toBeLessThan(3);
+    expect(hopKeys(A, p, "DRIVE", null, NOW)[0]).toBe(`WALK|${a}|${pointKey(p)}`);
+  });
+
+  it("wants none at 3.1 km", () => {
+    const p = { lat: 35.0279, lng: 135 };
+    expect(haversineKm(A, p)).toBeGreaterThan(3);
+    expect(hopKeys(A, p, "DRIVE", null, NOW)).toEqual([`DRIVE|${a}|${pointKey(p)}`]);
   });
 
   it("floors a TRANSIT departure to 15 minutes", () => {
@@ -350,9 +362,35 @@ describe("resolveHop", () => {
     });
   });
 
-  it("does not use a WALK row at 2 km or more", () => {
-    const lookup: TravelLookup = new Map([[`WALK|${pointKey(A)}|${pointKey(FAR2)}`, ok(19)]]);
-    expect(resolveHop(A, FAR2, "DRIVE", null, lookup, OPTS).estimated).toBe(true);
+  it("does not use a WALK row at 3 km or more", () => {
+    const far3 = { lat: 35.0279, lng: 135 };
+    const lookup: TravelLookup = new Map([[`WALK|${pointKey(A)}|${pointKey(far3)}`, ok(19)]]);
+    expect(resolveHop(A, far3, "DRIVE", null, lookup, OPTS).estimated).toBe(true);
+  });
+
+  describe("walking about as quick as the Stop's mode", () => {
+    const dep = new Date("2026-11-02T09:07:00.000Z");
+    const transitKey = hopKeys(A, NEAR, "TRANSIT", dep, NOW)[1];
+
+    it("walks a 22 min hop when public transport takes 20", () => {
+      const lookup: TravelLookup = new Map([[walkKey, ok(22)], [transitKey, ok(20)]]);
+      expect(resolveHop(A, NEAR, "TRANSIT", dep, lookup, OPTS)).toMatchObject({ minutes: 22, mode: "walk" });
+    });
+
+    it("walks a 20 min hop when public transport takes 32", () => {
+      const lookup: TravelLookup = new Map([[walkKey, ok(20)], [transitKey, ok(32)]]);
+      expect(resolveHop(A, NEAR, "TRANSIT", dep, lookup, OPTS)).toMatchObject({ minutes: 20, mode: "walk" });
+    });
+
+    it("takes public transport when the walk is 31 and transit 22", () => {
+      const lookup: TravelLookup = new Map([[walkKey, ok(31)], [transitKey, ok(22)]]);
+      expect(resolveHop(A, NEAR, "TRANSIT", dep, lookup, OPTS)).toMatchObject({ minutes: 22, mode: "transit" });
+    });
+
+    it("still walks a 20 min hop with no local row", () => {
+      const lookup: TravelLookup = new Map([[walkKey, ok(20)]]);
+      expect(resolveHop(A, NEAR, "TRANSIT", dep, lookup, OPTS)).toMatchObject({ minutes: 20, mode: "walk" });
+    });
   });
 });
 

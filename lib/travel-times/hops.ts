@@ -34,8 +34,9 @@ export type ResolvedHop = {
 // Items are read in this order wherever hops are built: dayHops breaks equal start times by input order.
 export const ITEM_HOP_ORDER = [{ date: "asc" }, { startTime: "asc" }, { sortOrder: "asc" }, { id: "asc" }] as const;
 
-const WALK_ROW_UNDER_KM = 2;
-const MAX_REAL_WALK_MIN = 20;
+export const WALK_ROW_UNDER_KM = 3;
+export const MAX_REAL_WALK_MIN = 20;
+export const WALK_ABOUT_AS_QUICK_MIN = 5;
 const ESTIMATE_WALK_KMH = 4.5;
 const ESTIMATE_MAX_WALK_MIN = 30;
 const TRANSIT_SLOT_MS = 15 * 60_000;
@@ -261,13 +262,13 @@ export function resolveHop(
   if (samePoint(from, to)) return noRoute("walk");
   const km = haversineKm(from, to);
   const walk = km < WALK_ROW_UNDER_KM ? realHop(lookup, routeKey("WALK", from, to), "walk", km) : null;
-  if (walk && walk.minutes <= MAX_REAL_WALK_MIN) return walk;
   const local =
     localMode === "DRIVE"
       ? realHop(lookup, routeKey("DRIVE", from, to), "drive", km)
       : departure
         ? realHop(lookup, routeKey("TRANSIT", from, to, departure), "transit", km)
         : null;
+  if (walk && (walk.minutes <= MAX_REAL_WALK_MIN || (local && walk.minutes <= local.minutes + WALK_ABOUT_AS_QUICK_MIN))) return walk;
   if (local) return local;
   if (walk) return walk;
 
