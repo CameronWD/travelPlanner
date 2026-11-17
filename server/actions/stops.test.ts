@@ -4244,13 +4244,13 @@ describe("Surprise write guard", () => {
     );
   });
 
-  it("a Surprise Stop's delete takes its Reminders; an ordinary Stop's does not", async () => {
+  it("a Surprise Stop's delete takes the Reminders on the Stop itself, not its Items'; an ordinary Stop's does not", async () => {
     const row = { id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null };
     stopFindUniqueMock.mockResolvedValueOnce(row).mockResolvedValueOnce({ name: "Paris", surprisePlannerId: "user-2", surpriseForIds: '["user-1"]' });
     stopDeleteMock.mockResolvedValue({});
     requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
     await deleteStop("stop-1");
-    expect(reminderDeleteManyMock).toHaveBeenCalledWith({ where: { OR: [{ stopId: "stop-1" }, { item: { stopId: "stop-1" } }] } });
+    expect(reminderDeleteManyMock).toHaveBeenCalledWith({ where: { stopId: "stop-1" } });
     expect(itemUpdateManyMock).toHaveBeenCalledWith({
       where: { stopId: "stop-1", surprisePlannerId: null },
       data: { surprisePlannerId: "user-2", surpriseForIds: '["user-1"]', surpriseRevealedAt: null },

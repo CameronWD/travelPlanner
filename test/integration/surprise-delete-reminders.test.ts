@@ -79,7 +79,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("deleting a Surprise takes its 
     expect(await db.reminder.findUnique({ where: { id: keep.id } })).toMatchObject({ stopId: null });
   });
 
-  it("a Surprise Stop's surviving Items stay hidden from the surprised Traveller, and its Items' Reminders go", async () => {
+  it("a Surprise Stop's surviving Items stay hidden from the surprised Traveller, and its Items' Reminders stay hidden with them", async () => {
     const secret = await db.stop.create({
       data: { tripId: TRIP_ID, name: "IT Secret weekend", sortOrder: 2, surprisePlannerId: "it-sdr-user", surpriseForIds: '["it-sdr-other"]' },
     });
@@ -88,11 +88,13 @@ describe.skipIf(process.env.INTEGRATION !== "1")("deleting a Surprise takes its 
       data: { tripId: TRIP_ID, stopId: secret.id, title: "IT Own surprise", category: "FOOD", surprisePlannerId: "it-sdr-user", surpriseForIds: '["it-sdr-user"]' },
     });
     await db.reminder.create({ data: { tripId: TRIP_ID, title: "IT Book the inside dinner", date: "2027-01-08", itemId: inside.id } });
+    await db.reminder.create({ data: { tripId: TRIP_ID, title: "IT Book the secret weekend", date: "2027-01-08", stopId: secret.id } });
     surprises.add(secret.id);
 
     expect((await deleteStop(secret.id)).success).toBe(true);
 
-    expect(await db.reminder.count({ where: { tripId: TRIP_ID, title: "IT Book the inside dinner" } })).toBe(0);
+    expect(await db.reminder.count({ where: { tripId: TRIP_ID, title: "IT Book the secret weekend" } })).toBe(0);
+    expect(await db.reminder.findFirst({ where: { tripId: TRIP_ID, title: "IT Book the inside dinner" } })).toMatchObject({ itemId: inside.id });
     const surprised = await loadSurpriseVisibility(TRIP_ID, "it-sdr-other");
     expect(surprised.hiddenItemIds).toContain(inside.id);
     expect(surprised.hiddenItemIds).not.toContain(own.id);
