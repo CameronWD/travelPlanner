@@ -1142,11 +1142,14 @@ export function HelpGuide({
             <p>
               Once you&rsquo;re travelling, the trip&rsquo;s{" "}
               <strong className="font-semibold text-foreground">Home</strong>{" "}
-              screen changes job. It stops counting down and starts showing
-              today: what&rsquo;s on and in what order, how long until your next
-              flight or train, where you&rsquo;re sleeping tonight, and what
-              you&rsquo;ve spent so far. It&rsquo;s built to be read one-handed
-              on a phone.
+              screen changes job. It stops counting down and starts leading with
+              today: the day, what&rsquo;s happening now or next with Directions
+              from where you are and the day&rsquo;s map, today&rsquo;s plan, and
+              tonight&rsquo;s stay with its confirmation number. The quick
+              actions come after that. On a phone, tapping a booking shows its
+              details first, with Edit one tap away. Money shows your most
+              recent costs, and the Day view starts with the plan. It&rsquo;s
+              built to be read one-handed.
             </p>
             <p>
               <Go tripId={tripId} segment="journal">
@@ -1156,18 +1159,26 @@ export function HelpGuide({
               just below.
             </p>
             <p>
-              You won&rsquo;t always have signal. Pages you&rsquo;ve already
-              opened keep working when you lose it, and the trip you opened
-              last is kept on your phone on purpose.{" "}
+              You won&rsquo;t always have signal. Open the app with none and it
+              opens your saved trip instead of a dead end. Pages you&rsquo;ve
+              already opened keep working, and so do the tickets and booking
+              files you saved for offline. On a slow connection the saved copy
+              shows after a few seconds rather than hanging, and a saved page
+              from another day says so. The trip you opened last is kept on your
+              phone on purpose.{" "}
               <Go tripId={tripId} segment="settings">
                 Settings
               </Go>{" "}
               shows it as <strong className="font-semibold">Saved for offline</strong>,
-              with a <strong className="font-semibold">Save again</strong>{" "}
-              button if you want it fresh. Changes do need a connection to save,
-              though, so don&rsquo;t count on editing while you&rsquo;re
-              offline. The one exception is a Feedback note: write it offline
-              and it waits, then sends itself when you&rsquo;re back.
+              says how much was saved, and has a{" "}
+              <strong className="font-semibold">Save again</strong> button if you
+              want it fresh. Maps still need a connection. Changes do need a
+              connection to save, though, so don&rsquo;t count on editing while
+              you&rsquo;re offline: if a save fails, what you typed stays put and
+              the app tells you why, so you can save it once you&rsquo;re back
+              online. Nothing waits to send later. The one exception is a
+              Feedback note: write it offline and it waits, then sends itself
+              when you&rsquo;re back.
             </p>
             <p>
               If you&rsquo;d rather see the trip alongside the rest of your life,
