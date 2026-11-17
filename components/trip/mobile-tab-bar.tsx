@@ -116,13 +116,6 @@ export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPh
                 >
                   Share
                 </button>
-                <AppLink
-                  href={tripPath(tripRef, "/activity")}
-                  onClick={() => setOpen(false)}
-                  className="rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
-                >
-                  Notifications
-                </AppLink>
               </>
             )}
           </div>

@@ -54,6 +54,8 @@ export interface AttachmentListProps {
   onRename?: (att: AttachmentView) => void;
   /** Files page only: open the Move dialog for this file. */
   onMove?: (att: AttachmentView) => void;
+  /** Files page only: the whole card is the link that opens the file. */
+  cardLink?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +123,7 @@ export function AttachmentList({
   showUpload = true,
   onRename,
   onMove,
+  cardLink = false,
 }: AttachmentListProps) {
   const [isPending, startTransition] = React.useTransition();
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
@@ -367,14 +370,18 @@ export function AttachmentList({
 
               <div className="w-full min-w-0 sm:w-auto sm:flex-1 md:w-full md:pr-24">
                 <p className="truncate text-sm font-extrabold text-foreground" title={attachmentName(att)}>
-                  <AttachmentLink
-                    href={att.url}
-                    mime={att.mime}
-                    label={`View ${attachmentName(att)}`}
-                    className="after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-[3px] focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
-                  >
-                    {attachmentName(att)}
-                  </AttachmentLink>
+                  {cardLink ? (
+                    <AttachmentLink
+                      href={att.url}
+                      mime={att.mime}
+                      label={`View ${attachmentName(att)}`}
+                      className="underline-offset-2 hover:underline focus-visible:underline after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-[3px] focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
+                    >
+                      {attachmentName(att)}
+                    </AttachmentLink>
+                  ) : (
+                    attachmentName(att)
+                  )}
                 </p>
                 <p className="mt-0.5 break-words text-xs font-semibold text-muted-foreground">
                   {att.title ? `${att.filename} · ` : ""}
@@ -385,7 +392,7 @@ export function AttachmentList({
                 {att.owner ? (
                   <p className="mt-0.5 truncate text-xs font-semibold" title={att.owner.label}>
                     {att.owner.href ? (
-                      <Link href={att.owner.href} className="relative z-10 text-foreground underline-offset-2 hover:underline">
+                      <Link href={att.owner.href} className={cn(cardLink && "relative z-10", "text-foreground underline-offset-2 hover:underline")}>
                         {att.owner.label}
                       </Link>
                     ) : (
@@ -419,6 +426,16 @@ export function AttachmentList({
                   >
                     <MoveRight className="size-[18px]" aria-hidden="true" />
                   </Button>
+                )}
+                {!cardLink && (
+                  <AttachmentLink
+                    href={att.url}
+                    mime={att.mime}
+                    label={`View ${attachmentName(att)}`}
+                    className={cn(CARD_ACTION, "hover:bg-muted")}
+                  >
+                    <ExternalLink className="size-[18px]" aria-hidden="true" />
+                  </AttachmentLink>
                 )}
                 <Button
                   type="button"

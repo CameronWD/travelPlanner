@@ -450,7 +450,6 @@ function TravellingDesktop({
                 itemDirections={model.itemDirections}
                 attachmentsByTarget={model.attachmentsByTarget}
                 todayISO={model.today}
-                needsConfirmationIds={model.needsConfirmationIds}
               />
             ) : null
           }

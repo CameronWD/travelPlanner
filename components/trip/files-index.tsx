@@ -66,7 +66,7 @@ export function FilesIndex({
         </div>
       ) : null}
 
-      <AttachmentList tripId={tripId} targetType="TRIP" attachments={tripAttachments} onRename={setRenaming} onMove={setMoving} />
+      <AttachmentList tripId={tripId} targetType="TRIP" attachments={tripAttachments} cardLink onRename={setRenaming} onMove={setMoving} />
 
       {sections.map((section) => (
         <div key={section.type} className="flex flex-col gap-3">
@@ -80,6 +80,7 @@ export function FilesIndex({
             targetType={section.type}
             attachments={section.attachments}
             showUpload={false}
+            cardLink
             onRename={setRenaming}
             onMove={setMoving}
           />

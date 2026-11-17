@@ -54,7 +54,7 @@ const { loadSurpriseVisibilityMock, loadBookingConfirmationsToAddMock } = vi.hoi
 vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd: loadBookingConfirmationsToAddMock }));
 
 // Records the Timeline's props (it renders nothing here).
-type TimelineProps = { todayISO?: string; day: { dateISO: string }; editor?: { readFirst: boolean; transports: Record<string, { fromStopName?: string | null; toStopName?: string | null }>; items: Record<string, unknown>; costsByOwner: Record<string, unknown> } };
+type TimelineProps = { todayISO?: string; needsConfirmationIds?: readonly string[]; day: { dateISO: string }; editor?: { readFirst: boolean; transports: Record<string, { fromStopName?: string | null; toStopName?: string | null }>; items: Record<string, unknown>; costsByOwner: Record<string, unknown> } };
 const { timelineMock } = vi.hoisted(() => ({ timelineMock: vi.fn<(props: TimelineProps) => null>(() => null) }));
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
@@ -834,6 +834,30 @@ describe("PhaseTravelling passes the real today to the Timeline", () => {
       expect(props.todayISO).not.toBe("2999-01-01");
       expect(props.todayISO! < "2999-01-01").toBe(true);
     }
+  });
+});
+
+describe("PhaseTravelling hides the confirmation line on Today's plan (spec D3)", () => {
+  it("while a booking needs a confirmation, the desktop Today tile is not told to mark it", async () => {
+    const layout = "desktop" as const;
+    vi.clearAllMocks();
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2999-01-01", endDate: "2999-01-10", homeCurrency: "GBP", chaptersEnabled: false });
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+    vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue("2999-01-01");
+    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, tripElapsedPct: 0 });
+    const item = { id: "i1", title: "Museum", category: "SIGHTSEEING", startTime: "10:00" };
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, dateISO: "2999-01-01", timedItems: [{ kind: "item", item }], stop: { id: "s", name: "Porto", country: "Portugal" } });
+    loadBookingConfirmationsToAddMock.mockResolvedValue([{ kind: "ITEM", id: "i1" }]);
+    toDom(await PhaseTravelling({ tripId: "trip-1", layout }));
+    expect(timelineMock).toHaveBeenCalled();
+    for (const [props] of timelineMock.mock.calls) expect(props.needsConfirmationIds).toBeUndefined();
   });
 });
 

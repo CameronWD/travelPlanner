@@ -120,7 +120,7 @@ describe("MobileTabBar", () => {
     expect(days).toHaveAttribute("aria-current", "page");
   });
 
-  it("lists Files, Checklists and Journal first while Travelling, then the rest in order, plus Share and Notifications", async () => {
+  it("lists Files, Checklists and Journal first while Travelling, then the rest in order, plus Share", async () => {
     const user = userEvent.setup();
     render(<MobileTabBar tripId="t1" phase="travelling" />);
     await user.click(screen.getByRole("button", { name: "More" }));
@@ -128,9 +128,8 @@ describe("MobileTabBar", () => {
       .map((el) => el.textContent)
       .filter((t) => t !== "Close");
     expect(rows).toEqual([
-      "Files", "Checklists", "Journal", "Calendar", "Summary", "Reviews", "Wishlist", "Activity", "Settings", "Help", "Share", "Notifications",
+      "Files", "Checklists", "Journal", "Calendar", "Summary", "Reviews", "Wishlist", "Activity", "Settings", "Help", "Share",
     ]);
-    expect(screen.getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/trips/t1/activity");
   });
 
   it("Share opens the Trip's share chooser and closes the sheet", async () => {
@@ -145,7 +144,7 @@ describe("MobileTabBar", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it.each(["planning", "final-prep", "past", undefined] as const)("keeps the existing order and no Share or Notifications in phase %s", async (phase) => {
+  it.each(["planning", "final-prep", "past", undefined] as const)("keeps the existing order and no Share in phase %s", async (phase) => {
     const user = userEvent.setup();
     render(<MobileTabBar tripId="t1" phase={phase} />);
     await user.click(screen.getByRole("button", { name: "More" }));
