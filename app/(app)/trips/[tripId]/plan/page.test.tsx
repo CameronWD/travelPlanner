@@ -386,7 +386,7 @@ describe("Plan page with stops (LA-038)", () => {
 
     await renderPlan();
 
-    expect(readRemindersAbout).toHaveBeenCalledWith("trip-1", expect.anything());
+    expect(readRemindersAbout).toHaveBeenCalledWith("trip-1", expect.anything(), expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
     const remindersByStopId = itineraryManagerCapture.props?.remindersByStopId as Map<
       string,
       unknown[]
@@ -548,7 +548,7 @@ describe("Plan page — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(whereOf(mockDb.note.findMany)[0]).toMatchObject(MARKER_WHERE.note);
     expect(whereOf(mockDb.dayTitle.findMany)[0]).toMatchObject(MARKER_WHERE.dayTitle);
     // The Reminders read gets this viewer's visibility; it spreads where.reminder itself.
-    expect(readRemindersAbout).toHaveBeenCalledWith("trip-1", scenario.visibility);
+    expect(readRemindersAbout).toHaveBeenCalledWith("trip-1", scenario.visibility, expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
   });
 
   it("blanks a hidden Stop's notes, badges it, and adds this Plan's placeholders as Items titled Surprise", async () => {

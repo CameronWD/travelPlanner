@@ -86,6 +86,7 @@ export default async function TripPlanPage({
   // The Plan's rows, read once with this viewer's Surprises applied (ADR 0072).
   const rows = await readPlan(tripId, user.id, activeForkId);
   const v = rows.visibility;
+  const today = tripTodayISO(rows.stops, rows.trip?.homeTimezone);
 
   // The page's own (non-Plan) reads in ONE wave once the Plan is known (spec 2026-10-06 §C).
   const [allAttachments, allNotes, dayTitleRows, remindersAbout, confirmationsToAdd] = await Promise.all([
@@ -136,7 +137,7 @@ export default async function TripPlanPage({
       select: { stopId: true, dayIndex: true, title: true },
     }),
     // Every Reminder about a Stop, Item or leg, any date, grouped by the thing (spec F8).
-    readRemindersAbout(tripId, v),
+    readRemindersAbout(tripId, v, today),
     // Real plan only: a what-if plan has no Booking confirmations to chase.
     activeForkId ? Promise.resolve([]) : loadBookingConfirmationsToAdd(tripId, user.id),
   ]);
@@ -351,7 +352,6 @@ export default async function TripPlanPage({
   });
 
   const aiConfigured = isAiConfigured();
-  const today = tripTodayISO(stops, trip?.homeTimezone);
   const planCounts = Object.fromEntries(
     [...dayItemsByStopId].map(([id, items]) => [id, items.filter((i) => i.stopId === id).length]),
   );
