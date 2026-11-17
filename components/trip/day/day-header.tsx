@@ -50,7 +50,10 @@ export interface DayHeaderProps {
  * page's h1, flanked by the prev/next arrows; bell, avatar stack and
  * "+ Add to this day" on the right from lg. Below lg a top bar carries the
  * switcher pill and bell, and the block is centred between the arrows with
- * no right cluster.
+ * no right cluster. From lg the cluster sits right-aligned in the row above
+ * the date, and joins the date row's three-column grid only when the header
+ * itself is 84rem wide (the date block plus two cluster-wide side columns),
+ * whatever the viewport.
  */
 export function DayHeader({
   tripId,
@@ -100,29 +103,33 @@ export function DayHeader({
     </>
   );
   return (
-    <div className="flex flex-col gap-1">
+    <div className="@container flex flex-col gap-1">
       {/* The trip layout's header is hidden on this route at every width
           (TripHeaderFrame), so below lg this row is the page's top bar:
           switcher pill + bell (DAY_VIEW §3.1). From lg the bell moves to the
-          right cluster, and from xl the sidebar's switcher card takes over. */}
-      {tripName ? (
-        <div data-slot="day-trip-switcher" className={cn("mb-3 flex items-center gap-3 lg:mb-1 xl:hidden", slimOnPhone && "max-md:hidden")}>
-          <div className="min-w-0 flex-1 lg:flex-none [&>*]:w-full lg:[&>*]:w-auto">
-            <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
-          </div>
-          <div className="lg:hidden">
-            <ShareTripButton />
-            <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
-          </div>
-          <div data-slot="day-pill-row-cluster" className="ml-auto hidden flex-wrap items-center justify-end gap-2.5 lg:flex xl:hidden">
-            {cluster}
-          </div>
+          right cluster, which stays in this row until the header is wide
+          enough to hold it in the date row; from xl the sidebar's switcher
+          card replaces the pill. */}
+      <div data-slot="day-trip-switcher" className={cn("mb-3 flex items-center gap-3 lg:mb-1 @min-[84rem]:hidden", slimOnPhone && "max-md:hidden", !tripName && "max-lg:hidden")}>
+        {tripName ? (
+          <>
+            <div data-slot="day-trip-switcher-pill" className="min-w-0 flex-1 lg:flex-none xl:hidden [&>*]:w-full lg:[&>*]:w-auto">
+              <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
+            </div>
+            <div className="lg:hidden">
+              <ShareTripButton />
+              <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
+            </div>
+          </>
+        ) : null}
+        <div data-slot="day-pill-row-cluster" className="ml-auto hidden flex-wrap items-center justify-end gap-2.5 lg:flex">
+          {cluster}
         </div>
-      ) : null}
-      <header data-slot="day-header-row" className="flex items-end gap-4 lg:justify-center xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-        {/* xl+: an empty first column balances the right cluster so the date and
+      </div>
+      <header data-slot="day-header-row" className="flex items-end gap-4 lg:justify-center @min-[84rem]:grid @min-[84rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        {/* Wide header: an empty first column balances the right cluster so the date and
             its arrows sit in the true centre (spec 2026-09-29 D2). */}
-        <div data-slot="day-header-spacer" aria-hidden="true" className="hidden xl:block" />
+        <div data-slot="day-header-spacer" aria-hidden="true" className="hidden @min-[84rem]:block" />
         {/* Phone: a 44px | 1fr | 44px grid pins the arrows to the row's edges.
             md+: the arrows sit beside a title block whose min width comes
             from the invisible widest heading below; the block never shrinks
@@ -147,7 +154,7 @@ export function DayHeader({
           </div>
           <DayArrow href={nextHref} label={nextLabel} dir="next" />
         </div>
-        <div data-slot="day-header-cluster" className="hidden shrink-0 items-center gap-2.5 xl:flex xl:justify-self-end">
+        <div data-slot="day-header-cluster" className="hidden shrink-0 items-center gap-2.5 @min-[84rem]:flex @min-[84rem]:justify-self-end">
           {cluster}
         </div>
       </header>
