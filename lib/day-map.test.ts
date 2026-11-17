@@ -454,6 +454,14 @@ describe("Ends at on the Day map", () => {
     expect(model.points[0]).toMatchObject({ end: END, category: "ACTIVITY" });
   });
 
+  it("the next Item's previous point and directions leave from where the walk ends", () => {
+    const lunch = { id: "l", title: "Lunch", lat: 51.52, lng: -0.09, startTime: "12:00", sortOrder: 1 };
+    const model = buildDayMapModel({ date: "2026-01-02", items: [walk, lunch], transports: [] });
+    expect(model.perItemPrev["l"]).toMatchObject({ lat: END.lat, lng: END.lng });
+    const url = new URL(buildItemDirections(model)["l"].google!);
+    expect(url.searchParams.get("origin")).toBe(`${END.lat},${END.lng}`);
+  });
+
   it("carries the stored walk route's polyline", () => {
     const lookup = new Map([[key, { status: "OK" as const, minutes: 20, distanceM: 1500, polyline: "abc" }]]);
     expect(withDayMapHops(build(walk), hopRows(walk), "2026-01-02", lookup).points[0].routePolyline).toBe("abc");

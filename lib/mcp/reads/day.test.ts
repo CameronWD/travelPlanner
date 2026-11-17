@@ -149,6 +149,18 @@ describe("loadDayForMcp", () => {
     expect(day.anytime.map((i) => i.id)).toEqual(["market"]);
   });
 
+  it("a thing that Ends at somewhere else reads it as endsAt, and one that does not reads null", async () => {
+    readDayRows.mockResolvedValueOnce({
+      rows: { ...rows, items: [itemRow({ id: "tour", startTime: "10:00", endAddress: "Westminster Bridge", endLat: 51.5008, endLng: -0.122 }), itemRow({ id: "market" })] },
+      visibility: {},
+      alongside: [{ id: "s1", name: "Porto" }],
+    });
+    const day = await loadDayForMcp("trip-1", "2027-06-02");
+    if ("success" in day) throw new Error("expected a day");
+    expect(day.timeline[0]).toMatchObject({ kind: "item", item: { endsAt: { address: "Westminster Bridge", lat: 51.5008, lng: -0.122 } } });
+    expect(day.anytime[0]).toMatchObject({ id: "market", endsAt: null });
+  });
+
   // Fix round 1 (controller ruling): get_day's own `rows.stops` holds only
   // dated Stops, so an Item owned by a rough Stop used to get no name for
   // owningStop (owningStopRef's old fallback prose). The `alongside` names

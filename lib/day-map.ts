@@ -218,11 +218,16 @@ export function buildDayMapModel(input: {
       // First located item: predecessor is accommodation (if located), else undefined
       perItemPrev[point.id] = accommodationPoint;
     } else {
-      perItemPrev[point.id] = itemPoints[i - 1];
+      perItemPrev[point.id] = leavingPoint(itemPoints[i - 1]);
     }
   }
 
   return { points, routePoints, perItemPrev };
+}
+
+// The next thing is reached from where the previous one finishes, not where it starts.
+function leavingPoint(p: DayMapPoint): DayMapPoint {
+  return p.end ? { ...p, lat: p.end.lat, lng: p.end.lng, address: null, placeId: null } : p;
 }
 
 type DayHopInput = {

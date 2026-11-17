@@ -103,7 +103,7 @@ describe("accommodationDetails", () => {
 });
 
 describe("itemDetails", () => {
-  const bare: ItemCardItem = { id: "i1", title: "Tower", category: "OTHER", bookingStateSet: false };
+  const bare: ItemCardItem = { id: "i1", title: "Tower", category: "OTHER", bookingStateSet: false, endAddress: null };
 
   it("a bare Item is its title and nothing else", () => {
     expect(itemDetails(bare, ctx)).toEqual({ ...EMPTY, title: "Tower" });

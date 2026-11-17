@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { DayMapModel } from "@/lib/day-map";
+import { buildDayMapModel, type DayMapModel } from "@/lib/day-map";
 
 const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
 vi.mock("@vis.gl/react-google-maps", () => mock.module);
@@ -114,6 +114,15 @@ describe("DayMap popups", () => {
     expect(popup).toHaveTextContent("Google Maps");
     expect(popup).toHaveTextContent("Apple Maps");
     expect(popup).toHaveTextContent("Directions from previous");
+  });
+
+  it("Directions from previous leave from where the previous thing ends", () => {
+    const walk = { id: "w", title: "River walk", lat: 51.5055, lng: -0.0754, endLat: 51.5008, endLng: -0.122, startTime: "10:00", sortOrder: 0 };
+    const lunch = { id: "l", title: "Lunch", lat: 51.5007, lng: -0.1246, startTime: "12:00", sortOrder: 1 };
+    render(<DayMap tripId="t1" model={buildDayMapModel({ date: "2026-01-02", items: [walk, lunch], transports: [] })} />);
+    fireEvent.click(screen.getAllByTestId("marker").at(-1)!);
+    const hrefs = [...screen.getByRole("dialog").querySelectorAll("a")].map((a) => a.getAttribute("href")!).filter((h) => h.includes("/dir/"));
+    expect(hrefs.map((h) => new URL(h).searchParams.get("origin"))).toEqual(["51.5008,-0.122"]);
   });
 
   it("omits Directions from previous on a point with no previous item", () => {

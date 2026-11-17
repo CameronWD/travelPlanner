@@ -57,7 +57,7 @@ const baseProps = {
 };
 
 const existingItem: ItemCardItem = {
-  id: "item-99", bookingStateSet: false,
+  id: "item-99", bookingStateSet: false, endAddress: null,
   title: "Museum visit",
   category: "SIGHTSEEING",
   date: null,
@@ -994,7 +994,7 @@ describe("defaultDate prop", () => {
         tripId="t1"
         stops={[{ id: "s1", name: "Paris" }]}
         item={{
-          id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07", bookingStateSet: false,
+          id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07", bookingStateSet: false, endAddress: null,
           startTime: null, endTime: null, address: null, link: null,
           booking: null, notes: null, stopId: "s1",
         }}

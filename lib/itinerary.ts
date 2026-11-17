@@ -39,6 +39,9 @@ export interface ItineraryItem {
   endTime?: string | null; // HH:MM
   stopId?: string | null;
   address?: string | null;
+  endAddress?: string | null;
+  endLat?: number | null;
+  endLng?: number | null;
   link?: string | null;
   booking?: string | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state); the book-by date only while To book. */

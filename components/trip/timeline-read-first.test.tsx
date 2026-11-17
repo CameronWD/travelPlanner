@@ -23,7 +23,7 @@ const day: DayPlan = {
 };
 const editor: DayEntryEditor = {
   tripId: "t1", stops: [], readFirst: true, transports: {}, accommodations: {}, costsByOwner: {},
-  items: { i1: { id: "i1", title: "Tower", category: "SIGHTSEEING", bookingStateSet: false } },
+  items: { i1: { id: "i1", title: "Tower", category: "SIGHTSEEING", bookingStateSet: false, endAddress: null } },
 };
 
 describe("Timeline rows while Travelling on a phone", () => {

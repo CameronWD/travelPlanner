@@ -240,6 +240,7 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "startTime", label: "Start time" },
     { key: "endTime", label: "End time" },
     { key: "address", label: "Address" },
+    { key: "endAddress", label: "Ends at" },
     // CONTEXT.md "Slot time" (R3); refundable is Boolean? (null = not known)
     { key: "slotTime", label: "Slot time" },
     { key: "arriveByMinutes", label: "Be there early", format: (v) => (isEmpty(v) ? "" : `${v} min`) },

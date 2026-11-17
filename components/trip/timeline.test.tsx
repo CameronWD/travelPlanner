@@ -802,7 +802,7 @@ describe("Timeline — Unschedule control (Task 7)", () => {
 describe("Timeline — day-page entries open their details (editor)", () => {
   it("wraps entry titles in DayEntryLink when an editor is supplied, and not otherwise", () => {
     const editor: DayEntryEditor = {
-      tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY", bookingStateSet: false } },
+      tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY", bookingStateSet: false, endAddress: null } },
       transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
     };
     const { unmount } = render(<Timeline day={dayPlan} variant="day" editor={editor} />);
@@ -1097,7 +1097,7 @@ describe("Timeline, Surprise Items (CONTEXT.md Surprise)", () => {
     accommodationEntries: [],
   });
   const editorFor = (title: string): DayEntryEditor => ({
-    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER", bookingStateSet: false } }, transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
+    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER", bookingStateSet: false, endAddress: null } }, transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
   });
 
   it("the planner's Item carries its badge and still opens", () => {
