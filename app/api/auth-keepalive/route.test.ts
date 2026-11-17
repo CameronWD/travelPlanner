@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 import { resetAuthMemoryStore } from "@/test/helpers/auth-memory-store";
 
 // The REAL Better Auth instance from lib/auth/auth.ts on its in-memory
@@ -31,13 +32,12 @@ vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
 vi.mock("next/headers", async () => {
-  const { RequestCookies, ResponseCookies } = await import("next/dist/compiled/@edge-runtime/cookies");
+  const { ResponseCookies } = await import("next/dist/compiled/@edge-runtime/cookies");
   return {
     headers: vi.fn(async () => current.req),
     cookies: vi.fn(async () => {
-      const read = new RequestCookies(current.req);
       const write = new ResponseCookies(current.res);
-      return { get: read.get.bind(read), set: write.set.bind(write) };
+      return { set: write.set.bind(write) };
     }),
   };
 });
@@ -78,10 +78,18 @@ async function signIn({ authServer }: Loaded): Promise<string> {
 async function keepalive({ POST }: Loaded, cookie?: string) {
   current.req = new Headers(cookie ? { cookie } : {});
   current.res = new Headers();
-  const res = await POST(new Request(`${BASE}/api/auth-keepalive`, { method: "POST", headers: current.req }));
+  const res = await POST(new NextRequest(`${BASE}/api/auth-keepalive`, { method: "POST", headers: current.req }));
   const sessionCookie = current.res.getSetCookie().find((c) => c.startsWith("better-auth.session_token="));
   const maxAge = Number(sessionCookie?.match(/Max-Age=(\d+)/i)?.[1]);
   return { res, sessionCookie, maxAge };
+}
+
+async function resolvedUserId({ authServer }: Loaded, sessionCookie: string) {
+  const session = await authServer.api.getSession({
+    headers: new Headers({ cookie: sessionCookie.split(";")[0] }),
+    query: { disableCookieCache: true },
+  });
+  return session?.user.id;
 }
 
 const row = () => store.authSession[0] as { expiresAt: Date; updatedAt: Date };
@@ -115,10 +123,11 @@ describe("POST /api/auth-keepalive", () => {
     row().expiresAt = daysFromNow(100);
     row().updatedAt = daysFromNow(-20);
 
-    const { res, maxAge } = await keepalive(mod, cookie);
+    const { res, sessionCookie, maxAge } = await keepalive(mod, cookie);
     expect(res.status).toBe(204);
     expect(row().expiresAt.getTime()).toBeGreaterThan(daysFromNow(110).getTime());
     expect(maxAge).toBeGreaterThan(110 * DAY);
+    expect(await resolvedUserId(mod, sessionCookie!)).toBe("u1");
   });
 
   it("re-issues the cookie to the row's expiry when the row was already renewed today (a page load's write was lost)", async () => {
@@ -143,10 +152,6 @@ describe("POST /api/auth-keepalive", () => {
     const cookie = await signIn(mod);
 
     const { sessionCookie } = await keepalive(mod, cookie);
-    const session = await mod.authServer.api.getSession({
-      headers: new Headers({ cookie: sessionCookie!.split(";")[0] }),
-      query: { disableCookieCache: true },
-    });
-    expect(session?.user).toMatchObject({ id: "u1" });
+    expect(await resolvedUserId(mod, sessionCookie!)).toBe("u1");
   });
 });

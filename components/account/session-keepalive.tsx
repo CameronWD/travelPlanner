@@ -19,12 +19,6 @@ function writeStamp(at: number) {
   } catch {}
 }
 
-/**
- * Renews the sign-in cookie as the app is used (POST /api/auth-keepalive), at
- * most once a day per browser: on mount and whenever the tab comes back. The
- * stamp is written only once the server answers, so a post that fails offline
- * is tried again on the next visit. Silent by design.
- */
 export function SessionKeepalive() {
   const inFlight = useRef(false);
 
@@ -34,6 +28,7 @@ export function SessionKeepalive() {
       inFlight.current = true;
       try {
         const res = await fetch("/api/auth-keepalive", { method: "POST" });
+        // Stamped only on success, so a post that fails offline retries on the next visit.
         if (res.ok) writeStamp(Date.now());
       } catch {
       } finally {
