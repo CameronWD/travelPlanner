@@ -1390,7 +1390,7 @@ describe("Timeline: booking confirmation marker", () => {
     render(<Timeline day={dayPlanWithTransport} variant="day" editor={editor} needsConfirmationIds={["tr-1"]} />);
     render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} needsConfirmationIds={["acc-1"]} />);
     expect(screen.queryByText(MARKER)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Doesn't need one" })).toBeNull();
   });
 
   it("keeps the marker while planning (readFirst false)", () => {
