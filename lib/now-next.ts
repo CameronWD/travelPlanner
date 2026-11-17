@@ -1,6 +1,7 @@
 import { orderPlanStops } from "@/lib/plan-order";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 import { addDays } from "@/lib/dates";
+import { stopForDate } from "@/lib/itinerary";
 import { resolveEndpointZones } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enum-values";
 import type { LatLng } from "@/lib/geo";
@@ -55,6 +56,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function nowNext(input: NowNextInput, now: Date): NowNext {
   const stopById = new Map(input.stops.map((s) => [s.id, s] as const));
+  const datedStops = input.stops.flatMap((s) => (s.arriveDate && s.departDate ? [{ ...s, arriveDate: s.arriveDate, departDate: s.departDate }] : []));
   const zones = (t: NowNextTransport) =>
     resolveEndpointZones(
       t.fromStopId ? stopById.get(t.fromStopId)?.timezone : null,
@@ -84,7 +86,7 @@ export function nowNext(input: NowNextInput, now: Date): NowNext {
 
   const thing = input.todays
     .map((t) => {
-      const zone = (t.stopId && stopById.get(t.stopId)?.timezone) || "UTC";
+      const zone = (t.stopId ? stopById.get(t.stopId)?.timezone : stopForDate(datedStops, t.date)?.timezone) || "UTC";
       return { ...t, zone, at: zonedWallTimeToInstant(t.date, t.time, zone) };
     })
     .filter((t) => t.at > now)

@@ -111,6 +111,17 @@ describe("nowNext", () => {
     expect(nowNext(input({ todays: [breakfast] }), new Date("2026-12-19T04:30:00Z"))).toMatchObject({ kind: "next-thing", target: { id: "cafe" } });
   });
 
+  it("times a dated Item with no Stop in the zone of the Stop covering that day, not UTC", () => {
+    const walk: NowNextTimed = { type: "item", id: "walk", title: "Walk", date: "2026-12-16", time: "10:00", stopId: null, place: null, address: null };
+    expect(nowNext(input({ todays: [walk] }), new Date("2026-12-16T09:30:00Z"))).toMatchObject({ kind: "next-departure", transportId: "par-lon" });
+    expect(nowNext(input({ todays: [walk] }), new Date("2026-12-16T08:30:00Z"))).toMatchObject({ kind: "next-thing", target: { id: "walk" }, startsAt: "2026-12-16T09:00:00.000Z", zone: "Europe/Paris" });
+  });
+
+  it("falls back to UTC for a dated Item with no Stop on a day no Stop covers", () => {
+    const gap: NowNextTimed = { type: "item", id: "gap", title: "Gap", date: "2026-12-14", time: "10:00", stopId: null, place: null, address: null };
+    expect(nowNext(input({ todays: [gap] }), new Date("2026-12-14T08:00:00Z"))).toMatchObject({ kind: "next-thing", startsAt: "2026-12-14T10:00:00.000Z", zone: "UTC" });
+  });
+
   it("with no Transport left, is nothing", () => {
     expect(nowNext(input(), new Date("2027-01-08T00:00:00Z"))).toEqual({ kind: "nothing" });
   });
