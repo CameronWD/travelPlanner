@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { skyBands, type SceneKey } from "@/lib/weather/theme";
-import { rainAngleDeg } from "@/lib/weather/scene-math";
+import { rainAngleDeg, SCATTER_W } from "@/lib/weather/scene-math";
 
 // Every scene is drawn on a 236-unit-tall canvas (the regular card's height)
 // and scales with the card, so the compact card shows the same picture. Two
@@ -38,8 +38,9 @@ function parts({ circles, boxes }: Shape) {
 function Cutout({ shape, fill, x = 0, y = 0, s = 1, shadow = 3, outline = true }: {
   shape: Shape; fill: string; x?: number; y?: number; s?: number; shadow?: number; outline?: boolean;
 }) {
+  const top = y + s * Math.min(...shape.circles.map(([, cy, r]) => cy - r), ...shape.boxes.map(([, by]) => by)) - 2;
   return (
-    <g transform={`translate(${x} ${y}) scale(${s})`}>
+    <g transform={`translate(${x} ${y}) scale(${s})`} data-top={outline ? top.toFixed(1) : undefined}>
       {shadow ? <g transform={`translate(${shadow / s} ${shadow / s})`} fill={INK}>{parts(shape)}</g> : null}
       {outline ? <g fill={INK} stroke={INK} strokeWidth={4 / s}>{parts(shape)}</g> : null}
       <g fill={tok(fill)}>{parts(shape)}</g>
@@ -150,10 +151,6 @@ function Rain({ lean, front = RAIN_FRONT, back = RAIN_BACK }: { lean: number; fr
   );
 }
 
-// Scattered layers in the world strip only cover the widest card they meet
-// (about 680 units); anything further right would animate unseen.
-const SCATTER_W = 680;
-
 // A low-discrepancy (R2) sequence: even cover without rows or columns, and the
 // same on server and client.
 const scatter = (n: number, w: number, h: number) =>
@@ -226,7 +223,7 @@ function Pill({ x, y, w, h, fill, outline = false, shadow = 0 }: { x: number; y:
   return (
     <>
       {shadow ? <rect x={x + shadow} y={y + shadow} width={w} height={h} rx={h / 2} fill={INK} /> : null}
-      <rect x={x} y={y} width={w} height={h} rx={h / 2} fill={tok(fill)} stroke={outline ? INK : undefined} strokeWidth={outline ? 2 : undefined} />
+      <rect x={x} y={y} width={w} height={h} rx={h / 2} fill={tok(fill)} stroke={outline ? INK : undefined} strokeWidth={outline ? 2 : undefined} data-top={outline ? y - 1 : undefined} />
     </>
   );
 }
@@ -236,15 +233,21 @@ const NEAR_TOWN = "M70 184 V164 L84 152 L98 164 V158 H112 V148 H117 V158 H130 V1
 
 const BOLT = "M22 0 L2 38 L18 38 L10 70 L40 26 L24 26 L32 0 Z";
 
+// The curl hooks downward so a gust never rises into the text above it.
 function Streak({ x, y, len, width }: { x: number; y: number; len: number; width: number }) {
-  const d = `M${x} ${y} H${x + len} a10 10 0 1 0 -10 -10`;
+  const d = `M${x} ${y} H${x + len} a8 8 0 1 1 -8 8`;
   return (
-    <>
+    <g data-top={y - (width + 3) / 2}>
       <path d={d} stroke={INK} strokeWidth={width + 3} />
       <path d={d} stroke={tok("wx-cloud")} strokeWidth={width} />
-    </>
+    </g>
   );
 }
+
+// Every other star twinkles across a phone-width card (up to about 580
+// units at compact height); past that, every fifth, which keeps the night
+// scene near twenty animations however wide the card.
+const twinkles = (x: number, i: number) => i % (x < 600 ? 2 : 5) === 0;
 
 function Star({ x, y, r, seconds }: { x: number; y: number; r: number; seconds: number | null }) {
   const shape = r > 2
@@ -298,12 +301,12 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           </Layer>
           <Layer name="mid-clouds" world>
             <Pan tile={640} seconds={70}>
-              <Cutout shape={PUFF} fill="wx-cloud-back" x={120} y={140} s={0.7} shadow={2} />
-              <Cutout shape={LONG} fill="wx-cloud-back" x={400} y={150} s={0.55} shadow={2} />
+              <Cutout shape={PUFF} fill="wx-cloud-back" x={120} y={154} s={0.55} shadow={2} />
+              <Cutout shape={LONG} fill="wx-cloud-back" x={400} y={156} s={0.55} shadow={2} />
             </Pan>
           </Layer>
           <Layer name="near-clouds">
-            <Bob x={40} y={92} dx={-6} seconds={11}><Cutout shape={PUFF} fill="wx-cloud-back" s={0.7} shadow={2} /></Bob>
+            <Bob x={74} y={98} dx={-6} seconds={11}><Cutout shape={PUFF} fill="wx-cloud-back" s={0.7} shadow={2} /></Bob>
             <Bob x={80} y={12} dx={10} seconds={8}><Cutout shape={PUFF} fill="wx-cloud" s={1.45} /></Bob>
           </Layer>
         </>
@@ -321,8 +324,8 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           <Layer name="far-town"><path d={FAR_TOWN} fill={tok("wx-overcast")} /></Layer>
           <Layer name="mid-fog" world>
             <Pan tile={700} seconds={100}>
-              <Pill x={20} y={146} w={240} h={14} fill="wx-cloud-back" outline />
-              <Pill x={380} y={152} w={200} h={14} fill="wx-cloud-back" outline />
+              <Pill x={20} y={154} w={240} h={14} fill="wx-cloud-back" outline />
+              <Pill x={380} y={158} w={200} h={14} fill="wx-cloud-back" outline />
             </Pan>
           </Layer>
           <Layer name="near-town"><path d={NEAR_TOWN} fill={tok("wx-overcast")} stroke={INK} strokeWidth={2} strokeLinejoin="round" /></Layer>
@@ -346,7 +349,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           </Layer>
           <Layer name="rain"><Rain lean={lean} /></Layer>
           <Layer name="near-clouds">
-            <Bob x={56} y={6} dx={6} seconds={10}><Cutout shape={HEAVY} fill="wx-cloud" s={1.4} /></Bob>
+            <Bob x={70} y={6} dx={6} seconds={10}><Cutout shape={HEAVY} fill="wx-cloud" s={1.4} /></Bob>
           </Layer>
         </>
       );
@@ -354,14 +357,14 @@ function draw(scene: SceneKey, lean: number): ReactNode {
       return (
         <>
           <Layer name="far-clouds" world>
-            <Pan tile={SCATTER_W} seconds={240}>
+            <Pan tile={680} seconds={240}>
               <Cutout shape={LONG} fill="wx-cloud" x={250} y={4} s={0.8} shadow={0} outline={false} />
               <Cutout shape={PUFF} fill="wx-cloud" x={520} y={26} s={0.6} shadow={0} outline={false} />
             </Pan>
           </Layer>
           <Layer name="far-snow" world>
             <Drift seconds={16} sway={5}>
-              {scatter(31, SCATTER_W, H).filter(clearOfText).map(([x, y], i) => <g key={i} transform={`translate(${x} ${y})`}><Flake r={2.2} /></g>)}
+              {scatter(Math.round((31 * SCATTER_W) / 680), SCATTER_W, H).filter(clearOfText).map(([x, y], i) => <g key={i} transform={`translate(${x} ${y})`}><Flake r={2.2} /></g>)}
             </Drift>
           </Layer>
           <Layer name="far-hills" world><path d={hills(14, 178, 12)} fill={tok("wx-cloud-back")} stroke={INK} strokeWidth={2} /></Layer>
@@ -403,7 +406,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
             </g>
           </Layer>
           <Layer name="near-clouds">
-            <Bob x={56} y={4} dx={5} seconds={9}><Cutout shape={HEAVY} fill="wx-cloud-storm" s={1.4} /></Bob>
+            <Bob x={70} y={4} dx={5} seconds={9}><Cutout shape={HEAVY} fill="wx-cloud-storm" s={1.4} /></Bob>
           </Layer>
         </>
       );
@@ -420,8 +423,8 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           </Layer>
           <Layer name="near-gusts" world>
             <g fill="none" strokeLinecap="round">
-              <Pan tile={700} seconds={7}><Streak x={60} y={164} len={190} width={3} /></Pan>
-              <Pan tile={820} seconds={4.5}><Streak x={200} y={174} len={240} width={4} /></Pan>
+              <Pan tile={700} seconds={7}><Streak x={60} y={156} len={190} width={3} /></Pan>
+              <Pan tile={820} seconds={4.5}><Streak x={380} y={164} len={240} width={4} /></Pan>
             </g>
           </Layer>
         </>
@@ -444,7 +447,9 @@ function draw(scene: SceneKey, lean: number): ReactNode {
         <>
           <Layer name="stars" world>
             <g fill={tok("wx-night-text")}>
-              {scatter(24, SCATTER_W, 150).map(([x, y], i) => <Star key={i} x={x + 8} y={y + 8} r={i % 4 === 0 ? 3 : 1.5} seconds={i % 2 ? null : 2.4 + (i % 3) * 0.6} />)}
+              {scatter(Math.round((24 * SCATTER_W) / 680), SCATTER_W, 150).map(([x, y], i) => (
+                <Star key={i} x={x + 8} y={y + 8} r={i % 4 === 0 ? 3 : 1.5} seconds={twinkles(x, i) ? 2.4 + (i % 3) * 0.6 : null} />
+              ))}
             </g>
           </Layer>
           <Layer name="wisps" world>

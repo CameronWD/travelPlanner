@@ -15,6 +15,11 @@ function card(day: DayWeather | null, size: "regular" | "compact" = "regular", e
   return render(<WeatherCard size={size} dateLabel="Sat 12 Dec" placeName="Strasbourg" theme={theme} day={day} daylight={daylight} {...extra} />);
 }
 const article = () => screen.getByRole("region", { name: "Weather" });
+const scenes = ([
+  ["sunny", wx({ code: 0 })], ["partly", wx({ code: 2 })], ["overcast", wx({ code: 3 })], ["fog", wx({ code: 45 })],
+  ["rain", wx({ code: 61 })], ["snow", wx({ code: 73 })], ["storm", wx({ code: 95 })], ["wind", wx({ code: 1, gustsKph: 55 })],
+  ["heat", wx({ code: 0, highC: 36 })], ["night", wx({ code: 0, current: { tempC: -2, isDay: false } })],
+] as const).map(([key, day]) => [key, day, key === "night"] as const);
 
 describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour not snapshots)", () => {
   const themes: Array<[string, DayWeather, string, string]> = [
@@ -59,11 +64,7 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     card(wx({ code: 3 }));
     expect(article().querySelector("[data-sun-marker]")).toBeNull();
   });
-  it.each([
-    ["sunny", wx({ code: 0 })], ["partly", wx({ code: 2 })], ["overcast", wx({ code: 3 })], ["fog", wx({ code: 45 })],
-    ["rain", wx({ code: 61 })], ["snow", wx({ code: 73 })], ["storm", wx({ code: 95 })], ["wind", wx({ code: 1, gustsKph: 55 })],
-    ["heat", wx({ code: 0, highC: 36 })], ["night", wx({ code: 0, current: { tempC: -2, isDay: false } })],
-  ] as const)("%s draws a hidden SVG scene of at least two layers at both sizes", (key, day) => {
+  it.each(scenes)("%s draws a hidden SVG scene of at least two layers at both sizes", (key, day) => {
     for (const size of ["regular", "compact"] as const) {
       card(day, size, {}, { isToday: key === "night" });
       const scene = article().querySelector<HTMLElement>(`[data-scene="${key}"]`)!;
@@ -81,11 +82,33 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
     expect(article().querySelectorAll(animated).length).toBeLessThanOrEqual(20);
   });
-  it("outlined fog that crosses the card passes below the text", () => {
-    card(wx({ code: 45 }));
-    const outlined = [...article().querySelectorAll('[data-scene="fog"] .wx-pan rect[stroke]')];
-    expect(outlined.length).toBeGreaterThan(0);
-    for (const rect of outlined) expect(Number(rect.getAttribute("y"))).toBeGreaterThanOrEqual(140);
+  it.each(scenes)("%s: outlined pieces that cross the card stay below the text at both heights", (_key, day, isToday) => {
+    // The text block ends near 132px on the 236px card and near 88px on the
+    // 140px one (88 / 0.593 = 148 scene units); 152 leaves a margin for both.
+    card(day, "regular", {}, { isToday });
+    for (const piece of article().querySelectorAll(".wx-pan [data-top]")) {
+      expect(Number(piece.getAttribute("data-top"))).toBeGreaterThanOrEqual(152);
+    }
+  });
+  it("the crossing checks above actually meet outlined pieces", () => {
+    let seen = 0;
+    for (const [, day, isToday] of scenes) {
+      card(day, "regular", {}, { isToday });
+      seen += article().querySelectorAll(".wx-pan [data-top]").length;
+      cleanup();
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+  it("far snow and stars reach across the widest card at either height", () => {
+    const widestUnits = (719 * 236) / 140;
+    const xs = (sel: string, read: (el: Element) => number) => [...article().querySelectorAll(sel)].map(read);
+    card(wx({ code: 73 }));
+    const flakes = xs('[data-layer="far-snow"] g[transform] > circle', (c) => Number(/translate\(([\d.]+)/.exec(c.parentElement!.getAttribute("transform")!)![1]));
+    expect(Math.max(...flakes)).toBeGreaterThanOrEqual(widestUnits);
+    cleanup();
+    card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
+    const stars = xs('[data-layer="stars"] circle', (c) => Number(c.getAttribute("cx")));
+    expect(Math.max(...stars)).toBeGreaterThanOrEqual(widestUnits);
   });
   it("rain leans with the day's gusts", () => {
     card(wx({ code: 61, gustsKph: 60 }));

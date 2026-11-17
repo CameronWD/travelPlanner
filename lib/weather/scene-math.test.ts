@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clockTime, rainAngleDeg, sunArcPosition } from "@/lib/weather/scene-math";
+import { clockTime, rainAngleDeg, SCATTER_W, sunArcPosition } from "@/lib/weather/scene-math";
 
 describe("rainAngleDeg", () => {
   it("falls straight when calm or unknown", () => {
@@ -30,5 +30,18 @@ describe("sunArcPosition", () => {
 describe("clockTime", () => {
   it("reads a place-local HH:MM the same whatever the server's zone", () => {
     expect(clockTime("08:12").getTime() - clockTime("00:00").getTime()).toBe((8 * 60 + 12) * 60_000);
+  });
+});
+
+describe("SCATTER_W", () => {
+  // The widest weather cards (day/[date]/page.tsx): compact 719px wide at
+  // 140px tall below md, regular 863px wide at 236px tall from md to lg.
+  const compactUnits = (719 * 236) / 140;
+  it("covers the widest card at both heights, with a margin", () => {
+    expect(SCATTER_W).toBeGreaterThanOrEqual(compactUnits + 20);
+    expect(SCATTER_W).toBeGreaterThanOrEqual(863 + 20);
+  });
+  it("stays well short of the whole 2400-unit world strip", () => {
+    expect(SCATTER_W).toBeLessThan(compactUnits + 100);
   });
 });

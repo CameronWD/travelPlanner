@@ -19,3 +19,14 @@ export function clockTime(hm: string): Date {
   const [h, m] = hm.split(":").map(Number);
   return new Date(Date.UTC(1970, 0, 1, h, m));
 }
+
+// The widest weather card the Day view renders at each height
+// (app/(app)/trips/[tripId]/day/[date]/page.tsx):
+// - compact, below md: 767px viewport less 2 x 24px page padding = 719px, 140px tall;
+// - regular, md to lg, full width: 1023px less the 96px dock and 2 x 32px padding = 863px, 236px tall.
+// Scenes are drawn 236 units tall and scale with the card, so a compact card
+// shows more scene units across than a regular one of the same width.
+const SCENE_H = 236;
+const WIDEST_CARDS = [{ width: 719, height: 140 }, { width: 863, height: 236 }];
+const widestInUnits = Math.max(...WIDEST_CARDS.map((c) => (c.width * SCENE_H) / c.height));
+export const SCATTER_W = Math.ceil(widestInUnits / 20) * 20 + 40;
