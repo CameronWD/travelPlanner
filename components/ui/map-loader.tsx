@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
+import { MapUnavailable } from "@/components/map/map-unavailable";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
 
 /**
@@ -37,6 +38,10 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
  * shouldn't mount renders nothing — the same placeholder `next/dynamic`
  * shows while the module loads — and its module is never requested.
  *
+ * A module that cannot be loaded (a chunk missing offline) shows the "map
+ * unavailable" fallback instead of failing the page; the next map mounted
+ * after that asks for the module again.
+ *
  * Constraint is `<P extends object>` (not `Record<string, unknown>`) so that
  * props interfaces with function members (e.g. `onSelect`, `onMapClick`)
  * remain assignable without an explicit index signature.
@@ -44,10 +49,27 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
 export function createMapLoader<P extends object>(
   load: () => Promise<React.ComponentType<P>>,
 ): (props: P & { mountWhen?: MapMountWhen }) => React.ReactElement | null {
-  const Inner = dynamic(load, { ssr: false }) as React.ComponentType<P>;
+  let failed = false;
+  const make = () =>
+    dynamic(
+      () =>
+        load().catch(() => {
+          failed = true;
+          return MapUnavailable as React.ComponentType<P>;
+        }),
+      { ssr: false },
+    ) as React.ComponentType<P>;
+  let Inner = make();
   return function MapLoader({ mountWhen = true, ...props }: P & { mountWhen?: MapMountWhen }) {
     const show = useMapMount(mountWhen);
+    const [Current] = React.useState(() => {
+      if (failed) {
+        failed = false;
+        Inner = make();
+      }
+      return Inner;
+    });
     if (!show) return null;
-    return <Inner {...(props as unknown as P)} />;
+    return <Current {...(props as unknown as P)} />;
   };
 }
