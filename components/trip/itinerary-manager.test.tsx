@@ -2226,7 +2226,7 @@ describe("day-aware plan editor wiring", () => {
     expect(block).toHaveTextContent("1 file");
     expect(desktop().getByTestId("stay-coverage")).toHaveTextContent("All 3 nights covered");
 
-    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
+    await user.click(within(desktop().getByTestId("stay-phone")).getByRole("button", { name: "Hotel Roma" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
     const detail = within(dialog).getByTestId("stay-detail");
     expect(within(detail).getByRole("heading", { name: "Hotel Roma" })).toBeInTheDocument();
@@ -3148,7 +3148,7 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     vi.mocked(deleteAccommodation).mockResolvedValueOnce({ success: false, errors: { _: ["That stay was already removed."] } });
     const user = userEvent.setup();
     renderPlan(<ItineraryManager {...baseProps} initialStops={[ROME_STAY]} />, ["s1"]);
-    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
+    await user.click(within(desktop().getByTestId("stay-phone")).getByRole("button", { name: "Hotel Roma" }));
     const stay = await screen.findByRole("dialog", { name: "Staying in Rome" });
     await user.click(within(stay).getByRole("button", { name: "Delete Hotel Roma" }));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
@@ -3294,6 +3294,7 @@ describe("Day add card (spec P1)", () => {
     const view = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: true };
     renderPlan(<ItineraryManager {...baseProps} currentUserId="sam" initialStops={[{ ...PARIS, surprise: view }]} />, ["par"]);
     expect(screen.queryByRole("button", { name: /^Add to / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Add a stay|Add another place|Add an idea/ })).toBeNull();
   });
 });
 

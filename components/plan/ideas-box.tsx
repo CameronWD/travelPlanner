@@ -138,13 +138,13 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
     <div
       className={cn(
         "relative flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 [contain:size]",
-        ideas.length > 0 ? "min-h-[74px]" : "min-h-[42px]",
+        ideas.length > 0 ? "min-h-[74px] lg:min-h-[120px]" : "min-h-[42px] lg:min-h-[56px]",
         className,
       )}
     >
       <div
         data-testid="ideas-header"
-        className={cn("flex h-[26px] shrink-0 items-center gap-1.5", ideas.length > 0 ? "justify-between" : "justify-start")}
+        className={cn("flex h-[26px] shrink-0 items-center gap-1.5", ideas.length > 0 ? "justify-between" : "justify-start lg:hidden")}
       >
         {ideas.length > 0 && (
           <TweenNumber
@@ -157,7 +157,6 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
         <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text lg:hidden">
           + Add an idea
         </button>
-        <AddCard label="Add an idea" onClick={onAdd} disabled={disabled} className="h-[26px] min-h-0 w-auto shrink-0 rounded-full px-2.5 text-xs" />
       </div>
       {ideas.length > 0 && (
         <div
@@ -186,6 +185,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
           )}
         </div>
       )}
+      <AddCard label="Add an idea" onClick={onAdd} disabled={disabled} className="shrink-0" />
       {ideas.length > 0 && (
         // Real chip widths (EyeOff, Surprise badge, all-caps titles) come from hidden copies that never depend on what is shown.
         <div
