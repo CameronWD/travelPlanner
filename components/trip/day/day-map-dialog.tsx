@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Map } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createMapLoader } from "@/components/ui/map-loader";
@@ -15,6 +14,29 @@ const DayMapLoader = createMapLoader<{ tripId: string; model: DayMapModel; highl
 );
 
 const MD_UP = "(min-width: 768px)";
+
+// The URL is the one source of truth for "the Day map is open", so the two
+// Day plan cards (one CSS-hidden) can never disagree about it.
+const mapParamListeners = new Set<() => void>();
+
+function subscribeMapParam(listener: () => void) {
+  mapParamListeners.add(listener);
+  window.addEventListener("popstate", listener);
+  return () => {
+    mapParamListeners.delete(listener);
+    window.removeEventListener("popstate", listener);
+  };
+}
+
+const mapParamOpen = () => new URLSearchParams(window.location.search).get("map") === "1";
+
+function setMapParam(open: boolean) {
+  const url = new URL(window.location.href);
+  if (open) url.searchParams.set("map", "1");
+  else url.searchParams.delete("map");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  mapParamListeners.forEach((l) => l());
+}
 
 export function DayMapDialog({
   open,
@@ -67,29 +89,19 @@ export function DayMapDialog({
  * CSS-hidden, so only the card that matches the viewport mounts the dialog.
  */
 export function DayMapButton({ tripId, model, size }: { tripId: string; model: DayMapModel; size: "phone" | "desktop" }) {
-  const searchParams = useSearchParams();
-  const [open, setOpen] = useState(() => searchParams.get("map") === "1");
+  const open = useSyncExternalStore(subscribeMapParam, mapParamOpen, () => false);
   const mdUp = useMediaQuery(MD_UP);
   if (model.points.length === 0) return null;
 
   const mounted = mdUp !== null && (size === "desktop") === mdUp;
 
-  function onOpenChange(next: boolean) {
-    setOpen(next);
-    if (next) return;
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("map")) return;
-    url.searchParams.delete("map");
-    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-  }
-
   return (
     <>
-      <Button type="button" variant="secondary" size="sm" shape="pill" onClick={() => onOpenChange(true)}>
+      <Button type="button" variant="secondary" size="sm" shape="pill" onClick={() => setMapParam(true)}>
         <Map aria-hidden="true" />
         Day map
       </Button>
-      {mounted ? <DayMapDialog open={open} onOpenChange={onOpenChange} tripId={tripId} model={model} /> : null}
+      {mounted ? <DayMapDialog open={open} onOpenChange={setMapParam} tripId={tripId} model={model} /> : null}
     </>
   );
 }

@@ -168,3 +168,16 @@ describe("DayMap route hops", () => {
     expect(opts[2].path).toEqual([{ lat: 35.66, lng: 139.75 }, { lat: 35.67, lng: 139.76 }]);
   });
 });
+
+describe("DayMap fill", () => {
+  it("puts the route links under the map instead of above it", () => {
+    const withRoute = { ...MODEL, routePoints: MODEL.points.slice(0, 2) };
+    const { container, rerender } = render(<DayMap tripId="t1" model={withRoute} />);
+    const links = () => screen.getByText("Open today's route:");
+    const map = () => screen.getByRole("region");
+    expect(links().compareDocumentPosition(map()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    rerender(<DayMap tripId="t1" model={withRoute} fill />);
+    expect(map().compareDocumentPosition(links()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.firstElementChild?.className).toMatch(/flex-1/);
+  });
+});

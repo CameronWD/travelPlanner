@@ -4,9 +4,6 @@ import userEvent from "@testing-library/user-event";
 import type { DayMapModel } from "@/lib/day-map";
 import { setMatchMedia } from "@/test/setup";
 
-const params = vi.hoisted(() => ({ value: new URLSearchParams() }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => params.value }));
-
 vi.mock("@/components/trip/day-map", () => ({
   DayMap: ({ highlightId, fill }: { highlightId?: string; fill?: boolean }) => (
     <div data-testid="day-map" data-highlight={highlightId ?? ""} data-fill={String(!!fill)} />
@@ -29,7 +26,6 @@ const empty: DayMapModel = { points: [], routePoints: [], perItemPrev: {} };
 const wide = (q: string) => q === "(min-width: 1024px)" || q === "(min-width: 768px)";
 
 afterEach(() => {
-  params.value = new URLSearchParams();
   window.history.replaceState(null, "", "/");
   setMatchMedia((q) => q === "(min-width: 640px)");
 });
@@ -62,7 +58,6 @@ describe("DayMapButton", () => {
 
   it("opens on load when the URL has ?map=1, and closing removes the param without navigating", async () => {
     setMatchMedia(wide);
-    params.value = new URLSearchParams("map=1");
     window.history.replaceState(null, "", "/trips/t/day/2026-01-05?map=1&x=2");
     render(<DayMapButton tripId="t1" model={model} size="desktop" />);
     expect(await screen.findByRole("dialog", { name: "Day map" })).toBeInTheDocument();
@@ -73,14 +68,37 @@ describe("DayMapButton", () => {
 
   it("only the card that matches the viewport mounts the dialog", () => {
     setMatchMedia(wide);
-    params.value = new URLSearchParams("map=1");
+    window.history.replaceState(null, "", "/?map=1");
     render(<DayMapButton tripId="t1" model={model} size="phone" />);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("stays closed when the screen turns after the Traveller closed it", async () => {
+    setMatchMedia(false);
+    window.history.replaceState(null, "", "/?map=1");
+    const phone = render(<DayMapButton tripId="t1" model={model} size="phone" />);
+    const desktop = render(<DayMapButton tripId="t1" model={model} size="desktop" />);
+    await screen.findByRole("dialog");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    setMatchMedia(wide);
+    phone.rerender(<DayMapButton tripId="t1" model={model} size="phone" />);
+    desktop.rerender(<DayMapButton tripId="t1" model={model} size="desktop" />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("on a phone the dialog shows the route links under the map and no place list", async () => {
+    setMatchMedia(false);
+    window.history.replaceState(null, "", "/?map=1");
+    render(<DayMapButton tripId="t1" model={{ ...model, routePoints: model.points.slice(0, 2) }} size="phone" />);
+    await screen.findByRole("dialog");
+    expect(screen.getByRole("list", { hidden: true }).className.split(" ")).toEqual(expect.arrayContaining(["hidden", "lg:flex"]));
+    expect(screen.getByTestId("day-map")).toHaveAttribute("data-fill", "true");
+  });
+
   it("on a phone the dialog is the full-screen frame", async () => {
     setMatchMedia(false);
-    params.value = new URLSearchParams("map=1");
+    window.history.replaceState(null, "", "/?map=1");
     render(<DayMapButton tripId="t1" model={model} size="phone" />);
     expect((await screen.findByRole("dialog")).className).toMatch(/max-sm:h-\[100dvh\]/);
   });
