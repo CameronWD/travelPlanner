@@ -555,13 +555,20 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
     where: { stopId },
     select: { id: true, name: true },
   });
-  const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
+  const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true, surprisePlannerId: true, surpriseForIds: true } });
 
   // cleanupTargetSideDataTx schedules attachment blobs for retention inside
   // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
   await db.$transaction(async (tx) => {
-    // Unlinked (onDelete SetNull) a Reminder would turn into a Trip-wide one, visible to the Traveller the Surprise is kept from.
-    if (stop.surpriseOf) await tx.reminder.deleteMany({ where: { stopId } });
+    if (stop.surpriseOf) {
+      // Unlinked (onDelete SetNull) a Reminder would turn into a Trip-wide one, visible to the Traveller the Surprise is kept from.
+      await tx.reminder.deleteMany({ where: { OR: [{ stopId }, { item: { stopId } }] } });
+      // Its Items survive with no Stop, so each carries the Surprise itself and stays hidden from the same Travellers.
+      await tx.item.updateMany({
+        where: { stopId, surprisePlannerId: null },
+        data: { surprisePlannerId: doomed!.surprisePlannerId, surpriseForIds: doomed!.surpriseForIds, surpriseRevealedAt: null },
+      });
+    }
     await tx.stop.delete({ where: { id: stopId } });
     await deleteOwnedCostsTx(
       tx,

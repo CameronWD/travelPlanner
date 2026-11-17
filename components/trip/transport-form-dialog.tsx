@@ -50,6 +50,7 @@ import { HUE_CLASSES } from "@/lib/hues";
 import { formatDayLabel } from "@/lib/dates";
 import { resolveTransportSlot, canSitBeforeFirstStop, creationAnchor, HEAD_SLOT } from "@/lib/transport-anchor";
 import { toPatch } from "@/lib/patch";
+import { transportClearable } from "@/lib/transport-clearable";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
 import { transportBookingSubject } from "@/lib/booking-state";
@@ -300,10 +301,6 @@ interface TransportFormProps {
 }
 
 export { HOME_ENDPOINT } from "./transport-endpoints";
-
-/** An edit's empty fields are clears (ADR 0075). Each end is sent whole; the home flags are always booleans. */
-// `bookingState` is deliberately absent: a null would hand a choice back to automatic; an un-chosen state is simply not sent.
-const TRANSPORT_CLEARABLE = ["fromStopId", "toStopId", "depPlace", "arrPlace", "depAt", "arrAt", "reference", "notes", "anchorStopId", "paidAt", "bookBy"] as const;
 
 function TransportForm({
   tripId,
@@ -574,7 +571,7 @@ function TransportForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && transport
-        ? updateTransport(transport.id, toPatch(input, TRANSPORT_CLEARABLE.filter((k) => !(k === "depPlace" && input.depIsHome) && !(k === "arrPlace" && input.arrIsHome))))
+        ? updateTransport(transport.id, toPatch(input, transportClearable(input)))
         : createTransport(tripId, input, forkId ?? undefined);
     },
     onClose,
