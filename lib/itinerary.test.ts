@@ -8,6 +8,7 @@ import {
   pickDayPlan,
   orderDayEntries,
   isFreeFormDay,
+  transportEndZones,
   type ItineraryStop,
   type ItineraryItem,
   type ItineraryTransport,
@@ -1043,5 +1044,23 @@ describe("resolveOwningStop", () => {
 
   it("drops an owner that no longer exists on this plan", () => {
     expect(resolveOwningStop("deleted-stop", "2026-12-07", stops)).toBe("munich");
+  });
+});
+
+describe("transportEndZones fallbacks", () => {
+  const COMO = { timezone: "Europe/Rome" };
+  const LONDON = { timezone: "Europe/London" };
+  it("a leg with no from Stop and a non-Home start takes the other end's zone, not UTC", () => {
+    expect(transportEndZones({}, "Asia/Bali", null, COMO)).toEqual({ depTz: "Europe/Rome", arrTz: "Europe/Rome" });
+  });
+  it("a leg with no to Stop takes the from zone", () => {
+    expect(transportEndZones({}, null, LONDON, null)).toEqual({ depTz: "Europe/London", arrTz: "Europe/London" });
+  });
+  it("a Home end uses the Home zone; the Stop end its own", () => {
+    expect(transportEndZones({ depIsHome: true }, "Asia/Bali", null, COMO)).toEqual({ depTz: "Asia/Bali", arrTz: "Europe/Rome" });
+  });
+  it("two Stops keep their own zones; no zones at all is UTC", () => {
+    expect(transportEndZones({}, null, LONDON, COMO)).toEqual({ depTz: "Europe/London", arrTz: "Europe/Rome" });
+    expect(transportEndZones({}, null, null, null)).toEqual({ depTz: "UTC", arrTz: "UTC" });
   });
 });

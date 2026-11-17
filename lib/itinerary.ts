@@ -8,6 +8,7 @@
 
 import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
+import { resolveEndpointZones } from "@/lib/time-display";
 import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
@@ -266,25 +267,19 @@ function toDate(v: Date | string | null | undefined): Date | null {
 
 type ZonedStop = { timezone?: string | null } | undefined | null;
 
-/**
- * Return the timezone of a stop, or 'UTC' if none.
- */
-function tzOf(stop: ZonedStop): string {
-  return stop?.timezone || "UTC";
-}
-
 // A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
-// the Trip's `homeTimezone` when set, else the usual Stop fallback.
+// the Trip's `homeTimezone` when set; a zone-less end takes the other end's.
 export function transportEndZones(
   transport: { depIsHome?: boolean | null; arrIsHome?: boolean | null },
   homeTimezone: string | null | undefined,
   fromStop: ZonedStop,
   toStop: ZonedStop,
 ): { depTz: string; arrTz: string } {
-  return {
-    depTz: (transport.depIsHome && homeTimezone) || tzOf(fromStop),
-    arrTz: (transport.arrIsHome && homeTimezone) || tzOf(toStop ?? fromStop),
-  };
+  return resolveEndpointZones(fromStop?.timezone, toStop?.timezone, {
+    depIsHome: transport.depIsHome,
+    arrIsHome: transport.arrIsHome,
+    homeTimezone,
+  });
 }
 
 // ---------------------------------------------------------------------------
