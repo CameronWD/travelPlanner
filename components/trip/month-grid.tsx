@@ -18,6 +18,21 @@ import { useTripHref } from "@/components/trip/use-trip-href";
 
 const MAX_MARKERS = 3;
 
+type Marker = { key: string; mode: TransportMode } | { key: string; stay: "Check-in" | "Check-out" };
+
+function MarkerIcon({ marker, over }: { marker: Marker; over: string }) {
+  if ("mode" in marker) {
+    const Icon = TRANSPORT_MODE_META[marker.mode]?.icon ?? Navigation;
+    return <Icon className={cn("size-3.5 shrink-0", over)} aria-hidden="true" />;
+  }
+  const Icon = marker.stay === "Check-in" ? BedDouble : DoorOpen;
+  return (
+    <span role="img" aria-label={marker.stay} className={cn("inline-flex shrink-0", over)}>
+      <Icon className="size-3.5" aria-hidden="true" />
+    </span>
+  );
+}
+
 export interface MonthGridProps {
   tripId: string;
   monthAnchorISO: string;
@@ -179,22 +194,12 @@ export function MonthGrid({
             return `${modeLabel.toLowerCase()} ${t.kind === "transport-departure" ? "departs" : "arrives"}`;
           });
 
-          const markers = [
-            ...(day?.transportEntries ?? []).map((t) => {
-              const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
-              return <Icon key={`${t.kind}-${t.transport.id}`} className="size-3.5 shrink-0" aria-hidden="true" />;
-            }),
-            ...(day?.accommodationEntries ?? []).map((a) =>
-              a.kind === "accommodation-checkin" ? (
-                <span key={`in-${a.accommodation.id}`} role="img" aria-label="Check-in" className="inline-flex shrink-0">
-                  <BedDouble className="size-3.5" aria-hidden="true" />
-                </span>
-              ) : (
-                <span key={`out-${a.accommodation.id}`} role="img" aria-label="Check-out" className="inline-flex shrink-0">
-                  <DoorOpen className="size-3.5" aria-hidden="true" />
-                </span>
-              ),
-            ),
+          const markers: Marker[] = [
+            ...(day?.transportEntries ?? []).map((t): Marker => ({ key: `${t.kind}-${t.transport.id}`, mode: t.transport.mode as TransportMode })),
+            ...(day?.accommodationEntries ?? []).map((a): Marker => ({
+              key: `${a.kind}-${a.accommodation.id}`,
+              stay: a.kind === "accommodation-checkin" ? "Check-in" : "Check-out",
+            })),
           ];
 
           const holidayLines = holidayDates?.[cell.dateISO] ?? [];
@@ -253,10 +258,10 @@ export function MonthGrid({
               <span className="flex flex-nowrap items-start justify-between gap-1">
                 <span className={cn(numberClass, "shrink-0")}>{dayNum}</span>
                 {holidayLines.length > 0 ? <span data-holiday aria-hidden="true" className="mt-0.5 size-1.5 shrink-0 rotate-45 border border-current sm:mt-1 sm:size-2" /> : null}
-                <span className="hidden min-w-0 flex-nowrap items-center justify-end gap-0.5 overflow-hidden sm:flex">
-                  {markers.slice(0, MAX_MARKERS)}
+                <span className="hidden min-w-0 flex-wrap items-center justify-end gap-0.5 sm:flex lg:flex-nowrap lg:overflow-hidden">
+                  {markers.map((marker, i) => <MarkerIcon key={marker.key} marker={marker} over={i >= MAX_MARKERS ? "lg:hidden" : ""} />)}
                   {markers.length > MAX_MARKERS && (
-                    <span className="shrink-0 text-[10px] font-bold leading-none">+{markers.length - MAX_MARKERS}</span>
+                    <span className="hidden shrink-0 text-[10px] font-bold leading-none lg:inline-flex">+{markers.length - MAX_MARKERS}</span>
                   )}
                 </span>
               </span>
