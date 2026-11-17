@@ -19,7 +19,7 @@ import { addDays, daysBetween, formatDayLabel } from "@/lib/dates";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { resolvedDayHops, withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
+import { resolvedPlanHops, withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import type { NearbyResult } from "@/lib/nearby";
 import { flagTightConnections, type Flag } from "@/lib/flags";
 import { loadHopModes } from "@/lib/hop-modes";
@@ -417,28 +417,24 @@ function projectDayView(
   ).map((f) => ({ severity: f.severity, message: f.message, hop: f.hop }));
 
   const titleById = new Map(items.map((it) => [it.id, it.title]));
-  const hops: DayHopEntry[] = resolvedDayHops(model.dayMap, {
+  const hops: DayHopEntry[] = resolvedPlanHops({
     dayItems: items.filter((it) => it.date === date),
     stops: rows.stops,
     transports: rows.transports,
     lookup: shared.travel,
     estimateOpts: { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph },
     hopModes: shared.hopModes,
-  }).flatMap(({ fromId, toId, resolved, forced }) =>
-    resolved
-      ? [{
-          fromItemId: fromId,
-          toItemId: toId,
-          fromTitle: titleById.get(fromId) ?? "",
-          toTitle: titleById.get(toId) ?? "",
-          minutes: Math.round(resolved.minutes),
-          travel: resolved.mode,
-          estimated: resolved.estimated,
-          mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
-          modeSetByHand: forced !== undefined,
-        }]
-      : [],
-  );
+  }).map(({ fromId, toId, resolved, forced }) => ({
+    fromItemId: fromId,
+    toItemId: toId,
+    fromTitle: titleById.get(fromId) ?? "",
+    toTitle: titleById.get(toId) ?? "",
+    minutes: Math.round(resolved.minutes),
+    travel: resolved.mode,
+    estimated: resolved.estimated,
+    mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
+    modeSetByHand: forced !== undefined,
+  }));
 
   const stopTimezone = dayStop?.timezone ?? "UTC";
   const isFirst = date === startDate;

@@ -115,6 +115,14 @@ export async function createFork(
     ? await db.dayTitle.findMany({ where: { stopId: { in: stops.map((s) => s.id) } } })
     : [];
 
+  // A Hop mode rides with its two Items (CONTEXT.md "Hop mode"), so a What-if plan starts as a faithful copy.
+  const hopModeRows = items.length
+    ? await db.hopMode.findMany({
+        where: { tripId, fromItemId: { in: items.map((i) => i.id) }, toItemId: { in: items.map((i) => i.id) } },
+        select: { fromItemId: true, toItemId: true, mode: true, setById: true },
+      })
+    : [];
+
   // 6. Build create-payloads (pure, no IDs minted yet)
   const plan = buildForkPlan({ chapters, stops, transports, accommodations, items, costs });
 
@@ -206,6 +214,13 @@ export async function createFork(
       if (it.sourcePhotoAttachmentId) {
         photoCopies.push({ newItemId: created.id, sourcePhotoAttachmentId: it.sourcePhotoAttachmentId });
       }
+    }
+
+    for (const h of hopModeRows) {
+      const from = itemIdMap.get(h.fromItemId);
+      const to = itemIdMap.get(h.toItemId);
+      if (!from || !to) continue;
+      await tx.hopMode.create({ data: { tripId, fromItemId: from, toItemId: to, mode: h.mode, setById: h.setById } });
     }
 
     // Transports (remap fromStopId/toStopId; build transportIdMap keyed by SOURCE transport id)
@@ -747,6 +762,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     exchangeRates,
     today,
     travel: forkTravel,
+    hopModes,
   });
 
   const deltas = diffMetrics(realPlanMetrics, forkMetrics);

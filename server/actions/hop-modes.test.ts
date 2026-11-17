@@ -58,6 +58,12 @@ describe("setHopMode", () => {
     expect(deleteManyMock).not.toHaveBeenCalled();
   });
 
+  it("refuses a hop from an Item to itself", async () => {
+    rowsOn({ a: "t1" });
+    expect(await setHopMode("a", "a", "WALK")).toMatchObject({ success: false });
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
   it("refuses a mode that is not one of the three", async () => {
     rowsOn({ a: "t1", b: "t1" });
     expect(await setHopMode("a", "b", "BIKE" as never)).toMatchObject({ success: false });

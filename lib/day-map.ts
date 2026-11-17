@@ -263,6 +263,22 @@ export function resolvedDayHops(
   return out;
 }
 
+/** Every pair `planHops` makes for the day (both orderings), so each Hop mode being honoured has a row wherever hops are listed. */
+export function resolvedPlanHops(
+  input: DayHopInput,
+): { fromId: string; toId: string; resolved: ResolvedHop; forced: HopModeChoice | undefined }[] {
+  const items = input.dayItems.map(toHopItem).sort(byHopOrder);
+  const stopsById = hopStopsById(input.stops);
+  const planTransports = input.transports.map(toPlanTransport);
+  return planHops(items, planTransports).flatMap((pair) => {
+    const inputs = hopInputs(pair, { stopsById, planTransports });
+    if (!inputs) return [];
+    const forced = forcedModeFor(input.hopModes, pair);
+    const resolved = resolveHop(inputs.from, inputs.to, inputs.localMode, inputs.departure, input.lookup, input.estimateOpts, forced);
+    return [{ fromId: pair.from.id, toId: pair.to.id, resolved, forced }];
+  });
+}
+
 export function dayMapHops(model: DayMapModel, input: DayHopInput): DayMapHop[] {
   return resolvedDayHops(model, input).map(({ fromId, toId, resolved }) => {
     const polyline = resolved && !resolved.estimated && resolved.polyline ? resolved.polyline : null;

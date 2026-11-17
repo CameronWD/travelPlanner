@@ -110,6 +110,19 @@ describe("loadDayForMcp", () => {
       expect(loadTravelLookupFor).toHaveBeenCalledWith(expect.objectContaining({ hopModes: new Map([["c|d", "WALK"]]) }));
     });
 
+    it("lists a hand-set pair that only the timed order makes, after its Flag has cleared", async () => {
+      readDayRows.mockResolvedValue({
+        rows: hopRows([at("a", A, "09:00", { endTime: "10:00" }), at("m", B, "10:30"), at("b", C, "11:00", { endTime: "12:00" })]),
+        visibility: {},
+        alongside: [],
+      });
+      loadHopModes.mockResolvedValue(new Map([["a|b", "WALK"]]));
+      const day = await loadDayForMcp("trip-1", "2027-06-02");
+      if ("success" in day) throw new Error("expected a day");
+      expect(day.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual(expect.arrayContaining([["a", "m"], ["m", "b"], ["a", "b"]]));
+      expect(day.hops.find((h) => h.fromItemId === "a" && h.toItemId === "b")).toMatchObject({ mode: "walk", setByHand: true });
+    });
+
     it("an estimated hop at a Public-transport Stop is public_transport, estimated, with the estimate's minutes", async () => {
       const items = [at("c", C, "11:00"), at("d", D, "12:00")];
       readDayRows.mockResolvedValue({ rows: hopRows(items), visibility: {}, alongside: [] });

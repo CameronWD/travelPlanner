@@ -15,7 +15,7 @@ import { orderDayEntries, type ItemEntry } from "@/lib/itinerary";
 import { fail, type ActionFailure } from "@/lib/action-result";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { BookingState } from "@/lib/enum-values";
-import { resolvedDayHops } from "@/lib/day-map";
+import { resolvedPlanHops } from "@/lib/day-map";
 import { homePointOf } from "@/lib/travel-times/hops";
 import { loadHopModes } from "@/lib/hop-modes";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
@@ -70,7 +70,7 @@ export interface McpDay {
   anytime: McpDayItem[];
   publicHolidays: string[];
   /**
-   * Travel between the day's located things, in the Day map's order, only for
+   * Travel between the day's located things (every pair the plan treats as a hop), only for
    * Items the viewer can see (a hidden Surprise is stepped over). estimated
    * true means a straight-line guess, not a routed time.
    */
@@ -147,23 +147,19 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
   const dayItems = rows.items.filter((it) => it.date === date);
   const hopModes = await loadHopModes(tripId);
   const lookup = await loadTravelLookupFor({ items: dayItems, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip), hopModes });
-  const hops = resolvedDayHops(model.dayMap, {
+  const hops = resolvedPlanHops({
     dayItems,
     stops: rows.stops,
     transports: rows.transports,
     lookup,
     estimateOpts: { windingFactor: rows.trip.drivingWindingFactor, avgSpeedKph: rows.trip.drivingAvgSpeedKph },
     hopModes,
-  }).flatMap(({ fromId, toId, resolved, forced }) =>
-    resolved
-      ? [{
-          fromItemId: fromId, toItemId: toId, minutes: Math.round(resolved.minutes),
-          mode: resolved.mode === "transit" ? ("public_transport" as const) : resolved.mode,
-          setByHand: forced !== undefined,
-          distanceKm: Math.round(resolved.distanceKm * 10) / 10, estimated: resolved.estimated,
-        }]
-      : [],
-  );
+  }).map(({ fromId, toId, resolved, forced }) => ({
+    fromItemId: fromId, toItemId: toId, minutes: Math.round(resolved.minutes),
+    mode: resolved.mode === "transit" ? ("public_transport" as const) : resolved.mode,
+    setByHand: forced !== undefined,
+    distanceKm: Math.round(resolved.distanceKm * 10) / 10, estimated: resolved.estimated,
+  }));
 
   const publicHolidays = (await loadHolidayLines(tripId, [date])).get(date) ?? [];
 

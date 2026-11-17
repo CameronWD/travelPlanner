@@ -463,6 +463,19 @@ describe("getDays — hops", () => {
     expect(d.hops[1].modeSetByHand).toBe(false);
   });
 
+  it("a hand-set pair that exists only in the Flags' order (an untimed-end Item between) still has a row", async () => {
+    useItems([
+      { ...at("ha", "09:00", 48.57), endTime: "10:00" },
+      at("hm", "10:30", 48.572),
+      { ...at("hb", "11:00", 48.574), endTime: "12:00" },
+    ]);
+    loadHopModesMock.mockResolvedValue(new Map([["ha|hb", "WALK"]]));
+    const d = await loadDay("2026-12-11");
+    expect(d.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual(expect.arrayContaining([["ha", "hm"], ["hm", "hb"], ["ha", "hb"]]));
+    expect(d.hops.find((h) => h.fromItemId === "ha" && h.toItemId === "hb")).toMatchObject({ mode: "WALK", modeSetByHand: true });
+    expect(d.feasibility.filter((f) => f.hop?.fromItemId === "ha")).toEqual([]);
+  });
+
   it("a hop touching a hidden Surprise is not listed (the placeholder has no place)", async () => {
     useItems([located[0], { ...located[1], lat: null, lng: null, title: "Surprise" }, located[2]]);
     const d = await loadDay("2026-12-11");

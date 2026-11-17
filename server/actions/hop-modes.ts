@@ -10,6 +10,7 @@ const MODES: readonly string[] = ["WALK", "TRANSIT", "DRIVE"];
 
 export async function setHopMode(fromItemId: string, toItemId: string, mode: HopModeChoice | null): Promise<ActionResult> {
   if (mode !== null && !MODES.includes(mode)) return fail({ mode: ["Pick Walk, Public transport, Drive or Automatic."] });
+  if (fromItemId === toItemId) return fail({ mode: ["A hop needs two different things."] });
   const [from, to] = [
     await requireRowAccess("item", fromItemId, { realPlanOnly: true }),
     await requireRowAccess("item", toItemId, { realPlanOnly: true }),
