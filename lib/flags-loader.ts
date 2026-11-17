@@ -225,6 +225,8 @@ const FLAG_ITEM_SELECT = {
   sortOrder: true,
   lat: true,
   lng: true,
+  endLat: true,
+  endLng: true,
   title: true,
   openingHours: true,
   slotTime: true,
@@ -309,6 +311,8 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
       sortOrder: p.sortOrder,
       lat: null,
       lng: null,
+      endLat: null,
+      endLng: null,
     }));
   const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip) });
 

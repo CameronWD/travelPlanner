@@ -13,7 +13,7 @@ export const SAMPLE_TODAY = "2026-10-18";
 const KYOTO = { id: "kyoto", name: "Kyoto" };
 const SURPRISE = { plannedBy: "Cam", for: ["Xanni"], youAreSurprised: true };
 const dayItem = {
-  address: null, link: null, booking: null, notes: null, bookingState: "NONE" as const, bookBy: null, nothingToAttach: false, needsBookingConfirmation: false,
+  address: null, endsAt: null, link: null, booking: null, notes: null, bookingState: "NONE" as const, bookBy: null, nothingToAttach: false, needsBookingConfirmation: false,
   slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN" as const, openingHours: null, tryList: null,
   owningStop: KYOTO, files: [], surprise: null,
 };
@@ -36,7 +36,7 @@ export const SAMPLE_PLAN: McpTripPlan = {
       ],
       thingsToDo: [
         {
-          id: "nishiki", title: "Nishiki Market", category: "FOOD", address: "Nishiki Market, Nakagyo Ward, Kyoto", link: null, booking: null, notes: null,
+          id: "nishiki", title: "Nishiki Market", category: "FOOD", address: "Nishiki Market, Nakagyo Ward, Kyoto", endsAt: null, link: null, booking: null, notes: null,
           bookingState: "NONE", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null,
           tryList: [{ id: "tako1", text: "Tako tamago", tried: false }], files: [], surprise: null,
         },

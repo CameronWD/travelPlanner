@@ -30,6 +30,9 @@ export interface StopDayItem {
   startTime?: string | null;
   endTime?: string | null;
   address?: string | null;
+  endAddress?: string | null;
+  endLat?: number | null;
+  endLng?: number | null;
   link?: string | null;
   booking?: string | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */

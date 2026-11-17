@@ -109,7 +109,7 @@ describe("buildMcpStops", () => {
 const placeholder = (o: { id?: string; forkId?: string | null } = {}) => ({
   id: "p1", tripId: "t", forkId: null, stopId: "s1", date: "2027-06-01", startTime: "19:00", endTime: null,
   title: "Surprise" as const, category: "OTHER" as const, address: null, link: null, booking: null, notes: null,
-  lat: null, lng: null, placeId: null, businessStatus: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
+  lat: null, lng: null, placeId: null, endAddress: null, endLat: null, endLng: null, endPlaceId: null, businessStatus: null, countryCode: null, hiddenFromShares: false, sortOrder: 0, photoAttachmentId: null,
   sourceItemId: null, bookingState: "NONE" as const, bookingStateSet: false as const, bookBy: null, nothingToAttach: false as const,
   slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, surprise: surpriseView,
   ...o,
@@ -158,12 +158,26 @@ describe("opening hours (CONTEXT.md Opening hours)", () => {
   });
 });
 
+describe("Ends at in the Claude reads", () => {
+  it("a dated thing to do reads endsAt as address, lat and lng; none reads null", () => {
+    const withEnd = datedItem({ id: "i1", date: "2027-06-02", endAddress: "Westminster Bridge", endLat: 51.5008, endLng: -0.122 });
+    expect(toMcpItem(withEnd, noFiles, new Map(), none).endsAt).toEqual({ address: "Westminster Bridge", lat: 51.5008, lng: -0.122 });
+    expect(toMcpItem(datedItem({ id: "i2", date: "2027-06-02" }), noFiles, new Map(), none).endsAt).toBeNull();
+  });
+
+  it("a hidden Surprise's placeholder never carries it", () => {
+    const out = withPlaceholders([], { placeholderItems: [placeholder()], views: { stops: new Map(), items: new Map() } });
+    expect(out[0].endAddress ?? null).toBeNull();
+    expect(toMcpItem(out[0], noFiles, new Map(), none).endsAt).toBeNull();
+  });
+});
+
 describe("toMcpItem / toMcpTransport", () => {
   it("toMcpItem carries the date and owning Stop alongside the day-item fields", () => {
     expect(
       toMcpItem(datedItem({ id: "i1", date: "2027-06-02", stopId: "s1" }), noFiles, new Map([["s1", "Porto"]]), none),
     ).toEqual({
-      id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, link: null,
+      id: "i1", title: "Tour", category: "ACTIVITY", startTime: null, endTime: null, address: null, endsAt: null, link: null,
       booking: null, notes: null, files: [], surprise: null, date: "2027-06-02", stopId: "s1",
       bookingState: "NONE", bookBy: null, slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN",
       openingHours: null, tryList: null, owningStop: { id: "s1", name: "Porto" },

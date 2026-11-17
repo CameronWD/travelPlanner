@@ -213,6 +213,8 @@ async function load(
         sortOrder: true,
         lat: true,
         lng: true,
+        endLat: true,
+        endLng: true,
         bookingState: true,
         bookBy: true,
         openingHours: true,

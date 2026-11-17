@@ -47,6 +47,7 @@ export interface ThingToDo {
   startTime?: string | null;
   endTime?: string | null;
   address?: string | null;
+  endAddress?: string | null;
   link?: string | null;
   booking?: string | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */
@@ -85,6 +86,7 @@ export function toItemCardItem(it: StopDayItem | ThingToDo): ItemCardItem {
     startTime: it.startTime ?? null,
     endTime: it.endTime ?? null,
     address: it.address ?? null,
+    endAddress: it.endAddress ?? null,
     link: it.link ?? null,
     booking: it.booking ?? null,
     bookingState: it.bookingState ?? null,

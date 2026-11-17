@@ -61,11 +61,19 @@ export interface McpAccommodation {
   files: McpFileRef[];
 }
 
+export interface McpEndsAt {
+  address: string;
+  lat: number | null;
+  lng: number | null;
+}
+
 interface McpThingToDo {
   id: string;
   title: string;
   category: string;
   address: string | null;
+  /** CONTEXT.md "Ends at": where it finishes when that is not where it starts; null = it ends where it starts. */
+  endsAt: McpEndsAt | null;
   link: string | null;
   booking: string | null;
   notes: string | null;
@@ -98,6 +106,8 @@ export interface McpDayItem {
   startTime: string | null;
   endTime: string | null;
   address: string | null;
+  /** CONTEXT.md "Ends at": where it finishes when that is not where it starts; null = it ends where it starts. */
+  endsAt: McpEndsAt | null;
   link: string | null;
   booking: string | null;
   notes: string | null;
@@ -270,7 +280,7 @@ export const mcpStopSelect = (accommodationWhere: object) => ({
 
 export const MCP_THING_TO_DO_SELECT = {
   id: true, title: true, category: true, startTime: true, endTime: true,
-  address: true, link: true, booking: true, notes: true, stopId: true,
+  address: true, endAddress: true, endLat: true, endLng: true, link: true, booking: true, notes: true, stopId: true,
   bookingState: true, bookBy: true, slotTime: true, arriveByMinutes: true, refundable: true,
   openingHours: true, tryList: true, nothingToAttach: true,
 } as const;
@@ -313,6 +323,7 @@ export interface McpStopRow {
 export interface McpItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
   address: string | null; link: string | null; booking: string | null; notes: string | null; stopId: string | null;
+  endAddress?: string | null; endLat?: number | null; endLng?: number | null;
   bookingState: string; bookBy: string | null; nothingToAttach: boolean;
   slotTime?: string | null; arriveByMinutes?: number | null; refundable?: boolean | null;
   /** The stored column: a JSON string, or null. Parse at the row edge with `withOpeningHours`/`parseOpeningHours` before building a shape — never hand this straight to a shape that expects `OpeningHours`. */
@@ -367,9 +378,13 @@ export function toMcpAccommodation(a: AccommodationRow, filesFor: FilesFor, need
   return { ...a, bookingState: a.bookingState as BookingState, needsBookingConfirmation: needsConfirmation.has(a.id), files: filesFor("ACCOMMODATION", a.id) };
 }
 
+function endsAtOf(i: { endAddress?: string | null; endLat?: number | null; endLng?: number | null }): McpEndsAt | null {
+  return i.endAddress ? { address: i.endAddress, lat: i.endLat ?? null, lng: i.endLng ?? null } : null;
+}
+
 function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: SurpriseView | null | undefined, needsConfirmation: NeedsConfirmation): McpThingToDo {
   return {
-    id: i.id, title: i.title, category: i.category, address: i.address, link: i.link, booking: i.booking,
+    id: i.id, title: i.title, category: i.category, address: i.address, endsAt: endsAtOf(i), link: i.link, booking: i.booking,
     notes: i.notes, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, ...mcpSlot(i),
     openingHours: parseOpeningHours(i.openingHours),
     tryList: parseTryList(i.tryList),
@@ -382,7 +397,7 @@ function toMcpThingToDo(i: Omit<McpItemRow, "date">, filesFor: FilesFor, view: S
 export function toMcpDayItem(i: Omit<StopDayItem, "bookingStateSet">, filesFor: FilesFor, stopNameById: ReadonlyMap<string, string>, needsConfirmation: NeedsConfirmation): McpDayItem {
   return {
     id: i.id, title: i.title, category: i.category,
-    startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null,
+    startTime: i.startTime ?? null, endTime: i.endTime ?? null, address: i.address ?? null, endsAt: endsAtOf(i),
     link: i.link ?? null, booking: i.booking ?? null, notes: i.notes ?? null,
     bookingState: i.bookingState ?? "NONE", bookBy: i.bookBy ?? null, ...mcpSlot(i),
     openingHours: i.openingHours ?? null,

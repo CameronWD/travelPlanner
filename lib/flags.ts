@@ -116,6 +116,8 @@ export interface FlagItem {
   sortOrder?: number | null;
   lat?: number | null;
   lng?: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
   /** The Item's title, for the planning Flags' wording (spec 2026-10-17 R7). */
   title?: string | null;
   /** CONTEXT.md "Opening hours", already parsed (lib/opening-hours-stored.ts withOpeningHours); read in the Stop's local time, like startTime. */

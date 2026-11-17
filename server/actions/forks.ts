@@ -558,7 +558,7 @@ const PREVIEW_TRANSPORT_SELECT = {
 } as const;
 const PREVIEW_ACCOMMODATION_SELECT = { id: true, stopId: true, name: true, checkIn: true, checkOut: true, bookingState: true, bookBy: true } as const;
 const PREVIEW_ITEM_SELECT = {
-  id: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, category: true,
+  id: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, endLat: true, endLng: true, category: true,
   title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true,
   businessStatus: true, statusCheckedAt: true,
 } as const;

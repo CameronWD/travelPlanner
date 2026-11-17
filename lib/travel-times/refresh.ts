@@ -60,7 +60,7 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
     }),
     db.item.findMany({
       where: { tripId, date: { not: null }, lat: { not: null }, lng: { not: null } },
-      select: { id: true, forkId: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true },
+      select: { id: true, forkId: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, endLat: true, endLng: true },
       orderBy: [...ITEM_HOP_ORDER],
     }),
     db.transport.findMany({

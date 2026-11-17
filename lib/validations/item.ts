@@ -51,6 +51,11 @@ export const itemSchema = z
       .optional()
       .transform((v) => (v === "" || v === undefined ? undefined : v)),
     address: z.string().trim().optional(),
+    /** CONTEXT.md "Ends at": where it finishes when that is not where it starts. endLat/endLng only come with a picked endPlaceId (refined below). */
+    endAddress: z.string().trim().optional(),
+    endPlaceId: placeId.optional(),
+    endLat: z.number().min(-90).max(90).optional(),
+    endLng: z.number().min(-180).max(180).optional(),
     // Only accept links that resolve to a safe http(s) address. Rejects
     // javascript:/data: scheme links that would otherwise be a stored XSS
     // vector when rendered into an href for the other traveller.
@@ -171,6 +176,10 @@ export const itemSchema = z
   .refine((data) => data.placeId != null || (data.lat === undefined && data.lng === undefined), {
     message: "Coordinates only come with a picked place",
     path: ["lat"],
+  })
+  .refine((data) => data.endPlaceId != null || (data.endLat === undefined && data.endLng === undefined), {
+    message: "Coordinates only come with a picked place",
+    path: ["endLat"],
   })
   // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
   // === undefined) because paidMinor is nullable, and this must catch both:

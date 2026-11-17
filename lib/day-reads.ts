@@ -77,7 +77,7 @@ export async function readDayRows<X>(
       orderBy: [...ITEM_HOP_ORDER],
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true, sortOrder: true, stopId: true,
-        lat: true, lng: true, placeId: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
+        lat: true, lng: true, placeId: true, endAddress: true, endLat: true, endLng: true, endPlaceId: true, address: true, link: true, booking: true, notes: true, hiddenFromShares: true, photoAttachmentId: true,
         slotTime: true, arriveByMinutes: true, refundable: true, openingHours: true, tryList: true,
         bookingState: true, bookingStateSet: true, nothingToAttach: true, bookBy: true,
       },
@@ -138,7 +138,7 @@ export async function readDayRows<X>(
     ...itemRows.map((it) => ({ ...withTryList(withOpeningHours(it)), bookingState: it.bookingState as BookingState, surprise: v.views.items.get(it.id) ?? null })),
     ...placeholders.map((p) => ({
       id: p.id, title: p.title, category: p.category, date: p.date, startTime: p.startTime, endTime: p.endTime,
-      sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, placeId: p.placeId, address: p.address, link: p.link,
+      sortOrder: p.sortOrder, stopId: p.stopId, lat: p.lat, lng: p.lng, placeId: p.placeId, address: p.address, endAddress: p.endAddress, endLat: p.endLat, endLng: p.endLng, endPlaceId: p.endPlaceId, link: p.link,
       booking: p.booking, notes: p.notes, hiddenFromShares: p.hiddenFromShares, photoAttachmentId: p.photoAttachmentId,
       slotTime: p.slotTime, arriveByMinutes: p.arriveByMinutes, refundable: p.refundable, openingHours: p.openingHours, tryList: p.tryList,
       bookingState: p.bookingState, bookingStateSet: p.bookingStateSet, nothingToAttach: p.nothingToAttach, bookBy: p.bookBy,

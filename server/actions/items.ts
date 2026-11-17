@@ -189,6 +189,12 @@ export async function createItem(
     lookUp: (address) => locateVenue(data.title, address, { near }),
   });
 
+  const end = await placeForSave({
+    text: data.endAddress ?? null,
+    pick: pickedPlace({ placeId: data.endPlaceId, lat: data.endLat, lng: data.endLng }),
+    lookUp: (address) => locateVenue("", address, { near }),
+  });
+
   const created = await db.item.create({
     data: {
       tripId,
@@ -200,6 +206,10 @@ export async function createItem(
       startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
       endTime: data.endTime ?? null,
       address: data.address ?? null,
+      endAddress: data.endAddress || null,
+      endLat: end.place.lat,
+      endLng: end.place.lng,
+      endPlaceId: end.place.placeId,
       link: data.link ?? null,
       booking: data.booking ?? null,
       notes: data.notes ?? null,
@@ -381,7 +391,7 @@ export async function updateItem(
     ...applyPatch<ItemInput>(
       {
         title: before.title, category: before.category as ItemInput["category"], stopId: before.stopId, date: before.date,
-        startTime: before.startTime, endTime: before.endTime, address: before.address, link: before.link,
+        startTime: before.startTime, endTime: before.endTime, address: before.address, endAddress: before.endAddress, link: before.link,
         booking: before.booking, notes: before.notes, hiddenFromShares: before.hiddenFromShares,
         slotTime: before.slotTime, arriveByMinutes: before.arriveByMinutes, refundable: before.refundable,
         openingHours: parseOpeningHours(before.openingHours),
@@ -431,6 +441,15 @@ export async function updateItem(
     },
     lookUp: (address) => locateVenue(data.title, address, { near }),
   });
+  const end = await placeForSave({
+    text: data.endAddress ?? null,
+    pick: pickedPlace({ placeId: data.endPlaceId, lat: data.endLat, lng: data.endLng }),
+    before: {
+      text: before.endAddress,
+      place: { lat: before.endLat, lng: before.endLng, countryCode: null, region: null, placeId: before.endPlaceId },
+    },
+    lookUp: (address) => locateVenue("", address, { near }),
+  });
   const businessStatus =
     source === "pick" ? (data.businessStatus ?? null) : source === "kept" ? before.businessStatus : null;
   const statusCheckedAt =
@@ -456,6 +475,10 @@ export async function updateItem(
     startTime: data.startTime ?? null, // itemSchema already defaulted it from the slot (R3)
     endTime: data.endTime ?? null,
     address: data.address ?? null,
+    endAddress: data.endAddress || null,
+    endLat: end.place.lat,
+    endLng: end.place.lng,
+    endPlaceId: end.place.placeId,
     link: data.link ?? null,
     booking: data.booking ?? null,
     notes: data.notes ?? null,
@@ -833,6 +856,10 @@ function ideaCopyData(fullItem: {
   businessStatus?: string | null;
   statusCheckedAt?: Date | null;
   address: string | null;
+  endAddress?: string | null;
+  endLat?: number | null;
+  endLng?: number | null;
+  endPlaceId?: string | null;
   link: string | null;
   notes: string | null;
   hiddenFromShares: boolean | null;
@@ -856,6 +883,10 @@ function ideaCopyData(fullItem: {
     businessStatus: fullItem.businessStatus ?? null,
     statusCheckedAt: fullItem.statusCheckedAt ?? null,
     address: fullItem.address ?? null,
+    endAddress: fullItem.endAddress ?? null,
+    endLat: fullItem.endLat ?? null,
+    endLng: fullItem.endLng ?? null,
+    endPlaceId: fullItem.endPlaceId ?? null,
     link: fullItem.link ?? null,
     notes: fullItem.notes ?? null,
     // A Wishlist idea marked "Hide from shared links" must stay hidden once

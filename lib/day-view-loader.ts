@@ -391,7 +391,7 @@ function projectDayView(
   const feasibility = flagTightConnections(
     items
       .filter((it) => it.date === date)
-      .map((it) => ({ id: it.id, title: it.title, stopId: it.stopId, date: it.date, startTime: it.startTime, endTime: it.endTime, sortOrder: it.sortOrder, lat: it.lat, lng: it.lng })),
+      .map((it) => ({ id: it.id, title: it.title, stopId: it.stopId, date: it.date, startTime: it.startTime, endTime: it.endTime, sortOrder: it.sortOrder, lat: it.lat, lng: it.lng, endLat: it.endLat, endLng: it.endLng })),
     transports.map((t) => ({ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, mode: t.mode })),
     { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph, lookup: shared.travel, travelStops: rows.stops },
   ).map((f) => ({ severity: f.severity, message: f.message }));

@@ -88,6 +88,7 @@ export default async function WishlistPage({
             startTime: true,
             endTime: true,
             address: true,
+            endAddress: true,
             link: true,
             booking: true,
             bookingState: true,

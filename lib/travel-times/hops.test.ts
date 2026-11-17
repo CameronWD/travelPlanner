@@ -3,6 +3,8 @@ import { estimateDriveMinutes, haversineKm } from "@/lib/geo";
 import {
   carLegs,
   dayHops,
+  departurePoint,
+  itemRouteKey,
   driveKey,
   effectiveLocalMode,
   hopInputs,
@@ -28,7 +30,7 @@ const OPTS = { windingFactor: 1.3, avgSpeedKph: 60 };
 const NOW = new Date("2026-11-01T00:00:00.000Z");
 
 function item(id: string, over: Partial<HopItem> = {}): HopItem {
-  return { id, date: "2026-11-02", startTime: null, endTime: null, sortOrder: 0, lat: 35, lng: 135, stopId: "s1", ...over };
+  return { id, date: "2026-11-02", startTime: null, endTime: null, sortOrder: 0, lat: 35, lng: 135, endLat: null, endLng: null, stopId: "s1", ...over };
 }
 
 function pairs(hops: { from: HopItem; to: HopItem }[]) {
@@ -608,5 +610,51 @@ describe("routeLegPaths", () => {
     const t = [leg({ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2", depLat: P.lat, depLng: P.lng })];
     expect(routeLegPaths(stops, t, new Map([[driveKey(A, B), ok("stop")]]), null)).toEqual({});
     expect(routeLegPaths(stops, t, new Map([[driveKey(P, B), ok("typed")]]), null)).toEqual({ "s1>s2": "typed" });
+  });
+});
+
+describe("Ends at", () => {
+  const TOWER = { lat: 51.5055, lng: -0.0754 };
+  const WESTMINSTER = { lat: 51.5008, lng: -0.122 };
+  const NEXT = { lat: 51.5007, lng: -0.1246 };
+  const walk = item("walk", { date: "2026-11-02", startTime: "10:00", endTime: "12:00", lat: TOWER.lat, lng: TOWER.lng, endLat: WESTMINSTER.lat, endLng: WESTMINSTER.lng });
+  const next = item("next", { date: "2026-11-02", startTime: "12:10", endTime: "13:00", lat: NEXT.lat, lng: NEXT.lng });
+  const stopsById = new Map([["s1", { id: "s1", localTravelMode: null, timezone: "Europe/London" }]]);
+
+  it("measures the next hop from where the thing Ends at", () => {
+    const hop = hopInputs({ from: walk, to: next }, { stopsById, planTransports: [] });
+    expect(hop?.from).toEqual(WESTMINSTER);
+    expect(hopKeys(hop!.from, hop!.to, hop!.localMode, hop!.departure, NOW)[0]).toBe(`WALK|${pointKey(WESTMINSTER)}|${pointKey(NEXT)}`);
+  });
+
+  it("measures the hop into it to its start pin", () => {
+    const before = item("before", { date: "2026-11-02", startTime: "08:00", endTime: "09:00", lat: NEXT.lat, lng: NEXT.lng });
+    expect(hopInputs({ from: before, to: walk }, { stopsById, planTransports: [] })?.to).toEqual(TOWER);
+  });
+
+  it("leaves from the pin when there is no end pin, or only half of one", () => {
+    expect(departurePoint({ lat: 1, lng: 2 })).toEqual({ lat: 1, lng: 2 });
+    expect(departurePoint({ lat: 1, lng: 2, endLat: 3, endLng: null })).toEqual({ lat: 1, lng: 2 });
+    expect(departurePoint({ lat: 1, lng: 2, endLat: 3, endLng: 4 })).toEqual({ lat: 3, lng: 4 });
+  });
+
+  it("itemRouteKey is the walk from the pin to the end pin", () => {
+    expect(itemRouteKey(walk)).toBe(`WALK|${pointKey(TOWER)}|${pointKey(WESTMINSTER)}`);
+  });
+
+  it("itemRouteKey is null when the end equals the start", () => {
+    expect(itemRouteKey({ ...walk, endLat: TOWER.lat, endLng: TOWER.lng })).toBeNull();
+  });
+
+  it("itemRouteKey is null when there is no start pin, or no end pin", () => {
+    expect(itemRouteKey({ ...walk, lat: null, lng: null })).toBeNull();
+    expect(itemRouteKey({ ...walk, endLat: null, endLng: null })).toBeNull();
+  });
+
+  it("wants the route key at 4 km", () => {
+    const far = { ...walk, endLat: TOWER.lat + 0.036, endLng: TOWER.lng };
+    expect(haversineKm(TOWER, { lat: far.endLat, lng: far.endLng })).toBeGreaterThan(3.9);
+    const stops = [{ id: "s1", localTravelMode: "TRANSIT", timezone: "Europe/London", lat: TOWER.lat, lng: TOWER.lng }];
+    expect([...planTravelKeys({ items: [far], stops, transports: [], home: null }, NOW)]).toContain(itemRouteKey(far));
   });
 });

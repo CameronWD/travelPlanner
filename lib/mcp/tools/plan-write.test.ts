@@ -254,6 +254,37 @@ describe("plan write tools", () => {
     });
   });
 
+  describe("endsAt", () => {
+    it("add_thing_to_do passes endsAt to createItem as endAddress", async () => {
+      createItem.mockResolvedValue({ success: true, id: "item-1" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "Walk", category: "ACTIVITY", endsAt: "Westminster Bridge, London" } });
+      expect(createItem).toHaveBeenCalledWith(TRIP_ID, expect.objectContaining({ endAddress: "Westminster Bridge, London" }));
+    });
+
+    it("update_thing_to_do sets endsAt as endAddress", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, endsAt: "Lambeth Bridge" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, expect.objectContaining({ endAddress: "Lambeth Bridge" }));
+    });
+
+    it("update_thing_to_do with endsAt: null clears it", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, endsAt: null } });
+      expect(r.isError).toBeFalsy();
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, expect.objectContaining({ endAddress: null }));
+    });
+
+    it("update_thing_to_do without endsAt leaves it alone", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, notes: "x" } });
+      expect(updateItem.mock.calls[0][1].endAddress).toBeUndefined();
+    });
+  });
+
   describe("update_thing_to_do (PATCH)", () => {
     it("checks the item and any new Stop are real-plan, then forwards only the fields passed", async () => {
       updateItem.mockResolvedValue({ success: true });

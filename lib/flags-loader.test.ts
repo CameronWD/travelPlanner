@@ -275,7 +275,7 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
     const rows = await loadFlagRows(TRIP_ID, "u-viewer");
     expect(rows?.items).toEqual([
       VISIBLE,
-      { id: "hid", stopId: "s1", category: "OTHER", date: "2026-01-03", startTime: "10:00", endTime: "12:00", sortOrder: 0, lat: null, lng: null },
+      { id: "hid", stopId: "s1", category: "OTHER", date: "2026-01-03", startTime: "10:00", endTime: "12:00", sortOrder: 0, lat: null, lng: null, endLat: null, endLng: null },
     ]);
   });
 

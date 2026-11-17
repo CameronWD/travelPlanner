@@ -170,6 +170,7 @@ interface DayStopRow {
 interface DayItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
   sortOrder: number; stopId: string | null; lat: number | null; lng: number | null; placeId: string | null; address: string | null;
+  endAddress: string | null; endLat: number | null; endLng: number | null; endPlaceId: string | null;
   link: string | null; booking: string | null; notes: string | null; hiddenFromShares: boolean;
   photoAttachmentId: string | null; surprise: SurpriseView | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state). */
@@ -304,7 +305,7 @@ function deriveTrip(rows: DayRows): TripDerived {
       })),
       items: rows.items.map((i) => ({
         id: i.id, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime,
-        stopId: i.stopId, address: i.address, link: i.link, booking: i.booking, notes: i.notes,
+        stopId: i.stopId, address: i.address, endAddress: i.endAddress, endLat: i.endLat, endLng: i.endLng, link: i.link, booking: i.booking, notes: i.notes,
         hiddenFromShares: i.hiddenFromShares, photoUrl: itemPhotoUrl(i, attachmentsById), surprise: i.surprise,
         bookingState: i.bookingState, bookingStateSet: i.bookingStateSet, nothingToAttach: i.nothingToAttach, bookBy: i.bookBy,
         slotTime: i.slotTime, arriveByMinutes: i.arriveByMinutes, refundable: i.refundable,

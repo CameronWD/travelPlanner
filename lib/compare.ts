@@ -86,6 +86,8 @@ interface CompareItem {
   sortOrder?: number;
   lat: number | null;
   lng: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
   category: string;
   /** Spec 2026-10-17 R7: what the planning Flags read (Plan rows carry them; lib/plan-reads.ts). */
   title?: string | null;
@@ -357,6 +359,8 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     sortOrder: i.sortOrder,
     lat: i.lat,
     lng: i.lng,
+    endLat: i.endLat ?? null,
+    endLng: i.endLng ?? null,
     title: i.title ?? null,
     openingHours: i.openingHours ?? null,
     slotTime: i.slotTime ?? null,

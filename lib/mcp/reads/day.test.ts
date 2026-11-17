@@ -29,7 +29,7 @@ import { loadDayForMcp } from "./day";
 const surprised = { plannerName: "Cam", forNames: ["Alex"], youAreSurprised: true } as never;
 const itemRow = (o: Partial<DayRows["items"][number]>): DayRows["items"][number] => ({
   id: "i", title: "T", category: "SIGHTSEEING", date: "2027-06-02", startTime: null, endTime: null, sortOrder: 0, stopId: "s1",
-  lat: null, lng: null, placeId: null, address: null, link: null, booking: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null,
+  lat: null, lng: null, placeId: null, address: null, endAddress: null, endLat: null, endLng: null, endPlaceId: null, link: null, booking: null, notes: null, hiddenFromShares: false, photoAttachmentId: null, surprise: null,
   bookingState: "NONE", bookingStateSet: false, bookBy: null, slotTime: null, arriveByMinutes: null, refundable: null, openingHours: null, tryList: null, ...o,
 });
 const rows: DayRows = {

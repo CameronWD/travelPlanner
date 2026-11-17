@@ -199,6 +199,10 @@ describe("loadSurpriseVisibility", () => {
       lat: null,
       lng: null,
       placeId: null,
+      endAddress: null,
+      endLat: null,
+      endLng: null,
+      endPlaceId: null,
       businessStatus: null,
       countryCode: null,
       hiddenFromShares: false,
@@ -228,6 +232,19 @@ describe("loadSurpriseVisibility", () => {
     expect(p.placeId).toBeNull();
     expect(p.businessStatus).toBeNull();
     expect(JSON.stringify(p)).not.toContain("ChIJsecret");
+  });
+
+  it("a surprised Traveller's placeholder carries no end address or end pin", async () => {
+    itemFindManyMock.mockResolvedValueOnce([
+      { ...liveItemRow(), endAddress: "Secret Bridge", endLat: 51.5, endLng: -0.12, endPlaceId: "ChIJsecretend" },
+    ]);
+
+    const v = await loadSurpriseVisibility(TRIP_ID, "sam", { now: NOW });
+    const p = v.placeholderItems[0]!;
+
+    expect(p).toMatchObject({ endAddress: null, endLat: null, endLng: null, endPlaceId: null });
+    expect(JSON.stringify(p)).not.toContain("Secret Bridge");
+    expect(JSON.stringify(p)).not.toContain("ChIJsecretend");
   });
 
   it("case 5b: the placeholder carries the root Item's real hiddenFromShares, selected by the pre-query", async () => {

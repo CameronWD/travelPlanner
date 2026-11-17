@@ -106,6 +106,9 @@ function refundableFromMcp(v: RefundableLabel | undefined): boolean | null | und
   return v === "YES" ? true : v === "NO" ? false : null;
 }
 
+const ENDS_AT_DESCRIPTION =
+  "Where it finishes, when that is not where it starts (a walk or wander that ends somewhere else). A full street address or place name, geocoded like address. The next thing to do is measured from here.";
+
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
   title: z.string().trim().min(1),
@@ -115,6 +118,7 @@ const itemCreateShape = {
   startTime: hhmm.optional(),
   endTime: hhmm.optional(),
   address: z.string().optional(),
+  endsAt: z.string().optional().describe(ENDS_AT_DESCRIPTION),
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
@@ -133,6 +137,7 @@ const itemPatchShape = {
   startTime: hhmm.nullable().optional().describe("Clear it (null) to let a slot time, if set, default it again."),
   endTime: hhmm.optional(),
   address: z.string().optional(),
+  endsAt: z.string().nullable().optional().describe(`${ENDS_AT_DESCRIPTION} null clears it.`),
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
@@ -152,14 +157,14 @@ export function registerPlanWriteTools(server: McpServer): void {
         "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea, one of the ideas not yet placed. When you give a date, pass stopId too (the Stop whose stay covers that day) so it files under that Stop. Location comes from address, not from lat/lng.",
       inputSchema: { tripId: z.string(), ...itemCreateShape },
     },
-    ({ tripId, refundable, ...rest }) =>
+    ({ tripId, refundable, endsAt, ...rest }) =>
       runWrite(
         "add_thing_to_do",
         async () => {
           await requireRealPlanRows([["stop", rest.stopId]]);
           // UNKNOWN maps to null, but there's nothing to clear on a create: that's
           // just not setting it, same as omitting the field (?? undefined).
-          return createItem(tripId, { ...rest, refundable: refundableFromMcp(refundable) ?? undefined });
+          return createItem(tripId, { ...rest, endAddress: endsAt, refundable: refundableFromMcp(refundable) ?? undefined });
         },
         async (done) => ({ item: await loadItemForMcp(done.id) }),
       ),
@@ -176,7 +181,7 @@ export function registerPlanWriteTools(server: McpServer): void {
         "A null startTime clears it too, letting a slot (if set) default it again. Moving the slot never moves a start time that is already set.",
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
-    ({ itemId, refundable, ...patch }) =>
+    ({ itemId, refundable, endsAt, ...patch }) =>
       runWrite(
         "update_thing_to_do",
         async () => {
@@ -184,7 +189,7 @@ export function registerPlanWriteTools(server: McpServer): void {
             ["item", itemId],
             ["stop", patch.stopId],
           ]);
-          return updateItem(itemId, bookingPatchFrom({ ...patch, refundable: refundableFromMcp(refundable) }));
+          return updateItem(itemId, bookingPatchFrom({ ...patch, endAddress: endsAt, refundable: refundableFromMcp(refundable) }));
         },
         async () => ({ item: await loadItemForMcp(itemId) }),
       ),

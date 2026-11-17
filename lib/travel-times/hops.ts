@@ -15,6 +15,8 @@ export type HopItem = {
   sortOrder: number;
   lat: number | null;
   lng: number | null;
+  endLat: number | null;
+  endLng: number | null;
   stopId: string | null;
 };
 
@@ -101,6 +103,27 @@ export function effectiveLocalMode(
 
 function located(lat: number | null | undefined, lng: number | null | undefined): Pt | null {
   return lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+export function departurePoint(item: {
+  lat: number | null | undefined;
+  lng: number | null | undefined;
+  endLat?: number | null;
+  endLng?: number | null;
+}): Pt | null {
+  return located(item.endLat, item.endLng) ?? located(item.lat, item.lng);
+}
+
+export function itemRouteKey(item: {
+  lat: number | null | undefined;
+  lng: number | null | undefined;
+  endLat?: number | null;
+  endLng?: number | null;
+}): string | null {
+  const end = located(item.endLat, item.endLng);
+  const start = located(item.lat, item.lng);
+  if (!end || !start || samePoint(start, end)) return null;
+  return routeKey("WALK", start, end);
 }
 
 function hhmmToMin(t: string): number {
@@ -193,7 +216,7 @@ export function hopInputs(
     planTransports: PlanTransport[];
   },
 ): { from: Pt; to: Pt; localMode: LocalMode; departure: Date | null } | null {
-  const from = located(pair.from.lat, pair.from.lng);
+  const from = departurePoint(pair.from);
   const to = located(pair.to.lat, pair.to.lng);
   if (!from || !to) return null;
   const stop = pair.from.stopId ? ctx.stopsById.get(pair.from.stopId) : undefined;
@@ -311,6 +334,8 @@ export type HopItemRow = {
   sortOrder?: number | null;
   lat?: number | null;
   lng?: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
   stopId?: string | null;
 };
 export type HopStopRow = { id: string; localTravelMode?: string | null; timezone?: string | null; lat?: number | null; lng?: number | null };
@@ -351,6 +376,8 @@ export function toHopItem(it: HopItemRow): HopItem {
     sortOrder: it.sortOrder ?? 0,
     lat: it.lat ?? null,
     lng: it.lng ?? null,
+    endLat: it.endLat ?? null,
+    endLng: it.endLng ?? null,
     stopId: it.stopId ?? null,
   };
 }
@@ -394,6 +421,10 @@ export function planTravelKeys(
   const planTransports = plan.transports.map(toPlanTransport);
   const items = plan.items.map(toHopItem).sort(byHopOrder);
   const keys = new Set<string>();
+  for (const it of items) {
+    const route = itemRouteKey(it);
+    if (route) keys.add(route);
+  }
   for (const pair of planHops(items, planTransports)) {
     const hop = hopInputs(pair, { stopsById, planTransports });
     if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now, opts.purpose)) keys.add(k);
