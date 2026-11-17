@@ -31,11 +31,12 @@ import { zoneLabel } from "@/lib/time-display";
 import { computeTripPhase, type TripPhase } from "@/lib/trip-phase";
 import { canWriteJournal } from "@/lib/journal-window";
 import { groupJournalDayByAuthor } from "@/lib/journal-authors";
-import { itemPhotoUrl } from "@/lib/item-photo";
 import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { readDayRows, type DayReadContext } from "@/lib/day-reads";
 import {
   buildDayModel,
+  buildDayEntryEditor,
+  buildEditorBase,
   dayHeading,
   dayEyebrow,
   daySubLine,
@@ -238,35 +239,11 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
 function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[], travel: TravelLookup) {
   const { trip, stops, items, transports } = rows;
   const stopById = new Map(stops.map((s) => [s.id, s]));
-  const costsByOwner: Record<string, CostRow[]> = {};
-  for (const c of costs) if (c.ownerId) (costsByOwner[c.ownerId] ??= []).push(c);
   // The strip's dots count what the day shows: the dated Items already read, placeholders included.
   const itemsByDate = new Map<string, number>();
   for (const it of items) if (it.date) itemsByDate.set(it.date, (itemsByDate.get(it.date) ?? 0) + 1);
   const windowDates = tripDays(rows.startDate, rows.endDate);
-  const attachmentsById = new Map(rows.attachments.map((a) => [a.id, { url: a.url }]));
-  const editorBase: Omit<DayEntryEditor, "accommodations"> = {
-    tripId,
-    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate, lat: s.lat, lng: s.lng })),
-    homeCurrency: trip.homeCurrency,
-    homeBaseName: trip.homeName,
-    homeTimezone: trip.homeTimezone,
-    items: Object.fromEntries(items.map((i) => [i.id, { ...i, photoUrl: itemPhotoUrl(i, attachmentsById) }])),
-    transports: Object.fromEntries(
-      transports.map((t) => [
-        t.id,
-        {
-          ...t,
-          mode: t.mode as TransportMode,
-          fromStopName: t.fromStopId ? (stopById.get(t.fromStopId)?.name ?? null) : null,
-          toStopName: t.toStopId ? (stopById.get(t.toStopId)?.name ?? null) : null,
-          fromStopTimezone: t.fromStopId ? (stopById.get(t.fromStopId)?.timezone ?? null) : null,
-          toStopTimezone: t.toStopId ? (stopById.get(t.toStopId)?.timezone ?? null) : null,
-        },
-      ]),
-    ),
-    costsByOwner,
-  };
+  const editorBase = buildEditorBase(tripId, rows, costs);
   return {
     today: tripTodayISO(stops, trip.homeTimezone),
     travel,
@@ -297,19 +274,12 @@ function projectDayView(
   day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"]; holidayLines: Map<string, string[]>; needsConfirmationIds: string[] },
 ): DayViewData {
   const { trip, startDate, endDate, items, transports } = rows;
-  const { date, dayPlan, dayStop, freeForm, hasEntries, accommodations, tonight: bed } = model;
+  const { date, dayPlan, dayStop, freeForm, hasEntries, tonight: bed } = model;
   const { stopById, today } = shared;
   const { holidayLines } = day;
 
-  const editor: DayEntryEditor = {
-    ...shared.editorBase,
-    accommodations: Object.fromEntries(
-      accommodations.map((a) => {
-        const st = stopById.get(a.stopId);
-        return [a.id, { accommodation: a, stopDateRange: { arriveDate: st?.arriveDate ?? a.checkIn, departDate: st?.departDate ?? a.checkOut } }];
-      }),
-    ),
-  };
+  const phase = computeTripPhase({ startDate, endDate, today });
+  const editor = buildDayEntryEditor(rows, shared.editorBase, model, phase);
 
   const tonightNight = bed ? nightOfStay(date, bed.checkIn, bed.checkOut) : null;
   const tonight =
@@ -322,7 +292,6 @@ function projectDayView(
       : null;
 
   // ── Phase and the Journal window ──
-  const phase = computeTripPhase({ startDate, endDate, today });
   const journalOpen = canWriteJournal({ startDate, endDate, today, date });
   const journalSlots = groupJournalDayByAuthor({
     entries: day.journalEntries,

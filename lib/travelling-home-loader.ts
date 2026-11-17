@@ -25,7 +25,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { tripTodayISO } from "@/lib/trip-today";
 import { effectiveTodayISO, type TransportDepartureEntry } from "@/lib/itinerary";
-import { buildDayModel } from "@/lib/day-view-model";
+import { buildDayModel, buildDayEntryEditor, buildEditorBase } from "@/lib/day-view-model";
+import { computeTripPhase } from "@/lib/trip-phase";
 import { withDayMapHops } from "@/lib/day-map";
 import { effectiveLocalMode, homePointOf } from "@/lib/travel-times/hops";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
@@ -110,6 +111,19 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       })
     : [];
 
+  // The Day view's own editor for today, so Today's plan rows open the same details. Costs inside a Surprise hidden from the viewer are left out, as the Day view's read does.
+  const hiddenOwners = new Set(v.hiddenOwnerIds);
+  const editor = buildDayEntryEditor(
+    rows,
+    buildEditorBase(
+      tripId,
+      rows,
+      costs.filter((c) => c.ownerId && !hiddenOwners.has(c.ownerId) && (c.ownerType === "ITEM" || c.ownerType === "TRANSPORT" || c.ownerType === "ACCOMMODATION")),
+    ),
+    day,
+    computeTripPhase({ startDate, endDate, today }),
+  );
+
   const isBeforeTrip = today < startDate;
   const isAfterTrip = today > endDate;
   const isWithinTrip = today >= startDate && today <= endDate;
@@ -145,7 +159,6 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // outside the trip. Surprise: the lines leave out money inside a Surprise
   // hidden from the viewer.
   const rateById = new Map(applyFxRatesToCosts({ costs, exchangeRates, homeCurrency }).map((c) => [c.id, c.rateToHome] as const));
-  const hiddenOwners = new Set(v.hiddenOwnerIds);
   const lineCosts = costs
     .filter((c) => !c.ownerId || !hiddenOwners.has(c.ownerId))
     .map((c) => ({ ...c, rateToHome: rateById.get(c.id) ?? null }));
@@ -251,6 +264,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     todaysDayTitle: day.dayTitle?.title ?? null,
     holidays: holidayLines.get(effectiveDate) ?? [],
     dayPlan: day.dayPlan,
+    editor,
     hasEntries: day.hasEntries,
     attachmentsByTarget: day.attachmentsByTarget,
     needsConfirmationIds: confirmationsToAdd.map((c) => c.id),

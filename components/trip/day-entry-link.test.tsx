@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -17,7 +17,7 @@ import { DayEntryLink, type DayEntryEditor } from "./day-entry-link";
 
 const editor: DayEntryEditor = {
   tripId: "t1", stops: [{ id: "s1", name: "Munich", arriveDate: "2026-12-08" }], homeCurrency: "AUD", homeBaseName: null,
-  items: {}, transports: {}, accommodations: {}, costsByOwner: {},
+  items: {}, transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
 };
 
 describe("DayEntryLink", () => {
@@ -61,5 +61,68 @@ describe("DayEntryLink", () => {
     );
     await user.click(screen.getByRole("button"));
     expect(screen.getByTestId("accommodation-dialog")).toHaveTextContent("a1:2026-12-08");
+  });
+});
+
+function setViewport(phone: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches: query.includes("max-width") ? phone : !phone,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia;
+}
+
+describe("DayEntryLink on the road (readFirst)", () => {
+  const road: DayEntryEditor = { ...editor, readFirst: true };
+  const item = { id: "i1", bookingStateSet: false, title: "Tower", category: "SIGHTSEEING" } as const;
+  const transport = { id: "tr1", bookingStateSet: false, mode: "TRAIN", sortOrder: 0 } as const;
+
+  beforeEach(() => setViewport(true));
+
+  it("on a phone shows the details sheet, not the form", async () => {
+    const user = userEvent.setup();
+    render(<DayEntryLink editor={road} attachments={[]} target={{ kind: "item", item }}>Tower</DayEntryLink>);
+    await user.click(screen.getByRole("button", { name: "Tower" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Tower");
+    expect(screen.queryByTestId("item-dialog")).toBeNull();
+  });
+
+  it("Edit closes the sheet, then opens the form", async () => {
+    const user = userEvent.setup();
+    render(<DayEntryLink editor={road} attachments={[]} target={{ kind: "transport", transport }}>Train</DayEntryLink>);
+    await user.click(screen.getByRole("button", { name: "Train" }));
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId("transport-dialog")).toHaveTextContent("tr1");
+  });
+
+  it("on desktop opens the form directly", async () => {
+    setViewport(false);
+    const user = userEvent.setup();
+    render(<DayEntryLink editor={road} attachments={[]} target={{ kind: "item", item }}>Tower</DayEntryLink>);
+    await user.click(screen.getByRole("button", { name: "Tower" }));
+    expect(screen.getByTestId("item-dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("in a planning phase on a phone opens the form directly", async () => {
+    const user = userEvent.setup();
+    render(<DayEntryLink editor={{ ...road, readFirst: false }} attachments={[]} target={{ kind: "item", item }}>Tower</DayEntryLink>);
+    await user.click(screen.getByRole("button", { name: "Tower" }));
+    expect(screen.getByTestId("item-dialog")).toBeInTheDocument();
+  });
+
+  it("a Surprise being sprung shows the masked title and no Edit", async () => {
+    const user = userEvent.setup();
+    const surprise = { plannerId: "p", plannerName: "Pat", forIds: ["v"], forNames: ["Viv"], youAreSurprised: true };
+    render(
+      <DayEntryLink editor={road} attachments={[]} target={{ kind: "item", item: { ...item, title: "Surprise", surprise } }}>
+        Surprise
+      </DayEntryLink>,
+    );
+    await user.click(screen.getByRole("button", { name: "Surprise" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Surprise");
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
   });
 });

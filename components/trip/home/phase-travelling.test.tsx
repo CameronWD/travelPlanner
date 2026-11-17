@@ -54,7 +54,7 @@ const { loadSurpriseVisibilityMock, loadBookingConfirmationsToAddMock } = vi.hoi
 vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd: loadBookingConfirmationsToAddMock }));
 
 // Records the Timeline's props (it renders nothing here).
-type TimelineProps = { todayISO?: string; day: { dateISO: string } };
+type TimelineProps = { todayISO?: string; day: { dateISO: string }; editor?: { readFirst: boolean; transports: Record<string, { fromStopName?: string | null; toStopName?: string | null }>; items: Record<string, unknown>; costsByOwner: Record<string, unknown> } };
 const { timelineMock } = vi.hoisted(() => ({ timelineMock: vi.fn<(props: TimelineProps) => null>(() => null) }));
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
@@ -834,6 +834,54 @@ describe("PhaseTravelling passes the real today to the Timeline", () => {
       expect(props.todayISO).not.toBe("2999-01-01");
       expect(props.todayISO! < "2999-01-01").toBe(true);
     }
+  });
+});
+
+describe("PhaseTravelling gives Today's plan an editor (spec D1)", () => {
+  async function fixture(startDate: string, endDate: string, today: string) {
+    const { hiddenVisibility } = await import("@/test/helpers/surprise-visibility");
+    const original = tripTodayISOMock.getMockImplementation();
+    tripTodayISOMock.mockReturnValue(today);
+    onTestFinished(() => {
+      tripTodayISOMock.mockImplementation(original!);
+    });
+    tripFindUniqueMock.mockResolvedValue({ startDate, endDate, homeCurrency: "GBP", chaptersEnabled: false });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", name: "Munich", timezone: "Europe/Berlin", arriveDate: startDate, departDate: endDate, sortOrder: 0 },
+      { id: "s2", name: "Vienna", timezone: "Europe/Vienna", arriveDate: endDate, departDate: endDate, sortOrder: 1 },
+    ]);
+    itemFindManyMock.mockResolvedValue([
+      { id: "i1", title: "Museum", category: "SIGHTSEEING", startTime: "10:00", stopId: "s1", date: today },
+      { id: "i2", title: "Hidden thing", category: "SIGHTSEEING", startTime: "11:00", stopId: "s1", date: today },
+    ]);
+    transportFindManyMock.mockResolvedValue([{ id: "t1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2", sortOrder: 0 }]);
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", ownerType: "ITEM", ownerId: "i1", costMinor: 100, currency: "GBP" },
+      { id: "c2", ownerType: "ITEM", ownerId: "i2", costMinor: 200, currency: "GBP" },
+      { id: "c3", ownerType: "OTHER", ownerId: null, costMinor: 300, currency: "GBP" },
+    ]);
+    loadSurpriseVisibilityMock.mockResolvedValueOnce({ ...hiddenVisibility({}), hiddenOwnerIds: ["i2"] });
+    vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue(today);
+    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, tripElapsedPct: 0 });
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, dateISO: today, timedItems: [{ kind: "item", item: { id: "i1", title: "Museum", category: "SIGHTSEEING", startTime: "10:00" } }], stop: { id: "s1", name: "Munich" } });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reminderFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+  });
+
+  it("while Travelling the phone Timeline gets an editor that reads first, knows the Stop names and holds only visible Costs", async () => {
+    await fixture("2026-01-01", "2026-01-10", "2026-01-05");
+    toDom(await PhaseTravelling({ tripId: "trip-1", layout: "phone" }));
+    const editor = timelineMock.mock.calls.at(-1)![0].editor!;
+    expect(editor.readFirst).toBe(true);
+    expect(editor.transports.t1).toMatchObject({ fromStopName: "Munich", toStopName: "Vienna" });
+    expect(Object.keys(editor.items)).toContain("i1");
+    expect(Object.keys(editor.costsByOwner)).toEqual(["i1"]);
   });
 });
 

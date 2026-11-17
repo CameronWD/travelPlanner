@@ -3,6 +3,7 @@ import type { OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import type { CostRow } from "@/lib/money/cost-row";
 import type { TryList } from "@/lib/try-list";
+import type { LocalMode } from "@/lib/travel-times/hops";
 
 /**
  * The Plan's entity rows as the cards and the three edit dialogs take them,
@@ -136,4 +137,8 @@ export interface DayEntryEditor {
     { accommodation: AccommodationCardAccommodation; stopDateRange: { arriveDate: string; departDate: string } }
   >;
   costsByOwner: Record<string, CostRow[]>;
+  /** Travelling or Past: on a phone a tap shows the entry read-only first, Edit one tap further. */
+  readFirst: boolean;
+  /** The day's Local travel mode, for the details sheet's Directions; null on a gap day. */
+  localMode?: LocalMode | null;
 }

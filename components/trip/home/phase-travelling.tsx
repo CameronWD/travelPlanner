@@ -92,6 +92,7 @@ export async function PhaseTravelling({
     totalDays,
     todaysDayTitle,
     dayPlan,
+    editor,
     hasEntries,
     attachmentsByTarget,
     needsConfirmationIds,
@@ -187,7 +188,7 @@ export async function PhaseTravelling({
         </h3>
         <div className="mt-2.5">
           {dayPlan && hasEntries ? (
-            <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} todayISO={today} needsConfirmationIds={needsConfirmationIds} />
+            <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} editor={editor} todayISO={today} needsConfirmationIds={needsConfirmationIds} />
           ) : (
             <EmptyState
               icon={CalendarDays}
