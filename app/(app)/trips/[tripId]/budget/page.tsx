@@ -22,6 +22,8 @@ import { buildCostLabelMap } from "@/lib/money/cost-labels";
 import { cn } from "@/lib/cn";
 import { moneyMetaLine, missingRatesLine, ratesUpdatedNote } from "@/lib/money/summary-lines";
 import { breakdownOptions, parseBy, rowsFor, segmentsFor } from "@/lib/money/breakdown";
+import { recentCosts } from "@/lib/money/recent-costs";
+import { dayRowsWithStandalone, NOT_ON_A_DAY_KEY } from "@/lib/money/standalone-days";
 import { MoneyHeader } from "@/components/money/money-header";
 import { AddCostButton } from "@/components/money/add-cost-button";
 import { CostTile } from "@/components/money/cost-tile";
@@ -238,10 +240,25 @@ export default async function BudgetPage({
     } as RateEntry;
   });
 
-  // Days with any cost — gates the Day grouping
-  const daysWithCosts = budget.byDay.filter(
-    (d) => d.costTotalMinor > 0 || d.paidTotalMinor > 0,
-  );
+  // A Cost with no dated owner (an Other cost, or a thing with no date) can
+  // only sit on a day by its own paid or Due date; the rest land in "Not on a day".
+  const surpriseIds = new Set(budget.surpriseCostIds);
+  const datedItems = new Set(items.filter((i) => i.date).map((i) => i.id));
+  const datedTransports = new Set(transports.filter((t) => t.depAt).map((t) => t.id));
+  const datedAccommodations = new Set(accommodations.map((a) => a.id));
+  const standaloneCosts = allCosts.filter((c) => {
+    if (surpriseIds.has(c.id)) return false;
+    const id = c.ownerId ?? "";
+    if (c.ownerType === "ITEM") return !datedItems.has(id);
+    if (c.ownerType === "TRANSPORT") return !datedTransports.has(id);
+    if (c.ownerType === "ACCOMMODATION") return !datedAccommodations.has(id);
+    return true;
+  });
+  const dayRows = dayRowsWithStandalone({
+    budget,
+    homeCurrency,
+    costs: standaloneCosts.map((c) => ({ ...c, ownerType: c.ownerType as SpendCost["ownerType"] })),
+  });
 
   // Build per-row missing-rate indicators: which categories have costs whose
   // currency has no exchange rate? They carry a No rate chip in Where it goes.
@@ -287,7 +304,7 @@ export default async function BudgetPage({
     );
   }
 
-  const options = breakdownOptions({ chapters: chaptersEnabled && budget.byChapter.length > 0, days: daysWithCosts.length > 0 });
+  const options = breakdownOptions({ chapters: chaptersEnabled && budget.byChapter.length > 0, days: dayRows.some((r) => r.key !== NOT_ON_A_DAY_KEY) });
   const by = parseBy(rawBy, options.map((o) => o.value));
   const stopChapterColour = new Map(
     chaptersEnabled
@@ -297,13 +314,14 @@ export default async function BudgetPage({
         })
       : [],
   );
-  const rows = rowsFor(budget, by, { stopChapterColour, missingRateCategories: categoriesWithMissingRates });
+  const rows = by === "day" ? dayRows : rowsFor(budget, by, { stopChapterColour, missingRateCategories: categoriesWithMissingRates });
   const segments = by === "day" ? [] : segmentsFor(rows, budget.grandTotal.costTotalMinor);
   // Surprise (ADR 0051): the lines list drops costs folded into the
   // "Surprise" byCategory row — the money stays in every total above, only
   // the individual lines (and their owner's title/date) are hidden.
   const surpriseCostIds = new Set(budget.surpriseCostIds);
   const visibleCosts = allCosts.filter((c) => !surpriseCostIds.has(c.id));
+  const recentIds = recentCosts(visibleCosts).map((c) => c.id);
   const toPayInputs = visibleCosts.map((c) => ({ ...c, displayLabel: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost" }));
   const ratesNote = ratesUpdatedNote(
     foreignCurrencies.flatMap((c) => {
@@ -351,6 +369,7 @@ export default async function BudgetPage({
                 today={today}
                 costs={toPayInputs}
                 costRows={visibleCosts}
+                recentIds={recentIds}
                 ratesFooter={ratesStrip}
               />
             ) : null}

@@ -10,6 +10,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import type { ToPayRow } from "@/lib/money/to-pay";
 import { ToPayRowView } from "./to-pay-row";
+import { formatMoneyWhole } from "@/lib/money/format-parts";
 import { PaidConfirm } from "@/components/money/paid-confirm";
 import { OtherCostFormDialog } from "@/components/trip/other-cost-editor";
 import { OwnedCostFormDialog } from "@/components/trip/cost-editor";
@@ -18,18 +19,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 /** Rows shown on the card before the rest fold into "All N costs" (MONEY.md §4). */
 const TO_PAY_DESKTOP_ROWS = 5;
 const TO_PAY_PHONE_ROWS = 2;
+const RECENT_PHONE_ROWS = 3;
 
 export function ToPayPanel({
   tripId,
   homeCurrency,
   rows,
   costs,
+  recentIds,
   ratesFooter,
 }: {
   tripId: string;
   homeCurrency: string;
   rows: ToPayRow[];
   costs: CostRow[];
+  recentIds: string[];
   ratesFooter?: React.ReactNode;
 }) {
   const [optimistic, setPaid] = React.useOptimistic(rows, (state, u: { id: string; paid: boolean }) =>
@@ -98,6 +102,8 @@ export function ToPayPanel({
   const [mountIds] = React.useState(() => new Set(rows.map((r) => r.id)));
   const [settledIds, setSettledIds] = React.useState<ReadonlySet<string>>(() => new Set());
   const risesIn = (id: string) => !mountIds.has(id) && !settledIds.has(id);
+
+  const recentRows = recentIds.flatMap((id) => optimistic.find((r) => r.id === id) ?? []);
 
   const editingCost = editing != null ? costs.find((c) => c.id === editing) : undefined;
 
@@ -174,6 +180,44 @@ export function ToPayPanel({
       >
         All {rows.length} costs <ChevronRight className="size-4" aria-hidden="true" />
       </button>
+
+      {recentRows.length > 0 ? (
+        <section aria-labelledby="recent-heading" className="mt-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 id="recent-heading" className="font-display text-base font-extrabold tracking-[-0.02em]">
+              Recent
+            </h3>
+            <button
+              type="button"
+              onClick={() => setAllOpen(true)}
+              className="inline-flex min-h-11 items-center gap-0.5 whitespace-nowrap text-[13px] font-bold"
+            >
+              All costs <ChevronRight className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+          <ul aria-label="Recent costs">
+            {recentRows.map((row, i) => (
+              <li
+                key={row.id}
+                className={cn("flex min-h-[44px] items-center gap-3 border-b-2 border-muted py-2", i >= RECENT_PHONE_ROWS && "max-md:hidden")}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{row.label}</p>
+                  {row.dueLine ? <p className="text-xs font-semibold text-muted-foreground">{row.dueLine}</p> : null}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[15px] font-extrabold tabular-nums">
+                    {row.homeMinor != null ? formatMoneyWhole(row.homeMinor, homeCurrency) : formatMoneyWhole(row.originalMinor, row.currency)}
+                  </p>
+                  {row.foreign && row.homeMinor != null ? (
+                    <p className="text-[11px] font-semibold tabular-nums text-muted-foreground">{formatMoneyWhole(row.originalMinor, row.currency)}</p>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <Dialog open={allOpen} onOpenChange={setAllOpen}>
         <DialogContent>

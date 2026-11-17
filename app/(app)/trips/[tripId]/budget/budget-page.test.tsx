@@ -35,7 +35,7 @@ vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => scen
 vi.mock("@/lib/money/fx", () => ({ isRateStale: vi.fn(() => false) }));
 vi.mock("@/lib/tz", () => ({ todayISOInZone: vi.fn(() => "2026-01-05"), currentTripTimezone: vi.fn(() => "UTC") }));
 vi.mock("@/lib/dates", async (orig) => ({ ...(await orig<typeof import("@/lib/dates")>()), nightsBetween: vi.fn(() => 9) }));
-vi.mock("@/lib/money/budget", () => ({ buildBudget: vi.fn() }));
+vi.mock("@/lib/money/budget", async (orig) => ({ ...(await orig<typeof import("@/lib/money/budget")>()), buildBudget: vi.fn() }));
 vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: vi.fn(() => ({ paidSoFarMinor: 0 })) }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
 vi.mock("@/components/trip/variant-banner", () => ({
@@ -321,5 +321,18 @@ describe("Money page — Cost owner labels", () => {
     await renderPage();
     const labels = screen.getByTestId("to-pay-panel").getAttribute("data-labels")!.split("|");
     expect(labels).toEqual(expect.arrayContaining(["Pastéis de Belém", "Hotel Avenida"]));
+  });
+});
+
+describe("Money page — Day grouping includes standalone Costs", () => {
+  it("offers Day once a standalone Cost sits on a day, and hands Recent to the card", async () => {
+    scenario.costs = [
+      { ...ONE_COST[0], id: "lunch", label: "Lunch", paidMinor: 1000, paidAt: new Date("2026-01-03") },
+      { ...ONE_COST[0], id: "old", label: "Old", paidAt: new Date("2025-12-01"), paidMinor: 1000 },
+    ];
+    vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, byDay: [{ dateISO: "2026-01-03", ...zero }] } as never);
+    await renderPage({ by: "day" });
+    expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-value", "day");
+    expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-options", "category,place,day");
   });
 });
