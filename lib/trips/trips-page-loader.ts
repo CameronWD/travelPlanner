@@ -64,7 +64,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
               orderBy: { sortOrder: "asc" },
               select: { id: true, name: true, lat: true, lng: true, arriveDate: true, departDate: true, nights: true, sortOrder: true, timezone: true, countryCode: true },
             },
-            transports: { where: REAL_PLAN, select: { fromStopId: true, toStopId: true, depAt: true } },
+            transports: { where: REAL_PLAN, orderBy: { sortOrder: "asc" }, select: { fromStopId: true, toStopId: true, depAt: true, arrAt: true } },
           },
         },
       },

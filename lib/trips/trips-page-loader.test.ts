@@ -43,6 +43,14 @@ describe("loadTripsPage", () => {
 
   // ADR 0067 (Recently deleted): a Trip that's been soft-deleted must never
   // surface on /trips, so the membership read itself excludes it.
+  it("reads each Trip's Transports in plan order, with both times, for 'Now in'", async () => {
+    m.findMany.mockResolvedValue([]);
+    await loadTripsPage("u", TODAY);
+    expect(m.findMany.mock.calls[0][0].select.trip.select.transports).toEqual({
+      where: { forkId: null }, orderBy: { sortOrder: "asc" }, select: { fromStopId: true, toStopId: true, depAt: true, arrAt: true },
+    });
+  });
+
   it("excludes a Trip in Recently deleted from the membership query", async () => {
     m.findMany.mockResolvedValue([]);
     await loadTripsPage("u", TODAY);
@@ -157,7 +165,7 @@ describe("loadTripsPage", () => {
           id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01"),
           stops: [paris, london],
           // 07:02 in Paris.
-          transports: [{ fromStopId: "par", toStopId: "lon", depAt: new Date("2026-12-19T06:02:00Z") }],
+          transports: [{ fromStopId: "par", toStopId: "lon", depAt: new Date("2026-12-19T06:02:00Z"), arrAt: new Date("2026-12-19T08:30:00Z") }],
         }),
       },
     ]);
@@ -165,6 +173,8 @@ describe("loadTripsPage", () => {
     vi.setSystemTime(new Date("2026-12-19T05:30:00Z"));
     expect((await loadTripsPage("u", "2026-12-19")).cards[0].dateLine).toBe("Now in Paris");
     vi.setSystemTime(new Date("2026-12-19T07:00:00Z"));
+    expect((await loadTripsPage("u", "2026-12-19")).cards[0].dateLine).not.toMatch(/^Now in/);
+    vi.setSystemTime(new Date("2026-12-19T09:00:00Z"));
     expect((await loadTripsPage("u", "2026-12-19")).cards[0].dateLine).toBe("Now in London");
   });
 

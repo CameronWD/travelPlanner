@@ -1294,6 +1294,7 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
   });
 
   it("carries Now / next beside the desktop's next departure fields", async () => {
+    pinClockInsideStay();
     const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true });
     stopFindManyMock.mockResolvedValue([PARIS, LONDON]);
@@ -1313,7 +1314,7 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
     });
   });
 
-  it("names the Stop being left as Where you are on a Changeover morning, until its Transport departs", async () => {
+  it("names the Stop being left as Where you are on a Changeover morning, nothing in transit, then the arriving Stop", async () => {
     const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-12-04", endDate: "2027-01-08", homeCurrency: "AUD", chaptersEnabled: true });
     stopFindManyMock.mockResolvedValue([PARIS, LONDON]);
@@ -1332,6 +1333,13 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
     expect(before.stopLocated).toMatchObject({ id: "par", lat: 48.86, lng: 2.35 });
 
     vi.setSystemTime(new Date("2026-12-19T07:00:00Z"));
+    const moving = await loadTravellingHome("trip-1", "changeover-moving");
+    if (moving.kind !== "dated") throw new Error(moving.kind);
+    expect(moving.effectiveStop).toBeNull();
+    expect(moving.stopLocated).toBeUndefined();
+    expect(moving.nowNext).toMatchObject({ kind: "in-transit", transportId: "tr-1", arrivesName: "London" });
+
+    vi.setSystemTime(new Date("2026-12-19T09:00:00Z"));
     const after = await loadTravellingHome("trip-1", "changeover-after");
     if (after.kind !== "dated") throw new Error(after.kind);
     expect(after.effectiveStop).toMatchObject({ id: "lon", name: "London" });

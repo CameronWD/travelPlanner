@@ -11,7 +11,9 @@ const STOPS: NowNextStop[] = [
   stop("sxb", "Strasbourg", "Europe/Paris", "2026-12-10", "2026-12-13", 2),
   stop("par", "Paris", "Europe/Paris", "2026-12-15", "2026-12-19", 3),
   stop("lon", "London", "Europe/London", "2026-12-19", "2026-12-23", 4),
-  stop("rom", "Rome", "Europe/Rome", "2027-01-03", "2027-01-07", 5),
+  stop("dub", "Dublin", "Europe/Dublin", "2026-12-26", "2026-12-30", 5),
+  stop("com", "Como", "Europe/Rome", "2026-12-30", "2027-01-02", 6),
+  stop("rom", "Rome", "Europe/Rome", "2027-01-03", "2027-01-07", 7),
 ];
 
 const leg = (over: Partial<NowNextTransport> & Pick<NowNextTransport, "id">): NowNextTransport => ({
@@ -21,7 +23,8 @@ const leg = (over: Partial<NowNextTransport> & Pick<NowNextTransport, "id">): No
 
 // 4 Dec 07:50 in Brisbane is 21:50Z on the 3rd; 7 Jan 07:55 in Rome is 06:55Z; 8 Jan 07:30 in Brisbane is 21:30Z on the 7th.
 const HOME_TO_DPS = leg({ id: "home-dps", depIsHome: true, toStopId: "dps", depAt: new Date("2026-12-03T21:50:00Z"), arrAt: new Date("2026-12-04T04:50:00Z") });
-const DPS_TO_MUC = leg({ id: "dps-muc", fromStopId: "dps", toStopId: "muc", depAt: new Date("2026-12-05T13:00:00Z"), arrAt: new Date("2026-12-06T06:00:00Z") });
+// 5 Dec 11:00 in Denpasar is 03:00Z; it lands in Munich at 04:45Z on the 6th.
+const DPS_TO_MUC = leg({ id: "dps-muc", fromStopId: "dps", toStopId: "muc", depAt: new Date("2026-12-05T03:00:00Z"), arrAt: new Date("2026-12-06T04:45:00Z") });
 const MUC_TO_SXB = leg({ id: "muc-sxb", mode: "CAR", fromStopId: "muc", toStopId: "sxb", depAt: new Date("2026-12-10T07:30:00Z"), arrAt: new Date("2026-12-10T15:00:00Z") });
 // 19 Dec 07:02 in Paris is 06:02Z.
 const PAR_TO_LON = leg({ id: "par-lon", mode: "TRAIN", fromStopId: "par", toStopId: "lon", depAt: new Date("2026-12-19T06:02:00Z"), arrAt: new Date("2026-12-19T08:30:00Z") });
@@ -46,6 +49,7 @@ describe("nowNext", () => {
       transportId: "muc-sxb",
       mode: "CAR",
       routeLabel: "Munich to Strasbourg",
+      arrivesName: "Strasbourg",
       arrivesAt: "2026-12-10T15:00:00.000Z",
       arrivesZone: "Europe/Paris",
     });
@@ -89,6 +93,10 @@ describe("nowNext", () => {
     });
   });
 
+  it("with the departure exactly 24 hours away, is not within a day", () => {
+    expect(nowNext(input(), new Date("2026-12-18T06:02:00Z"))).toMatchObject({ kind: "next-departure", transportId: "par-lon", withinDay: false });
+  });
+
   it("with the departure 5 hours away, is within a day", () => {
     expect(nowNext(input(), new Date("2026-12-19T01:02:00Z"))).toMatchObject({ kind: "next-departure", transportId: "par-lon", withinDay: true });
   });
@@ -130,12 +138,21 @@ describe("nowNext", () => {
     expect(nowNext(input({ transports: [transfer] }), new Date("2026-12-12T07:00:00Z"))).toMatchObject({ routeLabel: "Strasbourg to Milan Malpensa" });
   });
 
+  it("names an in-transit leg's arrival by its point when it has no Stop", () => {
+    const flight = leg({ id: "dub-mxp", fromStopId: "dub", arrPlace: "Milan Malpensa", depAt: new Date("2026-12-30T10:00:00Z"), arrAt: new Date("2026-12-30T13:30:00Z") });
+    const open = leg({ id: "x", fromStopId: "dub", depAt: new Date("2026-12-30T10:00:00Z"), arrAt: new Date("2026-12-30T13:30:00Z") });
+    const at = new Date("2026-12-30T12:00:00Z");
+    expect(nowNext(input({ transports: [flight] }), at)).toMatchObject({ kind: "in-transit", arrivesName: "Milan Malpensa" });
+    expect(nowNext(input({ transports: [open] }), at)).toMatchObject({ kind: "in-transit", arrivesName: null });
+  });
+
   it("on the overnight Rome to Home leg at 23:00 on the 7th (Brisbane), is in transit", () => {
     expect(nowNext(input(), new Date("2027-01-07T13:00:00Z"))).toEqual({
       kind: "in-transit",
       transportId: "rom-home",
       mode: "FLIGHT",
       routeLabel: "Rome to Gold Coast",
+      arrivesName: "Gold Coast",
       arrivesAt: "2027-01-07T21:30:00.000Z",
       arrivesZone: "Australia/Brisbane",
     });
@@ -151,8 +168,41 @@ describe("whereYouAre", () => {
     expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-19T05:30:00Z"))).toEqual({ stopId: "par", name: "Paris" });
   });
 
-  it("on a Changeover day after the departure, is the arriving Stop", () => {
-    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-19T07:00:00Z"))).toEqual({ stopId: "lon", name: "London" });
+  it("on a Changeover day, is null while the train is moving and the arriving Stop once it arrives", () => {
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-19T07:00:00Z"))).toBeNull();
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-19T09:00:00Z"))).toEqual({ stopId: "lon", name: "London" });
+  });
+
+  it("leaves Denpasar when its 11:00 flight departs and names Munich only once it lands", () => {
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-05T02:00:00Z"))).toEqual({ stopId: "dps", name: "Denpasar" });
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-05T03:00:00Z"))).toBeNull();
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-05T15:00:00Z"))).toBeNull();
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-05T23:30:00Z"))).toBeNull();
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-06T05:00:00Z"))).toEqual({ stopId: "muc", name: "Munich" });
+  });
+
+  it("names the arriving Stop from the landing, even before its arrive date starts there", () => {
+    const early = { ...DPS_TO_MUC, arrAt: new Date("2026-12-05T21:00:00Z") };
+    expect(whereYouAre(STOPS, [early], new Date("2026-12-05T21:30:00Z"))).toEqual({ stopId: "muc", name: "Munich" });
+  });
+
+  it("is null at Home before the first leg and after the last", () => {
+    // 05:00 on 4 Dec in Brisbane, before the 07:50 flight; then mid-flight.
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-03T19:00:00Z"))).toBeNull();
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-04T02:00:00Z"))).toBeNull();
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2026-12-04T06:00:00Z"))).toEqual({ stopId: "dps", name: "Denpasar" });
+    expect(whereYouAre(STOPS, ALL_LEGS, new Date("2027-01-07T07:00:00Z"))).toBeNull();
+  });
+
+  it("on a two-leg Changeover day, is the same whichever order the legs come in", () => {
+    // 30 Dec: Dublin 10:00 flight to Milan Malpensa (lands 13:30Z), then a 14:00Z bus to Como (arrives 15:30Z).
+    const flight = leg({ id: "dub-mxp", fromStopId: "dub", arrPlace: "Milan Malpensa", depAt: new Date("2026-12-30T10:00:00Z"), arrAt: new Date("2026-12-30T13:30:00Z") });
+    const bus = leg({ id: "mxp-com", mode: "BUS", depPlace: "Milan Malpensa", toStopId: "com", depAt: new Date("2026-12-30T14:00:00Z"), arrAt: new Date("2026-12-30T15:30:00Z") });
+    for (const legs of [[flight, bus], [bus, flight]]) {
+      expect(whereYouAre(STOPS, legs, new Date("2026-12-30T09:00:00Z"))).toEqual({ stopId: "dub", name: "Dublin" });
+      expect(whereYouAre(STOPS, legs, new Date("2026-12-30T13:45:00Z"))).toBeNull();
+      expect(whereYouAre(STOPS, legs, new Date("2026-12-30T16:00:00Z"))).toEqual({ stopId: "com", name: "Como" });
+    }
   });
 
   it("on a Changeover day whose leg has no time, is the Stop being left until noon there", () => {

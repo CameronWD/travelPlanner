@@ -1,11 +1,12 @@
 import { orderPlanStops } from "@/lib/plan-order";
-import { instantToZonedDateISO, zonedWallTimeToInstant } from "@/lib/tz";
+import { zonedWallTimeToInstant } from "@/lib/tz";
+import { addDays } from "@/lib/dates";
 import { resolveEndpointZones } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enum-values";
 import type { LatLng } from "@/lib/geo";
 
 export type NowNext =
-  | { kind: "in-transit"; transportId: string; mode: TransportMode; routeLabel: string; arrivesAt: string; arrivesZone: string }
+  | { kind: "in-transit"; transportId: string; mode: TransportMode; routeLabel: string; arrivesName: string | null; arrivesAt: string; arrivesZone: string }
   | { kind: "next-thing"; target: { type: "item" | "transport" | "accommodation"; id: string }; title: string; startsAt: string | null; zone: string; place: LatLng | null; address: string | null }
   | { kind: "next-departure"; transportId: string; mode: TransportMode; routeLabel: string; departsAt: string; departsZone: string; withinDay: boolean }
   | { kind: "nothing" };
@@ -60,7 +61,9 @@ export function nowNext(input: NowNextInput, now: Date): NowNext {
       t.toStopId ? stopById.get(t.toStopId)?.timezone : null,
       { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: input.home.timezone },
     );
-  const label = (t: NowNextTransport) => routeLabel(t, stopById, input.home.name);
+  const endName = (stopId: string | null, place: string | null, isHome: boolean) =>
+    (stopId ? stopById.get(stopId)?.name : null) || place || (isHome ? input.home.name : null);
+  const label = (t: NowNextTransport) => routeLabel(endName(t.fromStopId, t.depPlace, t.depIsHome), endName(t.toStopId, t.arrPlace, t.arrIsHome));
 
   const moving = input.transports.find((t) => t.depAt && t.arrAt && t.depAt <= now && now < t.arrAt);
   if (moving) {
@@ -69,6 +72,7 @@ export function nowNext(input: NowNextInput, now: Date): NowNext {
       transportId: moving.id,
       mode: moving.mode,
       routeLabel: label(moving),
+      arrivesName: endName(moving.toStopId, moving.arrPlace, moving.arrIsHome),
       arrivesAt: moving.arrAt!.toISOString(),
       arrivesZone: zones(moving).arrTz,
     };
@@ -113,11 +117,7 @@ export function nowNext(input: NowNextInput, now: Date): NowNext {
   return { kind: "nothing" };
 }
 
-function routeLabel(t: NowNextTransport, stopById: Map<string, NowNextStop>, homeName: string | null): string {
-  const end = (stopId: string | null, place: string | null, isHome: boolean) =>
-    (stopId ? stopById.get(stopId)?.name : null) || place || (isHome ? homeName : null);
-  const from = end(t.fromStopId, t.depPlace, t.depIsHome);
-  const to = end(t.toStopId, t.arrPlace, t.arrIsHome);
+function routeLabel(from: string | null, to: string | null): string {
   if (from && to) return `${from} to ${to}`;
   if (from) return `From ${from}`;
   if (to) return `To ${to}`;
@@ -125,28 +125,47 @@ function routeLabel(t: NowNextTransport, stopById: Map<string, NowNextStop>, hom
 }
 
 type WhereStop = Pick<NowNextStop, "id" | "name" | "timezone" | "arriveDate" | "departDate" | "sortOrder">;
-type WhereTransport = Pick<NowNextTransport, "fromStopId" | "toStopId" | "depAt">;
+type WhereTransport = Pick<NowNextTransport, "fromStopId" | "toStopId" | "depAt" | "arrAt">;
+type TimedLeg = WhereTransport & { depAt: Date };
 
+const earliestDeparture = (legs: TimedLeg[]) => new Date(Math.min(...legs.map((t) => t.depAt.getTime())));
+const lastArrival = (legs: TimedLeg[]) => new Date(Math.max(...legs.map((t) => (t.arrAt ?? t.depAt).getTime())));
+
+// Timed legs beat the calendar: a stay starts when the last leg into it lands and ends when the first
+// leg out departs, so a multi-leg day is in transit (null) throughout, whatever order the legs come in.
 export function whereYouAre(
   stops: readonly WhereStop[],
   transports: readonly WhereTransport[],
   now: Date,
 ): { stopId: string; name: string } | null {
-  const covering = orderPlanStops(stops).filter((s) => {
-    if (!s.arriveDate || !s.departDate) return false;
-    const day = instantToZonedDateISO(now, s.timezone ?? "UTC");
-    return s.arriveDate <= day && day <= s.departDate;
-  });
-  if (covering.length === 0) return null;
+  if (transports.some((t) => t.depAt && t.arrAt && t.depAt <= now && now < t.arrAt)) return null;
 
-  let here = covering[0];
-  for (const arriving of covering.slice(1)) {
-    const leg =
-      transports.find((t) => t.fromStopId === here.id && t.toStopId === arriving.id) ??
-      transports.find((t) => t.fromStopId === here.id || t.toStopId === arriving.id);
-    const leaves = leg?.depAt ?? zonedWallTimeToInstant(here.departDate!, "12:00", here.timezone ?? "UTC");
-    if (now < leaves) break;
-    here = arriving;
+  const plan = orderPlanStops(stops).filter(
+    (s): s is WhereStop & { arriveDate: string; departDate: string } => s.arriveDate != null && s.departDate != null,
+  );
+  const timed = transports.filter((t): t is TimedLeg => t.depAt != null);
+  const midnight = (dateISO: string, s: WhereStop) => zonedWallTimeToInstant(dateISO, "00:00", s.timezone ?? "UTC");
+  const stays = plan.map((s) => ({ stop: s, from: midnight(s.arriveDate, s), until: midnight(addDays(s.departDate, 1), s) }));
+
+  const intoFirst = timed.filter((t) => t.toStopId === plan[0]?.id);
+  if (intoFirst.length) stays[0].from = lastArrival(intoFirst);
+  for (let i = 1; i < stays.length; i++) {
+    const leaving = stays[i - 1];
+    const arriving = stays[i];
+    const legs = timed.filter((t) => t.fromStopId === leaving.stop.id || t.toStopId === arriving.stop.id);
+    if (legs.length) {
+      leaving.until = earliestDeparture(legs);
+      arriving.from = lastArrival(legs);
+    } else if (leaving.stop.departDate === arriving.stop.arriveDate) {
+      const noon = zonedWallTimeToInstant(leaving.stop.departDate, "12:00", leaving.stop.timezone ?? "UTC");
+      leaving.until = noon;
+      arriving.from = noon;
+    }
   }
-  return { stopId: here.id, name: here.name };
+  const last = stays[stays.length - 1];
+  const outOfLast = timed.filter((t) => t.fromStopId === last?.stop.id);
+  if (outOfLast.length) last.until = earliestDeparture(outOfLast);
+
+  const here = stays.findLast((s) => s.from <= now && now < s.until);
+  return here ? { stopId: here.stop.id, name: here.stop.name } : null;
 }
