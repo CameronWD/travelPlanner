@@ -178,4 +178,40 @@ describe("SavedForOffline", () => {
     act(() => recordFileShortfall("t1", { total: 2, saved: 1 }));
     expect(screen.getByRole("status")).toHaveTextContent("Saved 11 of 12");
   });
+
+  describe("after a refresh that failed on a dead connection", () => {
+    const THREE_HOURS = 3 * 60 * 60_000;
+
+    it("every page still held from the earlier save: reads as it did before, with the earlier time", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 0 }, Date.now() - THREE_HOURS);
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 33 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Saved for offline · 3h ago");
+      expect(getStatus("t1").pagesFailed).toBe(true);
+    });
+
+    it("some pages with no copy at all: reads Saved N of M with the run's time", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 0 }, Date.now() - THREE_HOURS);
+      finishWarm("t1", { total: 45, saved: 40, pagesFailed: 33 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Saved 40 of 45 · just now");
+    });
+
+    it("a first run that failed entirely: never reads Saved for offline", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 0, pagesFailed: 45 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Saved 0 of 45");
+      expect(screen.getByRole("status")).not.toHaveTextContent("Saved for offline");
+    });
+
+    it("a first run whose pages were all older copies: still not Saved for offline", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 45 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
+    });
+  });
 });

@@ -57,7 +57,8 @@ copy sat in the cache.
    request behave as before, with one addition for the offline save: a
    request that is not a navigation and is answered from the cache because
    its fetch failed carries the same header, with no message and no record,
-   so the save can tell an old copy from a fresh answer and not count it. A
+   so the save can tell an old copy from a fresh answer: the page counts as
+   held on the phone, but no new save time is stamped. A
    response from the network never carries it. The rules (`NAVIGATION_TIMEOUT_MS`,
    `SAVED_COPY_HEADER`, `SAVED_COPY_MESSAGE`, `isServerFailure`,
    `savedCopyResponse`, `savedCopyMessage`, `WAS_SAVED_COPY_MESSAGE`, `withSavedCopyRecord`,

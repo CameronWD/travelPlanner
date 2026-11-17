@@ -4,14 +4,15 @@ import { useEffect, useSyncExternalStore } from "react";
 import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, recordFileShortfall, subscribe, takeWarmRequest } from "@/lib/offline-status";
 import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
 
-const FILE_STORED_RETRY_MS = 250;
+const FILE_STORED_WAITS_MS = [0, 250, 750];
 
 // The worker writes a file to the cache as its body arrives, a moment after
-// the page has read the same bytes, so a first miss gets one more look.
+// the page has read the same bytes (longer for a large file on a slow phone),
+// so a miss gets two more looks, 250 ms and 1 s after the first.
 async function fileIsStored(path: string): Promise<boolean> {
   if (typeof caches === "undefined") return true;
-  for (let look = 0; look < 2; look++) {
-    if (look > 0) await new Promise((resolve) => setTimeout(resolve, FILE_STORED_RETRY_MS));
+  for (const wait of FILE_STORED_WAITS_MS) {
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     const hit = await caches.match(path).catch(() => undefined);
     if (hit && !hit.redirected) return true;
   }
@@ -126,10 +127,18 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
           // Files ask for their bytes (never a storage redirect); the worker
           // keeps them under the plain path, which is what caches.match checks.
           const response = await fetch(warmUrlFor(path), { cache: "no-store" });
-          // The header marks an older copy the worker answered with because the
-          // network failed: not a fresh save.
-          if (!response.ok || (isFile && response.redirected) || response.headers.get(SAVED_COPY_HEADER)) {
+          if (!response.ok || (isFile && response.redirected)) {
             if (!isFile) pagesFailed++;
+            continue;
+          }
+          // The header marks an older copy the worker answered with because the
+          // network failed. It is on the phone, so it counts as held; the
+          // refresh failed, so no save is stamped and the next open tries again.
+          if (response.headers.get(SAVED_COPY_HEADER)) {
+            if (!isFile) {
+              savedCount++;
+              pagesFailed++;
+            }
             continue;
           }
           if (isFile) {

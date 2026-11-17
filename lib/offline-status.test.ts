@@ -238,3 +238,15 @@ describe("forgetOfflineSaves", () => {
     vi.restoreAllMocks();
   });
 });
+
+describe("a refresh that failed with every page still held", () => {
+  it("keeps the earlier save time and build, a whole count, and the page-failure flag", () => {
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b1");
+    finishWarm("t1", { total: 45, saved: 45, pagesFailed: 0 }, 1_000);
+    finishWarm("t1", { total: 45, saved: 45, pagesFailed: 33 }, 9_000);
+    expect(getStatus("t1")).toMatchObject({ state: "saved", savedAt: 1_000, savedBuild: "b1", total: 45, saved: 45, ranAt: 9_000, pagesFailed: true });
+    expect(isIncomplete(getStatus("t1"))).toBe(false);
+    resetOfflineStatus();
+    expect(getStatus("t1")).toMatchObject({ savedAt: 1_000, total: 45, saved: 45, pagesFailed: true });
+  });
+});
