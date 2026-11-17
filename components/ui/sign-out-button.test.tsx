@@ -18,9 +18,16 @@ beforeEach(() => {
   postMessageMock.mockReset();
   setOnline(true);
   Object.defineProperty(navigator, "serviceWorker", {
-    value: { ready: Promise.resolve({ active: { postMessage: postMessageMock } }) },
+    value: {
+      ready: new Promise(() => {}),
+      getRegistration: async () => ({ active: { postMessage: postMessageMock } }),
+    },
     configurable: true,
   });
+  window.localStorage.clear();
+  window.localStorage.setItem("teepee.offline.savedAt.t1", "1700000000000");
+  window.localStorage.setItem("teepee.offline.savedBuild.t1", "b1");
+  window.localStorage.setItem("teepee.offline.counts.t1", "{}");
   Object.defineProperty(window, "location", {
     value: { ...window.location, assign: assignMock },
     writable: true,
@@ -46,6 +53,26 @@ describe("SignOutButton", () => {
     expect(postMessageMock).toHaveBeenCalledWith({ type: "CLEAR_CACHE" });
   });
 
+  it("still redirects when no service worker is registered", async () => {
+    Object.defineProperty(navigator, "serviceWorker", {
+      value: { ready: new Promise(() => {}), getRegistration: async () => undefined },
+      configurable: true,
+    });
+    render(<SignOutButton />);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
+    expect(postMessageMock).not.toHaveBeenCalled();
+  });
+
+  const savedKeys = () => Object.keys(window.localStorage).filter((key) => key.startsWith("teepee.offline."));
+
+  it("forgets every Saved for offline record when the cache is cleared", async () => {
+    render(<SignOutButton />);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
+    expect(savedKeys()).toEqual([]);
+  });
+
   const OFFLINE_COPY =
     "You're offline. Signing out removes the saved copy of your trips from this phone.";
 
@@ -55,6 +82,7 @@ describe("SignOutButton", () => {
     await waitFor(() => expect(screen.queryByText(OFFLINE_COPY)).not.toBeInTheDocument());
     expect(postMessageMock).not.toHaveBeenCalled();
     expect(assignMock).not.toHaveBeenCalled();
+    expect(savedKeys()).toHaveLength(3);
   }
 
   async function confirmDialog() {
@@ -63,6 +91,7 @@ describe("SignOutButton", () => {
     fireEvent.click(buttons[buttons.length - 1]);
     await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
     expect(postMessageMock).toHaveBeenCalledWith({ type: "CLEAR_CACHE" });
+    expect(savedKeys()).toEqual([]);
   }
 
   it("asks first when sign-out rejects while the browser says online, cancel keeps the copy", async () => {

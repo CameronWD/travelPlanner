@@ -5,12 +5,15 @@ import { authClient } from "@/lib/auth/client";
 import { LogOut } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { forgetOfflineSaves } from "@/lib/offline-status";
 
 async function clearOfflineCache() {
+  forgetOfflineSaves();
   if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
   try {
-    const registration = await navigator.serviceWorker.ready;
-    registration.active?.postMessage({ type: "CLEAR_CACHE" });
+    // Not `ready`: it never settles when no worker is registered.
+    const registration = await navigator.serviceWorker.getRegistration();
+    registration?.active?.postMessage({ type: "CLEAR_CACHE" });
   } catch {
     // The SW may not be registered; sign-out must still finish.
   }
