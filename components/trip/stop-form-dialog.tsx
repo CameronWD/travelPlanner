@@ -24,6 +24,7 @@ import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
+import type { LocalMode } from "@/lib/travel-times/hops";
 import { toPatch } from "@/lib/patch";
 import type { StopPatch } from "@/lib/stop-patch";
 import type { StopCardStop } from "@/components/plan/types";
@@ -65,7 +66,7 @@ export interface StopFormDialogProps {
    */
   loneOnDatedTrip?: boolean;
   /** What Automatic means for this Stop: Drive when a Car Transport touches it, else Public transport. */
-  inferredLocalMode?: "DRIVE" | "TRANSIT";
+  inferredLocalMode?: LocalMode;
   /** Booking import (Proposal mode): seeds a NEW record's fields. Ignored when editing a saved one. */
   initialValues?: Partial<ProposedStopInput>;
   /** Proposal mode: told the would-be input on every change (live preview). */
@@ -157,7 +158,7 @@ interface StopFormProps {
   forkId?: string | null;
   attachments?: AttachmentView[];
   loneOnDatedTrip?: boolean;
-  inferredLocalMode?: "DRIVE" | "TRANSIT";
+  inferredLocalMode?: LocalMode;
   initialValues?: Partial<ProposedStopInput>;
   onDraftChange?: (input: ProposedStopInput) => void;
   onSubmitOverride?: (input: ProposedStopInput) => Promise<ActionResult>;
@@ -220,7 +221,7 @@ function StopForm({
   );
   const [notes, setNotes] = React.useState(stop?.notes ?? proposed?.notes ?? "");
   const [localMode, setLocalMode] = React.useState<string>(
-    stop?.localTravelMode === "DRIVE" || stop?.localTravelMode === "TRANSIT" ? stop.localTravelMode : AUTOMATIC,
+    stop?.localTravelMode === "DRIVE" || stop?.localTravelMode === "TRANSIT" || stop?.localTravelMode === "WALK" ? stop.localTravelMode : AUTOMATIC,
   );
   // Spec 2026-10-06 §L: a picked place carries its point and country code to the save.
   const [picked, setPicked] = React.useState<PickedPlace | null>(null);
@@ -231,8 +232,8 @@ function StopForm({
 
   // The would-be create/update input, exactly as typed.
   function buildInput(): StopInput {
-    const localTravelMode: { localTravelMode?: "DRIVE" | "TRANSIT" } =
-      localMode === "DRIVE" || localMode === "TRANSIT" ? { localTravelMode: localMode } : {};
+    const localTravelMode: { localTravelMode?: LocalMode } =
+      localMode === "DRIVE" || localMode === "TRANSIT" || localMode === "WALK" ? { localTravelMode: localMode } : {};
     let input: StopInput;
     if (mode === "rough") {
       const parsedNights = Number.parseInt(nights, 10);
@@ -452,7 +453,7 @@ function StopForm({
       )}
 
       {onSubmitOverride ? null : (
-        <Field label="Local travel mode">
+        <Field label="Local travel mode" description={localMode === "WALK" ? "Walk anything up to 30 minutes, public transport beyond." : undefined}>
           <Select value={localMode} onValueChange={setLocalMode} disabled={isPending}>
             <SelectTrigger aria-label="Local travel mode">
               <SelectValue />
@@ -463,6 +464,7 @@ function StopForm({
               </SelectItem>
               <SelectItem value="DRIVE">Drive</SelectItem>
               <SelectItem value="TRANSIT">Public transport</SelectItem>
+              <SelectItem value="WALK">Walk</SelectItem>
             </SelectContent>
           </Select>
         </Field>

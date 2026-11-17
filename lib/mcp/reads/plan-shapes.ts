@@ -17,7 +17,9 @@ import { parseTryList } from "@/lib/validations/try-list";
 import type { TryList } from "@/lib/try-list";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
-import { effectiveLocalMode } from "@/lib/travel-times/hops";
+import { effectiveLocalMode, type LocalMode } from "@/lib/travel-times/hops";
+
+const LOCAL_MODE_LABEL: Record<LocalMode, "drive" | "public_transport" | "walk"> = { DRIVE: "drive", TRANSIT: "public_transport", WALK: "walk" };
 import type { McpFileRef } from "./attachments";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -154,7 +156,7 @@ export interface McpStop {
   chapterId: string | null;
   notes: string | null;
   /** How Travel times are worked out at this Stop: the chosen mode, else the inferred one (Drive when a Car Transport touches it). */
-  localTravelMode: "drive" | "public_transport";
+  localTravelMode: "drive" | "public_transport" | "walk";
   /** True when a Traveller chose the mode; false while it is inferred. */
   localTravelModeSet: boolean;
   /** IANA zone, or null while the Stop is rough (no timezone set yet). */
@@ -485,7 +487,7 @@ export function buildMcpStops(input: {
       id: stop.id, name: stop.name, countryCode: stop.countryCode, rough, nights: stop.nights,
       arriveDate: stop.arriveDate, departDate: stop.departDate, pinned: stop.pinned, chapterId: stop.chapterId,
       notes: stop.notes, timezone: stop.timezone,
-      localTravelMode: effectiveLocalMode(stop, planTransports) === "DRIVE" ? "drive" : "public_transport",
+      localTravelMode: LOCAL_MODE_LABEL[effectiveLocalMode(stop, planTransports)],
       localTravelModeSet: stop.localTravelMode !== null,
       accommodations: stop.accommodations.map((a) => toMcpAccommodation(a, filesFor, needsConfirmation)),
       thingsToDo: thingsToDoByStopId.get(stop.id) ?? [],

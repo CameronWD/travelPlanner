@@ -1241,7 +1241,7 @@ export async function setStopNotes(stopId: string, notes: string): Promise<StopA
   return { success: true };
 }
 
-export async function setStopLocalTravelMode(stopId: string, mode: "DRIVE" | "TRANSIT" | null): Promise<StopActionResult> {
+export async function setStopLocalTravelMode(stopId: string, mode: "DRIVE" | "TRANSIT" | "WALK" | null): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
   const parsed = localTravelModeSchema.safeParse({ localTravelMode: mode });
   if (!parsed.success) return validationResult(parsed.error);

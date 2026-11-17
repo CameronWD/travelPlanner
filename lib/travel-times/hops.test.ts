@@ -59,6 +59,11 @@ describe("effectiveLocalMode", () => {
     expect(effectiveLocalMode({ id: "s1", localTravelMode: "DRIVE" }, [])).toBe("DRIVE");
   });
 
+  it("returns WALK when the Stop says so", () => {
+    const car = [{ mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
+    expect(effectiveLocalMode({ id: "s1", localTravelMode: "WALK" }, car)).toBe("WALK");
+  });
+
   it("infers DRIVE from a CAR leg leaving or arriving at the Stop", () => {
     expect(effectiveLocalMode(stop, [{ mode: "CAR", fromStopId: "s1", toStopId: "s2" }])).toBe("DRIVE");
     expect(effectiveLocalMode(stop, [{ mode: "CAR", fromStopId: "s0", toStopId: "s1" }])).toBe("DRIVE");
@@ -391,6 +396,32 @@ describe("resolveHop", () => {
       const lookup: TravelLookup = new Map([[walkKey, ok(20)]]);
       expect(resolveHop(A, NEAR, "TRANSIT", dep, lookup, OPTS)).toMatchObject({ minutes: 20, mode: "walk" });
     });
+  });
+});
+
+describe("resolveHop at a Walk Stop", () => {
+  const walkKey = `WALK|${pointKey(A)}|${pointKey(NEAR)}`;
+  const dep = new Date("2026-11-02T09:07:00.000Z");
+  const transitKey = hopKeys(A, NEAR, "TRANSIT", dep, NOW)[1];
+
+  it("wants a TRANSIT key as well as WALK", () => {
+    expect(hopKeys(A, NEAR, "WALK", dep, NOW)).toEqual(hopKeys(A, NEAR, "TRANSIT", dep, NOW));
+    expect(hopKeys(A, NEAR, "WALK", dep, NOW)[0]).toBe(walkKey);
+    expect(transitKey).toMatch(/^TRANSIT\|/);
+  });
+
+  it("walks a 28 min hop", () => {
+    const lookup: TravelLookup = new Map([[walkKey, ok(28)], [transitKey, ok(12)]]);
+    expect(resolveHop(A, NEAR, "WALK", dep, lookup, OPTS)).toMatchObject({ minutes: 28, mode: "walk" });
+  });
+
+  it("takes public transport for a 34 min walk", () => {
+    const lookup: TravelLookup = new Map([[walkKey, ok(34)], [transitKey, ok(12)]]);
+    expect(resolveHop(A, NEAR, "WALK", dep, lookup, OPTS)).toMatchObject({ minutes: 12, mode: "transit" });
+  });
+
+  it("estimates public transport for a long hop with no rows", () => {
+    expect(resolveHop(A, FAR, "WALK", dep, new Map(), OPTS)).toMatchObject({ mode: "transit", estimated: true });
   });
 });
 

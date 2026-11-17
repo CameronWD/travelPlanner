@@ -3,8 +3,8 @@ import { estimateDriveMinutes, haversineKm } from "@/lib/geo";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 
 export type Pt = { lat: number; lng: number };
-export type LocalMode = "DRIVE" | "TRANSIT";
-export type TravelMode = "WALK" | LocalMode;
+export type LocalMode = "DRIVE" | "TRANSIT" | "WALK";
+export type TravelMode = LocalMode;
 export type TravelTimeStatus = "OK" | "NONE" | "ERROR";
 
 export type HopItem = {
@@ -37,6 +37,7 @@ export const ITEM_HOP_ORDER = [{ date: "asc" }, { startTime: "asc" }, { sortOrde
 export const WALK_ROW_UNDER_KM = 3;
 export const MAX_REAL_WALK_MIN = 20;
 export const WALK_ABOUT_AS_QUICK_MIN = 5;
+export const WALK_STOP_MAX_MIN = 30;
 const ESTIMATE_WALK_KMH = 4.5;
 const ESTIMATE_MAX_WALK_MIN = 30;
 const TRANSIT_SLOT_MS = 15 * 60_000;
@@ -91,7 +92,7 @@ export function effectiveLocalMode(
   stop: { id: string; localTravelMode: string | null },
   transports: { mode: string; fromStopId?: string | null; toStopId?: string | null }[],
 ): LocalMode {
-  if (stop.localTravelMode === "DRIVE" || stop.localTravelMode === "TRANSIT") return stop.localTravelMode;
+  if (stop.localTravelMode === "DRIVE" || stop.localTravelMode === "TRANSIT" || stop.localTravelMode === "WALK") return stop.localTravelMode;
   const drives = transports.some(
     (t) => t.mode === "CAR" && (t.fromStopId === stop.id || t.toStopId === stop.id),
   );
@@ -254,14 +255,16 @@ function noRoute(mode: ResolvedHop["mode"]): ResolvedHop {
 export function resolveHop(
   from: Pt,
   to: Pt,
-  localMode: LocalMode,
+  stopMode: LocalMode,
   departure: Date | null,
   lookup: TravelLookup,
   estimateOpts: { windingFactor: number; avgSpeedKph: number },
 ): ResolvedHop {
   if (samePoint(from, to)) return noRoute("walk");
+  const localMode = stopMode === "WALK" ? "TRANSIT" : stopMode;
   const km = haversineKm(from, to);
   const walk = km < WALK_ROW_UNDER_KM ? realHop(lookup, routeKey("WALK", from, to), "walk", km) : null;
+  if (stopMode === "WALK" && walk && walk.minutes <= WALK_STOP_MAX_MIN) return walk;
   const local =
     localMode === "DRIVE"
       ? realHop(lookup, routeKey("DRIVE", from, to), "drive", km)

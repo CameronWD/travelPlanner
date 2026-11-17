@@ -209,6 +209,17 @@ describe("StopFormDialog", () => {
         expect(updateStop).toHaveBeenLastCalledWith("stop-1", expect.objectContaining({ localTravelMode: null }));
       });
 
+      it("choosing Walk sends WALK and explains the 30 minute rule", async () => {
+        const user = userEvent.setup();
+        render(<StopFormDialog {...baseProps} stop={LONDON} />);
+        expect(screen.queryByText("Walk anything up to 30 minutes, public transport beyond.")).toBeNull();
+        await open(user);
+        await user.click(await screen.findByRole("option", { name: "Walk" }));
+        expect(screen.getByText("Walk anything up to 30 minutes, public transport beyond.")).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: /save changes/i }));
+        expect(updateStop).toHaveBeenLastCalledWith("stop-1", expect.objectContaining({ localTravelMode: "WALK" }));
+      });
+
       it("an unchanged Automatic Stop sends null, so nothing flips", async () => {
         const user = userEvent.setup();
         render(<StopFormDialog {...baseProps} stop={LONDON} />);

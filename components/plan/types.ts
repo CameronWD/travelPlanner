@@ -28,7 +28,7 @@ export interface StopCardStop {
   /** Explicit chapter membership (used while rough); null when unassigned. */
   chapterId: string | null;
   notes?: string | null;
-  /** "DRIVE" | "TRANSIT"; null/absent = inferred. */
+  /** "DRIVE" | "TRANSIT" | "WALK"; null/absent = inferred. */
   localTravelMode?: string | null;
   lat?: number | null;
   lng?: number | null;

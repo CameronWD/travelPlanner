@@ -77,6 +77,16 @@ describe("buildMcpStops", () => {
     expect(stops[0]).toMatchObject({ rough: true, nights: 3, days: [] });
   });
 
+  it("reads a Walk Stop's local travel mode back as walk", () => {
+    const { stops } = buildMcpStops({
+      stops: [stop({ localTravelMode: "WALK" })],
+      thingsToDo: [], datedItems: [], dayTitles: new Map(), hiddenStopIds: new Set(), itemView: () => null, filesFor: noFiles, needsConfirmation: none,
+      stopNameById: new Map(),
+      planTransports: [],
+    });
+    expect(stops[0]).toMatchObject({ localTravelMode: "walk", localTravelModeSet: true });
+  });
+
   // Task D.13 (CONTEXT.md "Changeover day", ADR 0049, R5).
   it("on a Changeover day each Stop lists the Item with its one owning Stop (ADR 0049)", () => {
     const { stops } = buildMcpStops({

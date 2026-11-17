@@ -313,6 +313,8 @@ describe("directionsFromHereUrl", () => {
     const at = { lat: 1, lng: 2 };
     expect(directionsFromHereUrl(at, "DRIVE").google).toContain("travelmode=driving");
     expect(directionsFromHereUrl(at, "TRANSIT").google).toContain("travelmode=transit");
+    expect(directionsFromHereUrl(at, "WALK").google).toContain("travelmode=walking");
+    expect(directionsFromHereUrl(at, "WALK").apple).toContain("dirflg=w");
     expect(directionsFromHereUrl(at, null).google).toContain("travelmode=transit");
   });
 
