@@ -16,7 +16,7 @@ import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
 export async function TripHeaderTrailing({ tripId }: { tripId: string; slug: string }) {
   const trip = await readTripShell(tripId);
   if (!trip) return null;
-  const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today: tripTodayISO(trip.stops) });
+  const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today: tripTodayISO(trip.stops, trip.homeTimezone) });
   const canShowForkSwitcher = showForkSwitcher(trip.forksEnabled, phase);
   const [unreadCount, recent, forks] = await Promise.all([
     readUnreadActivityCount(tripId),

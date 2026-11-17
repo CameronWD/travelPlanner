@@ -381,7 +381,7 @@ describe("HelpGuide", () => {
   // ── Accuracy sweep (2026-09-15) ──
   // One test per claim the audit found to be false. Each is scoped to the
   // section that carried the claim. See
-  // docs/follow-ups/2026-09-15-help-guide-audit.md for the evidence.
+  // docs/archive/follow-ups/2026-09-15-help-guide-audit.md for the evidence.
 
   it("describes a Share link's Journal and Show who's going dials, and Use this route", () => {
     const { container } = render(<HelpGuide tripId="t1" />);

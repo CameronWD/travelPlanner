@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { setAttachmentTitle } from "@/server/actions/attachments";
 import { firstErrorMessage } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 
 export interface FileTitleDialogProps {
   file: { id: string; title: string | null | undefined } | null;
@@ -24,12 +25,16 @@ function Body({ file, onOpenChange, onSaved }: Omit<FileTitleDialogProps, "file"
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     startTransition(async () => {
-      const result = await setAttachmentTitle(file.id, value);
-      if (result.success) {
-        onOpenChange(false);
-        onSaved?.();
-      } else {
-        setError(firstErrorMessage(result, "Couldn't rename that file."));
+      try {
+        const result = await setAttachmentTitle(file.id, value);
+        if (result.success) {
+          onOpenChange(false);
+          onSaved?.();
+        } else {
+          setError(firstErrorMessage(result, "Couldn't rename that file."));
+        }
+      } catch {
+        setError(failureMessage("Couldn't rename that file."));
       }
     });
   }

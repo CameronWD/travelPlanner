@@ -9,7 +9,7 @@ export type Matched = "venue" | "address";
 
 export const KINDS: BackfillKind[] = ["item", "stop", "accommodation", "transport-dep", "transport-arr", "marker", "home"];
 export const PLAN_FILE = "backfill-places-plan.json";
-export const MAX_PLAN_AGE_MS = 24 * 60 * 60 * 1000;
+const MAX_PLAN_AGE_MS = 24 * 60 * 60 * 1000;
 export const MAX_CONSECUTIVE_ERRORS = 5;
 export const REFUSING = "Google is refusing lookups: check the Geocoding/Places quotas.";
 

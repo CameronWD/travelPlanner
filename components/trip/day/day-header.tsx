@@ -8,6 +8,7 @@ import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { NotificationBell, type RecentActivity } from "@/components/trip/notification-bell";
 import { ShareTripButton } from "@/components/trip/share-chooser";
 import { TripSwitcherFromContext } from "@/components/shell/trip-switcher";
+import { cn } from "@/lib/cn";
 import { CalendarHeart } from "lucide-react";
 import { ViewTransition } from "@/components/ui/view-transition";
 
@@ -41,6 +42,7 @@ export interface DayHeaderProps {
   recent: RecentActivity[];
   members: TravellerLike[];
   addButton: React.ReactNode;
+  slimOnPhone?: boolean;
 }
 
 /**
@@ -68,6 +70,7 @@ export function DayHeader({
   recent,
   members,
   addButton,
+  slimOnPhone = false,
 }: DayHeaderProps) {
   const shown = members.slice(0, MAX_AVATARS);
   const extra = members.length - shown.length;
@@ -78,7 +81,7 @@ export function DayHeader({
           switcher pill + bell (DAY_VIEW §3.1). From lg the bell moves to the
           right cluster, and from xl the sidebar's switcher card takes over. */}
       {tripName ? (
-        <div data-slot="day-trip-switcher" className="mb-3 flex items-center gap-3 lg:mb-1 xl:hidden">
+        <div data-slot="day-trip-switcher" className={cn("mb-3 flex items-center gap-3 lg:mb-1 xl:hidden", slimOnPhone && "max-md:hidden")}>
           <div className="min-w-0 flex-1 lg:flex-none [&>*]:w-full lg:[&>*]:w-auto">
             <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
           </div>

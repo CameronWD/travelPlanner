@@ -7,7 +7,7 @@ import { usePlacesAvailable } from "./places-available";
 
 export type PlaceKind = "area" | "venue" | "any";
 export type PlaceSuggestion = { id: string; mainText: string; secondaryText: string };
-export type SuggestionStatus = "idle" | "loading" | "ok" | "empty" | "error";
+type SuggestionStatus = "idle" | "loading" | "ok" | "empty" | "error";
 
 export const PLACE_FIELD_HINT = "Suggestions aren't available. The place is looked up when you save.";
 

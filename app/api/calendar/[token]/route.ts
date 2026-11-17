@@ -36,7 +36,7 @@ export async function GET(
   //
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+  // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
   //
   // Surprise (CONTEXT.md, ADR 0051): one subscription per Trip with no viewer
   // identity, so a null viewer is surprised by every live Surprise and the

@@ -1,5 +1,7 @@
 "use client";
 
+import { toastRejected } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 import * as React from "react";
 import { useTransition } from "react";
 import { BookmarkPlus, FolderOpen, Trash2 } from "lucide-react";
@@ -56,12 +58,16 @@ function SaveTemplateForm({
     }
     setError("");
     startTransition(async () => {
-      const result = await saveAsTemplate(tripId, name.trim());
-      if (result.success) {
-        onClose();
-      } else {
-        const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Couldn't save that template. Try again.");
+      try {
+        const result = await saveAsTemplate(tripId, name.trim());
+        if (result.success) {
+          onClose();
+        } else {
+          const firstError = Object.values(result.errors)[0]?.[0];
+          setError(firstError ?? "Couldn't save that template. Try again.");
+        }
+      } catch {
+        setError(failureMessage("Couldn't save that template. Try again."));
       }
     });
   }
@@ -143,8 +149,12 @@ function DeleteTemplateDialog({
   function handleDelete() {
     if (!template) return;
     startTransition(async () => {
-      await deleteTemplate(template.id);
-      onOpenChange(false);
+      try {
+        await deleteTemplate(template.id);
+        onOpenChange(false);
+      } catch {
+        toastRejected("Couldn't delete that template.");
+      }
     });
   }
 

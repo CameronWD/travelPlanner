@@ -10,6 +10,7 @@ vi.mock("next/link", () => ({
     href,
     children,
     onNavigate,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripped so it never reaches the DOM
     transitionTypes: _t,
     ...rest
   }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {

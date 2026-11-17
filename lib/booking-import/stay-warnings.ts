@@ -1,6 +1,6 @@
 /**
  * Booking import, stay warnings (BI-04,
- * docs/follow-ups/2026-10-14-booking-import.md): the "outside your stay"
+ * docs/archive/follow-ups/2026-10-14-booking-import.md): the "outside your stay"
  * warnings a Transport or Item Proposal earns from its *current* input, so an
  * edit in the Proposal editor can recompute them instead of leaving the ones
  * computed at import. The Accommodation card recomputes its own

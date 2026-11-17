@@ -9,6 +9,7 @@ import { REAL_PLAN } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { nightsBetween, todayISO } from "@/lib/dates";
 import { tripTodayISO } from "@/lib/trip-today";
+import { whereYouAre } from "@/lib/now-next";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { loadYourTravels } from "@/lib/travel-stats-loader";
@@ -57,12 +58,13 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
         trip: {
           select: {
             id: true, slug: true, name: true, startDate: true, endDate: true, roughMonth: true, createdAt: true,
-            coverImageKey: true, coverFocalX: true, coverFocalY: true, homeLat: true, homeLng: true,
+            coverImageKey: true, coverFocalX: true, coverFocalY: true, homeLat: true, homeLng: true, homeTimezone: true,
             stops: {
               where: REAL_PLAN,
               orderBy: { sortOrder: "asc" },
               select: { id: true, name: true, lat: true, lng: true, arriveDate: true, departDate: true, nights: true, sortOrder: true, timezone: true, countryCode: true },
             },
+            transports: { where: REAL_PLAN, orderBy: { sortOrder: "asc" }, select: { fromStopId: true, toStopId: true, depAt: true, arrAt: true } },
           },
         },
       },
@@ -71,7 +73,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
   const firstName = me ? travellerFirstName(me) : "there";
   const trips = memberships.map((m) => m.trip);
   const fallbackToday = today ?? todayISO();
-  const todayByTripId = new Map(trips.map((t) => [t.id, today ?? tripTodayISO(t.stops)]));
+  const todayByTripId = new Map(trips.map((t) => [t.id, today ?? tripTodayISO(t.stops, t.homeTimezone)]));
   const hues = assignTripHues(trips);
 
   const cardTrips: CardTrip[] = trips.map((t) => ({ id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, createdAt: t.createdAt, stopCount: t.stops.length }));
@@ -96,6 +98,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
     }
   }
 
+  const now = new Date();
   let standardIndex = 0;
   const cards: TripCardModel[] = ordered.map((ct, i) => {
     const t = byId.get(ct.id)!;
@@ -106,7 +109,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
     const sketchStops: SketchStop[] = plan
       .filter((s): s is typeof s & { lat: number; lng: number } => s.lat != null && s.lng != null)
       .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : (s.nights ?? 0) }));
-    const currentStop = plan.find((s) => s.arriveDate && s.departDate && s.arriveDate <= tToday && tToday <= s.departDate)?.name ?? null;
+    const currentStop = whereYouAre(t.stops, t.transports, now)?.name ?? null;
     const big = cardBigNumber({ kind, startDate: t.startDate, endDate: t.endDate, today: tToday, roughMonth: t.roughMonth });
     // Only the FIRST card is ever the hero (§ "the hero's next step: one extra
     // query set, for the first trip only", above) — `kind` alone isn't enough:

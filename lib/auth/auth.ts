@@ -133,6 +133,8 @@ const resendKey = process.env.AUTH_RESEND_KEY;
 const resendFrom = process.env.AUTH_RESEND_FROM;
 const devLoginEnabled = process.env.ALLOW_DEV_LOGIN === "true" && process.env.NODE_ENV !== "production";
 
+export const SESSION_DAYS = 120;
+
 export const authServer = betterAuth({
   baseURL: { allowedHosts: AUTH_HOSTS, fallback: base },
   basePath: "/api/auth",
@@ -143,8 +145,8 @@ export const authServer = betterAuth({
   database: prismaAdapter(withBetterAuthLists(db), { provider: "postgresql" }),
   session: {
     modelName: "authSession",
-    // 30 days, Auth.js's old lifetime. updateAge stays Better Auth's default.
-    expiresIn: 60 * 60 * 24 * 30,
+    // Outlasts a whole trip away from home. updateAge stays Better Auth's default.
+    expiresIn: SESSION_DAYS * 24 * 60 * 60,
     cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
   account: {

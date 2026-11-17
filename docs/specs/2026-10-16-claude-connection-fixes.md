@@ -20,7 +20,7 @@ trip — design together with opening hours, item 8 of `cmvaig9lq…`),
 details), `cmvaig9lq000v07gwt50bn7k0` items 9–10 (changeover days, checklists
 inside Items). They stay open in the inbox.
 
-Also folded in: `TU-01`, `TU-02` (`docs/open-follow-ups.md`).
+Also folded in: `TU-01`, `TU-02` (`docs/archive/open-follow-ups.md`).
 
 ## Decisions from the grilling
 
@@ -64,7 +64,7 @@ Digest.
 Built as tasks A.1–F.18 plus the batch gate (Z), 2026-10-16/17. One line per
 decision taken where this spec was silent, and every deviation an implementer
 reported. Follow-ups found on the way are `CF-01`–`CF-11` in
-`docs/open-follow-ups.md` (`CF-04` and `CF-05` fixed in the final review).
+`docs/archive/open-follow-ups.md` (`CF-04` and `CF-05` fixed in the final review).
 
 ### What a Traveller sees
 

@@ -23,7 +23,7 @@ export const loadMoneyDueCount = cache(async (tripId: string): Promise<number> =
   const trip = await readTripShell(tripId);
   if (!trip) return 0;
   const v = await loadSurpriseVisibility(tripId, user.id);
-  const horizon = addDays(tripTodayISO(trip.stops), MONEY_DUE_WINDOW_DAYS);
+  const horizon = addDays(tripTodayISO(trip.stops, trip.homeTimezone), MONEY_DUE_WINDOW_DAYS);
   return db.cost.count({
     where: { tripId, ...REAL_PLAN, paidAt: null, dueDate: { not: null, lte: horizon }, ...v.where.cost },
   });

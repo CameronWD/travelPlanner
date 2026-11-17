@@ -14,6 +14,10 @@
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
  *
+ * With the network down, slow or answering 5xx (ADR 0077): a navigation to `/`
+ * redirects to the saved Trip, and a navigation that adds a query to a saved
+ * page redirects to the plain path, which is then answered from its saved copy.
+ *
  * Stores (spec 2026-10-06 §T), oldest entries trimmed past each cap:
  *   - static  teepee-static-<build>  /_next/static/*, /offline.html   cap 300
  *   - pages   teepee-pages-v1        navigations / pages              cap 400
@@ -25,9 +29,11 @@
  * cached pages still reference that build's chunks until they are re-warmed.
  *
  * SECURITY: navigations render private trip data, so they are network-first
- * (fresh from the authenticated server when online; cache only as an offline
- * fallback) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
+ * (fresh from the authenticated server when online; cache only as a fallback
+ * when the network fails or, for a navigation, is slow or answers 5xx, ADR
+ * 0077) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
  * message — never serve one user's cached pages to another on a shared device.
+ * Sign-out keeps only /offline.html and the build record.
  */
 
 // Spec 2026-10-06 §T (mirrors lib/offline.ts cacheNames / CACHE_ENTRY_LIMITS).
@@ -48,6 +54,8 @@ const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };
 // build's static store for pages Saved for offline under it.
 const META_CACHE_NAME = 'teepee-meta-v1';
 const BUILD_META_PATH = '/__teepee/build-meta';
+// Mirrors LAST_TRIP_PATH in lib/offline.ts.
+const LAST_TRIP_PATH = '/__teepee/last-trip';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -153,6 +161,141 @@ async function trimCache(store) {
   for (let i = 0; i < extra && i < evictable.length; i++) await cache.delete(evictable[i]);
 }
 
+/** Mirrors storableResponse() in lib/offline.ts: a redirected response is never kept as-is. */
+function storableResponse(response) {
+  if (!response.redirected) return response;
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+/** Mirrors asksForBytes() in lib/offline.ts. */
+function asksForBytes(url) {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return false;
+  return url.slice(queryAt + 1).split('&').includes(OFFLINE_BYTES_PARAM + '=1');
+}
+
+/** Mirrors shouldStoreResponse() in lib/offline.ts. */
+function shouldStoreResponse(bytesRequested, response) {
+  return response.ok && !(bytesRequested && response.redirected);
+}
+
+/** Mirrors isServableCacheHit() in lib/offline.ts. */
+function isServableCacheHit(mode, cached, bytesRequested) {
+  return !(cached.redirected && (mode === 'navigate' || bytesRequested));
+}
+
+// Mirrors NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE,
+// isServerFailure(), savedCopyResponse() and savedCopyMessage() in
+// lib/offline.ts (spec 2026-11-17 §A5, ADR 0077).
+const NAVIGATION_TIMEOUT_MS = 4000;
+const SAVED_COPY_HEADER = 'X-Teepee-Saved-Copy';
+const SAVED_COPY_MESSAGE = 'SAVED_COPY';
+
+function isServerFailure(status) {
+  return status >= 500;
+}
+
+function queryFallbackPath(url, mode, exactServable, plainServable) {
+  if (mode !== 'navigate' || exactServable || !plainServable) return null;
+  const { pathname, search } = new URL(url);
+  return search ? pathname : null;
+}
+
+function savedCopyResponse(response) {
+  const headers = new Headers(response.headers);
+  headers.set(SAVED_COPY_HEADER, '1');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+function savedCopyMessage(url) {
+  return { type: SAVED_COPY_MESSAGE, url };
+}
+
+// Mirrors WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT,
+// withSavedCopyRecord(), withoutSavedCopyRecord(), wasSavedCopy() and
+// wasSavedCopyQueryPath() in lib/offline.ts.
+const WAS_SAVED_COPY_MESSAGE = 'WAS_SAVED_COPY';
+const SAVED_COPY_RECORD_TTL_MS = 60000;
+const SAVED_COPY_RECORD_LIMIT = 8;
+
+function withSavedCopyRecord(records, path, now) {
+  const live = records.filter((r) => r.path !== path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+  return [...live, { path, at: now }].slice(-SAVED_COPY_RECORD_LIMIT);
+}
+
+function withoutSavedCopyRecord(records, path) {
+  return records.filter((r) => r.path !== path);
+}
+
+function wasSavedCopy(records, path, now) {
+  return records.some((r) => r.path === path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+}
+
+function wasSavedCopyQueryPath(data) {
+  if (typeof data !== 'object' || data === null) return null;
+  return data.type === WAS_SAVED_COPY_MESSAGE && typeof data.url === 'string' ? data.url : null;
+}
+
+// In memory only: a restarted worker forgets, and the page then relies on the
+// pushed message and the date check.
+let savedCopyRecords = [];
+
+/** Mirrors OFFLINE_BYTES_PARAM in lib/offline.ts: a warm's ask for the bytes, never a redirect. */
+const OFFLINE_BYTES_PARAM = 'offline';
+
+/** Mirrors fileCacheKey() in lib/offline.ts. */
+function fileCacheKey(url) {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return url;
+  const params = url.slice(queryAt + 1).split('&');
+  const kept = params.filter((p) => p.split('=')[0] !== OFFLINE_BYTES_PARAM);
+  if (kept.length === params.length) return url;
+  return kept.length ? url.slice(0, queryAt) + '?' + kept.join('&') : url.slice(0, queryAt);
+}
+
+/** Mirrors cacheKeyFor() in lib/offline.ts: a file warmed with the offline flag lives under its plain URL. */
+function cacheKeyFor(request) {
+  if (cacheStoreFor(request.url) !== 'files') return request;
+  const key = fileCacheKey(request.url);
+  return key === request.url ? request : key;
+}
+
+/** A cache hit the request may be answered with; a redirected one for a navigation is dropped. */
+async function servableCached(request) {
+  const key = cacheKeyFor(request);
+  const cached = await caches.match(key);
+  if (!cached) return undefined;
+  if (isServableCacheHit(request.mode, cached, asksForBytes(request.url))) return cached;
+  const cache = await caches.open(CACHE_NAMES[cacheStoreFor(request.url)]);
+  await cache.delete(key);
+  return undefined;
+}
+
+// Mirrors isCachedTripHome(), pickOfflineStart() and lastTripMessagePath() in
+// lib/offline.ts; RESERVED_TRIP_SLUGS mirrors lib/trip-slug.ts.
+const RESERVED_TRIP_SLUGS = ['new'];
+
+function isCachedTripHome(path) {
+  const match = /^\/trips\/([^/?#]+)$/.exec(path);
+  return match !== null && !RESERVED_TRIP_SLUGS.includes(match[1]);
+}
+
+function pickOfflineStart(cachedUrls, lastTripPath) {
+  if (lastTripPath && cachedUrls.includes(lastTripPath)) return lastTripPath;
+  const home = cachedUrls.find(isCachedTripHome);
+  if (home) return home;
+  return cachedUrls.includes('/trips') ? '/trips' : null;
+}
+
+function lastTripMessagePath(data) {
+  if (typeof data !== 'object' || data === null) return null;
+  return data.type === 'LAST_TRIP' && typeof data.path === 'string' && isCachedTripHome(data.path) ? data.path : null;
+}
+
 /**
  * Determines cache strategy for a given fetch event.
  * Mirrors cacheStrategyFor() in lib/offline.ts.
@@ -225,6 +368,25 @@ function staleCacheNames(existing, buildId, previousBuildId) {
   return existing.filter((name) => !keep.has(name));
 }
 
+/** Mirrors signOutCacheNames() in lib/offline.ts. */
+function signOutCacheNames(existing, buildId) {
+  const keep = new Set(['teepee-static-' + buildId, META_CACHE_NAME]);
+  return existing.filter((name) => !keep.has(name));
+}
+
+// No deploy means no new install to precache /offline.html again, so sign-out
+// empties this build's static store around it rather than deleting the store.
+async function clearPrivateCaches() {
+  const names = await caches.keys();
+  await Promise.all(signOutCacheNames(names, BUILD_ID).map((name) => caches.delete(name)));
+  const meta = await caches.open(META_CACHE_NAME);
+  await meta.delete(LAST_TRIP_PATH);
+  const statics = await caches.open(CACHE_NAMES.static);
+  const keys = await statics.keys();
+  await Promise.all(keys.filter((key) => !isPinnedCacheEntry(key.url)).map((key) => statics.delete(key)));
+  if (!keys.some((key) => isPinnedCacheEntry(key.url))) await statics.addAll(PRECACHE_URLS);
+}
+
 /** Read the stored build record, then overwrite it with this build's. */
 async function recordBuild() {
   const meta = await caches.open(META_CACHE_NAME);
@@ -281,12 +443,12 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (strategy === 'cache-first') {
-    event.respondWith(cacheFirst(event.request));
+    event.respondWith(cacheFirst(event));
     return;
   }
 
   if (strategy === 'network-first') {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(networkFirst(event));
     return;
   }
 });
@@ -300,13 +462,14 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
   const data = event.data;
   if (data && data.type === 'CLEAR_CACHE') {
-    event.waitUntil(
-      caches
-        .keys()
-        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
-        .catch((err) => console.warn('[SW] cache clear failed:', err))
-    );
+    event.waitUntil(clearPrivateCaches().catch((err) => console.warn('[SW] cache clear failed:', err)));
   }
+  const askedPath = wasSavedCopyQueryPath(data);
+  if (askedPath !== null && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ savedCopy: wasSavedCopy(savedCopyRecords, askedPath, Date.now()) });
+  }
+  const lastTrip = lastTripMessagePath(data);
+  if (lastTrip) event.waitUntil(recordLastTrip(lastTrip).catch(() => {}));
 });
 
 // ---------------------------------------------------------------------------
@@ -316,24 +479,35 @@ self.addEventListener('message', (event) => {
 /**
  * cache-first: serve from cache; fall back to network and populate cache.
  * Used for immutable hashed assets — never serve stale if unavailable.
+ * The put is held open by the event so the worker is not stopped mid-write
+ * (a large file); a body that fails makes the put reject and keeps nothing.
  */
-async function cacheFirst(request) {
+async function cacheFirst(event) {
+  const { request } = event;
   try {
-    const cached = await caches.match(request);
+    const cached = await servableCached(request);
     if (cached) return cached;
 
     const response = await fetch(request);
-    if (response.ok) {
+    if (shouldStoreResponse(asksForBytes(request.url), response)) {
       const store = cacheStoreFor(request.url);
-      const cache = await caches.open(CACHE_NAMES[store]);
-      cache
-        .put(request, response.clone())
-        .then(() => trimCache(store))
-        .catch(() => {}); // non-blocking
+      const copy = storableResponse(response.clone());
+      event.waitUntil(
+        caches
+          .open(CACHE_NAMES[store])
+          .then((cache) => cache.put(cacheKeyFor(request), copy))
+          .then(() => trimCache(store))
+          .catch(() => {})
+      );
     }
     return response;
   } catch (err) {
     console.warn('[SW] cache-first fetch failed:', err);
+    // A file opened in its own tab gets the offline page, not the browser's error.
+    if (request.mode === 'navigate') {
+      const fallback = await caches.match('/offline.html').catch(() => null);
+      if (fallback) return fallback;
+    }
     // For static assets there's no useful fallback — re-throw so the browser
     // shows its default error rather than a confusing blank page.
     throw err;
@@ -343,42 +517,180 @@ async function cacheFirst(request) {
 /**
  * network-first: always try the network first so an online user gets fresh,
  * authenticated content (never another user's cached page). Cache successful
- * responses so they can serve as an OFFLINE-ONLY fallback. On network failure,
- * serve the cached copy if present, else the offline page for navigations.
+ * responses so they can serve as a fallback. On network failure, serve the
+ * cached copy if present, else the offline page for navigations. A navigation
+ * with a saved copy also gets that copy, marked, when the network answers 5xx
+ * or takes longer than NAVIGATION_TIMEOUT_MS (ADR 0077).
  *
- * The cache is purged on sign-out (CLEAR_CACHE message), so the offline
- * fallback can only ever be the currently signed-in user's own pages.
+ * The cache is purged on sign-out (CLEAR_CACHE message), so the fallback can
+ * only ever be the currently signed-in user's own pages.
  */
-async function networkFirst(request) {
-  const store = cacheStoreFor(request.url);
-  const cache = await caches.open(CACHE_NAMES[store]);
+async function networkFirst(event) {
+  const { request } = event;
 
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      cache
-        .put(request, response.clone())
-        .then(() => trimCache(store))
-        .catch(() => {}); // non-blocking
+  if (request.mode === 'navigate') {
+    savedCopyRecords = withoutSavedCopyRecord(savedCopyRecords, new URL(request.url).pathname);
+    const redirect = takeOfflineRedirect(request.url);
+    if (redirect) {
+      const cached = await servableCached(request);
+      if (cached) return announceSavedCopy(event, cached);
     }
-    return response;
+  }
+
+  const network = fetchAndKeep(event);
+  try {
+    return await (request.mode === 'navigate' ? navigationAnswer(event, network) : network);
   } catch (err) {
     console.warn('[SW] network-first fetch failed, falling back to cache:', err);
-
-    const cached = await caches.match(request);
-    if (cached) return cached;
-
-    if (request.mode === 'navigate') {
-      const fallback = await caches.match('/offline.html').catch(() => null);
-      if (fallback) return fallback;
-    }
-
-    return new Response('Offline', {
-      status: 503,
-      statusText: 'Service Unavailable',
-      headers: { 'Content-Type': 'text/plain' },
-    });
+    return offlineResponse(event);
   }
+}
+
+function fetchAndKeep(event) {
+  const { request } = event;
+  return fetch(request).then((response) => {
+    if (shouldStoreResponse(asksForBytes(request.url), response)) {
+      const store = cacheStoreFor(request.url);
+      const copy = storableResponse(response.clone());
+      event.waitUntil(
+        caches
+          .open(CACHE_NAMES[store])
+          .then((cache) => cache.put(cacheKeyFor(request), copy))
+          .then(() => trimCache(store))
+          .catch(() => {})
+      );
+      if (request.mode === 'navigate') {
+        const { pathname, search } = new URL(request.url);
+        if (!search && isCachedTripHome(pathname)) recordLastTrip(pathname).catch(() => {});
+      }
+    }
+    return response;
+  });
+}
+
+// The saved copy is looked up only once the network is slow or failing, so a
+// fast answer never waits on the cache.
+async function navigationAnswer(event, network) {
+  let timer;
+  const timedOut = new Promise((resolve) => {
+    timer = setTimeout(resolve, NAVIGATION_TIMEOUT_MS, null);
+  });
+  const response = await Promise.race([network, timedOut]).finally(() => clearTimeout(timer));
+  if (response && !isServerFailure(response.status)) return response;
+  const copy = await savedCopy(event.request);
+  if (!copy) return response || network;
+  if (!response) event.waitUntil(network.catch(() => {}));
+  if (copy.redirect) return redirectToSavedTrip(copy.redirect);
+  return announceSavedCopy(event, copy.cached);
+}
+
+function announceSavedCopy(event, cached) {
+  savedCopyRecords = withSavedCopyRecord(savedCopyRecords, new URL(event.request.url).pathname, Date.now());
+  event.waitUntil(postSavedCopy(event.resultingClientId, event.request.url).catch(() => {}));
+  return savedCopyResponse(cached);
+}
+
+// The page a navigation opens becomes a client only once its response
+// arrives, so the worker asks for it until it exists.
+const SAVED_COPY_CLIENT_TRIES = 50;
+const SAVED_COPY_CLIENT_WAIT_MS = 100;
+
+async function postSavedCopy(clientId, url) {
+  if (!clientId) return;
+  for (let i = 0; i < SAVED_COPY_CLIENT_TRIES; i++) {
+    const client = await self.clients.get(clientId);
+    if (client) {
+      client.postMessage(savedCopyMessage(url));
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, SAVED_COPY_CLIENT_WAIT_MS));
+  }
+}
+
+async function recordLastTrip(path) {
+  const meta = await caches.open(META_CACHE_NAME);
+  await meta.put(LAST_TRIP_PATH, new Response(path, { headers: { 'Content-Type': 'text/plain' } }));
+}
+
+// The offline redirect from `/` was decided a moment ago with the network
+// down or slow, so the navigation that follows it reads the cache without
+// asking the network again, and is marked as the saved copy. In memory only: a
+// restarted worker just asks the network.
+const OFFLINE_REDIRECT_TTL_MS = 10000;
+let offlineRedirect = null;
+
+function takeOfflineRedirect(url) {
+  const marker = offlineRedirect;
+  offlineRedirect = null;
+  if (marker === null || marker.path !== new URL(url).pathname || Date.now() - marker.at >= OFFLINE_REDIRECT_TTL_MS) return null;
+  return marker;
+}
+
+function redirectToSavedTrip(path) {
+  offlineRedirect = { path, at: Date.now() };
+  return Response.redirect(new URL(path, self.location.origin).href, 302);
+}
+
+async function offlineStart() {
+  const pages = await caches.open(CACHE_NAMES.pages);
+  // Cache keys come back oldest first (trimCache relies on it); the pick wants newest first.
+  let paths = (await pages.keys())
+    .map((key) => new URL(key.url))
+    .filter((url) => url.origin === self.location.origin && !url.search)
+    .map((url) => url.pathname)
+    .reverse();
+  const meta = await caches.open(META_CACHE_NAME);
+  const last = await meta.match(LAST_TRIP_PATH);
+  const lastPath = last ? await last.text() : null;
+  for (;;) {
+    const path = pickOfflineStart(paths, lastPath);
+    if (!path) return null;
+    const hit = await pages.match(path);
+    if (hit && isServableCacheHit('navigate', hit)) return path;
+    await pages.delete(path);
+    paths = paths.filter((p) => p !== path);
+  }
+}
+
+// What this device can answer a request with: for a navigation to `/`, the
+// saved Trip; otherwise the request's own cached copy.
+async function savedCopy(request) {
+  // Asked before the cached `/` itself: a Landing cached while signed out must
+  // never open for a Traveller who has a Trip saved. A redirect, not the Trip's
+  // body, so the address, the router's pathname and the page all agree.
+  if (request.mode === 'navigate' && new URL(request.url).pathname === '/') {
+    const start = await offlineStart().catch(() => null);
+    if (start) return { redirect: start };
+  }
+  const cached = await servableCached(request);
+  if (cached) return { cached };
+  if (request.mode === 'navigate' && new URL(request.url).search) {
+    const { pathname } = new URL(request.url);
+    const plain = await caches.match(new URL(pathname, self.location.origin).href);
+    const redirect = queryFallbackPath(request.url, request.mode, false, !!plain && isServableCacheHit('navigate', plain));
+    if (redirect) return { redirect };
+  }
+  return null;
+}
+
+async function offlineResponse(event) {
+  const { request } = event;
+  const copy = await savedCopy(request);
+  if (copy && copy.redirect) return redirectToSavedTrip(copy.redirect);
+  // A caller that is not a navigation (the offline save) reads the mark to tell
+  // an old copy from a fresh answer.
+  if (copy) return request.mode === 'navigate' ? announceSavedCopy(event, copy.cached) : savedCopyResponse(copy.cached);
+
+  if (request.mode === 'navigate') {
+    const fallback = await caches.match('/offline.html').catch(() => null);
+    if (fallback) return fallback;
+  }
+
+  return new Response('Offline', {
+    status: 503,
+    statusText: 'Service Unavailable',
+    headers: { 'Content-Type': 'text/plain' },
+  });
 }
 
 // ---------------------------------------------------------------------------

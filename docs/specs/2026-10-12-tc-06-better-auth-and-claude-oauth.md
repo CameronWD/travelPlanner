@@ -65,7 +65,7 @@ Traveller's own rows.
 - `docs/DEPLOY.md` / `docs/HANDOFF.md`: env vars (`BETTER_AUTH_SECRET`
   replaces `AUTH_SECRET`; Google and Resend vars keep their names or are
   mapped), the migration order, and the "everyone signs in again" note.
-- `docs/open-follow-ups.md`: strike TC-06; add the cleanup follow-up (drop
+- `docs/archive/open-follow-ups.md`: strike TC-06; add the cleanup follow-up (drop
   the Auth.js tables; remove the data-migration code) as TC-13.
 - ADR 0070: add a closing note pointing at ADR 0071.
 

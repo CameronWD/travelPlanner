@@ -251,6 +251,26 @@ describe("readMcpCosts / loadCostForMcp", () => {
     vi.clearAllMocks();
   });
 
+  it("reads the Stops in canonical order and computes today in the Home zone and the canonical current Stop's zone", async () => {
+    vi.useFakeTimers();
+    try {
+      const A = { id: "a", sortOrder: 0, timezone: "Asia/Tokyo", arriveDate: "2026-11-25", departDate: "2026-12-05" };
+      const B = { id: "b", sortOrder: 1, timezone: "Pacific/Auckland", arriveDate: "2026-12-05", departDate: "2026-12-10" };
+      stopFindMany.mockResolvedValue([B, A]);
+      tripFindUnique.mockResolvedValue({ homeCurrency: "AUD", homeTimezone: "Pacific/Honolulu" });
+
+      vi.setSystemTime(new Date("2026-12-01T12:00:00Z"));
+      expect((await readMcpCosts(TRIP_ID, NO_SURPRISES)).today).toBe("2026-12-01");
+
+      vi.setSystemTime(new Date("2026-11-21T05:00:00Z"));
+      expect((await readMcpCosts(TRIP_ID, NO_SURPRISES)).today).toBe("2026-11-20");
+
+      expect(stopFindMany).toHaveBeenCalledWith(expect.objectContaining({ orderBy: { sortOrder: "asc" } }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("readMcpCosts narrows the query to one owner and keeps the Surprise fragment", async () => {
     await readMcpCosts(TRIP_ID, NO_SURPRISES, { ownerType: "ITEM", ownerId: "i1" });
     expect(costFindMany).toHaveBeenCalledWith(

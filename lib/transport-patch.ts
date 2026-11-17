@@ -4,8 +4,9 @@
  * airport or pier), a point alone, Home, or nothing. `""` and `null` both
  * mean "none" for a Stop or a point; `undefined` keeps it.
  *
- *  - Home with a non-empty Stop or point is refused; Home alone (or with
- *    empty ones, as the form sends it) clears both.
+ *  - Home with a non-empty Stop or point is refused; Home alone clears both,
+ *    except that a Home end already stored keeps the point it holds (seeded
+ *    legs) unless the patch sends the point empty.
  *  - Stop and point given together set the end as given — the form's save;
  *    both empty and not Home is an end with neither, which the app allows.
  *  - A Stop alone: empty unlinks it (the point stays; nothing left is
@@ -58,7 +59,7 @@ function mergeEndpoint(current: Endpoint, patch: EndpointPatch, fields: Endpoint
 
   if (patch.isHome === true) {
     if (stopId !== null || place !== null) return homeContradictionError(fields);
-    return { stopId: null, place: null, isHome: true };
+    return { stopId: null, place: current.isHome && patch.place === undefined ? current.place : null, isHome: true };
   }
   if (stopGiven && placeGiven) return { stopId, place, isHome: false };
   if (stopGiven) {

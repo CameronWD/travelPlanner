@@ -10,17 +10,13 @@
  *
  * ---
  * SCHEDULING
- * The workflow fires at five fixed UTC hours (.github/workflows/digest-cron.yml,
- * `0 6,9,10,19,20 * * *`) and this route filters each run by the subscriber's
- * LOCAL hour, so the fixed schedule lands at the right wall-clock time in each
- * traveller's zone. Where each run lands, and which of them actually delivers:
- *
- *     UTC   Europe/Vienna (CET)  Australia/Brisbane (AEST)  Australia/Sydney (AEDT)
- *     06:00 07:00 MORNING ✔      16:00 —                    17:00 —
- *     09:00 10:00 —              19:00 —                    20:00 EVENING ✔
- *     10:00 11:00 —              20:00 EVENING ✔            21:00 EVENING (absorbed)
- *     19:00 20:00 EVENING ✔      05:00 —                    06:00 MORNING ✔ (next day)
- *     20:00 21:00 EVENING (abs.) 06:00 MORNING ✔ (next day) 07:00 MORNING (absorbed)
+ * The workflow fires at eleven fixed UTC hours, at minute 17
+ * (.github/workflows/digest-cron.yml, `17 0,6,7,10,11,13,14,19,20,21,23 * * *`),
+ * and this route filters each run by the subscriber's LOCAL hour, so the fixed
+ * schedule lands at the right wall-clock time in each traveller's zone. The hours give every zone served
+ * (Brisbane, Makassar, Bangkok, London, Dublin, Berlin, Paris, Rome) at least
+ * two runs inside each window; the workflow's header holds the full table of
+ * where each run lands.
  *
  * "Absorbed" is not waste: a second run inside the same window finds the ledger
  * row already claimed for that (user, trip, local date, slot) and sends nothing.
@@ -29,12 +25,6 @@
  * delays scheduled runs under load, and an exact-hour test would mean a run
  * that slipped past the boundary silently skipped *everyone*, with no retry
  * since eligibility is itself by hour.
- *
- * The 10:00Z run exists because UTC+10 is real and permanent: Australia/Brisbane
- * never observes daylight saving, and Australia/Sydney is UTC+10 for roughly
- * seven months of the year. Without it those zones get a morning Digest and
- * never the 8pm one, which is the product (ADR 0008 records the first trip as
- * Brisbane → Europe → Brisbane).
  *
  * A subscriber outside both windows is simply passed over, so adding a UTC hour
  * for a new region costs nothing here. Because the local date is read in the
@@ -70,7 +60,7 @@ export const runtime = "nodejs";
 // The local wall-clock hours a Digest is sent in — and the slot resolver that
 // reads them — live in lib/digest-schedule.ts, where a test can hold them
 // against the workflow's cron expression. They are LOCAL hours, not UTC ones:
-// the workflow's five UTC hours (06/09/10/19/20 — see SCHEDULING above) exist
+// the workflow's eleven UTC hours (DIGEST_CRON_UTC_HOURS — see SCHEDULING above) exist
 // only so that every zone we serve has a run landing inside each window.
 // Changing either window means revisiting that cron expression, and
 // lib/digest-schedule.test.ts fails if you change one without the other.

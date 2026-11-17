@@ -494,6 +494,10 @@ export function headline(a: {
     return `made the ${a.entityLabel} what-if plan the real plan`;
   }
 
+  if (a.entityType === "COST" && a.entityLabel === "cost") {
+    return `${VERB_WORD[a.verb]} a cost`;
+  }
+
   const verbWord = VERB_WORD[a.verb];
   const noun = ENTITY_NOUN[a.entityType];
   return `${verbWord} the ${a.entityLabel} ${noun}`;
@@ -509,7 +513,7 @@ const CHECKLIST_LIST_NAME: Record<string, string> = {
   SHOPPING: "the shopping list",
 };
 
-export function checklistListName(kind: string): string {
+function checklistListName(kind: string): string {
   return CHECKLIST_LIST_NAME[kind] ?? "a checklist";
 }
 

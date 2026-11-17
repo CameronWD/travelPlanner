@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { failureMessage } from "@/components/ui/failure-message";
 import { MessageCircle, Trash2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,11 +91,15 @@ function ThreadBody({
     setError(null);
 
     startTransition(async () => {
-      const result = await addNote(tripId, { targetType, targetId, body: trimmed });
-      if (result.success) {
-        setBody("");
-      } else {
-        setError(result.errors.body?.[0] ?? "Couldn't add that note. Try again.");
+      try {
+        const result = await addNote(tripId, { targetType, targetId, body: trimmed });
+        if (result.success) {
+          setBody("");
+        } else {
+          setError(result.errors.body?.[0] ?? "Couldn't add that note. Try again.");
+        }
+      } catch {
+        setError(failureMessage("Couldn't add that note. Try again."));
       }
     });
   }

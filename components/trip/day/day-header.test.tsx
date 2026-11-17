@@ -9,6 +9,7 @@ import { dayHeading } from "@/lib/day-view-model";
 const hoisted = vi.hoisted(() => ({ links: [] as Array<Record<string, unknown>> }));
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripped so it never reaches the DOM
   default: ({ href, children, onNavigate: _n, transitionTypes, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => {
     hoisted.links.push({ href, transitionTypes });
     return <a href={href} {...r}>{children}</a>;
@@ -67,6 +68,16 @@ describe("DayHeader", () => {
     const bell = bar.querySelector('[aria-label="Notifications"]') as HTMLElement;
     expect(bell.parentElement!.className).toContain("lg:hidden");
     expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(2);
+  });
+  it("travelling: the switcher, Share and bell row is hidden on a phone and unchanged from md up", () => {
+    render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" slimOnPhone eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
+    const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
+    expect(bar.className).toContain("max-md:hidden");
+    expect(bar.className).toContain("xl:hidden");
+  });
+  it("planning: the row is not hidden on a phone", () => {
+    render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
+    expect((document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement).className).not.toContain("max-md:hidden");
   });
   describe("the arrows stay put between days (spec 2026-09-28 D2)", () => {
     const base = { tripId: "t1", tripSlug: "t1", prevHref: "/trips/t1/day/2026-12-11" as Route, nextHref: "/trips/t1/day/2026-12-13" as Route, prevLabel: "Previous day: Fri 11 Dec", nextLabel: "Next day: Sun 13 Dec", unreadCount: 0, recent: [], members: [], addButton: <button>+</button> };

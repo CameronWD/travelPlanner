@@ -23,7 +23,6 @@ import { IdeasBox } from "./ideas-box";
 import { FitTile } from "./fit-tile";
 import { LegPill } from "./leg-pill";
 import { StopActionsSheet } from "./stop-actions-sheet";
-import { PickDaySheet } from "./mobile/pick-day-sheet";
 import { StopSheet } from "./mobile/stop-sheet";
 import { daySlots } from "@/lib/plan/day-density";
 import { setDayTitle } from "@/server/actions/day-titles";
@@ -44,10 +43,6 @@ const PARIS = {
   nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null,
 };
 const ITEMS = [{ id: "a", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
-const SLOTS = daySlots(PARIS, [
-  { id: "a", date: "2026-12-11", category: "FOOD" },
-  { id: "b", date: "2026-12-11", category: "SIGHTSEEING" },
-], { "2026-12-12": { title: "Versailles day" } });
 
 describe("P1 page enters", () => {
   it("staggers by 40ms per index, capped at 8 rows", () => {
@@ -261,45 +256,6 @@ describe("P12 mobile sheets", () => {
     expect(close.className).toContain("sr-only");
     await userEvent.click(close);
     expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("the pick-a-day sheet: 45% scrim, a visible ✕ that closes it", async () => {
-    const onOpenChange = vi.fn();
-    render(<PickDaySheet open onOpenChange={onOpenChange} title="Orsay" slots={SLOTS} stop={PARIS} onPick={vi.fn()} />);
-    expect((document.querySelector("[data-sheet-overlay]") as HTMLElement).className).toContain("bg-foreground/45");
-    const close = screen.getByRole("button", { name: "Close" });
-    expect(close.className).not.toContain("sr-only");
-    await userEvent.click(close);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("the pick-a-day sheet: a drag on the handle past 30% closes it; a short slow one springs back", () => {
-    const onOpenChange = vi.fn();
-    const now = vi.spyOn(performance, "now").mockReturnValue(0);
-    try {
-      render(<PickDaySheet open onOpenChange={onOpenChange} title="Orsay" slots={SLOTS} stop={PARIS} onPick={vi.fn()} />);
-      const dialog = screen.getByRole("dialog");
-      dialog.getBoundingClientRect = () => ({ height: 1000 }) as DOMRect;
-      const handle = dialog.querySelector("[data-drag-handle]") as HTMLElement;
-      handle.setPointerCapture = vi.fn();
-
-      fireEvent.pointerDown(handle, { clientY: 0, pointerId: 1 });
-      fireEvent.pointerMove(handle, { clientY: 150, pointerId: 1 });
-      expect(dialog.style.transform).toBe("translateY(150px)");
-      now.mockReturnValue(5_000);
-      fireEvent.pointerUp(handle, { clientY: 150, pointerId: 1 });
-      expect(onOpenChange).not.toHaveBeenCalled();
-      expect(dialog.style.transform).toBe("");
-
-      now.mockReturnValue(0);
-      fireEvent.pointerDown(handle, { clientY: 0, pointerId: 1 });
-      fireEvent.pointerMove(handle, { clientY: 400, pointerId: 1 });
-      now.mockReturnValue(5_000);
-      fireEvent.pointerUp(handle, { clientY: 400, pointerId: 1 });
-      expect(onOpenChange).toHaveBeenCalledWith(false);
-    } finally {
-      now.mockRestore();
-    }
   });
 
   it("the stop sheet's Segmented uses a shared sliding pill", async () => {

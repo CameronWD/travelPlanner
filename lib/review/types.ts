@@ -15,8 +15,7 @@ export type ReviewKind = (typeof REVIEW_KINDS)[number];
 export const REVIEW_KIND_LABELS: Record<ReviewKind, string> = { STANDARD: "Standard Review", DEEP: "Deep Review" };
 
 /** `Review.status`. A RUNNING row past REVIEW_STALE_AFTER_MS reads as FAILED (effectiveReviewStatus). */
-const REVIEW_STATUSES = ["RUNNING", "DONE", "FAILED"] as const;
-export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+export type ReviewStatus = "RUNNING" | "DONE" | "FAILED";
 
 /** `Finding.severity`: the Flag scale (lib/flags.ts). */
 export const FINDING_SEVERITIES = ["warning", "info"] as const;
@@ -64,7 +63,7 @@ export type FindingTargetType = (typeof FINDING_TARGET_TYPES)[number];
 
 /** The lists a checklist fix may add to (CONTEXT.md Checklist): never Shopping. */
 export const CHECKLIST_FIX_LISTS = ["PACKING", "PRETRIP"] as const;
-export type ChecklistFixList = (typeof CHECKLIST_FIX_LISTS)[number];
+type ChecklistFixList = (typeof CHECKLIST_FIX_LISTS)[number];
 
 /**
  * A fix that maps onto an existing action (R8 "Apply"). Validated by

@@ -1,7 +1,7 @@
 # 0043 — Attachments warm for offline through the authenticated serve route
 
 ## Status
-Accepted (2026-09-14). Narrows ADR 0016. Amended 2026-09-21, 2026-10-01 and 2026-10-02 (see below).
+Accepted (2026-09-14). Narrows ADR 0016. Amended 2026-09-21, 2026-10-01, 2026-10-02 and 2026-11-17 (see below).
 
 ## Context
 ADR 0016 excluded file attachments from the offline warm set on two grounds:
@@ -172,3 +172,43 @@ bytes the device already held. Two changes (spec 2026-10-02 §F):
 - The warmer skips any path `caches.match` already answers, and `tripOfflinePaths` warms
   Attachments newest-first up to `MAX_WARM_TRIP_BYTES` (200 MB) per Trip. Files shows a
   one-line note only when a Trip exceeds that.
+
+## Amendment — 2026-11-17: the warm asks for bytes
+
+The Context above rests on one premise: the browser only ever requests
+`/api/attachments/:id`, a same-origin route, and the bytes come back from it.
+In production that stopped being true. Both the attachment route and the cover
+route answer an ordinary open with a 302 to a presigned storage URL, so the
+warmer's fetch landed on another origin, and what the worker could keep
+depended on how that redirect resolved.
+
+The 2026-10-01 amendment above says the worker "follows the redirect inside
+`networkFirst` and caches the final bytes". That was never verified in
+production, and it could only work if the storage bucket sent a CORS rule
+permitting the app's origin, a rule documented nowhere. A response obtained by
+following a redirect also cannot be used to answer a navigation, so even a
+stored copy could not open a ticket from the Files page offline. That
+statement is withdrawn.
+
+- **The warm asks for bytes.** The warmer fetches the Attachment and cover
+  URLs with `?offline=1`. On that flag the serve route runs the same access
+  checks as before (`requireUser`, then `requireTripAccess` or
+  `requireGlobeAccess`) and streams the bytes from storage same-origin instead
+  of redirecting. An ordinary open, with no flag, still redirects to the
+  presigned URL. Streaming, not buffering, is what lets a file up to the
+  10 MiB upload cap through Vercel's 4.5 MB function response limit, which its
+  documentation does not apply to streamed bodies.
+- **One cache entry per file.** The worker stores a flagged response under the
+  plain URL with the flag removed (`fileCacheKey`, a string-level cut so the
+  encoded `?v=` on a cover stays byte for byte), so the link the app renders
+  hits the entry the warm wrote. `lib/offline.ts` and `public/sw.js` mirror
+  each other as always.
+- **A redirected response is never kept as it came.** `storableResponse`
+  re-wraps the body of any response reached by a redirect so what is stored
+  carries no redirect, and a redirected entry already in the cache is a miss
+  for a navigation and is deleted. A device that cached such an entry earlier
+  heals itself the next time it opens that file online.
+- **Unverified.** Whether Vercel accepts a declared `Content-Length` on a
+  streamed response larger than 4.5 MB is not documented. It is checked after
+  deploy by opening a PDF over 4.5 MB with no connection. If it fails, the
+  route's declared length is the first suspect.

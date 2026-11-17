@@ -7,7 +7,7 @@ type Theme = "light" | "dark";
 const STORAGE_KEY = "trip-planner-theme";
 
 /**
- * Dark mode is parked (spec 2026-10-04 §F; docs/open-follow-ups.md DM-01):
+ * Dark mode is parked (spec 2026-10-04 §F; docs/archive/open-follow-ups.md DM-01):
  * every Traveller renders in this theme, whatever they chose before or their
  * OS prefers, and a stored choice is overwritten with it on the next load.
  * `null` un-parks it — the stored choice, then the OS preference, win again.

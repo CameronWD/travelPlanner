@@ -723,6 +723,13 @@ function tightRetime(
   return { itemId: next.id, startTime: minToHhmm(start), endTime: minToHhmm(start + length) };
 }
 
+const TIGHT_NAME_MAX = 40;
+
+function tightName(item: FlagItem): string {
+  const name = item.title?.trim() || "a thing to do";
+  return name.length > TIGHT_NAME_MAX ? `${name.slice(0, TIGHT_NAME_MAX - 1).trimEnd()}…` : name;
+}
+
 export function flagTightConnections(
   items: FlagItem[],
   transports: FlagTransport[],
@@ -782,12 +789,13 @@ export function flagTightConnections(
       const label = resolved.estimated && resolved.mode === "transit" ? "trip" : HOP_LABEL[resolved.mode];
       const how = `a ~${Math.round(travel)} min ${label}${estimatedSuffix(resolved.estimated)}`;
       const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
+      const between = `between ${tightName(prev)} and ${tightName(next)}`;
       const retime = tightRetime(prev, next, travel);
       if (gap < travel) {
         flags.push({
           id: `tight-${prev.id}-${next.id}`,
           severity: "warning",
-          message: `Tight on ${date}: only ${Math.max(0, Math.round(gap))} min between activities, but it's ${how}.`,
+          message: `Tight on ${date} ${between}: only ${Math.max(0, Math.round(gap))} min, but it's ${how}.`,
           targetType: "DAY",
           date,
           ...(retime ? { retime } : {}),
@@ -796,7 +804,7 @@ export function flagTightConnections(
         flags.push({
           id: `tight-${prev.id}-${next.id}`,
           severity: "info",
-          message: `Cutting it close on ${date}: ${Math.round(gap)} min between activities, and it's ${how}.`,
+          message: `Cutting it close on ${date} ${between}: ${Math.round(gap)} min, and it's ${how}.`,
           targetType: "DAY",
           date,
           ...(retime ? { retime } : {}),

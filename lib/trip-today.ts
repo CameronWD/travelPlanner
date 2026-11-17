@@ -21,6 +21,6 @@ export interface TripTodayStop extends OrderableStop {
 }
 
 /** The Trip's own "today" (YYYY-MM-DD). Pass the real plan's Stops in sortOrder order; rough Stops are ignored. */
-export function tripTodayISO(stops: readonly TripTodayStop[]): string {
-  return todayISOInZone(currentTripTimezone(orderPlanStops(stops)));
+export function tripTodayISO(stops: readonly TripTodayStop[], homeTimezone?: string | null): string {
+  return todayISOInZone(currentTripTimezone(orderPlanStops(stops), homeTimezone));
 }

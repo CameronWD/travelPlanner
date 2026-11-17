@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
+import { createLazyDialog, usePreloadWhenIdle } from "@/components/ui/lazy-loader";
 import { Plus, CalendarClock, GripVertical, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -96,17 +96,22 @@ import { CSS } from "@dnd-kit/utilities";
 
 // Spec 2026-10-06 §P: the ten open-on-demand dialogs load when first opened,
 // not with the Plan. Each mounts only while open (see the Dialogs block).
-const StayDialog = dynamic(() => import("@/components/plan/stay-dialog").then((m) => m.StayDialog), { ssr: false });
-const StopExtrasDialog = dynamic(() => import("@/components/plan/stop-extras-dialog").then((m) => m.StopExtrasDialog), { ssr: false });
-const StopActionsSheet = dynamic(() => import("@/components/plan/stop-actions-sheet").then((m) => m.StopActionsSheet), { ssr: false });
-const StopSheet = dynamic(() => import("@/components/plan/mobile/stop-sheet").then((m) => m.StopSheet), { ssr: false });
-const StopFormDialog = dynamic(() => import("./stop-form-dialog").then((m) => m.StopFormDialog), { ssr: false });
-const TransportFormDialog = dynamic(() => import("./transport-form-dialog").then((m) => m.TransportFormDialog), { ssr: false });
-const AccommodationFormDialog = dynamic(() => import("./accommodation-form-dialog").then((m) => m.AccommodationFormDialog), { ssr: false });
-const AddReminderDialog = dynamic(() => import("./add-reminder-dialog").then((m) => m.AddReminderDialog), { ssr: false });
-const ItemFormDialog = dynamic(() => import("./item-form-dialog").then((m) => m.ItemFormDialog), { ssr: false });
-const DeleteStopDialog = dynamic(() => import("./delete-stop-dialog").then((m) => m.DeleteStopDialog), { ssr: false });
-const SurpriseDialog = dynamic(() => import("@/components/plan/surprise-dialog").then((m) => m.SurpriseDialog), { ssr: false });
+// Their chunks are in no page's HTML, so the offline save cannot collect them:
+// the Plan asks for them once at idle (usePreloadWhenIdle below) so the worker
+// keeps them, and one that still cannot load closes itself with a message.
+const closeByOpenChange = (props: { onOpenChange: (open: boolean) => void }) => props.onOpenChange(false);
+const StayDialog = createLazyDialog(() => import("@/components/plan/stay-dialog").then((m) => m.StayDialog), closeByOpenChange);
+const StopExtrasDialog = createLazyDialog(() => import("@/components/plan/stop-extras-dialog").then((m) => m.StopExtrasDialog), closeByOpenChange);
+const StopActionsSheet = createLazyDialog(() => import("@/components/plan/stop-actions-sheet").then((m) => m.StopActionsSheet), closeByOpenChange);
+const StopSheet = createLazyDialog(() => import("@/components/plan/mobile/stop-sheet").then((m) => m.StopSheet), (props) => props.onClose());
+const StopFormDialog = createLazyDialog(() => import("./stop-form-dialog").then((m) => m.StopFormDialog), closeByOpenChange);
+const TransportFormDialog = createLazyDialog(() => import("./transport-form-dialog").then((m) => m.TransportFormDialog), closeByOpenChange);
+const AccommodationFormDialog = createLazyDialog(() => import("./accommodation-form-dialog").then((m) => m.AccommodationFormDialog), closeByOpenChange);
+const AddReminderDialog = createLazyDialog(() => import("./add-reminder-dialog").then((m) => m.AddReminderDialog), closeByOpenChange);
+const ItemFormDialog = createLazyDialog(() => import("./item-form-dialog").then((m) => m.ItemFormDialog), closeByOpenChange);
+const DeleteStopDialog = createLazyDialog(() => import("./delete-stop-dialog").then((m) => m.DeleteStopDialog), closeByOpenChange);
+const SurpriseDialog = createLazyDialog(() => import("@/components/plan/surprise-dialog").then((m) => m.SurpriseDialog), closeByOpenChange);
+const LAZY_DIALOGS = [StayDialog, StopExtrasDialog, StopActionsSheet, StopSheet, StopFormDialog, TransportFormDialog, AccommodationFormDialog, AddReminderDialog, ItemFormDialog, DeleteStopDialog, SurpriseDialog];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -490,6 +495,7 @@ export function ItineraryManager({
   chaptersEnabled = true,
   isOwner = true,
 }: ItineraryManagerProps) {
+  usePreloadWhenIdle(LAZY_DIALOGS);
   const { confirm, dialog } = useConfirm();
 
   // Safety net: chapters are opt-in (spec 2026-08-24). Even if a caller passes

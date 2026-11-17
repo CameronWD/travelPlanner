@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -14,6 +14,15 @@ import { toast } from "@/components/ui/use-toast";
 
 import { todayLocalISO } from "@/lib/dates";
 import { CostEditor } from "./cost-editor";
+import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
+
+function goOffline() {
+  Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+}
+afterEach(() => {
+  Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+});
+
 import type { CostRow } from "@/server/actions/costs";
 
 const baseProps = {
@@ -407,5 +416,39 @@ describe("CostEditor", () => {
     // labeledCost's label isn't rendered by CostSummary; its amount is — assert
     // the row survived the rejection instead (drift from the brief's literal text).
     expect(screen.getByText("$35.00")).toBeInTheDocument();
+  });
+});
+
+describe("CostEditor offline (trip-proofing B4)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("add keeps the dialog open with its fields and says why when the save rejects offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createCost).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<CostEditor {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    const amount = screen.getByLabelText("Cost amount");
+    await user.clear(amount);
+    await user.type(amount, "12.50");
+    goOffline();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByLabelText("Cost amount")).toHaveValue("12.50");
+  });
+
+  it("edit keeps the dialog open with its fields and says why when the save rejects offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateCost).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<CostEditor {...baseProps} costs={[sampleCost]} />);
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    const amount = screen.getByLabelText("Cost amount");
+    await user.clear(amount);
+    await user.type(amount, "60.00");
+    goOffline();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByLabelText("Cost amount")).toHaveValue("60.00");
   });
 });

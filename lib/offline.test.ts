@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse, queryFallbackPath, cacheKeyFor, signOutCacheNames } from './offline';
+import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -216,14 +217,15 @@ describe('tripOfflinePaths', () => {
   const FIXED = [
     '/trips/t1',
     '/trips/t1/plan',
-    '/trips/t1/today',
     '/trips/t1/summary',
     '/trips/t1/budget',
     '/trips/t1/calendar',
     '/trips/t1/checklists',
     '/trips/t1/files',
+    '/trips/t1/journal',
     '/trips/t1/help',
     '/whats-new',
+    '/trips',
   ];
 
   it('returns the fixed pages + one /day/ path per date in an inclusive range', () => {
@@ -236,13 +238,15 @@ describe('tripOfflinePaths', () => {
     ]);
   });
 
-  it('returns only the ten fixed pages when dates are null', () => {
+  it('returns only the fixed pages when dates are null', () => {
     expect(tripOfflinePaths('t1', null, null)).toEqual(FIXED);
   });
 
-  it('warms Today, Money and Calendar — the read-on-the-road views (spec 2026-10-01 §F2)', () => {
+  it('warms Journal, Trips, Money and Calendar, and not the Today redirect (spec 2026-11-17 §B2)', () => {
     const paths = tripOfflinePaths('t1', null, null);
-    expect(paths).toContain('/trips/t1/today');
+    expect(paths).toContain('/trips/t1/journal');
+    expect(paths).toContain('/trips');
+    expect(paths).not.toContain('/trips/t1/today');
     expect(paths).toContain('/trips/t1/budget');
     expect(paths).toContain('/trips/t1/calendar');
   });
@@ -424,5 +428,304 @@ describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
     expect(nextBuildMeta({ build: 'b1', previous: null }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
     expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
     expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b3')).toEqual({ build: 'b3', previous: 'b2' });
+  });
+});
+
+describe('redirected responses', () => {
+  function redirected(body: string) {
+    const res = new Response(body, { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+    Object.defineProperty(res, 'redirected', { value: true });
+    return res;
+  }
+
+  it('hands back a response that was not redirected untouched', () => {
+    const res = new Response('x');
+    expect(storableResponse(res)).toBe(res);
+  });
+
+  it('rebuilds a redirected response without the redirect, keeping body and headers', async () => {
+    const out = storableResponse(redirected('pdf-bytes'));
+    expect(out.redirected).toBe(false);
+    expect(out.status).toBe(200);
+    expect(out.headers.get('Content-Type')).toBe('application/pdf');
+    expect(await out.text()).toBe('pdf-bytes');
+  });
+
+  it('refuses a redirected cache hit only for navigations', () => {
+    expect(isServableCacheHit('navigate', { redirected: true })).toBe(false);
+    expect(isServableCacheHit('navigate', { redirected: false })).toBe(true);
+    expect(isServableCacheHit('no-cors', { redirected: true })).toBe(true);
+  });
+
+  it('refuses a redirected cache hit for a warm asking for bytes, and keeps a plain one', () => {
+    expect(isServableCacheHit('cors', { redirected: true }, true)).toBe(false);
+    expect(isServableCacheHit('cors', { redirected: false }, true)).toBe(true);
+  });
+
+  it('knows a request asks for bytes only by offline=1', () => {
+    expect(asksForBytes('https://x.test/api/attachments/a1?offline=1')).toBe(true);
+    expect(asksForBytes('https://x.test/api/trips/t/cover?v=k&offline=1')).toBe(true);
+    expect(asksForBytes('https://x.test/api/attachments/a1')).toBe(false);
+    expect(asksForBytes('https://x.test/api/attachments/a1?offline=0')).toBe(false);
+  });
+});
+
+describe('saving files for offline as bytes (spec A2)', () => {
+  it('names the byte-path flag "offline"', () => {
+    expect(OFFLINE_BYTES_PARAM).toBe('offline');
+  });
+
+  it('warmUrlFor adds the flag to Attachment and cover paths, and leaves pages alone', () => {
+    expect(warmUrlFor('/api/attachments/x')).toBe('/api/attachments/x?offline=1');
+    expect(warmUrlFor('/api/trips/t/cover?v=k')).toBe('/api/trips/t/cover?v=k&offline=1');
+    expect(warmUrlFor('/trips/t')).toBe('/trips/t');
+  });
+
+  it('warmUrlFor keeps an encoded cover key byte for byte', () => {
+    expect(warmUrlFor('/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480')).toBe(
+      '/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480&offline=1',
+    );
+  });
+
+  it('fileCacheKey strips the flag and preserves v', () => {
+    expect(fileCacheKey('https://teepee.example/api/attachments/x?offline=1')).toBe('https://teepee.example/api/attachments/x');
+    expect(fileCacheKey('https://teepee.example/api/trips/t/cover?v=k&offline=1')).toBe('https://teepee.example/api/trips/t/cover?v=k');
+  });
+
+  it('fileCacheKey leaves an encoded key and the other params exactly as they were', () => {
+    expect(fileCacheKey('https://teepee.example/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480&offline=1')).toBe(
+      'https://teepee.example/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480',
+    );
+    expect(fileCacheKey('https://teepee.example/api/trips/t/cover?offline=1&v=k')).toBe('https://teepee.example/api/trips/t/cover?v=k');
+  });
+
+  it('fileCacheKey hands back a URL without the flag unchanged', () => {
+    const url = 'https://teepee.example/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480';
+    expect(fileCacheKey(url)).toBe(url);
+  });
+});
+
+describe('opening the app offline (spec A1)', () => {
+  it('records the last Trip Home under a reserved meta key', () => {
+    expect(LAST_TRIP_PATH).toBe('/__teepee/last-trip');
+  });
+
+  it('a Trip Home is exactly /trips/<ref>, never a sub-page, the Trips list, a query or the new Trip form', () => {
+    expect(isCachedTripHome('/trips/a')).toBe(true);
+    expect(isCachedTripHome('/trips/a/budget')).toBe(false);
+    expect(isCachedTripHome('/trips')).toBe(false);
+    expect(isCachedTripHome('/trips/a?x=1')).toBe(false);
+    expect(isCachedTripHome('/trips/a#top')).toBe(false);
+    expect(isCachedTripHome('/trips/new')).toBe(false);
+    expect(isCachedTripHome('/')).toBe(false);
+  });
+
+  it('no reserved Trip slug is a Trip Home', () => {
+    for (const slug of RESERVED_TRIP_SLUGS) expect(isCachedTripHome(`/trips/${slug}`)).toBe(false);
+  });
+
+  it('a LAST_TRIP message names a Trip Home path, and anything else is ignored', () => {
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/a' })).toBe('/trips/a');
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/a/budget' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/a?x=1' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: 'https://elsewhere.example/trips/a' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/new' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'CLEAR_CACHE', path: '/trips/a' })).toBeNull();
+    expect(lastTripMessagePath(null)).toBeNull();
+    expect(lastTripMessagePath('LAST_TRIP')).toBeNull();
+  });
+
+  it('picks the cached Trip Home over its sub-pages and the Trips list', () => {
+    expect(pickOfflineStart(['/trips/a/budget', '/trips/a', '/trips'], null)).toBe('/trips/a');
+  });
+
+  it('picks the last Trip Home served when it is cached', () => {
+    expect(pickOfflineStart(['/trips/a', '/trips/b', '/trips'], '/trips/b')).toBe('/trips/b');
+  });
+
+  it('ignores a last Trip Home that is no longer cached', () => {
+    expect(pickOfflineStart(['/trips/a'], '/trips/b')).toBe('/trips/a');
+  });
+
+  it('falls back to the cached Trips list', () => {
+    expect(pickOfflineStart(['/trips/a/budget', '/trips'], null)).toBe('/trips');
+  });
+
+  it('never picks a cached Landing or the new Trip form', () => {
+    expect(pickOfflineStart(['/'], null)).toBeNull();
+    expect(pickOfflineStart(['/trips/new'], null)).toBeNull();
+  });
+
+  it('picks nothing when nothing is cached', () => {
+    expect(pickOfflineStart([], null)).toBeNull();
+  });
+});
+
+describe('a slow network falls back to the saved copy (spec A5, ADR 0077)', () => {
+  it('a navigation with a saved copy waits 4 seconds for the network', () => {
+    expect(NAVIGATION_TIMEOUT_MS).toBe(4000);
+  });
+
+  it('a 5xx is a server failure; a 4xx, a redirect or a success is not', () => {
+    expect(isServerFailure(500)).toBe(true);
+    expect(isServerFailure(503)).toBe(true);
+    expect(isServerFailure(499)).toBe(false);
+    expect(isServerFailure(404)).toBe(false);
+    expect(isServerFailure(302)).toBe(false);
+    expect(isServerFailure(200)).toBe(false);
+    expect(isServerFailure(0)).toBe(false);
+  });
+
+  it('marks a saved copy with the header, keeping its body, status and headers', async () => {
+    const out = savedCopyResponse(new Response('saved', { status: 200, statusText: 'OK', headers: { 'Content-Type': 'text/html' } }));
+    expect(SAVED_COPY_HEADER).toBe('X-Teepee-Saved-Copy');
+    expect(out.headers.get(SAVED_COPY_HEADER)).toBe('1');
+    expect(out.headers.get('Content-Type')).toBe('text/html');
+    expect(out.status).toBe(200);
+    expect(out.statusText).toBe('OK');
+    expect(await out.text()).toBe('saved');
+  });
+
+  it('tells the page it opened as a saved copy', () => {
+    expect(SAVED_COPY_MESSAGE).toBe('SAVED_COPY');
+    expect(savedCopyMessage('https://teepee.example/trips/a')).toEqual({ type: 'SAVED_COPY', url: 'https://teepee.example/trips/a' });
+  });
+});
+
+describe('shouldStoreResponse', () => {
+  it('stores an ok response', () => {
+    expect(shouldStoreResponse(false, { ok: true, redirected: false })).toBe(true);
+    expect(shouldStoreResponse(true, { ok: true, redirected: false })).toBe(true);
+  });
+
+  it('never stores a failure', () => {
+    expect(shouldStoreResponse(false, { ok: false, redirected: false })).toBe(false);
+    expect(shouldStoreResponse(true, { ok: false, redirected: false })).toBe(false);
+  });
+
+  it('refuses a redirected response only for a warm\'s ask for bytes', () => {
+    expect(shouldStoreResponse(true, { ok: true, redirected: true })).toBe(false);
+    expect(shouldStoreResponse(false, { ok: true, redirected: true })).toBe(true);
+  });
+});
+
+describe('the page asks whether it was a saved copy (ADR 0077)', () => {
+  it('a path is remembered for 60 seconds', () => {
+    const records = withSavedCopyRecord([], '/trips/a', 1000);
+    expect(SAVED_COPY_RECORD_TTL_MS).toBe(60000);
+    expect(wasSavedCopy(records, '/trips/a', 1000 + 59999)).toBe(true);
+    expect(wasSavedCopy(records, '/trips/a', 1000 + 60000)).toBe(false);
+    expect(wasSavedCopy(records, '/trips/b', 1000)).toBe(false);
+  });
+
+  it('recording a path again refreshes it, and old entries drop out', () => {
+    let records = withSavedCopyRecord([], '/trips/a', 0);
+    records = withSavedCopyRecord(records, '/trips/b', 5000);
+    records = withSavedCopyRecord(records, '/trips/a', 70000);
+    expect(records).toEqual([{ path: '/trips/a', at: 70000 }]);
+  });
+
+  it('keeps only the newest few', () => {
+    let records: ReturnType<typeof withSavedCopyRecord> = [];
+    for (let i = 0; i < SAVED_COPY_RECORD_LIMIT + 3; i++) records = withSavedCopyRecord(records, `/p${i}`, i);
+    expect(records).toHaveLength(SAVED_COPY_RECORD_LIMIT);
+    expect(records[0].path).toBe('/p3');
+  });
+
+  it('a fresh answer forgets the path', () => {
+    const records = withSavedCopyRecord(withSavedCopyRecord([], '/trips/a', 0), '/trips/b', 0);
+    expect(withoutSavedCopyRecord(records, '/trips/a').map((r) => r.path)).toEqual(['/trips/b']);
+  });
+
+  it('reads the asked path from a WAS_SAVED_COPY message only', () => {
+    expect(WAS_SAVED_COPY_MESSAGE).toBe('WAS_SAVED_COPY');
+    expect(wasSavedCopyQueryPath({ type: 'WAS_SAVED_COPY', url: '/trips/a' })).toBe('/trips/a');
+    expect(wasSavedCopyQueryPath({ type: 'WAS_SAVED_COPY' })).toBeNull();
+    expect(wasSavedCopyQueryPath({ type: 'LAST_TRIP', url: '/x' })).toBeNull();
+    expect(wasSavedCopyQueryPath(null)).toBeNull();
+  });
+});
+
+describe('assetUrlsIn', () => {
+  const html = `<html><head>
+    <link rel="stylesheet" href="/_next/static/chunks/a.css" data-precedence="next"/>
+    <link data-precedence="next" href="/_next/static/chunks/b.css" rel="stylesheet"/>
+    <link rel="icon" href="/favicon.svg"/>
+    <link rel="preload" as="script" href="/_next/static/chunks/p.js"/>
+    </head><body>
+    <script src="/_next/static/chunks/one.js" async=""></script>
+    <script async src="/_next/static/chunks/two.js"></script>
+    <script src="https://cdn.example.com/_next/static/chunks/x.js"></script>
+    <script src="/_next/static/chunks/one.js" async=""></script>
+    <script src="/other/y.js"></script>
+    <script>self.__next_f.push([1,"<script src=\\"/_next/static/chunks/in-data.js\\">"])</script>
+    </body></html>`;
+
+  it('lists same-origin scripts and stylesheets once, in either attribute order', () => {
+    expect(assetUrlsIn(html)).toEqual([
+      '/_next/static/chunks/a.css',
+      '/_next/static/chunks/b.css',
+      '/_next/static/chunks/one.js',
+      '/_next/static/chunks/two.js',
+    ]);
+  });
+
+  it('returns nothing for a page with no assets', () => {
+    expect(assetUrlsIn('<html></html>')).toEqual([]);
+  });
+});
+
+describe('queryFallbackPath (ADR 0077)', () => {
+  const url = 'https://teepee.example/trips/a/budget?by=place';
+
+  it('falls back to the plain path when only it is servable', () => {
+    expect(queryFallbackPath(url, 'navigate', false, true)).toBe('/trips/a/budget');
+  });
+
+  it('prefers the exact entry', () => {
+    expect(queryFallbackPath(url, 'navigate', true, true)).toBeNull();
+  });
+
+  it('answers nothing when the plain path is not servable', () => {
+    expect(queryFallbackPath(url, 'navigate', false, false)).toBeNull();
+  });
+
+  it('never redirects a URL with no query, so it cannot loop', () => {
+    expect(queryFallbackPath('https://teepee.example/trips/a/budget', 'navigate', false, true)).toBeNull();
+  });
+
+  it('only for navigations', () => {
+    expect(queryFallbackPath(url, 'cors', false, true)).toBeNull();
+  });
+});
+
+describe('cacheKeyFor', () => {
+  it('keys a file warmed with the offline flag under its plain URL', () => {
+    expect(cacheKeyFor({ url: 'https://app.example/api/attachments/a1?offline=1' })).toBe('https://app.example/api/attachments/a1');
+    expect(cacheKeyFor({ url: 'https://app.example/api/trips/t1/cover?v=k&w=480&offline=1' })).toBe('https://app.example/api/trips/t1/cover?v=k&w=480');
+  });
+
+  it('keys a file asked for plainly by its own request', () => {
+    const request = { url: 'https://app.example/api/attachments/a1' };
+    expect(cacheKeyFor(request)).toBe(request);
+  });
+
+  it('never rewrites a page or a chunk, whatever its query', () => {
+    const page = { url: 'https://app.example/trips/a/budget?offline=1' };
+    const chunk = { url: 'https://app.example/_next/static/chunks/a.js?offline=1' };
+    expect(cacheKeyFor(page)).toBe(page);
+    expect(cacheKeyFor(chunk)).toBe(chunk);
+  });
+});
+
+describe('signOutCacheNames', () => {
+  it("deletes every store but this build's static store and the meta store", () => {
+    expect(signOutCacheNames(['trip-planner-v6', 'teepee-static-b0', 'teepee-static-b1', 'teepee-pages-v1', 'teepee-files-v1', META_CACHE_NAME], 'b1'))
+      .toEqual(['trip-planner-v6', 'teepee-static-b0', 'teepee-pages-v1', 'teepee-files-v1']);
+  });
+
+  it('deletes nothing when only the kept stores exist', () => {
+    expect(signOutCacheNames(['teepee-static-b1', META_CACHE_NAME], 'b1')).toEqual([]);
   });
 });

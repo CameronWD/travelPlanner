@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -24,6 +24,15 @@ import {
 import { uploadAttachment } from "@/server/actions/attachments";
 import { compressImage } from "@/lib/image-compress";
 import { JournalEditor } from "./journal-editor";
+import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
+
+function goOffline() {
+  Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+}
+afterEach(() => {
+  Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+});
+
 
 const BASE_PROPS = {
   tripId: "trip-1",
@@ -116,6 +125,16 @@ describe("JournalEditor", () => {
   // blanking the textarea must never silently delete (covered by the
   // server-action tests); this component-level suite covers the separate
   // "Remove entry" affordance.
+  describe("date heading", () => {
+    it("uses the deterministic formatter, not toLocaleDateString", () => {
+      const spy = vi.spyOn(Date.prototype, "toLocaleDateString");
+      render(<JournalEditor {...BASE_PROPS} initialBody="" updatedAt={null} />);
+      expect(screen.getByText("Mon 1 Jun 2026")).toBeInTheDocument();
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+  });
+
   describe("removing an entry", () => {
     it("does not show a remove control when there is no saved entry yet", () => {
       render(<JournalEditor {...BASE_PROPS} initialBody="" updatedAt={null} />);
@@ -537,5 +556,35 @@ describe("JournalEditor", () => {
       const { container } = render(<JournalEditor {...BASE_PROPS} photo={mk("p1")} />);
       expect(container.querySelector('[data-slot="journal-extra-photos"]')).toBeNull();
     });
+  });
+});
+
+describe("JournalEditor offline (trip-proofing B4)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("keeps the typed text and names the connection when a blur-save fails offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveJournalEntry).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<JournalEditor {...BASE_PROPS} />);
+    const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+    await user.clear(textarea);
+    await user.type(textarea, "Ate at the station");
+    goOffline();
+    await user.tab();
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(textarea).toHaveValue("Ate at the station");
+  });
+
+  it("says why and clears the picker when a photo upload fails offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(uploadAttachment).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const { container } = render(<JournalEditor {...BASE_PROPS} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    goOffline();
+    await user.upload(fileInput, new File([new Uint8Array(10)], "a.jpg", { type: "image/jpeg" }));
+
+    expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
+    expect(fileInput.value).toBe("");
   });
 });

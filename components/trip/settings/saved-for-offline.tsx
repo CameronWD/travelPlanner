@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { relativeTime } from "@/lib/relative-time";
-import { getServerStatus, getStatus, requestWarm, subscribe } from "@/lib/offline-status";
+import { getServerStatus, getStatus, isIncomplete, requestWarm, subscribe } from "@/lib/offline-status";
 import { toast } from "@/components/ui/use-toast";
 import { failureMessage } from "@/components/ui/failure-message";
 
@@ -47,9 +47,11 @@ export function SavedForOffline({ tripId }: { tripId: string }) {
   const saving = status.state === "saving";
   const label = saving
     ? "Saving…"
-    : status.state === "saved" && status.savedAt !== null
-      ? `${SAVED_LABEL} · ${relativeTime(new Date(status.savedAt))}`
-      : "Not saved yet";
+    : status.state === "saved" && isIncomplete(status) && status.ranAt !== null
+      ? `Saved ${status.saved} of ${status.total} · ${relativeTime(new Date(status.ranAt))}`
+      : status.state === "saved" && status.savedAt !== null
+        ? `${SAVED_LABEL} · ${relativeTime(new Date(status.savedAt))}`
+        : "Not saved yet";
 
   const handleSaveAgain = () => {
     // Read at click time, same as failureMessage's own contract — this can't

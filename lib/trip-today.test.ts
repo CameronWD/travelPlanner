@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { computeTripPhase } from "./trip-phase";
 import { tripTodayISO } from "./trip-today";
 
 const stop = (id: string, sortOrder: number, timezone: string, arriveDate: string, departDate: string) => ({
@@ -35,5 +36,73 @@ describe("tripTodayISO", () => {
       stop("akl", 1, "Pacific/Auckland", "2026-09-20", "2026-10-05"),
     ];
     expect(tripTodayISO(stops)).toBe("2026-09-28");
+  });
+});
+
+describe("tripTodayISO with a Home timezone", () => {
+  afterEach(() => vi.useRealTimers());
+  const BNE = "Australia/Brisbane";
+  const outbound = [stop("dps", 0, "Asia/Makassar", "2026-12-04", "2026-12-10")];
+  const inbound = [stop("rome", 0, "Europe/Rome", "2026-12-20", "2027-01-07")];
+  const at = (iso: string) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  };
+
+  it("is already departure day in Home before the first Stop's zone gets there", () => {
+    at("2026-12-03T15:00:00Z");
+    expect(tripTodayISO(outbound)).toBe("2026-12-03");
+    expect(tripTodayISO(outbound, BNE)).toBe("2026-12-04");
+  });
+
+  it("is the day after the return once Home has moved on, though the last Stop has not", () => {
+    at("2027-01-07T22:00:00Z");
+    expect(tripTodayISO(inbound)).toBe("2027-01-07");
+    expect(tripTodayISO(inbound, BNE)).toBe("2027-01-08");
+  });
+
+  it("leaves mid-trip alone where the Stop's date and Home's differ", () => {
+    at("2026-12-06T15:00:00Z");
+    expect(tripTodayISO(outbound, BNE)).toBe("2026-12-06");
+  });
+
+  it("leaves a multi-Stop mid-trip alone", () => {
+    at("2026-12-31T20:00:00Z");
+    const stops = [
+      stop("muc", 0, "Europe/Berlin", "2026-12-24", "2026-12-28"),
+      stop("lon", 1, "Europe/London", "2026-12-28", "2027-01-03"),
+    ];
+    expect(tripTodayISO(stops, BNE)).toBe("2026-12-31");
+  });
+
+  it("treats a null Home timezone as absent", () => {
+    at("2026-12-03T15:00:00Z");
+    expect(tripTodayISO(outbound, null)).toBe("2026-12-03");
+  });
+
+  it("flips the Phase to Travelling on departure morning in Home", () => {
+    at("2026-12-03T15:00:00Z");
+    const phaseOf = (home?: string) =>
+      computeTripPhase({ startDate: "2026-12-04", endDate: "2026-12-10", today: tripTodayISO(outbound, home) });
+    expect(phaseOf()).toBe("final-prep");
+    expect(phaseOf(BNE)).toBe("travelling");
+  });
+
+  it("flips the Phase to Past once Home reaches the day after the return", () => {
+    at("2027-01-07T22:00:00Z");
+    const phaseOf = (home?: string) =>
+      computeTripPhase({ startDate: "2026-12-20", endDate: "2027-01-07", today: tripTodayISO(inbound, home) });
+    expect(phaseOf()).toBe("travelling");
+    expect(phaseOf(BNE)).toBe("past");
+  });
+
+  it("is Past from 00:00 on the day after the real trip's end in Home, not a minute before", () => {
+    const real = [stop("rome", 0, "Europe/Rome", "2026-12-20", "2027-01-08")];
+    const phaseAt = (iso: string) => {
+      at(iso);
+      return computeTripPhase({ startDate: "2026-12-04", endDate: "2027-01-08", today: tripTodayISO(real, BNE) });
+    };
+    expect(phaseAt("2027-01-08T13:59:00Z")).toBe("travelling");
+    expect(phaseAt("2027-01-08T14:00:00Z")).toBe("past");
   });
 });

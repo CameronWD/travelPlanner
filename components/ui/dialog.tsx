@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { m, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { SPRING_POP } from "@/lib/motion";
+import { DESKTOP_QUERY } from "@/lib/viewport";
 import { trackScrollEdges } from "./scroll-edges";
 import { useKeyboardViewport } from "./use-keyboard-viewport";
 
@@ -15,7 +16,6 @@ import { useKeyboardViewport } from "./use-keyboard-viewport";
 // external-store pattern in calendar-views.tsx; the server snapshot is
 // `false` so SSR always matches the phone layout, and the client value
 // settles synchronously on the first client render (no flash).
-const DESKTOP_QUERY = "(min-width: 640px)";
 
 function subscribeDesktopQuery(callback: () => void) {
   if (typeof window === "undefined" || !window.matchMedia) return () => {};

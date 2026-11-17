@@ -31,7 +31,9 @@ export const EVENING_WINDOW_LOCAL_HOURS: readonly number[] = [20, 21, 22];
  * reads the YAML and fails if this list and the cron expression drift apart, so
  * there is still exactly one place to edit and one place that can be wrong.
  */
-export const DIGEST_CRON_UTC_HOURS: readonly number[] = [6, 9, 10, 19, 20];
+export const DIGEST_CRON_UTC_HOURS: readonly number[] = [
+  0, 6, 7, 10, 11, 13, 14, 19, 20, 21, 23,
+];
 
 /** The Digest slot a zone is currently in, or null when it is in neither. */
 export function slotForZone(now: Date, timeZone: string): DigestSlot | null {

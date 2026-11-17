@@ -42,6 +42,7 @@ export async function loadJournalWindow(tripId: string): Promise<JournalWindowIn
     select: {
       startDate: true,
       endDate: true,
+      homeTimezone: true,
       stops: {
         where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
@@ -57,6 +58,6 @@ export async function loadJournalWindow(tripId: string): Promise<JournalWindowIn
   });
   if (!trip) notFound();
 
-  const today = tripTodayISO(trip.stops);
+  const today = tripTodayISO(trip.stops, trip.homeTimezone);
   return { startDate: trip.startDate, endDate: trip.endDate, today };
 }

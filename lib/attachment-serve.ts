@@ -26,6 +26,7 @@ export interface ServableAttachment {
   filename: string;
   mime: string;
   storageKey: string | null;
+  size?: number;
 }
 
 export interface ServeAttachmentOptions {
@@ -38,10 +39,16 @@ export interface ServeAttachmentOptions {
    * session-gated route's (longer, unaffected-by-revocation) default.
    */
   cacheControl?: string;
+  /**
+   * A save for offline (spec 2026-11-17 §A2): never presign, stream the bytes
+   * same-origin, because the worker cannot keep a redirect to storage.
+   */
+  bytes?: boolean;
 }
 
 /**
  * Returns:
+ *   - 200 + streamed body when `bytes` is set, whatever the driver
  *   - 302 → presigned URL when the storage driver can presign (S3/R2)
  *   - 200 + binary body when the driver can't presign (local disk)
  *   - 404 (no-store) if there is no storage key, or the key is missing from storage
@@ -69,9 +76,24 @@ export async function serveAttachment(
     ? `inline; filename="${safeName}"`
     : `attachment; filename="${safeName}"`;
 
+  const storage = getStorage();
+  const headers = new Headers();
+  headers.set("Content-Type", attachment.mime);
+  headers.set("Content-Disposition", disposition);
+  // Prevent the browser from sniffing the MIME type.
+  headers.set("X-Content-Type-Options", "nosniff");
+  // Files are user-private: never cache publicly.
+  headers.set("Cache-Control", cacheControl);
+
+  if (opts?.bytes) {
+    const body = await storage.readStream(attachment.storageKey);
+    if (!body) return notInStorage();
+    if (attachment.size !== undefined) headers.set("Content-Length", String(attachment.size));
+    return new Response(body, { status: 200, headers });
+  }
+
   // Preferred path: 302 to a presigned URL so the bytes never pass through
   // this function.
-  const storage = getStorage();
   const presignedUrl = await storage.presignDownload(attachment.storageKey, {
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     contentType: attachment.mime,
@@ -88,21 +110,15 @@ export async function serveAttachment(
 
   // Fallback (local disk): read the bytes and stream them ourselves.
   const buf = await storage.read(attachment.storageKey);
-  if (!buf) {
-    return NextResponse.json(
-      { error: "File not found in storage" },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  const headers = new Headers();
-  headers.set("Content-Type", attachment.mime);
-  headers.set("Content-Disposition", disposition);
+  if (!buf) return notInStorage();
   headers.set("Content-Length", String(buf.length));
-  // Prevent the browser from sniffing the MIME type.
-  headers.set("X-Content-Type-Options", "nosniff");
-  // Files are user-private: never cache publicly.
-  headers.set("Cache-Control", cacheControl);
 
   return new Response(buf.buffer as ArrayBuffer, { status: 200, headers });
+}
+
+function notInStorage(): Response {
+  return NextResponse.json(
+    { error: "File not found in storage" },
+    { status: 404, headers: { "Cache-Control": "no-store" } },
+  );
 }

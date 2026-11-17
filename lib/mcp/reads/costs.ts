@@ -15,7 +15,7 @@ import { convertCostToHome, effectiveCategory, type BudgetCost } from "@/lib/mon
 import { formatMinor } from "@/lib/money/money";
 import { isOnTrip } from "@/lib/enum-values";
 import { daysBetween, formatISODate } from "@/lib/dates";
-import { currentTripTimezone, todayISOInZone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { loadSurpriseVisibility, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import { requireRealPlanRow } from "../real-plan";
 import { loadOwners, ownerKey, REMOVED_LABEL, type OwnerKind } from "./owners";
@@ -63,7 +63,7 @@ export async function readMcpCosts(
   where: { id?: string; ownerType?: string; ownerId?: string } = {},
 ): Promise<McpCostsResult> {
   const [trip, rawCosts, stops, items] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true } }),
+    db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true, homeTimezone: true } }),
     db.cost.findMany({
       where: { tripId, ...REAL_PLAN, ...where, ...v.where.cost },
       orderBy: { createdAt: "asc" },
@@ -82,12 +82,12 @@ export async function readMcpCosts(
         settlement: true,
       },
     }),
-    db.stop.findMany({ where: { tripId, ...REAL_PLAN }, select: { timezone: true, arriveDate: true, departDate: true } }),
+    db.stop.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true } }),
     db.item.findMany({ where: { tripId, ...REAL_PLAN }, select: { id: true, category: true } }),
   ]);
 
   const homeCurrency = trip?.homeCurrency ?? "AUD";
-  const today = todayISOInZone(currentTripTimezone(stops));
+  const today = tripTodayISO(stops, trip?.homeTimezone);
   // Raw rateToHome only, no ExchangeRate-table fallback — matches the Budget
   // page and get_budget (lib/money/budget-loader.ts loadBudget → buildBudgetFromRows).
   const budgetCosts = rawCosts as unknown as BudgetCost[];

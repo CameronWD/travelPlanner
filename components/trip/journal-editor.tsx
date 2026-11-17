@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
+import { formatLongDate } from "@/lib/dates";
 import { saveJournalEntry, deleteJournalEntry, setJournalShareHidden } from "@/server/actions/journal";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
@@ -16,7 +17,8 @@ import { JOURNAL_NOTE_MAX } from "@/lib/journal-window";
 import { journalBodyExceedsLimit } from "@/lib/journal-window";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { AttachmentLink } from "@/components/trip/attachment-link";
-import { firstErrorMessage } from "@/components/ui/action-failure";
+import { firstErrorMessage, toastRejected } from "@/components/ui/action-failure";
+import { failureMessage } from "@/components/ui/failure-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,38 +73,39 @@ function PhotoSlot({
     if (!file) return;
     setUploadError(null);
     startTransition(async () => {
-      const compressed = await compressImage(file);
-      const oversize = oversizeUploadMessage(compressed);
-      if (oversize) {
-        setUploadError(oversize);
-        resetInput();
-        return;
-      }
-
-      if (photo) {
-        const confirmed = await confirm({
-          title: "Replace your photo for this day?",
-          description: "This swaps out your existing photo for this day. It can't be undone.",
-          confirmLabel: "Replace",
-          destructive: true,
-        });
-        if (!confirmed) {
-          resetInput();
+      try {
+        const compressed = await compressImage(file);
+        const oversize = oversizeUploadMessage(compressed);
+        if (oversize) {
+          setUploadError(oversize);
           return;
         }
-      }
 
-      const fd = new FormData();
-      fd.set("tripId", tripId);
-      fd.set("targetType", "JOURNAL");
-      fd.set("targetId", date);
-      fd.set("file", compressed);
-      if (photo) fd.set("replace", "1");
-      const result = await uploadAttachment(fd);
-      if (!result.success) {
-        setUploadError(firstErrorMessage(result, "Couldn't upload that photo."));
+        if (photo) {
+          const confirmed = await confirm({
+            title: "Replace your photo for this day?",
+            description: "This swaps out your existing photo for this day. It can't be undone.",
+            confirmLabel: "Replace",
+            destructive: true,
+          });
+          if (!confirmed) return;
+        }
+
+        const fd = new FormData();
+        fd.set("tripId", tripId);
+        fd.set("targetType", "JOURNAL");
+        fd.set("targetId", date);
+        fd.set("file", compressed);
+        if (photo) fd.set("replace", "1");
+        const result = await uploadAttachment(fd);
+        if (!result.success) {
+          setUploadError(firstErrorMessage(result, "Couldn't upload that photo."));
+        }
+      } catch {
+        setUploadError(failureMessage("Couldn't upload that photo. Try again."));
+      } finally {
+        resetInput();
       }
-      resetInput();
     });
   }
 
@@ -110,8 +113,13 @@ function PhotoSlot({
     if (!photo) return;
     setIsDeleting(true);
     startTransition(async () => {
-      await deleteAttachment(photo.id);
-      setIsDeleting(false);
+      try {
+        await deleteAttachment(photo.id);
+      } catch {
+        toastRejected("Couldn't remove that photo.");
+      } finally {
+        setIsDeleting(false);
+      }
     });
   }
 
@@ -265,6 +273,9 @@ export function JournalEditor({
           setSaveStatus("saved");
           saveTimerRef.current = setTimeout(() => setSaveStatus(null), 2000);
         }
+      } catch {
+        setSaveError(failureMessage("Couldn't save that. Try again."));
+        setSaveStatus(null);
       } finally {
         markDone();
         if (pendingSaveRef.current === done) {
@@ -321,13 +332,17 @@ export function JournalEditor({
     }
 
     startDeleteTransition(async () => {
-      const result = await deleteJournalEntry(tripId, date);
-      if (result.success) {
-        setBody("");
-        setBaseline("");
-        setLastSaved(null);
-        setSaveStatus(null);
-        setSaveError(null);
+      try {
+        const result = await deleteJournalEntry(tripId, date);
+        if (result.success) {
+          setBody("");
+          setBaseline("");
+          setLastSaved(null);
+          setSaveStatus(null);
+          setSaveError(null);
+        }
+      } catch {
+        toastRejected("Couldn't remove that entry.");
       }
     });
   }
@@ -341,11 +356,16 @@ export function JournalEditor({
     setHiddenFromShares(next);
     setHiddenError(null);
     startHiddenTransition(async () => {
-      const result = await setJournalShareHidden(tripId, date, next);
-      if (!result.success) {
+      try {
+        const result = await setJournalShareHidden(tripId, date, next);
+        if (!result.success) {
+          setHiddenFromShares(previous);
+          const firstError = Object.values(result.errors)[0]?.[0];
+          setHiddenError(firstError ?? "Couldn't update that. Try again.");
+        }
+      } catch {
         setHiddenFromShares(previous);
-        const firstError = Object.values(result.errors)[0]?.[0];
-        setHiddenError(firstError ?? "Couldn't update that. Try again.");
+        setHiddenError(failureMessage("Couldn't update that. Try again."));
       }
     });
   }
@@ -353,15 +373,10 @@ export function JournalEditor({
   const hasChanges = body !== baseline;
   const hasEntry = lastSaved !== null;
 
-  // Format date label for header (YYYY-MM-DD → e.g. "Monday 1 Jun 2026")
+  // Format date label for header (YYYY-MM-DD → e.g. "Mon 1 Jun 2026")
   const dateLabel = React.useMemo(() => {
     try {
-      return new Date(date + "T00:00:00").toLocaleDateString("en-GB", {
-        weekday: "long",
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
+      return formatLongDate(date);
     } catch {
       return date;
     }

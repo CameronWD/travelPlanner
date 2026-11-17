@@ -57,7 +57,7 @@ is unchanged (full suite + build on every push to `main` / PR).
   tweak — never a rewrite, deletion or weakened assertion); ≤20 files opted
   back to jsdom.
 - **Drop** otherwise: revert the trial and record the measured numbers (an ADR,
-  or a `docs/open-follow-ups.md` entry) so it isn't retried blind.
+  or a `docs/archive/open-follow-ups.md` entry) so it isn't retried blind.
 - Either way the suite stays at 8,598 passing.
 
 Slow individual files (`new-trip-flow` 22 s etc.) are out of scope — they run
@@ -97,7 +97,7 @@ in parallel and don't set the wall clock.
   Prints scanned / made / skipped / failed.
 - Unit tests with storage and db mocked; the resize helper tested on real
   small fixture images (JPEG with EXIF orientation, PNG, GIF).
-- `docs/open-follow-ups.md`: PX-01 updated to say the script exists and
+- `docs/archive/open-follow-ups.md`: PX-01 updated to say the script exists and
   awaits the operator's run. Cam runs it against production after deploy
   (dry run first); Claude never does.
 

@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { reconcileDeviceMock, deviceTimeZoneMock } = vi.hoisted(() => ({
@@ -99,5 +99,88 @@ describe("DeviceSync", () => {
     const { container } = render(<DeviceSync />);
     await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+  });
+
+  describe("on returning to the foreground", () => {
+    async function flush() {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+
+    function showApp() {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      deviceTimeZoneMock.mockReturnValue("Australia/Brisbane");
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("reports again when the zone has changed", async () => {
+      stubPush(LIVE);
+      render(<DeviceSync />);
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(1));
+
+      deviceTimeZoneMock.mockReturnValue("Europe/Paris");
+      showApp();
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(2));
+      expect(reconcileDeviceMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ timezone: "Europe/Paris" }),
+      );
+    });
+
+    it("reports again after more than 6 hours in the same zone", async () => {
+      stubPush(LIVE);
+      render(<DeviceSync />);
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(1));
+
+      vi.setSystemTime(Date.now() + 6 * 60 * 60 * 1000 + 1000);
+      showApp();
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(2));
+    });
+
+    it("does not report again for the same zone within 6 hours", async () => {
+      stubPush(LIVE);
+      render(<DeviceSync />);
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(1));
+
+      vi.setSystemTime(Date.now() + 60 * 60 * 1000);
+      showApp();
+      await flush();
+      expect(reconcileDeviceMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not report when the app goes to the background", async () => {
+      stubPush(LIVE);
+      render(<DeviceSync />);
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(1));
+
+      deviceTimeZoneMock.mockReturnValue("Europe/Paris");
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await flush();
+      expect(reconcileDeviceMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries on the next foreground when the report failed", async () => {
+      stubPush(LIVE);
+      reconcileDeviceMock.mockRejectedValueOnce(new Error("offline"));
+      render(<DeviceSync />);
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(1));
+      await flush();
+
+      showApp();
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(2));
+    });
   });
 });

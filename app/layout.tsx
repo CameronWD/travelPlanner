@@ -31,7 +31,7 @@ export const viewport: Viewport = {
   // (spec 2026-10-11-phone-keyboard-sheets §6).
   interactiveWidget: "resizes-content",
   // Light only while dark mode is parked (spec 2026-10-04 §F; see
-  // docs/open-follow-ups.md DM-01 for the dark entry to restore).
+  // docs/archive/open-follow-ups.md DM-01 for the dark entry to restore).
   themeColor: "#FFFBF3",
 };
 

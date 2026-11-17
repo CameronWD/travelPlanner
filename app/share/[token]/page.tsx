@@ -124,7 +124,7 @@ export default async function SharePage({
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+  // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // Surprise (CONTEXT.md, ADR 0051): a Share link shows every audience the
   // outside only, so it reads as a null viewer, surprised by every live
@@ -149,7 +149,7 @@ export default async function SharePage({
   // Trip's own reference timezone and "today" (ADR 0010) — computed here,
   // ahead of the reads below, because the Journal section's "arrived days"
   // gate (spec L) needs it too.
-  const timeZone = currentTripTimezone(scheduled);
+  const timeZone = currentTripTimezone(scheduled, trip.homeTimezone);
   const todayISO = todayISOInZone(timeZone);
   const journalDates = journalWritableDates({
     startDate: trip.startDate,

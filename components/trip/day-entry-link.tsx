@@ -5,6 +5,9 @@ import { cn } from "@/lib/cn";
 import { ItemFormDialog } from "@/components/trip/item-form-dialog";
 import { TransportFormDialog } from "@/components/trip/transport-form-dialog";
 import { AccommodationFormDialog } from "@/components/trip/accommodation-form-dialog";
+import { DetailsSheet } from "@/components/trip/details-sheet";
+import { isPhoneViewport } from "@/lib/viewport";
+import { accommodationDetails, itemDetails, transportDetails } from "@/lib/details-view";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import type {
   DayEntryEditor,
@@ -33,23 +36,34 @@ interface DayEntryLinkProps {
 }
 
 /**
- * Makes a Timeline row's title a button that opens the same edit dialog the
- * plan editor uses, in place — read or edit the train, the hotel or the
- * Item without leaving the day. The day page is always the real plan, so
- * every dialog gets forkId null.
+ * Makes a Timeline row's title a button. Travelling or Past on a phone it
+ * opens the read-only details sheet (Edit one tap further); otherwise it opens
+ * the plan editor's edit dialog in place. The day page is always the real
+ * plan, so every dialog gets forkId null.
  */
 export function DayEntryLink({ target, editor, attachments, className, children }: DayEntryLinkProps) {
   const [open, setOpen] = React.useState(false);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
   const ownerId =
     target.kind === "item" ? target.item.id : target.kind === "transport" ? target.transport.id : target.accommodation.id;
   const costs = editor.costsByOwner[ownerId] ?? [];
+
+  // Decided at tap time, not render, so the server and first client render agree.
+  const onTap = () => (editor.readFirst && isPhoneViewport() ? setSheetOpen(true) : setOpen(true));
+  const view = sheetOpen
+    ? target.kind === "item"
+      ? itemDetails(target.item, { ...editor, attachments, costs })
+      : target.kind === "transport"
+        ? transportDetails(target.transport, { ...editor, attachments, costs })
+        : accommodationDetails(target.accommodation, { ...editor, attachments, costs })
+    : null;
 
   return (
     <>
       <button
         type="button"
         aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
+        onClick={onTap}
         className={cn(
           "min-w-0 text-left underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none",
           className,
@@ -57,6 +71,19 @@ export function DayEntryLink({ target, editor, attachments, className, children 
       >
         {children}
       </button>
+      {view && (
+        <DetailsSheet
+          view={view}
+          open
+          onOpenChange={setSheetOpen}
+          onEdit={() => {
+            setSheetOpen(false);
+            setOpen(true);
+          }}
+          mode={editor.localMode ?? null}
+          canEdit={!(target.kind === "item" && target.item.surprise?.youAreSurprised)}
+        />
+      )}
       {open && target.kind === "item" && (
         <ItemFormDialog
           tripId={editor.tripId}

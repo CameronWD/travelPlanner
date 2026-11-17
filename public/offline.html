@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#F2674A" />
-  <title>You're offline — Teepee</title>
+  <title>You're offline · Teepee</title>
   <style>
     :root {
       --primary: #F2674A;
@@ -59,12 +59,6 @@
       margin-bottom: 0.5rem;
     }
 
-    .hint {
-      font-size: 0.875rem;
-      color: var(--muted);
-      margin-top: 2rem;
-    }
-
     .retry-btn {
       margin-top: 1.5rem;
       padding: 0.625rem 1.5rem;
@@ -80,14 +74,73 @@
     .retry-btn:hover {
       opacity: 0.9;
     }
+
+    .saved-trips {
+      width: 100%;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .saved-trips[hidden] {
+      display: none;
+    }
+
+    .saved-trips a {
+      display: block;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: white;
+      color: var(--text);
+      border-radius: 9999px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <div class="icon">✈️</div>
   <h1>You're offline</h1>
-  <p>No connection right now — but cached pages still work.</p>
-  <p>Navigate to a trip you've already visited to keep planning.</p>
+  <p>Saved pages can still be read. Changes need a connection.</p>
+  <nav id="saved-trips" class="saved-trips" hidden></nav>
   <button class="retry-btn" onclick="window.location.reload()">Try again</button>
-  <p class="hint">Edits need a connection — changes you make will sync when you're back online.</p>
+  <script>
+    (function () {
+      if (!('caches' in window)) return;
+      var list = document.getElementById('saved-trips');
+      var reserved = ['new'];
+      caches
+        .open('teepee-pages-v1')
+        .then(function (cache) { return cache.keys(); })
+        .then(function (keys) {
+          var homes = [];
+          var hasTrips = false;
+          keys.forEach(function (key) {
+            var url = new URL(key.url);
+            var path = url.pathname;
+            var match = /^\/trips(?:\/([^/]+))?$/.exec(path);
+            if (url.origin !== location.origin || url.search || !match || reserved.indexOf(match[1]) !== -1) return;
+            if (path === '/trips') hasTrips = true;
+            else if (homes.indexOf(path) === -1) homes.unshift(path);
+          });
+          var paths = hasTrips ? homes.concat('/trips') : homes;
+          paths.forEach(function (path) {
+            var link = document.createElement('a');
+            link.href = path;
+            link.textContent = path === '/trips' ? 'Your trips' : titleCase(path.slice(path.lastIndexOf('/') + 1));
+            list.appendChild(link);
+          });
+          if (paths.length) list.hidden = false;
+        })
+        .catch(function () {});
+
+      function titleCase(slug) {
+        return slug.split('-').map(function (word) { return word.charAt(0).toUpperCase() + word.slice(1); }).join(' ');
+      }
+    })();
+  </script>
 </body>
 </html>

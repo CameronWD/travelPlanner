@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import { createMapLoader } from "./map-loader";
 import { setMatchMedia } from "@/test/setup";
@@ -46,5 +47,48 @@ describe("createMapLoader mountWhen (spec 2026-10-06 §D)", () => {
     const { load, Loader } = makeLoader();
     render(<Loader label="a" mountWhen="phone" />);
     expect(load).not.toHaveBeenCalled();
+  });
+});
+
+describe("createMapLoader when the module cannot load", () => {
+  class Boundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+    state = { failed: false };
+    static getDerivedStateFromError() {
+      return { failed: true };
+    }
+    render() {
+      return this.state.failed ? <div data-testid="boundary" /> : this.props.children;
+    }
+  }
+
+  it("shows the map fallback and does not reach a parent error boundary", async () => {
+    const Loader = createMapLoader<{ label: string }>(() => Promise.reject(new Error("ChunkLoadError")));
+    const { container } = render(
+      <Boundary>
+        <Loader label="a" />
+      </Boundary>,
+    );
+    expect(await screen.findByText("The map isn't available right now.")).toBeInTheDocument();
+    expect(container.querySelector("[data-map-fallback]")).not.toBeNull();
+    expect(screen.queryByTestId("boundary")).toBeNull();
+  });
+
+  it("asks for the module again when a map mounts later", async () => {
+    let online = false;
+    const load = vi.fn(async () => {
+      if (!online) throw new Error("ChunkLoadError");
+      return function InnerMap({ label }: { label: string }) {
+        return <div data-testid="inner-map">{label}</div>;
+      };
+    });
+    const Loader = createMapLoader<{ label: string }>(load);
+    const first = render(<Loader label="a" />);
+    await screen.findByText("The map isn't available right now.");
+    first.unmount();
+
+    online = true;
+    render(<Loader label="b" />);
+    expect(await screen.findByTestId("inner-map")).toHaveTextContent("b");
+    expect(load).toHaveBeenCalledTimes(2);
   });
 });

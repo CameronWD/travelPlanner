@@ -351,7 +351,7 @@ export default async function TripPlanPage({
   });
 
   const aiConfigured = isAiConfigured();
-  const today = tripTodayISO(stops);
+  const today = tripTodayISO(stops, trip?.homeTimezone);
   const planCounts = Object.fromEntries(
     [...dayItemsByStopId].map(([id, items]) => [id, items.filter((i) => i.stopId === id).length]),
   );

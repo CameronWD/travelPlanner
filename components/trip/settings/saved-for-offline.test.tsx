@@ -6,7 +6,7 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 
 import { SavedForOffline } from "./saved-for-offline";
 import { OfflineWarmer } from "@/components/offline-warmer";
-import { beginWarm, finishWarm, getStatus, resetOfflineStatus } from "@/lib/offline-status";
+import { beginWarm, finishWarm, forgetOfflineSaves, getStatus, recordFileShortfall, resetOfflineStatus } from "@/lib/offline-status";
 import { toast } from "@/components/ui/use-toast";
 
 // Same stubs as components/offline-warmer.test.tsx: the "Save again" test
@@ -15,7 +15,11 @@ function stubNavigator({ onLine, hasController }: { onLine: boolean; hasControll
   Object.defineProperty(navigator, "onLine", { configurable: true, get: () => onLine });
   Object.defineProperty(navigator, "serviceWorker", {
     configurable: true,
-    value: hasController ? { controller: { postMessage: vi.fn() } } : { controller: null },
+    value: {
+      controller: hasController ? { postMessage: vi.fn() } : null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    },
   });
 }
 
@@ -77,14 +81,39 @@ describe("SavedForOffline", () => {
   it("follows the store: a finished warm flips Not saved yet to Saved for offline · just now", () => {
     render(<SavedForOffline tripId="t1" />);
     expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
-    act(() => finishWarm("t1", Date.now()));
+    act(() => finishWarm("t1", { total: 2, saved: 2, pagesFailed: 0 }, Date.now()));
     expect(screen.getByRole("status")).toHaveTextContent("Saved for offline · just now");
+  });
+
+  it("says how much was saved when a run came up short", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 46, saved: 40, pagesFailed: 6 }, Date.now() - 2 * 60 * 60_000);
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Saved 40 of 46 · 2h ago");
+    expect(screen.getByRole("button", { name: "Save again" })).toBeEnabled();
+  });
+
+  it("a file-only shortfall reads short with the time that run finished", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    window.localStorage.setItem("teepee.offline.savedAt.t1", String(Date.now() - 5 * 60 * 60_000));
+    finishWarm("t1", { total: 46, saved: 45, pagesFailed: 0 }, Date.now() - 60 * 60_000);
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Saved 45 of 46 · 1h ago");
+    expect(screen.getByRole("button", { name: "Save again" })).toBeEnabled();
+  });
+
+  it("never says 0 of 0", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 0, saved: 0, pagesFailed: 0 }, Date.now());
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).not.toHaveTextContent("0 of 0");
+    expect(screen.getByRole("status")).toHaveTextContent("Saved for offline");
   });
 
   it("Save again re-runs the warm: every path is fetched again and the row passes through Saving…", async () => {
     const user = userEvent.setup();
     stubNavigator({ onLine: true, hasController: true });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const fetchMock = vi.fn().mockImplementation(async () => new Response("", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(
@@ -131,5 +160,58 @@ describe("SavedForOffline", () => {
     const button = screen.getByRole("button", { name: "Save again" });
     expect(button).toBeDisabled();
     expect(screen.getByText("Offline saving needs the installed app.")).toBeInTheDocument();
+  });
+
+  it("goes back to Not saved yet when sign-out forgets the save", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 3, saved: 3, pagesFailed: 0 });
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Saved for offline");
+    act(() => forgetOfflineSaves());
+    expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
+  });
+
+  it("reads Saved N of M after a later run lost a file", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 12, saved: 12, pagesFailed: 0 });
+    render(<SavedForOffline tripId="t1" />);
+    act(() => recordFileShortfall("t1", { total: 2, saved: 1 }));
+    expect(screen.getByRole("status")).toHaveTextContent("Saved 11 of 12");
+  });
+
+  describe("after a refresh that failed on a dead connection", () => {
+    const THREE_HOURS = 3 * 60 * 60_000;
+
+    it("every page still held from the earlier save: reads as it did before, with the earlier time", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 0 }, Date.now() - THREE_HOURS);
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 33 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Saved for offline · 3h ago");
+      expect(getStatus("t1").pagesFailed).toBe(true);
+    });
+
+    it("some pages with no copy at all: reads Saved N of M with the run's time", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 0 }, Date.now() - THREE_HOURS);
+      finishWarm("t1", { total: 45, saved: 40, pagesFailed: 33 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Saved 40 of 45 · just now");
+    });
+
+    it("a first run that failed entirely: never reads Saved for offline", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 0, pagesFailed: 45 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Saved 0 of 45");
+      expect(screen.getByRole("status")).not.toHaveTextContent("Saved for offline");
+    });
+
+    it("a first run whose pages were all older copies: still not Saved for offline", () => {
+      stubNavigator({ onLine: true, hasController: true });
+      finishWarm("t1", { total: 45, saved: 45, pagesFailed: 45 });
+      render(<SavedForOffline tripId="t1" />);
+      expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
+    });
   });
 });

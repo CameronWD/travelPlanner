@@ -78,6 +78,20 @@ afterEach(async () => {
 });
 
 describe("DayCarousel", () => {
+  it("positions each panel so absolutely placed hidden inputs stay clipped inside it", () => {
+    const withInput = panels.map((p) => ({ ...p, content: <input type="file" className="sr-only" aria-label={`photo ${p.iso}`} /> }));
+    const { container } = mount({ panels: withInput });
+    for (const input of container.querySelectorAll("input.sr-only")) {
+      const panel = input.closest("[data-day-panel]") as HTMLElement;
+      let positioned = false;
+      for (let el: HTMLElement | null = input.parentElement; el; el = el.parentElement) {
+        if (el.classList.contains("relative")) positioned = true;
+        if (el === panel) break;
+      }
+      expect(positioned).toBe(true);
+    }
+  });
+
   it("renders the days in order, the neighbours inert and hidden, and rests on the day shown", () => {
     const { container, scroller } = mount();
     const items = Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));

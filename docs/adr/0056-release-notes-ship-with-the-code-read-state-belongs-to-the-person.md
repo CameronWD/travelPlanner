@@ -5,7 +5,7 @@ Accepted (2026-09-21)
 
 ## Context
 
-TEEPEE had no way to tell a **Traveller** what had changed. `ONBOARDING.md`
+TEEPEE had no way to tell a **Traveller** what had changed. `docs/archive/ONBOARDING.md`
 carries a changelog, but it is written for engineers ("Adds one column:
 `Transport.anchorStopId`"), had not been updated since 2026-08-20, and is not
 in the app at all. Meanwhile the **Feedback panel** gives a Traveller a way to

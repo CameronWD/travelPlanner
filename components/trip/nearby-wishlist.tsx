@@ -15,6 +15,7 @@ import { MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import type { NearbyResult } from "@/lib/nearby";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
+import { toastRejected } from "@/components/ui/action-failure";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useTripHref } from "@/components/trip/use-trip-href";
@@ -106,6 +107,8 @@ export function NearbyWishlist({
                               description: firstError,
                             });
                           }
+                        } catch {
+                          toastRejected("Couldn't add item.");
                         } finally {
                           setPendingId(null);
                         }

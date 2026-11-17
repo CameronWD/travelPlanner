@@ -1,8 +1,33 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, subscribe, takeWarmRequest } from "@/lib/offline-status";
-import { isAttachmentRoute, isConstrainedConnection, isCoverRoute, isWarmFresh, type ConnectionHint } from "@/lib/offline";
+import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, recordFileShortfall, subscribe, takeWarmRequest } from "@/lib/offline-status";
+import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
+
+const FILE_STORED_WAITS_MS = [0, 250, 750];
+
+// The worker writes a file to the cache as its body arrives, a moment after
+// the page has read the same bytes (longer for a large file on a slow phone),
+// so a miss gets two more looks, 250 ms and 1 s after the first.
+async function fileIsStored(path: string): Promise<boolean> {
+  if (typeof caches === "undefined") return true;
+  for (const wait of FILE_STORED_WAITS_MS) {
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    const hit = await caches.match(path).catch(() => undefined);
+    if (hit && !hit.redirected) return true;
+  }
+  return false;
+}
+
+function subscribeToController(onChange: () => void): () => void {
+  if (!("serviceWorker" in navigator)) return () => {};
+  navigator.serviceWorker.addEventListener("controllerchange", onChange);
+  return () => navigator.serviceWorker.removeEventListener("controllerchange", onChange);
+}
+
+function hasController(): boolean {
+  return "serviceWorker" in navigator && Boolean(navigator.serviceWorker.controller);
+}
 
 /**
  * Background-warms the SW cache with a trip's key pages so they're available
@@ -24,6 +49,7 @@ import { isAttachmentRoute, isConstrainedConnection, isCoverRoute, isWarmFresh, 
  */
 export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string[] }) {
   const requestId = useSyncExternalStore(subscribe, () => getStatus(tripId).requestId, () => 0);
+  const controlled = useSyncExternalStore(subscribeToController, hasController, () => false);
   // The server layout hands us a fresh `paths` array on every render (each
   // revalidation — a Plan edit, a Settings toggle — builds a new array even
   // when the paths themselves are unchanged). Depending on `paths` directly
@@ -35,13 +61,18 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
     if (typeof navigator === "undefined" || !navigator.onLine) return;
     // Only warm when a SW is actually controlling the page (prod); otherwise
     // these fetches do nothing useful — and the status stays "Not saved yet".
-    if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+    if (!("serviceWorker" in navigator) || !controlled) return;
+    const worker = navigator.serviceWorker.controller;
+    if (!worker) return;
 
     const pathList = pathsKey === "" ? [] : pathsKey.split("\n");
     let cancelled = false;
     const warm = async () => {
       if (cancelled) return;
       const forced = takeWarmRequest(tripId);
+      // So a cold launch with no signal opens the Trip last opened.
+      const home = pathList.find(isCachedTripHome);
+      if (home) worker.postMessage({ type: "LAST_TRIP", path: home });
       // Never on a connection that asks to save data — unless the Traveller
       // pressed "Save again" (CONTEXT.md "Saved for offline").
       const connection = (navigator as Navigator & { connection?: ConnectionHint }).connection;
@@ -50,7 +81,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       // HTML references that deploy's chunks. No recorded build → stale.
       const saved = getStatus(tripId);
       const sameBuild = saved.savedBuild !== null && saved.savedBuild === currentBuildId();
-      let warmPages = forced || !sameBuild || !isWarmFresh(saved.savedAt, Date.now());
+      let warmPages = forced || !sameBuild || !isWarmFresh(saved.savedAt, Date.now()) || saved.pagesFailed;
       // A fresh savedAt only counts if the pages are really still cached: a
       // new worker's activate (spec 2026-10-06 §T), sign-out's CLEAR_CACHE or
       // browser eviction can empty the cache while localStorage still says
@@ -67,6 +98,10 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
         }
       }
       if (warmPages) beginWarm(tripId);
+      let total = 0;
+      let savedCount = 0;
+      let pagesFailed = 0;
+      const assetsSeen = new Set<string>();
       for (const path of pathList) {
         if (cancelled) return;
         // `path` is origin-relative, but isAttachmentRoute/isCoverRoute parse
@@ -78,16 +113,69 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
         // "Save again" really refreshes them.
         const isFile = isAttachmentRoute(absoluteUrl) || isCoverRoute(absoluteUrl);
         if (!isFile && !warmPages) continue;
-        if (isFile && typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
+        total++;
+        if (isFile && typeof caches !== "undefined") {
+          // A redirected entry is one kept before the worker stripped redirects:
+          // it fails to open offline, so it counts as missing and is replaced.
+          const hit = await caches.match(path).catch(() => undefined);
+          if (hit && !hit.redirected) {
+            savedCount++;
+            continue;
+          }
+        }
         try {
-          await fetch(path, { cache: "no-store" });
+          // Files ask for their bytes (never a storage redirect); the worker
+          // keeps them under the plain path, which is what caches.match checks.
+          const response = await fetch(warmUrlFor(path), { cache: "no-store" });
+          if (!response.ok || (isFile && response.redirected)) {
+            if (!isFile) pagesFailed++;
+            continue;
+          }
+          // The header marks an older copy the worker answered with because the
+          // network failed. It is on the phone, so it counts as held; the
+          // refresh failed, so no save is stamped and the next open tries again.
+          if (response.headers.get(SAVED_COPY_HEADER)) {
+            if (!isFile) {
+              savedCount++;
+              pagesFailed++;
+            }
+            continue;
+          }
+          if (isFile) {
+            // Saved means the bytes are in the cache, not that the headers arrived:
+            // a download that drops rejects here, and a failed write is a miss.
+            await response.arrayBuffer();
+            if (await fileIsStored(path)) savedCount++;
+            continue;
+          }
+          // A page is only as saved as the scripts and styles it loads.
+          const assets = assetUrlsIn(await response.text()).filter((a) => !assetsSeen.has(a));
+          savedCount++;
+          for (const asset of assets) {
+            if (cancelled) return;
+            assetsSeen.add(asset);
+            total++;
+            if (typeof caches !== "undefined" && (await caches.match(asset).catch(() => undefined))) {
+              savedCount++;
+              continue;
+            }
+            try {
+              const assetResponse = await fetch(asset);
+              if (assetResponse.ok) savedCount++;
+              else pagesFailed++;
+            } catch {
+              pagesFailed++;
+            }
+          }
         } catch {
-          // ignore — best-effort warming
+          if (!isFile) pagesFailed++;
         }
       }
+      if (cancelled) return;
       // Only a run that warmed the pages counts as a save (its timestamp is
-      // what the 6-hour skip reads).
-      if (!cancelled && warmPages) finishWarm(tripId);
+      // what the 6-hour skip reads). A run of files alone still reports one it lost.
+      if (warmPages) finishWarm(tripId, { total, saved: savedCount, pagesFailed });
+      else recordFileShortfall(tripId, { total, saved: savedCount });
     };
     // Defer to idle so it never competes with the page the user is viewing.
     const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
@@ -98,7 +186,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       cancelled = true;
       cancelWarm(tripId);
     };
-  }, [tripId, pathsKey, requestId]);
+  }, [tripId, pathsKey, requestId, controlled]);
 
   return null;
 }

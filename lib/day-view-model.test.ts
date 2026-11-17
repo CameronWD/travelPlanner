@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, stopLine, planCountLabel, dayIdeasRows, forecastOpensOn, buildDayModel, type DayRows } from "@/lib/day-view-model";
+import type { TripPhase } from "@/lib/trip-phase";
+import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, stopLine, planCountLabel, dayIdeasRows, forecastOpensOn, buildDayModel, buildDayEntryEditor, buildEditorBase, type DayRows } from "@/lib/day-view-model";
 
 const T = { start: "2026-12-04", end: "2027-01-08" };
 
@@ -240,5 +241,19 @@ describe("buildDayModel (card 3.M)", () => {
 
   it("a Trip with Chapters off has no Chapter", () => {
     expect(buildDayModel(rows({ chapters: [] }), "2026-12-11").chapter).toBeNull();
+  });
+
+  const READ_FIRST: Record<TripPhase, boolean> = {
+    sketching: false,
+    planning: false,
+    "final-prep": false,
+    travelling: true,
+    past: true,
+  };
+
+  it.each(Object.entries(READ_FIRST) as [TripPhase, boolean][])("the editor reads first in %s: %s", (phase, expected) => {
+    const r = rows({ stops: [stop({ id: "s1", name: "Munich", arriveDate: "2026-12-10", departDate: "2026-12-12", sortOrder: 0 })] });
+    const editor = buildDayEntryEditor(r, buildEditorBase("t1", r, []), { accommodations: [], dayStop: null }, phase);
+    expect(editor.readFirst).toBe(expected);
   });
 });

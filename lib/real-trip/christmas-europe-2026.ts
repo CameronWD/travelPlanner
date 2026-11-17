@@ -17,7 +17,7 @@
  * (`lib/time-display.ts`) renders that instant back in the same Stop's zone. So
  * a booking's printed wall time is stored here as the real moment it happens:
  * Munich Hbf 06:51 (Europe/Berlin, +1 in December) is `05:51:00Z`. Storing the
- * wall clock verbatim is exactly the defect `docs/things-to-fix.md` P0-1 fixed,
+ * wall clock verbatim is exactly the defect `docs/archive/things-to-fix.md` P0-1 fixed,
  * and any production row that still looks that way is that bug's output.
  * `christmas-europe-2026.test.ts` pins every leg's rendered wall time.
  *

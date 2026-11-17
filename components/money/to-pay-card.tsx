@@ -11,6 +11,7 @@ export function ToPayCard({
   today,
   costs,
   costRows,
+  recentIds,
   ratesFooter,
   className,
   style,
@@ -20,6 +21,7 @@ export function ToPayCard({
   today: string;
   costs: ToPayInput[];
   costRows: CostRow[];
+  recentIds: string[];
   ratesFooter?: React.ReactNode;
   className?: string;
   style?: CSSProperties;
@@ -36,7 +38,7 @@ export function ToPayCard({
       )}
       style={style}
     >
-      <ToPayPanel tripId={tripId} homeCurrency={homeCurrency} rows={rows} costs={costRows} ratesFooter={ratesFooter} />
+      <ToPayPanel tripId={tripId} homeCurrency={homeCurrency} rows={rows} costs={costRows} recentIds={recentIds} ratesFooter={ratesFooter} />
     </section>
   );
 }

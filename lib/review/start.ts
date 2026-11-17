@@ -32,7 +32,7 @@ export type BeginReviewResult =
  */
 export async function beginReview(userId: string, tripId: string, kind: ReviewKind, model: string, now: Date = new Date()): Promise<BeginReviewResult> {
   return db.$transaction(async (tx): Promise<BeginReviewResult> => {
-    // A theoretical deadlock, noted, not fixed (docs/open-follow-ups.md): a
+    // A theoretical deadlock, noted, not fixed (docs/archive/open-follow-ups.md): a
     // saveReviewResult (lib/review-store.ts) holding its Review row FOR UPDATE
     // can insert a Finding whose stateById (a carried Dismissal) is this User,
     // which needs a KEY SHARE lock this FOR UPDATE blocks, while this start,

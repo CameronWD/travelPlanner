@@ -93,7 +93,7 @@ See `docs/resendDeploy.md` — account, domain and DNS, API key, the two Vercel 
 
 The migration `prisma/migrations/20260812000000_cost_and_paid_amounts`
 RENAMED columns and was applied to production on 2026-08-12 — the deploy
-succeeded (`docs/open-follow-ups.md`, `OPS-01`). It is kept here as the
+succeeded (`docs/archive/open-follow-ups.md`, `OPS-01`). It is kept here as the
 worked example this hazard shape is named after, not as a pending step.
 `vercel.json` runs `prisma migrate deploy && next build`, so for the length
 of that build the old column names had already gone while the previous
@@ -119,12 +119,12 @@ for the *next* one, not as work still owed on this one:
    forward immediately or apply the reverse migration.
 4. **Afterwards**, re-run the count from step 1 in prod and reconcile any
    legacy paid-without-date rows via the Budget page checklist (the app
-   surfaces them — see `docs/things-to-fix.md` P2-8).
+   surfaces them — see `docs/archive/things-to-fix.md` P2-8).
 
 **How this played out for `cost_and_paid_amounts`:** step 1's rehearsal was
 never run; what closed the migration instead was post-hoc verification
 against the already-applied schema. Step 4's reconciliation is done — the
-count came back **0 of 33** `Cost` rows (`docs/open-follow-ups.md`, `OPS-03`).
+count came back **0 of 33** `Cost` rows (`docs/archive/open-follow-ups.md`, `OPS-03`).
 
 ### The same window, on the write path
 
@@ -168,7 +168,7 @@ which is why the pre-deploy count mattered: it was the one number that said
 whether the world matched what ADR 0047 was written against.
 
 The migration is applied in production — every migration in
-`prisma/migrations/` is (`docs/open-follow-ups.md`'s migration-state audit).
+`prisma/migrations/` is (`docs/archive/open-follow-ups.md`'s migration-state audit).
 **The gate below is a one-time check that has been overtaken; it is not a
 pending step for this migration.** It is kept as the template for the next
 migration that needs the same kind of check run immediately before it:
@@ -186,7 +186,7 @@ was not designed around, and the `targetType = 'COST_DUE'` delete may have
 thrown away rows a Traveller wrote. (For `digest_and_alarms` itself, this
 specific check's outcome was not recorded before the gate was overtaken; if
 it matters retrospectively it needs a fresh production read, not a re-run of
-the gate — `docs/open-follow-ups.md`, `RM-01`.)
+the gate — `docs/archive/open-follow-ups.md`, `RM-01`.)
 
 Migrations that carry this kind of count gate, run immediately before the
 deploy that ships them:
@@ -297,9 +297,28 @@ error sink (ADR 0059), plus one migration,
 
 6. **Verify against the live database and a real browser.** Everything this
    branch could not check without Postgres or a browser is listed, with exact
-   steps, in `docs/rollout-gate-manual-verify.md`. The lockout check (an
+   steps, in `docs/archive/rollout-gate-manual-verify.md`. The lockout check (an
    invited Traveller signing in **twice**, across the Invite-acceptance
    boundary) is the one to do first.
+
+> ### ⚠ Never run `npm run sweep:blobs -- --execute` from a machine holding `.env.production.local`
+>
+> `--execute` destroys storage objects, and on the operator's machine it
+> destroys them *wrongly*. It is safe only when `STORAGE_DRIVER` genuinely
+> resolves to the production driver (`r2`) for that process. That file sets
+> `STORAGE_DRIVER="local"` and `load-env` applies it with `override: true`, so
+> an inline `STORAGE_DRIVER=r2` prefix is silently discarded. The run then
+> pairs the **production database** with the **local-disk driver**, whose
+> `delete()` is `fs.rm(..., { force: true })`: a silent no-op for a key that is
+> not on this laptop. Result: every `DeletedBlob` row deleted, every R2 object
+> left alive and permanently orphaned, and `destroyed N, failed 0` printed as
+> if it had worked. The `--execute` refusal does not catch it, because the
+> variable is set, just to the wrong thing.
+>
+> The printed `Storage driver:` line is the only reliable confirmation of what
+> a run acts through. If it does not say `r2`, do not run `--execute`. A real
+> sweep belongs on a host configured for R2. Dry runs (`-- --days=1`) are safe.
+> Full history: `docs/archive/rollout-gate-manual-verify.md` §3.1a.
 
 ## 4d. Feedback note site — deploy order (`feat/feedback-site-tag`)
 
@@ -419,7 +438,7 @@ deploy, including yours. This is expected, not a sign something went wrong.
 **The old Auth.js tables (`Account`, `Session`, `VerificationToken`) are kept
 for one release** rather than dropped in this migration, in case a rollback
 is needed. Dropping them, and the migration's Google-link copy that depends
-on `Account` existing, is `docs/open-follow-ups.md` TC-13, once main has run
+on `Account` existing, is `docs/archive/open-follow-ups.md` TC-13, once main has run
 on Better Auth for a release.
 
 **What a rollback does and doesn't restore.** Redeploying the previous build
@@ -511,7 +530,7 @@ Steps 1 and 2 are safe to do any time before the switch; step 4 is the switch.
 
 - **The GitHub `APP_URL` variable is not optional.** The Digest cron's `curl` does not follow
   redirects, and would drop its bearer token across hosts if it did. Left on the old host it
-  gets a 301, the job only *warns* on non-2xx (§5), and Digests stop silently.
+  gets a 301, the job fails on any non-2xx (§5), so GitHub emails the owner.
 - **A new origin costs every Traveller once.** Sign in again (cookies are per host). A PWA
   installed from the old host opens out of scope after the 301 — reinstall from the new host,
   where the Install nudge shows again because its dismissal is stored per origin. Push
@@ -744,30 +763,22 @@ In the GitHub repo settings:
 - **Secrets and variables → Actions → Secrets:** add `CRON_SECRET` (same value as Vercel).
 - **Variables:** add `APP_URL` = `https://teepeeapp.com` (no trailing slash — §4e says why this must move with the host).
 
-> **Note:** Land the cron route rename away from 06/09/10/19/20 UTC: GitHub reads the
+> **Note:** Land the cron route rename away from the Digest run hours (minute 17 of the hours above): GitHub reads the
 > workflow from `main` at schedule time, Vercel needs a minute or two to deploy, and a run
 > inside that gap 404s and costs one Digest.
 
-The `Digest cron` workflow then pings `/api/cron/digest` at five fixed UTC hours —
-**06:00, 09:00, 10:00, 19:00 and 20:00** (`0 6,9,10,19,20 * * *`). The schedule is
+The `Digest cron` workflow then pings `/api/cron/digest` at eleven fixed UTC hours,
+at minute 17: **00, 06, 07, 10, 11, 13, 14, 19, 20, 21 and 23**
+(`17 0,6,7,10,11,13,14,19,20,21,23 * * *`). The schedule is
 deliberately not "every N minutes": each run asks the route to dispatch only to subscribers
-whose *local* hour is inside the morning (06–08) or evening (20–22) window, so the five
-hours exist to land inside those windows for the zones we serve. Where each run actually
-lands (✔ = the run that delivers):
-
-| UTC | Europe/Vienna (CET) | Australia/Brisbane (AEST, UTC+10) | Australia/Sydney (AEDT, UTC+11) |
-|---|---|---|---|
-| 06:00 | 07:00 **MORNING ✔** | 16:00 — | 17:00 — |
-| 09:00 | 10:00 — | 19:00 — | 20:00 **EVENING ✔** |
-| 10:00 | 11:00 — | 20:00 **EVENING ✔** | 21:00 EVENING (absorbed) |
-| 19:00 | 20:00 **EVENING ✔** | 05:00 — | 06:00 **MORNING ✔** (next day) |
-| 20:00 | 21:00 EVENING (absorbed) | 06:00 **MORNING ✔** (next day) | 07:00 MORNING (absorbed) |
+whose *local* hour is inside the morning (06–08) or evening (20–22) window, so the hours
+exist to land at least two runs inside each window for every zone we serve (Brisbane,
+Makassar, Bangkok, London, Dublin, Berlin, Paris, Rome). The table of where each run lands
+is in the header of `.github/workflows/digest-cron.yml`.
 
 An "absorbed" run sends nothing: the dispatch ledger is keyed (user, trip, local date,
 slot), so the second run inside a window is a no-op. That redundancy is deliberate cover
-for a GitHub run delayed past its hour. Note the consequence for Sydney under AEDT — the
-morning Digest arrives at **06:00 local, not 07:00**, because the 19:00Z run gets there
-first and claims the slot.
+for a GitHub run delayed past its hour or dropped.
 
 Trigger it once manually (Actions tab → Digest cron → Run workflow) to confirm it
 returns 200. `lib/digest-schedule.test.ts` holds this schedule against the route's windows,
@@ -784,7 +795,7 @@ filter is a whole local hour, only zones whose offset lines one of those hours u
   people actually notice. Any other whole-hour offset needs the same check before a
   traveller relies on it.
 - **Half-hour zones cost one more hour — not a code change.** `Asia/Kolkata` (UTC+5:30)
-  and `Asia/Kathmandu` (UTC+5:45) land in no window on the five hours above, so today they
+  and `Asia/Kathmandu` (UTC+5:45) land in no window on the hours above, so today they
   get no Digest at all. But the filter reads the subscriber's local **hour**, and a half
   hour of offset does not move it out of one: a run at **15:00Z** is 20:30 in Kolkata and
   20:45 in Kathmandu — hour 20 either way, already inside the evening window. So a

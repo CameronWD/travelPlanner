@@ -888,8 +888,8 @@ describe("Travel times in the Flags", () => {
   const tokyo = (mode: string | null) =>
     makeStop({ id: "tokyo", arriveDate: "2026-11-08", departDate: "2026-11-12", timezone: "Asia/Tokyo", lat: TEMPLE.lat, lng: TEMPLE.lng, localTravelMode: mode });
   const pair = (to: { lat: number; lng: number }, nextStart = "12:10") => [
-    makeItem({ id: "a", stopId: "tokyo", date: DAY, startTime: "10:00", endTime: "12:00", lat: TEMPLE.lat, lng: TEMPLE.lng }),
-    makeItem({ id: "b", stopId: "tokyo", date: DAY, startTime: nextStart, endTime: "13:10", lat: to.lat, lng: to.lng }),
+    makeItem({ id: "a", title: "A", stopId: "tokyo", date: DAY, startTime: "10:00", endTime: "12:00", lat: TEMPLE.lat, lng: TEMPLE.lng }),
+    makeItem({ id: "b", title: "B", stopId: "tokyo", date: DAY, startTime: nextStart, endTime: "13:10", lat: to.lat, lng: to.lng }),
   ];
   const keyOf = (mode: "WALK" | "DRIVE" | "TRANSIT", to: { lat: number; lng: number }, departure: Date | null = null) =>
     hopKeys(TEMPLE, to, mode === "WALK" ? "TRANSIT" : mode, departure, NOW).find((k) => k.startsWith(mode))!;
@@ -900,21 +900,21 @@ describe("Travel times in the Flags", () => {
     it("uses a stored walk, unmarked, and retimes from it", () => {
       const lookup: TravelLookup = new Map([[keyOf("WALK", BAR), ok(18)]]);
       const [flag] = tight(pair(BAR), tokyo(null), lookup);
-      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~18 min walk.`);
+      expect(flag.message).toBe(`Tight on ${DAY} between A and B: only 10 min, but it's a ~18 min walk.`);
       expect(flag.retime).toEqual({ itemId: "b", startTime: "12:35", endTime: "13:35" });
     });
 
     it("uses a stored drive at a Stop whose Local travel mode is Drive", () => {
       const lookup: TravelLookup = new Map([[keyOf("DRIVE", SHRINE), ok(25)]]);
       const [flag] = tight(pair(SHRINE), tokyo("DRIVE"), lookup);
-      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~25 min drive.`);
+      expect(flag.message).toBe(`Tight on ${DAY} between A and B: only 10 min, but it's a ~25 min drive.`);
     });
 
     it("uses stored public transport, keyed on the earlier Item's end in the Stop's zone", () => {
       const departure = new Date(`${DAY}T12:00:00+09:00`);
       const lookup: TravelLookup = new Map([[keyOf("TRANSIT", SHRINE, departure), ok(31)]]);
       const [flag] = tight(pair(SHRINE), tokyo("TRANSIT"), lookup);
-      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min trip by public transport.`);
+      expect(flag.message).toBe(`Tight on ${DAY} between A and B: only 10 min, but it's a ~31 min trip by public transport.`);
     });
 
     it("skips an Item whose coordinate is not a finite number, pairing its neighbours instead", () => {
@@ -934,7 +934,20 @@ describe("Travel times in the Flags", () => {
       const transit = hopKeys(TEMPLE, SHRINE, "TRANSIT", departure, afterwards, "read")[0];
       expect(keys).toContain(transit);
       const [flag] = tight(pair(SHRINE), stop, new Map([[transit, ok(31)]]));
-      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~31 min trip by public transport.`);
+      expect(flag.message).toBe(`Tight on ${DAY} between A and B: only 10 min, but it's a ~31 min trip by public transport.`);
+    });
+
+    it("truncates long titles and names an untitled Item generically", () => {
+      const long = "The Grand Tour of the Whole Imperial Palace Grounds";
+      const items = pair(BAR).map((i, n) => (n === 0 ? { ...i, title: long } : { ...i, title: null }));
+      const [flag] = tight(items, tokyo(null), new Map([[keyOf("WALK", BAR), ok(18)]]));
+      expect(flag.message).toBe(`Tight on ${DAY} between The Grand Tour of the Whole Imperial Pa… and a thing to do: only 10 min, but it's a ~18 min walk.`);
+    });
+
+    it("names a Surprise by its masked title", () => {
+      const items = pair(BAR).map((i, n) => (n === 1 ? { ...i, title: "Surprise" } : i));
+      const [flag] = tight(items, tokyo(null), new Map([[keyOf("WALK", BAR), ok(18)]]));
+      expect(flag.message).toContain("between A and Surprise:");
     });
 
     it("falls back to the estimate, marked, when the stored row is NONE", () => {
@@ -947,21 +960,21 @@ describe("Travel times in the Flags", () => {
       const [flag] = tight(pair(SHRINE), tokyo("TRANSIT"), new Map());
       const [atDrive] = tight(pair(SHRINE), tokyo("DRIVE"), new Map());
       const minutes = atDrive.message.match(/~(\d+) min drive \(estimated\)\.$/)![1];
-      expect(flag.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~${minutes} min trip (estimated).`);
+      expect(flag.message).toBe(`Tight on ${DAY} between A and B: only 10 min, but it's a ~${minutes} min trip (estimated).`);
     });
 
     it("falls back to the estimate, marked, when nothing is stored", () => {
       const [flag] = tight(pair(BAR), tokyo(null), new Map());
       expect(flag.message).toMatch(/but it's a ~\d+ min walk \(estimated\)\.$/);
       const close = tight(pair(BAR, "12:25"), tokyo(null), new Map());
-      expect(close[0].message).toMatch(/^Cutting it close on .*: 25 min between activities, and it's a ~\d+ min walk \(estimated\)\.$/);
+      expect(close[0].message).toMatch(/^Cutting it close on \S+ between A and B: 25 min, and it's a ~\d+ min walk \(estimated\)\.$/);
     });
 
     it("a masked viewer's flag resolves the hop that steps over the hidden Surprise", () => {
       const items = [
-        makeItem({ id: "temple", stopId: "tokyo", date: DAY, startTime: "10:00", endTime: "12:00", lat: TEMPLE.lat, lng: TEMPLE.lng }),
+        makeItem({ id: "temple", title: "A", stopId: "tokyo", date: DAY, startTime: "10:00", endTime: "12:00", lat: TEMPLE.lat, lng: TEMPLE.lng }),
         makeItem({ id: "surprise", stopId: "tokyo", date: DAY, startTime: "12:05", endTime: "12:08" }),
-        makeItem({ id: "bar", stopId: "tokyo", date: DAY, startTime: "12:10", endTime: "13:10", lat: BAR.lat, lng: BAR.lng }),
+        makeItem({ id: "bar", title: "B", stopId: "tokyo", date: DAY, startTime: "12:10", endTime: "13:10", lat: BAR.lat, lng: BAR.lng }),
       ];
       const stop = tokyo(null);
       const keys = planTravelKeys({ items, stops: [stop], transports: [], home: null }, NOW);
@@ -972,7 +985,7 @@ describe("Travel times in the Flags", () => {
         hiddenItemIds: ["surprise"], travel: lookup,
       });
       const flag = flags.find((f) => f.id === "tight-temple-bar");
-      expect(flag?.message).toBe(`Tight on ${DAY}: only 10 min between activities, but it's a ~18 min walk.`);
+      expect(flag?.message).toBe(`Tight on ${DAY} between A and B: only 10 min, but it's a ~18 min walk.`);
     });
 
     it("a Review's stored retime still matches the live Flag computed from the same lookup", () => {

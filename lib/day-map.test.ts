@@ -406,3 +406,31 @@ describe("dayMapHops", () => {
     expect(dayMapHops(modelFor(items), { dayItems: items, stops, transports, lookup, estimateOpts })[0]).toMatchObject({ polyline: null, estimated: true });
   });
 });
+
+describe("buildItemDirections from here", () => {
+  const model = buildDayMapModel({
+    date: "2026-06-24",
+    items: [makeItem({ id: "i1", title: "Museum", sortOrder: 1, lat: 48.86, lng: 2.35 })],
+    transports: [],
+  });
+
+  it("routes every located item from where the Traveller is, including the first", () => {
+    const dirs = buildItemDirections(model, { fromHere: true, mode: "DRIVE" });
+    const g = new URL(dirs["i1"].google!).searchParams;
+    expect(g.has("origin")).toBe(false);
+    expect(g.get("destination")).toBe("48.86,2.35");
+    expect(g.get("travelmode")).toBe("driving");
+    expect(dirs["i1"].apple).not.toContain("saddr");
+  });
+
+  it("keeps previous-to-this routing when not today", () => {
+    const withBed = buildDayMapModel({
+      date: "2026-06-24",
+      items: [makeItem({ id: "i1", title: "Museum", sortOrder: 1, lat: 48.86, lng: 2.35 })],
+      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.85, lng: 2.34 }),
+      transports: [],
+    });
+    const g = new URL(buildItemDirections(withBed, { fromHere: false, mode: null })["i1"].google!).searchParams;
+    expect(g.get("origin")).toBe("48.85,2.34");
+  });
+});

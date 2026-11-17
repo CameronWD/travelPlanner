@@ -498,8 +498,8 @@ describe("Timeline — kit day rows (Task 12a)", () => {
       />,
     );
     const link = screen.getByRole("link", { name: `Directions to ${ITEM_TITLE}` });
-    expect(link.className).toMatch(/pointer-coarse:after:absolute/);
-    expect(link.className).toMatch(/pointer-coarse:after:-inset-2\.5/);
+    expect(link.className).toMatch(/min-h-11/);
+    expect(link.className).toMatch(/min-w-11/);
   });
 
   it("an empty day renders the kit empty treatment in the day variant", () => {
@@ -803,7 +803,7 @@ describe("Timeline — day-page entries open their details (editor)", () => {
   it("wraps entry titles in DayEntryLink when an editor is supplied, and not otherwise", () => {
     const editor: DayEntryEditor = {
       tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY", bookingStateSet: false } },
-      transports: {}, accommodations: {}, costsByOwner: {},
+      transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
     };
     const { unmount } = render(<Timeline day={dayPlan} variant="day" editor={editor} />);
     const links = screen.getAllByTestId("entry-link");
@@ -828,7 +828,7 @@ describe("Timeline — day-page entries open their details (editor)", () => {
           stopDateRange: { arriveDate: "2025-07-05", departDate: "2025-07-08" },
         },
       },
-      costsByOwner: {},
+      costsByOwner: {}, readFirst: false,
     };
     render(<Timeline day={dayWithCheckinAndTransport} variant="day" editor={editor} />);
     const kinds = screen.getAllByTestId("entry-link").map((l) => l.getAttribute("data-kind"));
@@ -1083,7 +1083,7 @@ describe("Timeline, Surprise Items (CONTEXT.md Surprise)", () => {
     accommodationEntries: [],
   });
   const editorFor = (title: string): DayEntryEditor => ({
-    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER", bookingStateSet: false } }, transports: {}, accommodations: {}, costsByOwner: {},
+    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER", bookingStateSet: false } }, transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
   });
 
   it("the planner's Item carries its badge and still opens", () => {
@@ -1133,7 +1133,7 @@ describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
         },
       },
       accommodations: {},
-      costsByOwner: {},
+      costsByOwner: {}, readFirst: false,
     };
     render(<Timeline day={dayWithStopLinkedLeg("Belfast City (BHD)")} variant="day" editor={editor} />);
     expect(screen.getByText("Aghalee · Belfast City (BHD)")).toBeInTheDocument();
@@ -1155,7 +1155,7 @@ describe("Timeline — Stop-linked departure/arrival points (spec B5)", () => {
         },
       },
       accommodations: {},
-      costsByOwner: {},
+      costsByOwner: {}, readFirst: false,
     };
     render(<Timeline day={dayWithStopLinkedLeg("Paris Gare du Nord")} variant="day" editor={editor} />);
     expect(screen.getByText("Paris Gare du Nord")).toBeInTheDocument();
@@ -1368,6 +1368,21 @@ describe("Timeline: booking confirmation marker", () => {
     render(<Timeline day={dayPlan} variant="day" needsConfirmationIds={["other"]} />);
     render(<Timeline day={dayPlanWithCheckin} variant="day" />);
     expect(screen.queryByText(MARKER)).toBeNull();
+  });
+
+  it("drops the marker from item, transport and check-in rows when the editor reads first (Travelling or Past)", () => {
+    const editor = { tripId: "t1", stops: [], readFirst: true, transports: {}, accommodations: {}, items: {}, costsByOwner: {} };
+    render(<Timeline day={dayPlan} variant="day" editor={editor} needsConfirmationIds={[ITEM_ID, UNTIMED_ITEM_ID]} />);
+    render(<Timeline day={dayPlanWithTransport} variant="day" editor={editor} needsConfirmationIds={["tr-1"]} />);
+    render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} needsConfirmationIds={["acc-1"]} />);
+    expect(screen.queryByText(MARKER)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+  });
+
+  it("keeps the marker while planning (readFirst false)", () => {
+    const editor = { tripId: "t1", stops: [], readFirst: false, transports: {}, accommodations: {}, items: {}, costsByOwner: {} };
+    render(<Timeline day={dayPlan} variant="day" editor={editor} needsConfirmationIds={[ITEM_ID]} />);
+    expect(screen.getAllByText(MARKER)).toHaveLength(1);
   });
 
   it("never marks the check-out row", () => {

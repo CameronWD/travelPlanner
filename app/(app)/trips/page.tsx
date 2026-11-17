@@ -32,7 +32,7 @@ const TRAVELS_ROW = "grid grid-cols-12 gap-[18px] pr-[18px] md:pr-10 md:h-[360px
 
 export default async function TripsPage() {
   const user = await requireUser();
-  // Always the real plan; never wire in ?plan= here (architecture-sitrep-2026-09-22).
+  // Always the real plan; never wire in ?plan= here (docs/archive/architecture-sitrep-2026-09-22).
   const [data, deletedTrips] = await Promise.all([
     loadTripsPage(user.id),
     loadRecentlyDeleted(user.id),

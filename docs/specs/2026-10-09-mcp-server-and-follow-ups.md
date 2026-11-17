@@ -28,7 +28,7 @@ C. `scripts/verify-r2-presign.ts` is unchanged: it never touches the database
 D. Tests: the sweep's guard ordering (refusal happens before any DB or
    storage call, dry run included), and the target line for the two
    DB-only scripts, written so no credentials appear.
-E. `docs/open-follow-ups.md`: strike TC-05 with what was done.
+E. `docs/archive/open-follow-ups.md`: strike TC-05 with what was done.
 
 ## Part 2 · TC-04 · Layout-audit overlay recipes match the live UI
 
@@ -48,7 +48,7 @@ B. Re-run until every overlay captures. Update `overlays.test.ts` /
 C. Fallback if the local DB or dev server cannot run in the sandbox: fix by
    reading each component, and **say so** in the report and in TC-04's
    strike note ("fixed by inspection, not run").
-D. `docs/open-follow-ups.md`: strike TC-04.
+D. `docs/archive/open-follow-ups.md`: strike TC-04.
 
 ## Part 3 · TC-02 · The two leaking component tests
 
@@ -189,7 +189,7 @@ writes, push, Admin, Feedback.
     If it cannot be made to work, the doc says Desktop waits for OAuth
     (TC-06).
 - `docs/DEPLOY.md`: the migration and the route, under deploy steps.
-- `docs/open-follow-ups.md`: strike TC-03 v1; add TC-06, "OAuth Claude
+- `docs/archive/open-follow-ups.md`: strike TC-03 v1; add TC-06, "OAuth Claude
   connection after Better Auth (bound by ADR 0070 amendment)", and a
   "Checklist and Reminder history in Activity" idea for later.
 

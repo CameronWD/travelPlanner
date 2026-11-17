@@ -9,7 +9,8 @@
  * No React, no Prisma, no network — fully unit-testable.
  */
 
-import { googleDirectionsUrl, appleDirectionsUrl } from "@/lib/map/maps";
+import { googleDirectionsUrl, appleDirectionsUrl, directionsFromHereUrl } from "@/lib/map/maps";
+import type { LocalMode } from "@/lib/travel-times/hops";
 import {
   byHopOrder,
   hopStopsById,
@@ -287,10 +288,15 @@ export interface ItemDirections {
 /** Per-item directions URLs from the previous located point to each located item. */
 export function buildItemDirections(
   model: DayMapModel,
+  opts?: { fromHere: boolean; mode: LocalMode | null },
 ): Record<string, ItemDirections> {
   const out: Record<string, ItemDirections> = {};
   for (const p of model.points) {
     if (p.kind !== "item") continue;
+    if (opts?.fromHere) {
+      out[p.id] = directionsFromHereUrl({ lat: p.lat, lng: p.lng }, opts.mode);
+      continue;
+    }
     const prev = model.perItemPrev[p.id];
     if (!prev) continue;
     out[p.id] = { google: googleDirectionsUrl([prev, p]), apple: appleDirectionsUrl([prev, p]) };

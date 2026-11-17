@@ -20,7 +20,7 @@ export function globalsCss(): Root {
 type Scope = Container | readonly Container[];
 const list = (scope: Scope): readonly Container[] => ("walk" in scope ? [scope] : scope);
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
-const valueOf = (d: { value: string; important: boolean }) => squash(d.important ? `${d.value} !important` : d.value);
+const valueOf = (d: { value: string; important?: boolean }) => squash(d.important ? `${d.value} !important` : d.value);
 
 /** A rule's selector list (split on top-level commas), each selector whitespace-collapsed. */
 export function selectorsOf(r: Rule): string[] {

@@ -244,7 +244,7 @@ describe("transports", () => {
   // depAt/arrAt are TRUE UTC INSTANTS, not the booking's wall clock with a `Z`
   // glued on: the app writes through wallTimeToInstant() in the endpoint Stop's
   // zone and reads back through transportTimeDisplay() in the same zone
-  // (docs/things-to-fix.md P0-1). Each instant below is the booking wall time
+  // (docs/archive/things-to-fix.md P0-1). Each instant below is the booking wall time
   // minus that endpoint's December/January offset — Australia/Brisbane +10,
   // Asia/Makassar +8, Europe/Berlin +1, Europe/Paris +1, Europe/London 0,
   // Europe/Dublin 0, Europe/Rome +1. The "renders as" table further down pins

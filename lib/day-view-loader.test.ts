@@ -355,6 +355,7 @@ describe("getDays — one day", () => {
   it("Day ideas in every phase: planning-phase free-form day fetches things to do and returns three rows (ADR 0044 amendment)", async () => {
     const d = await loadDay("2026-12-12");
     expect(d.phase).toBe("planning");
+    expect(d.editor.readFirst).toBe(false);
     expect(d.freeForm).toBe(true);
     expect(itemFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({

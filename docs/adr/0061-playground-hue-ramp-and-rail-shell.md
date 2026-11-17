@@ -67,7 +67,7 @@ keyed by `sortOrder` and shown on the month grid and the plan editor, are not
 a concept either handoff defined. Derived from the same nine-hue ramp
 (a six-hue cycle through `LEGACY_TO_HUE`) rather than invented as a tenth,
 unreviewed colour scheme — recorded in the design ask
-(`docs/follow-ups/2026-09-23-playground-design-ask.md`, B2a) as needing the
+(`docs/archive/follow-ups/2026-09-23-playground-design-ask.md`, B2a) as needing the
 designer's confirmation, not yet given.
 
 **Status colours stayed off the hue ramp.** `--destructive`, `--success` and
@@ -321,7 +321,7 @@ work.
 
 ## Still outstanding from the designer
 
-Tracked in `docs/follow-ups/2026-09-23-playground-design-ask.md`, unresolved
+Tracked in `docs/archive/follow-ups/2026-09-23-playground-design-ask.md`, unresolved
 by this phase:
 
 - **D1 — 44px touch targets, unfixed at source.** `stepper.tsx` still ships
@@ -361,7 +361,7 @@ by this phase:
   the brand didn't need them. They remain in git history and a single
   `git checkout` restores them if phase 3 finds a use.
 - **Stale "three error boundaries" claims** in `docs/adr/0059-*.md` and
-  `docs/architecture-sitrep-2026-09-22.md` predated this phase's navigation
+  `docs/archive/architecture-sitrep-2026-09-22.md` predated this phase's navigation
   and per-route error-boundary work; Task 6 corrected the same sentence in
   `app/api/client-error/route.ts` but left the ADR and sitrep copies stale,
   out of scope for the task that found them. A later whole-branch review

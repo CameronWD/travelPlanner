@@ -203,7 +203,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
                   data-shown={shown ? "true" : undefined}
                   inert={shown ? undefined : true}
                   aria-hidden={shown ? undefined : "true"}
-                  className={cn("w-full shrink-0 snap-start snap-always px-4 sm:px-6 md:px-0", !shown && "h-0 overflow-hidden")}
+                  className={cn("relative w-full shrink-0 snap-start snap-always px-4 sm:px-6 md:px-0", !shown && "h-0 overflow-hidden")}
                 >
                   {p.content}
                 </div>

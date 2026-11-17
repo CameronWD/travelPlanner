@@ -30,7 +30,7 @@ vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-0123";
 
-import { auth, authServer, MCP_RESOURCE, mcpResourceFor } from "@/lib/auth/auth";
+import { auth, authServer, MCP_RESOURCE, mcpResourceFor, SESSION_DAYS } from "@/lib/auth/auth";
 
 // Widened to the declared option types: betterAuth() infers the literal
 // config, whose inline hooks declare fewer parameters than Better Auth passes.
@@ -70,8 +70,9 @@ describe("Better Auth options", () => {
     expect(options.session?.cookieCache).toEqual({ enabled: true, maxAge: 300 });
   });
 
-  it("keeps a session 30 days (Auth.js's old lifetime), refreshed at Better Auth's default age", () => {
-    expect(options.session?.expiresIn).toBe(60 * 60 * 24 * 30);
+  it("keeps a session 120 days (outlasts a whole trip away), refreshed at Better Auth's default age", () => {
+    expect(SESSION_DAYS).toBe(120);
+    expect(options.session?.expiresIn).toBe(120 * 24 * 60 * 60);
     expect(options.session?.updateAge).toBeUndefined();
   });
 

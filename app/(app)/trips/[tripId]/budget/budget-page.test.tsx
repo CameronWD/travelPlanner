@@ -35,7 +35,7 @@ vi.mock("@/lib/trip-shell-reads", () => ({ readTripShell: vi.fn(async () => scen
 vi.mock("@/lib/money/fx", () => ({ isRateStale: vi.fn(() => false) }));
 vi.mock("@/lib/tz", () => ({ todayISOInZone: vi.fn(() => "2026-01-05"), currentTripTimezone: vi.fn(() => "UTC") }));
 vi.mock("@/lib/dates", async (orig) => ({ ...(await orig<typeof import("@/lib/dates")>()), nightsBetween: vi.fn(() => 9) }));
-vi.mock("@/lib/money/budget", () => ({ buildBudget: vi.fn() }));
+vi.mock("@/lib/money/budget", async (orig) => ({ ...(await orig<typeof import("@/lib/money/budget")>()), buildBudget: vi.fn() }));
 vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: vi.fn(() => ({ paidSoFarMinor: 0 })) }));
 vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => <div data-testid="trip-header-trailing" /> }));
 vi.mock("@/components/trip/variant-banner", () => ({
@@ -49,8 +49,8 @@ vi.mock("@/components/money/add-cost-from-url", () => ({
 vi.mock("@/components/money/add-cost-button", () => ({ AddCostButton: ({ variant }: { variant: string }) => <button type="button" data-testid={`add-cost-${variant}`}>Add a cost</button> }));
 vi.mock("@/components/money/paid-bar", () => ({ PaidBar: () => <div data-testid="paid-bar" /> }));
 vi.mock("@/components/money/to-pay-panel", () => ({
-  ToPayPanel: ({ rows }: { rows: { id: string; label: string }[] }) => (
-    <div data-testid="to-pay-panel" data-ids={rows.map((r) => r.id).join(",")} data-labels={rows.map((r) => r.label).join("|")} />
+  ToPayPanel: ({ rows, recentIds }: { rows: { id: string; label: string }[]; recentIds: string[] }) => (
+    <div data-testid="to-pay-panel" data-recent={recentIds.join(",")} data-ids={rows.map((r) => r.id).join(",")} data-labels={rows.map((r) => r.label).join("|")} />
   ),
 }));
 vi.mock("@/components/money/breakdown-switch", () => ({
@@ -70,6 +70,7 @@ vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { nam
 
 const { default: BudgetPage } = await import("./page");
 const { buildBudget } = await import("@/lib/money/budget");
+const { currentTripTimezone } = await import("@/lib/tz");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { maskPlanStops } = await import("@/lib/plan-reads");
 const { planRows } = await import("@/test/builders/plan-rows");
@@ -152,6 +153,19 @@ describe("Money page — header", () => {
     await renderPage();
     expect(screen.queryByRole("link", { name: /Split with/ })).toBeNull();
     expect(screen.queryByText(/each/)).toBeNull();
+  });
+});
+
+describe("Money page — today", () => {
+  it("is the Trip's today: the Home timezone and the Stops in canonical order", async () => {
+    const A = { id: "a", name: "Tokyo", sortOrder: 0, timezone: "Asia/Tokyo", arriveDate: "2026-01-02", departDate: "2026-01-05" };
+    const B = { id: "b", name: "Auckland", sortOrder: 1, timezone: "Pacific/Auckland", arriveDate: "2026-01-05", departDate: "2026-01-08" };
+    scenario.trip = { ...TRIP, homeTimezone: "Pacific/Honolulu" };
+    scenario.stops = [B, A];
+    await renderPage();
+    const [stops, home] = vi.mocked(currentTripTimezone).mock.calls.at(-1)!;
+    expect(home).toBe("Pacific/Honolulu");
+    expect((stops as unknown as { id: string }[]).map((s) => s.id)).toEqual(["a", "b"]);
   });
 });
 
@@ -321,5 +335,30 @@ describe("Money page — Cost owner labels", () => {
     await renderPage();
     const labels = screen.getByTestId("to-pay-panel").getAttribute("data-labels")!.split("|");
     expect(labels).toEqual(expect.arrayContaining(["Pastéis de Belém", "Hotel Avenida"]));
+  });
+});
+
+describe("Money page — Day grouping includes standalone Costs", () => {
+  it("offers Day once a standalone Cost sits on a day, and hands Recent to the card", async () => {
+    scenario.costs = [
+      { ...ONE_COST[0], id: "lunch", label: "Lunch", paidMinor: 1000, paidAt: new Date("2026-01-03") },
+      { ...ONE_COST[0], id: "old", label: "Old", paidAt: new Date("2025-12-01"), paidMinor: 1000 },
+    ];
+    vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, byDay: [{ dateISO: "2026-01-03", ...zero }] } as never);
+    await renderPage({ by: "day" });
+    expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-value", "day");
+    expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-options", "category,place,day");
+    expect(screen.getByTestId("to-pay-panel")).toHaveAttribute("data-recent", "lunch,old");
+    expect(screen.getByRole("listitem", { name: "Not on a day" })).toBeInTheDocument();
+  });
+
+  it("never lists a Surprise-hidden Cost in Recent", async () => {
+    scenario.costs = [
+      { ...ONE_COST[0], id: "visible", createdAt: new Date("2026-01-01") },
+      { ...ONE_COST[0], id: "secret", createdAt: new Date("2026-01-04") },
+    ];
+    vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, surpriseCostIds: ["secret"] } as never);
+    await renderPage();
+    expect(screen.getByTestId("to-pay-panel")).toHaveAttribute("data-recent", "visible");
   });
 });

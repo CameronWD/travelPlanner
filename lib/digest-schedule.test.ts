@@ -102,6 +102,32 @@ describe("the cron schedule against the Digest windows", () => {
     }
   }
 
+  it("gives every zone on the route two runs in each window, so one lost run costs nothing", () => {
+    const route = [
+      "Australia/Brisbane",
+      "Asia/Makassar",
+      "Asia/Bangkok",
+      "Europe/London",
+      "Europe/Dublin",
+      "Europe/Berlin",
+      "Europe/Paris",
+      "Europe/Rome",
+    ];
+    const december = INSTANTS[0];
+    for (const zone of route) {
+      const runs = { MORNING: 0, EVENING: 0 };
+      for (const hour of scheduledUtcHours()) {
+        const at = new Date(
+          Date.UTC(december.year, december.month, december.day, hour, 0, 0),
+        );
+        const slot = slotForZone(at, zone);
+        if (slot) runs[slot] += 1;
+      }
+      expect(runs.MORNING, `${zone} morning runs`).toBeGreaterThanOrEqual(2);
+      expect(runs.EVENING, `${zone} evening runs`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
   it("exports the same UTC hours the workflow fires at", () => {
     // The constant is what a running surface reads to answer "will this device
     // ever be reached?" (lib/digest-schedule.ts, the Settings panel). If it
@@ -131,16 +157,20 @@ describe("the cron schedule against the Digest windows", () => {
   });
 
   it("reports the slots a zone is actually served in, for the day in question", () => {
-    // What the Settings panel warns from. December: New York is on EST and no
-    // scheduled hour lands anywhere near its morning or evening — the device is
-    // considered on every run and reached never, which is invisible without
-    // this. July it is on EDT and 10:00Z becomes 06:00 local, a morning run
-    // only — still no evening Digest, which is the part people notice.
+    // What the Settings panel warns from. New York is off the route but the
+    // Digest hours land in its windows incidentally: December (EST) 11:00Z is
+    // 06:00 local, a morning run only; July (EDT) adds 00:00Z as 20:00 local.
     const december = new Date(Date.UTC(2026, 11, 15, 12));
     const july = new Date(Date.UTC(2026, 6, 15, 12));
 
-    expect([...servedSlotsForZone(december, "America/New_York")]).toEqual([]);
-    expect([...servedSlotsForZone(july, "America/New_York")]).toEqual(["MORNING"]);
+    expect([...servedSlotsForZone(december, "America/New_York")]).toEqual([
+      "MORNING",
+    ]);
+    expect([...servedSlotsForZone(july, "America/New_York")].sort()).toEqual([
+      "EVENING",
+      "MORNING",
+    ]);
+    expect([...servedSlotsForZone(december, "Asia/Kolkata")]).toEqual([]);
 
     for (const zone of SERVED_ZONES) {
       expect(

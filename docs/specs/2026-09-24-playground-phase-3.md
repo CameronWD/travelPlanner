@@ -1,6 +1,6 @@
 # Playground reskin — phase 3 spec
 
-Agreed with Cam, 2026-09-24. Builds on `docs/follow-ups/2026-09-24-playground-phase-3-handover.md`
+Agreed with Cam, 2026-09-24. Builds on `docs/archive/follow-ups/2026-09-24-playground-phase-3-handover.md`
 (rules, traps, environment) and ADRs 0060 / 0061.
 
 ## Scope
@@ -93,12 +93,12 @@ Leaflet screens wait on `.leaflet-marker-icon` and assert a count; never wait on
 
 ## Docs
 
-- **Gaps log:** `docs/follow-ups/2026-09-24-playground-phase-3-gaps.md`, one section per
+- **Gaps log:** `docs/archive/follow-ups/2026-09-24-playground-phase-3-gaps.md`, one section per
   sub-branch. Each entry records the kit file/screen, what the kit shows, what we have, and why it
   wasn't built (new feature / needs a data model / product decision). Seeded on day one with the
   out-of-scope list above. Written for Cam to decide from.
 - **Handoff defects** (e.g. the 36px stepper) go into section D of
-  `docs/follow-ups/2026-09-23-playground-design-ask.md`, not the gaps log.
+  `docs/archive/follow-ups/2026-09-23-playground-design-ask.md`, not the gaps log.
 - **ADR 0060:** amended with the two exemptions.
 
 ## Standing constraints (from the handover)

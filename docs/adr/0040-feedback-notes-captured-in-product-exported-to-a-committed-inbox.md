@@ -42,7 +42,7 @@ carried out of the app.
   token in the app for an audience of two, makes every offhand "this is
   fiddly" a public artefact, and still leaves the session reading an external
   tracker rather than the repo.
-- **Keep hand-writing a doc like `docs/things-to-fix.md`.** Rejected: that is
+- **Keep hand-writing a doc like `docs/archive/things-to-fix.md`.** Rejected: that is
   exactly the friction being removed — it requires a laptop and a moment of
   intent, and the annoyance is felt on a phone mid-planning.
 - **Database only, no exported document.** Rejected: the backlog would have no

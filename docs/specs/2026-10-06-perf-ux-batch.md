@@ -126,7 +126,7 @@ Collapse serial awaits into at most two waves (gate, then one `Promise.all`), wi
 
 ## V · Indexes
 
-- One additive migration: `Stop`, `Transport`, `Item` `@@index([tripId, forkId, sortOrder])`; `Reminder` `@@index([tripId, date])`; `AccessRequest` `@@index([resolvedAt])`. Written on the branch; Cam applies it to production before deploy (`docs/open-follow-ups.md` migration state gains the entry).
+- One additive migration: `Stop`, `Transport`, `Item` `@@index([tripId, forkId, sortOrder])`; `Reminder` `@@index([tripId, date])`; `AccessRequest` `@@index([resolvedAt])`. Written on the branch; Cam applies it to production before deploy (`docs/archive/open-follow-ups.md` migration state gains the entry).
 
 ## W · Optimistic updates
 
@@ -145,4 +145,4 @@ Collapse serial awaits into at most two waves (gate, then one `Promise.all`), wi
 
 ## Y · Docs
 
-- ADR 0070 (written). ADR 0028 marked amended by 0069. `docs/open-follow-ups.md`: new entries for the cover backfill script and integration-tier CI; migration state updated. Release notes entry for the batch (`lib/release-notes.ts`), worded to Travellers.
+- ADR 0070 (written). ADR 0028 marked amended by 0069. `docs/archive/open-follow-ups.md`: new entries for the cover backfill script and integration-tier CI; migration state updated. Release notes entry for the batch (`lib/release-notes.ts`), worded to Travellers.

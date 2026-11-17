@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
-const mockSearchTrip = vi.fn(async (_tripId: string, _query: string) => []);
+const mockSearchTrip = vi.fn<(tripId: string, query: string) => Promise<never[]>>(async () => []);
 const mockListMyTrips = vi.fn(async () => []);
 vi.mock("@/server/actions/search", () => ({
   searchTrip: (tripId: string, query: string) => mockSearchTrip(tripId, query),

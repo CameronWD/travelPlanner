@@ -138,7 +138,7 @@ export async function loadYourTravels(userId: string, today?: string): Promise<Y
       trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null;
 
     const tripStops = stopsByTrip.get(trip.id) ?? [];
-    const tripToday = today ?? tripTodayISO(tripStops);
+    const tripToday = today ?? tripTodayISO(tripStops, trip.homeTimezone);
 
     const stops = tripStops.map((s) => ({
       id: s.id,

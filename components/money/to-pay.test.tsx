@@ -47,10 +47,28 @@ function endAnimation(el: Element) {
 }
 
 function renderCard(costs = COSTS) {
-  return render(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={costs} costRows={costRows} ratesFooter={<div data-testid="rates-footer" />} />);
+  return render(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={costs} costRows={costRows} recentIds={["flights", "eurostar"]} ratesFooter={<div data-testid="rates-footer" />} />);
 }
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("Recent", () => {
+  it("lists the recent Costs in the order given, with a link to all Costs", async () => {
+    renderCard();
+    const recent = screen.getByRole("list", { name: "Recent costs" });
+    const items = within(recent).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Flights SYD → LHR");
+    expect(items[0]).toHaveTextContent("Paid");
+    expect(items[1]).toHaveTextContent("Eurostar London → Paris");
+    await userEvent.click(screen.getByRole("button", { name: /^All costs/ }));
+    expect(screen.getByRole("list", { name: "All costs" })).toBeInTheDocument();
+  });
+
+  it("is absent when there is nothing recent", () => {
+    render(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={COSTS} costRows={costRows} recentIds={[]} />);
+    expect(screen.queryByRole("list", { name: "Recent costs" })).toBeNull();
+  });
+});
 
 describe("To pay (MONEY.md §4)", () => {
   it("is headed To pay with an 'N left' pill", () => {
@@ -193,7 +211,7 @@ describe("To pay (MONEY.md §4)", () => {
     const { rerender } = renderCard();
     expect(screen.getByRole("listitem", { name: "Travel insurance" }).className).not.toContain("tp-rise-in");
     rerender(
-      <ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={[input({ id: "new", displayLabel: "eSIM" }), ...COSTS]} costRows={costRows} />,
+      <ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={[input({ id: "new", displayLabel: "eSIM" }), ...COSTS]} costRows={costRows} recentIds={[]} />,
     );
     expect(screen.getByRole("listitem", { name: "eSIM" }).className).toContain("tp-rise-in");
   });
@@ -201,7 +219,7 @@ describe("To pay (MONEY.md §4)", () => {
   it("M9: the rise-in plays once — dropped after it ends, so hiding and showing the row can't replay it", () => {
     const { rerender } = renderCard();
     rerender(
-      <ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={[input({ id: "new", displayLabel: "eSIM" }), ...COSTS]} costRows={costRows} />,
+      <ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={[input({ id: "new", displayLabel: "eSIM" }), ...COSTS]} costRows={costRows} recentIds={[]} />,
     );
     const row = screen.getByRole("listitem", { name: "eSIM" });
     endAnimation(within(row).getByText("eSIM"));
@@ -218,7 +236,7 @@ describe("To pay (MONEY.md §4)", () => {
       const before = names();
       fireEvent.click(screen.getByRole("checkbox", { name: "Travel insurance" }));
       const paid = COSTS.map((c) => (c.id === "insurance" ? { ...c, paidMinor: c.costMinor, paidAt: new Date("2026-10-10") } : c));
-      rerender(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={paid} costRows={costRows} />);
+      rerender(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={paid} costRows={costRows} recentIds={[]} />);
       act(() => vi.advanceTimersByTime(399));
       expect(names()).toEqual(before);
       act(() => vi.advanceTimersByTime(1));

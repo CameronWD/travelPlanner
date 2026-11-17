@@ -813,6 +813,37 @@ describe("Home-end wall times", () => {
     const updateArg = transportUpdateMock.mock.calls[0][0];
     expect(updateArg.data.arrAt).toEqual(new Date("2027-01-08T07:30:00Z"));
   });
+
+  describe("a stored point on a Home end", () => {
+    const homeLeg = { id: "t-home", mode: "FLIGHT", depIsHome: true, depPlace: "Gold Coast (OOL)", toStopId: "stop-dps", arrIsHome: false };
+
+    beforeEach(() => {
+      transportFindUniqueMock
+        .mockResolvedValueOnce({ id: "t-home", tripId: "trip-1", forkId: null }) // requireTransportAccess
+        .mockResolvedValueOnce(homeLeg); // before row
+      stopFindManyMock.mockResolvedValue([{ id: "stop-dps", tripId: "trip-1", forkId: null, timezone: "Asia/Makassar" }]);
+      tripFindUniqueMock.mockResolvedValue({ homeTimezone: "Australia/Brisbane" });
+      transportUpdateMock.mockResolvedValue(homeLeg);
+    });
+
+    it("survives an edit that does not mention it", async () => {
+      await updateTransport("t-home", { depAt: "2026-12-04T17:50" });
+
+      expect(transportUpdateMock.mock.calls[0][0].data).toMatchObject({ depIsHome: true, depPlace: "Gold Coast (OOL)" });
+    });
+
+    it("survives the form's save of the same Home end", async () => {
+      await updateTransport("t-home", { depIsHome: true, depAt: "2026-12-04T17:50" });
+
+      expect(transportUpdateMock.mock.calls[0][0].data).toMatchObject({ depIsHome: true, depPlace: "Gold Coast (OOL)" });
+    });
+
+    it("clears when the patch sends it empty", async () => {
+      await updateTransport("t-home", { depPlace: null });
+
+      expect(transportUpdateMock.mock.calls[0][0].data).toMatchObject({ depIsHome: true, depPlace: null });
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -46,7 +46,7 @@ export async function loadImportContext(
     home: { name: trip?.homeName ?? null, countryCode: trip?.homeCountryCode?.toLowerCase() ?? null, timezone: homeTimezone },
     stops,
     blockedStopIds: new Set(v.hiddenStopIds),
-    today: todayISOInZone(currentTripTimezone(stops)),
+    today: todayISOInZone(currentTripTimezone(stops, homeTimezone)),
     existing: {
       transports: transports.map((t) => {
         const { depTz } = resolveEndpointZones(

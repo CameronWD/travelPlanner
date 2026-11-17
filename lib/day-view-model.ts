@@ -4,12 +4,16 @@ import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { buildItinerary, pickDayPlan, isFreeFormDay, dayHasEntries, type DayPlan } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist, type NearbyResult, type DayIdeaResult } from "@/lib/nearby";
+import { effectiveLocalMode } from "@/lib/travel-times/hops";
 import { chapterForDate } from "@/lib/chapters";
 import { titlesByDate } from "@/lib/day-titles";
 import { itemPhotoUrl } from "@/lib/item-photo";
 import type { SurpriseView } from "@/lib/surprise";
 import type { OpeningHours } from "@/lib/opening-hours";
 import type { TryList } from "@/lib/try-list";
+import type { CostRow } from "@/lib/money/cost-row";
+import type { DayEntryEditor } from "@/lib/plan-entity-views";
+import type { TripPhase } from "@/lib/trip-phase";
 
 export function dayHeading(dateISO: string, tripStart: string, tripEnd: string): string {
   const spansYears = tripStart.slice(0, 4) !== tripEnd.slice(0, 4);
@@ -326,7 +330,7 @@ function deriveTrip(rows: DayRows): TripDerived {
 }
 
 /** One dated day, from the rows `lib/day-reads.ts` read — the Day view's and Today's shared core. */
-export function buildDayModel(rows: DayRows, date: string): DayModel {
+export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: boolean }): DayModel {
   const trip = deriveTrip(rows);
   const dayPlan = pickDayPlan(trip.itinerary, date);
   const dayStop = rows.stops.find((s) => s.id === dayPlan?.stop?.id) ?? null;
@@ -377,7 +381,10 @@ export function buildDayModel(rows: DayRows, date: string): DayModel {
     attachmentsById: trip.attachmentsById,
     attachmentsByTarget: trip.attachmentsByTarget,
     dayMap,
-    itemDirections: buildItemDirections(dayMap),
+    itemDirections: buildItemDirections(dayMap, {
+      fromHere: opts?.fromHere ?? false,
+      mode: dayStop ? effectiveLocalMode(dayStop, rows.transports) : null,
+    }),
     nearby,
     thingsToDo:
       freeForm && dayStop
@@ -389,5 +396,55 @@ export function buildDayModel(rows: DayRows, date: string): DayModel {
       ? dayIdeasWishlist({ stop: { lat: dayStop.lat, lng: dayStop.lng, countryCode: dayStop.countryCode }, candidates: rows.wishlist })
       : [],
     nearbyStarts: nearbyStartPoints({ tonight, stop: dayStop, items: dayItems }),
+  };
+}
+
+export function buildEditorBase(tripId: string, rows: DayRows, costs: CostRow[]): Omit<DayEntryEditor, "accommodations" | "readFirst" | "localMode"> {
+  const { trip, stops, items, transports } = rows;
+  const stopById = new Map(stops.map((s) => [s.id, s]));
+  const costsByOwner: Record<string, CostRow[]> = {};
+  for (const c of costs) if (c.ownerId) (costsByOwner[c.ownerId] ??= []).push(c);
+  const attachmentsById = new Map(rows.attachments.map((a) => [a.id, { url: a.url }]));
+  return {
+    tripId,
+    stops: stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone, arriveDate: s.arriveDate, lat: s.lat, lng: s.lng })),
+    homeCurrency: trip.homeCurrency,
+    homeBaseName: trip.homeName,
+    homeTimezone: trip.homeTimezone,
+    items: Object.fromEntries(items.map((i) => [i.id, { ...i, photoUrl: itemPhotoUrl(i, attachmentsById) }])),
+    transports: Object.fromEntries(
+      transports.map((t) => [
+        t.id,
+        {
+          ...t,
+          mode: t.mode as TransportMode,
+          fromStopName: t.fromStopId ? (stopById.get(t.fromStopId)?.name ?? null) : null,
+          toStopName: t.toStopId ? (stopById.get(t.toStopId)?.name ?? null) : null,
+          fromStopTimezone: t.fromStopId ? (stopById.get(t.fromStopId)?.timezone ?? null) : null,
+          toStopTimezone: t.toStopId ? (stopById.get(t.toStopId)?.timezone ?? null) : null,
+        },
+      ]),
+    ),
+    costsByOwner,
+  };
+}
+
+export function buildDayEntryEditor(
+  rows: DayRows,
+  base: ReturnType<typeof buildEditorBase>,
+  day: Pick<DayModel, "accommodations" | "dayStop">,
+  phase: TripPhase,
+): DayEntryEditor {
+  const stopById = new Map(rows.stops.map((s) => [s.id, s]));
+  return {
+    ...base,
+    accommodations: Object.fromEntries(
+      day.accommodations.map((a) => {
+        const st = stopById.get(a.stopId);
+        return [a.id, { accommodation: a, stopDateRange: { arriveDate: st?.arriveDate ?? a.checkIn, departDate: st?.departDate ?? a.checkOut } }];
+      }),
+    ),
+    readFirst: phase === "travelling" || phase === "past",
+    localMode: day.dayStop ? effectiveLocalMode(day.dayStop, rows.transports) : null,
   };
 }

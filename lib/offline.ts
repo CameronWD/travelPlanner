@@ -10,6 +10,7 @@
 import { COVER_SMALL_WIDTH, coverUrlForWidth } from '@/lib/cover';
 import { addDays, daysBetween } from '@/lib/dates';
 import { tripPath } from '@/lib/trip-path';
+import { RESERVED_TRIP_SLUGS } from '@/lib/trip-slug';
 import type { TripPhase } from '@/lib/trip-phase';
 
 // ---------------------------------------------------------------------------
@@ -93,9 +94,9 @@ export const MAX_WARM_TRIP_BYTES = 200 * 1024 * 1024;
 
 /**
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
- * the read-while-travelling essentials — Home, Plan, Today, Summary, Money,
- * Calendar, Checklists, Files, the user guide and the What's new page (ADR
- * 0056) — + the Day pages from `warmDayDates` (around today while Travelling,
+ * the read-while-travelling essentials — Home, Plan, Summary, Money,
+ * Calendar, Checklists, Files, Journal, the user guide, the What's new page
+ * (ADR 0056) and the Trips list — + the Day pages from `warmDayDates` (around today while Travelling,
  * capped) + attachments under the size cap + the cover photo. Pure — no
  * browser APIs.
  *
@@ -126,14 +127,15 @@ export function tripOfflinePaths(
   const paths = [
     base,
     `${base}/plan`,
-    `${base}/today`,
     `${base}/summary`,
     `${base}/budget`,
     `${base}/calendar`,
     `${base}/checklists`,
     `${base}/files`,
+    `${base}/journal`,
     `${base}/help`,
     '/whats-new',
+    '/trips',
   ];
   for (const date of warmDayDates(startDate, endDate, dayWindow)) {
     paths.push(`${base}/day/${date}`);
@@ -155,6 +157,29 @@ export function tripOfflinePaths(
   }
   if (coverUrl) paths.push(coverUrl, coverUrlForWidth(coverUrl, COVER_SMALL_WIDTH));
   return paths;
+}
+
+const NEXT_STATIC_PREFIX = '/_next/static/';
+
+function attributeOf(tag: string, name: string): string | null {
+  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
+  return match ? (match[1] ?? match[2]) : null;
+}
+
+// A page saved for offline needs its scripts and styles to be interactive; one
+// for a section never opened since the last deploy would otherwise lack its chunks.
+export function assetUrlsIn(html: string): string[] {
+  const urls: string[] = [];
+  for (const [tag] of html.matchAll(/<(?:script|link)\b[^>]*>/gi)) {
+    const isScript = /^<script/i.test(tag);
+    const url = isScript
+      ? attributeOf(tag, 'src')
+      : /\bstylesheet\b/i.test(attributeOf(tag, 'rel') ?? '')
+        ? attributeOf(tag, 'href')
+        : null;
+    if (url?.startsWith(NEXT_STATIC_PREFIX) && !urls.includes(url)) urls.push(url);
+  }
+  return urls;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +260,35 @@ export function isCoverRoute(url: string): boolean {
   }
 }
 
+// Makes the serve route answer 200 with the bytes instead of redirecting to
+// storage, which the worker could not keep (spec 2026-11-17 §A2). Mirrored in sw.js.
+export const OFFLINE_BYTES_PARAM = 'offline';
+
+export function warmUrlFor(path: string): string {
+  const url = new URL(path, 'https://warm.invalid').href;
+  if (!isAttachmentRoute(url) && !isCoverRoute(url)) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}${OFFLINE_BYTES_PARAM}=1`;
+}
+
+// Cut from the string rather than re-serialised: the cache matches the exact
+// URL, and the pages render `?v=` with encodeURIComponent. Mirrored in sw.js.
+export function fileCacheKey(url: string): string {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return url;
+  const params = url.slice(queryAt + 1).split('&');
+  const kept = params.filter((p) => p.split('=')[0] !== OFFLINE_BYTES_PARAM);
+  if (kept.length === params.length) return url;
+  return kept.length ? `${url.slice(0, queryAt)}?${kept.join('&')}` : url.slice(0, queryAt);
+}
+
+// Where a request is cached: a file warmed with the offline flag lives under
+// its plain URL. Mirrored in sw.js.
+export function cacheKeyFor<R extends { url: string }>(request: R): R | string {
+  if (cacheStoreFor(request.url) !== 'files') return request;
+  const key = fileCacheKey(request.url);
+  return key === request.url ? request : key;
+}
+
 // ---------------------------------------------------------------------------
 // Strategy selector
 // ---------------------------------------------------------------------------
@@ -256,10 +310,11 @@ export function isCoverRoute(url: string): boolean {
  * Navigations render PRIVATE, per-user trip data, so they must NOT be served
  * stale from a shared (URL-keyed) cache — that would leak one traveller's trip
  * to another user on the same device/browser. network-first always fetches
- * fresh from the server (which is authenticated by the session cookie) when
- * online, and only falls back to the cache when genuinely offline. Combined
- * with clearing the cache on sign-out, the offline fallback can only ever be
- * the same user's own data.
+ * fresh from the server (which is authenticated by the session cookie) and
+ * falls back to the cache only when the network fails, or, for a navigation
+ * with a saved copy, answers 5xx or takes longer than NAVIGATION_TIMEOUT_MS
+ * (ADR 0077). Combined with clearing the cache on sign-out, the fallback can
+ * only ever be the same user's own data.
  */
 export function cacheStrategyFor({ method, url, sameOrigin, routerRequest }: StrategyInput): CacheStrategy {
   // Rule 1: never cache mutations
@@ -357,6 +412,98 @@ export function isPinnedCacheEntry(url: string): boolean {
   }
 }
 
+// A browser refuses a `redirected` response as the answer to a navigation, so
+// a stored copy is rebuilt without the flag. Mirrored in sw.js.
+export function storableResponse(response: Response): Response {
+  if (!response.redirected) return response;
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+export function asksForBytes(url: string): boolean {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return false;
+  return url.slice(queryAt + 1).split('&').includes(`${OFFLINE_BYTES_PARAM}=1`);
+}
+
+// Entries kept before redirects were stripped are replaced by the warm's own fetch. Mirrored in sw.js.
+export function isServableCacheHit(mode: string, cached: { redirected: boolean }, bytesRequested = false): boolean {
+  return !(cached.redirected && (mode === 'navigate' || bytesRequested));
+}
+
+// Spec 2026-11-17 §A5, ADR 0077: a navigation with a saved copy waits this long
+// for the network, then is answered from the saved copy. Mirrored in sw.js.
+export const NAVIGATION_TIMEOUT_MS = 4000;
+export const SAVED_COPY_HEADER = 'X-Teepee-Saved-Copy';
+export const SAVED_COPY_MESSAGE = 'SAVED_COPY';
+
+// A 4xx is the app's real answer (a deleted Trip's 404), so only a 5xx gives way to the saved copy.
+export function isServerFailure(status: number): boolean {
+  return status >= 500;
+}
+
+// A link that adds a query to a saved page (`?by=place`) has no entry of its own:
+// pages are saved without one. The worker redirects to the plain path rather than
+// serving its body at the query URL, so the address and the page agree. Mirrored in sw.js.
+export function queryFallbackPath(url: string, mode: string, exactServable: boolean, plainServable: boolean): string | null {
+  if (mode !== 'navigate' || exactServable || !plainServable) return null;
+  const { pathname, search } = new URL(url);
+  return search ? pathname : null;
+}
+
+// Every navigation answered from the cache carries the mark. A request that is
+// not a navigation carries it only when the network failed and the cache
+// answered instead, so the offline save can tell an old copy from a fresh one.
+export function savedCopyResponse(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set(SAVED_COPY_HEADER, '1');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+export function savedCopyMessage(url: string): { type: typeof SAVED_COPY_MESSAGE; url: string } {
+  return { type: SAVED_COPY_MESSAGE, url };
+}
+
+// The page pulls what the worker just did (ADR 0077): a pushed message can reach
+// a client before its page listens, so the worker also remembers, in memory and
+// briefly, the paths it answered with a saved copy. Mirrored in sw.js.
+export const WAS_SAVED_COPY_MESSAGE = 'WAS_SAVED_COPY';
+export const SAVED_COPY_RECORD_TTL_MS = 60000;
+export const SAVED_COPY_RECORD_LIMIT = 8;
+
+export interface SavedCopyRecord {
+  path: string;
+  at: number;
+}
+
+export function withSavedCopyRecord(records: SavedCopyRecord[], path: string, now: number): SavedCopyRecord[] {
+  const live = records.filter((r) => r.path !== path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+  return [...live, { path, at: now }].slice(-SAVED_COPY_RECORD_LIMIT);
+}
+
+export function withoutSavedCopyRecord(records: SavedCopyRecord[], path: string): SavedCopyRecord[] {
+  return records.filter((r) => r.path !== path);
+}
+
+export function wasSavedCopy(records: SavedCopyRecord[], path: string, now: number): boolean {
+  return records.some((r) => r.path === path && now - r.at < SAVED_COPY_RECORD_TTL_MS);
+}
+
+export function wasSavedCopyQueryPath(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const { type, url } = data as { type?: unknown; url?: unknown };
+  return type === WAS_SAVED_COPY_MESSAGE && typeof url === 'string' ? url : null;
+}
+
+// A warm's file that came back redirected (a login page, say) is not the bytes
+// asked for: keeping it would make a later warm count it as saved. Mirrored in sw.js.
+export function shouldStoreResponse(bytesRequested: boolean, response: { ok: boolean; redirected: boolean }): boolean {
+  return response.ok && !(bytesRequested && response.redirected);
+}
+
 /** How many of the oldest entries to drop to get back under `limit`. */
 export function evictionCount(entries: number, limit: number | null): number {
   if (limit === null) return 0;
@@ -372,6 +519,29 @@ export function evictionCount(entries: number, limit: number | null): number {
 export const META_CACHE_NAME = 'teepee-meta-v1';
 /** The reserved key the build record lives under in META_CACHE_NAME. */
 export const BUILD_META_PATH = '/__teepee/build-meta';
+
+// Spec 2026-11-17 §A1: the Trip Home last opened, kept in META_CACHE_NAME so an
+// offline launch at `/` opens it. Mirrored in sw.js.
+export const LAST_TRIP_PATH = '/__teepee/last-trip';
+
+export function isCachedTripHome(path: string): boolean {
+  const match = /^\/trips\/([^/?#]+)$/.exec(path);
+  return match !== null && !RESERVED_TRIP_SLUGS.has(match[1]);
+}
+
+// A cached Landing (`/`) is never picked: it can predate the sign-in.
+export function pickOfflineStart(cachedUrls: string[], lastTripPath: string | null): string | null {
+  if (lastTripPath && cachedUrls.includes(lastTripPath)) return lastTripPath;
+  const home = cachedUrls.find(isCachedTripHome);
+  if (home) return home;
+  return cachedUrls.includes('/trips') ? '/trips' : null;
+}
+
+export function lastTripMessagePath(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const { type, path } = data as { type?: unknown; path?: unknown };
+  return type === 'LAST_TRIP' && typeof path === 'string' && isCachedTripHome(path) ? path : null;
+}
 
 export interface BuildMeta {
   build: string;
@@ -398,5 +568,14 @@ export function nextBuildMeta(stored: BuildMeta | null, buildId: string): BuildM
 export function staleCacheNames(existing: string[], buildId: string, previousBuildId?: string | null): string[] {
   const keep = new Set([...Object.values(cacheNames(buildId)), META_CACHE_NAME]);
   if (previousBuildId) keep.add(cacheNames(previousBuildId).static);
+  return existing.filter((name) => !keep.has(name));
+}
+
+// Sign-out deletes every store but this build's static store, which the worker
+// then empties down to its pinned offline page, and the meta store, which keeps
+// the build record: with no deploy there is no new install to precache the
+// offline page again. Mirrored in sw.js.
+export function signOutCacheNames(existing: string[], buildId: string): string[] {
+  const keep = new Set([cacheNames(buildId).static, META_CACHE_NAME]);
   return existing.filter((name) => !keep.has(name));
 }

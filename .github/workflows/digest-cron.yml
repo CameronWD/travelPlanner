@@ -5,13 +5,18 @@ name: Digest cron
 # load, and disables schedules after 60 days of repo inactivity — tolerable
 # here because the route matches a three-hour local window, not an exact hour.
 #
-# CADENCE: five fixed UTC hours. The route dispatches only to subscribers whose
-# LOCAL hour falls in a morning (06–08) or evening (20–22) window, so the
-# schedule's job is simply to have a run land inside each window for each zone
-# we serve — the filtering is the route's, not the cron's. Every authorized hit
-# wakes Neon (~5 min of compute), which is the CU-hour lever: five runs a day
-# ≈ 15 CU-h/month against the 100 CU-h free tier, and each extra zone is one
-# more hour at roughly 3 CU-h/month (ADR 0047).
+# CADENCE: eleven fixed UTC hours, at minute 17 so the run clears the top-of-hour
+# rush on GitHub's scheduler. The route dispatches only to subscribers whose
+# LOCAL hour falls in a morning (06-08) or evening (20-22) window, so the
+# schedule's job is to land at least TWO runs inside each window for each zone
+# on the route (Brisbane, Makassar, Bangkok, London, Dublin, Berlin, Paris,
+# Rome), because nobody can fix the schedule mid-trip and one delayed or
+# dropped run must not cost a Traveller their Digest. The second run is the
+# backup: the per-person cooldown and the dispatch ledger absorb it, so it
+# sends nothing when the first one delivered. Every authorized hit wakes Neon
+# (~5 min of compute), which is the CU-hour lever: eleven runs a day
+# = 11 x 5 min x 30 days / 60 ~ 27.5 CU-h/month against the 100 CU-h free
+# tier, roughly 2.5 CU-h/month per run hour (ADR 0047).
 #
 # The two halves of this — these UTC hours and the route's local windows — are
 # one contract, and lib/digest-schedule.test.ts fails if you edit either side
@@ -21,37 +26,45 @@ name: Digest cron
 # failing: an unconfigured repo should stay quiet, not email a failure on every
 # run. See docs/DEPLOY.md §5 for the repo Secret + Variable to set.
 #
-# A non-2xx response from a *configured* endpoint (e.g. the app itself is
-# down) is logged clearly but does NOT fail the job: transient outages are
-# not worth a failure email per scheduled run.
-# curl runs without --fail so an HTTP error status isn't treated as a curl
-# failure. A genuine transport-level problem (DNS, TLS, connection refused —
-# i.e. APP_URL itself is misconfigured) still makes curl exit non-zero and
-# still fails the job — that case is worth surfacing loudly.
+# Any non-2xx response from a *configured* endpoint fails the job, with the
+# status and response body in the log, so GitHub emails the owner: nobody can
+# deploy a fix mid-trip, but a loud failure is how the owner finds out. A cold
+# start (the database idle-suspends) is retried twice, 20 s apart, before the
+# job fails: curl itself retries HTTP 500, 502, 503 and 504, and the route is
+# idempotent. curl runs without --fail so the final attempt's status and body
+# (the response file is rewritten on each retry) are printed before the job exits.
+# A transport-level problem (DNS, TLS, connection refused) makes curl exit
+# non-zero and fails the job the same way.
 on:
   schedule:
     # Each run dispatches only to subscribers whose LOCAL hour falls in the
-    # morning (06–08) or evening (20–22) window (app/api/cron/digest/route.ts).
-    # These five UTC hours cover Central Europe (UTC+1/+2) and eastern
-    # Australia in BOTH of its offsets — AEDT (UTC+11, December) and AEST
-    # (UTC+10, the other seven months, and Brisbane all year round). Where each
-    # run lands, ✔ marking the one that actually delivers:
+    # morning (06-08) or evening (20-22) window (app/api/cron/digest/route.ts).
+    # December UTC offsets: Brisbane +10 (no daylight saving), Makassar +8,
+    # Bangkok +7, London and Dublin +0, Berlin, Paris and Rome +1. Local hour
+    # of each run, with the first evening run for each zone at 20:00 where the
+    # hours allow (Makassar's first is 21:00):
     #
-    #   UTC    Vienna CET       Brisbane AEST         Sydney AEDT
-    #   06:00  07:00 MORNING ✔  16:00 —               17:00 —
-    #   09:00  10:00 —          19:00 —               20:00 EVENING ✔
-    #   10:00  11:00 —          20:00 EVENING ✔       21:00 EVENING (absorbed)
-    #   19:00  20:00 EVENING ✔  05:00 —               06:00 MORNING ✔ (next day)
-    #   20:00  21:00 (absorbed) 06:00 MORNING ✔ (+1d) 07:00 MORNING (absorbed)
+    #   UTC    Brisbane  Makassar  Bangkok  London  CET
+    #   00:00  10        08 AM     07 AM    00      01
+    #   06:00  16        14        13       06 AM   07 AM
+    #   07:00  17        15        14       07 AM   08 AM
+    #   10:00  20 PM     18        17       10      11
+    #   11:00  21 PM     19        18       11      12
+    #   13:00  23        21 PM     20 PM    13      14
+    #   14:00  00        22 PM     21 PM    14      15
+    #   19:00  05        03        02       19      20 PM
+    #   20:00  06 AM     04        03       20 PM   21 PM
+    #   21:00  07 AM     05        04       21 PM   22 PM
+    #   23:00  09        07 AM     06 AM    23      00
     #
-    # An "absorbed" run sends nothing: the dispatch ledger is keyed
-    # (user, trip, local date, slot), so the second run in a window is a no-op.
-    # Adding a zone is one more hour here, at roughly 3 CU-h/month each
-    # (ADR 0047) — a half-hour zone included, and with no code change: the
-    # route filters on the subscriber's local HOUR, so a 15:00Z run is 20:30
-    # in Asia/Kolkata and 20:45 in Asia/Kathmandu, hour 20 either way, which
-    # already matches EVENING. See docs/DEPLOY.md §5.
-    - cron: "0 6,9,10,19,20 * * *"
+    # Brisbane's morning runs are 20:17 and 21:17 UTC, Makassar's 23:17 and
+    # 00:17, Bangkok's 23:17 and 00:17. An evening or morning run after the
+    # first in a window is "absorbed": it sends nothing, because the dispatch
+    # ledger is keyed (user, trip, local date, slot) and the per-person cooldown
+    # holds for 18 hours. Adding a zone is one more hour here (see the budget
+    # above), a half-hour zone included, with no code change: the route filters
+    # on the subscriber's local HOUR (docs/DEPLOY.md section 5).
+    - cron: "17 0,6,7,10,11,13,14,19,20,21,23 * * *"
   workflow_dispatch: {}
 
 permissions: {}
@@ -76,22 +89,23 @@ jobs:
       - name: Hit the digest endpoint
         if: steps.config.outputs.configured == 'true'
         run: |
-          status=$(curl --silent --show-error --output response.txt --write-out '%{http_code}' \
+          status=$(curl --silent --show-error --retry 2 --retry-delay 20 --output response.txt --write-out '%{http_code}' \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_URL}/api/cron/digest")
           echo "Digest endpoint responded with HTTP ${status}"
-          cat response.txt
+          head -c 500 response.txt
           echo
           if [ "${status}" -eq 503 ]; then
             # 503 is the route's dedicated "push is not configured" signal
-            # (VAPID env vars missing on the deployment). Unlike a transient
-            # outage this is a persistent misconfiguration, so fail the job —
-            # on this schedule that is at most five loud emails a day, not spam.
+            # (VAPID env vars missing on the deployment): a persistent
+            # misconfiguration, so on this schedule it is at most eleven loud
+            # emails a day, not spam.
             echo "::error title=Digest cron misconfigured::HTTP 503 — the app reports push is not configured (VAPID env vars missing on the deployment). Failing the job so this is not silent."
             exit 1
           fi
           if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
-            echo "::warning title=Digest cron non-2xx::Digest endpoint returned HTTP ${status} — not failing the job, see response body above."
+            echo "::error title=Digest cron failed::Digest endpoint returned HTTP ${status}. Response body is in the log above."
+            exit 1
           fi
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

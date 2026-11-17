@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import dynamic from "next/dynamic";
+import { MapUnavailable } from "@/components/map/map-unavailable";
+import { createResilientLoader } from "@/components/ui/lazy-loader";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
 
 /**
@@ -27,7 +28,8 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
 
 /**
  * Build a client-only loader for a map component. `next/dynamic` with
- * `ssr:false` must live in a Client Component; this factory is that boundary.
+ * `ssr:false` must live in a Client Component; this factory is that boundary
+ * (through createResilientLoader, which the Plan's lazy dialogs share).
  *
  *   export const RouteMapLoader = createMapLoader<RouteMapProps>(
  *     () => import("./route-map").then((m) => m.RouteMap),
@@ -37,6 +39,10 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
  * shouldn't mount renders nothing — the same placeholder `next/dynamic`
  * shows while the module loads — and its module is never requested.
  *
+ * A module that cannot be loaded (a chunk missing offline) shows the "map
+ * unavailable" fallback instead of failing the page; the next map mounted
+ * after that asks for the module again.
+ *
  * Constraint is `<P extends object>` (not `Record<string, unknown>`) so that
  * props interfaces with function members (e.g. `onSelect`, `onMapClick`)
  * remain assignable without an explicit index signature.
@@ -44,10 +50,11 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
 export function createMapLoader<P extends object>(
   load: () => Promise<React.ComponentType<P>>,
 ): (props: P & { mountWhen?: MapMountWhen }) => React.ReactElement | null {
-  const Inner = dynamic(load, { ssr: false }) as React.ComponentType<P>;
+  const loader = createResilientLoader<P>(load, MapUnavailable as React.ComponentType<P>);
   return function MapLoader({ mountWhen = true, ...props }: P & { mountWhen?: MapMountWhen }) {
     const show = useMapMount(mountWhen);
+    const [Current] = React.useState(loader.current);
     if (!show) return null;
-    return <Inner {...(props as unknown as P)} />;
+    return <Current {...(props as unknown as P)} />;
   };
 }

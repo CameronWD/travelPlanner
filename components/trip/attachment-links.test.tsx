@@ -22,3 +22,10 @@ it("shows a titled file by its title", () => {
   render(<AttachmentLinks attachments={[{ ...att, title: "Boarding pass" }]} />);
   expect(screen.getByRole("link", { name: /Boarding pass/ })).toBeInTheDocument();
 });
+
+it("gives each link a thumb-sized hit area", () => {
+  render(<AttachmentLinks attachments={[att]} />);
+  const link = screen.getByRole("link", { name: /boarding\.pdf/i });
+  expect(link.className).toMatch(/min-h-11/);
+  expect(link.className).toMatch(/min-w-11/);
+});

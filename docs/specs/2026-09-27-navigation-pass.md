@@ -2,7 +2,7 @@
 
 **Status:** agreed, ready to build. **Branch:** `feat/soft-navigation-2026-09-27`.
 **Decision record:** ADR 0063 (amends ADR 0006). **Deferred:** `NAV-01` in
-`docs/open-follow-ups.md` (Cache Components migration). Terminology follows `CONTEXT.md`.
+`docs/archive/open-follow-ups.md` (Cache Components migration). Terminology follows `CONTEXT.md`.
 
 ## The problem, as diagnosed
 
@@ -136,7 +136,7 @@ Leaflet popup anchors in `components/trips/travel-map.tsx`. Everything else is `
 ### WS-H · Docs
 
 - ADR 0063 written; ADR 0006 amended (done in grilling).
-- `docs/open-follow-ups.md`: add `NAV-02` — the 14 `revalidatePath(…, "layout")` calls
+- `docs/archive/open-follow-ups.md`: add `NAV-02` — the 14 `revalidatePath(…, "layout")` calls
   (three of them `revalidatePath("/", "layout")`, `server/actions/profile.ts:42,100,121`)
   rebuild the whole tree after a save; out of scope here, worth narrowing later.
 - `DESIGN-BRIEF.md:153`: drop `PageTransition` from the component list.

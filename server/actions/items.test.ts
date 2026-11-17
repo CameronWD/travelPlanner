@@ -35,6 +35,7 @@ const {
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
+  reminderDeleteManyMock,
   itemQueryRawMock,
   markerFindUniqueMock,
   getUserGlobeMock,
@@ -63,10 +64,12 @@ const {
   // both. The family lookup shares itemFindManyMock with db.item.findMany.
   const itemQueryRawMock = vi.fn().mockResolvedValue([]);
   const itemFindManyMock = vi.fn().mockResolvedValue([]);
+  const reminderDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         item: { delete: itemDeleteMock, update: itemUpdateMock, updateMany: itemUpdateManyMock, findMany: itemFindManyMock },
+        reminder: { deleteMany: reminderDeleteManyMock },
         $queryRaw: itemQueryRawMock,
         cost: {
           findMany: costFindManyMock,
@@ -124,6 +127,7 @@ const {
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
+    reminderDeleteManyMock,
     itemQueryRawMock,
     markerFindUniqueMock: vi.fn(),
     getUserGlobeMock: vi.fn(),
@@ -2391,6 +2395,31 @@ describe("Surprise write guard", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "ITEM", surpriseOf: { type: "STOP", id: "stop-1" } }),
     );
+  });
+
+  it("a Surprise Item's delete takes its Reminders, before the row goes", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ title: "Dinner" });
+    itemDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "ITEM", id: "item-1" });
+
+    await deleteItem("item-1");
+
+    expect(reminderDeleteManyMock).toHaveBeenCalledWith({ where: { itemId: "item-1" } });
+    expect(reminderDeleteManyMock.mock.invocationCallOrder[0]).toBeLessThan(itemDeleteMock.mock.invocationCallOrder[0]);
+  });
+
+  it("an ordinary Item's delete leaves its Reminders alone", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ title: "Dinner" });
+    itemDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue(null);
+
+    await deleteItem("item-1");
+
+    expect(reminderDeleteManyMock).not.toHaveBeenCalled();
   });
 
   it("a Surprise Item's own delete is unstamped", async () => {

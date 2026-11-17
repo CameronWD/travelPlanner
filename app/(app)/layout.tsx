@@ -29,6 +29,7 @@ import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { NameDialog } from "@/components/welcome/name-dialog";
 import { DeviceSync } from "@/components/account/device-sync";
+import { SessionKeepalive } from "@/components/account/session-keepalive";
 import { OnTripPath, OutsideTrip } from "@/components/app-rail";
 import { AppTabBar } from "@/components/shell/app-tab-bar";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
@@ -113,7 +114,7 @@ export default async function AppLayout({
   // Canonical plan order for the "current timezone" pick — same approach as
   // the trips list (app/(app)/trips/page.tsx), so the two orderings agree.
   const todayByTripId = new Map(
-    memberTrips.map((t) => [t.id, tripTodayISO(t.stops)]),
+    memberTrips.map((t) => [t.id, tripTodayISO(t.stops, t.homeTimezone)]),
   );
   const trips: SwitcherTrip[] = [...memberTrips]
     .sort((a, b) => compareForTripList(a, b, today, todayByTripId))
@@ -144,6 +145,7 @@ export default async function AppLayout({
       <OfflineBanner />
       <CommandPaletteMount />
       <DeviceSync />
+      <SessionKeepalive />
       <FeedbackLauncher />
       {/* Every Traveller has a name (spec 2026-10-04 §E): a sign-in that
           brought none is asked here, on whatever page they landed. */}
