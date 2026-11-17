@@ -18,7 +18,10 @@ vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
 vi.mock("@/components/trip/day/day-ideas-rows", () => ({ DayIdeasRows: () => null }));
 vi.mock("@/components/trip/day-feasibility", () => ({ DayFeasibility: () => null }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
-vi.mock("@/components/trip/day-map-panel", () => ({ DayMapPanel: () => null }));
+vi.mock("@/components/trip/day/day-map-dialog", () => ({
+  DayMapButton: ({ model, size }: { model: { points: unknown[] }; size: string }) =>
+    model.points.length > 0 ? <button data-size={size}>Day map</button> : null,
+}));
 
 const { DayPlanCard } = await import("./day-plan-card");
 
@@ -42,6 +45,7 @@ function data(over: Partial<DayViewData> & { enabled?: boolean } = {}) {
     feasibility: [],
     nearby: [],
     whatsAround: { enabled, starts },
+    dayMap: { points: [], routePoints: [], perItemPrev: {} },
     ...rest,
   } as unknown as DayViewData;
 }
@@ -100,5 +104,20 @@ describe("DayPlanCard on a wide screen (spec 2026-11-18 D1)", () => {
     const body = container.querySelector('[data-slot="day-plan-body"]') as HTMLElement;
     expect(body.className).not.toMatch(/max-h/);
     expect(body.className).not.toMatch(/overflow-y/);
+  });
+});
+
+describe("DayPlanCard Day map button", () => {
+  const located = { points: [{ kind: "item", id: "i1", lat: 1, lng: 2, label: "Castle", order: 1 }], routePoints: [], perItemPrev: {} };
+
+  it("shows a Day map button in the header when the day has a located entry", () => {
+    render(<DayPlanCard data={data({ dayMap: located } as never)} size="desktop" addButton={<button>Add</button>} />);
+    expect(screen.getByRole("button", { name: "Day map" })).toHaveAttribute("data-size", "desktop");
+  });
+
+  it("shows no Day map button when nothing on the day is located, and no inline Show day map toggle ever", () => {
+    render(<DayPlanCard data={data()} size="desktop" addButton={<button>Add</button>} />);
+    expect(screen.queryByRole("button", { name: "Day map" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /show day map/i })).toBeNull();
   });
 });

@@ -100,41 +100,50 @@ function DayPointList({ points }: { points: DayMapPoint[] }) {
   );
 }
 
-export function DayMap({ tripId, model }: { tripId: string; model: DayMapModel }) {
+export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: string; model: DayMapModel; highlightId?: string; fill?: boolean }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [seenHighlight, setSeenHighlight] = useState(highlightId);
 
   const { points, routePoints, perItemPrev } = model;
+  if (highlightId !== seenHighlight) {
+    setSeenHighlight(highlightId);
+    const target = points.find((p) => p.id === highlightId);
+    setOpenKey(target ? `${target.kind}:${target.id}` : null);
+  }
   if (points.length === 0) return null;
 
   const googleRouteUrl = googleDirectionsUrl(routePoints);
   const appleRouteUrl = appleDirectionsUrl(routePoints);
 
+  const routeLinks =
+    googleRouteUrl || appleRouteUrl ? (
+      <div className="flex items-center gap-3 text-sm">
+        <span className="text-muted-foreground font-medium">Open today&apos;s route:</span>
+        {googleRouteUrl && (
+          <a href={googleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+            Google Maps
+          </a>
+        )}
+        {appleRouteUrl && (
+          <a href={appleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+            Apple Maps
+          </a>
+        )}
+      </div>
+    ) : null;
+
   return (
-    <div className="flex flex-col gap-2">
-      {(googleRouteUrl || appleRouteUrl) && (
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground font-medium">Open today&apos;s route:</span>
-          {googleRouteUrl && (
-            <a href={googleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-              Google Maps
-            </a>
-          )}
-          {appleRouteUrl && (
-            <a href={appleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-              Apple Maps
-            </a>
-          )}
-        </div>
-      )}
+    <div className={fill ? "flex min-h-0 flex-1 flex-col gap-2" : "flex flex-col gap-2"}>
+      {fill ? null : routeLinks}
       <GoogleMapFrame
         role="region"
         aria-label={`Day route map for trip ${tripId}`}
         dark={isDark}
         fallback={<MapUnavailable><DayPointList points={points} /></MapUnavailable>}
-        style={{ height: 360 }}
-        className="w-full rounded-2xl overflow-hidden border border-border shadow-sm"
+        style={fill ? undefined : { height: 360 }}
+        className={fill ? "min-h-[240px] w-full flex-1 overflow-hidden rounded-lg border border-border shadow-sm" : "w-full rounded-2xl overflow-hidden border border-border shadow-sm"}
       >
         <FitDay points={points} />
         {routePoints.length >= 2 && <DayRoute routePoints={routePoints} hops={model.hops} />}
@@ -159,6 +168,7 @@ export function DayMap({ tripId, model }: { tripId: string; model: DayMapModel }
           );
         })}
       </GoogleMapFrame>
+      {fill ? routeLinks : null}
     </div>
   );
 }

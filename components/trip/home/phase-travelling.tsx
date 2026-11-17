@@ -107,7 +107,6 @@ export async function PhaseTravelling({
     homeCurrency,
     upcomingPayments,
     stillToBook,
-    dayMapModel,
     itemDirections,
     freeForm,
     thingsToDo,
@@ -178,7 +177,7 @@ export async function PhaseTravelling({
         <NowNextCard
           nowNext={nowNext}
           tripId={tripId}
-          dayMapHref={tripPath(slug, `/day/${effectiveDate}`)}
+          dayMapHref={tripPath(slug, `/day/${effectiveDate}?map=1`)}
           localMode={localMode}
         />
         {nowNextFiles.length > 0 && <AttachmentLinks attachments={nowNextFiles} />}
@@ -302,9 +301,6 @@ export async function PhaseTravelling({
       <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
 
       {reminders}
-
-      {/* Day map (collapsed toggle) */}
-      <DayMapPanel tripId={tripId} model={dayMapModel} />
 
       {/* Day ideas on free-form days; Nearby Wishlist on planned days */}
       {freeForm ? (
@@ -448,7 +444,7 @@ function TravellingDesktop({
           whatsAround={whatsAround}
         />
       }
-      map={<DayMapPanel tripId={tripId} model={model.dayMapModel} variant="tile" mountWhen="desktop" />}
+      map={<DayMapPanel tripId={tripId} model={model.dayMapModel} mountWhen="desktop" openHref={tripPath(tripSlug, `/day/${effectiveDate}?map=1`)} />}
       journal={
         todaysJournal ? (
           <TodaysJournal

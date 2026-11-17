@@ -6,7 +6,7 @@ import { Timeline } from "@/components/trip/timeline";
 import { DayIdeasRows } from "@/components/trip/day/day-ideas-rows";
 import { DayFeasibility, type DayFeasibilityEntry } from "@/components/trip/day-feasibility";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
-import { DayMapPanel } from "@/components/trip/day-map-panel";
+import { DayMapButton } from "@/components/trip/day/day-map-dialog";
 import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
 
 /**
@@ -19,7 +19,7 @@ import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
  *
  * A planned day also keeps the old page's feasibility advisory and the
  * collapsible "Nearby from your Wishlist" rail (both come from the loader),
- * and the Day map (CONTEXT.md "Day map"), collapsed until opened.
+ * and a header button that opens the Day map (CONTEXT.md "Day map") over the page.
  */
 export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size: "desktop" | "phone"; addButton: React.ReactNode }) {
   const phone = size === "phone";
@@ -48,7 +48,10 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
         <h2 id={`day-plan-heading-${size}`} className="font-display text-[22px] font-extrabold tracking-[-0.02em] text-foreground">
           Day plan
         </h2>
-        <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>
+        <div className="flex items-center gap-3">
+          {data.hasEntries ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} /> : null}
+          <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>
+        </div>
       </div>
       {empty ? (
         // An empty day is a small block, not a tall empty card (spec 2026-09-29 D5):
@@ -73,7 +76,6 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
                   todayISO={data.today}
                   needsConfirmationIds={data.needsConfirmationIds}
                 />
-                <DayMapPanel tripId={data.tripId} model={data.dayMap} />
                 <DayFeasibility entries={data.feasibility as DayFeasibilityEntry[]} />
                 <NearbyWishlist tripId={data.tripId} date={data.date} items={data.nearby} />
               </>

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { DayMapPanel } from "./day-map-panel";
 import type { DayMapModel } from "@/lib/day-map";
 
@@ -39,62 +38,9 @@ const nonEmptyModel: DayMapModel = {
   perItemPrev: { "item-1": undefined },
 };
 
-describe("DayMapPanel", () => {
-  it("renders nothing when model.points is empty", () => {
-    const { container } = render(
-      <DayMapPanel tripId="trip-1" model={emptyModel} />,
-    );
-    expect(container.firstChild).toBeNull();
-    expect(
-      screen.queryByRole("button"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("renders the toggle button when model has points", () => {
-    render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} />);
-    const button = screen.getByRole("button");
-    expect(button).toBeInTheDocument();
-    expect(button).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("shows the map when the toggle button is clicked", async () => {
-    const user = userEvent.setup();
-    render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} />);
-
-    expect(screen.queryByTestId("day-map")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button"));
-
-    expect(screen.getByTestId("day-map")).toBeInTheDocument();
-    expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("hides the map when clicked again", async () => {
-    const user = userEvent.setup();
-    render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} />);
-
-    await user.click(screen.getByRole("button"));
-    expect(screen.getByTestId("day-map")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button"));
-    expect(screen.queryByTestId("day-map")).not.toBeInTheDocument();
-    expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "false");
-  });
-});
-
-describe("DayMapPanel Playground kit restyle (Task 10b)", () => {
-  it("sits in a kit Card with a ≥44px toggle", () => {
-    const { container } = render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} />);
-    const card = container.firstChild as HTMLElement;
-    expect(card.className).toMatch(/\bborder-2\b/);
-    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
-    expect(screen.getByRole("button", { name: "Show day map" }).className).toMatch(/\bmin-h-11\b/);
-  });
-});
-
-describe("DayMapPanel tile variant (desktop Travelling Home, spec D)", () => {
+describe("DayMapPanel (desktop Travelling Home tile, spec D)", () => {
   it("is always expanded — the map mounted, no toggle — under an h2 'Day map'", () => {
-    const { container } = render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} variant="tile" />);
+    const { container } = render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} />);
     expect(screen.getByRole("heading", { level: 2, name: "Day map" })).toBeInTheDocument();
     expect(screen.getByTestId("day-map")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
@@ -103,8 +49,13 @@ describe("DayMapPanel tile variant (desktop Travelling Home, spec D)", () => {
     expect(card.className).toMatch(/\bh-full\b/);
   });
 
+  it("offers an Open link to the Day view with the dialog open", () => {
+    render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} openHref={"/trips/t/day/2026-01-05?map=1" as never} />);
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/trips/t/day/2026-01-05?map=1");
+  });
+
   it("keeps its cell with a quiet line when there is nothing to map today", () => {
-    render(<DayMapPanel tripId="trip-1" model={emptyModel} variant="tile" />);
+    render(<DayMapPanel tripId="trip-1" model={emptyModel} />);
     expect(screen.getByRole("heading", { level: 2, name: "Day map" })).toBeInTheDocument();
     expect(screen.getByText("Nothing to map today")).toBeInTheDocument();
     expect(screen.queryByTestId("day-map")).toBeNull();
@@ -114,7 +65,7 @@ describe("DayMapPanel tile variant (desktop Travelling Home, spec D)", () => {
     const { setMatchMedia } = await import("@/test/setup");
     setMatchMedia(false);
     try {
-      render(<DayMapPanel tripId="t1" model={nonEmptyModel} variant="tile" mountWhen="desktop" />);
+      render(<DayMapPanel tripId="t1" model={nonEmptyModel} mountWhen="desktop" />);
       expect(screen.getByRole("heading", { name: "Day map" })).toBeInTheDocument();
       expect(screen.queryByTestId("day-map")).toBeNull();
     } finally {
@@ -126,7 +77,7 @@ describe("DayMapPanel tile variant (desktop Travelling Home, spec D)", () => {
     const { setMatchMedia } = await import("@/test/setup");
     setMatchMedia((q) => q === "(min-width: 1024px)");
     try {
-      render(<DayMapPanel tripId="t1" model={nonEmptyModel} variant="tile" mountWhen="desktop" />);
+      render(<DayMapPanel tripId="t1" model={nonEmptyModel} mountWhen="desktop" />);
       expect(screen.getByTestId("day-map")).toBeInTheDocument();
     } finally {
       setMatchMedia((q) => q === "(min-width: 640px)");

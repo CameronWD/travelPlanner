@@ -121,8 +121,7 @@ vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: TimelineProps) => timelineMock(p) }));
 vi.mock("@/components/trip/day-map-panel", () => ({
-  DayMapPanel: ({ variant, mountWhen }: { variant?: string; mountWhen?: unknown }) =>
-    variant === "tile" ? <div data-testid="day-map-tile" data-mount-when={String(mountWhen)} /> : null,
+  DayMapPanel: ({ mountWhen }: { mountWhen?: unknown }) => <div data-testid="day-map-tile" data-mount-when={String(mountWhen)} />,
 }));
 // The desktop countdown tile's polaroid/uploader pull in next/image and the
 // cover-upload action — out of scope here.
@@ -1484,7 +1483,7 @@ describe("PhaseTravelling phone Today view (spec C)", () => {
     const { NowNextCard } = await import("@/components/trip/home/now-next-card");
     stopFindManyMock.mockResolvedValue([{ ...MUNICH, localTravelMode: "DRIVE" }, VIENNA]);
     const card = findElementByType(await PhaseTravelling({ tripId: "trip-1" }), NowNextCard)!;
-    expect(card.props.dayMapHref).toBe("/trips/trip-1/day/2026-01-05");
+    expect(card.props.dayMapHref).toBe("/trips/trip-1/day/2026-01-05?map=1");
     expect(card.props.localMode).toBe("DRIVE");
   });
 

@@ -76,7 +76,7 @@ vi.mock("@/components/day/day-add-menu", () => ({
 }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: { variant: string }) => <ol data-testid="timeline" data-variant={p.variant} /> }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
-vi.mock("@/components/trip/day-map-panel", () => ({ DayMapPanel: () => <div data-testid="day-map" /> }));
+vi.mock("@/components/trip/day/day-map-dialog", () => ({ DayMapButton: () => <button data-testid="day-map">Day map</button> }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: ({ unreadCount }: { unreadCount: number }) => <button aria-label={`Notifications (${unreadCount})`} /> }));
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => null }));
 
@@ -230,7 +230,7 @@ describe("Day page", () => {
     const timelines = screen.getAllByTestId("timeline");
     expect(timelines.length).toBeGreaterThan(0);
     for (const t of timelines) expect(t).toHaveAttribute("data-variant", "day");
-    // The Day map sits in the plan card on a planned day (collapsed by default, in DayMapPanel).
+    // The Day map sits in the plan card on a planned day (a header button that opens the dialog).
     expect(screen.getAllByTestId("day-map").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 things").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ideas")).toBeNull();

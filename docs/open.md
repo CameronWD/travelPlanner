@@ -16,7 +16,6 @@ Paths marked A: are under `docs/archive/`.
 - **Where you are** A Transport used as a day trip on a changeover or arrival day blanks "Where you are" between its legs; mis-dated legs with no arrival time; the second leg of a two-leg day landing after the arrive date; a leg departing the evening before the depart date (`lib/now-next.ts`).
 - **Trip today** A Traveller still in the last Stop after about 15:00 local on its depart date, with Home ahead, sees "today" a day early for up to about 9 h (`lib/tz.ts`); a Trip whose end date equals the last depart date goes Past early.
 - **Where you are card** The phone Home keeps a leftover "Where you are" card beside Now / next (redundant, not contradictory).
-- **Day map** "Day map" lands at the top of the Day view, where the map is a collapsed panel.
 - **Check-in** "Check-in" shows on every night of a stay, not only the first.
 - **Trip header** On the phone Home the Trip header (name, dates, avatars, Share, bell) takes about 250px before the day line.
 - **Row tap at 640px** Rows open the edit form at 640px and up (phone landscape).

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NowNextCard } from "./now-next-card";
 import type { NowNext } from "@/lib/now-next";
 
-const props = { tripId: "t1", dayMapHref: "/trips/x/day/2026-12-19#map" as Route };
+const props = { tripId: "t1", dayMapHref: "/trips/x/day/2026-12-19?map=1" as Route };
 
 describe("NowNextCard", () => {
   beforeEach(() => {
