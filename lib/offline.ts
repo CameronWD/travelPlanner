@@ -10,6 +10,7 @@
 import { COVER_SMALL_WIDTH, coverUrlForWidth } from '@/lib/cover';
 import { addDays, daysBetween } from '@/lib/dates';
 import { tripPath } from '@/lib/trip-path';
+import { RESERVED_TRIP_SLUGS } from '@/lib/trip-slug';
 import type { TripPhase } from '@/lib/trip-phase';
 
 // ---------------------------------------------------------------------------
@@ -421,25 +422,27 @@ export const META_CACHE_NAME = 'teepee-meta-v1';
 /** The reserved key the build record lives under in META_CACHE_NAME. */
 export const BUILD_META_PATH = '/__teepee/build-meta';
 
-/** The reserved key in META_CACHE_NAME holding the Trip Home a navigation last got from the network. */
+// Spec 2026-11-17 §A1: the Trip Home last opened, kept in META_CACHE_NAME so an
+// offline launch at `/` opens it. Mirrored in sw.js.
 export const LAST_TRIP_PATH = '/__teepee/last-trip';
 
-/** A Trip's Home page, `/trips/<ref>`: not a sub-page, the Trips list or the new Trip form. Mirrored in sw.js. */
-export function isTripHomePath(path: string): boolean {
-  return /^\/trips\/[^/]+$/.test(path) && path !== '/trips/new';
+export function isCachedTripHome(path: string): boolean {
+  const match = /^\/trips\/([^/?#]+)$/.exec(path);
+  return match !== null && !RESERVED_TRIP_SLUGS.has(match[1]);
 }
 
-/**
- * The saved page an offline launch at `/` opens (spec 2026-11-17 §A1): the
- * last Trip Home served if still cached, else the first cached Trip Home,
- * else the cached Trips list, else nothing. A cached Landing is never picked.
- * Mirrored in sw.js.
- */
+// A cached Landing (`/`) is never picked: it can predate the sign-in.
 export function pickOfflineStart(cachedUrls: string[], lastTripPath: string | null): string | null {
   if (lastTripPath && cachedUrls.includes(lastTripPath)) return lastTripPath;
-  const home = cachedUrls.find(isTripHomePath);
+  const home = cachedUrls.find(isCachedTripHome);
   if (home) return home;
   return cachedUrls.includes('/trips') ? '/trips' : null;
+}
+
+export function lastTripMessagePath(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const { type, path } = data as { type?: unknown; path?: unknown };
+  return type === 'LAST_TRIP' && typeof path === 'string' && isCachedTripHome(path) ? path : null;
 }
 
 export interface BuildMeta {

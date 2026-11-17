@@ -3,6 +3,7 @@ import { join } from "node:path";
 import vm from "node:vm";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { META_CACHE_NAME, BUILD_META_PATH, LAST_TRIP_PATH } from "../lib/offline";
+import { RESERVED_TRIP_SLUGS } from "../lib/trip-slug";
 
 /**
  * `public/sw.js` is the last hop before a push notification actually renders
@@ -424,6 +425,14 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).toContain(`const BUILD_META_PATH = '${BUILD_META_PATH}';`);
     expect(SW_SOURCE).toContain(`const LAST_TRIP_PATH = '${LAST_TRIP_PATH}';`);
   });
+
+  it("picks the offline start exactly as lib/offline.ts does (spec 2026-11-17 §A1)", () => {
+    expect(SW_SOURCE).toContain("function isCachedTripHome(path)");
+    expect(SW_SOURCE).toContain("/^\\/trips\\/([^/?#]+)$/");
+    expect(SW_SOURCE).toContain(`const RESERVED_TRIP_SLUGS = [${[...RESERVED_TRIP_SLUGS].map((s) => `'${s}'`).join(", ")}];`);
+    expect(SW_SOURCE).toContain("function pickOfflineStart(cachedUrls, lastTripPath)");
+    expect(SW_SOURCE).toContain("function lastTripMessagePath(data)");
+  });
 });
 
 function fakeCaches() {
@@ -441,7 +450,12 @@ function fakeCaches() {
       }),
       match: vi.fn(async (req: Request | string) => s.bodies.get(urlOf(req))?.clone()),
       keys: vi.fn(async () => [...s.keys]),
-      delete: vi.fn(async (req: Request) => { s.keys = s.keys.filter((k) => k !== req); return true; }),
+      delete: vi.fn(async (req: Request | string) => {
+        const url = urlOf(req);
+        s.keys = s.keys.filter((k) => k.url !== url);
+        s.bodies.delete(url);
+        return true;
+      }),
       addAll: vi.fn(async () => {}),
     };
   });
@@ -551,18 +565,19 @@ describe("public/sw.js — cache bounds (spec 2026-10-06 §T)", () => {
   });
 });
 
+function redirectedResponse(body: string) {
+  const res = new Response(body, { status: 200, headers: { "Content-Type": "application/pdf" } });
+  Object.defineProperty(res, "redirected", { value: true });
+  const clone = res.clone.bind(res);
+  res.clone = () => {
+    const copy = clone();
+    Object.defineProperty(copy, "redirected", { value: true });
+    return copy;
+  };
+  return res;
+}
+
 describe("public/sw.js — redirected responses", () => {
-  function redirectedResponse(body: string) {
-    const res = new Response(body, { status: 200, headers: { "Content-Type": "application/pdf" } });
-    Object.defineProperty(res, "redirected", { value: true });
-    const clone = res.clone.bind(res);
-    res.clone = () => {
-      const copy = clone();
-      Object.defineProperty(copy, "redirected", { value: true });
-      return copy;
-    };
-    return res;
-  }
   // undici refuses mode "navigate" on a constructed Request, so a navigation is faked.
   const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
 
@@ -695,7 +710,7 @@ describe("public/sw.js — opening the app offline (spec A1)", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
   }
 
-  it("offline navigation to / serves the cached Trip Home", async () => {
+  it("offline navigation to / redirects to the cached Trip Home", async () => {
     const c = matchingCaches();
     await savePages(c, { "/": "landing", "/trips/a/budget": "money", "/trips/a": "trip-home", "/trips": "trips-list" });
     goOffline();
@@ -703,7 +718,48 @@ describe("public/sw.js — opening the app offline (spec A1)", () => {
 
     const response = await navigate(dispatch, "https://teepee.example/");
 
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("https://teepee.example/trips/a");
+  });
+
+  it("offline navigation to a cached Trip Home serves its body", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a": "trip-home" });
+    goOffline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await navigate(dispatch, "https://teepee.example/trips/a");
+
     expect(await response.text()).toBe("trip-home");
+  });
+
+  it("the navigation that follows the offline redirect reads the cache without asking the network again", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a": "trip-home" });
+    goOffline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await navigate(dispatch, "https://teepee.example/");
+    const response = await navigate(dispatch, "https://teepee.example/trips/a");
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(await response.text()).toBe("trip-home");
+    await navigate(dispatch, "https://teepee.example/trips/a");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("a picked Trip page that can no longer answer a navigation is dropped and the next one is picked", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/": "landing", "/trips/a": "a-home" });
+    const pages = await c.api.open("teepee-pages-v1");
+    await pages.put(new Request("https://teepee.example/trips/b"), redirectedResponse("stale"));
+    goOffline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await navigate(dispatch, "https://teepee.example/");
+
+    expect(response.headers.get("Location")).toBe("https://teepee.example/trips/a");
+    expect(c.stores.get("teepee-pages-v1")!.keys.map((k) => k.url)).not.toContain("https://teepee.example/trips/b");
   });
 
   it("offline navigation to / with nothing saved serves offline.html", async () => {
@@ -728,7 +784,24 @@ describe("public/sw.js — opening the app offline (spec A1)", () => {
     goOffline();
     const response = await navigate(dispatch, "https://teepee.example/");
 
-    expect(await response.text()).toBe("b-home");
+    expect(response.headers.get("Location")).toBe("https://teepee.example/trips/b");
+  });
+
+  it("a LAST_TRIP message records a Trip Home path and ignores anything else", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a": "a-home", "/trips/b": "b-home" });
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await dispatch("message", { data: { type: "LAST_TRIP", path: "/trips/a" } });
+    await dispatch("message", { data: { type: "LAST_TRIP", path: "/trips/b/budget" } });
+    await dispatch("message", { data: { type: "LAST_TRIP", path: "/trips/b?x=1" } });
+    await dispatch("message", { data: { type: "LAST_TRIP", path: "https://elsewhere.example/trips/b" } });
+
+    const hit = await (await c.api.open(META_CACHE_NAME)).match(LAST_TRIP_PATH);
+    expect(await hit!.text()).toBe("/trips/a");
+    goOffline();
+    const response = await navigate(dispatch, "https://teepee.example/");
+    expect(response.headers.get("Location")).toBe("https://teepee.example/trips/a");
   });
 
   it("records only a Trip Home navigation that came back ok from the network", async () => {

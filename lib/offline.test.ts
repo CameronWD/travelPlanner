@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isTripHomePath, LAST_TRIP_PATH } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH } from './offline';
+import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -494,12 +495,30 @@ describe('opening the app offline (spec A1)', () => {
     expect(LAST_TRIP_PATH).toBe('/__teepee/last-trip');
   });
 
-  it('a Trip Home is exactly /trips/<ref>, never a sub-page, the Trips list or the new Trip form', () => {
-    expect(isTripHomePath('/trips/a')).toBe(true);
-    expect(isTripHomePath('/trips/a/budget')).toBe(false);
-    expect(isTripHomePath('/trips')).toBe(false);
-    expect(isTripHomePath('/trips/new')).toBe(false);
-    expect(isTripHomePath('/')).toBe(false);
+  it('a Trip Home is exactly /trips/<ref>, never a sub-page, the Trips list, a query or the new Trip form', () => {
+    expect(isCachedTripHome('/trips/a')).toBe(true);
+    expect(isCachedTripHome('/trips/a/budget')).toBe(false);
+    expect(isCachedTripHome('/trips')).toBe(false);
+    expect(isCachedTripHome('/trips/a?x=1')).toBe(false);
+    expect(isCachedTripHome('/trips/a#top')).toBe(false);
+    expect(isCachedTripHome('/trips/new')).toBe(false);
+    expect(isCachedTripHome('/')).toBe(false);
+  });
+
+  it('no reserved Trip slug is a Trip Home', () => {
+    for (const slug of RESERVED_TRIP_SLUGS) expect(isCachedTripHome(`/trips/${slug}`)).toBe(false);
+  });
+
+  it('a LAST_TRIP message names a Trip Home path, and anything else is ignored', () => {
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/a' })).toBe('/trips/a');
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/a/budget' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/a?x=1' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: 'https://elsewhere.example/trips/a' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP', path: '/trips/new' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'LAST_TRIP' })).toBeNull();
+    expect(lastTripMessagePath({ type: 'CLEAR_CACHE', path: '/trips/a' })).toBeNull();
+    expect(lastTripMessagePath(null)).toBeNull();
+    expect(lastTripMessagePath('LAST_TRIP')).toBeNull();
   });
 
   it('picks the cached Trip Home over its sub-pages and the Trips list', () => {

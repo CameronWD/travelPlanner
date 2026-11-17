@@ -111,6 +111,7 @@
     (function () {
       if (!('caches' in window)) return;
       var list = document.getElementById('saved-trips');
+      var reserved = ['new'];
       caches
         .open('teepee-pages-v1')
         .then(function (cache) { return cache.keys(); })
@@ -120,7 +121,8 @@
           keys.forEach(function (key) {
             var url = new URL(key.url);
             var path = url.pathname;
-            if (url.origin !== location.origin || url.search || !/^\/trips(\/[^/]+)?$/.test(path) || path === '/trips/new') return;
+            var match = /^\/trips(?:\/([^/]+))?$/.exec(path);
+            if (url.origin !== location.origin || url.search || !match || reserved.indexOf(match[1]) !== -1) return;
             if (path === '/trips') hasTrips = true;
             else if (homes.indexOf(path) === -1) homes.unshift(path);
           });

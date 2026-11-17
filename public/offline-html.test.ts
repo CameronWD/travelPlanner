@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { describe, it, expect, beforeEach } from "vitest";
+import { RESERVED_TRIP_SLUGS } from "../lib/trip-slug";
 
 const HTML = readFileSync(join(__dirname, "offline.html"), "utf8");
 const SCRIPT = HTML.match(/<script>([\s\S]*?)<\/script>/)![1];
@@ -31,6 +32,10 @@ describe("public/offline.html", () => {
     expect(HTML).not.toContain("will sync");
     expect(HTML).toContain("need a connection");
     expect(HTML).toContain('id="saved-trips"');
+  });
+
+  it("leaves out exactly the reserved Trip slugs (lib/trip-slug.ts)", () => {
+    expect(HTML).toContain(`var reserved = [${[...RESERVED_TRIP_SLUGS].map((s) => `'${s}'`).join(", ")}];`);
   });
 
   it("lists cached Trip Homes, newest first, then the Trips list", async () => {

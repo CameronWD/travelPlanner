@@ -201,17 +201,25 @@ async function servableCached(request) {
   return undefined;
 }
 
-/** Mirrors isTripHomePath() in lib/offline.ts. */
-function isTripHomePath(path) {
-  return /^\/trips\/[^/]+$/.test(path) && path !== '/trips/new';
+// Mirrors isCachedTripHome(), pickOfflineStart() and lastTripMessagePath() in
+// lib/offline.ts; RESERVED_TRIP_SLUGS mirrors lib/trip-slug.ts.
+const RESERVED_TRIP_SLUGS = ['new'];
+
+function isCachedTripHome(path) {
+  const match = /^\/trips\/([^/?#]+)$/.exec(path);
+  return match !== null && !RESERVED_TRIP_SLUGS.includes(match[1]);
 }
 
-/** Mirrors pickOfflineStart() in lib/offline.ts. */
 function pickOfflineStart(cachedUrls, lastTripPath) {
   if (lastTripPath && cachedUrls.includes(lastTripPath)) return lastTripPath;
-  const home = cachedUrls.find(isTripHomePath);
+  const home = cachedUrls.find(isCachedTripHome);
   if (home) return home;
   return cachedUrls.includes('/trips') ? '/trips' : null;
+}
+
+function lastTripMessagePath(data) {
+  if (typeof data !== 'object' || data === null) return null;
+  return data.type === 'LAST_TRIP' && typeof data.path === 'string' && isCachedTripHome(data.path) ? data.path : null;
 }
 
 /**
@@ -368,6 +376,8 @@ self.addEventListener('message', (event) => {
         .catch((err) => console.warn('[SW] cache clear failed:', err))
     );
   }
+  const lastTrip = lastTripMessagePath(data);
+  if (lastTrip) event.waitUntil(recordLastTrip(lastTrip).catch(() => {}));
 });
 
 // ---------------------------------------------------------------------------
@@ -414,6 +424,11 @@ async function networkFirst(request) {
   const store = cacheStoreFor(request.url);
   const cache = await caches.open(CACHE_NAMES[store]);
 
+  if (request.mode === 'navigate' && takeOfflineRedirect(request.url)) {
+    const cached = await servableCached(request);
+    if (cached) return cached;
+  }
+
   try {
     const response = await fetch(request);
     if (response.ok) {
@@ -421,7 +436,10 @@ async function networkFirst(request) {
         .put(cacheKeyFor(request), storableResponse(response.clone()))
         .then(() => trimCache(store))
         .catch(() => {}); // non-blocking
-      if (request.mode === 'navigate') rememberTripHome(request.url).catch(() => {});
+      if (request.mode === 'navigate') {
+        const { pathname, search } = new URL(request.url);
+        if (!search && isCachedTripHome(pathname)) recordLastTrip(pathname).catch(() => {});
+      }
     }
     return response;
   } catch (err) {
@@ -430,37 +448,54 @@ async function networkFirst(request) {
   }
 }
 
-async function rememberTripHome(url) {
-  const { pathname, search } = new URL(url);
-  if (search || !isTripHomePath(pathname)) return;
+async function recordLastTrip(path) {
   const meta = await caches.open(META_CACHE_NAME);
-  await meta.put(LAST_TRIP_PATH, new Response(pathname, { headers: { 'Content-Type': 'text/plain' } }));
+  await meta.put(LAST_TRIP_PATH, new Response(path, { headers: { 'Content-Type': 'text/plain' } }));
 }
 
-/** The saved page an offline launch at / opens, chosen by pickOfflineStart. */
+// The offline redirect from `/` was decided a moment ago with the network
+// down, so the navigation that follows it reads the cache without asking the
+// network again. In memory only: a restarted worker just asks the network.
+const OFFLINE_REDIRECT_TTL_MS = 10000;
+let offlineRedirect = null;
+
+function takeOfflineRedirect(url) {
+  const marker = offlineRedirect;
+  offlineRedirect = null;
+  return marker !== null && marker.path === new URL(url).pathname && Date.now() - marker.at < OFFLINE_REDIRECT_TTL_MS;
+}
+
 async function offlineStart() {
   const pages = await caches.open(CACHE_NAMES.pages);
   // Cache keys come back oldest first (trimCache relies on it); the pick wants newest first.
-  const paths = (await pages.keys())
+  let paths = (await pages.keys())
     .map((key) => new URL(key.url))
     .filter((url) => url.origin === self.location.origin && !url.search)
     .map((url) => url.pathname)
     .reverse();
   const meta = await caches.open(META_CACHE_NAME);
   const last = await meta.match(LAST_TRIP_PATH);
-  const path = pickOfflineStart(paths, last ? await last.text() : null);
-  if (!path) return undefined;
-  const hit = await pages.match(path);
-  return hit && isServableCacheHit('navigate', hit) ? hit : undefined;
+  const lastPath = last ? await last.text() : null;
+  for (;;) {
+    const path = pickOfflineStart(paths, lastPath);
+    if (!path) return null;
+    const hit = await pages.match(path);
+    if (hit && isServableCacheHit('navigate', hit)) return path;
+    await pages.delete(path);
+    paths = paths.filter((p) => p !== path);
+  }
 }
 
-/** What a request gets when the network fails: its cached copy, else the offline page for a navigation. */
 async function offlineResponse(request) {
   // Asked before the cached `/` itself: a Landing cached while signed out must
-  // never open for a Traveller who has a Trip saved.
+  // never open for a Traveller who has a Trip saved. A redirect, not the Trip's
+  // body, so the address, the router's pathname and the page all agree.
   if (request.mode === 'navigate' && new URL(request.url).pathname === '/') {
-    const start = await offlineStart().catch(() => undefined);
-    if (start) return start;
+    const start = await offlineStart().catch(() => null);
+    if (start) {
+      offlineRedirect = { path: start, at: Date.now() };
+      return Response.redirect(new URL(start, self.location.origin).href, 302);
+    }
   }
 
   const cached = await servableCached(request);
