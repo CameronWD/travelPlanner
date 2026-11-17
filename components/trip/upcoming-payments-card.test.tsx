@@ -29,11 +29,11 @@ describe("UpcomingPaymentsCard", () => {
   it("shows the label, formatted amount, and 'comes out in N days' phrasing", () => {
     render(<UpcomingPaymentsCard payments={[payment({ costId: "a", daysUntil: 3 })]} tripId="trip-1" tripSlug="trip-1" />);
     expect(screen.getByText("Hotel Lutetia")).toBeInTheDocument();
-    expect(screen.getByText(/450\.00/)).toBeInTheDocument();
+    expect(screen.getAllByText(/450\.00/).length).toBeGreaterThan(0);
     expect(screen.getByText("comes out in 3 days")).toBeInTheDocument();
   });
 
-  it("shows a foreign payment as Home amount with the original in brackets", () => {
+  it("shows a foreign payment as Home amount with the original on a line beneath", () => {
     render(
       <UpcomingPaymentsCard
         payments={[payment({ costId: "a", costMinor: 12000, currency: "EUR", homeMinor: 19800, homeCurrency: "AUD" })]}
@@ -41,8 +41,12 @@ describe("UpcomingPaymentsCard", () => {
         tripSlug="trip-1"
       />,
     );
-    const expected = `${formatMoney(19800, "AUD")} (${formatMoney(12000, "EUR")})`;
-    expect(screen.getByRole("link").textContent).toContain(expected);
+    const main = screen.getByText(formatMoney(19800, "AUD"));
+    const original = screen.getByText((t) => t.replace(/\u00a0/g, " ") === "EUR 120.00");
+    expect(original).not.toBe(main);
+    expect(original).toHaveClass("text-xs");
+    expect(main).not.toHaveClass("truncate");
+    expect(original).not.toHaveClass("truncate");
   });
 
   it("shows 'comes out tomorrow' for daysUntil === 1", () => {

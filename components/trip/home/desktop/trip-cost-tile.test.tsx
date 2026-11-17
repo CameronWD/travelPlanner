@@ -62,25 +62,41 @@ describe("TripCostTile", () => {
 
   it("uses the narrow symbol for the next payment, like the total", () => {
     renderTile({ currency: "EUR", nextPayment: { amountMinor: 11_520, currency: "EUR", homeMinor: 11_520, label: "Villa", dueDate: "2026-12-01" } });
-    expect(screen.getByText(/€115\.20 · Villa/)).toBeInTheDocument();
+    expect(screen.getByText("€115.20")).toBeInTheDocument();
+    expect(screen.getByText("Villa")).toBeInTheDocument();
   });
 
-  it.each([true, false])("shows a foreign next payment in Home currency with the original in brackets (hasCover %s)", (hasCover) => {
+  it.each([true, false])("shows a foreign next payment in Home currency with the original beneath (hasCover %s)", (hasCover) => {
     const { container } = renderTile({
       hasCover,
       nextPayment: { amountMinor: 12_000, currency: "EUR", homeMinor: 19_800, label: "Hotel Kaiser", dueDate: "2026-12-03" },
     });
-    expect((container.textContent ?? "").replace(/\u00a0/g, " ")).toContain("$198.00 (€120.00)");
+    expect((container.textContent ?? "").replace(/\u00a0/g, " ")).toContain("$198.00€120.00");
     const due = screen.getByText(/^Due /);
     expect(due.textContent).toBe("Due Thu 3 Dec");
     expect(due.textContent).not.toContain("€");
+  });
+
+  it.each([true, false])("puts the original on its own small line, never clipped (hasCover %s)", (hasCover) => {
+    renderTile({
+      hasCover,
+      nextPayment: { amountMinor: 100_000_000, currency: "IDR", homeMinor: 9_500_000_000_000, label: "Villa", dueDate: "2026-12-03" },
+    });
+    const original = screen.getByText((t) => t.replace(/\u00a0/g, " ") === "Rp 1,000,000");
+    const main = screen.getByText((t) => t.replace(/\u00a0/g, " ").startsWith("$95,000,000,000"));
+    expect(original).not.toBe(main);
+    expect(original).toHaveClass("text-xs");
+    expect(original).not.toHaveClass("truncate");
+    expect(main).not.toHaveClass("truncate");
+    expect(main).toHaveClass("break-words");
+    expect(main.textContent).not.toContain("Rp");
   });
 
   it("shows the currency code on the original when it shares the Home symbol", () => {
     const { container } = renderTile({
       nextPayment: { amountMinor: 15_000, currency: "USD", homeMinor: 24_750, label: "Rental car", dueDate: "2026-12-03" },
     });
-    expect((container.textContent ?? "").replace(/\u00a0/g, " ")).toContain("$247.50 (USD 150.00)");
+    expect((container.textContent ?? "").replace(/\u00a0/g, " ")).toContain("$247.50USD 150.00");
   });
 
   it.each([true, false])("shows a foreign next payment in its own currency when there is no rate (hasCover %s)", (hasCover) => {

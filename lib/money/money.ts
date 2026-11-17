@@ -33,6 +33,13 @@ const CURRENCY_DECIMALS: Record<string, number> = {
   TND: 3,
 };
 
+// IDR is stored with 2 decimals; shown whole. Display only: stored amounts and decimalsFor stay as they are.
+const WHOLE_UNIT_DISPLAY = new Set(["IDR"]);
+
+function displayDecimals(currency: string): number {
+  return WHOLE_UNIT_DISPLAY.has(currency.toUpperCase()) ? 0 : decimalsFor(currency);
+}
+
 /**
  * Return the number of minor-unit decimal places for a currency.
  * Defaults to 2 for unknown currencies.
@@ -114,8 +121,8 @@ export function formatMoney(
   currency: string,
   locale: string = "en-AU",
 ): string {
-  const decimals = decimalsFor(currency);
-  const value = amountMinor / 10 ** decimals;
+  const decimals = displayDecimals(currency);
+  const value = amountMinor / 10 ** decimalsFor(currency);
 
   try {
     return new Intl.NumberFormat(locale, {
@@ -142,8 +149,8 @@ export function formatAmountOnly(
   currency: string,
   locale: string = "en-AU",
 ): string {
-  const decimals = decimalsFor(currency);
-  const value = amountMinor / 10 ** decimals;
+  const decimals = displayDecimals(currency);
+  const value = amountMinor / 10 ** decimalsFor(currency);
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -268,7 +275,7 @@ export function formatMoneyNarrow(
   currency: string,
   locale: string = "en-AU",
 ): string {
-  const decimals = decimalsFor(currency);
+  const decimals = displayDecimals(currency);
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
@@ -276,7 +283,7 @@ export function formatMoneyNarrow(
       currencyDisplay: "narrowSymbol",
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
-    }).format(amountMinor / 10 ** decimals);
+    }).format(amountMinor / 10 ** decimalsFor(currency));
   } catch {
     return formatMoney(amountMinor, currency, locale);
   }

@@ -398,3 +398,21 @@ describe("currencySymbol", () => {
     expect(currencySymbol("zzz")).toBe("ZZZ");
   });
 });
+
+describe("IDR whole-unit display", () => {
+  const nb = (s: string) => s.replace(/\u00a0/g, " ");
+
+  it("formatMoneyNarrow shows stored minor units as whole rupiah", () => {
+    expect(nb(formatMoneyNarrow(100_000_000, "IDR"))).toBe("Rp 1,000,000");
+    expect(nb(formatMoneyNarrow(100_000_050, "IDR"))).toBe(nb(new Intl.NumberFormat("en-AU", { style: "currency", currency: "IDR", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }).format(1_000_000.5)));
+  });
+
+  it("formatMoney and formatAmountOnly drop the fraction too", () => {
+    expect(formatMoney(100_000_000, "IDR")).not.toMatch(/\.\d\d/);
+    expect(formatAmountOnly(100_000_000, "IDR")).toBe("1,000,000");
+  });
+
+  it("leaves stored decimals alone", () => {
+    expect(decimalsFor("IDR")).toBe(2);
+  });
+});

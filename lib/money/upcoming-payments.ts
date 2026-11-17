@@ -74,14 +74,22 @@ export function upcomingHomeMinor(
   return null;
 }
 
+export function paymentAmountParts(
+  p: { costMinor: number; currency: string; homeMinor: number | null; homeCurrency: string },
+  format: (amountMinor: number, currency: string) => string,
+): { main: string; original: string | null } {
+  if (p.homeMinor === null || p.currency.toUpperCase() === p.homeCurrency.toUpperCase()) {
+    return { main: format(p.costMinor, p.currency), original: null };
+  }
+  // Narrow symbols collide ($ for USD/NZD/AUD); the code keeps the original unambiguous.
+  const originalFormat = currencySymbol(p.currency) === currencySymbol(p.homeCurrency) ? formatMoney : format;
+  return { main: format(p.homeMinor, p.homeCurrency), original: originalFormat(p.costMinor, p.currency) };
+}
+
 export function paymentAmountLabel(
   p: { costMinor: number; currency: string; homeMinor: number | null; homeCurrency: string },
   format: (amountMinor: number, currency: string) => string,
 ): string {
-  if (p.homeMinor === null || p.currency.toUpperCase() === p.homeCurrency.toUpperCase()) {
-    return format(p.costMinor, p.currency);
-  }
-  // Narrow symbols collide ($ for USD/NZD/AUD); the code keeps the original unambiguous.
-  const originalFormat = currencySymbol(p.currency) === currencySymbol(p.homeCurrency) ? formatMoney : format;
-  return `${format(p.homeMinor, p.homeCurrency)} (${originalFormat(p.costMinor, p.currency)})`;
+  const { main, original } = paymentAmountParts(p, format);
+  return original === null ? main : `${main} (${original})`;
 }
