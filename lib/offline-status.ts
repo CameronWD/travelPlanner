@@ -27,13 +27,26 @@ export interface OfflineStatus {
   savedAt: number | null;
   /** The build the last completed warm ran under; null when unknown. */
   savedBuild: string | null;
+  /** Pages and files the last finished run tried to save; null when unknown. */
+  total: number | null;
+  /** How many of `total` it saved. */
+  saved: number | null;
+  /** Epoch ms the last finished run ended, complete or not; null when none has. */
+  ranAt: number | null;
   /** Bumped by requestWarm(); the warmer re-runs when it changes. */
   requestId: number;
 }
 
+export interface WarmResult {
+  total: number;
+  saved: number;
+  pagesFailed: number;
+}
+
 const STORAGE_PREFIX = "teepee.offline.savedAt.";
 const BUILD_STORAGE_PREFIX = "teepee.offline.savedBuild.";
-const IDLE: OfflineStatus = { state: "idle", savedAt: null, savedBuild: null, requestId: 0 };
+const COUNTS_STORAGE_PREFIX = "teepee.offline.counts.";
+const IDLE: OfflineStatus = { state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, requestId: 0 };
 
 /** This deploy's build id (inlined by next.config.ts), "dev" when unset. */
 export function currentBuildId(): string {
@@ -70,6 +83,28 @@ function readSavedBuild(tripId: string): string | null {
   }
 }
 
+function readCounts(tripId: string): Pick<OfflineStatus, "total" | "saved" | "ranAt"> {
+  const none = { total: null, saved: null, ranAt: null };
+  if (typeof window === "undefined") return none;
+  try {
+    const raw = window.localStorage.getItem(COUNTS_STORAGE_PREFIX + tripId);
+    if (!raw) return none;
+    const { total, saved, at } = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof total !== "number" || typeof saved !== "number" || typeof at !== "number") return none;
+    return { total, saved, ranAt: at };
+  } catch {
+    return none;
+  }
+}
+
+function writeCounts(tripId: string, total: number, saved: number, at: number) {
+  try {
+    window.localStorage.setItem(COUNTS_STORAGE_PREFIX + tripId, JSON.stringify({ total, saved, at }));
+  } catch {
+    // Same as writeSavedAt: the in-memory state still updates.
+  }
+}
+
 function writeSavedAt(tripId: string, at: number, build: string) {
   try {
     window.localStorage.setItem(STORAGE_PREFIX + tripId, String(at));
@@ -89,8 +124,11 @@ export function getStatus(tripId: string): OfflineStatus {
   const known = statuses.get(tripId);
   if (known) return known;
   const savedAt = readSavedAt(tripId);
+  const counts = readCounts(tripId);
   const initial: OfflineStatus =
-    savedAt === null ? IDLE : { ...IDLE, state: "saved", savedAt, savedBuild: readSavedBuild(tripId) };
+    savedAt === null && counts.ranAt === null
+      ? IDLE
+      : { ...IDLE, ...counts, state: "saved", savedAt, savedBuild: savedAt === null ? null : readSavedBuild(tripId) };
   statuses.set(tripId, initial);
   return initial;
 }
@@ -124,21 +162,36 @@ export function takeWarmRequest(tripId: string): boolean {
   return requestId !== handled;
 }
 
+/** The last finished run saved fewer than it tried; never "0 of 0". */
+export function isIncomplete(status: OfflineStatus): boolean {
+  return status.total !== null && status.saved !== null && status.saved < status.total;
+}
+
 export function beginWarm(tripId: string): void {
   update(tripId, { state: "saving" });
 }
 
-export function finishWarm(tripId: string, at: number = Date.now()): void {
+/**
+ * A run with a failed page records its counts but leaves `savedAt` alone, so
+ * the 6-hour skip never treats an incomplete save as fresh.
+ */
+export function finishWarm(tripId: string, result: WarmResult, at: number = Date.now()): void {
+  writeCounts(tripId, result.total, result.saved, at);
+  const counts = { total: result.total, saved: result.saved, ranAt: at };
+  if (result.pagesFailed > 0) {
+    update(tripId, { state: "saved", ...counts });
+    return;
+  }
   const build = currentBuildId();
   writeSavedAt(tripId, at, build);
-  update(tripId, { state: "saved", savedAt: at, savedBuild: build });
+  update(tripId, { state: "saved", savedAt: at, savedBuild: build, ...counts });
 }
 
 /** A warm that stopped early (left the Trip, went offline) falls back to what was last known. */
 export function cancelWarm(tripId: string): void {
   const current = getStatus(tripId);
   if (current.state !== "saving") return;
-  update(tripId, { state: current.savedAt === null ? "idle" : "saved" });
+  update(tripId, { state: current.savedAt === null && current.ranAt === null ? "idle" : "saved" });
 }
 
 /** Tests only: forget every Trip's in-memory state (storage is left alone). */

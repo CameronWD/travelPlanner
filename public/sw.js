@@ -166,9 +166,16 @@ function storableResponse(response) {
   });
 }
 
+/** Mirrors asksForBytes() in lib/offline.ts. */
+function asksForBytes(url) {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return false;
+  return url.slice(queryAt + 1).split('&').includes(OFFLINE_BYTES_PARAM + '=1');
+}
+
 /** Mirrors isServableCacheHit() in lib/offline.ts. */
-function isServableCacheHit(mode, cached) {
-  return !(mode === 'navigate' && cached.redirected);
+function isServableCacheHit(mode, cached, bytesRequested) {
+  return !(cached.redirected && (mode === 'navigate' || bytesRequested));
 }
 
 // Mirrors NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE,
@@ -217,7 +224,7 @@ async function servableCached(request) {
   const key = cacheKeyFor(request);
   const cached = await caches.match(key);
   if (!cached) return undefined;
-  if (isServableCacheHit(request.mode, cached)) return cached;
+  if (isServableCacheHit(request.mode, cached, asksForBytes(request.url))) return cached;
   const cache = await caches.open(CACHE_NAMES[cacheStoreFor(request.url)]);
   await cache.delete(key);
   return undefined;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -452,6 +452,18 @@ describe('redirected responses', () => {
     expect(isServableCacheHit('navigate', { redirected: true })).toBe(false);
     expect(isServableCacheHit('navigate', { redirected: false })).toBe(true);
     expect(isServableCacheHit('no-cors', { redirected: true })).toBe(true);
+  });
+
+  it('refuses a redirected cache hit for a warm asking for bytes, and keeps a plain one', () => {
+    expect(isServableCacheHit('cors', { redirected: true }, true)).toBe(false);
+    expect(isServableCacheHit('cors', { redirected: false }, true)).toBe(true);
+  });
+
+  it('knows a request asks for bytes only by offline=1', () => {
+    expect(asksForBytes('https://x.test/api/attachments/a1?offline=1')).toBe(true);
+    expect(asksForBytes('https://x.test/api/trips/t/cover?v=k&offline=1')).toBe(true);
+    expect(asksForBytes('https://x.test/api/attachments/a1')).toBe(false);
+    expect(asksForBytes('https://x.test/api/attachments/a1?offline=0')).toBe(false);
   });
 });
 

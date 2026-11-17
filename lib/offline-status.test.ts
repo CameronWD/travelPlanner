@@ -11,7 +11,10 @@ import {
   resetOfflineStatus,
   takeWarmRequest,
   currentBuildId,
+  isIncomplete,
 } from "./offline-status";
+
+const DONE = { total: 3, saved: 3, pagesFailed: 0 };
 
 beforeEach(() => {
   resetOfflineStatus();
@@ -24,11 +27,11 @@ afterEach(() => {
 
 describe("offline status store", () => {
   it("starts idle with no timestamp for a trip that was never warmed", () => {
-    expect(getStatus("t1")).toEqual({ state: "idle", savedAt: null, savedBuild: null, requestId: 0 });
+    expect(getStatus("t1")).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, requestId: 0 });
   });
 
   it("the server snapshot is always idle", () => {
-    expect(getServerStatus()).toEqual({ state: "idle", savedAt: null, savedBuild: null, requestId: 0 });
+    expect(getServerStatus()).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, requestId: 0 });
   });
 
   it("returns the same object until something changes (useSyncExternalStore needs that)", () => {
@@ -41,7 +44,7 @@ describe("offline status store", () => {
   it("walks idle → saving → saved and persists savedAt per trip", () => {
     beginWarm("t1");
     expect(getStatus("t1").state).toBe("saving");
-    finishWarm("t1", 1_700_000_000_000);
+    finishWarm("t1", DONE, 1_700_000_000_000);
     expect(getStatus("t1")).toMatchObject({ state: "saved", savedAt: 1_700_000_000_000 });
     expect(window.localStorage.getItem("teepee.offline.savedAt.t1")).toBe("1700000000000");
     expect(getStatus("t2").state).toBe("idle");
@@ -73,7 +76,7 @@ describe("offline status store", () => {
     cancelWarm("t1");
     expect(getStatus("t1").state).toBe("idle");
 
-    finishWarm("t1", 1_700_000_000_000);
+    finishWarm("t1", DONE, 1_700_000_000_000);
     beginWarm("t1");
     cancelWarm("t1");
     expect(getStatus("t1")).toMatchObject({ state: "saved", savedAt: 1_700_000_000_000 });
@@ -83,6 +86,38 @@ describe("offline status store", () => {
     const before = getStatus("t1");
     cancelWarm("t1");
     expect(getStatus("t1")).toBe(before);
+  });
+});
+
+describe("what the last run saved", () => {
+  it("stores the counts beside savedAt and reads them back after a reload", () => {
+    finishWarm("t1", { total: 46, saved: 46, pagesFailed: 0 }, 1_700_000_000_000);
+    expect(getStatus("t1")).toMatchObject({ total: 46, saved: 46, ranAt: 1_700_000_000_000, savedAt: 1_700_000_000_000 });
+    resetOfflineStatus();
+    expect(getStatus("t1")).toMatchObject({ state: "saved", total: 46, saved: 46, savedAt: 1_700_000_000_000 });
+  });
+
+  it("a run with a failed page records the counts and leaves savedAt unchanged", () => {
+    finishWarm("t1", DONE, 1_700_000_000_000);
+    finishWarm("t1", { total: 46, saved: 40, pagesFailed: 6 }, 1_700_000_999_000);
+    expect(getStatus("t1")).toMatchObject({ state: "saved", total: 46, saved: 40, savedAt: 1_700_000_000_000, ranAt: 1_700_000_999_000 });
+    expect(window.localStorage.getItem("teepee.offline.savedAt.t1")).toBe("1700000000000");
+    expect(isIncomplete(getStatus("t1"))).toBe(true);
+  });
+
+  it("a first run with a failed page has no savedAt, and survives a reload as saved", () => {
+    finishWarm("t1", { total: 4, saved: 3, pagesFailed: 1 }, 1_700_000_000_000);
+    expect(getStatus("t1")).toMatchObject({ savedAt: null, savedBuild: null });
+    resetOfflineStatus();
+    expect(getStatus("t1")).toMatchObject({ state: "saved", savedAt: null, total: 4, saved: 3 });
+  });
+
+  it("is not incomplete when everything saved, when nothing is known, or when there was nothing to save", () => {
+    expect(isIncomplete(getStatus("t1"))).toBe(false);
+    finishWarm("t1", DONE);
+    expect(isIncomplete(getStatus("t1"))).toBe(false);
+    finishWarm("t2", { total: 0, saved: 0, pagesFailed: 0 });
+    expect(isIncomplete(getStatus("t2"))).toBe(false);
   });
 });
 
@@ -96,7 +131,7 @@ describe("saved build (final review item 1b)", () => {
 
   it("stores the build next to savedAt and reads it back after a reload", () => {
     vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b2");
-    finishWarm("t1", 1_700_000_000_000);
+    finishWarm("t1", DONE, 1_700_000_000_000);
     expect(getStatus("t1")).toMatchObject({ savedAt: 1_700_000_000_000, savedBuild: "b2" });
     expect(window.localStorage.getItem("teepee.offline.savedBuild.t1")).toBe("b2");
     resetOfflineStatus();

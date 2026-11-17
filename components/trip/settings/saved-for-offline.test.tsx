@@ -15,7 +15,11 @@ function stubNavigator({ onLine, hasController }: { onLine: boolean; hasControll
   Object.defineProperty(navigator, "onLine", { configurable: true, get: () => onLine });
   Object.defineProperty(navigator, "serviceWorker", {
     configurable: true,
-    value: hasController ? { controller: { postMessage: vi.fn() } } : { controller: null },
+    value: {
+      controller: hasController ? { postMessage: vi.fn() } : null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    },
   });
 }
 
@@ -77,8 +81,24 @@ describe("SavedForOffline", () => {
   it("follows the store: a finished warm flips Not saved yet to Saved for offline · just now", () => {
     render(<SavedForOffline tripId="t1" />);
     expect(screen.getByRole("status")).toHaveTextContent("Not saved yet");
-    act(() => finishWarm("t1", Date.now()));
+    act(() => finishWarm("t1", { total: 2, saved: 2, pagesFailed: 0 }, Date.now()));
     expect(screen.getByRole("status")).toHaveTextContent("Saved for offline · just now");
+  });
+
+  it("says how much was saved when a run came up short", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 46, saved: 40, pagesFailed: 6 }, Date.now() - 2 * 60 * 60_000);
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Saved 40 of 46 · 2h ago");
+    expect(screen.getByRole("button", { name: "Save again" })).toBeEnabled();
+  });
+
+  it("never says 0 of 0", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    finishWarm("t1", { total: 0, saved: 0, pagesFailed: 0 }, Date.now());
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).not.toHaveTextContent("0 of 0");
+    expect(screen.getByRole("status")).toHaveTextContent("Saved for offline");
   });
 
   it("Save again re-runs the warm: every path is fetched again and the row passes through Saving…", async () => {

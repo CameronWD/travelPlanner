@@ -684,6 +684,24 @@ describe("public/sw.js — files saved for offline as bytes (spec A2)", () => {
     expect(await response.text()).toBe("pdf-bytes");
   });
 
+  it("an offline=1 fetch ignores a redirected entry left by older code and overwrites it with real bytes", async () => {
+    const c = matchingCaches();
+    const plain = "https://teepee.example/api/attachments/a1";
+    const files = await c.api.open("teepee-files-v1");
+    await files.put(new Request(plain), redirectedResponse("stale"));
+    const fetchMock = vi.fn().mockResolvedValue(new Response("pdf-bytes"));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await fetchThrough(dispatch, `${plain}?offline=1`);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await response.text()).toBe("pdf-bytes");
+    const stored = c.stores.get("teepee-files-v1")!.bodies.get(plain)!;
+    expect(stored.redirected).toBe(false);
+    expect(await stored.text()).toBe("pdf-bytes");
+  });
+
   it("an offline=1 cover fetch is stored under its plain URL, keeping v, and answers the plain URL offline", async () => {
     const c = matchingCaches();
     const fetchMock = vi.fn().mockResolvedValue(new Response("jpg-bytes"));

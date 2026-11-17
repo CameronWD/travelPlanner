@@ -21,10 +21,20 @@ function stubNavigator({
 
   Object.defineProperty(navigator, "serviceWorker", {
     configurable: true,
-    value: hasController
-      ? { controller: { postMessage: vi.fn() } }
-      : { controller: null },
+    value: {
+      controller: hasController ? { postMessage } : null,
+      addEventListener: (type: string, cb: () => void) => listeners.add(cb),
+      removeEventListener: (type: string, cb: () => void) => listeners.delete(cb),
+    },
   });
+}
+
+const listeners = new Set<() => void>();
+const postMessage = vi.fn();
+
+function installController() {
+  (navigator.serviceWorker as unknown as { controller: unknown }).controller = { postMessage };
+  for (const cb of [...listeners]) cb();
 }
 
 // Stub requestIdleCallback to invoke the callback synchronously so we don't
@@ -65,7 +75,9 @@ describe("OfflineWarmer", () => {
   let restoreIdleCb: () => void;
 
   beforeEach(() => {
-    fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    fetchMock = vi.fn().mockImplementation(async () => new Response("", { status: 200 }));
+    listeners.clear();
+    postMessage.mockClear();
     vi.stubGlobal("fetch", fetchMock);
     restoreIdleCb = stubIdleCallbackSync();
     resetOfflineStatus();
@@ -247,6 +259,110 @@ describe("OfflineWarmer", () => {
     unmount();
 
     expect(getStatus("t1").state).toBe("idle");
+  });
+
+  describe("counting what was saved", () => {
+    it("a rejected page and a 500 page are two page failures, and no save is stamped", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      fetchMock
+        .mockImplementationOnce(async () => new Response("", { status: 200 }))
+        .mockImplementationOnce(async () => {
+          throw new TypeError("offline");
+        })
+        .mockImplementationOnce(async () => new Response("", { status: 500 }));
+
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} />);
+
+      await vi.waitFor(() => expect(getStatus("t1").total).toBe(3));
+      expect(getStatus("t1")).toMatchObject({ state: "saved", total: 3, saved: 1, savedAt: null });
+      expect(window.localStorage.getItem("teepee.offline.savedAt.t1")).toBeNull();
+    });
+
+    it("a Trip with no Attachments has a total equal to its page count", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 3 }));
+      expect(getStatus("t1").savedAt).toEqual(expect.any(Number));
+    });
+
+    it("an already-cached file counts as saved", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === "/api/attachments/a1" ? new Response("") : undefined)) });
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 2 }));
+    });
+
+    it("a file answered with a redirect, or over the serve limit, is not saved", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      const redirected = new Response("", { status: 200 });
+      Object.defineProperty(redirected, "redirected", { value: true });
+      fetchMock
+        .mockImplementationOnce(async () => redirected)
+        .mockImplementationOnce(async () => new Response("", { status: 413 }));
+      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1", "/api/attachments/a2"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 0 }));
+    });
+
+    it("a cached file that is a redirected response counts as missing and is fetched again", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      const stale = new Response("");
+      Object.defineProperty(stale, "redirected", { value: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => stale) });
+      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} />);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/a1?offline=1", { cache: "no-store" }));
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
+    });
+
+    it("an incomplete save is warmed again on the next open, even inside the 6 hours", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
+      markSaved("t1", Date.now() - 60_000);
+      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 4, saved: 3, at: Date.now() - 60_000 }));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1", { cache: "no-store" }));
+    });
+  });
+
+  describe("a freshly installed app", () => {
+    it("warms once when the worker takes control after mount", async () => {
+      stubNavigator({ onLine: true, hasController: false });
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      act(() => installController());
+
+      await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not warm twice when a controller is already present at mount", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+      await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
+      act(() => installController());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("telling the worker which Trip was opened", () => {
+    it("posts the Trip's Home path on a run that fetches pages", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      render(<OfflineWarmer tripId="t1" paths={["/trips/rome", "/trips/rome/plan", "/api/attachments/a1"]} />);
+      await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
+      expect(postMessage).toHaveBeenCalledWith({ type: "LAST_TRIP", path: "/trips/rome" });
+    });
+
+    it("posts it on a run that skips the pages too", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
+      markSaved("t1", Date.now() - 60_000);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/rome", "/trips/rome/plan"]} />);
+      await vi.waitFor(() => expect(postMessage).toHaveBeenCalledWith({ type: "LAST_TRIP", path: "/trips/rome" }));
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("once per few hours (spec 2026-10-06 §A)", () => {

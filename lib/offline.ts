@@ -402,9 +402,20 @@ export function storableResponse(response: Response): Response {
   });
 }
 
-/** Whether a cache hit may answer the request; a redirected entry never answers a navigation. Mirrored in sw.js. */
-export function isServableCacheHit(mode: string, cached: { redirected: boolean }): boolean {
-  return !(mode === 'navigate' && cached.redirected);
+/** True when the request carries the warm's ask for bytes (`offline=1`). Mirrored in sw.js. */
+export function asksForBytes(url: string): boolean {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return false;
+  return url.slice(queryAt + 1).split('&').includes(`${OFFLINE_BYTES_PARAM}=1`);
+}
+
+/**
+ * Whether a cache hit may answer the request. A redirected entry never
+ * answers a navigation, nor a warm's ask for bytes: entries kept before
+ * redirects were stripped are replaced by the warm's own fetch. Mirrored in sw.js.
+ */
+export function isServableCacheHit(mode: string, cached: { redirected: boolean }, bytesRequested = false): boolean {
+  return !(cached.redirected && (mode === 'navigate' || bytesRequested));
 }
 
 // Spec 2026-11-17 §A5, ADR 0077: a navigation with a saved copy waits this long
