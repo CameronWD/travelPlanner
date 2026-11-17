@@ -843,12 +843,13 @@
 
 /* ── Route motion (ADR 0063, amended by ADR 0065) ────────────────────────
    React <ViewTransition> classes. Section switches are a cut — no rule here
-   (components/navigation/section-transition.tsx). The Day body runs a
-   full-width page-turn only on a far jump from the strip (day-forward /
+   (components/navigation/section-transition.tsx). Below lg the Day body runs
+   a full-width page-turn only on a far jump from the strip (day-forward /
    day-back); adjacent days scroll in the carousel and navigate typed
    day-settle, which maps the body to "none" and the heading text to
-   day-text. Untyped transitions — browser back/forward, router.refresh(),
-   Suspense reveals — map to "none" in the components. */
+   day-text. From lg every day change maps the body to day-fade. Untyped
+   transitions — browser back/forward, router.refresh(), Suspense reveals —
+   map to "none" in the components. */
 ::view-transition { pointer-events: none; }
 
 @keyframes tp-vt-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -864,6 +865,12 @@
 ::view-transition-new(.day-forward) { --tp-vt-from: 100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-in; }
 ::view-transition-old(.day-back) { --tp-vt-to: 100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-out; }
 ::view-transition-new(.day-back) { --tp-vt-from: -100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-in; }
+
+/* Wide-screen day change (spec 2026-11-18 D2): the old day fades out as the
+   new one fades in, in place, with no slide; the strip's glide is the only
+   movement. */
+::view-transition-old(.day-fade) { animation: 150ms ease-in both tp-vt-fade reverse; }
+::view-transition-new(.day-fade) { animation: 150ms ease-out both tp-vt-fade; }
 
 /* Day heading text (spec 2026-09-29 D4): the old text fades out as the new
    fades in, in place, over the first 150ms of the body slide. */

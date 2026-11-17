@@ -8,6 +8,7 @@ import { setMatchMedia } from "@/test/setup";
 import { LG_UP } from "@/components/ui/use-media-query";
 import { DayCarousel, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import { DAY_GLIDE_MS } from "@/components/trip/day/carousel-maths";
+import { DAY_BODY_TRANSITION, DAY_BODY_TRANSITION_WIDE } from "@/components/trip/day/day-transition";
 
 const push = vi.fn();
 const prefetch = vi.fn();
@@ -17,6 +18,16 @@ vi.mock("next/navigation", () => ({
   useRouter: () => router,
   usePathname: () => "/trips/t1/day/2026-12-12",
   useSearchParams: () => new URLSearchParams(),
+}));
+
+// The stable React vitest runs has no native <ViewTransition>, so the wrapper is a
+// passthrough anyway; this one also records the class map the body asked for.
+const viewTransition = vi.hoisted(() => ({ props: [] as Array<Record<string, unknown>> }));
+vi.mock("@/components/ui/view-transition", () => ({
+  ViewTransition: ({ children, ...props }: { children?: React.ReactNode }) => {
+    viewTransition.props.push(props);
+    return <>{children}</>;
+  },
 }));
 
 const WIDTH = 390;
@@ -378,6 +389,17 @@ describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
     expect(items).toHaveLength(3);
     expect(items[1].className).not.toContain("lg:hidden");
     for (const n of [items[0], items[2]]) expect(n.className).toContain("lg:hidden");
+  });
+
+  it("every typed day change crossfades the body; below lg it keeps the page-turn (spec 2026-11-18 D2)", () => {
+    setMatchMedia(desktop);
+    viewTransition.props.length = 0;
+    const { unmount } = mount();
+    expect(viewTransition.props.at(-1)).toEqual(DAY_BODY_TRANSITION_WIDE);
+    unmount();
+    setMatchMedia(false);
+    mount();
+    expect(viewTransition.props.at(-1)).toEqual(DAY_BODY_TRANSITION);
   });
 
   it("marks the shown day's side column tall when it does not fit the viewport, so it stops sticking", () => {

@@ -5,7 +5,7 @@ import * as React from "react";
 import { useAppRouter } from "@/components/navigation/use-app-router";
 import { useBeginNavigation, useNavigationPending, useSettleNavigation } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
-import { DAY_BODY_TRANSITION, DAY_SETTLE } from "@/components/trip/day/day-transition";
+import { DAY_BODY_TRANSITION, DAY_BODY_TRANSITION_WIDE, DAY_SETTLE } from "@/components/trip/day/day-transition";
 import { panelProgress, settledPanel } from "@/components/trip/day/carousel-maths";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
@@ -214,8 +214,9 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
   return (
     <DayCarouselContext.Provider value={api}>
       {chrome}
-      {/* Only the body runs a view transition, and only on a far jump (ADR 0065); header and strip stay put. */}
-      <ViewTransition {...DAY_BODY_TRANSITION}>
+      {/* Only the body runs a view transition; header and strip stay put. Below
+          lg only a far jump does (ADR 0065); from lg every day change crossfades. */}
+      <ViewTransition {...(desktop ? DAY_BODY_TRANSITION_WIDE : DAY_BODY_TRANSITION)}>
         <div>
           <div
             ref={scroller}

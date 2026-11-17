@@ -41,4 +41,13 @@ describe("globals.css view-transition rules (ADR 0063)", () => {
     expect(decls(rule(["::view-transition-image-pair(.day-forward)", "::view-transition-image-pair(.day-back)"]))).toEqual({ overflow: "clip" });
     expect(mentions("tp-vt-slide")).toBe(false);
   });
+  it("wide-screen day change: the body crossfades in place in 150ms, no slide (spec 2026-11-18 D2)", () => {
+    for (const side of ["old", "new"]) {
+      const animation = decls(rule(`::view-transition-${side}(.day-fade)`)).animation;
+      expect(animation).toMatch(/^150ms/);
+      expect(animation).toContain("tp-vt-fade");
+      expect(animation).not.toContain("tp-vt-page");
+    }
+    expect(decls(rule("::view-transition-old(.day-fade)")).animation).toContain("reverse");
+  });
 });

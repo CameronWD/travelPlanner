@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DAY_BACK, DAY_FORWARD, DAY_BODY_TRANSITION, DAY_TEXT, DAY_TEXT_TRANSITION, dayTransitionType } from "./day-transition";
+import { DAY_BACK, DAY_FADE, DAY_FORWARD, DAY_BODY_TRANSITION, DAY_BODY_TRANSITION_WIDE, DAY_SETTLE, DAY_TEXT, DAY_TEXT_TRANSITION, dayTransitionType } from "./day-transition";
 
 describe("day transitions", () => {
   it("a later date is forward, an earlier one back", () => {
@@ -22,5 +22,15 @@ describe("day transitions", () => {
     expect(DAY_TEXT_TRANSITION.exit[DAY_BACK]).toBe(DAY_TEXT);
     expect(DAY_TEXT_TRANSITION.enter.default).toBe("none");
     expect(DAY_TEXT_TRANSITION.default).toBe("none");
+  });
+  it("on a wide screen every typed day change crossfades the body instead of the page-turn (spec 2026-11-18 D2)", () => {
+    expect(DAY_FADE).toBe("day-fade");
+    for (const side of [DAY_BODY_TRANSITION_WIDE.enter, DAY_BODY_TRANSITION_WIDE.exit]) {
+      expect(side[DAY_FORWARD]).toBe(DAY_FADE);
+      expect(side[DAY_BACK]).toBe(DAY_FADE);
+      expect(side[DAY_SETTLE]).toBe("none");
+      expect(side.default).toBe("none");
+    }
+    expect(DAY_BODY_TRANSITION_WIDE.default).toBe("none");
   });
 });
