@@ -42,7 +42,9 @@ copy sat in the cache.
    arrives, so the worker asks for it every 100 ms for up to 5 seconds and
    never holds the response back. The saved-copy line (spec B3) listens for
    the message. A copy served because the fetch failed outright is not
-   marked: the browser already reports that the device is offline.
+   marked: marking is for the timeout and the 5xx, and the page relies on
+   the browser's online and offline events for that case. A failure while
+   `navigator.onLine` is still true therefore shows no line.
 6. **Navigations only.** Attachments (cache-first), the trip cover
    (network-first, but an image request), static chunks and every other
    request behave as before. The rules (`NAVIGATION_TIMEOUT_MS`,
@@ -65,10 +67,12 @@ copy sat in the cache.
 
 - On a slow connection a Traveller can see a page as old as the last time it
   was saved, by the warm or by a visit. The saved-copy line (spec B3) says
-  so, and the next tap is likely fresh because the background fetch has
-  refreshed the cache.
+  so. The background fetch refreshes only the page that timed out, and only
+  if it lands; on a connection that stays slow the next tap times out again.
 - A cold start slower than 4 seconds on a good connection shows the saved
-  copy once. That is the cost of the 4-second line, accepted over a hang.
+  copy once. That is the cost of the 4-second line, accepted over a hang:
+  opening the same page again shows what the background fetch brought back,
+  and the database is warm by then.
 - A slow network on a page that was never saved still waits: there is
   nothing to show instead.
 - **Signed-out safety.** The timeout does not widen who can see a cached
