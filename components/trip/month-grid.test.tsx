@@ -330,11 +330,11 @@ describe("MonthGrid — dense cells clamp (September rule 2; W11, LA-125/126)", 
     expect(link.className.split(/\s+/)).toContain("@container");
     expect(link.lastElementChild).toBe(chip);
   });
-  it("marker icons wrap inside the cell instead of spilling past its edge", () => {
+  it("marker icons sit in their own clipped, non-wrapping span so the day number never clips", () => {
     render(grid(0));
     const link = screen.getAllByText("Paris").find((el) => el.tagName === "SPAN" && el.closest("a"))!.closest("a")!;
     const iconRow = link.firstElementChild!.lastElementChild as HTMLElement;
-    expect(iconRow.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex-wrap", "justify-end", "min-w-0"]));
+    expect(iconRow.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex-nowrap", "justify-end", "min-w-0", "overflow-hidden"]));
   });
 });
 
@@ -399,7 +399,7 @@ describe("MonthGrid — desktop month (spec E5)", () => {
     expect(link.className).toMatch(/lg:overflow-visible/);
     const row = link.firstElementChild!;
     expect(row.className).toMatch(/\bflex-nowrap\b/);
-    expect(row.querySelector("span.hidden")!.className).toMatch(/lg:flex-nowrap/);
+    expect(row.querySelector("span.hidden")!.className).toMatch(/\bflex-nowrap\b/);
   });
 
   it("draws one band per Stop per week row, named once, in the Stop colour, and the day still links to its Day view", () => {
@@ -417,5 +417,40 @@ describe("MonthGrid — desktop month (spec E5)", () => {
     expect(link.className).toMatch(/h-\[50px\]/);
     expect(link.className).toMatch(/\bsm:h-24\b/);
     expect(link.className).toMatch(/\boverflow-hidden\b/);
+  });
+
+  it("places every tile and band explicitly, and a band starts in the cell of its first day", () => {
+    const { container } = render(<MonthGrid {...props} days={[dayPlan("2026-07-14", 0), dayPlan("2026-07-15", 0)]} />);
+    const grid = container.querySelector(".grid.grid-cols-7.gap-1:not([aria-hidden])")!;
+    const tiles = Array.from(grid.children).filter((el) => !el.hasAttribute("data-stop-band")) as HTMLElement[];
+    expect(tiles).toHaveLength(35);
+    for (const el of Array.from(grid.children) as HTMLElement[]) {
+      expect(el.style.gridRow).not.toBe("");
+      expect(el.style.gridColumn).not.toBe("");
+    }
+    const first = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    const band = grid.querySelector("[data-stop-band]") as HTMLElement;
+    expect(band.style.gridRow).toBe(first.style.gridRow);
+    expect(band.style.gridColumn.split(" ")[0]).toBe(first.style.gridColumn);
+    expect(band.className).toMatch(/pointer-events-none/);
+  });
+
+  it("shows three markers and +N on a Changeover day with four", () => {
+    const day = {
+      ...dayPlan("2026-07-14", 0),
+      transportEntries: [
+        { kind: "transport-arrival", transport: { id: "t1", mode: "TRAIN" } },
+        { kind: "transport-departure", transport: { id: "t2", mode: "FLIGHT" } },
+      ],
+      accommodationEntries: [
+        { kind: "accommodation-checkout", accommodation: { id: "a1" } },
+        { kind: "accommodation-checkin", accommodation: { id: "a2" } },
+      ],
+    } as unknown as DayPlan;
+    render(<MonthGrid {...props} days={[day]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    const iconRow = link.firstElementChild!.lastElementChild as HTMLElement;
+    expect(iconRow.querySelectorAll("svg")).toHaveLength(3);
+    expect(iconRow.textContent).toBe("+1");
   });
 });

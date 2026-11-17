@@ -16,6 +16,8 @@ import { dayThings, stopBands, type BandStop } from "@/lib/calendar/month-layout
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
+const MAX_MARKERS = 3;
+
 export interface MonthGridProps {
   tripId: string;
   monthAnchorISO: string;
@@ -136,13 +138,14 @@ export function MonthGrid({
             </span>
           )),
         )}
-        {weeks.flat().map((cell) => {
+        {weeks.flatMap((week, weekIdx) => week.map((cell, colIdx) => {
+          const place = { gridRow: weekIdx + 1, gridColumn: colIdx + 1 };
           const tile = "@container flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 lg:h-auto lg:min-h-28 lg:overflow-visible xl:p-2.5";
 
           if (!cell.inMonth) {
             // Kit: the month's leading/trailing slots are empty space, not dim days.
             return (
-              <div key={cell.dateISO} data-month-pad="" aria-hidden="true" className={cn(tile, "invisible border-transparent")} />
+              <div key={cell.dateISO} data-month-pad="" aria-hidden="true" style={place} className={cn(tile, "invisible border-transparent")} />
             );
           }
 
@@ -152,7 +155,7 @@ export function MonthGrid({
           if (!inWindow(cell.dateISO)) {
             // In the month, outside the trip: the kit's soft-outlined, muted tile.
             return (
-              <div key={cell.dateISO} role="presentation" className={cn(tile, "border-border-soft text-muted-foreground")}>
+              <div key={cell.dateISO} role="presentation" style={place} className={cn(tile, "border-border-soft text-muted-foreground")}>
                 <span className={numberClass}>{dayNum}</span>
               </div>
             );
@@ -175,6 +178,24 @@ export function MonthGrid({
             const modeLabel = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.label ?? "Transport";
             return `${modeLabel.toLowerCase()} ${t.kind === "transport-departure" ? "departs" : "arrives"}`;
           });
+
+          const markers = [
+            ...(day?.transportEntries ?? []).map((t) => {
+              const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
+              return <Icon key={`${t.kind}-${t.transport.id}`} className="size-3.5 shrink-0" aria-hidden="true" />;
+            }),
+            ...(day?.accommodationEntries ?? []).map((a) =>
+              a.kind === "accommodation-checkin" ? (
+                <span key={`in-${a.accommodation.id}`} role="img" aria-label="Check-in" className="inline-flex shrink-0">
+                  <BedDouble className="size-3.5" aria-hidden="true" />
+                </span>
+              ) : (
+                <span key={`out-${a.accommodation.id}`} role="img" aria-label="Check-out" className="inline-flex shrink-0">
+                  <DoorOpen className="size-3.5" aria-hidden="true" />
+                </span>
+              ),
+            ),
+          ];
 
           const holidayLines = holidayDates?.[cell.dateISO] ?? [];
 
@@ -215,6 +236,7 @@ export function MonthGrid({
               key={cell.dateISO}
               href={tripHref(`/day/${cell.dateISO}`)}
               aria-label={label}
+              style={place}
               title={holidayLines.length > 0 ? holidayLines.join("\n") : undefined}
               aria-current={isToday ? "date" : undefined}
               {...dropProps}
@@ -231,31 +253,10 @@ export function MonthGrid({
               <span className="flex flex-nowrap items-start justify-between gap-1">
                 <span className={cn(numberClass, "shrink-0")}>{dayNum}</span>
                 {holidayLines.length > 0 ? <span data-holiday aria-hidden="true" className="mt-0.5 size-1.5 shrink-0 rotate-45 border border-current sm:mt-1 sm:size-2" /> : null}
-                <span className="hidden min-w-0 flex-wrap items-center justify-end gap-0.5 sm:flex lg:flex-nowrap">
-                  {day?.transportEntries.map((t) => {
-                    const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
-                    return <Icon key={`${t.kind}-${t.transport.id}`} className="size-3.5 shrink-0" aria-hidden="true" />;
-                  })}
-                  {day?.accommodationEntries.map((a) =>
-                    a.kind === "accommodation-checkin" ? (
-                      <span
-                        key={`in-${a.accommodation.id}`}
-                        role="img"
-                        aria-label="Check-in"
-                        className="inline-flex shrink-0"
-                      >
-                        <BedDouble className="size-3.5" aria-hidden="true" />
-                      </span>
-                    ) : (
-                      <span
-                        key={`out-${a.accommodation.id}`}
-                        role="img"
-                        aria-label="Check-out"
-                        className="inline-flex shrink-0"
-                      >
-                        <DoorOpen className="size-3.5" aria-hidden="true" />
-                      </span>
-                    ),
+                <span className="hidden min-w-0 flex-nowrap items-center justify-end gap-0.5 overflow-hidden sm:flex">
+                  {markers.slice(0, MAX_MARKERS)}
+                  {markers.length > MAX_MARKERS && (
+                    <span className="shrink-0 text-[10px] font-bold leading-none">+{markers.length - MAX_MARKERS}</span>
                   )}
                 </span>
               </span>
@@ -302,7 +303,7 @@ export function MonthGrid({
               )}
             </Link>
           );
-        })}
+        }))}
       </div>
 
       {legend.length > 0 && (
