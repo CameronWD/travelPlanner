@@ -9,7 +9,7 @@ export interface SavedPlace {
   placeId: string | null;
 }
 
-export const NO_PLACE: SavedPlace = { lat: null, lng: null, countryCode: null, region: null, placeId: null };
+const NO_PLACE: SavedPlace = { lat: null, lng: null, countryCode: null, region: null, placeId: null };
 
 export function pointOf(row: { lat: number | null; lng: number | null }): LatLng | undefined {
   return row.lat != null && row.lng != null ? { lat: row.lat, lng: row.lng } : undefined;

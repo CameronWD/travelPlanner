@@ -9,6 +9,7 @@ import { dayHeading } from "@/lib/day-view-model";
 const hoisted = vi.hoisted(() => ({ links: [] as Array<Record<string, unknown>> }));
 vi.mock("next/link", () => ({
   useLinkStatus: () => ({ pending: false }),
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripped so it never reaches the DOM
   default: ({ href, children, onNavigate: _n, transitionTypes, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => {
     hoisted.links.push({ href, transitionTypes });
     return <a href={href} {...r}>{children}</a>;

@@ -509,7 +509,7 @@ const CHECKLIST_LIST_NAME: Record<string, string> = {
   SHOPPING: "the shopping list",
 };
 
-export function checklistListName(kind: string): string {
+function checklistListName(kind: string): string {
   return CHECKLIST_LIST_NAME[kind] ?? "a checklist";
 }
 

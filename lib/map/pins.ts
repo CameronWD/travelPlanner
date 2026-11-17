@@ -18,7 +18,7 @@ export function pinHex(category: string, dark = false): string {
   return t[category] ?? t.OTHER;
 }
 
-export type PinVariant = "category" | "stop" | "home" | "now" | "wish" | "cluster";
+type PinVariant = "category" | "stop" | "home" | "now" | "wish" | "cluster";
 
 export interface PinOptions {
   variant: PinVariant;
@@ -37,7 +37,7 @@ export interface PinOptions {
 }
 
 /** Sizes: 28px (category, stop, wish), 32px (home, now), 34px (cluster). Anchor = centre. */
-export function pinSize(variant: PinVariant): number {
+function pinSize(variant: PinVariant): number {
   return variant === "cluster" ? 34 : variant === "home" || variant === "now" ? 32 : 28;
 }
 

@@ -1,6 +1,6 @@
 export const GOOGLE_SHARE = 1;
 
-export const GOOGLE_FREE_MONTHLY = {
+const GOOGLE_FREE_MONTHLY = {
   routes: 10_000,
   "venue-details": 1_000,
   "nearby-search": 1_000,

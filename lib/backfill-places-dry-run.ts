@@ -16,7 +16,7 @@ import {
   type PlanRow,
 } from "@/lib/backfill-places";
 
-export type Found = GeoCandidate | VenueMatch;
+type Found = GeoCandidate | VenueMatch;
 
 export interface Candidate {
   kind: BackfillKind;
