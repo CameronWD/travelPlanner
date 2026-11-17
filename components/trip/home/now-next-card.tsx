@@ -40,7 +40,7 @@ export function NowNextCard({
     );
   }
 
-  if (nowNext.kind === "next-departure" && nowNext.withinDay && new Date(nowNext.departsAt).getTime() > Date.now()) {
+  if (nowNext.kind === "next-departure" && nowNext.withinDay && new Date(nowNext.departsAt) > new Date()) {
     return (
       <div className="flex flex-col gap-2">
         <TransportCountdown
