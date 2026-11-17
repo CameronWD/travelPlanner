@@ -29,7 +29,7 @@ import type { OpeningHours } from "@/lib/opening-hours";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
-import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type TravelLookup } from "@/lib/travel-times/hops";
+import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type HopModeChoice, type TravelLookup } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -133,6 +133,8 @@ export interface PlanMetricsInput {
   today?: string;
   /** Stored Travel times for this plan's rows (lib/travel-times/read.ts). Required; an empty Map estimates every hop. */
   travel: TravelLookup;
+  /** Hop modes Travellers chose (lib/hop-modes.ts); they only match the real plan's Items. */
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 }
 
 // ---------------------------------------------------------------------------
@@ -429,6 +431,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       travel: input.travel,
       travelStops: stops,
       homePoint: homePointOf(trip),
+      hopModes: input.hopModes,
     });
 
     for (const f of flags) {

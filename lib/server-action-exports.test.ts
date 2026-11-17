@@ -97,6 +97,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "reverseGeocodeAction",
     "updateMarker",
   ],
+  "hop-modes.ts": ["setHopMode"],
   "invites.ts": ["cancelInvite", "inviteToTrip"],
   "item-photo.ts": ["removeItemPhoto", "setItemPhoto"],
   "items.ts": [

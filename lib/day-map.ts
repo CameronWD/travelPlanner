@@ -16,11 +16,13 @@ import {
   itemRouteKey,
   hopStopsById,
   hopInputs,
+  forcedModeFor,
   planHops,
   resolveHop,
   toHopItem,
   toPlanTransport,
   type HopItemRow,
+  type HopModeChoice,
   type HopStopRow,
   type HopTransportRow,
   type ResolvedHop,
@@ -229,27 +231,29 @@ type DayHopInput = {
   transports: (HopTransportRow & { id: string })[];
   lookup: TravelLookup;
   estimateOpts: { windingFactor: number; avgSpeedKph: number };
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 };
 
 /** Each consecutive located pair on the Day map, with its resolved travel when the pair is a planned hop. One source for the map and the Claude connection. */
 export function resolvedDayHops(
   model: DayMapModel,
   input: DayHopInput,
-): { fromId: string; toId: string; resolved: ResolvedHop | null }[] {
+): { fromId: string; toId: string; resolved: ResolvedHop | null; forced: HopModeChoice | undefined }[] {
   const items = input.dayItems.map(toHopItem).sort(byHopOrder);
   const byId = new Map(items.map((i) => [i.id, i]));
   const stopsById = hopStopsById(input.stops);
   const planTransports = input.transports.map(toPlanTransport);
   const planned = new Set(planHops(items, planTransports).map((h) => `${h.from.id}|${h.to.id}`));
   const order = model.routePoints.filter((p) => p.kind === "item");
-  const out: { fromId: string; toId: string; resolved: ResolvedHop | null }[] = [];
+  const out: { fromId: string; toId: string; resolved: ResolvedHop | null; forced: HopModeChoice | undefined }[] = [];
   for (let i = 1; i < order.length; i++) {
     const [a, b] = [order[i - 1].id, order[i].id];
     const from = byId.get(a);
     const to = byId.get(b);
     const inputs = from && to && planned.has(`${a}|${b}`) ? hopInputs({ from, to }, { stopsById, planTransports }) : null;
-    const resolved = inputs ? resolveHop(inputs.from, inputs.to, inputs.localMode, inputs.departure, input.lookup, input.estimateOpts) : null;
-    out.push({ fromId: a, toId: b, resolved });
+    const forced = from && to ? forcedModeFor(input.hopModes, { from, to }) : undefined;
+    const resolved = inputs ? resolveHop(inputs.from, inputs.to, inputs.localMode, inputs.departure, input.lookup, input.estimateOpts, forced) : null;
+    out.push({ fromId: a, toId: b, resolved, forced });
   }
   return out;
 }
@@ -279,6 +283,7 @@ export function withDayMapHops(
   },
   date: string,
   lookup: TravelLookup,
+  hopModes?: ReadonlyMap<string, HopModeChoice>,
 ): DayMapModel {
   return {
     ...dayMap,
@@ -289,6 +294,7 @@ export function withDayMapHops(
       transports: rows.transports,
       lookup,
       estimateOpts: { windingFactor: rows.trip.drivingWindingFactor, avgSpeedKph: rows.trip.drivingAvgSpeedKph },
+      hopModes,
     }),
   };
 }

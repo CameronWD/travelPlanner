@@ -27,7 +27,7 @@ import {
   type FlagItem,
 } from "./flags";
 import { formatDayLabel } from "@/lib/dates";
-import { driveKey, hopKeys, planTravelKeys, type TravelLookup } from "@/lib/travel-times/hops";
+import { driveKey, hopKeys, planTravelKeys, pointKey, type TravelLookup } from "@/lib/travel-times/hops";
 import { flagsToFindings } from "@/lib/review/from-flags";
 import { offeredFix } from "@/lib/review/fixed";
 
@@ -782,6 +782,37 @@ describe("flagTightConnections", () => {
       makeItem({ id: "b", date: "2026-07-03", startTime: "12:10", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
     ];
     expect(flagTightConnections(diffDays, [], OPTS)).toHaveLength(0);
+  });
+
+  describe("with a Hop mode", () => {
+    const a = { lat: 48.86, lng: 2.337 };
+    const b = { lat: 48.878, lng: 2.337 };
+    const pair = (): FlagItem[] => [
+      makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: a.lat, lng: a.lng }),
+      makeItem({ id: "b", date: "2026-07-02", startTime: "12:30", endTime: "13:30", lat: b.lat, lng: b.lng }),
+    ];
+    const walkRow = new Map([[`WALK|${pointKey(a)}|${pointKey(b)}`, { status: "OK" as const, minutes: 118, distanceM: 9000, polyline: null }]]);
+
+    it("a forced WALK of 118 min with a 30 min gap raises a warning quoting the walk", () => {
+      const flags = flagTightConnections(pair(), [], { ...OPTS, lookup: walkRow, hopModes: new Map([["a|b", "WALK"]]) });
+      expect(flags).toHaveLength(1);
+      expect(flags[0]).toMatchObject({ severity: "warning", hop: { fromItemId: "a", toItemId: "b", mode: "WALK", modeSetByHand: true } });
+      expect(flags[0].message).toContain("a ~118 min walk");
+    });
+
+    it("marks an automatic hop as not set by hand", () => {
+      const flags = flagTightConnections(pair(), [], { ...OPTS, lookup: new Map() });
+      expect(flags[0].hop).toMatchObject({ fromItemId: "a", toItemId: "b", modeSetByHand: false });
+    });
+
+    it("a Hop mode on a pair that is no longer consecutive changes nothing", () => {
+      const items = [
+        ...pair(),
+        makeItem({ id: "c", date: "2026-07-02", startTime: "14:00", endTime: "15:00", lat: a.lat, lng: a.lng }),
+      ];
+      const stale = { ...OPTS, lookup: walkRow, hopModes: new Map([["a|c", "WALK" as const]]) };
+      expect(flagTightConnections(items, [], stale)).toEqual(flagTightConnections(items, [], { ...OPTS, lookup: walkRow }));
+    });
   });
 
   it("exports TIGHT_CONNECTION_BUFFER_MIN = 15", () => {

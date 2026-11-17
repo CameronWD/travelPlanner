@@ -32,6 +32,8 @@ import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE, placeholderItem } from "@/test/helpers/surprise-visibility";
 import { trip, datedTripFixture } from "@/test/builders";
 
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
+
 const TRIP_ID = "trip-1";
 const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
 
@@ -216,6 +218,7 @@ describe("flagsFromRows", () => {
       hiddenItemIds: [],
       today: "2026-01-01",
       travel: new Map(),
+      hopModes: new Map(),
     });
     expect(detectFlags.mock.calls[0][0]).toEqual(fromLoadFlags);
   });

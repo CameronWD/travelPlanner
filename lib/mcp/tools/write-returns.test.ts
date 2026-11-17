@@ -34,6 +34,7 @@ vi.mock("@/server/actions/items", () => ({
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote: ok(), clearVote: ok() }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle: ok() }));
+vi.mock("@/server/actions/hop-modes", () => ({ setHopMode: ok() }));
 vi.mock("@/server/actions/notes", () => ({ addNote: ok(), deleteNote: ok() }));
 vi.mock("@/server/actions/accommodation", () => ({ createAccommodation: ok(), updateAccommodation: ok(), deleteAccommodation: ok() }));
 vi.mock("@/server/actions/transport", () => ({ createTransport: ok(), updateTransport: ok(), deleteTransport: ok() }));
@@ -135,6 +136,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   add_marker_to_wishlist: { markerId: "marker-1", tripId: "trip-1" },
   set_vote: { tripId: "trip-1", itemId: "item-1", level: "KEEN" },
   clear_vote: { tripId: "trip-1", itemId: "item-1" },
+  set_hop_mode: { fromItemId: "item-1", toItemId: "item-2", mode: "walk" },
   set_day_title: { stopId: "stop-1", date: "2027-06-02", title: "Ribeira day" },
   add_note: { tripId: "trip-1", targetType: "ITEM", targetId: "item-1", body: "Book ahead" },
   delete_note: { noteId: "note-1" },

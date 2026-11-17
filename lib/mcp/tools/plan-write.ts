@@ -53,6 +53,7 @@ import { openingHoursSchema } from "@/lib/validations/opening-hours";
 import { tryListInputSchema } from "@/lib/validations/try-list";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { setDayTitle } from "@/server/actions/day-titles";
+import { setHopMode } from "@/server/actions/hop-modes";
 import { addNote, deleteNote } from "@/server/actions/notes";
 import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { categorySchema } from "@/lib/validations/category";
@@ -426,6 +427,25 @@ export function registerPlanWriteTools(server: McpServer): void {
           return setDayTitle({ stopId, date, title });
         },
         async () => ({ stopId, day: (await loadStopForMcp(stopId)).days.find((d) => d.date === date) ?? null }),
+      ),
+  );
+
+  server.registerTool(
+    "set_hop_mode",
+    {
+      title: "Set hop mode",
+      description:
+        "Sets how one hop between two consecutive things to do on a day is travelled: walk, public_transport, drive, or automatic (back to the Stop's Local travel mode). It has no length limit, and stops applying if the two things are no longer next to each other on the day. get_day shows each hop's mode and whether it was set by hand.",
+      inputSchema: { fromItemId: z.string(), toItemId: z.string(), mode: z.enum(["walk", "public_transport", "drive", "automatic"]) },
+    },
+    ({ fromItemId, toItemId, mode }) =>
+      runWrite(
+        "set_hop_mode",
+        async () => {
+          await requireRealPlanRows([["item", fromItemId], ["item", toItemId]]);
+          return setHopMode(fromItemId, toItemId, mode === "walk" ? "WALK" : mode === "public_transport" ? "TRANSIT" : mode === "drive" ? "DRIVE" : null);
+        },
+        async () => ({ hop: { fromItemId, toItemId, mode, setByHand: mode !== "automatic" } }),
       ),
   );
 

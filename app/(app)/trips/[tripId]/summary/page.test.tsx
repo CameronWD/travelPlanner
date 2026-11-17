@@ -28,6 +28,7 @@ vi.mock("@/lib/plan-reads", () => ({ readPlan: readPlanMock }));
 // `@/lib/flags-loader`'s `loadFlags` (an export the page never calls) still
 // does at module scope — stub it so that import doesn't try to open Postgres.
 vi.mock("@/lib/db", () => ({ db: {} }));
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
 // requireTripAccess now returns { user, membership } here too (I5): the page
 // keeps them to compute isOwner for Make it fit's owner-only Drop half.
 // isTripOwnerOrAdmin is the REAL predicate — it lives in lib/access.ts, which

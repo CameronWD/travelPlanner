@@ -54,6 +54,7 @@ import { buildStillToBook, type StillToBookRow } from "@/lib/still-to-book";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { ITEM_HOP_ORDER, homePointOf } from "@/lib/travel-times/hops";
+import { loadHopModes } from "@/lib/hop-modes";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 
 const COST_SELECT = {
@@ -370,7 +371,8 @@ async function load(
       stops: allStopsRaw,
       transports,
     });
-    const travel = await loadTravelLookupFor({ items: itemRows, stops: allStopsRaw, transports, home: homePointOf(trip) });
+    const hopModes = await loadHopModes(tripId);
+    const travel = await loadTravelLookupFor({ items: itemRows, stops: allStopsRaw, transports, home: homePointOf(trip), hopModes });
     steps = buildTripNextSteps({
       tripBasePath: base,
       phase,
@@ -400,6 +402,7 @@ async function load(
       surprisesToReveal: surprisesToReveal({ views: v.views, viewerId, today, stops: allStopsRaw, items: itemRows }),
       limit: Number.POSITIVE_INFINITY,
       travel,
+      hopModes,
       travelStops: allStopsRaw,
       homePoint: homePointOf(trip),
     });

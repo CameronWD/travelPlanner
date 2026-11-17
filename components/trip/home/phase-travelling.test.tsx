@@ -148,6 +148,8 @@ vi.mock("@/components/trip/todays-journal", () => ({
 // React import needed for JSX in mocks above
 import React from "react";
 
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
+
 // "Where you are" is judged against the clock (lib/now-next.ts whereYouAre):
 // pin it inside the fixture Stop's 1 to 10 Jan 2026 stay.
 function pinClockInsideStay() {

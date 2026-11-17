@@ -23,6 +23,9 @@ vi.mock("@/lib/holidays/trip-days", () => ({ loadHolidayLines }));
 const { loadTravelLookupFor } = vi.hoisted(() => ({ loadTravelLookupFor: vi.fn() }));
 vi.mock("@/lib/travel-times/read", () => ({ loadTravelLookupFor }));
 
+const { loadHopModes } = vi.hoisted(() => ({ loadHopModes: vi.fn() }));
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes }));
+
 import type { DayRows } from "@/lib/day-view-model";
 import { loadDayForMcp } from "./day";
 
@@ -58,6 +61,7 @@ describe("loadDayForMcp", () => {
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
     readDayRows.mockResolvedValue({ rows, visibility: {}, alongside: [{ id: "s1", name: "Porto" }] });
     loadTravelLookupFor.mockResolvedValue(new Map());
+    loadHopModes.mockResolvedValue(new Map());
     loadHolidayLines.mockResolvedValue(new Map());
   });
 
@@ -91,10 +95,19 @@ describe("loadDayForMcp", () => {
       const day = await loadDayForMcp("trip-1", "2027-06-02");
       if ("success" in day) throw new Error("expected a day");
       expect(day.hops).toEqual([
-        { fromItemId: "a", toItemId: "b", minutes: 4, mode: "walk", distanceKm: 0.3, estimated: false },
-        { fromItemId: "b", toItemId: "c", minutes: 15, mode: "drive", distanceKm: 9, estimated: false },
+        { fromItemId: "a", toItemId: "b", minutes: 4, mode: "walk", setByHand: false, distanceKm: 0.3, estimated: false },
+        { fromItemId: "b", toItemId: "c", minutes: 15, mode: "drive", setByHand: false, distanceKm: 9, estimated: false },
         expect.objectContaining({ fromItemId: "c", toItemId: "d", mode: "drive", estimated: true }),
       ]);
+    });
+
+    it("a hop with a Hop mode carries it, set by hand, and the lookup is asked for it", async () => {
+      readDayRows.mockResolvedValue({ rows: hopRows([at("c", C, "11:00"), at("d", D, "12:00")]), visibility: {}, alongside: [] });
+      loadHopModes.mockResolvedValue(new Map([["c|d", "WALK"]]));
+      const day = await loadDayForMcp("trip-1", "2027-06-02");
+      if ("success" in day) throw new Error("expected a day");
+      expect(day.hops).toEqual([expect.objectContaining({ fromItemId: "c", toItemId: "d", mode: "walk", setByHand: true, estimated: true })]);
+      expect(loadTravelLookupFor).toHaveBeenCalledWith(expect.objectContaining({ hopModes: new Map([["c|d", "WALK"]]) }));
     });
 
     it("an estimated hop at a Public-transport Stop is public_transport, estimated, with the estimate's minutes", async () => {

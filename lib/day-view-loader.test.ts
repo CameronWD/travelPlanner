@@ -81,6 +81,8 @@ import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from 
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 import { zoneLabel } from "@/lib/time-display";
 
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
+
 const TRIP_ID = "trip-xmas";
 const VIEWER = "u-cam";
 const CO = "u-sam";

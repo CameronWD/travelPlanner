@@ -1,5 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/server/actions/hop-modes", () => ({ setHopMode: vi.fn() }));
+
 import { DayFeasibility } from "./day-feasibility";
 
 describe("DayFeasibility", () => {
@@ -36,5 +39,17 @@ describe("DayFeasibility", () => {
     // A sun fill under sun-text would collapse — text on the island is plain ink.
     expect(container.innerHTML).not.toMatch(/text-sun-text/);
     expect(screen.getByRole("heading", { name: "Getting around" })).toBeInTheDocument();
+  });
+
+  it("offers a Hop mode chooser only on a row that carries a hop", () => {
+    render(
+      <DayFeasibility
+        entries={[
+          { severity: "warning", message: "With a hop.", hop: { fromItemId: "a", toItemId: "b", mode: "WALK", modeSetByHand: true } },
+          { severity: "info", message: "Without." },
+        ]}
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(1);
   });
 });

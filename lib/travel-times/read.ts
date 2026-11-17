@@ -5,6 +5,7 @@ import {
   routeLegPaths,
   type RouteLegStop,
   type HopItemRow,
+  type HopModeChoice,
   type HopStopRow,
   type HopTransportRow,
   type Pt,
@@ -16,7 +17,13 @@ import { loadTravelTimes } from "@/lib/travel-times/store";
 // Keys come only from the rows the caller was allowed to read: a masked viewer's Items never reach here.
 
 export function loadTravelLookupFor(
-  input: { items: Selected<HopItemRow>[]; stops: Selected<HopStopRow>[]; transports: Selected<HopTransportRow>[]; home: Pt | null },
+  input: {
+    items: Selected<HopItemRow>[];
+    stops: Selected<HopStopRow>[];
+    transports: Selected<HopTransportRow>[];
+    home: Pt | null;
+    hopModes?: ReadonlyMap<string, HopModeChoice>;
+  },
   now: Date = new Date(),
 ): Promise<TravelLookup> {
   return loadTravelTimes([...planTravelKeys(input, now, { purpose: "read" })]);

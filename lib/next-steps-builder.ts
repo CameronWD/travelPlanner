@@ -24,7 +24,7 @@ import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { TripDeadline } from "@/lib/trip-deadline";
 import type { SurpriseView } from "@/lib/surprise";
-import type { HopStopRow, Pt, TravelLookup } from "@/lib/travel-times/hops";
+import type { HopModeChoice, HopStopRow, Pt, TravelLookup } from "@/lib/travel-times/hops";
 
 export interface BuildTripNextStepsInput {
   tripBasePath: string;
@@ -67,6 +67,7 @@ export interface BuildTripNextStepsInput {
   travel: TravelLookup;
   travelStops?: HopStopRow[];
   homePoint?: Pt | null;
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 }
 
 /** Pure: Flags + nudges → the ranked Next steps list. */
@@ -103,6 +104,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     travel: input.travel,
     travelStops: input.travelStops,
     homePoint: input.homePoint,
+    hopModes: input.hopModes,
   });
 
   return buildNextSteps({

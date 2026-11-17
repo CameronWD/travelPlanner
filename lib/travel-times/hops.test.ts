@@ -658,3 +658,61 @@ describe("Ends at", () => {
     expect([...planTravelKeys({ items: [far], stops, transports: [], home: null }, NOW)]).toContain(itemRouteKey(far));
   });
 });
+
+describe("a forced Hop mode", () => {
+  const NINE_KM = { lat: 35.081, lng: 135 };
+  const dep = new Date("2026-11-02T09:07:00.000Z");
+
+  it("a forced walk uses the 118 min walk row over a 25 min transit row", () => {
+    const [transitKey] = hopKeys(A, NINE_KM, "TRANSIT", dep, NOW);
+    const walkKey = `WALK|${pointKey(A)}|${pointKey(NINE_KM)}`;
+    const lookup: TravelLookup = new Map([[walkKey, ok(118, 9500, "walkline")], [transitKey, ok(25)]]);
+    expect(resolveHop(A, NINE_KM, "TRANSIT", dep, lookup, OPTS, "WALK")).toEqual({
+      minutes: 118,
+      distanceKm: 9.5,
+      mode: "walk",
+      estimated: false,
+      polyline: "walkline",
+    });
+  });
+
+  it("a forced walk with no row is an estimated walk", () => {
+    const km = haversineKm(A, NINE_KM);
+    expect(resolveHop(A, NINE_KM, "DRIVE", null, new Map(), OPTS, "WALK")).toEqual({
+      minutes: (km / 4.5) * 60,
+      distanceKm: km,
+      mode: "walk",
+      estimated: true,
+      polyline: null,
+    });
+  });
+
+  it("a forced drive with no row is the drive estimate, and a forced transit reads its row", () => {
+    const km = haversineKm(A, NINE_KM);
+    expect(resolveHop(A, NINE_KM, "TRANSIT", null, new Map(), OPTS, "DRIVE")).toMatchObject({
+      minutes: estimateDriveMinutes(km, OPTS),
+      mode: "drive",
+      estimated: true,
+    });
+    const [transitKey] = hopKeys(A, NINE_KM, "TRANSIT", dep, NOW);
+    expect(resolveHop(A, NINE_KM, "DRIVE", dep, new Map([[transitKey, ok(25)]]), OPTS, "TRANSIT")).toMatchObject({
+      minutes: 25,
+      mode: "transit",
+      estimated: false,
+    });
+  });
+
+  it("hopKeys with forced WALK wants only the WALK key at 9 km", () => {
+    expect(hopKeys(A, NINE_KM, "DRIVE", dep, NOW, "fetch", "WALK")).toEqual([`WALK|${pointKey(A)}|${pointKey(NINE_KM)}`]);
+  });
+
+  it("planTravelKeys wants the chosen mode's key for a hop with a Hop mode", () => {
+    const stops = [{ id: "s1", localTravelMode: "DRIVE", timezone: "UTC", lat: 35, lng: 135 }];
+    const items = [
+      item("a", { date: "2026-11-02", startTime: "09:00", endTime: "10:00" }),
+      item("b", { date: "2026-11-02", startTime: "11:00", endTime: "12:00", lat: NINE_KM.lat, lng: NINE_KM.lng }),
+    ];
+    const keys = [...planTravelKeys({ items, stops, transports: [], home: null, hopModes: new Map([["a|b", "WALK"]]) }, NOW)];
+    expect(keys).toEqual([`WALK|${pointKey(A)}|${pointKey(NINE_KM)}`]);
+  });
+});

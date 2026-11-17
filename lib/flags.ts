@@ -17,10 +17,12 @@ import {
   hopInputs,
   hopStopsById,
   resolveDriveLeg,
+  forcedModeFor,
   resolveHop,
   toHopItem,
   toPlanTransport,
   transportEnds,
+  type HopModeChoice,
   type HopStopRow,
   type Pt,
   type ResolvedHop,
@@ -60,6 +62,8 @@ export interface Flag {
   connection?: { from: string; to: string };
   /** A tight connection's own fix (spec 2026-10-18 A3): move the later Item to here, keeping its length. */
   retime?: { itemId: string; startTime: string; endTime: string };
+  /** A tight connection's hop: the Items it joins and how it is travelled (spec 2026-11-18 T3). */
+  hop?: { fromItemId: string; toItemId: string; mode: HopModeChoice; modeSetByHand: boolean };
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +204,8 @@ export interface DetectFlagsInput {
   travelStops?: HopStopRow[];
   /** The Trip's Home point (homeLat/homeLng), for a car leg with a Home end. */
   homePoint?: Pt | null;
+  /** Hop modes Travellers chose (lib/hop-modes.ts loadHopModes). Omitted: every hop resolves automatically. */
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 }
 
 // ---------------------------------------------------------------------------
@@ -625,6 +631,7 @@ type TravelOpts = {
   avgSpeedKph: number;
   lookup?: TravelLookup;
   travelStops?: HopStopRow[];
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 };
 
 function estimatedSuffix(estimated: boolean): string {
@@ -786,13 +793,20 @@ export function flagTightConnections(
 
       const hop = hopInputs({ from: toHopItem(prev), to: toHopItem(next) }, { stopsById, planTransports });
       if (!hop) continue;
-      const resolved = resolveHop(hop.from, hop.to, hop.localMode, hop.departure, lookup, opts);
+      const forced = forcedModeFor(opts.hopModes, { from: prev, to: next });
+      const resolved = resolveHop(hop.from, hop.to, hop.localMode, hop.departure, lookup, opts, forced);
       const travel = resolved.minutes;
       const label = resolved.estimated && resolved.mode === "transit" ? "trip" : HOP_LABEL[resolved.mode];
       const how = `a ~${Math.round(travel)} min ${label}${estimatedSuffix(resolved.estimated)}`;
       const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
       const between = `between ${tightName(prev)} and ${tightName(next)}`;
       const retime = tightRetime(prev, next, travel);
+      const hopInfo = {
+        fromItemId: prev.id,
+        toItemId: next.id,
+        mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
+        modeSetByHand: forced !== undefined,
+      } as const;
       if (gap < travel) {
         flags.push({
           id: `tight-${prev.id}-${next.id}`,
@@ -801,6 +815,7 @@ export function flagTightConnections(
           targetType: "DAY",
           date,
           ...(retime ? { retime } : {}),
+          hop: hopInfo,
         });
       } else if (gap < travel + TIGHT_CONNECTION_BUFFER_MIN) {
         flags.push({
@@ -810,6 +825,7 @@ export function flagTightConnections(
           targetType: "DAY",
           date,
           ...(retime ? { retime } : {}),
+          hop: hopInfo,
         });
       }
     }
@@ -1363,6 +1379,7 @@ export function detectFlags({
   travel,
   travelStops,
   homePoint,
+  hopModes,
 }: DetectFlagsInput): Flag[] {
   const hidden = new Set(hiddenStopIds ?? []);
   const hiddenStops = stops.filter((s) => hidden.has(s.id));
@@ -1384,6 +1401,7 @@ export function detectFlags({
     avgSpeedKph: drivingAvgSpeedKph ?? 80,
     lookup: travel,
     travelStops: travelStops ?? stops,
+    hopModes,
   };
   return [
     ...flagStopsWithoutAccommodation(insideVisible, accommodations),

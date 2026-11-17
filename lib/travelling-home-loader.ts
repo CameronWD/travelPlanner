@@ -30,6 +30,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { withDayMapHops } from "@/lib/day-map";
 import { effectiveLocalMode, homePointOf } from "@/lib/travel-times/hops";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
+import { loadHopModes } from "@/lib/hop-modes";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { readDayRows } from "@/lib/day-reads";
@@ -97,8 +98,10 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const today = tripTodayISO(stops, trip.homeTimezone);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
   const day = buildDayModel(rows, effectiveDate, { fromHere: effectiveDate === today });
-  const [travel, holidayLines, confirmationsToAdd] = await Promise.all([
-    loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip) }),
+  const hopModesRead = loadHopModes(tripId);
+  const [hopModes, travel, holidayLines, confirmationsToAdd] = await Promise.all([
+    hopModesRead,
+    hopModesRead.then((modes) => loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip), hopModes: modes })),
     loadHolidayLines(tripId, [effectiveDate]),
     userId ? loadBookingConfirmationsToAdd(tripId, userId) : Promise.resolve([]),
   ]);
@@ -278,7 +281,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     homeCurrency,
     upcomingPayments,
     stillToBook,
-    dayMapModel: withDayMapHops(day.dayMap, rows, effectiveDate, travel),
+    dayMapModel: withDayMapHops(day.dayMap, rows, effectiveDate, travel, hopModes),
     itemDirections: day.itemDirections,
     freeForm: day.freeForm,
     thingsToDo: day.thingsToDo,

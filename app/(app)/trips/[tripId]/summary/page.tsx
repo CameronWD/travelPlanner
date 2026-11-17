@@ -17,6 +17,7 @@ import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
 import { homePointOf, routeLegPaths } from "@/lib/travel-times/hops";
+import { loadHopModes } from "@/lib/hop-modes";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { tripTodayISO } from "@/lib/trip-today";
 import { homeMapPoint } from "@/lib/route-map";
@@ -248,7 +249,8 @@ export default async function SummaryPage({
   // The projection is computed from Stops/Transports already read above (spec
   // 2026-10-06 §C) — never `getTripProjection`, which would re-read them.
   const projection = computeProjection({ trip, stops: allStops, transports });
-  const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip) });
+  const hopModes = await loadHopModes(tripId);
+  const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip), hopModes });
 
   // lib/flags-loader.ts's `flagsFromRows` is the same detectFlags input
   // assembly `get_flags`'s loadFlags uses, run here against rows this page
@@ -267,6 +269,7 @@ export default async function SummaryPage({
     // The Trip's own today (every surface's, lib/trip-today.ts): the book-by Flags count from it.
     today: tripTodayISO(allStops, trip.homeTimezone),
     travel,
+    hopModes,
   });
 
   // ---------------------------------------------------------------------------

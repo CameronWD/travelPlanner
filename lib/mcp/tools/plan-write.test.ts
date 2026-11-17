@@ -14,6 +14,7 @@ const {
   setVote,
   clearVote,
   setDayTitle,
+  setHopMode,
   addNote,
   deleteNote,
   createChapter,
@@ -42,6 +43,7 @@ const {
   setVote: vi.fn(),
   clearVote: vi.fn(),
   setDayTitle: vi.fn(),
+  setHopMode: vi.fn(),
   addNote: vi.fn(),
   deleteNote: vi.fn(),
   createChapter: vi.fn(),
@@ -72,6 +74,7 @@ vi.mock("@/server/actions/items", () => ({
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote, clearVote }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle }));
+vi.mock("@/server/actions/hop-modes", () => ({ setHopMode }));
 vi.mock("@/server/actions/notes", () => ({ addNote, deleteNote }));
 vi.mock("../reads/notes", () => ({ loadNoteForMcp, loadNotesForMcp: vi.fn() }));
 vi.mock("@/server/actions/chapters", () => ({ createChapter, updateChapter }));
@@ -190,6 +193,7 @@ describe("plan write tools", () => {
         "set_vote",
         "clear_vote",
         "set_day_title",
+        "set_hop_mode",
         "add_note",
         "delete_note",
         "add_chapter",
@@ -520,6 +524,19 @@ describe("plan write tools", () => {
     expect(setDayTitle).toHaveBeenCalledWith({ stopId: "stop-1", date: "2026-05-02", title: "" });
   });
 
+  it("set_hop_mode maps walk, public_transport, drive and automatic to WALK, TRANSIT, DRIVE and null", async () => {
+    setHopMode.mockResolvedValue({ success: true });
+    const body = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
+    const c = await connectTestClient();
+    for (const [mode, stored] of [["walk", "WALK"], ["public_transport", "TRANSIT"], ["drive", "DRIVE"], ["automatic", null]] as const) {
+      const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode } });
+      expect(setHopMode).toHaveBeenLastCalledWith("item-1", "item-2", stored);
+      expect(body(r)).toEqual({ hop: { fromItemId: "item-1", toItemId: "item-2", mode, setByHand: mode !== "automatic" } });
+    }
+    const bad = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode: "bike" } });
+    expect(bad.isError).toBe(true);
+  });
+
   it("add_note returns the new Note: id, body and what it is on", async () => {
     addNote.mockResolvedValue({ success: true, id: "note-1" });
     loadNoteForMcp.mockResolvedValue({ id: "note-1", targetType: "ITEM", targetId: "item-1", body: "Book ahead", author: "Cam", createdAt: "2026-10-16T09:00:00.000Z" });
@@ -642,6 +659,7 @@ describe("plan write tools", () => {
       ["place_idea_at_stop", { itemId: "fork-item", stopId: "stop-1" }, () => placeIdeaAtStop],
       ["set_vote", { tripId: TRIP_ID, itemId: "fork-item", level: "MUST" }, () => setVote],
       ["clear_vote", { tripId: TRIP_ID, itemId: "fork-item" }, () => clearVote],
+      ["set_hop_mode", { fromItemId: "fork-item", toItemId: "fork-item", mode: "walk" }, () => setHopMode],
     ];
     for (const [tool, args, action] of itemCases) {
       it(`${tool} with a Fork's item id is NOT_FOUND_TEXT and calls no action`, async () => {
