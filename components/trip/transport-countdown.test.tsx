@@ -1,5 +1,6 @@
+import { renderToString } from "react-dom/server";
 import { render } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { TransportCountdown } from "./transport-countdown";
 import type { AttachmentView } from "@/lib/attachment-view";
 
@@ -86,5 +87,18 @@ describe("TransportCountdown", () => {
     withEmpty.unmount();
     const without = render(<TransportCountdown depAt={depAt} label="Flight BA123" />);
     expect(without.queryAllByRole("link")).toEqual([]);
+  });
+
+  it("renders no countdown digits on the server and the same markup on the first client render", () => {
+    const depAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const element = <TransportCountdown depAt={depAt} depTimeLabel="14:30" label="Flight BA123" />;
+    const server = renderToString(element);
+    expect(server).toContain("Next departure");
+    expect(server).not.toMatch(/\bin \d/);
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 61 * 60 * 1000);
+    const later = renderToString(element);
+    vi.useRealTimers();
+    expect(later).toBe(server);
   });
 });

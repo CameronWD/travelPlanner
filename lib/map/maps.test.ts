@@ -302,6 +302,13 @@ describe("directionsFromHereUrl", () => {
     expect(google).toBe("https://www.google.com/maps/dir/?api=1&destination=10+Downing+Street%2C+London&travelmode=driving");
   });
 
+  it("encodes ampersands and non-ASCII in an address", () => {
+    const { google } = directionsFromHereUrl({ address: "Marienplatz 1, 80331 München & Co" }, null);
+    expect(google).toBe(
+      "https://www.google.com/maps/dir/?api=1&destination=Marienplatz+1%2C+80331+M%C3%BCnchen+%26+Co&travelmode=transit",
+    );
+  });
+
   it("maps the Local travel mode to a Google travelmode, unset meaning transit", () => {
     const at = { lat: 1, lng: 2 };
     expect(directionsFromHereUrl(at, "DRIVE").google).toContain("travelmode=driving");

@@ -21,30 +21,26 @@ interface TransportCountdownProps {
  * Recomputes every minute. Renders nothing if the departure has passed.
  */
 export function TransportCountdown({ depAt, depTimeLabel, depZone, label, attachments }: TransportCountdownProps) {
-  const [msLeft, setMsLeft] = React.useState(() => new Date(depAt).getTime() - Date.now());
+  const [msLeft, setMsLeft] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const tick = () => {
       setMsLeft(new Date(depAt).getTime() - Date.now());
     };
-    // Tick immediately in case of clock drift between render and now
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
   }, [depAt]);
 
-  // Already departed — don't render
-  if (msLeft <= 0) return null;
+  // The server and the first client render show no clock-derived text, so
+  // hydration (and a saved offline copy) can never disagree with it.
+  if (msLeft !== null && msLeft <= 0) return null;
 
-  const totalMinutes = Math.floor(msLeft / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  let countdown: string;
-  if (hours > 0) {
-    countdown = `${hours}h ${minutes}m`;
-  } else {
-    countdown = `${minutes}m`;
+  let countdown = "";
+  if (msLeft !== null) {
+    const totalMinutes = Math.floor(msLeft / 60_000);
+    const hours = Math.floor(totalMinutes / 60);
+    countdown = hours > 0 ? ` · in ${hours}h ${totalMinutes % 60}m` : ` · in ${totalMinutes}m`;
   }
 
   // Kit shared/onthego.jsx "Up next": coral island Card, chip + big title +
@@ -53,7 +49,7 @@ export function TransportCountdown({ depAt, depTimeLabel, depZone, label, attach
     <Card tone="coral" shadow={4} radius="xl" className="p-[18px] lg:p-6">
       <Badge caps className="self-start">
         <Timer aria-hidden="true" />
-        Next departure · in {countdown}
+        Next departure{countdown}
       </Badge>
       <p className="mt-3.5 font-display text-[28px] font-extrabold leading-[1.05] tracking-[-0.04em] text-balance lg:text-4xl">
         {label}

@@ -40,7 +40,7 @@ export function NowNextCard({
     );
   }
 
-  if (nowNext.kind === "next-departure" && nowNext.withinDay) {
+  if (nowNext.kind === "next-departure" && nowNext.withinDay && new Date(nowNext.departsAt).getTime() > Date.now()) {
     return (
       <div className="flex flex-col gap-2">
         <TransportCountdown
@@ -60,18 +60,18 @@ export function NowNextCard({
   let directions: string | null = null;
 
   if (nowNext.kind === "in-transit") {
-    const arrival = nowNext.routeLabel.includes(" to ")
-      ? nowNext.routeLabel.slice(nowNext.routeLabel.lastIndexOf(" to ") + 4)
-      : null;
     const time = instantToZonedTime(nowNext.arrivesAt, nowNext.arrivesZone);
+    const arrivesDate = instantToZonedDateISO(nowNext.arrivesAt, nowNext.arrivesZone);
+    const later = arrivesDate > instantToZonedDateISO(new Date(), nowNext.arrivesZone);
+    const when = later ? `${formatDayLabel(arrivesDate)} ${time}` : time;
     eyebrow = "Now";
-    headline = arrival ? `Arrives ${arrival} ${time}` : `Arrives ${time}`;
+    headline = nowNext.arrivesName ? `Arrives ${nowNext.arrivesName} ${when}` : `Arrives ${when}`;
     detail = nowNext.routeLabel || null;
   } else if (nowNext.kind === "next-departure") {
     const day = formatDayLabel(instantToZonedDateISO(nowNext.departsAt, nowNext.departsZone));
     const time = instantToZonedTime(nowNext.departsAt, nowNext.departsZone);
     eyebrow = "Next";
-    headline = `${day} ${time} · ${nowNext.routeLabel}`;
+    headline = nowNext.routeLabel ? `${day} ${time} · ${nowNext.routeLabel}` : `${day} ${time}`;
   } else {
     eyebrow = "Next";
     headline = nowNext.startsAt ? `${instantToZonedTime(nowNext.startsAt, nowNext.zone)} · ${nowNext.title}` : nowNext.title;
