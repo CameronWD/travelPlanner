@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -544,5 +544,36 @@ describe('opening the app offline (spec A1)', () => {
 
   it('picks nothing when nothing is cached', () => {
     expect(pickOfflineStart([], null)).toBeNull();
+  });
+});
+
+describe('a slow network falls back to the saved copy (spec A5, ADR 0077)', () => {
+  it('a navigation with a saved copy waits 4 seconds for the network', () => {
+    expect(NAVIGATION_TIMEOUT_MS).toBe(4000);
+  });
+
+  it('a 5xx is a server failure; a 4xx, a redirect or a success is not', () => {
+    expect(isServerFailure(500)).toBe(true);
+    expect(isServerFailure(503)).toBe(true);
+    expect(isServerFailure(499)).toBe(false);
+    expect(isServerFailure(404)).toBe(false);
+    expect(isServerFailure(302)).toBe(false);
+    expect(isServerFailure(200)).toBe(false);
+    expect(isServerFailure(0)).toBe(false);
+  });
+
+  it('marks a saved copy with the header, keeping its body, status and headers', async () => {
+    const out = savedCopyResponse(new Response('saved', { status: 200, statusText: 'OK', headers: { 'Content-Type': 'text/html' } }));
+    expect(SAVED_COPY_HEADER).toBe('X-Teepee-Saved-Copy');
+    expect(out.headers.get(SAVED_COPY_HEADER)).toBe('1');
+    expect(out.headers.get('Content-Type')).toBe('text/html');
+    expect(out.status).toBe(200);
+    expect(out.statusText).toBe('OK');
+    expect(await out.text()).toBe('saved');
+  });
+
+  it('tells the page it opened as a saved copy', () => {
+    expect(SAVED_COPY_MESSAGE).toBe('SAVED_COPY');
+    expect(savedCopyMessage('https://teepee.example/trips/a')).toEqual({ type: 'SAVED_COPY', url: 'https://teepee.example/trips/a' });
   });
 });

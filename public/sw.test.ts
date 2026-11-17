@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { META_CACHE_NAME, BUILD_META_PATH, LAST_TRIP_PATH } from "../lib/offline";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { META_CACHE_NAME, BUILD_META_PATH, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE } from "../lib/offline";
 import { RESERVED_TRIP_SLUGS } from "../lib/trip-slug";
 
 /**
@@ -40,6 +40,7 @@ function loadServiceWorker(opts: { href?: string; caches?: unknown } = {}) {
   const matchAll = vi.fn().mockResolvedValue([]);
   const openWindow = vi.fn().mockResolvedValue(undefined);
   const claim = vi.fn().mockResolvedValue(undefined);
+  const getClient = vi.fn().mockResolvedValue(undefined);
   const skipWaiting = vi.fn().mockResolvedValue(undefined);
 
   const self = {
@@ -49,7 +50,7 @@ function loadServiceWorker(opts: { href?: string; caches?: unknown } = {}) {
       listeners.set(type, existing);
     },
     registration: { showNotification },
-    clients: { matchAll, openWindow, claim },
+    clients: { matchAll, openWindow, claim, get: getClient },
     skipWaiting,
     location: { origin: "https://teepee.example", href: opts.href ?? "https://teepee.example/sw.js?build=b1" },
   };
@@ -70,6 +71,10 @@ function loadServiceWorker(opts: { href?: string; caches?: unknown } = {}) {
     // worker's URL classification needs it to reach the fetch strategies.
     URL,
     Response,
+    Headers,
+    // Forwarded per call, like fetch below, so vi.useFakeTimers() reaches the worker.
+    setTimeout: (...args: Parameters<typeof setTimeout>) => globalThis.setTimeout(...args),
+    clearTimeout: (id: ReturnType<typeof setTimeout>) => globalThis.clearTimeout(id),
     // Forwards dynamically to globalThis.fetch rather than capturing it once
     // — tests assign `globalThis.fetch = fetchMock` per-test, after this
     // context already exists, so a static reference would miss it.
@@ -99,7 +104,7 @@ function loadServiceWorker(opts: { href?: string; caches?: unknown } = {}) {
     return Promise.all(waits);
   }
 
-  return { dispatch, self, showNotification, matchAll, openWindow };
+  return { dispatch, self, showNotification, matchAll, openWindow, getClient };
 }
 
 describe("public/sw.js — push", () => {
@@ -432,6 +437,16 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).toContain(`const RESERVED_TRIP_SLUGS = [${[...RESERVED_TRIP_SLUGS].map((s) => `'${s}'`).join(", ")}];`);
     expect(SW_SOURCE).toContain("function pickOfflineStart(cachedUrls, lastTripPath)");
     expect(SW_SOURCE).toContain("function lastTripMessagePath(data)");
+  });
+
+  it("answers a slow navigation from its saved copy exactly as lib/offline.ts does (spec 2026-11-17 §A5, ADR 0077)", () => {
+    expect(SW_SOURCE).toContain(`const NAVIGATION_TIMEOUT_MS = ${NAVIGATION_TIMEOUT_MS};`);
+    expect(SW_SOURCE).toContain(`const SAVED_COPY_HEADER = '${SAVED_COPY_HEADER}';`);
+    expect(SW_SOURCE).toContain(`const SAVED_COPY_MESSAGE = '${SAVED_COPY_MESSAGE}';`);
+    expect(SW_SOURCE).toContain("function isServerFailure(status) {\n  return status >= 500;\n}");
+    expect(SW_SOURCE).toContain("function savedCopyResponse(response)");
+    expect(SW_SOURCE).toContain("headers.set(SAVED_COPY_HEADER, '1');");
+    expect(SW_SOURCE).toContain("function savedCopyMessage(url) {\n  return { type: SAVED_COPY_MESSAGE, url };\n}");
   });
 });
 
@@ -828,5 +843,295 @@ describe("public/sw.js — opening the app offline (spec A1)", () => {
     goOffline();
     await navigate(dispatch, "https://teepee.example/trips/b");
     expect(await lastTrip()).toBe("/trips/a");
+  });
+});
+
+describe("public/sw.js — a slow network falls back to the saved copy (spec A5)", () => {
+  // undici refuses mode "navigate" on a constructed Request, so a navigation is faked.
+  const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
+  const PLAN = "https://teepee.example/trips/a/plan";
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function savePages(c: ReturnType<typeof fakeCaches>, pages: Record<string, string>) {
+    const store = await c.api.open("teepee-pages-v1");
+    for (const [path, body] of Object.entries(pages)) {
+      await store.put(new Request(`https://teepee.example${path}`), new Response(body));
+    }
+  }
+
+  function slowNetwork() {
+    const pending: { resolve: (r: Response) => void; reject: (e: unknown) => void }[] = [];
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve, reject) => pending.push({ resolve, reject })));
+    globalThis.fetch = fetchMock as never;
+    return {
+      fetchMock,
+      land: (response: Response) => pending.shift()!.resolve(response),
+      fail: (err: unknown) => pending.shift()!.reject(err),
+    };
+  }
+
+  function open(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, request: unknown) {
+    let answered: Promise<Response> | undefined;
+    let settled: Response | undefined;
+    const waits: Promise<unknown>[] = [];
+    dispatch("fetch", {
+      request,
+      resultingClientId: "client-1",
+      respondWith: (p: Promise<Response>) => {
+        answered = p;
+      },
+      waitUntil: (p: Promise<unknown>) => {
+        waits.push(p);
+      },
+    });
+    answered!.then((r) => {
+      settled = r;
+    });
+    return { answered: answered!, settled: () => settled, waits };
+  }
+
+  async function settle(waits: Promise<unknown>[]) {
+    let seen = -1;
+    while (seen !== waits.length) {
+      seen = waits.length;
+      await Promise.all(waits);
+    }
+  }
+
+  function withClient(getClient: ReturnType<typeof vi.fn>) {
+    const postMessage = vi.fn();
+    getClient.mockResolvedValue({ postMessage });
+    return postMessage;
+  }
+
+  it("a navigation slower than 4s is answered from the cache", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    slowNetwork();
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = withClient(getClient);
+
+    const nav = open(dispatch, navigation(PLAN));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS - 1);
+    expect(nav.settled()).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+
+    const response = await nav.answered;
+    expect(await response.text()).toBe("saved-plan");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getClient).toHaveBeenCalledWith("client-1");
+    expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: PLAN });
+  });
+
+  it("the slow fetch still refreshes the cache when it lands", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    const network = slowNetwork();
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    withClient(getClient);
+
+    const nav = open(dispatch, navigation(PLAN));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS);
+    expect(await (await nav.answered).text()).toBe("saved-plan");
+
+    network.land(new Response("fresh-plan"));
+    await settle(nav.waits);
+
+    const stored = c.stores.get("teepee-pages-v1")!.bodies.get(PLAN)!;
+    expect(await stored.clone().text()).toBe("fresh-plan");
+  });
+
+  it("a slow fetch that fails after the saved copy is shown is swallowed", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    const network = slowNetwork();
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    withClient(getClient);
+
+    const nav = open(dispatch, navigation(PLAN));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS);
+    await nav.answered;
+    network.fail(new TypeError("network lost"));
+
+    await expect(settle(nav.waits)).resolves.toBeUndefined();
+    expect(await c.stores.get("teepee-pages-v1")!.bodies.get(PLAN)!.clone().text()).toBe("saved-plan");
+  });
+
+  it("a 503 with a cached copy serves the cached copy", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("down", { status: 503 }));
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = withClient(getClient);
+
+    const nav = open(dispatch, navigation(PLAN));
+    const response = await nav.answered;
+    await settle(nav.waits);
+
+    expect(await response.text()).toBe("saved-plan");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: PLAN });
+    expect(await c.stores.get("teepee-pages-v1")!.bodies.get(PLAN)!.clone().text()).toBe("saved-plan");
+  });
+
+  it("a 503 with no cached copy is returned as-is", async () => {
+    const c = matchingCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("down", { status: 503 }));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await open(dispatch, navigation(PLAN)).answered;
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("down");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBeNull();
+  });
+
+  it("a 404 is returned as-is even with a cached copy", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("gone", { status: 404 }));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await open(dispatch, navigation(PLAN)).answered;
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("gone");
+  });
+
+  it("a redirect from the network is returned as-is even with a cached copy", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 302, headers: { Location: "https://teepee.example/" } }));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await open(dispatch, navigation(PLAN)).answered;
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("https://teepee.example/");
+  });
+
+  it("a fast response is never delayed or replaced", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("fresh-plan"));
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = withClient(getClient);
+
+    const response = await open(dispatch, navigation(PLAN)).answered;
+
+    expect(await response.text()).toBe("fresh-plan");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("a slow navigation with nothing saved waits for the network", async () => {
+    const c = matchingCaches();
+    const statics = await c.api.open("teepee-static-b1");
+    await statics.put(new Request("https://teepee.example/offline.html"), new Response("offline-page"));
+    const network = slowNetwork();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const nav = open(dispatch, navigation(PLAN));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS * 3);
+    expect(nav.settled()).toBeUndefined();
+    network.land(new Response("fresh-plan"));
+
+    expect(await (await nav.answered).text()).toBe("fresh-plan");
+  });
+
+  it("a redirected cached entry is never served on a timeout", async () => {
+    const c = matchingCaches();
+    const pages = await c.api.open("teepee-pages-v1");
+    await pages.put(new Request(PLAN), redirectedResponse("stale"));
+    const network = slowNetwork();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const nav = open(dispatch, navigation(PLAN));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS * 3);
+    expect(nav.settled()).toBeUndefined();
+    network.land(new Response("fresh-plan"));
+
+    expect(await (await nav.answered).text()).toBe("fresh-plan");
+  });
+
+  it("a non-navigation GET waits for the network as before", async () => {
+    const c = matchingCaches();
+    const cover = "https://teepee.example/api/trips/t1/cover?v=k";
+    const files = await c.api.open("teepee-files-v1");
+    await files.put(new Request(cover), new Response("saved-cover"));
+    const network = slowNetwork();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const req = open(dispatch, new Request(cover));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS * 3);
+    expect(req.settled()).toBeUndefined();
+    network.land(new Response("fresh-cover"));
+
+    const response = await req.answered;
+    expect(await response.text()).toBe("fresh-cover");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBeNull();
+  });
+
+  it("a slow navigation to / opens the saved Trip, and the page it lands on is the saved copy at once", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a": "trip-home" });
+    const network = slowNetwork();
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = withClient(getClient);
+
+    const landing = open(dispatch, navigation("https://teepee.example/"));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS);
+    const redirect = await landing.answered;
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("Location")).toBe("https://teepee.example/trips/a");
+
+    const home = open(dispatch, navigation("https://teepee.example/trips/a"));
+    const response = await home.answered;
+    await settle(home.waits);
+
+    expect(network.fetchMock).toHaveBeenCalledTimes(1);
+    expect(await response.text()).toBe("trip-home");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: "https://teepee.example/trips/a" });
+  });
+
+  it("a slow / that the network answers in time leaves the next Trip Home navigation to the network", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a": "trip-home" });
+    const fetchMock = vi.fn().mockResolvedValue(new Response("fresh"));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await open(dispatch, navigation("https://teepee.example/")).answered;
+    const response = await open(dispatch, navigation("https://teepee.example/trips/a")).answered;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await response.text()).toBe("fresh");
+  });
+
+  it("the saved copy is announced once the page that opened it exists", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/trips/a/plan": "saved-plan" });
+    slowNetwork();
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+    const postMessage = vi.fn();
+    getClient.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined).mockResolvedValue({ postMessage });
+
+    const nav = open(dispatch, navigation(PLAN));
+    await vi.advanceTimersByTimeAsync(NAVIGATION_TIMEOUT_MS);
+    await nav.answered;
+    expect(postMessage).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledWith({ type: SAVED_COPY_MESSAGE, url: PLAN });
   });
 });

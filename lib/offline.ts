@@ -286,10 +286,11 @@ export function fileCacheKey(url: string): string {
  * Navigations render PRIVATE, per-user trip data, so they must NOT be served
  * stale from a shared (URL-keyed) cache — that would leak one traveller's trip
  * to another user on the same device/browser. network-first always fetches
- * fresh from the server (which is authenticated by the session cookie) when
- * online, and only falls back to the cache when genuinely offline. Combined
- * with clearing the cache on sign-out, the offline fallback can only ever be
- * the same user's own data.
+ * fresh from the server (which is authenticated by the session cookie) and
+ * falls back to the cache only when the network fails, or, for a navigation
+ * with a saved copy, answers 5xx or takes longer than NAVIGATION_TIMEOUT_MS
+ * (ADR 0077). Combined with clearing the cache on sign-out, the fallback can
+ * only ever be the same user's own data.
  */
 export function cacheStrategyFor({ method, url, sameOrigin, routerRequest }: StrategyInput): CacheStrategy {
   // Rule 1: never cache mutations
@@ -404,6 +405,27 @@ export function storableResponse(response: Response): Response {
 /** Whether a cache hit may answer the request; a redirected entry never answers a navigation. Mirrored in sw.js. */
 export function isServableCacheHit(mode: string, cached: { redirected: boolean }): boolean {
   return !(mode === 'navigate' && cached.redirected);
+}
+
+// Spec 2026-11-17 §A5, ADR 0077: a navigation with a saved copy waits this long
+// for the network, then is answered from the saved copy. Mirrored in sw.js.
+export const NAVIGATION_TIMEOUT_MS = 4000;
+export const SAVED_COPY_HEADER = 'X-Teepee-Saved-Copy';
+export const SAVED_COPY_MESSAGE = 'SAVED_COPY';
+
+// A 4xx is the app's real answer (a deleted Trip's 404), so only a 5xx gives way to the saved copy.
+export function isServerFailure(status: number): boolean {
+  return status >= 500;
+}
+
+export function savedCopyResponse(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set(SAVED_COPY_HEADER, '1');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+export function savedCopyMessage(url: string): { type: typeof SAVED_COPY_MESSAGE; url: string } {
+  return { type: SAVED_COPY_MESSAGE, url };
 }
 
 /** How many of the oldest entries to drop to get back under `limit`. */

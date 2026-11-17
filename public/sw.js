@@ -25,8 +25,9 @@
  * cached pages still reference that build's chunks until they are re-warmed.
  *
  * SECURITY: navigations render private trip data, so they are network-first
- * (fresh from the authenticated server when online; cache only as an offline
- * fallback) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
+ * (fresh from the authenticated server when online; cache only as a fallback
+ * when the network fails or, for a navigation, is slow or answers 5xx, ADR
+ * 0077) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
  * message — never serve one user's cached pages to another on a shared device.
  */
 
@@ -168,6 +169,27 @@ function storableResponse(response) {
 /** Mirrors isServableCacheHit() in lib/offline.ts. */
 function isServableCacheHit(mode, cached) {
   return !(mode === 'navigate' && cached.redirected);
+}
+
+// Mirrors NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE,
+// isServerFailure(), savedCopyResponse() and savedCopyMessage() in
+// lib/offline.ts (spec 2026-11-17 §A5, ADR 0077).
+const NAVIGATION_TIMEOUT_MS = 4000;
+const SAVED_COPY_HEADER = 'X-Teepee-Saved-Copy';
+const SAVED_COPY_MESSAGE = 'SAVED_COPY';
+
+function isServerFailure(status) {
+  return status >= 500;
+}
+
+function savedCopyResponse(response) {
+  const headers = new Headers(response.headers);
+  headers.set(SAVED_COPY_HEADER, '1');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+function savedCopyMessage(url) {
+  return { type: SAVED_COPY_MESSAGE, url };
 }
 
 /** Mirrors OFFLINE_BYTES_PARAM in lib/offline.ts: a warm's ask for the bytes, never a redirect. */
@@ -355,7 +377,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (strategy === 'network-first') {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(networkFirst(event));
     return;
   }
 });
@@ -414,37 +436,91 @@ async function cacheFirst(request) {
 /**
  * network-first: always try the network first so an online user gets fresh,
  * authenticated content (never another user's cached page). Cache successful
- * responses so they can serve as an OFFLINE-ONLY fallback. On network failure,
- * serve the cached copy if present, else the offline page for navigations.
+ * responses so they can serve as a fallback. On network failure, serve the
+ * cached copy if present, else the offline page for navigations. A navigation
+ * with a saved copy also gets that copy, marked, when the network answers 5xx
+ * or takes longer than NAVIGATION_TIMEOUT_MS (ADR 0077).
  *
- * The cache is purged on sign-out (CLEAR_CACHE message), so the offline
- * fallback can only ever be the currently signed-in user's own pages.
+ * The cache is purged on sign-out (CLEAR_CACHE message), so the fallback can
+ * only ever be the currently signed-in user's own pages.
  */
-async function networkFirst(request) {
-  const store = cacheStoreFor(request.url);
-  const cache = await caches.open(CACHE_NAMES[store]);
+async function networkFirst(event) {
+  const { request } = event;
 
-  if (request.mode === 'navigate' && takeOfflineRedirect(request.url)) {
-    const cached = await servableCached(request);
-    if (cached) return cached;
+  if (request.mode === 'navigate') {
+    const redirect = takeOfflineRedirect(request.url);
+    if (redirect) {
+      const cached = await servableCached(request);
+      if (cached) return redirect.savedCopy ? announceSavedCopy(event, cached) : cached;
+    }
   }
 
+  const network = fetchAndKeep(event);
   try {
-    const response = await fetch(request);
+    return await (request.mode === 'navigate' ? navigationAnswer(event, network) : network);
+  } catch (err) {
+    console.warn('[SW] network-first fetch failed, falling back to cache:', err);
+    return offlineResponse(request);
+  }
+}
+
+function fetchAndKeep(event) {
+  const { request } = event;
+  return fetch(request).then((response) => {
     if (response.ok) {
-      cache
-        .put(cacheKeyFor(request), storableResponse(response.clone()))
-        .then(() => trimCache(store))
-        .catch(() => {}); // non-blocking
+      const store = cacheStoreFor(request.url);
+      const copy = storableResponse(response.clone());
+      event.waitUntil(
+        caches
+          .open(CACHE_NAMES[store])
+          .then((cache) => cache.put(cacheKeyFor(request), copy))
+          .then(() => trimCache(store))
+          .catch(() => {})
+      );
       if (request.mode === 'navigate') {
         const { pathname, search } = new URL(request.url);
         if (!search && isCachedTripHome(pathname)) recordLastTrip(pathname).catch(() => {});
       }
     }
     return response;
-  } catch (err) {
-    console.warn('[SW] network-first fetch failed, falling back to cache:', err);
-    return offlineResponse(request);
+  });
+}
+
+// The saved copy is looked up only once the network is slow or failing, so a
+// fast answer never waits on the cache.
+async function navigationAnswer(event, network) {
+  let timer;
+  const timedOut = new Promise((resolve) => {
+    timer = setTimeout(resolve, NAVIGATION_TIMEOUT_MS, null);
+  });
+  const response = await Promise.race([network, timedOut]).finally(() => clearTimeout(timer));
+  if (response && !isServerFailure(response.status)) return response;
+  const copy = await savedCopy(event.request);
+  if (!copy) return response || network;
+  if (!response) event.waitUntil(network.catch(() => {}));
+  if (copy.redirect) return redirectToSavedTrip(copy.redirect, true);
+  return announceSavedCopy(event, copy.cached);
+}
+
+function announceSavedCopy(event, cached) {
+  event.waitUntil(postSavedCopy(event.resultingClientId, event.request.url).catch(() => {}));
+  return savedCopyResponse(cached);
+}
+
+// The page a navigation opens becomes a client only once its response
+// arrives, so the worker asks for it until it exists.
+const SAVED_COPY_CLIENT_TRIES = 50;
+const SAVED_COPY_CLIENT_WAIT_MS = 100;
+
+async function postSavedCopy(clientId, url) {
+  if (!clientId) return;
+  for (let i = 0; i < SAVED_COPY_CLIENT_TRIES; i++) {
+    const client = await self.clients.get(clientId);
+    if (client) {
+      client.postMessage(savedCopyMessage(url));
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, SAVED_COPY_CLIENT_WAIT_MS));
   }
 }
 
@@ -454,15 +530,22 @@ async function recordLastTrip(path) {
 }
 
 // The offline redirect from `/` was decided a moment ago with the network
-// down, so the navigation that follows it reads the cache without asking the
-// network again. In memory only: a restarted worker just asks the network.
+// down or slow, so the navigation that follows it reads the cache without
+// asking the network again; after a slow network it is marked as the saved
+// copy. In memory only: a restarted worker just asks the network.
 const OFFLINE_REDIRECT_TTL_MS = 10000;
 let offlineRedirect = null;
 
 function takeOfflineRedirect(url) {
   const marker = offlineRedirect;
   offlineRedirect = null;
-  return marker !== null && marker.path === new URL(url).pathname && Date.now() - marker.at < OFFLINE_REDIRECT_TTL_MS;
+  if (marker === null || marker.path !== new URL(url).pathname || Date.now() - marker.at >= OFFLINE_REDIRECT_TTL_MS) return null;
+  return marker;
+}
+
+function redirectToSavedTrip(path, savedCopy) {
+  offlineRedirect = { path, at: Date.now(), savedCopy };
+  return Response.redirect(new URL(path, self.location.origin).href, 302);
 }
 
 async function offlineStart() {
@@ -486,20 +569,24 @@ async function offlineStart() {
   }
 }
 
-async function offlineResponse(request) {
+// What this device can answer a request with: for a navigation to `/`, the
+// saved Trip; otherwise the request's own cached copy.
+async function savedCopy(request) {
   // Asked before the cached `/` itself: a Landing cached while signed out must
   // never open for a Traveller who has a Trip saved. A redirect, not the Trip's
   // body, so the address, the router's pathname and the page all agree.
   if (request.mode === 'navigate' && new URL(request.url).pathname === '/') {
     const start = await offlineStart().catch(() => null);
-    if (start) {
-      offlineRedirect = { path: start, at: Date.now() };
-      return Response.redirect(new URL(start, self.location.origin).href, 302);
-    }
+    if (start) return { redirect: start };
   }
-
   const cached = await servableCached(request);
-  if (cached) return cached;
+  return cached ? { cached } : null;
+}
+
+async function offlineResponse(request) {
+  const copy = await savedCopy(request);
+  if (copy && copy.redirect) return redirectToSavedTrip(copy.redirect, false);
+  if (copy) return copy.cached;
 
   if (request.mode === 'navigate') {
     const fallback = await caches.match('/offline.html').catch(() => null);
