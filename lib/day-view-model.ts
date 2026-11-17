@@ -343,7 +343,7 @@ export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: bo
 
   const dayItems = rows.items
     .filter((i) => i.date === date)
-    .map((i) => ({ id: i.id, title: i.title, lat: i.lat, lng: i.lng, placeId: i.placeId, address: i.address, startTime: i.startTime, sortOrder: i.sortOrder }));
+    .map((i) => ({ id: i.id, title: i.title, lat: i.lat, lng: i.lng, placeId: i.placeId, address: i.address, startTime: i.startTime, sortOrder: i.sortOrder, category: i.category, endLat: i.endLat, endLng: i.endLng }));
   const legIds = new Set((dayPlan?.transportEntries ?? []).map((e) => e.transport.id));
   const dayMap = buildDayMapModel({
     date,

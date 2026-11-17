@@ -181,3 +181,47 @@ describe("DayMap fill", () => {
     expect(container.firstElementChild?.className).toMatch(/flex-1/);
   });
 });
+
+describe("DayMap Ends at", () => {
+  const WALK = { kind: "item" as const, id: "w", lat: 35.65, lng: 139.74, label: "River walk", order: 1, category: "ACTIVITY", end: { lat: 35.67, lng: 139.76 } };
+  const NEXT = { kind: "item" as const, id: "n", lat: 35.7, lng: 139.8, label: "Dinner", order: 2 };
+  const model = (walk: typeof WALK & { routePolyline?: string | null }): DayMapModel => ({
+    points: [walk, NEXT],
+    routePoints: [walk, NEXT],
+    perItemPrev: {},
+    hops: [{ fromId: "w", toId: "n", polyline: null, estimated: true }],
+  });
+
+  it("draws a smaller second pin at the end", () => {
+    render(<DayMap tripId="t1" model={model(WALK)} />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(3);
+  });
+
+  it("draws the walk as a thick solid line in the Category colour along its stored route", () => {
+    render(<DayMap tripId="t1" model={model({ ...WALK, routePolyline: "_p~iF~ps|U_ulLnnqC" })} />);
+    const walk = mock.recorded.polylines.map((p) => p.options).find((o) => o.strokeWeight === 6)!;
+    expect(walk.strokeColor).toBe("#A6D96A");
+    expect(walk.strokeOpacity).toBe(0.95);
+    expect(walk.icons).toEqual([]);
+    expect((walk.path as unknown[]).length).toBe(2);
+  });
+
+  it("stands in a straight dashed segment until the route arrives", () => {
+    render(<DayMap tripId="t1" model={model(WALK)} />);
+    const walk = mock.recorded.polylines.map((p) => p.options).find((o) => o.strokeWeight === 6)!;
+    expect(walk.path).toEqual([{ lat: 35.65, lng: 139.74 }, { lat: 35.67, lng: 139.76 }]);
+    expect(walk.strokeOpacity).toBe(0);
+  });
+
+  it("starts the straight hop out of it at the end pin", () => {
+    render(<DayMap tripId="t1" model={model(WALK)} />);
+    const hop = mock.recorded.polylines.map((p) => p.options).find((o) => o.strokeWeight === 3)!;
+    expect(hop.path).toEqual([{ lat: 35.67, lng: 139.76 }, { lat: 35.7, lng: 139.8 }]);
+  });
+
+  it("draws no second pin or walk for an Item with no end", () => {
+    render(<DayMap tripId="t1" model={model({ ...WALK, end: null } as never)} />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(2);
+    expect(mock.recorded.polylines.map((p) => p.options).some((o) => o.strokeWeight === 6)).toBe(false);
+  });
+});

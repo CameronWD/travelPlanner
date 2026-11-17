@@ -13,6 +13,7 @@ import { googleDirectionsUrl, appleDirectionsUrl, directionsFromHereUrl } from "
 import type { LocalMode } from "@/lib/travel-times/hops";
 import {
   byHopOrder,
+  itemRouteKey,
   hopStopsById,
   hopInputs,
   planHops,
@@ -37,6 +38,9 @@ export interface DayMapPoint {
   order?: number;
   address?: string | null;
   placeId?: string | null;
+  category?: string;
+  end?: { lat: number; lng: number } | null;
+  routePolyline?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +56,9 @@ export interface DayMapItemInput {
   sortOrder: number;
   address?: string | null;
   placeId?: string | null;
+  category?: string;
+  endLat?: number | null;
+  endLng?: number | null;
 }
 
 export interface DayMapAccommodationInput {
@@ -135,6 +142,8 @@ export function buildDayMapModel(input: {
     order: idx + 1,
     address: item.address,
     placeId: item.placeId,
+    category: item.category,
+    end: itemRouteKey({ lat: item.lat, lng: item.lng, endLat: item.endLat, endLng: item.endLng }) ? { lat: item.endLat as number, lng: item.endLng as number } : null,
   }));
 
   // ------------------------------------------------------------------
@@ -252,6 +261,14 @@ export function dayMapHops(model: DayMapModel, input: DayHopInput): DayMapHop[] 
   });
 }
 
+function withItemRoutes(points: DayMapPoint[], lookup: TravelLookup): DayMapPoint[] {
+  return points.map((p) => {
+    if (p.kind !== "item" || !p.end) return p;
+    const row = lookup.get(itemRouteKey({ lat: p.lat, lng: p.lng, endLat: p.end.lat, endLng: p.end.lng }) ?? "");
+    return { ...p, routePolyline: row?.status === "OK" && row.polyline ? row.polyline : null };
+  });
+}
+
 export function withDayMapHops(
   dayMap: DayMapModel,
   rows: {
@@ -265,6 +282,7 @@ export function withDayMapHops(
 ): DayMapModel {
   return {
     ...dayMap,
+    points: withItemRoutes(dayMap.points, lookup),
     hops: dayMapHops(dayMap, {
       dayItems: rows.items.filter((it) => it.date === date),
       stops: rows.stops,

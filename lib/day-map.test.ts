@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildDayMapModel, buildItemDirections, dayMapHops, DayMapItemInput, DayMapAccommodationInput, DayMapTransportInput } from "./day-map";
-import { driveKey } from "@/lib/travel-times/hops";
+import { buildDayMapModel, buildItemDirections, dayMapHops, withDayMapHops, DayMapItemInput, DayMapAccommodationInput, DayMapTransportInput } from "./day-map";
+import { driveKey, itemRouteKey } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -432,5 +432,46 @@ describe("buildItemDirections from here", () => {
     });
     const g = new URL(buildItemDirections(withBed, { fromHere: false, mode: null })["i1"].google!).searchParams;
     expect(g.get("origin")).toBe("48.85,2.34");
+  });
+});
+
+describe("Ends at on the Day map", () => {
+  const START = { lat: 51.5, lng: -0.12 };
+  const END = { lat: 51.51, lng: -0.1 };
+  const walk = { id: "w", title: "River walk", lat: START.lat, lng: START.lng, endLat: END.lat, endLng: END.lng, category: "ACTIVITY", startTime: "10:00", sortOrder: 0 };
+  const build = (item: typeof walk) => buildDayMapModel({ date: "2026-01-02", items: [item], transports: [] });
+  const hopRows = (item: { id: string; endLat?: number; endLng?: number; lat: number; lng: number }) => ({
+    items: [{ ...item, date: "2026-01-02", startTime: "10:00", sortOrder: 0, stopId: "s1" }],
+    stops: [{ id: "s1", localTravelMode: "WALK", timezone: "UTC" }],
+    transports: [],
+    trip: { drivingWindingFactor: 1.3, drivingAvgSpeedKph: 60 },
+  });
+  const key = itemRouteKey(walk)!;
+
+  it("keeps one entry for the Item and carries its end pin and Category", () => {
+    const model = build(walk);
+    expect(model.points).toHaveLength(1);
+    expect(model.points[0]).toMatchObject({ end: END, category: "ACTIVITY" });
+  });
+
+  it("carries the stored walk route's polyline", () => {
+    const lookup = new Map([[key, { status: "OK" as const, minutes: 20, distanceM: 1500, polyline: "abc" }]]);
+    expect(withDayMapHops(build(walk), hopRows(walk), "2026-01-02", lookup).points[0].routePolyline).toBe("abc");
+  });
+
+  it("has a null route until a row arrives, and ignores a failed row", () => {
+    expect(withDayMapHops(build(walk), hopRows(walk), "2026-01-02", new Map()).points[0].routePolyline).toBeNull();
+    const failed = new Map([[key, { status: "ERROR" as const, minutes: null, distanceM: null, polyline: "abc" }]]);
+    expect(withDayMapHops(build(walk), hopRows(walk), "2026-01-02", failed).points[0].routePolyline).toBeNull();
+  });
+
+  it("has no end when it ends where it starts", () => {
+    expect(build({ ...walk, endLat: START.lat, endLng: START.lng }).points[0].end).toBeNull();
+  });
+
+  it("never produces an end pin for an Item hidden from the viewer", () => {
+    const model = buildDayMapModel({ date: "2026-01-02", items: [], transports: [] });
+    expect(model.points).toEqual([]);
+    expect(withDayMapHops(model, hopRows(walk), "2026-01-02", new Map([[key, { status: "OK" as const, minutes: 20, distanceM: 1500, polyline: "abc" }]])).points).toEqual([]);
   });
 });
