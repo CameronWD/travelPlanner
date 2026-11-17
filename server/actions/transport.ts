@@ -292,12 +292,11 @@ export async function updateTransport(
   );
   if ("success" in booking) return booking;
 
-  // Normalise home-base flags: a home endpoint owns no stop and no free-text
-  // place. Its coordinates resolve from the trip at read time.
+  // A home endpoint owns no stop; the merge keeps only a point it already held.
   const depIsHome = data.depIsHome ?? false;
   const arrIsHome = data.arrIsHome ?? false;
-  const depPlace = depIsHome ? null : (data.depPlace || null);
-  const arrPlace = arrIsHome ? null : (data.arrPlace || null);
+  const depPlace = data.depPlace || null;
+  const arrPlace = data.arrPlace || null;
 
   // Normalise empty stop IDs to null (also cleared when home flag is set)
   const fromStopId = depIsHome ? null : (data.fromStopId || null);

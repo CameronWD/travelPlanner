@@ -54,6 +54,15 @@ describe("mergeTransportPatch", () => {
   it("fromStopId \"\" alone with no current place is refused", () => {
     expect(mergeTransportPatch(at({ depPlace: null }), { fromStopId: "" })).toMatchObject({ success: false, errors: { fromStopId: ["Departure needs a stop or a place."] } });
   });
+  it("a Home end keeps its stored point when the patch leaves it out", () => {
+    const seeded = { ...homeDep, depPlace: "Gold Coast (OOL)" };
+    expect(mergeTransportPatch(seeded, { notes: "x" })).toEqual(expect.objectContaining({ depIsHome: true, depPlace: "Gold Coast (OOL)" }));
+    expect(mergeTransportPatch(seeded, { depIsHome: true, fromStopId: null })).toEqual(expect.objectContaining({ depIsHome: true, depPlace: "Gold Coast (OOL)" }));
+  });
+  it("a Home end drops its stored point when the patch sends it empty", () => {
+    const seeded = { ...homeDep, depPlace: "Gold Coast (OOL)" };
+    expect(mergeTransportPatch(seeded, { depIsHome: true, depPlace: null })).toEqual(expect.objectContaining({ depIsHome: true, depPlace: undefined }));
+  });
   it("depPlace \"\" alone on a Home departure leaves it Home, unchanged", () => {
     expect(mergeTransportPatch(homeDep, { depPlace: "" })).toEqual(expect.objectContaining({ fromStopId: undefined, depPlace: undefined, depIsHome: true }));
   });

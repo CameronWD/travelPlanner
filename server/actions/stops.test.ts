@@ -27,6 +27,7 @@ const {
   stopDeleteMock,
   queryRawMock,
   transactionMock,
+  reminderDeleteManyMock,
   tripFindUniqueMock,
   tripUpdateMock,
   chapterUpdateMock,
@@ -77,6 +78,7 @@ const {
   // needs deletedBlob.createMany so that call has somewhere real to land
   // instead of silently erroring.
   const deletedBlobCreateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const reminderDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     // Interactive form: invoke the callback with a tx client.
     if (typeof arg === "function") {
@@ -90,6 +92,7 @@ const {
         cost: { findMany: costFindManyMock, update: costUpdateMock, deleteMany: costDeleteManyMock },
         attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
         note: { deleteMany: noteDeleteManyMock },
+        reminder: { deleteMany: reminderDeleteManyMock },
         deletedBlob: { createMany: deletedBlobCreateManyMock },
       });
     }
@@ -124,6 +127,7 @@ const {
     stopDeleteMock,
     queryRawMock,
     transactionMock,
+    reminderDeleteManyMock,
     tripFindUniqueMock,
     tripUpdateMock,
     chapterUpdateMock,
@@ -4235,6 +4239,21 @@ describe("Surprise write guard", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "STOP", entityId: "stop-1", surpriseOf: null }),
     );
+  });
+
+  it("a Surprise Stop's delete takes its Reminders; an ordinary Stop's does not", async () => {
+    const row = { id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null };
+    stopFindUniqueMock.mockResolvedValueOnce(row).mockResolvedValueOnce({ name: "Paris" });
+    stopDeleteMock.mockResolvedValue({});
+    requireOutsideSurpriseMock.mockResolvedValue({ type: "STOP", id: "stop-1" });
+    await deleteStop("stop-1");
+    expect(reminderDeleteManyMock).toHaveBeenCalledWith({ where: { stopId: "stop-1" } });
+
+    reminderDeleteManyMock.mockClear();
+    stopFindUniqueMock.mockResolvedValueOnce(row).mockResolvedValueOnce({ name: "Paris" });
+    requireOutsideSurpriseMock.mockResolvedValue(null);
+    await deleteStop("stop-1");
+    expect(reminderDeleteManyMock).not.toHaveBeenCalled();
   });
 
   it("restoreStops refuses re-filing an Item onto a Stop the caller is surprised by (nothing written)", async () => {

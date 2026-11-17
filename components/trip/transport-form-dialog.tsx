@@ -574,7 +574,7 @@ function TransportForm({
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
       return isEdit && transport
-        ? updateTransport(transport.id, toPatch(input, TRANSPORT_CLEARABLE))
+        ? updateTransport(transport.id, toPatch(input, TRANSPORT_CLEARABLE.filter((k) => !(k === "depPlace" && input.depIsHome) && !(k === "arrPlace" && input.arrIsHome))))
         : createTransport(tripId, input, forkId ?? undefined);
     },
     onClose,

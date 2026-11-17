@@ -721,6 +721,8 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
   // cleanupTargetSideDataTx schedules attachment blobs for retention inside
   // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
   await db.$transaction(async (tx) => {
+    // Unlinked (onDelete SetNull) a Reminder would turn into a Trip-wide one, visible to the Traveller the Surprise is kept from.
+    if (item.surpriseOf) await tx.reminder.deleteMany({ where: { itemId } });
     await tx.item.delete({ where: { id: itemId } });
     await deleteOwnedCostsTx(tx, item.tripId, [
       { type: "ITEM", id: itemId, label: doomed?.title ?? "Item" },
