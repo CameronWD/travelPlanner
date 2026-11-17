@@ -90,7 +90,7 @@ jobs:
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_URL}/api/cron/digest")
           echo "Digest endpoint responded with HTTP ${status}"
-          cat response.txt
+          head -c 500 response.txt
           echo
           if [ "${status}" -eq 503 ]; then
             # 503 is the route's dedicated "push is not configured" signal
@@ -101,7 +101,7 @@ jobs:
             exit 1
           fi
           if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
-            echo "::error title=Digest cron failed::Digest endpoint returned HTTP ${status}. Response body: $(cat response.txt)"
+            echo "::error title=Digest cron failed::Digest endpoint returned HTTP ${status}. Response body is in the log above."
             exit 1
           fi
         env:

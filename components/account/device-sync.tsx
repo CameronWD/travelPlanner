@@ -33,11 +33,11 @@ export function DeviceSync() {
   const reported = useRef(false);
   const lastZone = useRef<string | null>(null);
   const lastAt = useRef(0);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     function report() {
-      lastZone.current = deviceTimeZone();
-      lastAt.current = Date.now();
+      if (inFlight.current) return;
 
       // Read at call time, not module load: a top-level constant would freeze
       // in whatever NEXT_PUBLIC_VAPID_PUBLIC_KEY was at import — which is also
@@ -46,6 +46,7 @@ export function DeviceSync() {
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
       if (!vapidPublicKey) return;
 
+      inFlight.current = true;
       void (async () => {
         try {
           const state = await readLocalDeviceState();
@@ -58,10 +59,16 @@ export function DeviceSync() {
             ...(zone ? { timezone: zone } : {}),
             userAgent: navigator.userAgent,
           });
+          // Only a report that landed counts, so a failure (offline right
+          // after landing) is retried on the next foreground.
+          lastZone.current = zone;
+          lastAt.current = Date.now();
         } catch (err) {
           // A failed report leaves the stored state as it was — wrong, but no
           // worse than before, and Account says so out loud.
           console.error("[DeviceSync] failed to report this device:", err);
+        } finally {
+          inFlight.current = false;
         }
       })();
     }

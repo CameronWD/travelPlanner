@@ -570,7 +570,7 @@ describe("getStorage production guard", () => {
 
   it("throws when the driver is unset on Vercel production", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    delete process.env.STORAGE_DRIVER;
+    vi.stubEnv("STORAGE_DRIVER", undefined);
     const { getStorage } = await import("./storage");
     expect(() => getStorage()).toThrow("STORAGE_DRIVER is local on Vercel production");
   });

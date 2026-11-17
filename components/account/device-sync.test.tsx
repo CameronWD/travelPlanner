@@ -102,6 +102,12 @@ describe("DeviceSync", () => {
   });
 
   describe("on returning to the foreground", () => {
+    async function flush() {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+
     function showApp() {
       Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
       act(() => {
@@ -148,7 +154,7 @@ describe("DeviceSync", () => {
 
       vi.setSystemTime(Date.now() + 60 * 60 * 1000);
       showApp();
-      await Promise.resolve();
+      await flush();
       expect(reconcileDeviceMock).toHaveBeenCalledTimes(1);
     });
 
@@ -162,8 +168,19 @@ describe("DeviceSync", () => {
       act(() => {
         document.dispatchEvent(new Event("visibilitychange"));
       });
-      await Promise.resolve();
+      await flush();
       expect(reconcileDeviceMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries on the next foreground when the report failed", async () => {
+      stubPush(LIVE);
+      reconcileDeviceMock.mockRejectedValueOnce(new Error("offline"));
+      render(<DeviceSync />);
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(1));
+      await flush();
+
+      showApp();
+      await waitFor(() => expect(reconcileDeviceMock).toHaveBeenCalledTimes(2));
     });
   });
 });
