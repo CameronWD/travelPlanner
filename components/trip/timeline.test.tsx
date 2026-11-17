@@ -498,8 +498,8 @@ describe("Timeline — kit day rows (Task 12a)", () => {
       />,
     );
     const link = screen.getByRole("link", { name: `Directions to ${ITEM_TITLE}` });
-    expect(link.className).toMatch(/pointer-coarse:after:absolute/);
-    expect(link.className).toMatch(/pointer-coarse:after:-inset-2\.5/);
+    expect(link.className).toMatch(/min-h-11/);
+    expect(link.className).toMatch(/min-w-11/);
   });
 
   it("an empty day renders the kit empty treatment in the day variant", () => {

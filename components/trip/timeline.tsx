@@ -252,7 +252,7 @@ function DirectionsLink({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`Directions to ${label}`}
-      className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
+      className="inline-flex size-7 pointer-coarse:size-auto pointer-coarse:min-h-11 pointer-coarse:min-w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
       <Navigation className="size-3.5 shrink-0" aria-hidden="true" />
     </a>

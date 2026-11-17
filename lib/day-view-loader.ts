@@ -221,7 +221,7 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
     if (!wellFormed(d)) return "invalid";
     const date = clampDate(d, rows.startDate, rows.endDate);
     if (date === "out-of-range") return date;
-    const model = buildDayModel(rows, date);
+    const model = buildDayModel(rows, date, { fromHere: date === shared.today });
     // Unreachable after the clamp; kept so a projection change can't crash the page.
     if (!model.dayPlan) return "out-of-range";
     return projectDayView(rows, { ...model, dayPlan: model.dayPlan }, shared, {

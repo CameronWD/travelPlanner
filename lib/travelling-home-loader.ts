@@ -95,7 +95,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   // is the real plan (dated views follow the real plan — CONTEXT.md).
   const today = tripTodayISO(stops, trip.homeTimezone);
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
-  const day = buildDayModel(rows, effectiveDate);
+  const day = buildDayModel(rows, effectiveDate, { fromHere: effectiveDate === today });
   const [travel, holidayLines, confirmationsToAdd] = await Promise.all([
     loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip) }),
     loadHolidayLines(tripId, [effectiveDate]),

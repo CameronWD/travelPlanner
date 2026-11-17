@@ -4,6 +4,7 @@ import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { buildItinerary, pickDayPlan, isFreeFormDay, dayHasEntries, type DayPlan } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist, type NearbyResult, type DayIdeaResult } from "@/lib/nearby";
+import { effectiveLocalMode } from "@/lib/travel-times/hops";
 import { chapterForDate } from "@/lib/chapters";
 import { titlesByDate } from "@/lib/day-titles";
 import { itemPhotoUrl } from "@/lib/item-photo";
@@ -326,7 +327,7 @@ function deriveTrip(rows: DayRows): TripDerived {
 }
 
 /** One dated day, from the rows `lib/day-reads.ts` read — the Day view's and Today's shared core. */
-export function buildDayModel(rows: DayRows, date: string): DayModel {
+export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: boolean }): DayModel {
   const trip = deriveTrip(rows);
   const dayPlan = pickDayPlan(trip.itinerary, date);
   const dayStop = rows.stops.find((s) => s.id === dayPlan?.stop?.id) ?? null;
@@ -377,7 +378,10 @@ export function buildDayModel(rows: DayRows, date: string): DayModel {
     attachmentsById: trip.attachmentsById,
     attachmentsByTarget: trip.attachmentsByTarget,
     dayMap,
-    itemDirections: buildItemDirections(dayMap),
+    itemDirections: buildItemDirections(dayMap, {
+      fromHere: opts?.fromHere ?? false,
+      mode: dayStop ? effectiveLocalMode(dayStop, rows.transports) : null,
+    }),
     nearby,
     thingsToDo:
       freeForm && dayStop
