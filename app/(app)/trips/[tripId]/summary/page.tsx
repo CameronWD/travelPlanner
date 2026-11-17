@@ -94,7 +94,7 @@ export default async function SummaryPage({
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+  // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
   const rows = await readPlan(tripId, user.id, null);
   const { trip } = rows;
 

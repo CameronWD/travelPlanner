@@ -124,7 +124,7 @@ export default async function SharePage({
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+  // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // Surprise (CONTEXT.md, ADR 0051): a Share link shows every audience the
   // outside only, so it reads as a null viewer, surprised by every live

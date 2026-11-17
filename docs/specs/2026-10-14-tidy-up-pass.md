@@ -25,7 +25,7 @@ seam, adapter, leverage, locality*.
 
 It is **not** a feature branch, a redesign, or a Fork investment. Forks stay
 in the code and must stay correct, but nothing fork-specific is deepened
-(decided 2026-10-14; see `docs/open-follow-ups.md`, *Settled*). It does not
+(decided 2026-10-14; see `docs/archive/open-follow-ups.md`, *Settled*). It does not
 change any Traveller-visible behaviour except where a bug is fixed, and each
 of those is listed under *Bugs* below.
 
@@ -167,7 +167,7 @@ Per `CLAUDE.md`. In addition:
   do not fix these".
 - ARCH-TEN-10: cancelling an Invite requires owner-or-admin, the same
   predicate as creating one. **ARCH-TEN-11 was struck, not built** — see the
-  dated note on it in `docs/architecture-sitrep-2026-09-22.md`: its premise
+  dated note on it in `docs/archive/architecture-sitrep-2026-09-22.md`: its premise
   (that `getRecentActivity` sending a member's user id tells the browser
   something it didn't already know) doesn't hold, so `activity.ts` is
   unchanged.
@@ -348,7 +348,7 @@ These win over the cards below where they differ.
     "Traveller avatars", and the dialog title "Command palette" → "Search".
   - BI-14's length check exists; only the country-agreement check is missing.
   - The push-subscribe retry and the digest cooldown `where` are already
-    tested; struck in `docs/open-follow-ups.md`, not rebuilt.
+    tested; struck in `docs/archive/open-follow-ups.md`, not rebuilt.
   - Scripts archived: `backfill-geocode`, `backfill-cover-aspect`,
     `backfill-cover-small` (+ `-run` and its test), `sweep-orphaned-costs`,
     with their npm entries. `booking-import-smoke.ts` and
@@ -480,7 +480,7 @@ The card notes and the SDD ledger
    icon (see above); its Wishlist read gained `forkId: null`, which changes
    nothing.
 5. NAV-05's second half (two neighbours each side if rapid swiping sticks)
-   is not built; it stays open as a watch item in `docs/open-follow-ups.md`.
+   is not built; it stays open as a watch item in `docs/archive/open-follow-ups.md`.
 6. `getDay` and the loader's `cache()` are deleted; `getDays` serves every
    caller, and `lib/day-view-loader.cache.test.ts`'s assertions moved.
 
@@ -524,7 +524,7 @@ The card notes and the SDD ledger
    exports in `scripts/layout-audit/`, which were removed (Ruling 3.P.13).
 7. ADRs 0011, 0028 and 0039 keep the archived scripts' old paths (decision
    records); living docs were updated.
-8. BI items are tracked only in `docs/follow-ups/2026-10-14-booking-import.md`.
+8. BI items are tracked only in `docs/archive/follow-ups/2026-10-14-booking-import.md`.
 9. The repo is on Vitest 4, not 3; `postcss` became a direct devDependency
    at the 8.5.30 already in the tree.
 

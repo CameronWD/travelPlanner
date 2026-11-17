@@ -6,7 +6,7 @@
  * construction.
  *
  * Real plan only — policy (not a BND-2 spelling exemption): dated views
- * ignore `?plan=` (architecture-sitrep-2026-09-22.md).
+ * ignore `?plan=` (docs/archive/architecture-sitrep-2026-09-22.md).
  *
  * Surprise (ADR 0051, CONTEXT.md "Surprise"): the visibility loader runs for
  * `viewerId` before the wave and its fragments go into every Item,

@@ -267,7 +267,7 @@ all green (task-Z-report.md has the exact run).
 ### Deferred
 
 Five gaps that didn't meet the bar for this gate are logged in
-`docs/open-follow-ups.md` under **PM-01..05** (2026-10-17 · Planning model):
+`docs/archive/open-follow-ups.md` under **PM-01..05** (2026-10-17 · Planning model):
 the Activity summary for opening hours when only a season's content
 changes, the opening-hours family recipients read before the write's
 transaction, the overdue book-by showing the same as a future one, `/plan?stop=`
@@ -459,7 +459,7 @@ throwaway copy — all green (task-Z-report.md has the exact run).
 ### Deferred
 
 Seven gaps that didn't meet the bar for this gate are logged in
-`docs/open-follow-ups.md` under **FT-01..07** (2026-10-17 · Flags and Try
+`docs/archive/open-follow-ups.md` under **FT-01..07** (2026-10-17 · Flags and Try
 lists): an Item Flag deep link that opens the dialog rather than the day,
 Compare passing no hidden Stop/Item ids to `detectFlags`,
 `prisma/real/persist.ts` not storing Booking state, `get_wishlist` ideas
@@ -901,7 +901,7 @@ out every other failure mode.
 ### Deferred
 
 Four gaps that didn't meet the bar for this gate are logged in
-`docs/open-follow-ups.md` under **RV-01..04** (2026-10-18 · AI Review):
+`docs/archive/open-follow-ups.md` under **RV-01..04** (2026-10-18 · AI Review):
 Claude can't Apply or Dismiss a Finding itself, the 50-Review history cap
 has no way to page further, the MCP route's permission check is a second
 query rather than folded into the existing one, and a theoretical deadlock

@@ -64,7 +64,7 @@ export default async function TripHomePage({
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+  // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // One wave after the gate (spec 2026-10-06 §C): the Trip, its located
   // Stops for the cover, the viewer's Trips (for the hue — the same cache()d

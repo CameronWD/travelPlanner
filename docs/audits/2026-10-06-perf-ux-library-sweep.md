@@ -8,7 +8,7 @@ first pass of this sweep produced ADR 0069 (typeahead → Photon) and
 
 Constraints respected: no paid or keyed services, no new data processors
 without a `/privacy` line (ADR 0059, 0069), Postgres only, Vercel serverless,
-Cache Components deferred (NAV-01 in `docs/open-follow-ups.md`).
+Cache Components deferred (NAV-01 in `docs/archive/open-follow-ups.md`).
 
 ## Tier 1 — do these (high impact, mostly < 1 day each)
 

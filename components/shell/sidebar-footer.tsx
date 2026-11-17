@@ -14,7 +14,7 @@ import { travellerName } from "@/lib/traveller";
  * What's new, Admin + badge, Sign out) and display name over an "Account"
  * link. Account has its own control here, so the menu leaves it out. The
  * theme toggle that used to end the row is parked with dark mode (spec
- * 2026-10-04 §F, docs/open-follow-ups.md DM-01).
+ * 2026-10-04 §F, docs/archive/open-follow-ups.md DM-01).
  */
 export function SidebarFooter({
   user,

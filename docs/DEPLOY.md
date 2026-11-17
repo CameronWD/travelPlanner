@@ -93,7 +93,7 @@ See `docs/resendDeploy.md` — account, domain and DNS, API key, the two Vercel 
 
 The migration `prisma/migrations/20260812000000_cost_and_paid_amounts`
 RENAMED columns and was applied to production on 2026-08-12 — the deploy
-succeeded (`docs/open-follow-ups.md`, `OPS-01`). It is kept here as the
+succeeded (`docs/archive/open-follow-ups.md`, `OPS-01`). It is kept here as the
 worked example this hazard shape is named after, not as a pending step.
 `vercel.json` runs `prisma migrate deploy && next build`, so for the length
 of that build the old column names had already gone while the previous
@@ -119,12 +119,12 @@ for the *next* one, not as work still owed on this one:
    forward immediately or apply the reverse migration.
 4. **Afterwards**, re-run the count from step 1 in prod and reconcile any
    legacy paid-without-date rows via the Budget page checklist (the app
-   surfaces them — see `docs/things-to-fix.md` P2-8).
+   surfaces them — see `docs/archive/things-to-fix.md` P2-8).
 
 **How this played out for `cost_and_paid_amounts`:** step 1's rehearsal was
 never run; what closed the migration instead was post-hoc verification
 against the already-applied schema. Step 4's reconciliation is done — the
-count came back **0 of 33** `Cost` rows (`docs/open-follow-ups.md`, `OPS-03`).
+count came back **0 of 33** `Cost` rows (`docs/archive/open-follow-ups.md`, `OPS-03`).
 
 ### The same window, on the write path
 
@@ -168,7 +168,7 @@ which is why the pre-deploy count mattered: it was the one number that said
 whether the world matched what ADR 0047 was written against.
 
 The migration is applied in production — every migration in
-`prisma/migrations/` is (`docs/open-follow-ups.md`'s migration-state audit).
+`prisma/migrations/` is (`docs/archive/open-follow-ups.md`'s migration-state audit).
 **The gate below is a one-time check that has been overtaken; it is not a
 pending step for this migration.** It is kept as the template for the next
 migration that needs the same kind of check run immediately before it:
@@ -186,7 +186,7 @@ was not designed around, and the `targetType = 'COST_DUE'` delete may have
 thrown away rows a Traveller wrote. (For `digest_and_alarms` itself, this
 specific check's outcome was not recorded before the gate was overtaken; if
 it matters retrospectively it needs a fresh production read, not a re-run of
-the gate — `docs/open-follow-ups.md`, `RM-01`.)
+the gate — `docs/archive/open-follow-ups.md`, `RM-01`.)
 
 Migrations that carry this kind of count gate, run immediately before the
 deploy that ships them:
@@ -297,9 +297,28 @@ error sink (ADR 0059), plus one migration,
 
 6. **Verify against the live database and a real browser.** Everything this
    branch could not check without Postgres or a browser is listed, with exact
-   steps, in `docs/rollout-gate-manual-verify.md`. The lockout check (an
+   steps, in `docs/archive/rollout-gate-manual-verify.md`. The lockout check (an
    invited Traveller signing in **twice**, across the Invite-acceptance
    boundary) is the one to do first.
+
+> ### ⚠ Never run `npm run sweep:blobs -- --execute` from a machine holding `.env.production.local`
+>
+> `--execute` destroys storage objects, and on the operator's machine it
+> destroys them *wrongly*. It is safe only when `STORAGE_DRIVER` genuinely
+> resolves to the production driver (`r2`) for that process. That file sets
+> `STORAGE_DRIVER="local"` and `load-env` applies it with `override: true`, so
+> an inline `STORAGE_DRIVER=r2` prefix is silently discarded. The run then
+> pairs the **production database** with the **local-disk driver**, whose
+> `delete()` is `fs.rm(..., { force: true })`: a silent no-op for a key that is
+> not on this laptop. Result: every `DeletedBlob` row deleted, every R2 object
+> left alive and permanently orphaned, and `destroyed N, failed 0` printed as
+> if it had worked. The `--execute` refusal does not catch it, because the
+> variable is set, just to the wrong thing.
+>
+> The printed `Storage driver:` line is the only reliable confirmation of what
+> a run acts through. If it does not say `r2`, do not run `--execute`. A real
+> sweep belongs on a host configured for R2. Dry runs (`-- --days=1`) are safe.
+> Full history: `docs/archive/rollout-gate-manual-verify.md` §3.1a.
 
 ## 4d. Feedback note site — deploy order (`feat/feedback-site-tag`)
 
@@ -419,7 +438,7 @@ deploy, including yours. This is expected, not a sign something went wrong.
 **The old Auth.js tables (`Account`, `Session`, `VerificationToken`) are kept
 for one release** rather than dropped in this migration, in case a rollback
 is needed. Dropping them, and the migration's Google-link copy that depends
-on `Account` existing, is `docs/open-follow-ups.md` TC-13, once main has run
+on `Account` existing, is `docs/archive/open-follow-ups.md` TC-13, once main has run
 on Better Auth for a release.
 
 **What a rollback does and doesn't restore.** Redeploying the previous build

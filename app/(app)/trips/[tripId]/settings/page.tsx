@@ -69,7 +69,7 @@ export default async function SettingsPage({
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
-  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+  // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },

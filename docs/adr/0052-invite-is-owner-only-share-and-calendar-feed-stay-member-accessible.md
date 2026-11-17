@@ -6,7 +6,7 @@ Accepted (2026-09-21)
 ## Context
 
 `SW-05` (raised during the final whole-branch review that produced
-`docs/open-follow-ups.md`) found three server actions gated on
+`docs/archive/open-follow-ups.md`) found three server actions gated on
 `requireTripAccess` alone — a membership check, not a role check:
 `inviteToTrip` (`server/actions/invites.ts:40`), `createShareLink`
 (`server/actions/share.ts:97`) and `createCalendarFeed`

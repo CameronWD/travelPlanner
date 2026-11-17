@@ -39,7 +39,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   const { user } = await requireTripAccess(tripId);
   const wellFormed = ISO_DATE.test(date);
   // Policy (not a BND-2 spelling exemption): this dated view always shows the
-  // real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
+  // real plan and ignores `?plan=` — see docs/archive/architecture-sitrep-2026-09-22.md.
   const [days3, unreadCount, recent, shell, slug] = await Promise.all([
     // The day shown first, then its neighbours (ADR 0065).
     getDays(tripId, wellFormed ? [date, addDays(date, -1), addDays(date, 1)] : [date], user.id),

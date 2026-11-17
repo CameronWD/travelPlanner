@@ -147,7 +147,7 @@ everyone, and the only place to set a name is unsignposted on Account.
 - `app/layout.tsx` `themeColor` is the light colour only; `app/global-error.tsx` drops its
   `prefers-color-scheme: dark` block.
 - Kept, dormant: the `.dark` palette in `globals.css`, map dark tiles/palette, `ThemeProvider`
-  and `ThemeToggle` (unmounted). A one-line note in `docs/open-follow-ups.md` records that
+  and `ThemeToggle` (unmounted). A one-line note in `docs/archive/open-follow-ups.md` records that
   dark mode is parked and how to bring it back.
 - Help guide and the `CONTEXT.md` command-palette entry stop mentioning the theme toggle.
 

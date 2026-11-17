@@ -70,7 +70,7 @@ the rest in plan order.
 - `docs/connect-claude.md`: the "It can read" list gains costs (itemised),
   attachments (list and read), Travellers, local times and transport places;
   the "cannot touch" line keeps Attachments as not writable.
-- `docs/open-follow-ups.md`: add **TC-11 · Booking details as their own
+- `docs/archive/open-follow-ups.md`: add **TC-11 · Booking details as their own
   fields** — cancellation deadline, "cash only", who booked / who paid; today
   they live in free-text notes. A model and app-form change, not a connection
   change; deferred.

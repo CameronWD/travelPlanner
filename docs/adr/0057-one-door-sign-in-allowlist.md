@@ -5,7 +5,7 @@ Accepted (2026-09-23)
 
 ## Context
 
-`ARCH-TEN-3` (`docs/architecture-sitrep-2026-09-22.md`) found that **nothing
+`ARCH-TEN-3` (`docs/archive/architecture-sitrep-2026-09-22.md`) found that **nothing
 in the repo decided who may sign in**. `lib/auth.ts` registered Google
 whenever the two env vars were set, `PrismaAdapter` minted a `User` on first
 sign-in, and the only thing standing between a stranger and a full

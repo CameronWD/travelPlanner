@@ -59,12 +59,12 @@ their saved Teepee theme or OS setting.
 - A test on the share page asserts the root carries `data-theme="light"` and
   the `light` class (mirror `app/landing/landing.test.tsx:48-54`); a route-map
   test asserts the override prop wins over the hook.
-- `docs/open-follow-ups.md` gains "SL-xx · Dark pass on the share page, then
+- `docs/archive/open-follow-ups.md` gains "SL-xx · Dark pass on the share page, then
   drop the light lock" with a pointer to the two files.
 
 ## B. Sign-in link (email) beside Google — Resend
 
-**Why.** Follow-up LS-01 (`docs/open-follow-ups.md:2485`). Testers should be
+**Why.** Follow-up LS-01 (`docs/archive/open-follow-ups.md:2485`). Testers should be
 able to get in without a Google account. Resend is the provider; Auth.js v5
 ships a Resend provider, so there is no SMTP and no new mail library beyond
 what `next-auth` already includes.
@@ -161,7 +161,7 @@ what `next-auth` already includes.
 - `app/privacy/page.tsx`: the line about taking name, email and avatar from
   Google gains the email-link path (we store the address you type and send
   one email to it; the link token expires in a day).
-- `docs/open-follow-ups.md`: LS-01 → done (pointer to this spec), LK-02
+- `docs/archive/open-follow-ups.md`: LS-01 → done (pointer to this spec), LK-02
   updated to Apple-only, new SL-xx items (share dark pass; branded email
   restyle; Apple).
 - `CONTEXT.md`: **Sign-in link** term (already added), Landing entry updated.
@@ -284,6 +284,6 @@ panel** (the right column), not the whole viewport.
 (title "Resend (Sign-in links) — deploy steps"), leave a one-line §3b in
 DEPLOY.md pointing at it, and update every cross-reference to "§3b"
 (`.env.example`, `lib/auth.ts` comment, `docs/DEPLOY.md` env table and §6,
-`docs/open-follow-ups.md` LS-01 and SL-03) to `docs/resendDeploy.md`.
+`docs/archive/open-follow-ups.md` LS-01 and SL-03) to `docs/resendDeploy.md`.
 
-**Acceptance.** No *pointer* to §3b survives: `grep -rn '§3b\|step 3b' .env.example lib docs/DEPLOY.md docs/open-follow-ups.md app` finds nothing; the new file's own "moved from §3b" line and this spec are the only mentions left; the new file carries every step and the Preview-environment note.
+**Acceptance.** No *pointer* to §3b survives: `grep -rn '§3b\|step 3b' .env.example lib docs/DEPLOY.md docs/archive/open-follow-ups.md app` finds nothing; the new file's own "moved from §3b" line and this spec are the only mentions left; the new file carries every step and the Preview-environment note.

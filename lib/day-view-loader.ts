@@ -11,7 +11,7 @@
  * boundary (DAY_VIEW §4) — weather never blocks the day's plan.
  *
  * Policy (not a BND-2 spelling exemption): the dated Day view always shows the
- * real plan and ignores `?plan=` — see architecture-sitrep-2026-09-22.md.
+ * real plan and ignores `?plan=` — see docs/archive/architecture-sitrep-2026-09-22.md.
  */
 
 import { db } from "@/lib/db";

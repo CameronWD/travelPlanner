@@ -5,7 +5,7 @@ Accepted (2026-09-23)
 
 ## Context
 
-`ARCH-DAT-6` (**P0**, `docs/architecture-sitrep-2026-09-22.md`) found that
+`ARCH-DAT-6` (**P0**, `docs/archive/architecture-sitrep-2026-09-22.md`) found that
 the Journal stored **one row per `(tripId, date)`**, shared by everyone on
 the Trip, written by an autosave with last-write-wins semantics. Two
 Travellers writing up the same day — the single most likely moment for two

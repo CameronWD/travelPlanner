@@ -122,7 +122,7 @@ screenshots plus that route's `findings.auto.json` hits and grade against this b
   adjacent widths); anything the automatic checks flagged that is real.
 - **Kit reference:** where the kit (`design_handoff/playground-2/`) draws the screen, it is the
   reference at 390 and 1280. At every other width, or where the kit is silent, this checklist
-  decides. Already-logged phase-3 gaps (`docs/follow-ups/2026-09-24-playground-phase-3-gaps.md`)
+  decides. Already-logged phase-3 gaps (`docs/archive/follow-ups/2026-09-24-playground-phase-3-gaps.md`)
   are not findings.
 - **Shell rule:** anything whose only cause is the current `max-w-5xl/6xl/7xl` centred shell
   (floating rail, blank margins at ≥1440) is folded into one **Shell** finding — ADR 0062 fixes it

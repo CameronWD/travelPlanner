@@ -15,7 +15,7 @@ function ShowTheme() {
 }
 
 // Spec 2026-10-04 §F: dark mode is parked — everyone renders light, whatever
-// they chose before or their OS prefers (docs/open-follow-ups.md DM-01).
+// they chose before or their OS prefers (docs/archive/open-follow-ups.md DM-01).
 describe("ThemeProvider while dark mode is parked", () => {
   beforeEach(() => {
     html().classList.remove("dark");

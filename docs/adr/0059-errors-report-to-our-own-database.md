@@ -5,7 +5,7 @@ Accepted (2026-09-23)
 
 ## Context
 
-`ARCH-OBS-1` and `ARCH-OBS-2` (`docs/architecture-sitrep-2026-09-22.md`)
+`ARCH-OBS-1` and `ARCH-OBS-2` (`docs/archive/architecture-sitrep-2026-09-22.md`)
 found that TEEPEE had **no error-reporting sink at all**. Every server-side
 failure terminated in a bare `console.*` that nobody was watching, and the
 app's error boundaries — one per route under `app/(app)/` since Task 6 of

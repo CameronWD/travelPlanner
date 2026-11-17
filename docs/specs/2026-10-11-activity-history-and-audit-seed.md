@@ -91,7 +91,7 @@ no new field on `DemoTrip`. Covered by `prisma/demo/persist.test.ts`.
 
 ## Docs
 
-`docs/open-follow-ups.md`: strike TC-07, TC-08, TC-09 with what was done.
+`docs/archive/open-follow-ups.md`: strike TC-07, TC-08, TC-09 with what was done.
 
 ## Out of scope
 

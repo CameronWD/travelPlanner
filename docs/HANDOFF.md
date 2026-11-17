@@ -174,7 +174,7 @@ same way every migration does, via `prisma migrate deploy` (see `docs/DEPLOY.md`
 §4g for the deploy-order notes). Everyone signs in again once, because the
 session table and cookie changed. The old
 Auth.js tables are dropped later, once main has run on Better Auth for a
-release (`docs/open-follow-ups.md` TC-13), not in this migration.
+release (`docs/archive/open-follow-ups.md` TC-13), not in this migration.
 
 ---
 
@@ -457,4 +457,4 @@ fails if either creeps back. Nav controls go through `AppLink` / `useAppRouter`
   proves the hold in a real browser; "instant" is only provable on beta — see the
   checklist at the end of `docs/specs/2026-09-27-navigation-pass.md`.
 - Deferred: `NAV-01` (Cache Components) and `NAV-02` (narrow layout revalidations)
-  in `docs/open-follow-ups.md`.
+  in `docs/archive/open-follow-ups.md`.

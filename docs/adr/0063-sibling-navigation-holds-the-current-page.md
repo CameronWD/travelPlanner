@@ -50,7 +50,7 @@ file, not guidance about keeping skeletons small.
   arrival is exactly what reads as a page load once the old page holds.
 - **Adopt Cache Components and partial prefetching** (true instant navigation) — deferred, not
   rejected: a real migration because every route reads auth and Prisma. Tracked as `NAV-01`
-  in `docs/open-follow-ups.md`.
+  in `docs/archive/open-follow-ups.md`.
 
 ## Consequences
 
