@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { META_CACHE_NAME, BUILD_META_PATH } from "../lib/offline";
+import { META_CACHE_NAME, BUILD_META_PATH, LAST_TRIP_PATH } from "../lib/offline";
 
 /**
  * `public/sw.js` is the last hop before a push notification actually renders
@@ -422,6 +422,7 @@ describe("offline cache mirror of lib/offline.ts", () => {
     expect(SW_SOURCE).not.toContain("CACHE_VERSION");
     expect(SW_SOURCE).toContain(`const META_CACHE_NAME = '${META_CACHE_NAME}';`);
     expect(SW_SOURCE).toContain(`const BUILD_META_PATH = '${BUILD_META_PATH}';`);
+    expect(SW_SOURCE).toContain(`const LAST_TRIP_PATH = '${LAST_TRIP_PATH}';`);
   });
 });
 
@@ -604,20 +605,20 @@ describe("public/sw.js — redirected responses", () => {
   });
 });
 
-describe("public/sw.js — files saved for offline as bytes (spec A2)", () => {
-  function matchingCaches() {
-    const c = fakeCaches();
-    c.api.match = vi.fn(async (req: Request | string) => {
-      const url = typeof req === "string" ? req : req.url;
-      for (const s of c.stores.values()) {
-        const hit = s.bodies.get(url);
-        if (hit) return hit.clone();
-      }
-      return undefined;
-    }) as never;
-    return c;
-  }
+function matchingCaches() {
+  const c = fakeCaches();
+  c.api.match = vi.fn(async (req: Request | string) => {
+    const url = typeof req === "string" ? new URL(req, "https://teepee.example").href : req.url;
+    for (const s of c.stores.values()) {
+      const hit = s.bodies.get(url);
+      if (hit) return hit.clone();
+    }
+    return undefined;
+  }) as never;
+  return c;
+}
 
+describe("public/sw.js — files saved for offline as bytes (spec A2)", () => {
   async function fetchThrough(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, url: string) {
     let answered: Promise<Response> | undefined;
     dispatch("fetch", { request: new Request(url), respondWith: (p: Promise<Response>) => { answered = p; } });
@@ -667,5 +668,92 @@ describe("public/sw.js — files saved for offline as bytes (spec A2)", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const response = await fetchThrough(dispatch, plain);
     expect(await response.text()).toBe("jpg-bytes");
+  });
+});
+
+describe("public/sw.js — opening the app offline (spec A1)", () => {
+  // undici refuses mode "navigate" on a constructed Request, so a navigation is faked.
+  const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
+
+  async function navigate(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, url: string) {
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: navigation(url), respondWith: (p: Promise<Response>) => { answered = p; } });
+    const response = await answered!;
+    await new Promise((r) => setTimeout(r, 0));
+    return response;
+  }
+
+  async function savePages(c: ReturnType<typeof fakeCaches>, pages: Record<string, string>) {
+    const store = await c.api.open("teepee-pages-v1");
+    for (const [path, body] of Object.entries(pages)) {
+      await store.put(new Request(`https://teepee.example${path}`), new Response(body));
+    }
+  }
+
+  function goOffline() {
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  }
+
+  it("offline navigation to / serves the cached Trip Home", async () => {
+    const c = matchingCaches();
+    await savePages(c, { "/": "landing", "/trips/a/budget": "money", "/trips/a": "trip-home", "/trips": "trips-list" });
+    goOffline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await navigate(dispatch, "https://teepee.example/");
+
+    expect(await response.text()).toBe("trip-home");
+  });
+
+  it("offline navigation to / with nothing saved serves offline.html", async () => {
+    const c = matchingCaches();
+    const statics = await c.api.open("teepee-static-b1");
+    await statics.put(new Request("https://teepee.example/offline.html"), new Response("offline-page"));
+    goOffline();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await navigate(dispatch, "https://teepee.example/");
+
+    expect(await response.text()).toBe("offline-page");
+  });
+
+  it("offline navigation to / opens the Trip Home last served from the network", async () => {
+    const c = matchingCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("b-home"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    await navigate(dispatch, "https://teepee.example/trips/b");
+    await savePages(c, { "/trips/a": "a-home" });
+
+    goOffline();
+    const response = await navigate(dispatch, "https://teepee.example/");
+
+    expect(await response.text()).toBe("b-home");
+  });
+
+  it("records only a Trip Home navigation that came back ok from the network", async () => {
+    const c = matchingCaches();
+    const fetchMock = vi.fn().mockResolvedValue(new Response("page"));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    const lastTrip = async () => {
+      const hit = await (await c.api.open(META_CACHE_NAME)).match(LAST_TRIP_PATH);
+      return hit ? hit.text() : null;
+    };
+
+    await navigate(dispatch, "https://teepee.example/trips/a");
+    await navigate(dispatch, "https://teepee.example/trips/a/budget");
+    await navigate(dispatch, "https://teepee.example/trips/new");
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/trips/b"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    fetchMock.mockResolvedValueOnce(new Response("gone", { status: 404 }));
+    await navigate(dispatch, "https://teepee.example/trips/c");
+    expect(await lastTrip()).toBe("/trips/a");
+
+    goOffline();
+    await navigate(dispatch, "https://teepee.example/trips/b");
+    expect(await lastTrip()).toBe("/trips/a");
   });
 });

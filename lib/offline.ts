@@ -421,6 +421,27 @@ export const META_CACHE_NAME = 'teepee-meta-v1';
 /** The reserved key the build record lives under in META_CACHE_NAME. */
 export const BUILD_META_PATH = '/__teepee/build-meta';
 
+/** The reserved key in META_CACHE_NAME holding the Trip Home a navigation last got from the network. */
+export const LAST_TRIP_PATH = '/__teepee/last-trip';
+
+/** A Trip's Home page, `/trips/<ref>`: not a sub-page, the Trips list or the new Trip form. Mirrored in sw.js. */
+export function isTripHomePath(path: string): boolean {
+  return /^\/trips\/[^/]+$/.test(path) && path !== '/trips/new';
+}
+
+/**
+ * The saved page an offline launch at `/` opens (spec 2026-11-17 §A1): the
+ * last Trip Home served if still cached, else the first cached Trip Home,
+ * else the cached Trips list, else nothing. A cached Landing is never picked.
+ * Mirrored in sw.js.
+ */
+export function pickOfflineStart(cachedUrls: string[], lastTripPath: string | null): string | null {
+  if (lastTripPath && cachedUrls.includes(lastTripPath)) return lastTripPath;
+  const home = cachedUrls.find(isTripHomePath);
+  if (home) return home;
+  return cachedUrls.includes('/trips') ? '/trips' : null;
+}
+
 export interface BuildMeta {
   build: string;
   previous: string | null;

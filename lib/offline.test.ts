@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isTripHomePath, LAST_TRIP_PATH } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -486,5 +486,44 @@ describe('saving files for offline as bytes (spec A2)', () => {
   it('fileCacheKey hands back a URL without the flag unchanged', () => {
     const url = 'https://teepee.example/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480';
     expect(fileCacheKey(url)).toBe(url);
+  });
+});
+
+describe('opening the app offline (spec A1)', () => {
+  it('records the last Trip Home under a reserved meta key', () => {
+    expect(LAST_TRIP_PATH).toBe('/__teepee/last-trip');
+  });
+
+  it('a Trip Home is exactly /trips/<ref>, never a sub-page, the Trips list or the new Trip form', () => {
+    expect(isTripHomePath('/trips/a')).toBe(true);
+    expect(isTripHomePath('/trips/a/budget')).toBe(false);
+    expect(isTripHomePath('/trips')).toBe(false);
+    expect(isTripHomePath('/trips/new')).toBe(false);
+    expect(isTripHomePath('/')).toBe(false);
+  });
+
+  it('picks the cached Trip Home over its sub-pages and the Trips list', () => {
+    expect(pickOfflineStart(['/trips/a/budget', '/trips/a', '/trips'], null)).toBe('/trips/a');
+  });
+
+  it('picks the last Trip Home served when it is cached', () => {
+    expect(pickOfflineStart(['/trips/a', '/trips/b', '/trips'], '/trips/b')).toBe('/trips/b');
+  });
+
+  it('ignores a last Trip Home that is no longer cached', () => {
+    expect(pickOfflineStart(['/trips/a'], '/trips/b')).toBe('/trips/a');
+  });
+
+  it('falls back to the cached Trips list', () => {
+    expect(pickOfflineStart(['/trips/a/budget', '/trips'], null)).toBe('/trips');
+  });
+
+  it('never picks a cached Landing or the new Trip form', () => {
+    expect(pickOfflineStart(['/'], null)).toBeNull();
+    expect(pickOfflineStart(['/trips/new'], null)).toBeNull();
+  });
+
+  it('picks nothing when nothing is cached', () => {
+    expect(pickOfflineStart([], null)).toBeNull();
   });
 });

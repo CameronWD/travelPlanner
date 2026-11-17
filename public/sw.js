@@ -48,6 +48,8 @@ const CACHE_ENTRY_LIMITS = { static: 300, pages: 400, files: null };
 // build's static store for pages Saved for offline under it.
 const META_CACHE_NAME = 'teepee-meta-v1';
 const BUILD_META_PATH = '/__teepee/build-meta';
+// Mirrors LAST_TRIP_PATH in lib/offline.ts.
+const LAST_TRIP_PATH = '/__teepee/last-trip';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -197,6 +199,19 @@ async function servableCached(request) {
   const cache = await caches.open(CACHE_NAMES[cacheStoreFor(request.url)]);
   await cache.delete(key);
   return undefined;
+}
+
+/** Mirrors isTripHomePath() in lib/offline.ts. */
+function isTripHomePath(path) {
+  return /^\/trips\/[^/]+$/.test(path) && path !== '/trips/new';
+}
+
+/** Mirrors pickOfflineStart() in lib/offline.ts. */
+function pickOfflineStart(cachedUrls, lastTripPath) {
+  if (lastTripPath && cachedUrls.includes(lastTripPath)) return lastTripPath;
+  const home = cachedUrls.find(isTripHomePath);
+  if (home) return home;
+  return cachedUrls.includes('/trips') ? '/trips' : null;
 }
 
 /**
@@ -406,25 +421,61 @@ async function networkFirst(request) {
         .put(cacheKeyFor(request), storableResponse(response.clone()))
         .then(() => trimCache(store))
         .catch(() => {}); // non-blocking
+      if (request.mode === 'navigate') rememberTripHome(request.url).catch(() => {});
     }
     return response;
   } catch (err) {
     console.warn('[SW] network-first fetch failed, falling back to cache:', err);
-
-    const cached = await servableCached(request);
-    if (cached) return cached;
-
-    if (request.mode === 'navigate') {
-      const fallback = await caches.match('/offline.html').catch(() => null);
-      if (fallback) return fallback;
-    }
-
-    return new Response('Offline', {
-      status: 503,
-      statusText: 'Service Unavailable',
-      headers: { 'Content-Type': 'text/plain' },
-    });
+    return offlineResponse(request);
   }
+}
+
+async function rememberTripHome(url) {
+  const { pathname, search } = new URL(url);
+  if (search || !isTripHomePath(pathname)) return;
+  const meta = await caches.open(META_CACHE_NAME);
+  await meta.put(LAST_TRIP_PATH, new Response(pathname, { headers: { 'Content-Type': 'text/plain' } }));
+}
+
+/** The saved page an offline launch at / opens, chosen by pickOfflineStart. */
+async function offlineStart() {
+  const pages = await caches.open(CACHE_NAMES.pages);
+  // Cache keys come back oldest first (trimCache relies on it); the pick wants newest first.
+  const paths = (await pages.keys())
+    .map((key) => new URL(key.url))
+    .filter((url) => url.origin === self.location.origin && !url.search)
+    .map((url) => url.pathname)
+    .reverse();
+  const meta = await caches.open(META_CACHE_NAME);
+  const last = await meta.match(LAST_TRIP_PATH);
+  const path = pickOfflineStart(paths, last ? await last.text() : null);
+  if (!path) return undefined;
+  const hit = await pages.match(path);
+  return hit && isServableCacheHit('navigate', hit) ? hit : undefined;
+}
+
+/** What a request gets when the network fails: its cached copy, else the offline page for a navigation. */
+async function offlineResponse(request) {
+  // Asked before the cached `/` itself: a Landing cached while signed out must
+  // never open for a Traveller who has a Trip saved.
+  if (request.mode === 'navigate' && new URL(request.url).pathname === '/') {
+    const start = await offlineStart().catch(() => undefined);
+    if (start) return start;
+  }
+
+  const cached = await servableCached(request);
+  if (cached) return cached;
+
+  if (request.mode === 'navigate') {
+    const fallback = await caches.match('/offline.html').catch(() => null);
+    if (fallback) return fallback;
+  }
+
+  return new Response('Offline', {
+    status: 503,
+    statusText: 'Service Unavailable',
+    headers: { 'Content-Type': 'text/plain' },
+  });
 }
 
 // ---------------------------------------------------------------------------
