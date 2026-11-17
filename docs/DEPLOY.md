@@ -530,7 +530,7 @@ Steps 1 and 2 are safe to do any time before the switch; step 4 is the switch.
 
 - **The GitHub `APP_URL` variable is not optional.** The Digest cron's `curl` does not follow
   redirects, and would drop its bearer token across hosts if it did. Left on the old host it
-  gets a 301, the job only *warns* on non-2xx (§5), and Digests stop silently.
+  gets a 301, the job fails on any non-2xx (§5), so GitHub emails the owner.
 - **A new origin costs every Traveller once.** Sign in again (cookies are per host). A PWA
   installed from the old host opens out of scope after the 301 — reinstall from the new host,
   where the Install nudge shows again because its dismissal is stored per origin. Push
@@ -763,30 +763,22 @@ In the GitHub repo settings:
 - **Secrets and variables → Actions → Secrets:** add `CRON_SECRET` (same value as Vercel).
 - **Variables:** add `APP_URL` = `https://teepeeapp.com` (no trailing slash — §4e says why this must move with the host).
 
-> **Note:** Land the cron route rename away from 06/09/10/19/20 UTC: GitHub reads the
+> **Note:** Land the cron route rename away from the Digest run hours (minute 17 of the hours above): GitHub reads the
 > workflow from `main` at schedule time, Vercel needs a minute or two to deploy, and a run
 > inside that gap 404s and costs one Digest.
 
-The `Digest cron` workflow then pings `/api/cron/digest` at five fixed UTC hours —
-**06:00, 09:00, 10:00, 19:00 and 20:00** (`0 6,9,10,19,20 * * *`). The schedule is
+The `Digest cron` workflow then pings `/api/cron/digest` at eleven fixed UTC hours,
+at minute 17: **00, 06, 07, 10, 11, 13, 14, 19, 20, 21 and 23**
+(`17 0,6,7,10,11,13,14,19,20,21,23 * * *`). The schedule is
 deliberately not "every N minutes": each run asks the route to dispatch only to subscribers
-whose *local* hour is inside the morning (06–08) or evening (20–22) window, so the five
-hours exist to land inside those windows for the zones we serve. Where each run actually
-lands (✔ = the run that delivers):
-
-| UTC | Europe/Vienna (CET) | Australia/Brisbane (AEST, UTC+10) | Australia/Sydney (AEDT, UTC+11) |
-|---|---|---|---|
-| 06:00 | 07:00 **MORNING ✔** | 16:00 — | 17:00 — |
-| 09:00 | 10:00 — | 19:00 — | 20:00 **EVENING ✔** |
-| 10:00 | 11:00 — | 20:00 **EVENING ✔** | 21:00 EVENING (absorbed) |
-| 19:00 | 20:00 **EVENING ✔** | 05:00 — | 06:00 **MORNING ✔** (next day) |
-| 20:00 | 21:00 EVENING (absorbed) | 06:00 **MORNING ✔** (next day) | 07:00 MORNING (absorbed) |
+whose *local* hour is inside the morning (06–08) or evening (20–22) window, so the hours
+exist to land at least two runs inside each window for every zone we serve (Brisbane,
+Makassar, Bangkok, London, Dublin, Berlin, Paris, Rome). The table of where each run lands
+is in the header of `.github/workflows/digest-cron.yml`.
 
 An "absorbed" run sends nothing: the dispatch ledger is keyed (user, trip, local date,
 slot), so the second run inside a window is a no-op. That redundancy is deliberate cover
-for a GitHub run delayed past its hour. Note the consequence for Sydney under AEDT — the
-morning Digest arrives at **06:00 local, not 07:00**, because the 19:00Z run gets there
-first and claims the slot.
+for a GitHub run delayed past its hour or dropped.
 
 Trigger it once manually (Actions tab → Digest cron → Run workflow) to confirm it
 returns 200. `lib/digest-schedule.test.ts` holds this schedule against the route's windows,
@@ -803,7 +795,7 @@ filter is a whole local hour, only zones whose offset lines one of those hours u
   people actually notice. Any other whole-hour offset needs the same check before a
   traveller relies on it.
 - **Half-hour zones cost one more hour — not a code change.** `Asia/Kolkata` (UTC+5:30)
-  and `Asia/Kathmandu` (UTC+5:45) land in no window on the five hours above, so today they
+  and `Asia/Kathmandu` (UTC+5:45) land in no window on the hours above, so today they
   get no Digest at all. But the filter reads the subscriber's local **hour**, and a half
   hour of offset does not move it out of one: a run at **15:00Z** is 20:30 in Kolkata and
   20:45 in Kathmandu — hour 20 either way, already inside the evening window. So a

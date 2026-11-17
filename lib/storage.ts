@@ -322,6 +322,11 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
 export function getStorage(): Storage {
   const driver = process.env.STORAGE_DRIVER ?? "local";
   if (driver === "local") {
+    // Vercel's disk is ephemeral: uploads would vanish. Checked on use, never
+    // at import, so `next build` (which imports route modules) cannot trip it.
+    if (process.env.VERCEL_ENV === "production") {
+      throw new Error("STORAGE_DRIVER is local on Vercel production. Set STORAGE_DRIVER=r2.");
+    }
     return localDiskStorage;
   }
   if (driver === "r2") {

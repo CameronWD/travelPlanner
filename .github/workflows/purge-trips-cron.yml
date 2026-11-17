@@ -3,7 +3,7 @@ name: Purge trips cron
 # Hard-deletes Trips that have sat in Recently deleted past their 30-day
 # Restore window (ADR 0067), scheduling their cover and Attachment blobs for
 # the retention sweep first (lib/trip-purge.ts). Auth, skip-when-unconfigured
-# and non-2xx handling all mirror digest-cron.yml — see docs/DEPLOY.md §5.
+# and failing loudly on any non-2xx all mirror digest-cron.yml — see docs/DEPLOY.md §5.
 
 on:
   schedule:
@@ -39,7 +39,8 @@ jobs:
           cat response.txt
           echo
           if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
-            echo "::warning title=Purge-trips cron non-2xx::Purge-trips endpoint returned HTTP ${status} — not failing the job, see response body above."
+            echo "::error title=Purge-trips cron failed::Purge-trips endpoint returned HTTP ${status}. Response body: $(cat response.txt)"
+            exit 1
           fi
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

@@ -26,13 +26,12 @@ name: Digest cron
 # failing: an unconfigured repo should stay quiet, not email a failure on every
 # run. See docs/DEPLOY.md §5 for the repo Secret + Variable to set.
 #
-# A non-2xx response from a *configured* endpoint (e.g. the app itself is
-# down) is logged clearly but does NOT fail the job: transient outages are
-# not worth a failure email per scheduled run.
-# curl runs without --fail so an HTTP error status isn't treated as a curl
-# failure. A genuine transport-level problem (DNS, TLS, connection refused —
-# i.e. APP_URL itself is misconfigured) still makes curl exit non-zero and
-# still fails the job — that case is worth surfacing loudly.
+# Any non-2xx response from a *configured* endpoint fails the job, with the
+# status and response body in the log, so GitHub emails the owner: nobody can
+# deploy a fix mid-trip, but a loud failure is how the owner finds out. curl
+# runs without --fail so the status and body are printed before the job exits.
+# A transport-level problem (DNS, TLS, connection refused) makes curl exit
+# non-zero and fails the job the same way.
 on:
   schedule:
     # Each run dispatches only to subscribers whose LOCAL hour falls in the
@@ -95,14 +94,15 @@ jobs:
           echo
           if [ "${status}" -eq 503 ]; then
             # 503 is the route's dedicated "push is not configured" signal
-            # (VAPID env vars missing on the deployment). Unlike a transient
-            # outage this is a persistent misconfiguration, so fail the job —
-            # on this schedule that is at most eleven loud emails a day, not spam.
+            # (VAPID env vars missing on the deployment): a persistent
+            # misconfiguration, so on this schedule it is at most eleven loud
+            # emails a day, not spam.
             echo "::error title=Digest cron misconfigured::HTTP 503 — the app reports push is not configured (VAPID env vars missing on the deployment). Failing the job so this is not silent."
             exit 1
           fi
           if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
-            echo "::warning title=Digest cron non-2xx::Digest endpoint returned HTTP ${status} — not failing the job, see response body above."
+            echo "::error title=Digest cron failed::Digest endpoint returned HTTP ${status}. Response body: $(cat response.txt)"
+            exit 1
           fi
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

@@ -553,3 +553,32 @@ describe("presignDownload (local driver)", () => {
     }
   });
 });
+
+describe("getStorage production guard", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("throws when the driver is local on Vercel production", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STORAGE_DRIVER", "local");
+    const { getStorage } = await import("./storage");
+    expect(() => getStorage()).toThrow(
+      "STORAGE_DRIVER is local on Vercel production. Set STORAGE_DRIVER=r2.",
+    );
+  });
+
+  it("throws when the driver is unset on Vercel production", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    delete process.env.STORAGE_DRIVER;
+    const { getStorage } = await import("./storage");
+    expect(() => getStorage()).toThrow("STORAGE_DRIVER is local on Vercel production");
+  });
+
+  it.each(["preview", "development", ""])("does not throw for VERCEL_ENV=%j", async (env) => {
+    vi.stubEnv("VERCEL_ENV", env);
+    vi.stubEnv("STORAGE_DRIVER", "local");
+    const { getStorage } = await import("./storage");
+    expect(() => getStorage()).not.toThrow();
+  });
+});
