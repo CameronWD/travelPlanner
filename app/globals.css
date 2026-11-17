@@ -691,14 +691,35 @@
 }
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
-@keyframes wx-drift { from { transform: translateX(0); } to { transform: translateX(6px); } }
-@keyframes wx-fall-rain { from { transform: translateY(0) rotate(18deg); opacity: 1; } to { transform: translateY(8px) rotate(18deg); opacity: 0.4; } }
-@keyframes wx-fall-snow { from { transform: translateY(0); } to { transform: translateY(10px); } }
-@keyframes wx-spin { to { transform: rotate(360deg); } }
-@utility wx-drift { animation: wx-drift 8s ease-in-out infinite alternate; }
-@utility wx-rain { animation: wx-fall-rain 1.2s linear infinite; }
-@utility wx-snow { animation: wx-fall-snow 3s ease-in-out infinite alternate; }
-@utility wx-spin { animation: wx-spin 40s linear infinite; }
+/* Weather scenes (components/weather/scenes.tsx). Durations, delays and
+   distances ride inline on each piece; these only name the motion. SVG pieces
+   that turn or scale pivot on their own box, not the canvas origin. */
+@keyframes wx-pan { to { transform: translateX(var(--wx-pan-by)); } }
+@keyframes wx-bob { to { transform: translate(var(--wx-bob-x, 0px), var(--wx-bob-y, 0px)); } }
+@keyframes wx-fall { from { transform: translate(var(--wx-fx, 0px), var(--wx-fy, 0px)); } to { transform: translate(var(--wx-tx, 0px), var(--wx-ty, 0px)); } }
+@keyframes wx-sway { from { transform: translateX(-5px); } to { transform: translateX(5px); } }
+@keyframes wx-turn { to { transform: rotate(360deg); } }
+@keyframes wx-breathe { from { transform: scale(0.92); } to { transform: scale(1.08); } }
+@keyframes wx-splash { 0% { transform: scale(0.3); opacity: 1; } 16% { transform: scale(1.15); opacity: 0; } 100% { transform: scale(1.15); opacity: 0; } }
+/* Two short flashes every 7s: far under the 3-per-second photosensitivity line. */
+@keyframes wx-flash { 0%, 88%, 90%, 92.5%, 100% { opacity: 0; } 89% { opacity: 0.55; } 91.2% { opacity: 0.35; } }
+@keyframes wx-twinkle { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.4); } }
+@utility wx-pan { animation: wx-pan 60s linear infinite; }
+@utility wx-bob { animation: wx-bob 9s ease-in-out infinite alternate; }
+@utility wx-fall { animation: wx-fall 1s linear infinite; }
+@utility wx-sway { animation: wx-sway 4s ease-in-out infinite alternate; }
+@utility wx-turn { animation: wx-turn 90s linear infinite; transform-box: fill-box; transform-origin: center; }
+@utility wx-breathe { animation: wx-breathe 3.2s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@utility wx-splash { animation: wx-splash 1s linear infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@utility wx-flash { opacity: 0; animation: wx-flash 7s linear infinite; }
+@utility wx-twinkle { animation: wx-twinkle 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@utility wx-drop { rotate: var(--wx-rain-angle, 0deg); transform-box: fill-box; transform-origin: 50% 0; }
+/* The global reduced-motion rule only shortens each loop to one 0.01ms run.
+   Scenes are decoration: stop them outright, every piece at its drawn rest
+   position. */
+@media (prefers-reduced-motion: reduce) {
+  [data-scene] * { animation: none !important; }
+}
 
 @utility tp-fade-in { animation: tp-fade-in var(--dur-base) linear; }
 /* Paced to tp-slide-up (--dur-slow), so a sheet's backdrop and its panel arrive

@@ -3,7 +3,8 @@ import { cn } from "@/lib/cn";
 import type { DayWeather } from "@/lib/weather";
 import { themeFill, type WeatherTheme } from "@/lib/weather/theme";
 import { Scene } from "@/components/weather/scenes";
-import { DaylightBar, type DaylightView } from "@/components/weather/daylight-bar";
+import { DaylightArc } from "@/components/weather/daylight-arc";
+import type { DaylightView } from "@/lib/daylight";
 
 export interface WeatherCardProps {
   size: "regular" | "compact";
@@ -18,7 +19,6 @@ export interface WeatherCardProps {
 }
 
 const deg = (n: number | null) => (n == null ? "—" : `${Math.round(n)}°`);
-const nowPctOf = (hm: string | null | undefined) => { if (!hm) return null; const [h, m] = hm.split(":").map(Number); return ((h * 60 + m) / 1440) * 100; };
 
 function Chip({ children, ink = false, testId = "wx-chip", className }: { children: ReactNode; ink?: boolean; testId?: string; className?: string }) {
   return (
@@ -69,9 +69,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
   return (
     <section aria-label="Weather" className={box}>
       <h2 className="sr-only">Weather</h2>
-      {theme.scene ? (
-        <div className={cn("absolute inset-0", compact && "origin-top-right scale-[.62]")}><Scene scene={theme.scene} /></div>
-      ) : null}
+      {theme.scene ? <Scene scene={theme.scene} isDay={day?.current?.isDay ?? true} gustsKph={day?.gustsKph ?? null} /> : null}
       {theme.offline ? <Chip ink testId="wx-offline" className="absolute right-3 top-3">{theme.offline}</Chip> : null}
 
       <div className="relative flex flex-col">
@@ -88,13 +86,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
       </div>
 
       <div className="relative mt-auto">
-        <DaylightBar
-          daylight={daylight}
-          size={size}
-          segmentClass={theme.key === "sunny" ? "bg-wx-sun-disc" : "bg-wx-sunny"}
-          trackClass={night ? "bg-wx-night-track border-wx-night-text" : "bg-card"}
-          nowPct={night ? nowPctOf(nowLocal) : null}
-        />
+        <DaylightArc {...daylight} now={nowLocal} size={size} />
       </div>
     </section>
   );

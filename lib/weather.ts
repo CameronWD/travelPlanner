@@ -42,13 +42,11 @@ const round = (n: number) => Math.round(n * 10) / 10; // ~11km grid for cache ke
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /**
- * WMO weather code → coarse condition bucket. This is the single cascading
- * `<=` ladder both `weatherLabel` and `lib/weather-tone.ts`'s `weatherTone`
- * read from, so a label and a tone/icon can never disagree about the same
- * code — including "gap" codes the WMO table skips (e.g. 4-44, 68-70) that
- * would otherwise fall through a range-based lookup to a wrong default.
+ * WMO weather code → coarse condition bucket: one cascading `<=` ladder, so
+ * "gap" codes the WMO table skips (e.g. 4-44, 68-70) land in the nearest
+ * bucket instead of falling through a range-based lookup to a wrong default.
  */
-export type WeatherBucket =
+type WeatherBucket =
   | "clear"
   | "partly"
   | "overcast"
@@ -59,7 +57,7 @@ export type WeatherBucket =
   | "snow-showers"
   | "storm";
 
-export function weatherBucket(code: number | null): WeatherBucket | null {
+function weatherBucket(code: number | null): WeatherBucket | null {
   if (code == null) return null;
   if (code === 0) return "clear";
   if (code <= 2) return "partly";

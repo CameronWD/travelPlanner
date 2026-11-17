@@ -82,3 +82,34 @@ const FILL: Record<ThemeKey, string> = {
   snow: "bg-wx-snow", storm: "bg-wx-storm", wind: "bg-wx-wind", heat: "bg-wx-heat", night: "bg-wx-night", "too-far": "bg-background",
 };
 export function themeFill(key: ThemeKey): string { return FILL[key]; }
+
+type Bands = readonly string[];
+const DAY_SKY: Record<SceneKey, Bands> = {
+  sunny: ["wx-sunny", "wx-partly"],
+  partly: ["wx-partly", "wx-cloud"],
+  overcast: ["wx-overcast", "wx-fog", "wx-cloud-back"],
+  fog: ["wx-fog", "wx-cloud-back", "wx-cloud"],
+  rain: ["wx-rain", "wx-wind"],
+  snow: ["wx-snow", "wx-cloud-back"],
+  storm: ["wx-storm", "wx-snow"],
+  wind: ["wx-wind", "wx-cloud"],
+  heat: ["wx-heat", "wx-sun-disc", "wx-sunny"],
+  night: ["wx-night", "wx-night-track"],
+};
+// Evening skies stay light enough for the card's ink text (every top band
+// here is at least 6:1 against ink); only the clear night turns dark.
+const NIGHT_SKY: Record<SceneKey, Bands> = {
+  sunny: ["wx-storm", "wx-snow"],
+  partly: ["wx-storm", "wx-snow"],
+  overcast: ["wx-cloud-storm", "wx-overcast"],
+  fog: ["wx-cloud-storm", "wx-overcast", "wx-fog"],
+  rain: ["wx-cloud-storm", "wx-rain"],
+  snow: ["wx-storm", "wx-snow", "wx-cloud-back"],
+  storm: ["wx-cloud-storm", "wx-storm"],
+  wind: ["wx-cloud-storm", "wx-wind"],
+  heat: ["wx-heat", "wx-sun-disc"],
+  night: DAY_SKY.night,
+};
+export function skyBands(variant: SceneKey, isDay: boolean): string[] {
+  return [...(isDay ? DAY_SKY : NIGHT_SKY)[variant]];
+}
