@@ -97,6 +97,8 @@ model User {
   // Better Auth (ADR 0071) — core and OAuth-provider tables.
   authSessions       AuthSession[]
   authAccounts       AuthAccount[]
+  hopModes           HopMode[]
+  flagDismissals     FlagDismissal[]
   oauthClients       OauthClient[]
   oauthRefreshTokens OauthRefreshToken[]
   oauthAccessTokens  OauthAccessToken[]
@@ -545,6 +547,9 @@ model Trip {
 
   forks Fork[]
 
+  hopModes       HopMode[]
+  flagDismissals FlagDismissal[]
+
   slugHistory TripSlug[]
 
   createdAt DateTime @default(now())
@@ -825,6 +830,12 @@ model Item {
   countryCode      String? // ISO 3166-1 alpha-2, lowercase, derived by geocoding — same as Stop/Marker
   address          String?
   placeId          String? // Google place ID — set by a pick or the backfill
+  // Spec 2026-11-18 T3: an optional end pin for a one-way thing (a hike or
+  // drive that finishes somewhere else). Null = the thing ends where it starts.
+  endAddress       String?
+  endLat           Float?
+  endLng           Float?
+  endPlaceId       String?
   businessStatus   String? // Google: OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
   statusCheckedAt  DateTime? // when businessStatus was last read from Google
   link             String?
@@ -882,6 +893,8 @@ model Item {
   sourceMarker Marker?    @relation("ItemFromMarker", fields: [sourceMarkerId], references: [id], onDelete: SetNull)
   votes        Vote[]
   reminders    Reminder[]
+  hopsFrom     HopMode[]  @relation("HopModeFrom")
+  hopsTo       HopMode[]  @relation("HopModeTo")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1598,4 +1611,41 @@ model NearbyCache {
   status    String
   results   Json
   fetchedAt DateTime @default(now()) @updatedAt
+}
+
+/// Spec 2026-11-18 T4: the travel mode a Traveller chose for one hop between
+/// two consecutive things on a Day. One row per (from, to) pair.
+model HopMode {
+  id         String   @id @default(cuid())
+  tripId     String
+  fromItemId String
+  toItemId   String
+  mode       String // "WALK" | "TRANSIT" | "DRIVE"
+  setById    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  trip     Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromItem Item @relation("HopModeFrom", fields: [fromItemId], references: [id], onDelete: Cascade)
+  toItem   Item @relation("HopModeTo", fields: [toItemId], references: [id], onDelete: Cascade)
+  setBy    User @relation(fields: [setById], references: [id], onDelete: Cascade)
+
+  @@unique([fromItemId, toItemId])
+  @@index([tripId])
+}
+
+/// Spec 2026-11-18 T5: a Flag a Traveller marked fine. The fingerprint is the
+/// flag's content when it was dismissed, so a changed flag resurfaces.
+model FlagDismissal {
+  id          String   @id @default(cuid())
+  tripId      String
+  flagId      String
+  fingerprint String
+  markedById  String
+  createdAt   DateTime @default(now())
+
+  trip     Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  markedBy User @relation(fields: [markedById], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, flagId])
 }
