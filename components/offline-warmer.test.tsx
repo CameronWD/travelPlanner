@@ -314,13 +314,46 @@ describe("OfflineWarmer", () => {
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
     });
 
-    it("an incomplete save is warmed again on the next open, even inside the 6 hours", async () => {
+    it("a save that lost only a file is not warmed again inside the 6 hours", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p.startsWith("/trips/") ? new Response("") : undefined)) });
+      fetchMock.mockImplementation(async (url: string) => new Response("", { status: url.includes("/api/attachments/") ? 413 : 200 }));
+      markSaved("t1", Date.now() - 60 * 60_000);
+      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 2, saved: 1, at: Date.now() - 60_000, pagesFailed: false }));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} />);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/big?offline=1", { cache: "no-store" }));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(fetchMock).not.toHaveBeenCalledWith("/trips/t1", expect.anything());
+    });
+
+    it("a first run whose only loss is a file is stamped and counted short", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      fetchMock.mockImplementation(async (url: string) => new Response("", { status: url.includes("/api/attachments/") ? 413 : 200 }));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 1, pagesFailed: false }));
+      expect(getStatus("t1").savedAt).toEqual(expect.any(Number));
+    });
+
+    it("a save that lost a page is warmed again on the next open, even inside the 6 hours", async () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
       markSaved("t1", Date.now() - 60_000);
-      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 4, saved: 3, at: Date.now() - 60_000 }));
+      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 4, saved: 3, at: Date.now() - 60_000, pagesFailed: true }));
       render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1", { cache: "no-store" }));
+    });
+  });
+
+  describe("a browser with no service worker support", () => {
+    it("mounts, does nothing and throws nothing", async () => {
+      stubNavigator({ onLine: true, hasController: false });
+      delete (navigator as unknown as Record<string, unknown>).serviceWorker;
+      const { container } = render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(container.firstChild).toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(getStatus("t1").state).toBe("idle");
     });
   });
 

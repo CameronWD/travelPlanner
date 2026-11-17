@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, isIncomplete, subscribe, takeWarmRequest } from "@/lib/offline-status";
+import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, subscribe, takeWarmRequest } from "@/lib/offline-status";
 import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, warmUrlFor, type ConnectionHint } from "@/lib/offline";
 
 function subscribeToController(onChange: () => void): () => void {
@@ -29,11 +29,6 @@ function hasController(): boolean {
  * build: its pages point at that deploy's chunks, so the first open after a
  * deploy re-warms them. Attachments and the cover keep their own already-cached check.
  *
- * A freshly installed worker takes control only after the first load, so the
- * warm runs again when it does (`controllerchange`). Every run tells the worker
- * which Trip was opened, so a cold launch can open it. A run counts what it
- * saved; a page that failed keeps the run from starting the 6-hour skip.
- *
  * Progress goes to lib/offline-status.ts so the Trip's Settings row can show
  * it.
  */
@@ -51,14 +46,16 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
     if (typeof navigator === "undefined" || !navigator.onLine) return;
     // Only warm when a SW is actually controlling the page (prod); otherwise
     // these fetches do nothing useful — and the status stays "Not saved yet".
+    if (!("serviceWorker" in navigator) || !controlled) return;
     const worker = navigator.serviceWorker.controller;
-    if (!controlled || !worker) return;
+    if (!worker) return;
 
     const pathList = pathsKey === "" ? [] : pathsKey.split("\n");
     let cancelled = false;
     const warm = async () => {
       if (cancelled) return;
       const forced = takeWarmRequest(tripId);
+      // So a cold launch with no signal opens the Trip last opened.
       const home = pathList.find(isCachedTripHome);
       if (home) worker.postMessage({ type: "LAST_TRIP", path: home });
       // Never on a connection that asks to save data — unless the Traveller
@@ -69,7 +66,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       // HTML references that deploy's chunks. No recorded build → stale.
       const saved = getStatus(tripId);
       const sameBuild = saved.savedBuild !== null && saved.savedBuild === currentBuildId();
-      let warmPages = forced || !sameBuild || !isWarmFresh(saved.savedAt, Date.now()) || isIncomplete(saved);
+      let warmPages = forced || !sameBuild || !isWarmFresh(saved.savedAt, Date.now()) || saved.pagesFailed;
       // A fresh savedAt only counts if the pages are really still cached: a
       // new worker's activate (spec 2026-10-06 §T), sign-out's CLEAR_CACHE or
       // browser eviction can empty the cache while localStorage still says

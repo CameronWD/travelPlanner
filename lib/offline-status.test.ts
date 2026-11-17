@@ -27,11 +27,11 @@ afterEach(() => {
 
 describe("offline status store", () => {
   it("starts idle with no timestamp for a trip that was never warmed", () => {
-    expect(getStatus("t1")).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, requestId: 0 });
+    expect(getStatus("t1")).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, requestId: 0 });
   });
 
   it("the server snapshot is always idle", () => {
-    expect(getServerStatus()).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, requestId: 0 });
+    expect(getServerStatus()).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, requestId: 0 });
   });
 
   it("returns the same object until something changes (useSyncExternalStore needs that)", () => {
@@ -103,6 +103,16 @@ describe("what the last run saved", () => {
     expect(getStatus("t1")).toMatchObject({ state: "saved", total: 46, saved: 40, savedAt: 1_700_000_000_000, ranAt: 1_700_000_999_000 });
     expect(window.localStorage.getItem("teepee.offline.savedAt.t1")).toBe("1700000000000");
     expect(isIncomplete(getStatus("t1"))).toBe(true);
+  });
+
+  it("flags a page failure, not a file-only shortfall, and keeps the flag across a reload", () => {
+    finishWarm("t1", { total: 46, saved: 45, pagesFailed: 0 }, 1_700_000_000_000);
+    expect(getStatus("t1")).toMatchObject({ saved: 45, savedAt: 1_700_000_000_000, pagesFailed: false });
+    finishWarm("t2", { total: 46, saved: 45, pagesFailed: 1 }, 1_700_000_000_000);
+    expect(getStatus("t2").pagesFailed).toBe(true);
+    resetOfflineStatus();
+    expect(getStatus("t2").pagesFailed).toBe(true);
+    expect(getStatus("t1").pagesFailed).toBe(false);
   });
 
   it("a first run with a failed page has no savedAt, and survives a reload as saved", () => {

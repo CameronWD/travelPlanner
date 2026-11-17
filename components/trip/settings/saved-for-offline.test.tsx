@@ -93,6 +93,15 @@ describe("SavedForOffline", () => {
     expect(screen.getByRole("button", { name: "Save again" })).toBeEnabled();
   });
 
+  it("a file-only shortfall reads short with the time that run finished", () => {
+    stubNavigator({ onLine: true, hasController: true });
+    window.localStorage.setItem("teepee.offline.savedAt.t1", String(Date.now() - 5 * 60 * 60_000));
+    finishWarm("t1", { total: 46, saved: 45, pagesFailed: 0 }, Date.now() - 60 * 60_000);
+    render(<SavedForOffline tripId="t1" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Saved 45 of 46 · 1h ago");
+    expect(screen.getByRole("button", { name: "Save again" })).toBeEnabled();
+  });
+
   it("never says 0 of 0", () => {
     stubNavigator({ onLine: true, hasController: true });
     finishWarm("t1", { total: 0, saved: 0, pagesFailed: 0 }, Date.now());

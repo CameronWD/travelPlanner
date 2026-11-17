@@ -27,12 +27,12 @@ export interface OfflineStatus {
   savedAt: number | null;
   /** The build the last completed warm ran under; null when unknown. */
   savedBuild: string | null;
-  /** Pages and files the last finished run tried to save; null when unknown. */
   total: number | null;
-  /** How many of `total` it saved. */
   saved: number | null;
-  /** Epoch ms the last finished run ended, complete or not; null when none has. */
+  // When the last run ended, whether or not it saved everything: the row's time for a shortfall.
   ranAt: number | null;
+  // The last run lost a page or a page's asset (a file never counts): the next automatic open warms again.
+  pagesFailed: boolean;
   /** Bumped by requestWarm(); the warmer re-runs when it changes. */
   requestId: number;
 }
@@ -46,7 +46,7 @@ export interface WarmResult {
 const STORAGE_PREFIX = "teepee.offline.savedAt.";
 const BUILD_STORAGE_PREFIX = "teepee.offline.savedBuild.";
 const COUNTS_STORAGE_PREFIX = "teepee.offline.counts.";
-const IDLE: OfflineStatus = { state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, requestId: 0 };
+const IDLE: OfflineStatus = { state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, requestId: 0 };
 
 /** This deploy's build id (inlined by next.config.ts), "dev" when unset. */
 export function currentBuildId(): string {
@@ -83,23 +83,23 @@ function readSavedBuild(tripId: string): string | null {
   }
 }
 
-function readCounts(tripId: string): Pick<OfflineStatus, "total" | "saved" | "ranAt"> {
-  const none = { total: null, saved: null, ranAt: null };
+function readCounts(tripId: string): Pick<OfflineStatus, "total" | "saved" | "ranAt" | "pagesFailed"> {
+  const none = { total: null, saved: null, ranAt: null, pagesFailed: false };
   if (typeof window === "undefined") return none;
   try {
     const raw = window.localStorage.getItem(COUNTS_STORAGE_PREFIX + tripId);
     if (!raw) return none;
-    const { total, saved, at } = JSON.parse(raw) as Record<string, unknown>;
+    const { total, saved, at, pagesFailed } = JSON.parse(raw) as Record<string, unknown>;
     if (typeof total !== "number" || typeof saved !== "number" || typeof at !== "number") return none;
-    return { total, saved, ranAt: at };
+    return { total, saved, ranAt: at, pagesFailed: pagesFailed === true };
   } catch {
     return none;
   }
 }
 
-function writeCounts(tripId: string, total: number, saved: number, at: number) {
+function writeCounts(tripId: string, total: number, saved: number, at: number, pagesFailed: boolean) {
   try {
-    window.localStorage.setItem(COUNTS_STORAGE_PREFIX + tripId, JSON.stringify({ total, saved, at }));
+    window.localStorage.setItem(COUNTS_STORAGE_PREFIX + tripId, JSON.stringify({ total, saved, at, pagesFailed }));
   } catch {
     // Same as writeSavedAt: the in-memory state still updates.
   }
@@ -162,7 +162,6 @@ export function takeWarmRequest(tripId: string): boolean {
   return requestId !== handled;
 }
 
-/** The last finished run saved fewer than it tried; never "0 of 0". */
 export function isIncomplete(status: OfflineStatus): boolean {
   return status.total !== null && status.saved !== null && status.saved < status.total;
 }
@@ -171,14 +170,16 @@ export function beginWarm(tripId: string): void {
   update(tripId, { state: "saving" });
 }
 
-/**
- * A run with a failed page records its counts but leaves `savedAt` alone, so
- * the 6-hour skip never treats an incomplete save as fresh.
- */
+// A run that lost a page keeps its counts but not a new savedAt, and is
+// flagged so the next automatic open warms the pages again however fresh an
+// older savedAt is. A run that lost only a file is stamped: files are retried
+// on every run by their own cache check, so re-fetching every page would add
+// nothing.
 export function finishWarm(tripId: string, result: WarmResult, at: number = Date.now()): void {
-  writeCounts(tripId, result.total, result.saved, at);
-  const counts = { total: result.total, saved: result.saved, ranAt: at };
-  if (result.pagesFailed > 0) {
+  const pagesFailed = result.pagesFailed > 0;
+  writeCounts(tripId, result.total, result.saved, at, pagesFailed);
+  const counts = { total: result.total, saved: result.saved, ranAt: at, pagesFailed };
+  if (pagesFailed) {
     update(tripId, { state: "saved", ...counts });
     return;
   }
