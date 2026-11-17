@@ -441,7 +441,7 @@ function TransportRow({
         <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {formatDayLabel(depEntry.arrivalDateISO)}</p>
       )}
       <AttachmentLinks attachments={attachments} />
-      {needsConfirmation && <div className="mt-0.5"><BookingConfirmationMarker kind="TRANSPORT" id={t.id} /></div>}
+      {needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="TRANSPORT" id={t.id} /></div>}
     </DayRow>
   );
 }
@@ -566,7 +566,7 @@ function AccomCheckinRow({
         <p className="mt-0.5"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
       )}
       <AttachmentLinks attachments={attachments} />
-      {needsConfirmation && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
+      {needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
     </DayRow>
   );
 }
@@ -676,7 +676,7 @@ function DayItemBody({
       )}
       {tryCount && tickable && tryList && <TryListTicks itemId={item.id} itemTitle={item.title} list={tryList} />}
       <AttachmentLinks attachments={attachments} />
-      {needsConfirmation && !placeholder && <div className="mt-0.5"><BookingConfirmationMarker kind="ITEM" id={item.id} /></div>}
+      {needsConfirmation && !placeholder && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ITEM" id={item.id} /></div>}
     </>
   );
 }

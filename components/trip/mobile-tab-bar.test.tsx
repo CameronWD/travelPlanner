@@ -1,7 +1,8 @@
 import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
@@ -117,6 +118,40 @@ describe("MobileTabBar", () => {
     const days = screen.getByRole("link", { name: "Days" });
     expect(days).toHaveAttribute("href", "/trips/t1/day/2026-12-04");
     expect(days).toHaveAttribute("aria-current", "page");
+  });
+
+  it("lists Files, Checklists and Journal first while Travelling, then the rest in order, plus Share and Notifications", async () => {
+    const user = userEvent.setup();
+    render(<MobileTabBar tripId="t1" phase="travelling" />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const rows = Array.from(screen.getByRole("dialog").querySelectorAll("a, button"))
+      .map((el) => el.textContent)
+      .filter((t) => t !== "Close");
+    expect(rows).toEqual([
+      "Files", "Checklists", "Journal", "Calendar", "Summary", "Reviews", "Wishlist", "Activity", "Settings", "Help", "Share", "Notifications",
+    ]);
+    expect(screen.getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/trips/t1/activity");
+  });
+
+  it("Share opens the Trip's share chooser and closes the sheet", async () => {
+    const user = userEvent.setup();
+    const opened = vi.fn();
+    window.addEventListener(OPEN_SHARE_EVENT, opened);
+    render(<MobileTabBar tripId="t1" phase="travelling" />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    window.removeEventListener(OPEN_SHARE_EVENT, opened);
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it.each(["planning", "final-prep", "past", undefined] as const)("keeps the existing order and no Share or Notifications in phase %s", async (phase) => {
+    const user = userEvent.setup();
+    render(<MobileTabBar tripId="t1" phase={phase} />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const rows = within(screen.getByRole("dialog")).getAllByRole("link").map((el) => el.textContent);
+    expect(rows).toEqual(["Calendar", "Summary", "Reviews", "Wishlist", "Journal", "Checklists", "Files", "Activity", "Settings", "Help"]);
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
   });
 
   it("reaches all ten More-only routes from the sheet", async () => {

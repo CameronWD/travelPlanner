@@ -237,7 +237,7 @@ export default async function TripLayout({
         </div>
 
         {/* ── Mobile bottom tab bar ── */}
-        <MobileTabBar tripId={tripId} />
+        <MobileTabBar tripId={tripId} phase={tripPhase} />
       </div>
     </DaysHrefProvider>
   );

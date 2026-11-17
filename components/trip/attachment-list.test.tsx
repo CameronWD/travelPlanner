@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, useState, type FormEvent } from "react";
 
@@ -755,7 +755,7 @@ describe("AttachmentList", () => {
     expect(classes).not.toContain("items-center");
     const actions = screen.getByRole("button", { name: "Delete boarding-pass.pdf" }).parentElement!;
     expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["absolute", "right-2", "top-2", "sm:static", "md:absolute", "md:right-2", "md:top-2"]));
-    const name = screen.getByText("boarding-pass.pdf", { selector: "p" });
+    const name = screen.getByRole("link", { name: "View boarding-pass.pdf" }).closest("p")!;
     expect(name).toHaveAttribute("title", "boarding-pass.pdf");
     expect(name.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["w-full", "min-w-0", "sm:w-auto", "sm:flex-1", "md:w-full"]));
   });
@@ -771,15 +771,34 @@ describe("AttachmentList", () => {
     expect(pdf).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("file links and delete buttons are named with the file name and have 44px targets", () => {
+  it("the file link and delete button are named with the file name; delete has a 44px target", () => {
     render(
       <AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />,
     );
     const link = screen.getByRole("link", { name: "View boarding-pass.pdf" });
     expect(link).toHaveAttribute("href", "https://example.com/boarding-pass.pdf");
-    expect(link).toHaveClass("size-11");
     const del = screen.getByRole("button", { name: "Delete hotel-voucher.jpg" });
     expect(del).toHaveClass("size-11");
+  });
+
+  it("the whole card opens the file: the link is stretched over it, the controls sit above it", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} showUpload={false} onRename={vi.fn()} />,
+    );
+    const card = container.querySelector('[data-slot="file-card"]') as HTMLElement;
+    const link = within(card).getByRole("link", { name: "View boarding-pass.pdf" });
+    expect(card).toHaveClass("relative");
+    expect(link.className).toContain("after:inset-0");
+    expect(within(card).getAllByRole("link")).toHaveLength(1);
+    expect(link.closest("button")).toBeNull();
+    const del = within(card).getByRole("button", { name: "Delete boarding-pass.pdf" });
+    expect(del.parentElement).toHaveClass("z-10");
+    expect(link.contains(del)).toBe(false);
+    const open = vi.spyOn(window, "open").mockReturnValue({} as Window);
+    await user.click(del);
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 
   it("compact mode keeps its dense list (no kit file cards)", () => {

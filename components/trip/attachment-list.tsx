@@ -367,7 +367,14 @@ export function AttachmentList({
 
               <div className="w-full min-w-0 sm:w-auto sm:flex-1 md:w-full md:pr-24">
                 <p className="truncate text-sm font-extrabold text-foreground" title={attachmentName(att)}>
-                  {attachmentName(att)}
+                  <AttachmentLink
+                    href={att.url}
+                    mime={att.mime}
+                    label={`View ${attachmentName(att)}`}
+                    className="after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-[3px] focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
+                  >
+                    {attachmentName(att)}
+                  </AttachmentLink>
                 </p>
                 <p className="mt-0.5 break-words text-xs font-semibold text-muted-foreground">
                   {att.title ? `${att.filename} · ` : ""}
@@ -378,7 +385,7 @@ export function AttachmentList({
                 {att.owner ? (
                   <p className="mt-0.5 truncate text-xs font-semibold" title={att.owner.label}>
                     {att.owner.href ? (
-                      <Link href={att.owner.href} className="text-foreground underline-offset-2 hover:underline">
+                      <Link href={att.owner.href} className="relative z-10 text-foreground underline-offset-2 hover:underline">
                         {att.owner.label}
                       </Link>
                     ) : (
@@ -388,7 +395,7 @@ export function AttachmentList({
                 ) : null}
               </div>
 
-              <div className="absolute right-2 top-2 flex shrink-0 items-center sm:static md:absolute md:right-2 md:top-2">
+              <div className="absolute right-2 top-2 z-10 flex shrink-0 items-center sm:static md:absolute md:right-2 md:top-2">
                 {onRename && (
                   <Button
                     type="button"
@@ -413,14 +420,6 @@ export function AttachmentList({
                     <MoveRight className="size-[18px]" aria-hidden="true" />
                   </Button>
                 )}
-                <AttachmentLink
-                  href={att.url}
-                  mime={att.mime}
-                  label={`View ${attachmentName(att)}`}
-                  className={cn(CARD_ACTION, "hover:bg-muted")}
-                >
-                  <ExternalLink className="size-[18px]" aria-hidden="true" />
-                </AttachmentLink>
                 <Button
                   type="button"
                   variant="ghost"

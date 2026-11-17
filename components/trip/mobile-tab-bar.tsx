@@ -16,10 +16,12 @@ import { NAV_ICONS } from "@/components/trip/nav-icons";
 import { useDaysHref } from "@/components/trip/days-href-context";
 import { useTripSlug } from "@/components/trip/use-trip-href";
 import { tripPath } from "@/lib/trip-path";
+import type { TripPhase } from "@/lib/trip-phase";
+import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";
 import { cn } from "@/lib/cn";
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
-export function MobileTabBar({ tripId }: { tripId: string }) {
+export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPhase }) {
   // The tapped target lights while its navigation is in flight (ADR 0063);
   // aria-current (and the More trigger's "selected" name) stays on the page
   // actually shown until the new one lands.
@@ -39,7 +41,12 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   // Money) plus More as the fifth — so all ten routes that have no other
   // mobile entry point (Calendar, Summary, Reviews, Wishlist, Journal,
   // Checklists, Files, Activity, Settings, Help) stay behind this one sheet.
-  const sheetItems = [byLabel("Calendar"), byLabel("Summary"), byLabel("Reviews"), ...more];
+  const travelling = phase === "travelling";
+  const ordered = [byLabel("Calendar"), byLabel("Summary"), byLabel("Reviews"), ...more];
+  const promoted = ["Files", "Checklists", "Journal"];
+  const sheetItems = travelling
+    ? [...promoted.map((label) => ordered.find((i) => i.label === label)!), ...ordered.filter((i) => !promoted.includes(i.label))]
+    : ordered;
   const sheetActive = sheetItems.some((item) => isNavActive(item.href, pathname, base));
   const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, realPathname, base));
 
@@ -97,6 +104,27 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
                 {item.label}
               </AppLink>
             ))}
+            {travelling && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    window.dispatchEvent(new Event(OPEN_SHARE_EVENT));
+                  }}
+                  className="rounded-xl px-4 py-3 text-left text-sm font-medium text-foreground hover:bg-muted/50"
+                >
+                  Share
+                </button>
+                <AppLink
+                  href={tripPath(tripRef, "/activity")}
+                  onClick={() => setOpen(false)}
+                  className="rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
+                >
+                  Notifications
+                </AppLink>
+              </>
+            )}
           </div>
         </SheetContent>
       </Sheet>

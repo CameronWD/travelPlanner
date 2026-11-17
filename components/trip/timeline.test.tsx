@@ -1370,6 +1370,21 @@ describe("Timeline: booking confirmation marker", () => {
     expect(screen.queryByText(MARKER)).toBeNull();
   });
 
+  it("drops the marker from item, transport and check-in rows when the editor reads first (Travelling or Past)", () => {
+    const editor = { tripId: "t1", stops: [], readFirst: true, transports: {}, accommodations: {}, items: {}, costsByOwner: {} };
+    render(<Timeline day={dayPlan} variant="day" editor={editor} needsConfirmationIds={[ITEM_ID, UNTIMED_ITEM_ID]} />);
+    render(<Timeline day={dayPlanWithTransport} variant="day" editor={editor} needsConfirmationIds={["tr-1"]} />);
+    render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} needsConfirmationIds={["acc-1"]} />);
+    expect(screen.queryByText(MARKER)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+  });
+
+  it("keeps the marker while planning (readFirst false)", () => {
+    const editor = { tripId: "t1", stops: [], readFirst: false, transports: {}, accommodations: {}, items: {}, costsByOwner: {} };
+    render(<Timeline day={dayPlan} variant="day" editor={editor} needsConfirmationIds={[ITEM_ID]} />);
+    expect(screen.getAllByText(MARKER)).toHaveLength(1);
+  });
+
   it("never marks the check-out row", () => {
     render(<Timeline day={dayPlanWithCheckout} variant="day" needsConfirmationIds={["acc-1"]} />);
     expect(screen.queryByText(MARKER)).toBeNull();
