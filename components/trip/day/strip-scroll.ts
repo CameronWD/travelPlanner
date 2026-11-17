@@ -2,7 +2,8 @@
  * Day strip scroll rules. Pure so they can be tested without layout.
  *
  * Wide screen (lg+, spec 2026-11-18 D2): the selected day holds the centre,
- * under a fixed frame, and the strip slides beneath it in one glide.
+ * under a fixed frame, and the strip slides beneath it in one glide. A look
+ * around by hand glides back to it after a quiet moment.
  *
  * Phone (< lg, ADR 0065): the selected day sits in the centre of the strip's
  * viewport. The scroller's end padding lets the first and last day centre
@@ -10,6 +11,7 @@
  */
 export const STRIP_CHIP_GAP_PX = 8;
 export const STRIP_GLIDE_WIDE_MS = 250;
+export const STRIP_RETURN_AFTER_MS = 1500;
 
 export interface StripScrollInput {
   scrollLeft: number;

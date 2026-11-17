@@ -1,10 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, act } from "@testing-library/react";
 import { DayStrip } from "@/components/trip/day/day-strip";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 import { DayCarouselContext, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import type { StopLine } from "@/lib/day-view-model";
 import { setMatchMedia } from "@/test/setup";
+import { centredScrollLeft, STRIP_CHIP_GAP_PX } from "@/components/trip/day/strip-scroll";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, scroll, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} data-scroll={String(scroll)} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
@@ -317,6 +318,106 @@ describe("DayStrip", () => {
         spy.mockRestore();
         vi.useRealTimers();
       }
+    });
+    describe("a look around (spec 2026-11-18 D2 follow-up)", () => {
+      const frame = () => document.querySelector("[data-strip-centre]") as HTMLElement;
+      const scrollerEl = () => document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      const look = (to: number) => {
+        scrollerEl().scrollLeft = to;
+        fireEvent.scroll(scrollerEl());
+      };
+      let spy: ReturnType<typeof vi.spyOn>;
+      beforeEach(() => {
+        vi.useFakeTimers(FAKE);
+        spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+          return rect(this.hasAttribute("data-lit") ? 56 : 0);
+        });
+      });
+      afterEach(() => {
+        spy.mockRestore();
+        vi.useRealTimers();
+      });
+
+      it("scrolling by hand fades the frame out; 1.5s of quiet glides back to the day shown and the frame returns", () => {
+        render(<DayStrip tripId="t-look-1" dates={dates} line={segments} size="desktop" />);
+        expect(scrollerEl().scrollLeft).toBe(192);
+        expect(frame()).not.toHaveAttribute("data-away");
+        expect(frame().className.split(/\s+/)).toEqual(expect.arrayContaining(["transition-opacity", "data-away:opacity-0", "motion-reduce:transition-none"]));
+        look(600);
+        expect(frame()).toHaveAttribute("data-away");
+        act(() => { vi.advanceTimersByTime(1499); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        act(() => { vi.advanceTimersByTime(101); });
+        expect(scrollerEl().scrollLeft).toBeLessThan(600);
+        expect(scrollerEl().scrollLeft).toBeGreaterThan(192);
+        act(() => { vi.advanceTimersByTime(300); });
+        expect(scrollerEl().scrollLeft).toBe(centredScrollLeft(3, 56, STRIP_CHIP_GAP_PX, scrollerEl().clientWidth));
+        expect(frame()).not.toHaveAttribute("data-away");
+      });
+      it("scrolling back to the day shown by hand brings the frame straight back", () => {
+        render(<DayStrip tripId="t-look-2" dates={dates} line={segments} size="desktop" />);
+        look(600);
+        look(192);
+        expect(frame()).not.toHaveAttribute("data-away");
+      });
+      it("a wheel at 1.0s restarts the wait", () => {
+        render(<DayStrip tripId="t-look-3" dates={dates} line={segments} size="desktop" />);
+        look(600);
+        act(() => { vi.advanceTimersByTime(1000); });
+        fireEvent.wheel(scrollerEl(), { deltaY: 10 });
+        act(() => { vi.advanceTimersByTime(1000); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        act(() => { vi.advanceTimersByTime(500 + 300); });
+        expect(scrollerEl().scrollLeft).toBe(192);
+      });
+      it("a pointer inside the strip holds it there until it leaves", () => {
+        render(<DayStrip tripId="t-look-4" dates={dates} line={segments} size="desktop" />);
+        const group = screen.getByRole("group", { name: "Day strip" });
+        fireEvent.pointerEnter(group);
+        look(600);
+        act(() => { vi.advanceTimersByTime(5000); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        fireEvent.pointerLeave(group);
+        act(() => { vi.advanceTimersByTime(1500 + 300); });
+        expect(scrollerEl().scrollLeft).toBe(192);
+      });
+      it("focus within the strip holds it there until it moves out", () => {
+        render(<DayStrip tripId="t-look-5" dates={dates} line={segments} size="desktop" />);
+        const chip = within(screen.getByRole("navigation", { name: "Days" })).getByRole("link", { name: /Sun 13 Dec/ });
+        fireEvent.focus(chip);
+        look(600);
+        act(() => { vi.advanceTimersByTime(5000); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        fireEvent.blur(chip, { relatedTarget: document.body });
+        act(() => { vi.advanceTimersByTime(1500 + 300); });
+        expect(scrollerEl().scrollLeft).toBe(192);
+      });
+      it("under reduced motion it simply returns, with no glide", () => {
+        const original = window.matchMedia;
+        setMatchMedia(true);
+        try {
+          render(<DayStrip tripId="t-look-6" dates={dates} line={segments} size="desktop" />);
+          look(600);
+          act(() => { vi.advanceTimersByTime(1500); });
+          expect(scrollerEl().scrollLeft).toBe(192);
+          expect(frame()).not.toHaveAttribute("data-away");
+        } finally {
+          window.matchMedia = original;
+        }
+      });
+      it("below lg a hand scroll stays where it is left", () => {
+        const original = window.matchMedia;
+        setMatchMedia(false);
+        try {
+          render(<DayStrip tripId="t-look-7" dates={dates} line={segments} size="desktop" />);
+          look(600);
+          expect(frame()).not.toHaveAttribute("data-away");
+          act(() => { vi.advanceTimersByTime(5000); });
+          expect(scrollerEl().scrollLeft).toBe(600);
+        } finally {
+          window.matchMedia = original;
+        }
+      });
     });
     it("under reduced motion the strip is simply placed", () => {
       const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {

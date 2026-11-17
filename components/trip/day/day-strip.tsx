@@ -13,7 +13,7 @@ import { cn } from "@/lib/cn";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type StopLine } from "@/lib/day-view-model";
-import { centredScrollLeft, phoneStripScroll, STRIP_CHIP_GAP_PX, STRIP_GLIDE_WIDE_MS, type StripScrollInput } from "@/components/trip/day/strip-scroll";
+import { centredScrollLeft, phoneStripScroll, STRIP_CHIP_GAP_PX, STRIP_GLIDE_WIDE_MS, STRIP_RETURN_AFTER_MS, type StripScrollInput } from "@/components/trip/day/strip-scroll";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
@@ -64,6 +64,13 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   const router = useAppRouter();
   const scroller = React.useRef<HTMLDivElement>(null);
   const cancelGlide = React.useRef<() => void>(() => {});
+  const centreFrame = React.useRef<HTMLSpanElement>(null);
+  // Wide screen only: where the day shown sits under the frame, null below lg.
+  const home = React.useRef<number | null>(null);
+  const gliding = React.useRef(false);
+  const hovering = React.useRef(false);
+  const focused = React.useRef(false);
+  const returnTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const memoryKey = `${tripId}:${size}`;
 
   // The chip lights the moment it is tapped (ADR 0063): while a navigation to
@@ -93,6 +100,8 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     const target = wide
       ? centredScrollLeft(centreIndex, chip.getBoundingClientRect().width, STRIP_CHIP_GAP_PX, nav.clientWidth)
       : targetFor(nav, chip, remembered ?? nav.scrollLeft);
+    home.current = wide ? target : null;
+    clearTimeout(returnTimer.current);
     if (remembered == null) {
       nav.scrollLeft = target;
       lastScrollLeft.set(memoryKey, target);
@@ -106,18 +115,55 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     nav.scrollLeft = remembered;
     if (carousel?.isMoving()) return;
     cancelGlide.current();
+    gliding.current = true;
     cancelGlide.current = tweenScrollLeft(nav, target, {
       reduced: prefersReducedMotion(),
       durationMs: wide ? STRIP_GLIDE_WIDE_MS : undefined,
       onDone: () => {
+        gliding.current = false;
+        centreFrame.current?.removeAttribute("data-away");
         nav.style.scrollSnapType = "";
       },
     });
     return () => {
       cancelGlide.current();
+      gliding.current = false;
       nav.style.scrollSnapType = "";
     };
   }, [phone, memoryKey, centreIndex, carousel]);
+
+  React.useEffect(() => () => clearTimeout(returnTimer.current), []);
+
+  // Wide screen: scrolling the strip by hand only looks (CONTEXT.md). While
+  // the day shown is away from the centre the frame fades out, so it never
+  // frames another day; after a quiet moment with the pointer and focus
+  // elsewhere the strip glides back and the frame returns.
+  const glideHome = () => {
+    const nav = scroller.current;
+    const to = home.current;
+    if (!nav || to == null) return;
+    cancelGlide.current();
+    gliding.current = true;
+    cancelGlide.current = tweenScrollLeft(nav, to, {
+      reduced: prefersReducedMotion(),
+      durationMs: STRIP_GLIDE_WIDE_MS,
+      onDone: () => {
+        gliding.current = false;
+        centreFrame.current?.removeAttribute("data-away");
+      },
+    });
+  };
+  const waitThenReturn = () => {
+    clearTimeout(returnTimer.current);
+    if (hovering.current || focused.current || !centreFrame.current?.hasAttribute("data-away")) return;
+    returnTimer.current = setTimeout(glideHome, STRIP_RETURN_AFTER_MS);
+  };
+  const onStripScroll = (nav: HTMLElement) => {
+    lastScrollLeft.set(memoryKey, nav.scrollLeft);
+    if (home.current == null || gliding.current) return;
+    centreFrame.current?.toggleAttribute("data-away", Math.abs(nav.scrollLeft - home.current) > 1);
+    waitThenReturn();
+  };
 
   // Phone: the strip moves with the body. Progress is in panels from the day
   // shown (aria-current, not the lit chip: a glide lights its target at once
@@ -176,7 +222,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
       // day centre too: phone, where chips also snap (ADR 0065), and from lg
       // under the centre frame (spec 2026-11-18 D2).
       className={cn("flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]", phone && "snap-x snap-mandatory px-[calc(50%-1.5rem)]", !phone && "lg:px-[calc(50%-1.75rem)]")}
-      onScroll={(e) => lastScrollLeft.set(memoryKey, e.currentTarget.scrollLeft)}
+      onScroll={(e) => onStripScroll(e.currentTarget)}
     >
       <nav aria-label="Days" className="relative flex w-max gap-2">
         {litIndex >= 0 ? (
@@ -205,7 +251,8 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
               data-lit={isLit(d.iso) ? "true" : undefined}
               aria-label={label}
               transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
-              // A neighbour glides in the carousel; a far day is a page-turn (ADR 0065).
+              // Below lg a neighbour glides in the carousel and a far day is a
+              // page-turn (ADR 0065); from lg goTo declines and every day crossfades.
               onNavigate={(e) => {
                 if (carousel?.goTo(href)) e.preventDefault();
               }}
@@ -286,14 +333,44 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     return <div data-day-strip className="flex flex-col gap-2 -mx-4 sm:-mx-6">{strip}</div>;
   }
   return (
-    <div data-day-strip role="group" aria-label="Day strip" className="flex items-start gap-2">
+    <div
+      data-day-strip
+      role="group"
+      aria-label="Day strip"
+      className="flex items-start gap-2"
+      onWheel={waitThenReturn}
+      onPointerDown={waitThenReturn}
+      onKeyDown={waitThenReturn}
+      onPointerEnter={() => {
+        hovering.current = true;
+        clearTimeout(returnTimer.current);
+      }}
+      onPointerLeave={() => {
+        hovering.current = false;
+        waitThenReturn();
+      }}
+      onFocus={() => {
+        focused.current = true;
+        clearTimeout(returnTimer.current);
+      }}
+      onBlur={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget)) return;
+        focused.current = false;
+        waitThenReturn();
+      }}
+    >
       <StripStep dir="prev" disabled={centreIndex <= 0} onClick={() => step(-1)} />
       <div className="relative min-w-0 flex-1">
         {strip}
         {/* The day shown holds the centre and the chips slide beneath this frame.
             Ink, not coral: the lit chip is the one coral thing, so nothing
             coral moves except with the strip. */}
-        <span data-strip-centre aria-hidden="true" className="pointer-events-none absolute left-1/2 top-0 hidden h-[62px] w-14 -translate-x-1/2 rounded-[14px] border-2 border-border shadow-hard-1 lg:block" />
+        <span
+          ref={centreFrame}
+          data-strip-centre
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-0 hidden h-[62px] w-14 -translate-x-1/2 rounded-[14px] border-2 border-border shadow-hard-1 transition-opacity duration-150 motion-reduce:transition-none data-away:opacity-0 lg:block"
+        />
       </div>
       <StripStep dir="next" disabled={centreIndex >= n - 1} onClick={() => step(1)} />
     </div>
