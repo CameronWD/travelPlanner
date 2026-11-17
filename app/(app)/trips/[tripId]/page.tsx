@@ -114,7 +114,7 @@ export default async function TripHomePage({
     readMemberTrips(user.id, user.email ?? null),
     // Reminders are a Trip's dated notes and belong on Home in *every* Phase
     // (see remindersEl below). "today" is the Trip's own.
-    tripPromise.then((row) => (row ? listRemindersForTrip(tripId, tripTodayISO(row.stops)) : [])),
+    tripPromise.then((row) => (row ? listRemindersForTrip(tripId, tripTodayISO(row.stops, row.homeTimezone)) : [])),
     // Spec 2026-10-17 R10: Home's "N open from the <date> review". Every
     // Traveller may read every Review (R9); the count drops Findings a
     // Surprise hides from this viewer, as the tab does.
@@ -132,13 +132,13 @@ export default async function TripHomePage({
 
   const reviewLine = homeReviewLine(
     latest,
-    { base: tripPath(slug), timeZone: currentTripTimezone(orderPlanStops(trip.stops)), now: new Date() },
+    { base: tripPath(slug), timeZone: currentTripTimezone(orderPlanStops(trip.stops), trip.homeTimezone), now: new Date() },
     running,
   );
 
   // Same canonical order for the "current timezone" pick — trip.stops is
   // fetched by sortOrder, which no longer tracks date order under ADR 0038.
-  const today = tripTodayISO(trip.stops);
+  const today = tripTodayISO(trip.stops, trip.homeTimezone);
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
   // Trip colour is per viewer (creation order among the viewer's trips).

@@ -149,7 +149,7 @@ export default async function SharePage({
   // Trip's own reference timezone and "today" (ADR 0010) — computed here,
   // ahead of the reads below, because the Journal section's "arrived days"
   // gate (spec L) needs it too.
-  const timeZone = currentTripTimezone(scheduled);
+  const timeZone = currentTripTimezone(scheduled, trip.homeTimezone);
   const todayISO = todayISOInZone(timeZone);
   const journalDates = journalWritableDates({
     startDate: trip.startDate,

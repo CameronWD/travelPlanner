@@ -323,7 +323,7 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
     items: [...items.map((i) => (i.stopId || i.date ? withOpeningHours(i) : { ...i, openingHours: null })), ...placeholders] as FlagItem[],
     hiddenStopIds: v.hiddenStopIds,
     hiddenItemIds: v.hiddenItemIds,
-    today: tripTodayISO(allStops),
+    today: tripTodayISO(allStops, trip.homeTimezone),
     travel,
   };
 }

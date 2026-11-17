@@ -268,7 +268,7 @@ function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[], travel
     costsByOwner,
   };
   return {
-    today: tripTodayISO(stops),
+    today: tripTodayISO(stops, trip.homeTimezone),
     travel,
     stopById,
     itemsByDate,

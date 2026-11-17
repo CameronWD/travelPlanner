@@ -22,7 +22,7 @@ async function listMyTrips(userId: string) {
     select: {
       trip: {
         select: {
-          id: true, name: true, startDate: true, endDate: true, createdAt: true,
+          id: true, name: true, startDate: true, endDate: true, createdAt: true, homeTimezone: true,
           stops: {
             where: REAL_PLAN,
             orderBy: { sortOrder: "asc" },
@@ -33,7 +33,7 @@ async function listMyTrips(userId: string) {
     },
   });
   const trips = memberships.map((m) => m.trip);
-  const todayByTripId = new Map(trips.map((t) => [t.id, tripTodayISO(t.stops)]));
+  const todayByTripId = new Map(trips.map((t) => [t.id, tripTodayISO(t.stops, t.homeTimezone)]));
   const ordered = orderForCarousel(
     trips.map((t) => ({ id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, createdAt: t.createdAt, stopCount: t.stops.length })),
     todayISO(),

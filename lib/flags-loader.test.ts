@@ -358,7 +358,7 @@ describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 20
     loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ placeholders: [placeholderItem({ id: "hid" })] }));
     tripTodayISO.mockReturnValueOnce("2026-01-04");
     const rows = await loadFlagRows(TRIP_ID, "u1");
-    expect(tripTodayISO).toHaveBeenCalledWith(stops);
+    expect(tripTodayISO).toHaveBeenCalledWith(stops, undefined);
     expect(rows?.today).toBe("2026-01-04");
     expect(rows?.hiddenItemIds).toEqual(["hid"]);
   });

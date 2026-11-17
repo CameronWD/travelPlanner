@@ -35,7 +35,7 @@ export async function loadBookingConfirmationsToAdd(tripId: string, viewerId: st
     }),
   ]);
 
-  const today = tripTodayISO(stops);
+  const today = tripTodayISO(stops, trip.homeTimezone);
   if (computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today }) === "past") return [];
 
   const tzById = new Map(stops.map((s) => [s.id, s.timezone] as const));

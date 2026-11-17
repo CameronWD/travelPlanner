@@ -197,7 +197,7 @@ export default async function BudgetPage({
     paidAt: c.paidAt,
   }));
 
-  const today = todayISOInZone(currentTripTimezone(stops));
+  const today = todayISOInZone(currentTripTimezone(stops, trip.homeTimezone));
   const costDefaults = otherCostDefaults({ phase: computeTripPhase({ startDate, endDate, today }), homeCurrency, today, stops });
 
   const spend = buildSpendSoFar({

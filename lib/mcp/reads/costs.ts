@@ -63,7 +63,7 @@ export async function readMcpCosts(
   where: { id?: string; ownerType?: string; ownerId?: string } = {},
 ): Promise<McpCostsResult> {
   const [trip, rawCosts, stops, items] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true } }),
+    db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true, homeTimezone: true } }),
     db.cost.findMany({
       where: { tripId, ...REAL_PLAN, ...where, ...v.where.cost },
       orderBy: { createdAt: "asc" },
@@ -87,7 +87,7 @@ export async function readMcpCosts(
   ]);
 
   const homeCurrency = trip?.homeCurrency ?? "AUD";
-  const today = todayISOInZone(currentTripTimezone(stops));
+  const today = todayISOInZone(currentTripTimezone(stops, trip?.homeTimezone));
   // Raw rateToHome only, no ExchangeRate-table fallback — matches the Budget
   // page and get_budget (lib/money/budget-loader.ts loadBudget → buildBudgetFromRows).
   const budgetCosts = rawCosts as unknown as BudgetCost[];

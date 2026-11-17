@@ -17,6 +17,6 @@ export default async function DayIndexPage({ params }: { params: Promise<{ tripI
   const slug = await tripSlugFor(tripId);
   const trip = await readTripShell(tripId);
   if (!trip) redirect(tripPath(slug));
-  const date = defaultDayISO({ startDate: trip.startDate, endDate: trip.endDate, today: tripTodayISO(trip.stops) });
+  const date = defaultDayISO({ startDate: trip.startDate, endDate: trip.endDate, today: tripTodayISO(trip.stops, trip.homeTimezone) });
   redirect(date ? tripPath(slug, `/day/${date}`) : tripPath(slug, "/plan"));
 }

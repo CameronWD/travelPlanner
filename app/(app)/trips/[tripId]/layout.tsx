@@ -90,7 +90,7 @@ export default async function TripLayout({
   }
   const slug = trip.slug ?? tripId;
 
-  const today = tripTodayISO(trip.stops);
+  const today = tripTodayISO(trip.stops, trip.homeTimezone);
   // The Days tab's one-hop target (ADR 0063). A date-less Trip goes straight
   // to Plan — where day/page.tsx would redirect it — because a link whose
   // server redirect lands on the page already shown (Days tapped on Plan)

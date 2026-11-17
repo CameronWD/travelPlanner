@@ -47,7 +47,7 @@ export default async function ReviewsPage({
   const [shell, slug] = await Promise.all([readTripShell(tripId), tripSlugFor(tripId)]);
   if (!shell) notFound();
 
-  const timeZone = currentTripTimezone(orderPlanStops(shell.stops));
+  const timeZone = currentTripTimezone(orderPlanStops(shell.stops), shell.homeTimezone);
   const model = await loadReviewsPage({
     tripId,
     userId: user.id,

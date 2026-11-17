@@ -58,7 +58,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
         trip: {
           select: {
             id: true, slug: true, name: true, startDate: true, endDate: true, roughMonth: true, createdAt: true,
-            coverImageKey: true, coverFocalX: true, coverFocalY: true, homeLat: true, homeLng: true,
+            coverImageKey: true, coverFocalX: true, coverFocalY: true, homeLat: true, homeLng: true, homeTimezone: true,
             stops: {
               where: REAL_PLAN,
               orderBy: { sortOrder: "asc" },
@@ -73,7 +73,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
   const firstName = me ? travellerFirstName(me) : "there";
   const trips = memberships.map((m) => m.trip);
   const fallbackToday = today ?? todayISO();
-  const todayByTripId = new Map(trips.map((t) => [t.id, today ?? tripTodayISO(t.stops)]));
+  const todayByTripId = new Map(trips.map((t) => [t.id, today ?? tripTodayISO(t.stops, t.homeTimezone)]));
   const hues = assignTripHues(trips);
 
   const cardTrips: CardTrip[] = trips.map((t) => ({ id: t.id, name: t.name, startDate: t.startDate, endDate: t.endDate, createdAt: t.createdAt, stopCount: t.stops.length }));

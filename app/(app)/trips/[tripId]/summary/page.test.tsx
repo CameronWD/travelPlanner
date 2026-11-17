@@ -494,7 +494,7 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
 
     const { detectFlags } = await import("@/lib/flags");
     const { tripTodayISO } = await import("@/lib/trip-today");
-    expect(vi.mocked(tripTodayISO)).toHaveBeenCalledWith([expect.objectContaining({ id: "s1" })]);
+    expect(vi.mocked(tripTodayISO)).toHaveBeenCalledWith([expect.objectContaining({ id: "s1" })], expect.anything());
     expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ today: "2026-01-03", hiddenItemIds: ["hid"] }));
   });
 });

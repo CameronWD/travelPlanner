@@ -25,6 +25,7 @@ export const readMemberTrips = cache(async (userId: string, email: string | null
           startDate: true,
           endDate: true,
           createdAt: true,
+          homeTimezone: true,
           stops: {
             where: { ...REAL_PLAN, arriveDate: { not: null } },
             orderBy: { sortOrder: "asc" },

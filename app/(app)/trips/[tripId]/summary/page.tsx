@@ -265,7 +265,7 @@ export default async function SummaryPage({
     hiddenStopIds: v.hiddenStopIds,
     hiddenItemIds: v.hiddenItemIds,
     // The Trip's own today (every surface's, lib/trip-today.ts): the book-by Flags count from it.
-    today: tripTodayISO(allStops),
+    today: tripTodayISO(allStops, trip.homeTimezone),
     travel,
   });
 

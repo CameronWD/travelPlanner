@@ -61,11 +61,12 @@ export default async function ChecklistsPage({
       select: { id: true, name: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
     })
     .then((rows) => rows);
+  const tripPromise = db.trip.findUnique({
+    where: { id: tripId },
+    select: { name: true, startDate: true, packingListsOpen: true, homeTimezone: true },
+  });
   const [trip, slug, rawItems, members, templates, stopsRaw, reminders, aboutOptions] = await Promise.all([
-    db.trip.findUnique({
-      where: { id: tripId },
-      select: { name: true, startDate: true, packingListsOpen: true },
-    }),
+    tripPromise,
     tripSlugFor(tripId),
     // All checklist items for this trip
     db.checklistItem.findMany({
@@ -90,12 +91,12 @@ export default async function ChecklistsPage({
     // The current user's packing templates
     listTemplates(),
     stopsPromise,
-    stopsPromise.then((rows) => listRemindersForTrip(tripId, tripTodayISO(rows))),
+    Promise.all([stopsPromise, tripPromise]).then(([rows, t]) => listRemindersForTrip(tripId, tripTodayISO(rows, t?.homeTimezone))),
     readReminderAboutOptions(tripId),
   ]);
 
   const memberList = members.map((m) => m.user);
-  const today = tripTodayISO(stopsRaw);
+  const today = tripTodayISO(stopsRaw, trip?.homeTimezone);
   const viewer: PackingViewer = { userId: user.id, open: trip?.packingListsOpen ?? false };
 
   // Split into kinds and sort

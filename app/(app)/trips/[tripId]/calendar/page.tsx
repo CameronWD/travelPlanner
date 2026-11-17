@@ -170,7 +170,7 @@ export default async function CalendarPage({
       homeTimezone: trip.homeTimezone,
     });
 
-    const agendaToday = todayISOInZone(currentTripTimezone(stops));
+    const agendaToday = todayISOInZone(currentTripTimezone(stops, trip.homeTimezone));
 
     // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — shown under the
     // date on both the agenda and month views, truncated; not in the Calendar

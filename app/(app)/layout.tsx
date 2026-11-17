@@ -114,7 +114,7 @@ export default async function AppLayout({
   // Canonical plan order for the "current timezone" pick — same approach as
   // the trips list (app/(app)/trips/page.tsx), so the two orderings agree.
   const todayByTripId = new Map(
-    memberTrips.map((t) => [t.id, tripTodayISO(t.stops)]),
+    memberTrips.map((t) => [t.id, tripTodayISO(t.stops, t.homeTimezone)]),
   );
   const trips: SwitcherTrip[] = [...memberTrips]
     .sort((a, b) => compareForTripList(a, b, today, todayByTripId))
