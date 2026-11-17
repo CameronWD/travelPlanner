@@ -22,6 +22,7 @@
     "audit:layout": "tsx scripts/layout-audit.ts",
     "audit:layout:crops": "tsx scripts/layout-audit/crops.ts",
     "audit:nav": "tsx scripts/nav-audit.ts",
+    "audit:offline": "tsx scripts/offline-audit.ts",
     "feedback:pull": "tsx --conditions=react-server scripts/feedback-pull.ts",
     "feedback:resolve": "tsx --conditions=react-server scripts/feedback-resolve.ts",
     "feedback:accept": "tsx --conditions=react-server scripts/feedback-accept.ts",
