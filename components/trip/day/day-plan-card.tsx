@@ -76,7 +76,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
                   todayISO={data.today}
                   needsConfirmationIds={data.needsConfirmationIds}
                 />
-                <DayFeasibility entries={data.feasibility as DayFeasibilityEntry[]} />
+                <DayFeasibility entries={data.feasibility as DayFeasibilityEntry[]} hops={data.hops} />
                 <NearbyWishlist tripId={data.tripId} date={data.date} items={data.nearby} />
               </>
             ) : (

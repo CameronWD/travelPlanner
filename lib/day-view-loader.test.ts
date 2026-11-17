@@ -57,6 +57,7 @@ vi.mock("@/lib/db", () => ({
     cost: { findMany: costFindManyMock },
     dayTitle: { findMany: dayTitleFindManyMock },
     chapter: { findMany: chapterFindManyMock },
+    travelTime: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 vi.mock("@/lib/tz", async (importOriginal) => {
@@ -81,7 +82,8 @@ import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from 
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 import { zoneLabel } from "@/lib/time-display";
 
-vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
+const { loadHopModesMock } = vi.hoisted(() => ({ loadHopModesMock: vi.fn() }));
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: loadHopModesMock }));
 
 const TRIP_ID = "trip-xmas";
 const VIEWER = "u-cam";
@@ -210,6 +212,7 @@ async function loadDay(date: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadHopModesMock.mockResolvedValue(new Map());
   loadHolidayLinesMock.mockResolvedValue(new Map());
   setup();
 });
@@ -430,6 +433,40 @@ describe("getDays — one day", () => {
     const count = (iso: string) => d.strip.dates.find((s) => s.iso === iso)?.count;
     expect(count("2026-12-10")).toBe(1);
     expect(count("2026-12-14")).toBe(1);
+  });
+});
+
+describe("getDays — hops", () => {
+  const at = (id: string, startTime: string, lat: number) => ({ ...datedItem(id, "2026-12-11", startTime), lat, lng: 7.75 });
+  const located = [at("h1", "09:00", 48.57), at("h2", "11:00", 48.572), at("h3", "14:00", 48.574)];
+  const useItems = (items: unknown[]) =>
+    itemFindManyMock.mockImplementation(async ({ where }: { where: Where }) => {
+      if (where.date === null && where.stopId === null) return WISHLIST;
+      if (where.date === null && typeof where.stopId === "object" && where.stopId !== null) return THINGS_TO_DO;
+      return items;
+    });
+
+  it("lists every hop of the day with its title, resolved way of travel and mode", async () => {
+    useItems(located);
+    const d = await loadDay("2026-12-11");
+    expect(d.hops).toEqual([
+      expect.objectContaining({ fromItemId: "h1", toItemId: "h2", fromTitle: "Item h1", toTitle: "Item h2", estimated: true, modeSetByHand: false }),
+      expect.objectContaining({ fromItemId: "h2", toItemId: "h3", modeSetByHand: false }),
+    ]);
+  });
+
+  it("a hand-set Hop mode is the hop's mode and marked set by hand", async () => {
+    useItems(located);
+    loadHopModesMock.mockResolvedValue(new Map([["h1|h2", "DRIVE"]]));
+    const d = await loadDay("2026-12-11");
+    expect(d.hops[0]).toMatchObject({ fromItemId: "h1", travel: "drive", mode: "DRIVE", modeSetByHand: true });
+    expect(d.hops[1].modeSetByHand).toBe(false);
+  });
+
+  it("a hop touching a hidden Surprise is not listed (the placeholder has no place)", async () => {
+    useItems([located[0], { ...located[1], lat: null, lng: null, title: "Surprise" }, located[2]]);
+    const d = await loadDay("2026-12-11");
+    expect(d.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual([["h1", "h3"]]);
   });
 });
 

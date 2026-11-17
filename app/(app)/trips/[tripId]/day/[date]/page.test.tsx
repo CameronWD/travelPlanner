@@ -147,6 +147,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     strip: { dates: [], line: { homeStart: null, homeEnd: null, segments: [] } },
     journal: { open: false, mine: null, others: [] },
     feasibility: [],
+    hops: [],
     weatherInput: { lat: 48.58, lng: 7.75, timezone: "Europe/Paris" },
     ...over,
   };

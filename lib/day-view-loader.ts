@@ -19,7 +19,7 @@ import { addDays, daysBetween, formatDayLabel } from "@/lib/dates";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
+import { resolvedDayHops, withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import type { NearbyResult } from "@/lib/nearby";
 import { flagTightConnections, type Flag } from "@/lib/flags";
 import { loadHopModes } from "@/lib/hop-modes";
@@ -62,6 +62,18 @@ import { loadHolidayLines } from "@/lib/holidays/trip-days";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
 const BUFFER_DAYS = 2;
+
+export interface DayHopEntry {
+  fromItemId: string;
+  toItemId: string;
+  fromTitle: string;
+  toTitle: string;
+  minutes: number;
+  travel: "walk" | "drive" | "transit";
+  estimated: boolean;
+  mode: HopModeChoice;
+  modeSetByHand: boolean;
+}
 
 export interface DayViewData {
   tripId: string;
@@ -138,6 +150,8 @@ export interface DayViewData {
     others: Array<{ authorId: string; body: string; updatedAt: Date; author: TravellerLike | null; photos: AttachmentView[] }>;
   };
   feasibility: Array<{ severity: string; message: string; hop?: Flag["hop"] }>;
+  /** Every hop of the day the viewer can see, as the Day map and get_day resolve them. */
+  hops: DayHopEntry[];
   /** For the weather Suspense island; null when the day has no located Stop. */
   weatherInput: { lat: number; lng: number; timezone: string } | null;
 }
@@ -402,6 +416,30 @@ function projectDayView(
     { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph, lookup: shared.travel, travelStops: rows.stops, hopModes: shared.hopModes },
   ).map((f) => ({ severity: f.severity, message: f.message, hop: f.hop }));
 
+  const titleById = new Map(items.map((it) => [it.id, it.title]));
+  const hops: DayHopEntry[] = resolvedDayHops(model.dayMap, {
+    dayItems: items.filter((it) => it.date === date),
+    stops: rows.stops,
+    transports: rows.transports,
+    lookup: shared.travel,
+    estimateOpts: { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph },
+    hopModes: shared.hopModes,
+  }).flatMap(({ fromId, toId, resolved, forced }) =>
+    resolved
+      ? [{
+          fromItemId: fromId,
+          toItemId: toId,
+          fromTitle: titleById.get(fromId) ?? "",
+          toTitle: titleById.get(toId) ?? "",
+          minutes: Math.round(resolved.minutes),
+          travel: resolved.mode,
+          estimated: resolved.estimated,
+          mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
+          modeSetByHand: forced !== undefined,
+        }]
+      : [],
+  );
+
   const stopTimezone = dayStop?.timezone ?? "UTC";
   const isFirst = date === startDate;
   const isLast = date === endDate;
@@ -454,6 +492,7 @@ function projectDayView(
     holidays: holidayLines.get(date) ?? [],
     journal,
     feasibility,
+    hops,
     weatherInput: dayStop?.lat != null && dayStop?.lng != null ? { lat: dayStop.lat, lng: dayStop.lng, timezone: stopTimezone } : null,
   };
 }

@@ -1,9 +1,36 @@
-import { render, screen } from "@testing-library/react";
+import * as React from "react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/server/actions/hop-modes", () => ({ setHopMode: vi.fn() }));
+const { setHopMode } = vi.hoisted(() => ({ setHopMode: vi.fn() }));
+vi.mock("@/server/actions/hop-modes", () => ({ setHopMode }));
 
+import type { DayHopEntry } from "@/lib/day-view-loader";
 import { DayFeasibility } from "./day-feasibility";
+
+const hop = (n: number, over: Partial<DayHopEntry> = {}): DayHopEntry => ({
+  fromItemId: `i${n}`,
+  toItemId: `i${n + 1}`,
+  fromTitle: `Place ${n}`,
+  toTitle: `Place ${n + 1}`,
+  minutes: 12,
+  travel: "walk",
+  estimated: false,
+  mode: "WALK",
+  modeSetByHand: false,
+  ...over,
+});
+
+// Stands in for the server round trip: the action rewrites the hop and the page re-renders.
+function Harness({ initial, entries = [] }: { initial: DayHopEntry[]; entries?: React.ComponentProps<typeof DayFeasibility>["entries"] }) {
+  const [hops, setHops] = React.useState(initial);
+  setHopMode.mockImplementation(async (from: string, to: string, mode: DayHopEntry["mode"] | null) => {
+    setHops((hs) => hs.map((h) => (h.fromItemId === from && h.toItemId === to ? { ...h, ...(mode ? { mode, modeSetByHand: true } : { modeSetByHand: false }) } : h)));
+    return { success: true };
+  });
+  return <DayFeasibility entries={entries} hops={hops} />;
+}
 
 describe("DayFeasibility", () => {
   it("renders one row per entry with the message", () => {
@@ -51,5 +78,68 @@ describe("DayFeasibility", () => {
       />,
     );
     expect(screen.getAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(1);
+  });
+
+  describe("hops", () => {
+    const three = [hop(1), hop(2, { travel: "transit", minutes: 25, mode: "TRANSIT" }), hop(3, { travel: "drive", minutes: 18, estimated: true, mode: "DRIVE" })];
+
+    it("with three unflagged hops shows All hops (3) collapsed, and three rows with choosers when expanded", async () => {
+      render(<Harness initial={three} />);
+      const toggle = screen.getByRole("button", { name: /All hops \(3\)/ });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText(/Place 1/)).not.toBeInTheDocument();
+      expect(screen.queryAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(0);
+
+      await userEvent.click(toggle);
+      expect(screen.getByText(/Place 1 → Place 2/)).toHaveTextContent("12 min walk");
+      expect(screen.getByText(/Place 2 → Place 3/)).toHaveTextContent("25 min by public transport");
+      expect(screen.getByText(/Place 3 → Place 4/)).toHaveTextContent("18 min drive (estimated)");
+      expect(screen.getAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(3);
+    });
+
+    it("setting Walk on an unflagged hop moves it out of the disclosure, marked as hand-set; Automatic puts it back", async () => {
+      render(<Harness initial={three} />);
+      await userEvent.click(screen.getByRole("button", { name: /All hops \(3\)/ }));
+      await userEvent.click(screen.getAllByRole("button", { name: /How this hop is travelled: Automatic/ })[1]);
+      await userEvent.click(screen.getByRole("menuitem", { name: "Walk" }));
+
+      expect(await screen.findByRole("button", { name: /All hops \(2\)/ })).toBeInTheDocument();
+      const handSet = screen.getByRole("button", { name: "How this hop is travelled: Walk" });
+      expect(handSet.closest("div")).toHaveTextContent("Place 2 → Place 3");
+
+      await userEvent.click(handSet);
+      await userEvent.click(screen.getByRole("menuitem", { name: "Automatic" }));
+      expect(await screen.findByRole("button", { name: /All hops \(3\)/ })).toBeInTheDocument();
+      expect(setHopMode).toHaveBeenLastCalledWith("i2", "i3", null);
+    });
+
+    it("a hand-set hop is always shown, with no disclosure when it is the only one", () => {
+      render(<DayFeasibility entries={[]} hops={[hop(1, { modeSetByHand: true })]} />);
+      expect(screen.getByText(/Place 1 → Place 2/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "How this hop is travelled: Walk" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /All hops/ })).not.toBeInTheDocument();
+    });
+
+    it("a flagged hop keeps its warning and chooser and is not repeated in the disclosure", async () => {
+      const flagged = hop(1);
+      render(
+        <DayFeasibility
+          entries={[{ severity: "warning", message: "Tight between Place 1 and Place 2.", hop: { fromItemId: "i1", toItemId: "i2", mode: "WALK", modeSetByHand: false } }]}
+          hops={[flagged, hop(2)]}
+        />,
+      );
+      expect(screen.getByText("Tight between Place 1 and Place 2.")).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(1);
+      await userEvent.click(screen.getByRole("button", { name: /All hops \(1\)/ }));
+      const rows = screen.getAllByText(/→/);
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0].closest("div")!).getByText(/Place 2 → Place 3/)).toBeInTheDocument();
+    });
+
+    it("renders just the heading and the collapsed disclosure when no hop is flagged or hand-set", () => {
+      render(<DayFeasibility entries={[]} hops={[hop(1)]} />);
+      expect(screen.getByRole("heading", { name: "Getting around" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /All hops \(1\)/ })).toHaveAttribute("aria-expanded", "false");
+    });
   });
 });

@@ -43,6 +43,7 @@ function data(over: Partial<DayViewData> & { enabled?: boolean } = {}) {
     planCount: 1,
     ideas: { rows: [], all: [], eyebrow: "" },
     feasibility: [],
+    hops: [],
     nearby: [],
     whatsAround: { enabled, starts },
     dayMap: { points: [], routePoints: [], perItemPrev: {} },
