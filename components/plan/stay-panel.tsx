@@ -20,6 +20,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { plural } from "@/lib/plural";
 import { AddCard } from "./add-card";
 import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
+import { StayCard, StayConfirmation } from "@/components/trip/stay-card";
 
 /** One Accommodation as the stay panel lists it: the card's fields plus its Costs and file count. */
 export interface StayPanelAccommodation extends AccommodationCardAccommodation {
@@ -59,65 +60,154 @@ function StayBlock({
   const note = firstLine(a.notes);
   const files = a.attachmentCount ?? 0;
 
+  const hasBooking = Boolean(a.confirmation) || a.bookingState === "TO_BOOK" || Boolean(cost);
+  const hasMore = Boolean(note) || files > 0 || Boolean(a.needsConfirmation);
+  const nightsLabel = nights === 0 ? "Same-day" : plural(nights, "night");
+
   // A stretched button (its ::after covers the block), not a <button> around
   // the whole block: the map pin is a real link and can't nest inside one, so
   // it sits above the overlay (relative z-10) and opens Maps on its own.
+  // The phone block and the desktop card are two renderings of one stay; CSS
+  // shows one, so the markup below lg stays as it was.
   return (
     <li
       data-testid="stay-block"
-      className="relative flex min-w-0 flex-col gap-0.5 rounded-xl border-2 border-border bg-background px-2.5 py-2 text-xs text-foreground/80 hover:bg-teal/10 has-[button:focus-visible]:outline-[3px] has-[button:focus-visible]:outline-ring"
+      className="relative min-w-0 lg:rounded-3xl has-[button:focus-visible]:outline-[3px] has-[button:focus-visible]:outline-ring"
     >
-      <button
-        type="button"
-        onClick={() => onOpen(a.id)}
-        className="truncate text-left text-[13px] font-bold text-foreground after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+      <div
+        data-testid="stay-phone"
+        className="flex min-w-0 flex-col gap-0.5 rounded-xl border-2 border-border bg-background px-2.5 py-2 text-xs text-foreground/80 hover:bg-teal/10 lg:hidden"
       >
-        {a.name}
-      </button>
-      <p>
-        {stayWindowLabel(a)} · {nights === 0 ? "Same-day" : plural(nights, "night")}
-      </p>
-      {a.address && (
-        <p className="flex min-w-0 items-center gap-1">
-          <span className="truncate">{a.address}</span>
-          <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="relative z-10 text-foreground/80" />
+        <button
+          type="button"
+          onClick={() => onOpen(a.id)}
+          className="truncate text-left text-[13px] font-bold text-foreground after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+        >
+          {a.name}
+        </button>
+        <p>
+          {stayWindowLabel(a)} · {nightsLabel}
         </p>
-      )}
-      {a.confirmation && (
-        <p className="flex items-center gap-1 font-mono">
-          <Hash className="size-3 shrink-0" aria-hidden="true" />
-          {a.confirmation}
-        </p>
-      )}
-      {a.bookingState === "TO_BOOK" && (
-        <p className="flex items-center gap-1.5">
-          <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
-        </p>
-      )}
-      {cost && (
-        <p className="flex items-center gap-1.5">
-          <span className="font-semibold text-foreground">{cost}</span>
-          {paid === "paid" ? <Badge variant="teal">Paid</Badge> : <Badge variant="muted">Unpaid</Badge>}
-        </p>
-      )}
-      {note && (
-        <p className="flex min-w-0 items-center gap-1">
-          <StickyNote className="size-3 shrink-0" aria-hidden="true" />
-          <span className="truncate">{note}</span>
-        </p>
-      )}
-      {files > 0 && (
-        <p className="flex items-center gap-1">
-          <Paperclip className="size-3 shrink-0" aria-hidden="true" />
-          {plural(files, "file")}
-        </p>
-      )}
-      {a.needsConfirmation && (
-        <div className="relative z-10 w-fit max-w-full">
-          <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
+        {a.address && (
+          <p className="flex min-w-0 items-center gap-1">
+            <span className="truncate">{a.address}</span>
+            <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="relative z-10 text-foreground/80" />
+          </p>
+        )}
+        {a.confirmation && (
+          <p className="flex items-center gap-1 font-mono">
+            <Hash className="size-3 shrink-0" aria-hidden="true" />
+            {a.confirmation}
+          </p>
+        )}
+        {a.bookingState === "TO_BOOK" && (
+          <p className="flex items-center gap-1.5">
+            <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
+          </p>
+        )}
+        {cost && (
+          <p className="flex items-center gap-1.5">
+            <span className="font-semibold text-foreground">{cost}</span>
+            {paid === "paid" ? <Badge variant="teal">Paid</Badge> : <Badge variant="muted">Unpaid</Badge>}
+          </p>
+        )}
+        {note && (
+          <p className="flex min-w-0 items-center gap-1">
+            <StickyNote className="size-3 shrink-0" aria-hidden="true" />
+            <span className="truncate">{note}</span>
+          </p>
+        )}
+        {files > 0 && (
+          <p className="flex items-center gap-1">
+            <Paperclip className="size-3 shrink-0" aria-hidden="true" />
+            {plural(files, "file")}
+          </p>
+        )}
+        {a.needsConfirmation && (
+          <div className="relative z-10 w-fit max-w-full">
+            <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
+          </div>
+        )}
+      </div>
+      <StayCard
+        data-testid="stay-card"
+        className="hidden lg:block"
+        label="Staying"
+        icon={BedDouble}
+        name={
+          <button
+            type="button"
+            onClick={() => onOpen(a.id)}
+            className="block max-w-full truncate text-left after:absolute after:inset-0 after:rounded-3xl after:content-[''] focus-visible:outline-none"
+          >
+            {a.name}
+          </button>
+        }
+      >
+        <div className="@container">
+          <div className="grid gap-3 @lg:grid-cols-3">
+            <StayField heading="When">
+              <p className="text-sm font-semibold">{stayWindowLabel(a)}</p>
+              <p className="text-sm text-foreground/80">{nightsLabel}</p>
+            </StayField>
+            {a.address && (
+              <StayField heading="Where">
+                <p className="flex min-w-0 items-center gap-1.5 text-sm">
+                  <span className="min-w-0 truncate">{a.address}</span>
+                  <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} placeId={a.placeId} className="relative z-10 shrink-0 text-foreground/80" />
+                </p>
+              </StayField>
+            )}
+            {hasBooking && (
+              <StayField heading="Booking">
+                {a.confirmation && <StayConfirmation value={a.confirmation} />}
+                {a.bookingState === "TO_BOOK" && (
+                  <p className="flex items-center gap-1.5">
+                    <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
+                  </p>
+                )}
+                {cost && (
+                  <p className="flex items-center gap-1.5 text-sm">
+                    <span className="font-semibold">{cost}</span>
+                    {paid === "paid" ? <Badge variant="teal">Paid</Badge> : <Badge variant="muted">Unpaid</Badge>}
+                  </p>
+                )}
+              </StayField>
+            )}
+          </div>
         </div>
-      )}
+        {hasMore && (
+          <div data-testid="stay-card-more" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground/70">
+            {note && (
+              <p className="flex min-w-0 items-center gap-1">
+                <StickyNote className="size-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{note}</span>
+              </p>
+            )}
+            {files > 0 && (
+              <p className="flex items-center gap-1">
+                <Paperclip className="size-3 shrink-0" aria-hidden="true" />
+                {plural(files, "file")}
+              </p>
+            )}
+            {a.needsConfirmation && (
+              <div className="relative z-10 w-fit max-w-full">
+                <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
+              </div>
+            )}
+          </div>
+        )}
+      </StayCard>
     </li>
+  );
+}
+
+function StayField({ heading, children }: { heading: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <h4 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-foreground/60">{heading}</h4>
+      {children}
+    </div>
   );
 }
 
