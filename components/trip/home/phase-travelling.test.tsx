@@ -102,6 +102,7 @@ vi.mock("@/lib/itinerary", async (importOriginal) => {
     pickDayPlan: pickDayPlanMock,
     isFreeFormDay: isFreeFormDayMock,
     dayHasEntries: actual.dayHasEntries,
+    stopForDate: actual.stopForDate,
   };
 });
 vi.mock("@/lib/day-map", () => ({ buildDayMapModel: vi.fn(), buildItemDirections: vi.fn(), withDayMapHops: (m: unknown) => m }));
