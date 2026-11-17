@@ -13,6 +13,14 @@ Paths marked A: are under `docs/archive/`.
 - **HT-01** Budget views still put a Home flight's cost on its UTC day: Summary, Print, Compare, `lib/past-home-loader.ts` pass no `homeTimezone` to `buildBudget`; the desktop Home loader (unverified). A: `open-follow-ups.md`
 - **PM-03** An overdue book-by looks like a future one: `BookingStateBadge` shows "Book by <date>" with no overdue styling. A: `open-follow-ups.md`
 - **FT-07** An overnight Item starting just before closing is not flagged (`flagOutsideOpeningHours`, `lib/flags.ts` ~1141 skips the check once `end <= start`). A: `open-follow-ups.md`
+- **Where you are** A Transport used as a day trip on a changeover or arrival day blanks "Where you are" between its legs; mis-dated legs with no arrival time; the second leg of a two-leg day landing after the arrive date; a leg departing the evening before the depart date (`lib/now-next.ts`).
+- **Trip today** A Traveller still in the last Stop after about 15:00 local on its depart date, with Home ahead, sees "today" a day early for up to about 9 h (`lib/tz.ts`); a Trip whose end date equals the last depart date goes Past early.
+- **Where you are card** The phone Home keeps a leftover "Where you are" card beside Now / next (redundant, not contradictory).
+- **Day map** "Day map" lands at the top of the Day view, where the map is a collapsed panel.
+- **Check-in** "Check-in" shows on every night of a stay, not only the first.
+- **Row tap at 640px** Rows open the edit form at 640px and up (phone landscape).
+- **What's around in transit** "What's around" while in transit creates a dated Item with no Stop.
+- **Open today zone** "Open today" uses the saved copy's zone, so a copy rendered in Bali and read in Europe shows Bali's today.
 
 ## Correctness
 
@@ -24,11 +32,16 @@ Paths marked A: are under `docs/archive/`.
 - **RV-02** More than 50 Reviews cannot be paged (`HISTORY_LIMIT = 50`, `lib/review-reads.ts`). A: `open-follow-ups.md`
 - **BI-01** The Booking import's 10 MB limit is about 4 MB on Vercel; fix is a presigned R2 upload. A: `follow-ups/2026-10-14-booking-import.md`
 - **BI-02** The Booking import rate limit is per server instance (`server/actions/booking-import.ts` ~30); count `AiUsage` rows instead. A: `follow-ups/2026-10-14-booking-import.md`
+- **Trips list masking** "Now in ..." on the Trips list uses raw Stop names with no Surprise masking (`lib/trips/trips-page-loader.ts`); pre-existing.
+- **MCP link string** MCP Item create and update accept an unvalidated link string (`lib/mcp/tools/plan-write.ts` 118, 136); the render-time guard `safeWebHref` covers display.
+- **Surprise Reminders** `unscheduleItem`'s placed-copy delete and fork promote do not clean up a Surprise's Reminders (`deleteStop` does).
+- **Forks today** `server/actions/forks.ts` callers compute "today" without the Home timezone.
 
 ## Auth and access
 
 - **TC-13** Drop the Auth.js tables (`Account`, `Session`, `VerificationToken`) and `User.emailVerified` once main has run on Better Auth for a release; gate `/oauth2/create-client` and `update-client` behind the redirect allowlist; clean up unused registered clients. Tables still in `prisma/schema.prisma`. A: `open-follow-ups.md`
 - **ARCH-TEN-12** The service-worker attachment cache is purged only by the Sign out button; an expired session or a second Traveller on the same profile leaves it in place. The trip-proofing branch changes when sign-out clears it (B5) but adds no other purge. A: `architecture-sitrep-2026-09-22.md`
+- **Keepalive hardening** Re-issue the session cookie only when its value starts with the validated token; treat a future stamp as stale.
 
 ## Ops
 
@@ -36,7 +49,15 @@ Paths marked A: are under `docs/archive/`.
 - **TD-01** Major-version upgrades only (security patches are done): `motion` 14, ESLint 10, `vitest` 5, `typescript` 7, Prisma 8, jest-dom 7, happy-dom 21, jsdom 30, `dotenv` 18, `@anthropic-ai/sdk`; one major per branch. Re-run `npm outdated` first. A: `open-follow-ups.md`
 - **Daily Travel-time cron.** Refresh Trips crossing into the 90-day public-transport window and retry expired ERROR rows. Cam chose refresh-on-edit on 2026-11-06, so build only if wanted (`docs/specs/2026-10-30-google-maps.md` ~305, `docs/specs/2026-11-06-google-extras.md` ~227).
 - **Error re-notify.** An unresolved `ErrorReport` is not re-notified after N days (from the 2026-11-17 audit; unverified).
-- **Digest retries.** A failed Digest send is not retried (from the 2026-11-17 audit; unverified).
+- **Digest retries.** A zero-delivery send releases its claim and the backup run retries it; beyond that a failed Digest send is not retried (unverified).
+- **Early departures.** No Digest morning run before about 07:17 local in central Europe, so a pre-07:00 departure relies on the evening-before Digest.
+
+## Offline
+
+- **Lazy chunks** Chunks loaded only at runtime (dynamic imports) are not saved for offline: maps fall back, and other lazy pieces in a never-opened section may not work offline.
+- **Redirect marker** The saved-copy redirect marker is consumed by any navigation.
+- **Saved-copy record** The saved-copy record expires after 60 s.
+- **Cache growth** The files cache never evicts; the static cache cap (300) has little headroom over its 156 files.
 
 ## Performance
 
