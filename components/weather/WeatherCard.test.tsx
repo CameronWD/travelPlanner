@@ -73,6 +73,20 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
       cleanup();
     }
   });
+  it("animates only what the card can show: snow and night stay within their budgets", () => {
+    const animated = '.wx-pan, .wx-bob, .wx-fall, .wx-sway, .wx-turn, .wx-breathe, .wx-splash, .wx-flash, .wx-twinkle';
+    card(wx({ code: 73 }));
+    expect(article().querySelectorAll(animated).length).toBeLessThanOrEqual(60);
+    cleanup();
+    card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
+    expect(article().querySelectorAll(animated).length).toBeLessThanOrEqual(20);
+  });
+  it("outlined fog that crosses the card passes below the text", () => {
+    card(wx({ code: 45 }));
+    const outlined = [...article().querySelectorAll('[data-scene="fog"] .wx-pan rect[stroke]')];
+    expect(outlined.length).toBeGreaterThan(0);
+    for (const rect of outlined) expect(Number(rect.getAttribute("y"))).toBeGreaterThanOrEqual(140);
+  });
   it("rain leans with the day's gusts", () => {
     card(wx({ code: 61, gustsKph: 60 }));
     expect(article().querySelector<HTMLElement>('[data-scene="rain"]')!.style.getPropertyValue("--wx-rain-angle")).toBe("30deg");

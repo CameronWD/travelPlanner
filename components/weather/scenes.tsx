@@ -150,6 +150,10 @@ function Rain({ lean, front = RAIN_FRONT, back = RAIN_BACK }: { lean: number; fr
   );
 }
 
+// Scattered layers in the world strip only cover the widest card they meet
+// (about 680 units); anything further right would animate unseen.
+const SCATTER_W = 680;
+
 // A low-discrepancy (R2) sequence: even cover without rows or columns, and the
 // same on server and client.
 const scatter = (n: number, w: number, h: number) =>
@@ -171,6 +175,19 @@ function StarFlake({ size }: { size: number }) {
     <g fill="none" strokeLinecap="round">
       <path d={arms} stroke={INK} strokeWidth={5} />
       <path d={arms} stroke={tok("wx-cloud")} strokeWidth={2.5} />
+    </g>
+  );
+}
+
+// A whole layer falls as one group: drawn twice, one canvas height apart, so
+// the loop has no seam, with two animations however many flakes it holds.
+function Drift({ seconds, sway, children }: { seconds: number; sway: number; children: ReactNode }) {
+  return (
+    <g className="wx-fall" style={vars({ "--wx-fy": "0px", "--wx-ty": `${H}px`, animationDuration: `${seconds}s` })}>
+      <g className="wx-sway" style={{ animationDuration: `${sway}s` }}>
+        {children}
+        <g transform={`translate(0 ${-H})`}>{children}</g>
+      </g>
     </g>
   );
 }
@@ -229,10 +246,11 @@ function Streak({ x, y, len, width }: { x: number; y: number; len: number; width
   );
 }
 
-function Star({ x, y, r, seconds }: { x: number; y: number; r: number; seconds: number }) {
+function Star({ x, y, r, seconds }: { x: number; y: number; r: number; seconds: number | null }) {
   const shape = r > 2
     ? <path d={`M${x} ${y - r * 2} Q${x} ${y} ${x + r * 2} ${y} Q${x} ${y} ${x} ${y + r * 2} Q${x} ${y} ${x - r * 2} ${y} Q${x} ${y} ${x} ${y - r * 2} Z`} />
     : <circle cx={x} cy={y} r={r} />;
+  if (seconds == null) return shape;
   return <g className="wx-twinkle" style={{ animationDuration: `${seconds}s`, animationDelay: `${(-(x % 5)).toFixed(1)}s` }}>{shape}</g>;
 }
 
@@ -303,8 +321,8 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           <Layer name="far-town"><path d={FAR_TOWN} fill={tok("wx-overcast")} /></Layer>
           <Layer name="mid-fog" world>
             <Pan tile={700} seconds={100}>
-              <Pill x={20} y={128} w={240} h={16} fill="wx-cloud-back" outline />
-              <Pill x={380} y={150} w={200} h={16} fill="wx-cloud-back" outline />
+              <Pill x={20} y={146} w={240} h={14} fill="wx-cloud-back" outline />
+              <Pill x={380} y={152} w={200} h={14} fill="wx-cloud-back" outline />
             </Pan>
           </Layer>
           <Layer name="near-town"><path d={NEAR_TOWN} fill={tok("wx-overcast")} stroke={INK} strokeWidth={2} strokeLinejoin="round" /></Layer>
@@ -312,7 +330,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
             <rect x={0} y={GROUND} width={WORLD_W} height={H - GROUND} fill={tok("wx-cloud")} />
             <Pan tile={560} seconds={60}>
               <Pill x={30} y={166} w={300} h={20} fill="wx-cloud" outline shadow={3} />
-              <Pill x={300} y={106} w={150} h={14} fill="wx-cloud" outline shadow={2} />
+              <Pill x={300} y={108} w={150} h={14} fill="wx-cloud" />
             </Pan>
           </Layer>
         </>
@@ -335,14 +353,22 @@ function draw(scene: SceneKey, lean: number): ReactNode {
     case "snow":
       return (
         <>
+          <Layer name="far-clouds" world>
+            <Pan tile={SCATTER_W} seconds={240}>
+              <Cutout shape={LONG} fill="wx-cloud" x={250} y={4} s={0.8} shadow={0} outline={false} />
+              <Cutout shape={PUFF} fill="wx-cloud" x={520} y={26} s={0.6} shadow={0} outline={false} />
+            </Pan>
+          </Layer>
           <Layer name="far-snow" world>
-            {scatter(64, 1400, H).filter(clearOfText).map(([x, y], i) => (
-              <Falling key={i} at={[x, y]} seconds={14 + (i % 3)} sway={5}><Flake r={2.2} /></Falling>
-            ))}
+            <Drift seconds={16} sway={5}>
+              {scatter(31, SCATTER_W, H).filter(clearOfText).map(([x, y], i) => <g key={i} transform={`translate(${x} ${y})`}><Flake r={2.2} /></g>)}
+            </Drift>
           </Layer>
           <Layer name="far-hills" world><path d={hills(14, 178, 12)} fill={tok("wx-cloud-back")} stroke={INK} strokeWidth={2} /></Layer>
           <Layer name="mid-snow">
-            {SNOW_MID.map(([x, y], i) => <Falling key={i} at={[x, y]} seconds={9 + (i % 3)} sway={4}><Flake r={3.5} /></Falling>)}
+            <Drift seconds={10} sway={4}>
+              {SNOW_MID.map(([x, y], i) => <g key={i} transform={`translate(${x} ${y})`}><Flake r={3.5} /></g>)}
+            </Drift>
           </Layer>
           <Layer name="near-hill">
             <path d="M58 240 Q122 166 244 176 V240 Z" fill={INK} transform="translate(3 3)" />
@@ -394,8 +420,8 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           </Layer>
           <Layer name="near-gusts" world>
             <g fill="none" strokeLinecap="round">
-              <Pan tile={700} seconds={7}><Streak x={60} y={154} len={190} width={3} /></Pan>
-              <Pan tile={820} seconds={4.5}><Streak x={200} y={170} len={240} width={4} /></Pan>
+              <Pan tile={700} seconds={7}><Streak x={60} y={164} len={190} width={3} /></Pan>
+              <Pan tile={820} seconds={4.5}><Streak x={200} y={174} len={240} width={4} /></Pan>
             </g>
           </Layer>
         </>
@@ -418,7 +444,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
         <>
           <Layer name="stars" world>
             <g fill={tok("wx-night-text")}>
-              {scatter(48, 1400, 150).map(([x, y], i) => <Star key={i} x={x + 8} y={y + 8} r={i % 4 === 0 ? 3 : 1.5} seconds={2.4 + (i % 4) * 0.5} />)}
+              {scatter(24, SCATTER_W, 150).map(([x, y], i) => <Star key={i} x={x + 8} y={y + 8} r={i % 4 === 0 ? 3 : 1.5} seconds={i % 2 ? null : 2.4 + (i % 3) * 0.6} />)}
             </g>
           </Layer>
           <Layer name="wisps" world>
