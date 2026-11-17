@@ -483,9 +483,9 @@ export function todayISOInZone(timeZone: string): string {
  * of the stop the trip is currently at — the first dated stop whose depart
  * date hasn't passed, judged in that stop's own zone. Before the trip that's
  * the first stop; after it, the last. UTC when nothing is dated.
- * With a Home timezone, the Trip is in it until the Home date passes the first
- * stop's arrive date, and again once the Home date passes the last stop's
- * depart date (the departure and return days belong to Home).
+ * With a Home timezone, the Trip is in it while the Home date is on or before
+ * the first stop's arrive date, and again once the Home date (not the last
+ * stop's own date) is past the last stop's depart date.
  * Pass dated stops in sortOrder order (rough stops are ignored).
  */
 export function currentTripTimezone(

@@ -355,10 +355,11 @@ describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 20
   it("carries the Trip's own today (from its Stops) and the viewer's hidden Items", async () => {
     const stops = [{ id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0, nights: null, pinned: false }];
     db.stop.findMany.mockResolvedValue(stops);
+    db.trip.findUnique.mockResolvedValueOnce(trip({ homeTimezone: "Australia/Brisbane" }));
     loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ placeholders: [placeholderItem({ id: "hid" })] }));
     tripTodayISO.mockReturnValueOnce("2026-01-04");
     const rows = await loadFlagRows(TRIP_ID, "u1");
-    expect(tripTodayISO).toHaveBeenCalledWith(stops, undefined);
+    expect(tripTodayISO).toHaveBeenCalledWith(stops, "Australia/Brisbane");
     expect(rows?.today).toBe("2026-01-04");
     expect(rows?.hiddenItemIds).toEqual(["hid"]);
   });
