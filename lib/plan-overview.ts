@@ -21,7 +21,7 @@ export interface PlanSummary {
   roughCount: number;
   scheduledNights: number;
   projectedNights: number;
-  /** Left edge of the date span: start date, else earliest scheduled arrive, else null. */
+  /** Left edge of the date span, anchored as the projected end is: the earlier of the start date and the earliest scheduled arrive, else null. */
   spanStart: string | null;
   /** Latest scheduled depart, or null when nothing is scheduled. */
   scheduledEnd: string | null;
@@ -77,11 +77,16 @@ export function summarizePlan({ stops, startDate, deadline }: PlanSummaryInput):
     roughCount,
     scheduledNights,
     projectedNights,
-    spanStart: startDate ?? earliestArrive,
+    spanStart: startDate && earliestArrive && earliestArrive < startDate ? earliestArrive : (startDate ?? earliestArrive),
     scheduledEnd,
     projectedEnd,
     deadline,
     hardEndState,
     hardEndSlackNights,
   };
+}
+
+/** Nothing left to check: every Stop is Scheduled and the plan fits its deadline. */
+export function showFitTile(summary: PlanSummary): boolean {
+  return summary.roughCount > 0 || summary.hardEndSlackNights === null || summary.hardEndSlackNights < 0;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarizePlan } from "./plan-overview";
+import { summarizePlan, showFitTile, type PlanSummary } from "./plan-overview";
 
 const stop = (over: Partial<{ id: string; arriveDate: string | null; departDate: string | null; nights: number | null; pinned: boolean; sortOrder: number }>) => ({
   id: "s", arriveDate: null, departDate: null, nights: null, pinned: false, sortOrder: 0, ...over,
@@ -109,5 +109,34 @@ describe("summarizePlan", () => {
     expect(s.scheduledEnd).toBe("2026-07-09");
     expect(s.projectedEnd).toBe("2026-07-09");
     expect(s.scheduledNights).toBe(s.projectedNights);
+  });
+});
+
+describe("spanStart", () => {
+  it("is the earlier of the start date and the earliest scheduled arrive, as the projected end is anchored", () => {
+    const s = summarizePlan({
+      stops: [stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 })],
+      startDate: "2026-07-03",
+      deadline: { kind: "hard-end", date: "2026-07-20" },
+    });
+    expect(s.spanStart).toBe("2026-07-01");
+  });
+});
+
+describe("showFitTile", () => {
+  const sum = (over: Partial<PlanSummary>): PlanSummary => ({
+    stopCount: 2, roughCount: 0, scheduledNights: 8, projectedNights: 8, spanStart: "2026-07-01",
+    scheduledEnd: "2026-07-09", projectedEnd: "2026-07-09", deadline: { kind: "hard-end", date: "2026-07-09" },
+    hardEndState: "approaching", hardEndSlackNights: 0, ...over,
+  });
+  it("hides when every Stop is Scheduled and nothing is over", () => {
+    expect(showFitTile(sum({}))).toBe(false);
+    expect(showFitTile(sum({ hardEndState: "ok", hardEndSlackNights: 3 }))).toBe(false);
+  });
+  it("shows with a Rough Stop, an overrun, or an unset or dormant state", () => {
+    expect(showFitTile(sum({ roughCount: 1 }))).toBe(true);
+    expect(showFitTile(sum({ hardEndState: "over", hardEndSlackNights: -1 }))).toBe(true);
+    expect(showFitTile(sum({ hardEndState: "unset", hardEndSlackNights: null, deadline: null }))).toBe(true);
+    expect(showFitTile(sum({ hardEndState: "dormant", hardEndSlackNights: null }))).toBe(true);
   });
 });

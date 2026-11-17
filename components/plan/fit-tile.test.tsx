@@ -40,7 +40,10 @@ describe("FitTile (PLAN.md §6.2)", () => {
     expect(screen.getByText("RUNS OVER")).toBeInTheDocument();
     const fit = screen.getByRole("button", { name: "Make it fit" });
     expect(screen.getByRole("status")).not.toContainElement(fit);
-    expect(container.querySelector("[data-bar-over]")).not.toBeNull();
+    const over = container.querySelector("[data-bar-over]")!;
+    expect(over).not.toBeNull();
+    expect(over.className).toContain("h-full");
+    expect(over.className).not.toMatch(/-mt-|border-2/);
   });
   it("unset: the trigger reads Set a home-by date; dormant explains", () => {
     const { rerender } = render(<FitTile {...base} summary={S({ hardEndState: "unset", hardEndSlackNights: null, deadline: null })} />);

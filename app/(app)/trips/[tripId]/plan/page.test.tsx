@@ -214,9 +214,12 @@ describe("Plan overview sticky aside (LA-038)", () => {
     accommodations: [],
   };
 
+  // A fully Scheduled plan that fits hides the Fit tile (P3), so the rail tests keep one Rough Stop.
+  const ROUGH = { ...STOP, id: "s0", name: "Paris", arriveDate: null, departDate: null, nights: 2, sortOrder: -1 };
+
   it("a dated return leg from the last Stop is the plan's deadline: the Fit tile and the add-stop line both read it (ADR 0068)", async () => {
     scenario.trip = { ...BASE_TRIP, hardEndDate: "2026-01-20" };
-    scenario.stops = [STOP];
+    scenario.stops = [ROUGH, STOP];
     scenario.transports = [{
       id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: null, anchorStopId: null,
       depPlace: "FCO", depAt: new Date("2026-01-05T09:00:00Z"), depLat: null, depLng: null,
@@ -231,7 +234,7 @@ describe("Plan overview sticky aside (LA-038)", () => {
   });
   it("with no return leg the stored hard end date is the deadline", async () => {
     scenario.trip = { ...BASE_TRIP, hardEndDate: "2026-01-20" };
-    scenario.stops = [STOP];
+    scenario.stops = [ROUGH, STOP];
     await renderPlan();
     expect((railCapture.fitTile!.summary as { deadline: unknown }).deadline).toEqual({ kind: "hard-end", date: "2026-01-20" });
     expect(itineraryManagerCapture.props!.hardEndDate).toBe("2026-01-20");

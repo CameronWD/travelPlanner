@@ -45,7 +45,7 @@ function FitBar({ bar }: { bar: { setPct: number; roughPct: number; overPct: num
       {bar.overPct > 0 && (
         <span
           data-bar-over
-          className="-mt-[18px] ml-auto block h-[18px] rounded-r-full border-2 border-l-0 border-border bg-[repeating-linear-gradient(135deg,hsl(var(--coral))_0_3px,hsl(var(--card))_3px_7px)]"
+          className="ml-auto block h-full rounded-r-full bg-[repeating-linear-gradient(135deg,hsl(var(--coral))_0_3px,hsl(var(--card))_3px_7px)]"
           style={{ width: `${bar.overPct}%` }}
         />
       )}
@@ -194,7 +194,7 @@ function FitStripBar({ bar }: { bar: { setPct: number; roughPct: number; overPct
       {bar.overPct > 0 && (
         <span
           data-bar-over
-          className="-mt-3.5 ml-auto block h-3.5 rounded-r-full border-2 border-l-0 border-border bg-[repeating-linear-gradient(135deg,hsl(var(--coral))_0_3px,hsl(var(--card))_3px_7px)]"
+          className="ml-auto block h-full rounded-r-full bg-[repeating-linear-gradient(135deg,hsl(var(--coral))_0_3px,hsl(var(--card))_3px_7px)]"
           style={{ width: `${bar.overPct}%` }}
         />
       )}
