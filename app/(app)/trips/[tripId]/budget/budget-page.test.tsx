@@ -49,8 +49,8 @@ vi.mock("@/components/money/add-cost-from-url", () => ({
 vi.mock("@/components/money/add-cost-button", () => ({ AddCostButton: ({ variant }: { variant: string }) => <button type="button" data-testid={`add-cost-${variant}`}>Add a cost</button> }));
 vi.mock("@/components/money/paid-bar", () => ({ PaidBar: () => <div data-testid="paid-bar" /> }));
 vi.mock("@/components/money/to-pay-panel", () => ({
-  ToPayPanel: ({ rows }: { rows: { id: string; label: string }[] }) => (
-    <div data-testid="to-pay-panel" data-ids={rows.map((r) => r.id).join(",")} data-labels={rows.map((r) => r.label).join("|")} />
+  ToPayPanel: ({ rows, recentIds }: { rows: { id: string; label: string }[]; recentIds: string[] }) => (
+    <div data-testid="to-pay-panel" data-recent={recentIds.join(",")} data-ids={rows.map((r) => r.id).join(",")} data-labels={rows.map((r) => r.label).join("|")} />
   ),
 }));
 vi.mock("@/components/money/breakdown-switch", () => ({
@@ -334,5 +334,17 @@ describe("Money page — Day grouping includes standalone Costs", () => {
     await renderPage({ by: "day" });
     expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-value", "day");
     expect(screen.getByTestId("breakdown-switch")).toHaveAttribute("data-options", "category,place,day");
+    expect(screen.getByTestId("to-pay-panel")).toHaveAttribute("data-recent", "lunch,old");
+    expect(screen.getByRole("listitem", { name: "Not on a day" })).toBeInTheDocument();
+  });
+
+  it("never lists a Surprise-hidden Cost in Recent", async () => {
+    scenario.costs = [
+      { ...ONE_COST[0], id: "visible", createdAt: new Date("2026-01-01") },
+      { ...ONE_COST[0], id: "secret", createdAt: new Date("2026-01-04") },
+    ];
+    vi.mocked(buildBudget).mockReturnValue({ ...BUDGET, surpriseCostIds: ["secret"] } as never);
+    await renderPage();
+    expect(screen.getByTestId("to-pay-panel")).toHaveAttribute("data-recent", "visible");
   });
 });

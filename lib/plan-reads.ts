@@ -153,6 +153,7 @@ export const COST_SELECT = {
   label: true,
   category: true,
   settlement: true,
+  createdAt: true,
 } as const;
 
 const PLAN_CHAPTER_SELECT = { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true } as const;

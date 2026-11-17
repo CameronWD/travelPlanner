@@ -19,4 +19,5 @@ export type CostRow = {
   category: string | null;
   /** CONTEXT.md "Settlement" — BEFORE | ON_TRIP; anything else reads as BEFORE. */
   settlement: string;
+  createdAt?: Date;
 };

@@ -321,7 +321,7 @@ export default async function BudgetPage({
   // the individual lines (and their owner's title/date) are hidden.
   const surpriseCostIds = new Set(budget.surpriseCostIds);
   const visibleCosts = allCosts.filter((c) => !surpriseCostIds.has(c.id));
-  const recentIds = recentCosts(visibleCosts).map((c) => c.id);
+  const recentIds = recentCosts(visibleCosts, 5, today).map((c) => c.id);
   const toPayInputs = visibleCosts.map((c) => ({ ...c, displayLabel: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost" }));
   const ratesNote = ratesUpdatedNote(
     foreignCurrencies.flatMap((c) => {
