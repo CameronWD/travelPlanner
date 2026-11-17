@@ -17,6 +17,7 @@ import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { DayIdeas } from "@/components/trip/day-ideas";
 import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
 import { MapLink } from "@/components/trip/map-link";
+import { mapsUrl } from "@/lib/map/maps";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
@@ -213,17 +214,14 @@ export async function PhaseTravelling({
                 {tonightAccom.name}
               </p>
               {tonightAccom.address && (
-                <div className="mt-1 flex items-center gap-1 text-[13px] font-semibold">
-                  <span className="truncate">{tonightAccom.address}</span>
-                  <MapLink
-                    lat={tonightAccom.lat}
-                    lng={tonightAccom.lng}
-                    address={tonightAccom.address}
-                    label={tonightAccom.name}
-                    placeId={tonightAccom.placeId}
-                    className="shrink-0 text-foreground"
-                  />
-                </div>
+                <a
+                  href={mapsUrl({ lat: tonightAccom.lat, lng: tonightAccom.lng, address: tonightAccom.address, label: tonightAccom.name, placeId: tonightAccom.placeId }) ?? undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-flex min-h-11 items-center text-[13px] font-semibold underline underline-offset-2"
+                >
+                  {tonightAccom.address}
+                </a>
               )}
               {!tonightAccom.address && (
                 <MapLink
@@ -237,7 +235,7 @@ export async function PhaseTravelling({
               {tonightAccom.confirmation && (
                 <div className="flex items-center gap-2 text-[13px] font-semibold">
                   <span>Confirmation</span>
-                  <span className="min-w-0 truncate font-mono">{tonightAccom.confirmation}</span>
+                  <span className="min-w-0 break-all font-mono">{tonightAccom.confirmation}</span>
                   <CopyConfirmationButton confirmation={tonightAccom.confirmation} />
                 </div>
               )}

@@ -1501,6 +1501,20 @@ describe("PhaseTravelling phone Today view (spec C)", () => {
     expect(stay.textContent).toContain("Key in the lockbox");
   });
 
+  it("tonight's stay shows a long confirmation and the address untruncated", async () => {
+    const long = "5887236633, PIN:7856 and a very long extra reference";
+    accommodationFindManyMock.mockResolvedValue([{ ...STAY, confirmation: long }]);
+    const stay = section(await phone(), "tonights-stay")!;
+    const conf = Array.from(stay.querySelectorAll("span")).find((el) => el.textContent === long)!;
+    expect(conf).toBeDefined();
+    expect(conf.className).not.toContain("truncate");
+    expect(conf.className).toContain("break-all");
+    const addr = Array.from(stay.querySelectorAll("a")).find((el) => el.textContent === "1 Main St")!;
+    expect(addr.className).not.toContain("truncate");
+    expect(addr.className).toContain("min-h-11");
+    expect(addr.getAttribute("href")).toContain("maps");
+  });
+
   it("tonight's stay leaves out each row it has nothing for", async () => {
     accommodationFindManyMock.mockResolvedValue([{ ...STAY, confirmation: null, checkInTime: null, notes: null }]);
     const stay = section(await phone(), "tonights-stay")!;

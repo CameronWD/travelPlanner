@@ -5,11 +5,19 @@ import { Check, Copy } from "lucide-react";
 
 export function CopyConfirmationButton({ confirmation }: { confirmation: string }) {
   const [copied, setCopied] = React.useState(false);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
   function copy() {
-    void navigator.clipboard.writeText(confirmation).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(confirmation).then(
+      () => {
+        setCopied(true);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => setCopied(false), 2000);
+      },
+      () => {},
+    );
   }
   return (
     <button
