@@ -45,6 +45,7 @@ import { surprisesToReveal } from "@/lib/next-steps-builder";
 import { revealSurpriseStep } from "@/lib/next-steps";
 import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
+import { nowNext, whereYouAre, type NowNextTimed } from "@/lib/now-next";
 
 async function loadTravellingHomeUncached(tripId: string, userId: string | null) {
   // Reminders are NOT read here: the Reminders card is rendered by the trip
@@ -163,6 +164,41 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         }
       : null;
 
+  const hereId = whereYouAre(stops, transports, now)?.stopId;
+  const here = stops.find((s) => s.id === hereId) ?? null;
+
+  const itemById = new Map(items.map((i) => [i.id, i] as const));
+  const accomById = new Map(accommodations.map((a) => [a.id, a] as const));
+  const located = (p: { lat: number | null; lng: number | null } | undefined) =>
+    p?.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng } : null;
+  const todays: NowNextTimed[] = [
+    ...(day.dayPlan?.timedItems ?? []).map(({ item }) => {
+      const row = itemById.get(item.id);
+      return {
+        type: "item" as const, id: item.id, title: item.title, date: item.date!, time: item.startTime!,
+        stopId: item.stopId ?? null, place: located(row), address: item.address ?? null,
+      };
+    }),
+    ...(day.dayPlan?.accommodationEntries ?? []).flatMap(({ kind, accommodation: a }) => {
+      const checkIn = kind === "accommodation-checkin";
+      const time = checkIn ? a.checkInTime : a.checkOutTime;
+      if (!time) return [];
+      return [{
+        type: "accommodation" as const, id: a.id, title: `${checkIn ? "Check-in" : "Check-out"}: ${a.name}`,
+        date: checkIn ? a.checkIn : a.checkOut, time, stopId: a.stopId, place: located(accomById.get(a.id)), address: a.address ?? null,
+      }];
+    }),
+  ];
+  const nowNextCard = nowNext(
+    {
+      stops,
+      transports: transports.map((t) => ({ ...t, mode: t.mode as TransportMode })),
+      todays,
+      home: { name: trip.homeName, timezone: trip.homeTimezone },
+    },
+    now,
+  );
+
   return {
     kind: "dated" as const,
     trip,
@@ -188,8 +224,9 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
     needsConfirmationIds: confirmationsToAdd.map((c) => c.id),
     tonightAccom: day.tonight,
     nextTransport,
-    effectiveStop: day.dayPlan?.stop ?? null,
-    stopLocated: day.dayStop ?? undefined,
+    nowNext: nowNextCard,
+    effectiveStop: here,
+    stopLocated: here ?? undefined,
     spend,
     homeCurrency,
     upcomingPayments,

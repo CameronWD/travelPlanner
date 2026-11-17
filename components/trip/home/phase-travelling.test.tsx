@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, onTestFinished } from "vitest";
 
 // phase-travelling.tsx is a heavy async server component with DB calls.
 // We test the desktop grid className via an exported constant so we can assert
@@ -104,7 +104,10 @@ vi.mock("@/lib/nearby", () => ({ nearbyWishlistItems: vi.fn(), dayIdeasWishlist:
 vi.mock("@/lib/chapters", () => ({ chapterForDate: vi.fn() }));
 vi.mock("@/lib/money/spend-so-far", () => ({ buildSpendSoFar: vi.fn() }));
 vi.mock("@/lib/transport", () => ({ TRANSPORT_MODE_META: {} }));
-vi.mock("@/lib/time-display", () => ({ zoneLabel: vi.fn() }));
+vi.mock("@/lib/time-display", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/time-display")>()),
+  zoneLabel: vi.fn(),
+}));
 vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {}, THINGS_TO_DO_WHERE: {}, REAL_PLAN: { forkId: null } }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ children }: { children: React.ReactNode }) => children }));
@@ -138,6 +141,16 @@ vi.mock("@/components/trip/todays-journal", () => ({
 }));
 // React import needed for JSX in mocks above
 import React from "react";
+
+// "Where you are" is judged against the clock (lib/now-next.ts whereYouAre):
+// pin it inside the fixture Stop's 1 to 10 Jan 2026 stay.
+function pinClockInsideStay() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-01-05T12:00:00Z"));
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+}
 
 // A DayPlan's entry arrays, empty — spread into fixtures so the component sees
 // the real DayPlan shape (lib/itinerary.ts) rather than a bare `{ stop }`.
@@ -311,6 +324,7 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
   });
 
   it("mounts What's around with the Stop as the start point when the Trip has it on", async () => {
+    pinClockInsideStay();
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: true });
     vi.mocked((await import("@/lib/itinerary")).effectiveTodayISO).mockReturnValue("2026-01-05");
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
@@ -511,6 +525,7 @@ describe("PhaseTravelling 'Where you are' map link gating (SW-02)", () => {
   });
 
   it("renders no MapLink for the current stop when it has no coordinates on record", async () => {
+    pinClockInsideStay();
     stopFindManyMock.mockResolvedValue([
       { id: "stop-1", name: "Munich", country: "Germany", countryCode: "de", lat: null, lng: null, timezone: "Europe/Berlin", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
     ]);
@@ -521,6 +536,7 @@ describe("PhaseTravelling 'Where you are' map link gating (SW-02)", () => {
   });
 
   it("renders MapLink with the current stop's coordinates when present", async () => {
+    pinClockInsideStay();
     stopFindManyMock.mockResolvedValue([
       { id: "stop-1", name: "Munich", country: "Germany", countryCode: "de", lat: 48.1, lng: 11.6, timezone: "Europe/Berlin", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
     ]);
@@ -628,6 +644,7 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
   });
 
   it("puts every module in a kit Card, headings in order, with tonight's stay on the lilac (stay) fill", async () => {
+    pinClockInsideStay();
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
 
@@ -1267,5 +1284,57 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
 
     expect(model.kind === "dated" && model.nextTransport?.depZone).toBe("Europe/Vienna");
     expect(zoneLabelMock()).toHaveBeenCalledWith("Europe/Vienna", EFFECTIVE_DATE);
+  });
+
+  const PARIS = { id: "par", name: "Paris", country: "France", countryCode: "fr", lat: 48.86, lng: 2.35, placeId: null, timezone: "Europe/Paris", arriveDate: "2026-12-15", departDate: "2026-12-19", sortOrder: 0 };
+  const LONDON = { id: "lon", name: "London", country: "United Kingdom", countryCode: "gb", lat: 51.5, lng: -0.12, placeId: null, timezone: "Europe/London", arriveDate: "2026-12-19", departDate: "2026-12-23", sortOrder: 1 };
+  const trainRow = (depAt: Date) => ({
+    id: "tr-1", mode: "TRAIN", fromStopId: "par", toStopId: "lon", depPlace: null, arrPlace: null,
+    depAt, arrAt: new Date(depAt.getTime() + 2.5 * 60 * 60 * 1000), reference: null, notes: null, depIsHome: false, arrIsHome: false,
+  });
+
+  it("carries Now / next beside the desktop's next departure fields", async () => {
+    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true });
+    stopFindManyMock.mockResolvedValue([PARIS, LONDON]);
+    const train = trainRow(new Date("2030-01-01T00:00:00Z"));
+    transportFindManyMock.mockResolvedValue([train]);
+    buildItineraryMock.mockReturnValue(dayPlanWithDeparture(train));
+
+    const model = await loadTravellingHome("trip-1", "now-next-present");
+    if (model.kind !== "dated") throw new Error(model.kind);
+
+    expect(model.nowNext).toEqual({
+      kind: "next-departure", transportId: "tr-1", mode: "TRAIN", routeLabel: "Paris to London",
+      departsAt: "2030-01-01T00:00:00.000Z", departsZone: "Europe/Paris", withinDay: false,
+    });
+    expect(model.nextTransport).toEqual({
+      id: "tr-1", depAt: "2030-01-01T00:00:00.000Z", depTimeLabel: "06:00", depZone: "Europe/Paris", label: "TRAIN",
+    });
+  });
+
+  it("names the Stop being left as Where you are on a Changeover morning, until its Transport departs", async () => {
+    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-12-04", endDate: "2027-01-08", homeCurrency: "AUD", chaptersEnabled: true });
+    stopFindManyMock.mockResolvedValue([PARIS, LONDON]);
+    // 07:02 in Paris on 19 Dec.
+    transportFindManyMock.mockResolvedValue([trainRow(new Date("2026-12-19T06:02:00Z"))]);
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, dateISO: "2026-12-19", stop: { id: "lon", name: "London", country: "United Kingdom" } });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    vi.setSystemTime(new Date("2026-12-19T05:30:00Z"));
+    const before = await loadTravellingHome("trip-1", "changeover-before");
+    if (before.kind !== "dated") throw new Error(before.kind);
+    expect(before.effectiveStop).toMatchObject({ id: "par", name: "Paris", country: "France" });
+    expect(before.stopLocated).toMatchObject({ id: "par", lat: 48.86, lng: 2.35 });
+
+    vi.setSystemTime(new Date("2026-12-19T07:00:00Z"));
+    const after = await loadTravellingHome("trip-1", "changeover-after");
+    if (after.kind !== "dated") throw new Error(after.kind);
+    expect(after.effectiveStop).toMatchObject({ id: "lon", name: "London" });
+    expect(after.stopLocated).toMatchObject({ id: "lon", lat: 51.5 });
   });
 });

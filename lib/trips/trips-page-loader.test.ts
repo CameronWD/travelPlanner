@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, onTestFinished } from "vitest";
 
 const m = vi.hoisted(() => ({
   findMany: vi.fn(),
@@ -21,7 +21,7 @@ const stop = (id: string, name: string, lat: number, lng: number, arrive: string
 });
 const trip = (over: Record<string, unknown>) => ({
   id: "t", name: "Trip", startDate: null, endDate: null, roughMonth: null, createdAt: new Date("2026-01-01"), coverImageKey: null,
-  coverFocalX: null, coverFocalY: null, homeLat: null, homeLng: null, stops: [], ...over,
+  coverFocalX: null, coverFocalY: null, homeLat: null, homeLng: null, stops: [], transports: [], ...over,
 });
 
 beforeEach(() => {
@@ -124,6 +124,11 @@ describe("loadTripsPage", () => {
   });
 
   it("an on-the-road trip with a stop covering today: kind on-the-road, dateLine is 'Now in <stop>'", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(`${TODAY}T12:00:00Z`));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     m.findMany.mockResolvedValue([
       {
         role: "owner",
@@ -136,6 +141,31 @@ describe("loadTripsPage", () => {
     const d = await loadTripsPage("u", TODAY);
     expect(d.cards[0].kind).toBe("on-the-road");
     expect(d.cards[0].dateLine).toBe("Now in Lisbon");
+  });
+
+  it("on a Changeover day, 'Now in' names the Stop being left until its Transport departs", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const paris = { ...stop("par", "Paris", 48.86, 2.35, "2026-12-15", "2026-12-19", 0), timezone: "Europe/Paris" };
+    const london = { ...stop("lon", "London", 51.5, -0.12, "2026-12-19", "2026-12-23", 1), timezone: "Europe/London" };
+    m.findMany.mockResolvedValue([
+      {
+        role: "owner",
+        trip: trip({
+          id: "eu", name: "Europe", startDate: "2026-12-04", endDate: "2027-01-08", createdAt: new Date("2026-01-01"),
+          stops: [paris, london],
+          // 07:02 in Paris.
+          transports: [{ fromStopId: "par", toStopId: "lon", depAt: new Date("2026-12-19T06:02:00Z") }],
+        }),
+      },
+    ]);
+
+    vi.setSystemTime(new Date("2026-12-19T05:30:00Z"));
+    expect((await loadTripsPage("u", "2026-12-19")).cards[0].dateLine).toBe("Now in Paris");
+    vi.setSystemTime(new Date("2026-12-19T07:00:00Z"));
+    expect((await loadTripsPage("u", "2026-12-19")).cards[0].dateLine).toBe("Now in London");
   });
 
   it("two travelling trips: only the hero (cards[0]) gets the next step; the second on-the-road card is a standard card (Minor 7)", async () => {
