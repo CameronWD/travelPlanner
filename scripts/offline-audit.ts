@@ -497,6 +497,7 @@ async function main(): Promise<number> {
           },
         ];
         for (const probe of probes) {
+         try {
           const p = await offlinePage();
           await p.goto(`${baseUrl}${probe.path}`, { waitUntil: "load" }).catch(() => {});
           await sleep(1200);
@@ -539,6 +540,9 @@ async function main(): Promise<number> {
           );
           if (!ok) await shot(p, `5-${probe.name}`);
           await p.close();
+         } catch (e) {
+          record(`5. Offline ${probe.name} renders, is interactive, scripts and styles saved [probe: ${probe.kind}]`, false, `probe threw: ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`);
+         }
         }
       });
 
@@ -590,10 +594,25 @@ async function main(): Promise<number> {
         const p = await offlinePage();
         await p.goto(`${baseUrl}${home}/budget`, { waitUntil: "load" }).catch(() => {});
         await sleep(1500);
+        const requested: string[] = [];
+        p.on("request", (r) => {
+          if (/[?&]by=/.test(r.url())) requested.push(r.url());
+        });
+        const tapped: string[] = [];
+        let tapError = "";
         for (const grouping of ["Place", "Day"]) {
-          await p.getByRole("radio", { name: grouping }).first().click().catch(() => {});
-          await sleep(3_000);
+          const before = requested.length;
+          try {
+            await p.getByRole("radio", { name: grouping }).first().click({ timeout: 10_000 });
+            await sleep(3_000);
+            const key = `by=${grouping.toLowerCase()}`;
+            tapped.push(`${grouping}: ${requested.slice(before).some((u) => u.includes(key)) ? "request seen" : "NO request seen"}`);
+          } catch (e) {
+            tapError = `${grouping} tap failed (${e instanceof Error ? e.message.split("\n")[0] : String(e)})`;
+            break;
+          }
         }
+        const acted = tapError === "" && tapped.length === 2 && tapped.every((t) => t.endsWith("request seen"));
         const end = await p.evaluate(() => ({
           path: location.pathname,
           url: location.pathname + location.search,
@@ -604,10 +623,10 @@ async function main(): Promise<number> {
         const line = SAVED_COPY.test(end.text);
         record(
           "12. Offline Money: tapping Place then Day keeps the saved Money page with the saved-copy line",
-          end.path === `${home}/budget` && end.money && !end.offlinePage && line,
-          `final URL ${end.url}; Money heading ${end.money ? "present" : "MISSING"}; offline.html ${end.offlinePage ? "SHOWN" : "not shown"}; saved-copy line ${line ? "shown" : "MISSING"}`,
+          acted && end.path === `${home}/budget` && end.money && !end.offlinePage && line,
+          `taps ${tapError || tapped.join(", ")}; final URL ${end.url}; Money heading ${end.money ? "present" : "MISSING"}; offline.html ${end.offlinePage ? "SHOWN" : "not shown"}; saved-copy line ${line ? "shown" : "MISSING"}`,
         );
-        if (!(end.path === `${home}/budget` && end.money && !end.offlinePage && line)) await shot(p, "12-money-grouping");
+        if (!(acted && end.path === `${home}/budget` && end.money && !end.offlinePage && line)) await shot(p, "12-money-grouping");
         await p.close();
       });
 
@@ -662,7 +681,7 @@ async function main(): Promise<number> {
           });
         // Same document: the page of check 13 is still open and now online.
         const sameDoc: { url: string; status: number }[] = [];
-        let sameDocNote = "no failed chunk to watch";
+        let sameDocNote = "FAILED: the failed chunk was not identified in check 13, nothing to watch";
         if (sumPage && chunk) {
           const sp2: Page = sumPage;
           watchChunk(sp2, sameDoc);
@@ -681,7 +700,7 @@ async function main(): Promise<number> {
             )
             .catch(() => false);
           const fb = await sp2.evaluate(() => document.querySelectorAll("[data-map-fallback]").length).catch(() => -1);
-          sameDocNote = moved ? `client navigation Home then Summary in the same document: chunk requested ${sameDoc.length}x (${sameDoc.map((s) => s.status).join(",") || "never"}), map fallbacks now ${fb}` : "window.next.router is not available, same-document navigation not observable";
+          sameDocNote = moved ? `same document, client navigation Home then Summary: chunk requested ${sameDoc.length}x (${sameDoc.map((s) => s.status).join(",") || "never"}), map fallbacks afterwards ${fb}` : "FAILED: window.next.router is not available, the same-document navigation could not be made";
           await sp2.close();
         }
         // Fresh document, online.
@@ -692,11 +711,9 @@ async function main(): Promise<number> {
         await fresh.goto(`${baseUrl}${home}/summary`, { waitUntil: "load" });
         await sleep(4_000);
         const dom = await fresh.evaluate(() => ({ fallbacks: document.querySelectorAll("[data-map-fallback]").length, map: document.querySelectorAll(".gm-style, gmp-map, [data-map-ready]").length, boundary: /That didn.t load/.test(document.body.innerText) }));
-        const detail = `failed chunk watched: ${chunk ? new URL(chunk).pathname : "none identified in 13"}; ${sameDocNote}; fresh online document: chunk requested ${seen.length}x (${seen.map((s) => s.status).join(",") || "never"}), real map nodes ${dom.map}, map fallbacks ${dom.fallbacks}, error boundary ${dom.boundary ? "SHOWN" : "absent"}`;
-        const reloaded = seen.some((s) => s.status === 200) || sameDoc.some((s) => s.status === 200);
-        if (reloaded && dom.map > 0) record("14. Online again, the map chunk loads and a real map container appears", true, detail);
-        else if (reloaded) record("14. Online again, the map chunk is requested again and loads (the real map is not observable: the local Maps key shows its key fallback)", true, detail, false);
-        else record("14. Online again, the map chunk is requested again", false, `${detail}; the chunk was never requested again${dom.fallbacks > 0 ? " (the fallback may be shown because the local key is missing, so a request may legitimately never happen: not observable)" : ""}`, dom.fallbacks > 0 && !dom.boundary);
+        const detail = `failed chunk watched: ${chunk ? new URL(chunk).pathname : "none identified in 13"}; ${sameDocNote}; extra, fresh online document: chunk requested ${seen.length}x (${seen.map((s) => s.status).join(",") || "never"}), real map nodes ${dom.map} (the local Maps key shows its key fallback instead), map fallbacks ${dom.fallbacks}, error boundary ${dom.boundary ? "SHOWN" : "absent"}`;
+        const retried = sameDoc.some((s) => s.status === 200);
+        record("14. Online again, the same document re-requests the failed map chunk and gets 200", retried, detail);
         await fresh.close();
       });
 
@@ -806,13 +823,20 @@ async function main(): Promise<number> {
       }
     });
   } finally {
+    const warn = (what: string, e: unknown) => console.warn(`offline-audit: WARNING could not ${what}: ${e instanceof Error ? e.message : String(e)}`);
     if (pool) {
-      if (tokens.length) await pool.query('delete from "AuthSession" where token = any($1)', [tokens]).catch(() => {});
-      if (created.length) await pool.query('delete from "Attachment" where id = any($1)', [created.map((c) => c.id)]).catch(() => {});
-      await pool.end().catch(() => {});
+      if (tokens.length) await pool.query('delete from "AuthSession" where token = any($1)', [tokens]).catch((e) => warn(`delete ${tokens.length} AuthSession row(s)`, e));
+      if (created.length) await pool.query('delete from "Attachment" where id = any($1)', [created.map((c) => c.id)]).catch((e) => warn(`delete ${created.length} Attachment row(s) ${created.map((c) => c.id).join(", ")}`, e));
+      await pool.end().catch((e) => warn("close the database pool", e));
     }
-    for (const c of created) rmSync(path.join(process.cwd(), ".uploads", c.key), { force: true });
-    await browser?.close().catch(() => {});
+    for (const c of created) {
+      try {
+        rmSync(path.join(process.cwd(), ".uploads", c.key), { force: true });
+      } catch (e) {
+        warn(`remove .uploads/${c.key}`, e);
+      }
+    }
+    await browser?.close().catch((e) => warn("close the browser", e));
     proxy?.close();
   }
 
