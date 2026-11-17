@@ -1,5 +1,7 @@
 import { WeatherCard } from "@/components/weather/WeatherCard";
 import { getDayWeatherView } from "@/lib/day-view-loader";
+import { WeatherStrip } from "@/components/weather/weather-strip";
+import { weatherStripSummary } from "@/lib/weather/strip-summary";
 
 /**
  * The Day view's weather island (DAY_VIEW §4): an async Server Component the
@@ -13,16 +15,18 @@ export async function DayWeather({
   today,
   placeName,
   size,
+  collapsed = false,
 }: {
   input: { lat: number; lng: number; timezone: string };
   dateISO: string;
   today: string;
   placeName: string;
   size: "regular" | "compact";
+  collapsed?: boolean;
 }) {
   const v = await getDayWeatherView({ ...input, dateISO, today, placeName });
   if (!v) return null;
-  return (
+  const card = (
     <WeatherCard
       size={size}
       dateLabel={v.dateLabel}
@@ -34,4 +38,5 @@ export async function DayWeather({
       forecastOpensOn={v.forecastOpensOn}
     />
   );
+  return collapsed ? <WeatherStrip summary={weatherStripSummary(v.theme, v.day)}>{card}</WeatherStrip> : card;
 }

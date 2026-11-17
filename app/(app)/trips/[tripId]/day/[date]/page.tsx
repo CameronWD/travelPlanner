@@ -93,12 +93,14 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   );
 
   // Weather needs a located Stop; a gap day (no Stop) has none.
-  const weather = (day: DayViewData, size: "regular" | "compact") =>
-    day.weatherInput && day.stop ? (
-      <Suspense fallback={<WeatherCardSkeleton size={size} />}>
-        <DayWeather input={day.weatherInput} dateISO={day.date} today={day.today} placeName={day.stop.name} size={size} />
+  const weather = (day: DayViewData, size: "regular" | "compact") => {
+    const collapsed = size === "compact" && day.phase === "travelling";
+    return day.weatherInput && day.stop ? (
+      <Suspense fallback={collapsed ? <div role="status" aria-label="Loading weather" className="tp-pulse h-11 w-full rounded-2xl border-2 border-border bg-card" /> : <WeatherCardSkeleton size={size} />}>
+        <DayWeather input={day.weatherInput} dateISO={day.date} today={day.today} placeName={day.stop.name} size={size} collapsed={collapsed} />
       </Suspense>
     ) : null;
+  };
 
   // Tonight: a gap day with no bed shows nothing (there is no Stop to add a
   // stay to), and the trip's last day has no night to plan.
@@ -166,6 +168,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
               recent={recent}
               members={(shell?.members ?? []).map((m) => m.user)}
               addButton={headerAdd}
+              slimOnPhone={d.phase === "travelling"}
             />
             <div className="md:hidden">
               <DayStrip tripId={tripId} dates={d.strip.dates} line={d.strip.line} size="phone" />
