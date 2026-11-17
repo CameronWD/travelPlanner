@@ -180,7 +180,7 @@ export default async function TripLayout({
                       <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
                     </div>
                   </div>
-                  {coverUrl && showsPortraitCoverFrame(trip) ? (
+                  {coverUrl && showsPortraitCoverFrame(trip) && tripPhase !== "travelling" ? (
                     <TripHomeOnly>
                       <PortraitCoverFrame url={coverUrl} name={trip.name} />
                     </TripHomeOnly>

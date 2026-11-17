@@ -284,6 +284,21 @@ describe("TripLayout", () => {
     expect(screen.queryByTestId("portrait-cover")).toBeNull();
   });
 
+  describe("portrait cover frame by Phase on Home", () => {
+    const today = todayISOInZone("UTC");
+    const cover = { ...BASE_TRIP, coverImageKey: "k1", coverAspect: 0.75 };
+    it.each([
+      ["planning", addDays(today, 10), addDays(today, 20), true],
+      ["travelling", addDays(today, -5), addDays(today, 5), false],
+      ["past", addDays(today, -20), addDays(today, -10), true],
+    ])("%s", async (_phase, startDate, endDate, shown) => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...cover, startDate, endDate });
+      mockUsePathname.mockReturnValue("/trips/trip-1");
+      await renderLayout();
+      expect(screen.queryByTestId("portrait-cover") !== null).toBe(shown);
+    });
+  });
+
   it("Traveller avatars are one 44px link to the travellers settings", async () => {
     mockDb.trip.findUnique.mockResolvedValue({
       ...BASE_TRIP,
