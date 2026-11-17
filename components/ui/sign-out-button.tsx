@@ -1,40 +1,68 @@
 "use client";
 
+import { createRoot } from "react-dom/client";
 import { authClient } from "@/lib/auth/client";
 import { LogOut } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-/**
- * Best-effort purge of the service-worker runtime cache so the next user on a
- * shared device can't read this user's cached private pages while offline.
- * Never blocks sign-out.
- */
 async function clearOfflineCache() {
   if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
   try {
     const registration = await navigator.serviceWorker.ready;
     registration.active?.postMessage({ type: "CLEAR_CACHE" });
   } catch {
-    // Ignore — the SW may not be registered; sign-out must still proceed.
+    // The SW may not be registered; sign-out must still finish.
   }
 }
 
-/**
- * The sign-out sequence itself, shared by every control that offers it
- * (the avatar menu's SignOutMenuItem, PhoneExtras' plain SignOutButton):
- * purge the offline cache best-effort, then sign out and land on the Landing.
- */
+// Rendered in its own root: the avatar menu unmounts its content when it closes,
+// which would take a dialog rendered inside it down too.
+function confirmOfflineSignOut(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const finish = (answer: boolean) => {
+      resolve(answer);
+      queueMicrotask(() => {
+        root.unmount();
+        host.remove();
+      });
+    };
+    root.render(
+      <ConfirmDialog
+        open
+        onOpenChange={(open) => {
+          if (!open) finish(false);
+        }}
+        onConfirm={() => finish(true)}
+        title="Sign out while offline?"
+        description="You're offline. Signing out removes the saved copy of your trips from this phone."
+        confirmLabel="Sign out"
+        destructive
+      />,
+    );
+  });
+}
+
 async function signOutNow(): Promise<void> {
+  if (!navigator.onLine) {
+    if (!(await confirmOfflineSignOut())) return;
+    await clearOfflineCache();
+    await authClient.signOut().catch(() => {});
+    window.location.assign("/");
+    return;
+  }
+  try {
+    await authClient.signOut();
+  } catch {
+    return;
+  }
   await clearOfflineCache();
-  await authClient.signOut();
   window.location.assign("/");
 }
 
-/**
- * A DropdownMenuItem that signs the current user out and redirects to the
- * Landing. Only works inside a Radix DropdownMenu — see SignOutButton for
- * anywhere else.
- */
 export function SignOutMenuItem() {
   return (
     <DropdownMenuItem
@@ -49,10 +77,6 @@ export function SignOutMenuItem() {
   );
 }
 
-/**
- * A plain sign-out button for anywhere a Radix menu doesn't make sense (e.g.
- * PhoneExtras' account-page rows, spec D4) — same sequence as SignOutMenuItem.
- */
 export function SignOutButton({ className }: { className?: string }) {
   return (
     <button

@@ -26,7 +26,7 @@ interface ConfirmDialogProps extends ConfirmOptions {
   onConfirm: () => void;
 }
 
-function ConfirmDialog({
+export function ConfirmDialog({
   open,
   onOpenChange,
   onConfirm,
