@@ -47,19 +47,21 @@ function confirmOfflineSignOut(): Promise<boolean> {
 }
 
 async function signOutNow(): Promise<void> {
-  if (!navigator.onLine) {
-    if (!(await confirmOfflineSignOut())) return;
-    await clearOfflineCache();
-    await authClient.signOut().catch(() => {});
-    window.location.assign("/");
-    return;
+  if (navigator.onLine) {
+    try {
+      const result = await authClient.signOut();
+      if (!result?.error) {
+        await clearOfflineCache();
+        window.location.assign("/");
+        return;
+      }
+    } catch {
+      // A phone with one bar reports onLine but cannot reach the server.
+    }
   }
-  try {
-    await authClient.signOut();
-  } catch {
-    return;
-  }
+  if (!(await confirmOfflineSignOut())) return;
   await clearOfflineCache();
+  await authClient.signOut().catch(() => {});
   window.location.assign("/");
 }
 

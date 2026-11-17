@@ -46,30 +46,47 @@ describe("SignOutButton", () => {
     expect(postMessageMock).toHaveBeenCalledWith({ type: "CLEAR_CACHE" });
   });
 
-  it("keeps the saved copy when sign-out fails", async () => {
+  const OFFLINE_COPY =
+    "You're offline. Signing out removes the saved copy of your trips from this phone.";
+
+  async function cancelConfirm() {
+    expect(await screen.findByText(OFFLINE_COPY)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByText(OFFLINE_COPY)).not.toBeInTheDocument());
+    expect(postMessageMock).not.toHaveBeenCalled();
+    expect(assignMock).not.toHaveBeenCalled();
+  }
+
+  async function confirmDialog() {
+    await screen.findByText(OFFLINE_COPY);
+    const buttons = screen.getAllByRole("button", { name: "Sign out" });
+    fireEvent.click(buttons[buttons.length - 1]);
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
+    expect(postMessageMock).toHaveBeenCalledWith({ type: "CLEAR_CACHE" });
+  }
+
+  it("asks first when sign-out rejects while the browser says online, cancel keeps the copy", async () => {
     signOutMock.mockRejectedValue(new Error("network"));
     render(<SignOutButton />);
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 20));
+    await cancelConfirm();
+  });
+
+  it("asks first when sign-out resolves with an error, confirm clears and redirects", async () => {
+    signOutMock.mockResolvedValue({ data: null, error: { status: 500 } });
+    render(<SignOutButton />);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await screen.findByText(OFFLINE_COPY);
     expect(postMessageMock).not.toHaveBeenCalled();
-    expect(assignMock).not.toHaveBeenCalled();
+    await confirmDialog();
   });
 
   it("asks first when offline, and cancel does nothing", async () => {
     setOnline(false);
     render(<SignOutButton />);
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    expect(
-      await screen.findByText(
-        "You're offline. Signing out removes the saved copy of your trips from this phone.",
-      ),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await new Promise((r) => setTimeout(r, 20));
-    expect(postMessageMock).not.toHaveBeenCalled();
+    await cancelConfirm();
     expect(signOutMock).not.toHaveBeenCalled();
-    expect(assignMock).not.toHaveBeenCalled();
   });
 
   it("clears the cache and redirects when the offline confirm is accepted", async () => {
@@ -77,11 +94,7 @@ describe("SignOutButton", () => {
     signOutMock.mockRejectedValue(new Error("offline"));
     render(<SignOutButton />);
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    await screen.findByText(/You're offline/);
-    const confirmButtons = screen.getAllByRole("button", { name: "Sign out" });
-    fireEvent.click(confirmButtons[confirmButtons.length - 1]);
-    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
-    expect(postMessageMock).toHaveBeenCalledWith({ type: "CLEAR_CACHE" });
+    await confirmDialog();
   });
 
   it("applies the className it's given", () => {
