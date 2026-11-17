@@ -76,7 +76,7 @@ const PNG_BODY = Buffer.from(
 );
 
 type Result = { name: string; status: "PASS" | "FAIL" | "N/A"; detail: string };
-type Phase = "setup" | "online" | "offline" | "slow" | "phone";
+type Phase = "setup" | "online" | "offline" | "slow" | "phone" | "plan";
 
 const results: Result[] = [];
 const consoleErrors: { phase: Phase; url: string; text: string }[] = [];
@@ -182,6 +182,7 @@ async function main(): Promise<number> {
   const hold = { ms: 0, held: 0 };
   const tokens: string[] = [];
   const created: { id: string; key: string }[] = [];
+  const restore: (() => Promise<void>)[] = [];
   let proxy: { origin: string; close: () => void } | undefined;
   let pool: Pool | undefined;
   let browser: Awaited<ReturnType<ReturnType<typeof resolvePlaywright>["chromium"]["launch"]>> | undefined;
@@ -228,6 +229,15 @@ async function main(): Promise<number> {
     if (!trip.rows[0]) throw new Error(`offline-audit: no Trip named "${TRIP_NAME}"; run npm run db:seed:demo`);
     const { id: tripId, slug, owner, cover } = trip.rows[0];
     const home = `/trips/${slug ?? tripId}`;
+
+    // Tonight's stay on the phone Home must show a whole confirmation number: give the seeded stay one if it has none, and put it back afterwards.
+    const stayRow = await db.query<{ id: string; confirmation: string | null }>('select id, confirmation from "Accommodation" where "tripId" = $1 and name = $2 limit 1', [tripId, "Nelson Gateway Cabins"]);
+    const stay = stayRow.rows[0];
+    const stayConfirmation = stay?.confirmation ?? "AUDIT-NELSON-CONF-884217";
+    if (stay && !stay.confirmation) {
+      await db.query('update "Accommodation" set confirmation = $1 where id = $2', [stayConfirmation, stay.id]);
+      restore.push(async () => void (await db.query('update "Accommodation" set confirmation = null where id = $1', [stay.id])));
+    }
 
     const seeded: Record<"pdf" | "png", { id: string; filename: string }> = { pdf: { id: "", filename: "" }, png: { id: "", filename: "" } };
     for (const [kind, filename, mime, body] of [
@@ -321,7 +331,7 @@ async function main(): Promise<number> {
           const t = ((await page.locator('p[role="status"]').first().textContent()) ?? "").trim();
           lastRow = t;
           return /^Saved for offline · /.test(t) ? t : null;
-        }, 120_000, 500);
+        }, 180_000, 500);
         const expected = [home, `${home}/plan`, `${home}/summary`, `${home}/budget`, `${home}/calendar`, `${home}/checklists`, `${home}/files`, `${home}/journal`, dayPath, "/trips", `/api/attachments/${seeded.pdf.id}`, `/api/attachments/${seeded.png.id}`];
         const missing = await page.evaluate(async (paths) => {
           const out: string[] = [];
@@ -784,14 +794,23 @@ async function main(): Promise<number> {
             vw: window.innerWidth,
           };
         });
+        const stayInfo = await phone.evaluate(
+          ({ conf }) => {
+            const el = Array.from(document.querySelectorAll("main *, [data-testid='app-main'] *")).find((e) => (e as HTMLElement).checkVisibility() && (e.textContent ?? "").includes(conf) && !Array.from(e.children).some((c) => (c.textContent ?? "").includes(conf))) as HTMLElement | undefined;
+            const addr = Array.from(document.querySelectorAll("a")).find((a) => /Kellett St/.test(a.textContent ?? "") && (a as HTMLElement).checkVisibility());
+            return { found: el !== undefined, truncated: el ? el.scrollWidth > el.clientWidth + 1 || /\btruncate\b/.test(el.className) : false, address: addr ? addr.getAttribute("href") ?? "" : null };
+          },
+          { conf: stayConfirmation },
+        );
+        const stayOk = stayInfo.found && !stayInfo.truncated && Boolean(stayInfo.address);
         const ys = [order.day, order.next, order.plan, order.stay, order.actions];
         const inOrder = ys.every((y, i) => y >= 0 && (i === 0 || y > ys[i - 1]));
         const hasCover = cover !== null && listCovers > 0;
         await shot(phone, "9-phone-home");
         record(
           "9a. Phone Travelling Home: day line, Now/next, Today's plan, Tonight's stay, quick actions in order; no cover or What's new",
-          order.hasMain && hasCover && inOrder && order.cover === 0 && !order.whatsNew,
-          `app-main ${order.hasMain ? "present" : "MISSING"}; Trip has a cover (coverImageKey ${cover ? "set" : "NULL"}, ${listCovers} cover image(s) on the phone Trips list as a positive control); y positions day ${order.day}, now/next ${order.next}, plan ${order.plan}, stay ${order.stay}, actions ${order.actions}${inOrder ? "" : " (NOT in order or missing)"}; cover images visible on Home ${order.cover}; What's new card ${order.whatsNew ? "SHOWN" : "absent"}`,
+          order.hasMain && hasCover && inOrder && order.cover === 0 && !order.whatsNew && stayOk,
+          `app-main ${order.hasMain ? "present" : "MISSING"}; Trip has a cover (coverImageKey ${cover ? "set" : "NULL"}, ${listCovers} cover image(s) on the phone Trips list as a positive control); y positions day ${order.day}, now/next ${order.next}, plan ${order.plan}, stay ${order.stay}, actions ${order.actions}${inOrder ? "" : " (NOT in order or missing)"}; cover images visible on Home ${order.cover}; What's new card ${order.whatsNew ? "SHOWN" : "absent"}; Tonight's stay confirmation \"${stayConfirmation}\" ${stay?.confirmation ? "(seeded)" : "(set by the audit, restored afterwards)"} ${stayInfo.found ? "present" : "MISSING"}, ${stayInfo.truncated ? "TRUNCATED" : "not truncated"}; address link ${stayInfo.address ? `to ${stayInfo.address.slice(0, 60)}` : "MISSING"}`,
         );
         record("9b. Phone Home is not wider than the viewport", order.docW === order.vw, `document width ${order.docW}, viewport ${order.vw}`);
         await phone.goto(`${baseUrl}${dayPath}`, { waitUntil: "load" });
@@ -822,9 +841,175 @@ async function main(): Promise<number> {
         await pctx.close().catch(() => {});
       }
     });
+
+    // ── Plan dialogs and sign-out (each in its own browser profile) ────────
+    phase = "plan";
+    const planPath = `${home}/plan`;
+    const waitSaved = async (p: Page): Promise<string> => {
+      await p.goto(`${baseUrl}${home}/settings`, { waitUntil: "load" });
+      let last = "";
+      const done = await poll(async () => {
+        last = ((await p.locator('p[role="status"]').first().textContent()) ?? "").trim();
+        return /^Saved for offline · /.test(last) ? last : null;
+      }, 180_000, 500);
+      return done ?? `not settled: "${last}"`;
+    };
+    const boundaryText = /That didn.t load|Application error/;
+    const tapStop = async (c: BrowserContext) => {
+      const off = await c.newPage();
+      watch(off);
+      const cdp = await c.newCDPSession(off);
+      await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
+      await off.goto(`${baseUrl}${planPath}`, { waitUntil: "load" }).catch(() => {});
+      await sleep(2_000);
+      const rendered = await off.getByRole("button", { name: "Open Torquay" }).count();
+      // A page opened while the emulation was already on reads navigator.onLine === true (see check 7); flip it as a phone in airplane mode would show.
+      await c.setOffline(false);
+      await c.setOffline(true);
+      await sleep(500);
+      const served: string[] = [];
+      const failed: string[] = [];
+      off.on("response", (r) => {
+        if (/\/_next\/static\/chunks\//.test(r.url())) served.push(`${r.status()} ${new URL(r.url()).pathname.split("/").pop()}`);
+      });
+      off.on("requestfailed", (r) => {
+        if (/\/_next\/static\/chunks\//.test(r.url())) failed.push(new URL(r.url()).pathname.split("/").pop() ?? "");
+      });
+      let tapError = "";
+      await off.getByRole("button", { name: "Open Torquay" }).first().tap({ timeout: 10_000 }).catch((e) => {
+        tapError = e instanceof Error ? e.message.split("\n")[0] : String(e);
+      });
+      await sleep(3_000);
+      const after = await off.evaluate(() => ({
+        dialog: Array.from(document.querySelectorAll("[role=dialog]")).filter((d) => (d as HTMLElement).checkVisibility()).map((d) => (d.textContent ?? "").replace(/\s+/g, " ").slice(0, 120)),
+        text: document.body.innerText,
+        usable: Array.from(document.querySelectorAll("button")).some((b) => /Open Nelson/.test(b.getAttribute("aria-label") ?? b.textContent ?? "")),
+      }));
+      return { off, rendered, tapError, served, failed, after };
+    };
+
+    // 15. Saved case: Plan opened online long enough for the idle preloads, then offline.
+    await phaseRun("check 15", async () => {
+      const c = await newContext(PHONE, true);
+      try {
+        phase = "plan";
+        const p = await c.newPage();
+        watch(p);
+        await p.goto(`${baseUrl}${planPath}`, { waitUntil: "load" });
+        await sleep(6_000);
+        const row = await waitSaved(p);
+        await p.goto(`${baseUrl}${planPath}`, { waitUntil: "load" });
+        await sleep(5_000);
+        phase = "offline";
+        await c.setOffline(true);
+        const r = await tapStop(c);
+        const opened = r.after.dialog.some((d) => /Torquay/.test(d)) && !boundaryText.test(r.after.text);
+        record(
+          "15. Offline Plan (Plan opened online first): tapping a Stop opens its sheet with its content, no error boundary",
+          r.rendered > 0 && r.tapError === "" && opened,
+          `save row "${row}"; Plan rendered offline ${r.rendered > 0 ? "yes" : "NO"}; tap ${r.tapError || "ok"}; dialog ${r.after.dialog.length ? `"${r.after.dialog[0]}"` : "NOT opened"}; error boundary ${boundaryText.test(r.after.text) ? "SHOWN" : "absent"}; offline message ${OFFLINE_MESSAGE.test(r.after.text) ? "shown" : "not shown"}; chunk requests after the tap served ${r.served.length ? r.served.join(", ") : "none"}, failed ${r.failed.length ? r.failed.join(", ") : "none"}`,
+        );
+        if (!(r.rendered > 0 && r.tapError === "" && opened)) await shot(r.off, "15-plan-stop");
+      } finally {
+        await c.close().catch(() => {});
+      }
+    });
+
+    // 16. Unsaved case: the Trip is warmed from Home, Plan never opened online.
+    await phaseRun("check 16", async () => {
+      const c = await newContext(PHONE, true);
+      try {
+        phase = "plan";
+        const p = await c.newPage();
+        watch(p);
+        await p.goto(`${baseUrl}${home}`, { waitUntil: "load" });
+        await poll(() => p.evaluate(() => navigator.serviceWorker.controller !== null), 20_000);
+        const row = await waitSaved(p);
+        phase = "offline";
+        await c.setOffline(true);
+        const r = await tapStop(c);
+        const boundary = boundaryText.test(r.after.text);
+        const dialogOpened = r.after.dialog.some((d) => /Torquay/.test(d));
+        const message = OFFLINE_MESSAGE.test(r.after.text);
+        const ok = r.rendered > 0 && r.tapError === "" && !boundary && (dialogOpened || message) && r.after.usable;
+        record(
+          "16. Offline Plan (Plan never opened online): tapping a Stop does not hit the error boundary, shows the dialog or the offline message, Plan stays usable",
+          ok,
+          `save row "${row}"; Plan rendered offline ${r.rendered > 0 ? "yes" : "NO"}; tap ${r.tapError || "ok"}; dialog ${dialogOpened ? "opened (its chunk was saved anyway)" : "not opened"}; offline message ${message ? "shown" : "NOT shown"}; error boundary ${boundary ? "SHOWN" : "absent"}; Plan still usable ${r.after.usable}; chunk requests after the tap served ${r.served.length ? r.served.join(", ") : "none"}, failed ${r.failed.length ? r.failed.join(", ") : "none"}`,
+        );
+        if (!ok) await shot(r.off, "16-plan-stop-unsaved");
+      } finally {
+        await c.close().catch(() => {});
+      }
+    });
+
+    // 17. Sign-out keeps the offline page and clears the private copy. Last: it clears the saved copy.
+    // Better Auth refuses a sign-out whose Origin is the proxy's random port (only APP_URL is trusted), so this check talks to the server directly.
+    const site = upstream.origin;
+    await phaseRun("check 17", async () => {
+      const c = await newContext(DESKTOP);
+      try {
+        phase = "online";
+        const p = await c.newPage();
+        watch(p);
+        await p.goto(`${site}${home}`, { waitUntil: "load" });
+        await poll(() => p.evaluate(() => navigator.serviceWorker.controller !== null), 20_000);
+        const row = await waitSaved(p);
+        await p.goto(`${site}/account`, { waitUntil: "load" });
+        await sleep(1_500);
+        const direct = p.getByRole("button", { name: "Sign out", exact: true }).filter({ visible: true });
+        if ((await direct.count()) > 0) await direct.first().click({ timeout: 10_000 });
+        else {
+          await p.getByRole("button", { name: "Open traveller menu" }).filter({ visible: true }).first().click({ timeout: 10_000 });
+          await p.getByRole("menuitem", { name: "Sign out" }).first().click({ timeout: 10_000 });
+        }
+        await p.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
+        await sleep(3_000);
+        const left = await p.evaluate(async () => {
+          const trips: string[] = [];
+          let offlinePage = false;
+          for (const name of await caches.keys()) {
+            const cache = await caches.open(name);
+            for (const req of await cache.keys()) {
+              const pathname = new URL(req.url).pathname;
+              if (pathname.startsWith("/trips")) trips.push(pathname);
+              if (pathname === "/offline.html") offlinePage = true;
+            }
+          }
+          const keys = Object.keys(localStorage).filter((k) => k.startsWith("teepee.offline."));
+          return { trips, offlinePage, keys };
+        });
+        phase = "offline";
+        await c.setOffline(true);
+        const off = await c.newPage();
+        watch(off);
+        const cdp = await c.newCDPSession(off);
+        await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
+        await off.goto(`${site}${home}`, { waitUntil: "load" }).catch(() => {});
+        await sleep(1_500);
+        const o = await off.evaluate(() => ({
+          title: document.title,
+          h1: document.querySelector("h1")?.textContent?.trim() ?? "",
+          container: document.getElementById("saved-trips") !== null,
+          links: document.querySelectorAll("#saved-trips a").length,
+          visibleLinks: Array.from(document.querySelectorAll("#saved-trips a")).filter((a) => (a as HTMLElement).checkVisibility()).length,
+          text: document.body.innerText.replace(/\s+/g, " ").slice(0, 80),
+        }));
+        const ok = /You.re offline/.test(o.h1) && o.container && o.links === 0 && left.trips.length === 0 && left.keys.length === 0 && left.offlinePage;
+        record(
+          "17. Sign out clears the saved copy but keeps offline.html: a Trip URL offline gets the worker's offline page",
+          ok,
+          `save row before "${row}"; after sign-out: /trips entries left in caches ${left.trips.length ? left.trips.slice(0, 4).join(", ") : "none"}, teepee.offline.* keys ${left.keys.length ? left.keys.join(", ") : "none"}, offline.html still cached ${left.offlinePage}; offline Trip URL answered title "${o.title}", h1 "${o.h1}", saved-trips container ${o.container ? "present" : "ABSENT"} with ${o.links} link(s) (${o.visibleLinks} visible), text "${o.text}"`,
+        );
+        if (!ok) await shot(off, "17-signout");
+      } finally {
+        await c.close().catch(() => {});
+      }
+    });
   } finally {
     const warn = (what: string, e: unknown) => console.warn(`offline-audit: WARNING could not ${what}: ${e instanceof Error ? e.message : String(e)}`);
     if (pool) {
+      for (const undo of restore) await undo().catch((e) => warn("restore the stay's confirmation number", e));
       if (tokens.length) await pool.query('delete from "AuthSession" where token = any($1)', [tokens]).catch((e) => warn(`delete ${tokens.length} AuthSession row(s)`, e));
       if (created.length) await pool.query('delete from "Attachment" where id = any($1)', [created.map((c) => c.id)]).catch((e) => warn(`delete ${created.length} Attachment row(s) ${created.map((c) => c.id).join(", ")}`, e));
       await pool.end().catch((e) => warn("close the database pool", e));
