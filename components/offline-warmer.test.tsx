@@ -365,6 +365,60 @@ describe("OfflineWarmer", () => {
     });
   });
 
+  describe("page scripts and styles (spec 2026-11-17 §B2)", () => {
+    const page = '<link rel="stylesheet" href="/_next/static/chunks/a.css"/><script src="/_next/static/chunks/one.js" async=""></script><script src="https://cdn.example.com/_next/static/x.js"></script>';
+    const serve = (pages: Record<string, string>) =>
+      fetchMock.mockImplementation(async (url: string) => new Response(url in pages ? pages[url] : "", { status: 200 }));
+
+    it("fetches the assets of a warmed page once, and counts them", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      serve({ "/trips/t1": page, "/trips/t1/plan": page });
+
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
+
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 4, saved: 4 }));
+      expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+        "/trips/t1",
+        "/_next/static/chunks/a.css",
+        "/_next/static/chunks/one.js",
+        "/trips/t1/plan",
+      ]);
+    });
+
+    it("does not fetch an asset the cache already holds, but counts it", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p.endsWith(".css") ? new Response("") : undefined)) });
+      serve({ "/trips/t1": page });
+
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 3 }));
+      expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(["/trips/t1", "/_next/static/chunks/one.js"]);
+    });
+
+    it("a failed asset is a page failure: counted, and no save is stamped", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      fetchMock.mockImplementation(async (url: string) =>
+        url === "/_next/static/chunks/one.js" ? new Response("", { status: 404 }) : new Response(url === "/trips/t1" ? page : "", { status: 200 }),
+      );
+
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 2, savedAt: null }));
+    });
+
+    it("fetches no assets for a file", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
+      serve({ "/api/attachments/a1?offline=1": page });
+      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} />);
+      await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("once per few hours (spec 2026-10-06 §A)", () => {
     const HOUR = 60 * 60 * 1000;
 

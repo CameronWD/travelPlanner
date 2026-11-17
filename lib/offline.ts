@@ -94,9 +94,9 @@ export const MAX_WARM_TRIP_BYTES = 200 * 1024 * 1024;
 
 /**
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
- * the read-while-travelling essentials — Home, Plan, Today, Summary, Money,
- * Calendar, Checklists, Files, the user guide and the What's new page (ADR
- * 0056) — + the Day pages from `warmDayDates` (around today while Travelling,
+ * the read-while-travelling essentials — Home, Plan, Summary, Money,
+ * Calendar, Checklists, Files, Journal, the user guide, the What's new page
+ * (ADR 0056) and the Trips list — + the Day pages from `warmDayDates` (around today while Travelling,
  * capped) + attachments under the size cap + the cover photo. Pure — no
  * browser APIs.
  *
@@ -127,14 +127,15 @@ export function tripOfflinePaths(
   const paths = [
     base,
     `${base}/plan`,
-    `${base}/today`,
     `${base}/summary`,
     `${base}/budget`,
     `${base}/calendar`,
     `${base}/checklists`,
     `${base}/files`,
+    `${base}/journal`,
     `${base}/help`,
     '/whats-new',
+    '/trips',
   ];
   for (const date of warmDayDates(startDate, endDate, dayWindow)) {
     paths.push(`${base}/day/${date}`);
@@ -156,6 +157,33 @@ export function tripOfflinePaths(
   }
   if (coverUrl) paths.push(coverUrl, coverUrlForWidth(coverUrl, COVER_SMALL_WIDTH));
   return paths;
+}
+
+const NEXT_STATIC_PREFIX = '/_next/static/';
+
+function attributeOf(tag: string, name: string): string | null {
+  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
+  return match ? (match[1] ?? match[2]) : null;
+}
+
+/**
+ * The same-origin `/_next/static/` scripts and stylesheets a page's HTML
+ * references, once each, in document order. A page saved for offline needs
+ * them to be interactive; one for a section never opened since the last deploy
+ * would otherwise lack its chunks.
+ */
+export function assetUrlsIn(html: string): string[] {
+  const urls: string[] = [];
+  for (const [tag] of html.matchAll(/<(?:script|link)\b[^>]*>/gi)) {
+    const isScript = /^<script/i.test(tag);
+    const url = isScript
+      ? attributeOf(tag, 'src')
+      : /\bstylesheet\b/i.test(attributeOf(tag, 'rel') ?? '')
+        ? attributeOf(tag, 'href')
+        : null;
+    if (url?.startsWith(NEXT_STATIC_PREFIX) && !urls.includes(url)) urls.push(url);
+  }
+  return urls;
 }
 
 // ---------------------------------------------------------------------------

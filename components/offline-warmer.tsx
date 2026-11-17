@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, isIncomplete, subscribe, takeWarmRequest } from "@/lib/offline-status";
-import { isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, warmUrlFor, type ConnectionHint } from "@/lib/offline";
+import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, warmUrlFor, type ConnectionHint } from "@/lib/offline";
 
 function subscribeToController(onChange: () => void): () => void {
   if (!("serviceWorker" in navigator)) return () => {};
@@ -89,6 +89,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       let total = 0;
       let savedCount = 0;
       let pagesFailed = 0;
+      const assetsSeen = new Set<string>();
       for (const path of pathList) {
         if (cancelled) return;
         // `path` is origin-relative, but isAttachmentRoute/isCoverRoute parse
@@ -114,8 +115,29 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
           // Files ask for their bytes (never a storage redirect); the worker
           // keeps them under the plain path, which is what caches.match checks.
           const response = await fetch(warmUrlFor(path), { cache: "no-store" });
-          if (response.ok && !(isFile && response.redirected)) savedCount++;
-          else if (!isFile) pagesFailed++;
+          if (!response.ok || (isFile && response.redirected)) {
+            if (!isFile) pagesFailed++;
+            continue;
+          }
+          // A page is only as saved as the scripts and styles it loads.
+          const assets = isFile ? [] : assetUrlsIn(await response.text()).filter((a) => !assetsSeen.has(a));
+          savedCount++;
+          for (const asset of assets) {
+            if (cancelled) return;
+            assetsSeen.add(asset);
+            total++;
+            if (typeof caches !== "undefined" && (await caches.match(asset).catch(() => undefined))) {
+              savedCount++;
+              continue;
+            }
+            try {
+              const assetResponse = await fetch(asset);
+              if (assetResponse.ok) savedCount++;
+              else pagesFailed++;
+            } catch {
+              pagesFailed++;
+            }
+          }
         } catch {
           if (!isFile) pagesFailed++;
         }

@@ -348,10 +348,11 @@ describe("generateMetadata", () => {
 describe("TripLayout offline warm set (spec 2026-10-01 §F2)", () => {
   const warmedPaths = () => screen.getByTestId("offline-warmer").getAttribute("data-paths")!.split(" ");
 
-  it("warms Today, Money and Calendar alongside the existing pages", async () => {
+  it("warms Journal, Money and Calendar alongside the existing pages, and not the Today redirect", async () => {
     await renderLayout();
     const paths = warmedPaths();
-    expect(paths).toContain("/trips/trip-1/today");
+    expect(paths).toContain("/trips/trip-1/journal");
+    expect(paths).not.toContain("/trips/trip-1/today");
     expect(paths).toContain("/trips/trip-1/budget");
     expect(paths).toContain("/trips/trip-1/calendar");
     expect(paths).toContain("/trips/trip-1/plan");

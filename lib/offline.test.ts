@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -217,14 +217,15 @@ describe('tripOfflinePaths', () => {
   const FIXED = [
     '/trips/t1',
     '/trips/t1/plan',
-    '/trips/t1/today',
     '/trips/t1/summary',
     '/trips/t1/budget',
     '/trips/t1/calendar',
     '/trips/t1/checklists',
     '/trips/t1/files',
+    '/trips/t1/journal',
     '/trips/t1/help',
     '/whats-new',
+    '/trips',
   ];
 
   it('returns the fixed pages + one /day/ path per date in an inclusive range', () => {
@@ -237,13 +238,15 @@ describe('tripOfflinePaths', () => {
     ]);
   });
 
-  it('returns only the ten fixed pages when dates are null', () => {
+  it('returns only the fixed pages when dates are null', () => {
     expect(tripOfflinePaths('t1', null, null)).toEqual(FIXED);
   });
 
-  it('warms Today, Money and Calendar — the read-on-the-road views (spec 2026-10-01 §F2)', () => {
+  it('warms Journal, Trips, Money and Calendar, and not the Today redirect (spec 2026-11-17 §B2)', () => {
     const paths = tripOfflinePaths('t1', null, null);
-    expect(paths).toContain('/trips/t1/today');
+    expect(paths).toContain('/trips/t1/journal');
+    expect(paths).toContain('/trips');
+    expect(paths).not.toContain('/trips/t1/today');
     expect(paths).toContain('/trips/t1/budget');
     expect(paths).toContain('/trips/t1/calendar');
   });
@@ -587,5 +590,34 @@ describe('a slow network falls back to the saved copy (spec A5, ADR 0077)', () =
   it('tells the page it opened as a saved copy', () => {
     expect(SAVED_COPY_MESSAGE).toBe('SAVED_COPY');
     expect(savedCopyMessage('https://teepee.example/trips/a')).toEqual({ type: 'SAVED_COPY', url: 'https://teepee.example/trips/a' });
+  });
+});
+
+describe('assetUrlsIn', () => {
+  const html = `<html><head>
+    <link rel="stylesheet" href="/_next/static/chunks/a.css" data-precedence="next"/>
+    <link data-precedence="next" href="/_next/static/chunks/b.css" rel="stylesheet"/>
+    <link rel="icon" href="/favicon.svg"/>
+    <link rel="preload" as="script" href="/_next/static/chunks/p.js"/>
+    </head><body>
+    <script src="/_next/static/chunks/one.js" async=""></script>
+    <script async src="/_next/static/chunks/two.js"></script>
+    <script src="https://cdn.example.com/_next/static/chunks/x.js"></script>
+    <script src="/_next/static/chunks/one.js" async=""></script>
+    <script src="/other/y.js"></script>
+    <script>self.__next_f.push([1,"<script src=\\"/_next/static/chunks/in-data.js\\">"])</script>
+    </body></html>`;
+
+  it('lists same-origin scripts and stylesheets once, in either attribute order', () => {
+    expect(assetUrlsIn(html)).toEqual([
+      '/_next/static/chunks/a.css',
+      '/_next/static/chunks/b.css',
+      '/_next/static/chunks/one.js',
+      '/_next/static/chunks/two.js',
+    ]);
+  });
+
+  it('returns nothing for a page with no assets', () => {
+    expect(assetUrlsIn('<html></html>')).toEqual([]);
   });
 });

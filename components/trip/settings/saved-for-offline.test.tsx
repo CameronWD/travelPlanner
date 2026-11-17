@@ -104,7 +104,7 @@ describe("SavedForOffline", () => {
   it("Save again re-runs the warm: every path is fetched again and the row passes through Saving…", async () => {
     const user = userEvent.setup();
     stubNavigator({ onLine: true, hasController: true });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const fetchMock = vi.fn().mockImplementation(async () => new Response("", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(
