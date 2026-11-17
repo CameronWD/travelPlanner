@@ -31,7 +31,7 @@ describe("MonthGrid — location hero", () => {
     expect(screen.getAllByText("Paris").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("collapses activities to a count instead of listing item titles", () => {
+  it("keeps the things count chip for the compact grid", () => {
     render(
       <MonthGrid
         tripId="t1"
@@ -42,7 +42,6 @@ describe("MonthGrid — location hero", () => {
       />,
     );
     expect(screen.getByText(/2 things/)).toBeInTheDocument();
-    expect(screen.queryByText("Item 0")).not.toBeInTheDocument();
   });
 
   it("shows no location on a gap day", () => {
@@ -289,7 +288,7 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 1)]} />);
     const cellLabel = screen
       .getAllByText("Paris")
-      .find((el) => el.className.includes("uppercase"))!;
+      .find((el) => el.closest("a") && el.className.includes("uppercase"))!;
     expect(cellLabel).not.toBeUndefined();
     expect(cellLabel.className).toContain("truncate");
     expect(cellLabel).toHaveAttribute("title", "Paris");
@@ -305,7 +304,7 @@ describe("MonthGrid — dense cells clamp (September rule 2; W11, LA-125/126)", 
     render(grid(2));
     // "Paris" also appears in the stop legend below the grid (an <li>, not a
     // cell <span>), so the cell label is picked out by tag.
-    const city = screen.getAllByText("Paris").find((el) => el.tagName === "SPAN")!;
+    const city = screen.getAllByText("Paris").find((el) => el.tagName === "SPAN" && el.closest("a"))!;
     expect(city).toHaveAttribute("title", "Paris");
     const classes = city.className.split(/\s+/);
     expect(classes).toEqual(expect.arrayContaining(["truncate", "shrink-0"]));
@@ -333,7 +332,7 @@ describe("MonthGrid — dense cells clamp (September rule 2; W11, LA-125/126)", 
   });
   it("marker icons wrap inside the cell instead of spilling past its edge", () => {
     render(grid(0));
-    const link = screen.getAllByText("Paris").find((el) => el.tagName === "SPAN")!.closest("a")!;
+    const link = screen.getAllByText("Paris").find((el) => el.tagName === "SPAN" && el.closest("a"))!.closest("a")!;
     const iconRow = link.firstElementChild!.lastElementChild as HTMLElement;
     expect(iconRow.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex-wrap", "justify-end", "min-w-0"]));
   });
@@ -357,5 +356,66 @@ describe("MonthGrid — public holidays", () => {
     const other = screen.getAllByRole("link").find((l) => l !== cell)!;
     expect(other.querySelector("[data-holiday]")).toBeNull();
     expect(other).not.toHaveAttribute("title");
+  });
+});
+
+describe("MonthGrid — desktop month (spec E5)", () => {
+  const props = { tripId: "t1", monthAnchorISO: "2026-07-01", tripStart: "2026-07-14", tripEnd: "2026-07-15" };
+  const withItems = (dateISO: string, items: Array<{ id: string; title: string; startTime?: string; surprise?: { youAreSurprised: boolean } }>): DayPlan => ({
+    ...dayPlan(dateISO, 0),
+    timedItems: items.filter((i) => i.startTime).map((i) => ({ kind: "item" as const, item: { category: "sightseeing", ...i } as never })),
+    untimedItems: items.filter((i) => !i.startTime).map((i) => ({ kind: "item" as const, item: { category: "sightseeing", ...i } as never })),
+  });
+
+  it("names up to three things, timed first, then counts the rest", () => {
+    const things = [
+      { id: "a", title: "Lunch" }, { id: "b", title: "Louvre", startTime: "10:30" },
+      { id: "c", title: "Dinner" }, { id: "d", title: "Walk" }, { id: "e", title: "Bar" },
+      { id: "f", title: "Market" }, { id: "g", title: "Park" },
+    ];
+    render(<MonthGrid {...props} days={[withItems("2026-07-14", things)]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    const list = link.querySelector("[data-day-things]")!;
+    expect(Array.from(list.querySelectorAll("li")).map((li) => li.textContent)).toEqual(["10:30 Louvre", "Lunch", "Dinner", "+4 more"]);
+  });
+
+  it("does not name or count things hidden from the viewer as a Surprise", () => {
+    const things = [
+      { id: "a", title: "Louvre", startTime: "10:30" },
+      { id: "b", title: "Surprise", startTime: "19:30", surprise: { youAreSurprised: true } },
+    ];
+    render(<MonthGrid {...props} days={[withItems("2026-07-14", things)]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    expect(link.querySelector("[data-day-things]")!.textContent).toBe("10:30 Louvre");
+    expect(link.getAttribute("aria-label")).toMatch(/1 thing\b/);
+    expect(link.textContent).not.toMatch(/Surprise|2 things/);
+  });
+
+  it("is an even-row grid with no fixed height or clipping at lg, and one non-wrapping top row", () => {
+    const { container } = render(<MonthGrid {...props} days={[withItems("2026-07-14", [{ id: "a", title: "x" }])]} />);
+    expect(container.querySelector(".grid.grid-cols-7.gap-1:not([aria-hidden])")!.className).toMatch(/lg:auto-rows-fr/);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    expect(link.className).toMatch(/lg:h-auto/);
+    expect(link.className).toMatch(/lg:overflow-visible/);
+    const row = link.firstElementChild!;
+    expect(row.className).toMatch(/\bflex-nowrap\b/);
+    expect(row.querySelector("span.hidden")!.className).toMatch(/lg:flex-nowrap/);
+  });
+
+  it("draws one band per Stop per week row, named once, in the Stop colour, and the day still links to its Day view", () => {
+    const { container } = render(<MonthGrid {...props} days={[dayPlan("2026-07-14", 0), dayPlan("2026-07-15", 0)]} />);
+    const bands = container.querySelectorAll("[data-stop-band]");
+    expect(bands).toHaveLength(1);
+    expect(bands[0].textContent).toBe("Paris");
+    expect((bands[0] as HTMLElement).style.gridColumn).toBe("2 / span 2");
+    expect(screen.getByRole("link", { name: /Tue 14 Jul 2026/ })).toHaveAttribute("href", expect.stringContaining("/day/2026-07-14"));
+  });
+
+  it("leaves the compact tile classes in place below lg", () => {
+    render(<MonthGrid {...props} days={[dayPlan("2026-07-14", 1)]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    expect(link.className).toMatch(/h-\[50px\]/);
+    expect(link.className).toMatch(/\bsm:h-24\b/);
+    expect(link.className).toMatch(/\boverflow-hidden\b/);
   });
 });
