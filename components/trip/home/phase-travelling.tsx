@@ -16,6 +16,7 @@ import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { DayIdeas } from "@/components/trip/day-ideas";
 import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
+import { StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { MapLink } from "@/components/trip/map-link";
 import { mapsUrl } from "@/lib/map/maps";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
@@ -205,50 +206,41 @@ export async function PhaseTravelling({
       {/* Tonight's accommodation (kit "Tonight" card on the stay fill), with
           the Day view Tonight card's details shown open. */}
       {tonightAccom && (
-        <Card tone="lilac" className="p-4 lg:p-5" data-testid="tonights-stay">
-          <h3 className="text-label">Tonight&apos;s stay</h3>
-          <div className="mt-1.5 flex items-start gap-2.5">
-            <Bed className="mt-1 size-5 shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-xl font-extrabold leading-tight tracking-[-0.03em]">
-                {tonightAccom.name}
-              </p>
-              {tonightAccom.address && (
-                <a
-                  href={mapsUrl({ lat: tonightAccom.lat, lng: tonightAccom.lng, address: tonightAccom.address, label: tonightAccom.name, placeId: tonightAccom.placeId }) ?? undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-flex min-h-11 items-center text-[13px] font-semibold underline underline-offset-2"
-                >
-                  {tonightAccom.address}
-                </a>
-              )}
-              {!tonightAccom.address && (
-                <MapLink
-                  lat={tonightAccom.lat}
-                  lng={tonightAccom.lng}
-                  label={tonightAccom.name}
-                  placeId={tonightAccom.placeId}
-                  className="mt-1 text-[13px] font-semibold text-foreground"
-                />
-              )}
-              {tonightAccom.confirmation && (
-                <div className="flex items-center gap-2 text-[13px] font-semibold">
-                  <span>Confirmation</span>
-                  <span className="min-w-0 break-all font-mono">{tonightAccom.confirmation}</span>
-                  <CopyConfirmationButton confirmation={tonightAccom.confirmation} />
-                </div>
-              )}
-              {tonightAccom.checkInTime && (
-                <p className="text-[13px] font-semibold">{`Check-in ${tonightAccom.checkInTime}`}</p>
-              )}
-              {tonightAccom.notes && (
-                <p className="mt-1 whitespace-pre-line text-[13px] font-medium">{tonightAccom.notes}</p>
-              )}
-              <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
+        <StayCard data-testid="tonights-stay" label="Tonight's stay" icon={Bed} name={tonightAccom.name}>
+          {tonightAccom.address && (
+            <a
+              href={mapsUrl({ lat: tonightAccom.lat, lng: tonightAccom.lng, address: tonightAccom.address, label: tonightAccom.name, placeId: tonightAccom.placeId }) ?? undefined}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center self-start text-[13px] font-semibold underline underline-offset-2"
+            >
+              {tonightAccom.address}
+            </a>
+          )}
+          {!tonightAccom.address && (
+            <MapLink
+              lat={tonightAccom.lat}
+              lng={tonightAccom.lng}
+              label={tonightAccom.name}
+              placeId={tonightAccom.placeId}
+              className="text-[13px] font-semibold text-foreground"
+            />
+          )}
+          {tonightAccom.confirmation && (
+            <div className="flex items-center gap-2 text-[13px] font-semibold">
+              <span>Confirmation</span>
+              <StayConfirmation value={tonightAccom.confirmation} />
+              <CopyConfirmationButton confirmation={tonightAccom.confirmation} />
             </div>
-          </div>
-        </Card>
+          )}
+          {tonightAccom.checkInTime && (
+            <p className="text-[13px] font-semibold">{`Check-in ${tonightAccom.checkInTime}`}</p>
+          )}
+          {tonightAccom.notes && (
+            <p className="whitespace-pre-line text-[13px] font-medium">{tonightAccom.notes}</p>
+          )}
+          <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
+        </StayCard>
       )}
 
       <div data-testid="quick-actions">

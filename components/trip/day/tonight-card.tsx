@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Copy } from "lucide-react";
+import { Bed, Check, ChevronDown, Copy } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDayLabel } from "@/lib/dates";
 import { mapsUrl } from "@/lib/map/maps";
 import type { DayViewData } from "@/lib/day-view-loader";
+import { StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
 /**
- * Tonight (DAY_VIEW §2 right column 2, §3.7): lilac card naming tonight's bed,
+ * Tonight (DAY_VIEW §2 right column 2, §3.7): StayCard naming tonight's bed,
  * its night-of count and check-out day. Hidden on the trip's last day.
  *
  * Tapping the card expands it in place (spec 2026-09-29 D1): address (opens
@@ -38,24 +39,16 @@ export function TonightCard({
   const tripHref = useTripHref(tripId);
   if (isLastDay) return null;
 
-  const phone = size === "phone";
   const planHref = tripHref(`/plan${stopId ? `#stop-${stopId}` : ""}`);
-  const shell = cn(
-    "island flex flex-col gap-1 rounded-3xl border-2 border-border bg-lilac text-on-accent",
-    phone ? "px-4 py-3.5 shadow-hard-2" : "px-[22px] py-[18px] shadow-hard-3",
-  );
-  const name = cn("font-display font-extrabold", phone ? "text-[18px]" : "text-[20px]", "leading-tight");
-  const eyebrow = <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em]">Tonight</span>;
+  const shell = size === "phone" ? "shadow-hard-2" : "shadow-hard-3";
 
   if (!tonight) {
     return (
-      <div data-slot="tonight-card" className={shell}>
-        {eyebrow}
-        <p className={name}>No bed yet</p>
+      <StayCard data-slot="tonight-card" className={shell} label="Tonight" icon={Bed} name="No bed yet">
         <Link href={planHref} className="inline-flex min-h-11 items-center self-start text-[13px] font-bold underline underline-offset-2 md:min-h-0">
           + Add a stay
         </Link>
-      </div>
+      </StayCard>
     );
   }
 
@@ -72,25 +65,31 @@ export function TonightCard({
   }
 
   return (
-    <div data-slot="tonight-card" className={shell}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen((o) => !o)}
-        className="pressable flex w-full items-center justify-between gap-3 rounded-2xl text-left focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <span className="min-w-0">
-          {eyebrow}
-          <span className={cn("block truncate", name)}>{tonight.name}</span>
-          <span className="block text-[13px] font-semibold">{`Night ${tonight.nightOf.night} of ${tonight.nightOf.of} · check-out ${formatDayLabel(tonight.checkOut)}`}</span>
-        </span>
-        <ChevronDown
-          className={cn("size-5 shrink-0 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")}
-          strokeWidth={2.5}
-          aria-hidden="true"
-        />
-      </button>
+    <StayCard
+      data-slot="tonight-card"
+      className={shell}
+      label="Tonight"
+      icon={Bed}
+      name={
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((o) => !o)}
+          className="pressable flex w-full items-center justify-between gap-3 rounded-2xl text-left focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <span className="min-w-0">
+            <span className="block truncate">{tonight.name}</span>
+            <span className="block font-sans text-[13px] font-semibold leading-snug">{`Night ${tonight.nightOf.night} of ${tonight.nightOf.of} · check-out ${formatDayLabel(tonight.checkOut)}`}</span>
+          </span>
+          <ChevronDown
+            className={cn("size-5 shrink-0 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")}
+            strokeWidth={2.5}
+            aria-hidden="true"
+          />
+        </button>
+      }
+    >
       {open ? (
         <div id={panelId} data-slot="tonight-details" className="mt-2 flex flex-col gap-1.5 border-t-2 border-border/30 pt-2.5 text-[13px] font-semibold">
           {tonight.address && mapHref ? (
@@ -101,7 +100,7 @@ export function TonightCard({
           {confirmation ? (
             <div className="flex items-center gap-2">
               <span>Confirmation</span>
-              <span className="font-mono">{confirmation}</span>
+              <StayConfirmation value={confirmation} />
               <button
                 type="button"
                 onClick={copyConfirmation}
@@ -120,6 +119,6 @@ export function TonightCard({
           </Link>
         </div>
       ) : null}
-    </div>
+    </StayCard>
   );
 }

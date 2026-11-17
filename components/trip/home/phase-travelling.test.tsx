@@ -633,20 +633,22 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     expect(dom.textContent).not.toContain("Sintra day trip");
   });
 
-  it("puts every module in a kit Card, headings in order, with tonight's stay on the lilac (stay) fill", async () => {
+  it("puts every module in a kit Card, headings in order, with tonight's stay as a lilac-banded StayCard", async () => {
     pinClockInsideStay();
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
 
     const headings = [...dom.querySelectorAll("h2, h3")].map((h) => h.textContent?.trim());
-    expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today's plan", "Tonight's stay", "Where you are"]);
+    expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today's plan", "Where you are"]);
 
-    for (const text of ["Today's plan", "Where you are", "Tonight's stay"]) {
+    for (const text of ["Today's plan", "Where you are"]) {
       const h = [...dom.querySelectorAll("h3")].find((el) => el.textContent?.trim() === text)!;
       expect(closestKitCard(h), `${text} sits in a kit Card`).not.toBeNull();
     }
-    const tonight = [...dom.querySelectorAll("h3")].find((el) => el.textContent === "Tonight's stay")!;
-    expect(closestKitCard(tonight)!.className).toContain("bg-lilac");
+    const band = dom.querySelector('[data-testid="tonights-stay"] [data-slot="stay-band"]')!;
+    expect(band.textContent).toBe("Tonight's stay");
+    expect(band.className).toContain("bg-lilac");
+    expect(dom.querySelector('[data-testid="tonights-stay"] [data-slot="stay-body"]')!.className).not.toMatch(/bg-lilac(\s|$)/);
 
     // No old-shape containers survive.
     expect(dom.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft|bg-hue-leaf\/25/);

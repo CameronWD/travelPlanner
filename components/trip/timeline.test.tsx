@@ -1057,12 +1057,26 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(row.className).not.toMatch(/\bborder-dotted\b/);
     expect(row.className).toContain("border-t-2");
   });
-  it("colours transport tiles sun and stay tiles lilac", () => {
+  it("colours transport tiles sun and renders stays as StayCards, not lilac tiles", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
     const fills = [...container.querySelectorAll("[data-testid='timeline-tile']")].map((t) => t.className);
     expect(fills.some((c) => c.includes("bg-sun"))).toBe(true);
-    expect(fills.some((c) => c.includes("bg-lilac"))).toBe(true);
+    expect(fills.some((c) => c.includes("bg-lilac"))).toBe(false);
     expect(fills.some((c) => c.includes("bg-background"))).toBe(false);
+    const band = container.querySelector("[data-slot='stay-band']")!;
+    expect(band.textContent).toBe("Check-in");
+    expect(band.className).toContain("bg-lilac");
+    expect(container.querySelector("[data-slot='stay-body']")!.className).not.toContain("bg-lilac ");
+    expect(screen.getByText("Osaka Hotel")).toBeInTheDocument();
+  });
+  it("a check-out is a StayCard labelled Check-out", () => {
+    const { container } = render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />);
+    expect(container.querySelector("[data-slot='stay-band']")!.textContent).toBe("Check-out");
+  });
+  it("the default size keeps the neutral stay tile and no StayCard", () => {
+    const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
+    expect(container.querySelector("[data-slot='stay-band']")).toBeNull();
+    expect(screen.getByText("Check-in: Osaka Hotel")).toBeInTheDocument();
   });
   it("the default size keeps the kit 28px tile and dotted rule", () => {
     const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" />);

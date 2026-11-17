@@ -37,7 +37,10 @@ describe("TonightCard (spec 2026-09-29 D1)", () => {
     expect(toggle()).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("Night 3 of 4 · check-out Mon 14 Dec")).toBeInTheDocument();
     expect(screen.queryByRole("link")).toBeNull();
-    expect((toggle().closest('[data-slot="tonight-card"]') as HTMLElement).className).toContain("bg-lilac");
+    const card = toggle().closest('[data-slot="tonight-card"]') as HTMLElement;
+    expect(card.querySelector('[data-slot="stay-band"]')!.textContent).toBe("Tonight");
+    expect(card.querySelector('[data-slot="stay-band"]')!.className).toContain("bg-lilac");
+    expect(card.querySelector('[data-slot="stay-body"]')!.className).not.toMatch(/bg-lilac(\s|$)/);
   });
 
   it("expands in place with every detail present and an 'Edit in plan' link to the Stop; tapping again collapses", () => {
@@ -49,7 +52,7 @@ describe("TonightCard (spec 2026-09-29 D1)", () => {
       "href",
       "https://www.google.com/maps/search/?api=1&query=48.5795%2C7.7498",
     );
-    expect(within(panel).getByText("HX-4471")).toBeInTheDocument();
+    expect(within(panel).getByText("HX-4471").className).toContain("font-mono");
     expect(within(panel).getByText("Check-in 15:00")).toBeInTheDocument();
     expect(within(panel).getByText("Check-out 11:00")).toBeInTheDocument();
     expect(within(panel).getByText("Door code 1942")).toBeInTheDocument();
