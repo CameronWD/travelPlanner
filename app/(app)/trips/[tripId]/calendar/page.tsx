@@ -16,7 +16,7 @@ import { CalendarViews, CalendarViewSwitch } from "@/components/trip/calendar-vi
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import type { TransportMode } from "@/lib/enum-values";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 
 export const metadata: Metadata = { title: "Calendar" };
 
@@ -170,7 +170,7 @@ export default async function CalendarPage({
       homeTimezone: trip.homeTimezone,
     });
 
-    const agendaToday = todayISOInZone(currentTripTimezone(stops, trip.homeTimezone));
+    const agendaToday = tripTodayISO(stops, trip.homeTimezone);
 
     // Day titles (CONTEXT.md "Day title", Task 5, spec §H) — shown under the
     // date on both the agenda and month views, truncated; not in the Calendar

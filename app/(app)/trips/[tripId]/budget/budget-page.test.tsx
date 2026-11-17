@@ -70,6 +70,7 @@ vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { nam
 
 const { default: BudgetPage } = await import("./page");
 const { buildBudget } = await import("@/lib/money/budget");
+const { currentTripTimezone } = await import("@/lib/tz");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { maskPlanStops } = await import("@/lib/plan-reads");
 const { planRows } = await import("@/test/builders/plan-rows");
@@ -152,6 +153,19 @@ describe("Money page — header", () => {
     await renderPage();
     expect(screen.queryByRole("link", { name: /Split with/ })).toBeNull();
     expect(screen.queryByText(/each/)).toBeNull();
+  });
+});
+
+describe("Money page — today", () => {
+  it("is the Trip's today: the Home timezone and the Stops in canonical order", async () => {
+    const A = { id: "a", name: "Tokyo", sortOrder: 0, timezone: "Asia/Tokyo", arriveDate: "2026-01-02", departDate: "2026-01-05" };
+    const B = { id: "b", name: "Auckland", sortOrder: 1, timezone: "Pacific/Auckland", arriveDate: "2026-01-05", departDate: "2026-01-08" };
+    scenario.trip = { ...TRIP, homeTimezone: "Pacific/Honolulu" };
+    scenario.stops = [B, A];
+    await renderPage();
+    const [stops, home] = vi.mocked(currentTripTimezone).mock.calls.at(-1)!;
+    expect(home).toBe("Pacific/Honolulu");
+    expect((stops as unknown as { id: string }[]).map((s) => s.id)).toEqual(["a", "b"]);
   });
 });
 

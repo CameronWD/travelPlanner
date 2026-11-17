@@ -15,7 +15,7 @@ import type { BudgetStopWithDates } from "@/lib/money/budget";
 import { buildSpendSoFar } from "@/lib/money/spend-so-far";
 import type { SpendCost } from "@/lib/money/spend-so-far";
 import { nightsBetween } from "@/lib/dates";
-import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { tripTodayISO } from "@/lib/trip-today";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { otherCostDefaults, type OtherCostDefaults } from "@/lib/money/other-cost-defaults";
 import { buildCostLabelMap } from "@/lib/money/cost-labels";
@@ -197,7 +197,7 @@ export default async function BudgetPage({
     paidAt: c.paidAt,
   }));
 
-  const today = todayISOInZone(currentTripTimezone(stops, trip.homeTimezone));
+  const today = tripTodayISO(stops, trip.homeTimezone);
   const costDefaults = otherCostDefaults({ phase: computeTripPhase({ startDate, endDate, today }), homeCurrency, today, stops });
 
   const spend = buildSpendSoFar({

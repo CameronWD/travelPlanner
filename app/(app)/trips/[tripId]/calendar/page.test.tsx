@@ -98,6 +98,28 @@ beforeEach(() => {
   itemFindManyMock.mockResolvedValue([]);
 });
 
+describe("CalendarPage — Trip today", () => {
+  it("is the date in the zone of the canonically current Stop, whatever order the Stops are read in", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-12-01T20:00:00Z"));
+      readPlanMock.mockResolvedValue(
+        rowsFrom({
+          trip: trip({ id: "t1", slug: "t1", name: "Asia", startDate: "2026-11-25", endDate: "2026-12-10", homeTimezone: "Pacific/Honolulu" }),
+          stops: [
+            stop({ id: "b", name: "Auckland", country: "New Zealand", timezone: "Pacific/Auckland", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 1 }),
+            stop({ id: "a", name: "Tokyo", country: "Japan", timezone: "Asia/Tokyo", arriveDate: "2026-11-25", departDate: "2026-12-05", sortOrder: 0 }),
+          ],
+        }),
+      );
+      await renderPage();
+      expect(calendarViewsCapture.props?.todayISO).toBe("2026-12-02");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("CalendarPage — PageHeader + empty states (Task 22, AUDIT.md)", () => {
   it("a date-less trip: No dates yet, with Set dates → settings", async () => {
     readPlanMock.mockResolvedValue(
