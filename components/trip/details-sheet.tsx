@@ -107,7 +107,7 @@ export function DetailsSheet({
         ) : null}
 
         {reference ? (
-          <Row row="reference" label="Reference">
+          <Row row="reference" label={view.referenceLabel}>
             <div className="flex items-center gap-2">
               <span className="min-w-0 break-all font-mono text-sm font-semibold">{reference}</span>
               <button

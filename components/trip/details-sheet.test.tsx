@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, cleanup } from "@testing-library/react";
 import { DetailsSheet } from "./details-sheet";
 import type { DetailsView } from "@/lib/details-view";
 import { directionsFromHereUrl } from "@/lib/map/maps";
@@ -18,6 +18,7 @@ const full: DetailsView = {
     },
   ],
   reference: "ABC123",
+  referenceLabel: "Reference",
   address: "Marienplatz 1",
   place: { lat: 48.1, lng: 11.5 },
   notes: "Coach 7",
@@ -31,7 +32,7 @@ const full: DetailsView = {
 };
 
 const bare: DetailsView = {
-  title: "Tower", subtitle: null, times: [], files: [], reference: null, address: null, place: null,
+  title: "Tower", subtitle: null, times: [], files: [], reference: null, referenceLabel: "Reference", address: null, place: null,
   notes: null, link: null, tryList: null, openingHours: null, cost: null,
 };
 
@@ -131,6 +132,14 @@ describe("DetailsSheet", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ABC123");
     expect(await within(dialog).findByRole("button", { name: "Copied" })).toBeInTheDocument();
     expect(within(dialog).getByRole("status")).toHaveTextContent("Reference copied");
+  });
+
+  it("labels an Accommodation's number Confirmation and a Transport's or Item's Reference", () => {
+    expect(renderSheet(full).textContent).toContain("Reference");
+    cleanup();
+    const dialog = renderSheet({ ...full, referenceLabel: "Confirmation" });
+    expect(dialog.querySelector('[data-row="reference"]')?.textContent).toContain("Confirmation");
+    expect(dialog.querySelector('[data-row="reference"]')?.textContent).not.toContain("Reference");
   });
 
   it("Edit calls onEdit", () => {

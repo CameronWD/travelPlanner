@@ -22,7 +22,7 @@ function cost(over: Partial<CostRow> = {}): CostRow {
 const ctx: DetailsContext = { attachments: [], costs: [] };
 
 const EMPTY: Omit<DetailsView, "title"> = {
-  subtitle: null, times: [], files: [], reference: null, address: null, place: null,
+  subtitle: null, times: [], files: [], reference: null, referenceLabel: "Reference", address: null, place: null,
   notes: null, link: null, tryList: null, openingHours: null, cost: null,
 };
 
@@ -94,6 +94,7 @@ describe("accommodationDetails", () => {
         { label: "Check-out", value: "Tue 8 Dec" },
       ],
       reference: "HX-4471",
+      referenceLabel: "Confirmation",
       address: "Via Laurin 4, Bolzano",
       place: { lat: 46.5, lng: 11.35 },
       notes: "Late arrival OK",
@@ -136,6 +137,7 @@ describe("itemDetails", () => {
       ],
       files: [file],
       reference: "TK-9",
+      referenceLabel: "Reference",
       address: "Marienplatz 1",
       place: { lat: 48.1, lng: 11.5 },
       notes: "Bring ID",

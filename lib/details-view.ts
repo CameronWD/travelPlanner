@@ -24,6 +24,7 @@ export interface DetailsView {
   times: Array<{ label: string; value: string }>;
   files: AttachmentView[];
   reference: string | null;
+  referenceLabel: "Reference" | "Confirmation";
   address: string | null;
   place: LatLng | null;
   notes: string | null;
@@ -74,7 +75,7 @@ function hoursText(hours: OpeningHours | null | undefined, date: string | null |
 
 function bare(title: string): DetailsView {
   return {
-    title, subtitle: null, times: [], files: [], reference: null, address: null, place: null,
+    title, subtitle: null, times: [], files: [], reference: null, referenceLabel: "Reference", address: null, place: null,
     notes: null, link: null, tryList: null, openingHours: null, cost: null,
   };
 }
@@ -114,6 +115,7 @@ export function accommodationDetails(a: AccommodationCardAccommodation, ctx: Det
     ],
     files: ctx.attachments,
     reference: text(a.confirmation),
+    referenceLabel: "Confirmation",
     address: text(a.address),
     place: point(a.lat, a.lng),
     notes: text(a.notes),
