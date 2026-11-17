@@ -2,8 +2,10 @@ import type { Route } from "next";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import * as React from "react";
+import { renderToString } from "react-dom/server";
 import { NavigationPendingProvider, useNavigationPending } from "@/components/navigation/navigation-pending";
 import { setMatchMedia } from "@/test/setup";
+import { LG_UP } from "@/components/ui/use-media-query";
 import { DayCarousel, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import { DAY_GLIDE_MS } from "@/components/trip/day/carousel-maths";
 
@@ -59,12 +61,16 @@ function held(): Promise<void> {
   return new Promise((r) => releases.push(r));
 }
 
+const defaultMatchMedia = window.matchMedia;
+
 beforeEach(() => {
   push.mockClear();
   prefetch.mockClear();
   api = null;
   pendingPath = null;
   pendingStartedAt = null;
+  // A phone unless a test says otherwise: happy-dom's own matchMedia answers for a 1024px window.
+  setMatchMedia(false);
   // jsdom has no layout: give every element the phone's width so panel maths works.
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => WIDTH });
 });
@@ -74,6 +80,7 @@ afterEach(async () => {
   });
   delete (HTMLElement.prototype as unknown as { clientWidth?: number }).clientWidth;
   delete (HTMLElement.prototype as unknown as { onscrollend?: null }).onscrollend;
+  window.matchMedia = defaultMatchMedia;
   vi.useRealTimers();
 });
 
@@ -312,5 +319,80 @@ describe("DayCarousel", () => {
     expect(scroller.scrollLeft).toBe(0);
     expect(prefetch).toHaveBeenCalledTimes(1);
     expect(prefetch).toHaveBeenCalledWith(hrefs[2]);
+  });
+
+  it("a phone keeps the three-panel snap carousel", () => {
+    setMatchMedia(false);
+    const { container, scroller } = mount();
+    expect(container.querySelectorAll("[data-day-panel]")).toHaveLength(3);
+    expect(scroller.className).toContain("overflow-x-auto");
+    expect(scroller.className).toContain("snap-mandatory");
+  });
+});
+
+describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
+  const desktop = (q: string) => q === LG_UP;
+
+  it("renders only the day shown, in a plain block with no horizontal scroller", () => {
+    setMatchMedia(desktop);
+    const { container, scroller } = mount();
+    const items = Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));
+    expect(items.map((p) => p.dataset.dayPanel)).toEqual(["2026-12-12"]);
+    expect(items[0]).not.toHaveAttribute("inert");
+    expect(container.querySelector(".overflow-x-auto")).toBeNull();
+    expect(scroller.className).not.toMatch(/snap/);
+  });
+
+  it("a horizontal wheel or trackpad swipe does not change day", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
+    setMatchMedia(desktop);
+    const { scroller } = mount();
+    scroller.scrollLeft = 2 * WIDTH;
+    fireEvent.wheel(scroller, { deltaX: 400 });
+    fireEvent.scroll(scroller);
+    fireEvent(scroller, new Event("scrollend"));
+    act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("arrows and keys take their own typed navigation: goTo declines, and both neighbours are still prefetched", () => {
+    setMatchMedia(desktop);
+    mount();
+    expect(api!.goTo(hrefs[2])).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+    expect(prefetch.mock.calls.map((c) => c[0]).sort()).toEqual([hrefs[0], hrefs[2]]);
+  });
+
+  it("the server's markup already shows one day at lg, before any script runs", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(
+      <NavigationPendingProvider>
+        <DayCarousel panels={panels} shownIndex={1} chrome={null} />
+      </NavigationPendingProvider>,
+    );
+    const scroller = host.querySelector("[data-day-carousel]") as HTMLElement;
+    expect(scroller.className).toContain("lg:block");
+    expect(scroller.className).toContain("lg:overflow-visible");
+    const items = Array.from(host.querySelectorAll<HTMLElement>("[data-day-panel]"));
+    expect(items).toHaveLength(3);
+    expect(items[1].className).not.toContain("lg:hidden");
+    for (const n of [items[0], items[2]]) expect(n.className).toContain("lg:hidden");
+  });
+
+  it("marks the shown day's side column tall when it does not fit the viewport, so it stops sticking", () => {
+    setMatchMedia(desktop);
+    const withSide = panels.map((p) => ({ ...p, content: <div data-day-side /> }));
+    const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(window.innerHeight + 100);
+    try {
+      const { container, unmount } = mount({ panels: withSide });
+      expect(container.querySelector("[data-day-side]")).toHaveAttribute("data-tall");
+      unmount();
+      height.mockReturnValue(window.innerHeight - 200);
+      const again = mount({ panels: withSide });
+      expect(again.container.querySelector("[data-day-side]")).not.toHaveAttribute("data-tall");
+    } finally {
+      height.mockRestore();
+    }
   });
 });

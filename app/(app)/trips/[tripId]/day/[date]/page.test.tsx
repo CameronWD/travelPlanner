@@ -263,13 +263,20 @@ describe("Day page", () => {
     }
   });
 
-  it("a busy day keeps the max height and internal scroll", async () => {
+  it("a busy day grows with the page: no max height, no internal scroll (spec 2026-11-18 D1)", async () => {
     getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 9 }));
     const { container } = await renderPage();
     const body = shownPanel(container).querySelector('[data-slot="day-plan-body"][data-size="desktop"]') as HTMLElement;
-    expect(body.className).toContain("lg:max-h-[max(20rem,calc(100dvh-22rem))]");
-    expect(body.className).toContain("lg:overflow-y-auto");
+    expect(body.className).not.toMatch(/max-h/);
+    expect(body.className).not.toMatch(/overflow-y/);
     expect(body.className).not.toContain("flex-1");
+  });
+
+  it("the right column sticks below the top of the viewport on a wide screen, unless it is too tall to fit (spec 2026-11-18 D1)", async () => {
+    const { container } = await renderPage();
+    const side = shownPanel(container).querySelector("[data-day-body] > .grid > [data-day-side]") as HTMLElement;
+    for (const c of ["lg:sticky", "lg:top-6", "lg:self-start", "lg:data-tall:static"]) expect(side.className.split(" ")).toContain(c);
+    expect(within(side).getByRole("link", { name: "Weather by Open-Meteo" })).toBeInTheDocument();
   });
 
   it("both desktop columns are top-aligned and neither card stretches (spec 2026-09-29 D5/D6)", async () => {

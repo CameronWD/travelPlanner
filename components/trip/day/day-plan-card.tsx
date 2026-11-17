@@ -14,8 +14,8 @@ import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
  * the day's Timeline, or — on an empty day — up to three Day ideas (spec
  * decision 5). The card sizes to its content (spec 2026-09-29 D5): an empty
  * day is a compact centred block, not a tall empty card, and a busy day
- * scrolls inside the card from lg once it outgrows the viewport. The dashed
- * add row (`addButton`, spec decision 7) is its footer.
+ * grows with the page (spec 2026-11-18 D1). The dashed add row
+ * (`addButton`, spec decision 7) is its footer.
  *
  * A planned day also keeps the old page's feasibility advisory and the
  * collapsible "Nearby from your Wishlist" rail (both come from the loader),
@@ -59,11 +59,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
         </div>
       ) : (
         <>
-          <div
-            data-slot="day-plan-body"
-            data-size={size}
-            className={cn("flex flex-col gap-3.5", !phone && "lg:max-h-[max(20rem,calc(100dvh-22rem))] lg:overflow-y-auto")}
-          >
+          <div data-slot="day-plan-body" data-size={size} className="flex flex-col gap-3.5">
             {data.hasEntries ? (
               <>
                 <Timeline

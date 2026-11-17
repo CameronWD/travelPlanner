@@ -93,3 +93,12 @@ describe("DayPlanCard What's around", () => {
     expect(screen.getByRole("button", { name: "What's around" })).toBeInTheDocument();
   });
 });
+
+describe("DayPlanCard on a wide screen (spec 2026-11-18 D1)", () => {
+  it("a busy day grows with the page: no max height and no inner scroll", () => {
+    const { container } = render(<DayPlanCard data={data({ planCount: 9 })} size="desktop" addButton={<button>Add</button>} />);
+    const body = container.querySelector('[data-slot="day-plan-body"]') as HTMLElement;
+    expect(body.className).not.toMatch(/max-h/);
+    expect(body.className).not.toMatch(/overflow-y/);
+  });
+});

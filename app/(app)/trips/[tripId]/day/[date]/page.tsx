@@ -29,10 +29,11 @@ export async function generateMetadata({ params }: { params: Promise<{ tripId: s
 
 /**
  * The Day view (spec 2026-09-27 §C, DAY_VIEW.md; ADR 0065). The day shown and
- * the day either side come from one getDays read (NAV-05), so the carousel
- * has a neighbour to drag into view; weather streams in its own Suspense
- * boundary per day. The phone and the desktop trees are both rendered and
- * one is hidden by breakpoint (the same pattern as the Home route).
+ * the day either side come from one getDays read (NAV-05), so the phone
+ * carousel has a neighbour to drag into view (from lg only the day shown
+ * renders); weather streams in its own Suspense boundary per day. The phone
+ * and the desktop trees are both rendered and one is hidden by breakpoint
+ * (the same pattern as the Home route).
  */
 export default async function DayPage({ params }: { params: Promise<{ tripId: string; date: string }> }) {
   const { tripId, date } = await params;
@@ -124,7 +125,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
           <div className="hidden md:block">
             <DayPlanCard data={day} size="desktop" addButton={dashedAdd(day, "desktop")} />
           </div>
-          <div className="flex flex-col gap-3.5 lg:gap-[18px]">
+          <div data-day-side className="flex flex-col gap-3.5 lg:sticky lg:top-6 lg:self-start lg:gap-[18px] lg:data-tall:static">
             {desktopWeather ? <div className="hidden md:block">{desktopWeather}</div> : null}
             {phoneTonight ? <div data-slot="tonight" className="md:hidden">{phoneTonight}</div> : null}
             {desktopTonight ? <div data-slot="tonight" className="hidden md:block">{desktopTonight}</div> : null}
