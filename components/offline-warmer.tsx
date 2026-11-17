@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, subscribe, takeWarmRequest } from "@/lib/offline-status";
-import { isAttachmentRoute, isConstrainedConnection, isCoverRoute, isWarmFresh, type ConnectionHint } from "@/lib/offline";
+import { isAttachmentRoute, isConstrainedConnection, isCoverRoute, isWarmFresh, warmUrlFor, type ConnectionHint } from "@/lib/offline";
 
 /**
  * Background-warms the SW cache with a trip's key pages so they're available
@@ -80,7 +80,9 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
         if (!isFile && !warmPages) continue;
         if (isFile && typeof caches !== "undefined" && (await caches.match(path).catch(() => undefined))) continue;
         try {
-          await fetch(path, { cache: "no-store" });
+          // Files ask for their bytes (never a storage redirect); the worker
+          // keeps them under the plain path, which is what caches.match checks.
+          await fetch(warmUrlFor(path), { cache: "no-store" });
         } catch {
           // ignore — best-effort warming
         }

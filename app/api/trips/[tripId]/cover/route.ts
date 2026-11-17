@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { COVER_SMALL_MAX_WIDTH } from "@/lib/cover";
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
+import { OFFLINE_BYTES_PARAM } from "@/lib/offline";
 import { PRESIGNED_REDIRECT_CACHE_CONTROL } from "@/lib/presign-redirect";
 import { getStorage } from "@/lib/storage";
 
@@ -21,7 +22,9 @@ import { getStorage } from "@/lib/storage";
  * Serving mirrors /api/attachments/[id] too: 302 to a presigned URL when the
  * storage driver can presign (bytes go storage → browser directly, keeping
  * the function inside Vercel Hobby's 10s wall-time cap), streamed bytes as
- * the local-disk fallback.
+ * the local-disk fallback. A save for offline (`?offline=1`, spec 2026-11-17
+ * §A2) always streams, never redirects: the service worker cannot keep a
+ * redirect to storage.
  */
 
 /** See PRESIGN_EXPIRY_SECONDS in app/api/attachments/[id]/route.ts. */
@@ -66,8 +69,20 @@ export async function GET(
     : ext === "gif" ? "image/gif"
     : "image/jpeg";
 
-  // 4. Preferred path: 302 to a presigned URL (header values are signed).
   const storage = getStorage();
+  const headers = new Headers();
+  headers.set("Content-Type", mime);
+  headers.set("X-Content-Type-Options", "nosniff");
+  // Private (per-user, member-gated) but cacheable briefly in the browser.
+  headers.set("Cache-Control", "private, max-age=300");
+
+  if (req.nextUrl.searchParams.get(OFFLINE_BYTES_PARAM) === "1") {
+    const body = await storage.readStream(key);
+    if (!body) return notInStorage();
+    return new Response(body, { status: 200, headers });
+  }
+
+  // 4. Preferred path: 302 to a presigned URL (header values are signed).
   const presignedUrl = await storage.presignDownload(key, {
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     contentType: mime,
@@ -83,19 +98,15 @@ export async function GET(
 
   // 5. Fallback (local disk): read the bytes and stream them ourselves.
   const buf = await storage.read(key);
-  if (!buf) {
-    return NextResponse.json(
-      { error: "File not found in storage" },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  const headers = new Headers();
-  headers.set("Content-Type", mime);
+  if (!buf) return notInStorage();
   headers.set("Content-Length", String(buf.length));
-  headers.set("X-Content-Type-Options", "nosniff");
-  // Private (per-user, member-gated) but cacheable briefly in the browser.
-  headers.set("Cache-Control", "private, max-age=300");
 
   return new Response(buf.buffer as ArrayBuffer, { status: 200, headers });
+}
+
+function notInStorage(): Response {
+  return NextResponse.json(
+    { error: "File not found in storage" },
+    { status: 404, headers: { "Cache-Control": "no-store" } },
+  );
 }

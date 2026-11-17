@@ -4,6 +4,7 @@ import { requireTripAccess, requireUser } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
 import { serveAttachment } from "@/lib/attachment-serve";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
+import { OFFLINE_BYTES_PARAM } from "@/lib/offline";
 
 /**
  * GET /api/attachments/:id
@@ -23,7 +24,9 @@ import { requireOutsideSurprise } from "@/lib/surprise-guard";
  *   - 302 → presigned URL when the storage driver can presign (S3/R2): bytes
  *     then flow storage → browser directly, so a slow download can't hold
  *     this function open past Vercel Hobby's 10s wall-time cap
- *   - 200 + binary body  when the driver can't presign (local disk)
+ *   - 200 + binary body  when the driver can't presign (local disk), or for a
+ *     save for offline (`?offline=1`, spec 2026-11-17 §A2): streamed, never a
+ *     redirect the service worker could not keep
  *   - 404                if the attachment doesn't exist in the db or storage
  *   - 401/redirect       if unauthenticated (from requireUser inside requireTripAccess)
  *   - 403/404            if the user is not a trip member (from requireTripAccess)
@@ -37,7 +40,7 @@ import { requireOutsideSurprise } from "@/lib/surprise-guard";
  * export of a "use server" module is a publicly callable endpoint).
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -58,6 +61,7 @@ export async function GET(
       filename: true,
       mime: true,
       storageKey: true,
+      size: true,
     },
   });
 
@@ -86,5 +90,5 @@ export async function GET(
   }
 
   // 3. Access is checked — hand off to the shared byte-serving helper.
-  return serveAttachment(attachment);
+  return serveAttachment(attachment, { bytes: req.nextUrl.searchParams.get(OFFLINE_BYTES_PARAM) === "1" });
 }

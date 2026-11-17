@@ -7,9 +7,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // uses to make a revoked/rotated link's photos drop out of a viewer's cache
 // sooner than the private route's default.
 
-const { presignDownloadMock, readMock } = vi.hoisted(() => ({
+const { presignDownloadMock, readMock, readStreamMock } = vi.hoisted(() => ({
   presignDownloadMock: vi.fn(),
   readMock: vi.fn(),
+  readStreamMock: vi.fn(),
 }));
 
 vi.mock("@/lib/storage", () => ({
@@ -17,6 +18,7 @@ vi.mock("@/lib/storage", () => ({
     save: vi.fn(),
     delete: vi.fn(),
     read: readMock,
+    readStream: readStreamMock,
     presignDownload: presignDownloadMock,
   }),
 }));
@@ -87,5 +89,48 @@ describe("serveAttachment", () => {
     const res = await serveAttachment(attachment());
     expect(res.status).toBe(404);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  describe("bytes: true (saved for offline)", () => {
+    const streamOf = (text: string) => new Response(text).body!;
+
+    it("bytes:true returns 200 with the body even when the driver can presign", async () => {
+      presignDownloadMock.mockResolvedValue("https://signed.example/photo.jpg");
+      readStreamMock.mockResolvedValue(streamOf("jpeg-bytes"));
+      await serveAttachment(attachment());
+      const redirectDisposition = presignDownloadMock.mock.calls[0][1].contentDisposition;
+      presignDownloadMock.mockClear();
+
+      const res = await serveAttachment({ ...attachment(), size: 10 }, { bytes: true });
+
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("jpeg-bytes");
+      expect(res.headers.get("Location")).toBeNull();
+      expect(res.headers.get("Content-Disposition")).toBe(redirectDisposition);
+      expect(presignDownloadMock).not.toHaveBeenCalled();
+      expect(readStreamMock).toHaveBeenCalledWith("trips/t1/photo.jpg");
+    });
+
+    it("carries the same headers as the streamed fallback, with Content-Length from the stored size", async () => {
+      readStreamMock.mockResolvedValue(streamOf("jpeg-bytes"));
+      const res = await serveAttachment({ ...attachment(), size: 10 }, { bytes: true, cacheControl: "private, max-age=300" });
+      expect(res.headers.get("Content-Type")).toBe("image/jpeg");
+      expect(res.headers.get("Content-Length")).toBe("10");
+      expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+      expect(res.headers.get("Cache-Control")).toBe("private, max-age=300");
+    });
+
+    it("leaves Content-Length off when the size is not known", async () => {
+      readStreamMock.mockResolvedValue(streamOf("jpeg-bytes"));
+      const res = await serveAttachment(attachment(), { bytes: true });
+      expect(res.headers.get("Content-Length")).toBeNull();
+    });
+
+    it("404s (no-store) when storage has nothing under the key", async () => {
+      readStreamMock.mockResolvedValue(null);
+      const res = await serveAttachment(attachment(), { bytes: true });
+      expect(res.status).toBe(404);
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+    });
   });
 });

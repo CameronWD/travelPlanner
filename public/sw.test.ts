@@ -603,3 +603,69 @@ describe("public/sw.js — redirected responses", () => {
     expect(deleted).toEqual([request]);
   });
 });
+
+describe("public/sw.js — files saved for offline as bytes (spec A2)", () => {
+  function matchingCaches() {
+    const c = fakeCaches();
+    c.api.match = vi.fn(async (req: Request | string) => {
+      const url = typeof req === "string" ? req : req.url;
+      for (const s of c.stores.values()) {
+        const hit = s.bodies.get(url);
+        if (hit) return hit.clone();
+      }
+      return undefined;
+    }) as never;
+    return c;
+  }
+
+  async function fetchThrough(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, url: string) {
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request(url), respondWith: (p: Promise<Response>) => { answered = p; } });
+    const response = await answered!;
+    await new Promise((r) => setTimeout(r, 0));
+    return response;
+  }
+
+  it("an offline=1 attachment fetch is cached under the plain URL", async () => {
+    const c = matchingCaches();
+    const fetchMock = vi.fn().mockResolvedValue(new Response("pdf-bytes", { headers: { "Content-Type": "application/pdf" } }));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await fetchThrough(dispatch, "https://teepee.example/api/attachments/a1?offline=1");
+
+    expect((fetchMock.mock.calls[0][0] as Request).url).toBe("https://teepee.example/api/attachments/a1?offline=1");
+    const files = c.stores.get("teepee-files-v1")!;
+    expect(files.keys.map((k) => k.url)).toEqual(["https://teepee.example/api/attachments/a1"]);
+    expect(await files.bodies.get("https://teepee.example/api/attachments/a1")!.text()).toBe("pdf-bytes");
+  });
+
+  it("a later plain request is a cache hit", async () => {
+    const c = matchingCaches();
+    const fetchMock = vi.fn().mockResolvedValue(new Response("pdf-bytes"));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await fetchThrough(dispatch, "https://teepee.example/api/attachments/a1?offline=1");
+    const response = await fetchThrough(dispatch, "https://teepee.example/api/attachments/a1");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await response.text()).toBe("pdf-bytes");
+  });
+
+  it("an offline=1 cover fetch is stored under its plain URL, keeping v, and answers the plain URL offline", async () => {
+    const c = matchingCaches();
+    const fetchMock = vi.fn().mockResolvedValue(new Response("jpg-bytes"));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    const plain = "https://teepee.example/api/trips/t1/cover?v=trips%2Ft1%2Fc.jpg&w=480";
+
+    await fetchThrough(dispatch, `${plain}&offline=1`);
+    expect(c.stores.get("teepee-files-v1")!.keys.map((k) => k.url)).toEqual([plain]);
+
+    fetchMock.mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const response = await fetchThrough(dispatch, plain);
+    expect(await response.text()).toBe("jpg-bytes");
+  });
+});

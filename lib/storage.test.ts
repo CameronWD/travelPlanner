@@ -218,6 +218,19 @@ describe("localDiskStorage (round-trip)", async () => {
     expect(result).toBeNull();
   });
 
+  it("readStream() streams the saved bytes", async () => {
+    const storage = await withStorage();
+    const key = "trips/trip-1/test-id-ticket.pdf";
+    await storage.save(key, Buffer.from("ticket bytes"), "application/pdf");
+    const stream = await storage.readStream(key);
+    expect(await new Response(stream).text()).toBe("ticket bytes");
+  });
+
+  it("readStream() returns null for a missing key", async () => {
+    const storage = await withStorage();
+    expect(await storage.readStream("trips/trip-x/nonexistent.pdf")).toBeNull();
+  });
+
   it("delete is a no-op for a missing key", async () => {
     const storage = await withStorage();
     await expect(storage.delete("trips/trip-x/ghost.txt")).resolves.not.toThrow();
@@ -397,6 +410,22 @@ describe("S3-compatible storage (R2 driver)", () => {
     );
     const { getStorage } = await import("./storage");
     await expect(getStorage().read("trips/t1/x.png")).rejects.toThrow(/boom/);
+  });
+
+  it("readStream() hands back the object body as a web stream", async () => {
+    const body = new Response("hi").body;
+    sendMock.mockResolvedValueOnce({ Body: { transformToWebStream: () => body } });
+    const { getStorage } = await import("./storage");
+    const stream = await getStorage().readStream("trips/t1/uid-a.pdf");
+    expect(stream).toBe(body);
+    const cmd = sendMock.mock.calls[0][0] as { input: Record<string, unknown> };
+    expect(cmd.input).toEqual({ Bucket: "trip-files", Key: "trips/t1/uid-a.pdf" });
+  });
+
+  it("readStream() returns null when the object is missing (NoSuchKey)", async () => {
+    sendMock.mockRejectedValueOnce(Object.assign(new Error("missing"), { name: "NoSuchKey" }));
+    const { getStorage } = await import("./storage");
+    expect(await getStorage().readStream("trips/t1/missing.pdf")).toBeNull();
   });
 
   it("delete() sends a DeleteObjectCommand", async () => {

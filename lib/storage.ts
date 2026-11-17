@@ -18,12 +18,14 @@
  *   The serve routes (app/api/attachments/[id], app/api/trips/[tripId]/cover)
  *   redirect to a presigned URL when the driver supports it (S3/R2), falling
  *   back to streaming bytes via `read()` (local disk). `read()` also stays for
- *   the seed scripts.
+ *   the seed scripts. A save for offline (`?offline=1`) never redirects: it
+ *   streams through `readStream()` on either driver (spec 2026-11-17 §A2).
  */
 
 import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 // Type-only: the SDK itself loads on the first S3/R2 call (spec 2026-10-06
 // §X, same pattern as lib/ai.ts anthropicClient), so local-disk dev and every
 // route that never touches storage skip ~1 MB of SDK at cold start.
@@ -53,6 +55,8 @@ export interface Storage {
   delete(key: string): Promise<void>;
   /** Return the raw bytes for `key`, or null if not found. */
   read(key: string): Promise<Buffer | null>;
+  /** Stream the bytes for `key` without buffering them, or null if not found. */
+  readStream(key: string): Promise<ReadableStream<Uint8Array> | null>;
   /**
    * Return a short-lived presigned GET URL for `key`, or null when this
    * driver cannot presign (local disk). Callers MUST handle null by falling
@@ -125,6 +129,19 @@ const localDiskStorage: Storage = {
       }
       throw err;
     }
+  },
+
+  async readStream(key) {
+    const dest = resolveWithinUploads(key);
+    // Opened first so a missing file is a null here, not an error event mid-response.
+    let handle: fs.FileHandle;
+    try {
+      handle = await fs.open(dest);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw err;
+    }
+    return Readable.toWeb(handle.createReadStream()) as ReadableStream<Uint8Array>;
   },
 
   // Local disk has no presigning equivalent (there is no storage host for
@@ -239,6 +256,18 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
         if (!res.Body) return null;
         const bytes = await res.Body.transformToByteArray();
         return Buffer.from(bytes);
+      } catch (err: unknown) {
+        if (isNotFound(err)) return null;
+        throw err;
+      }
+    },
+
+    async readStream(key) {
+      const [{ GetObjectCommand }, client] = await Promise.all([sdk(), getClient()]);
+      try {
+        const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        if (!res.Body) return null;
+        return res.Body.transformToWebStream();
       } catch (err: unknown) {
         if (isNotFound(err)) return null;
         throw err;

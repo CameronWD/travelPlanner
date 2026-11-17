@@ -17,6 +17,8 @@ const {
   attachmentFindUniqueMock,
   stopFindUniqueMock,
   storageReadMock,
+  storageReadStreamMock,
+  presignDownloadMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn(),
   requireTripAccessMock: vi.fn(),
@@ -24,6 +26,8 @@ const {
   attachmentFindUniqueMock: vi.fn(),
   stopFindUniqueMock: vi.fn(),
   storageReadMock: vi.fn(),
+  storageReadStreamMock: vi.fn(),
+  presignDownloadMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -47,7 +51,8 @@ vi.mock("@/lib/storage", async (importOriginal) => {
       save: vi.fn(),
       delete: vi.fn(),
       read: storageReadMock,
-      presignDownload: vi.fn().mockResolvedValue(null),
+      readStream: storageReadStreamMock,
+      presignDownload: presignDownloadMock,
     })),
   };
 });
@@ -82,8 +87,8 @@ function as(userId: string) {
   requireTripAccessMock.mockResolvedValue({ user: { id: userId }, membership: { role: "member" } });
 }
 
-function get() {
-  return GET(new NextRequest("http://test.local/api/attachments/a1"), { params: Promise.resolve({ id: "a1" }) });
+function get(query = "") {
+  return GET(new NextRequest(`http://test.local/api/attachments/a1${query}`), { params: Promise.resolve({ id: "a1" }) });
 }
 
 beforeEach(() => {
@@ -91,6 +96,7 @@ beforeEach(() => {
   attachmentFindUniqueMock.mockResolvedValue(FILE_IN_SECRET_STOP);
   stopFindUniqueMock.mockResolvedValue(SECRET_STOP);
   storageReadMock.mockResolvedValue(Buffer.from("pdf"));
+  presignDownloadMock.mockResolvedValue(null);
 });
 
 describe("GET /api/attachments/:id — Surprise", () => {
@@ -132,5 +138,47 @@ describe("GET /api/attachments/:id — Surprise", () => {
     expect(res.status).toBe(200);
     expect(requireTripAccessMock).not.toHaveBeenCalled();
     expect(stopFindUniqueMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/attachments/:id?offline=1 — saved for offline as bytes (spec A2)", () => {
+  beforeEach(() => {
+    presignDownloadMock.mockResolvedValue("https://signed.example/tickets.pdf");
+    storageReadStreamMock.mockResolvedValue(new Response("pdf-bytes").body);
+  });
+
+  it("an ordinary open still redirects to storage", async () => {
+    as(PLANNER);
+    const res = await get();
+    expect(res.status).toBe(302);
+  });
+
+  it("?offline=1 serves bytes", async () => {
+    as(PLANNER);
+    attachmentFindUniqueMock.mockResolvedValue({ ...FILE_IN_SECRET_STOP, size: 9 });
+    const res = await get("?offline=1");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Location")).toBeNull();
+    expect(res.headers.get("Content-Length")).toBe("9");
+    expect(await res.text()).toBe("pdf-bytes");
+    expect(storageReadStreamMock).toHaveBeenCalledWith("trips/t1/tickets.pdf");
+    expect(attachmentFindUniqueMock).toHaveBeenCalledWith({
+      where: { id: "a1" },
+      select: expect.objectContaining({ size: true }),
+    });
+  });
+
+  it("?offline=1 still refuses a non-member", async () => {
+    as("u-outsider");
+    requireTripAccessMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(get("?offline=1")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(storageReadStreamMock).not.toHaveBeenCalled();
+    expect(presignDownloadMock).not.toHaveBeenCalled();
+  });
+
+  it("?offline=1 still refuses a surprised Traveller", async () => {
+    as(SURPRISED);
+    await expect(get("?offline=1")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(storageReadStreamMock).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -451,5 +451,40 @@ describe('redirected responses', () => {
     expect(isServableCacheHit('navigate', { redirected: true })).toBe(false);
     expect(isServableCacheHit('navigate', { redirected: false })).toBe(true);
     expect(isServableCacheHit('no-cors', { redirected: true })).toBe(true);
+  });
+});
+
+describe('saving files for offline as bytes (spec A2)', () => {
+  it('names the byte-path flag "offline"', () => {
+    expect(OFFLINE_BYTES_PARAM).toBe('offline');
+  });
+
+  it('warmUrlFor adds the flag to Attachment and cover paths, and leaves pages alone', () => {
+    expect(warmUrlFor('/api/attachments/x')).toBe('/api/attachments/x?offline=1');
+    expect(warmUrlFor('/api/trips/t/cover?v=k')).toBe('/api/trips/t/cover?v=k&offline=1');
+    expect(warmUrlFor('/trips/t')).toBe('/trips/t');
+  });
+
+  it('warmUrlFor keeps an encoded cover key byte for byte', () => {
+    expect(warmUrlFor('/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480')).toBe(
+      '/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480&offline=1',
+    );
+  });
+
+  it('fileCacheKey strips the flag and preserves v', () => {
+    expect(fileCacheKey('https://teepee.example/api/attachments/x?offline=1')).toBe('https://teepee.example/api/attachments/x');
+    expect(fileCacheKey('https://teepee.example/api/trips/t/cover?v=k&offline=1')).toBe('https://teepee.example/api/trips/t/cover?v=k');
+  });
+
+  it('fileCacheKey leaves an encoded key and the other params exactly as they were', () => {
+    expect(fileCacheKey('https://teepee.example/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480&offline=1')).toBe(
+      'https://teepee.example/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480',
+    );
+    expect(fileCacheKey('https://teepee.example/api/trips/t/cover?offline=1&v=k')).toBe('https://teepee.example/api/trips/t/cover?v=k');
+  });
+
+  it('fileCacheKey hands back a URL without the flag unchanged', () => {
+    const url = 'https://teepee.example/api/trips/t/cover?v=trips%2Ft1%2Fabc-cover.jpg&w=480';
+    expect(fileCacheKey(url)).toBe(url);
   });
 });

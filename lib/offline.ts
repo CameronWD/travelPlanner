@@ -235,6 +235,35 @@ export function isCoverRoute(url: string): boolean {
   }
 }
 
+/**
+ * The query flag a warm adds to an Attachment or cover request so the serve
+ * route answers 200 with the bytes instead of redirecting to storage, which
+ * the worker could not keep (spec 2026-11-17 §A2). Mirrored in sw.js.
+ */
+export const OFFLINE_BYTES_PARAM = 'offline';
+
+/** The URL the warmer fetches for `path`: files carry OFFLINE_BYTES_PARAM, pages are left alone. */
+export function warmUrlFor(path: string): string {
+  const url = new URL(path, 'https://warm.invalid').href;
+  if (!isAttachmentRoute(url) && !isCoverRoute(url)) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}${OFFLINE_BYTES_PARAM}=1`;
+}
+
+/**
+ * The key a file response is cached under: its URL without OFFLINE_BYTES_PARAM,
+ * so the plain link the app renders hits the bytes a warm saved. Cut from the
+ * string rather than re-serialised: the cache matches the exact URL, and the
+ * pages render `?v=` with encodeURIComponent. Mirrored in sw.js.
+ */
+export function fileCacheKey(url: string): string {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return url;
+  const params = url.slice(queryAt + 1).split('&');
+  const kept = params.filter((p) => p.split('=')[0] !== OFFLINE_BYTES_PARAM);
+  if (kept.length === params.length) return url;
+  return kept.length ? `${url.slice(0, queryAt)}?${kept.join('&')}` : url.slice(0, queryAt);
+}
+
 // ---------------------------------------------------------------------------
 // Strategy selector
 // ---------------------------------------------------------------------------

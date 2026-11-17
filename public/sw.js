@@ -168,13 +168,34 @@ function isServableCacheHit(mode, cached) {
   return !(mode === 'navigate' && cached.redirected);
 }
 
+/** Mirrors OFFLINE_BYTES_PARAM in lib/offline.ts: a warm's ask for the bytes, never a redirect. */
+const OFFLINE_BYTES_PARAM = 'offline';
+
+/** Mirrors fileCacheKey() in lib/offline.ts. */
+function fileCacheKey(url) {
+  const queryAt = url.indexOf('?');
+  if (queryAt === -1) return url;
+  const params = url.slice(queryAt + 1).split('&');
+  const kept = params.filter((p) => p.split('=')[0] !== OFFLINE_BYTES_PARAM);
+  if (kept.length === params.length) return url;
+  return kept.length ? url.slice(0, queryAt) + '?' + kept.join('&') : url.slice(0, queryAt);
+}
+
+/** Where a request is cached: a file warmed with the offline flag lives under its plain URL. */
+function cacheKeyFor(request) {
+  if (cacheStoreFor(request.url) !== 'files') return request;
+  const key = fileCacheKey(request.url);
+  return key === request.url ? request : key;
+}
+
 /** A cache hit the request may be answered with; a redirected one for a navigation is dropped. */
 async function servableCached(request) {
-  const cached = await caches.match(request);
+  const key = cacheKeyFor(request);
+  const cached = await caches.match(key);
   if (!cached) return undefined;
   if (isServableCacheHit(request.mode, cached)) return cached;
   const cache = await caches.open(CACHE_NAMES[cacheStoreFor(request.url)]);
-  await cache.delete(request);
+  await cache.delete(key);
   return undefined;
 }
 
@@ -352,7 +373,7 @@ async function cacheFirst(request) {
       const store = cacheStoreFor(request.url);
       const cache = await caches.open(CACHE_NAMES[store]);
       cache
-        .put(request, storableResponse(response.clone()))
+        .put(cacheKeyFor(request), storableResponse(response.clone()))
         .then(() => trimCache(store))
         .catch(() => {}); // non-blocking
     }
@@ -382,7 +403,7 @@ async function networkFirst(request) {
     const response = await fetch(request);
     if (response.ok) {
       cache
-        .put(request, storableResponse(response.clone()))
+        .put(cacheKeyFor(request), storableResponse(response.clone()))
         .then(() => trimCache(store))
         .catch(() => {}); // non-blocking
     }
