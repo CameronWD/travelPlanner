@@ -364,6 +364,20 @@ describe("flagCounts", () => {
     expect(withRow.flagCounts).toEqual(plain.flagCounts);
   });
 
+  it("leaves a Marked fine Flag out of the counts (spec 2026-11-18 T5)", () => {
+    const stop = makeStop("tokyo", { timezone: "Asia/Tokyo", arriveDate: "2026-07-01", departDate: "2026-07-03", lat: 35.71477, lng: 139.79666 });
+    const at = (id: string, lat: number, start: string, end: string) => ({
+      id, stopId: "tokyo", date: "2026-07-02", startTime: start, endTime: end, sortOrder: 0, lat, lng: 139.79666, category: "SIGHTSEEING",
+    });
+    const input = { ...emptyInput(), stops: [stop], items: [at("a", 35.71477, "10:00", "12:00"), at("b", 35.72287, "12:20", "13:30")] };
+    computePlanMetrics(input);
+    const tight = vi.mocked(detectFlags).mock.results.at(-1)!.value.find((f: { id: string }) => f.id === "tight-a-b");
+    expect(tight).toBeDefined();
+    const plain = computePlanMetrics(input);
+    const marked = computePlanMetrics({ ...input, markedFine: [{ flagId: "tight-a-b", fingerprint: tight.fingerprint, markedByName: "Xanthia", createdAt: new Date() }] });
+    expect(marked.flagCounts[tight.severity as "warning" | "info"]).toBe(plain.flagCounts[tight.severity as "warning" | "info"] - 1);
+  });
+
   it("returns zero counts for clean input", () => {
     const m = computePlanMetrics(emptyInput());
     expect(m.flagCounts.warning).toBe(0);

@@ -121,6 +121,7 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
     today,
     travel: rows.travel,
     hopModes: rows.hopModes,
+    markedFine: rows.markedFine,
     travelStops: rows.allStops,
     homePoint: homePointOf(rows.trip),
   });

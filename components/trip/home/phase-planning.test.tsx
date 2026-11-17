@@ -59,6 +59,7 @@ vi.mock("@/lib/db", () => ({
     exchangeRate: { findMany: exchangeRateFindManyMock },
     chapter: { findMany: chapterFindManyMock, count: chapterCountMock },
     checklistItem: { count: checklistItemCountMock },
+    flagDismissal: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));

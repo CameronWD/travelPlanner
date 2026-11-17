@@ -294,6 +294,7 @@ vi.mock("@/lib/db", () => ({
     cost: { findMany: costFindManyMock, create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
     dayTitle: { findMany: dayTitleFindManyMock, create: dayTitleCreateMock },
     hopMode: { findMany: hopModeFindManyMock, create: hopModeCreateMock },
+    flagDismissal: { findMany: vi.fn().mockResolvedValue([]) },
     attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
     exchangeRate: { findMany: exchangeRateFindManyMock },
     trip: { findUnique: tripFindUniqueMock },

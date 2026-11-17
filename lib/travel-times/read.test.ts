@@ -4,7 +4,7 @@ import { driveKey, hopKeys, type Pt } from "@/lib/travel-times/hops";
 
 vi.mock("@/lib/db", async () => {
   const { mockDb } = await import("@/test/helpers/db-mock");
-  return { db: mockDb(["trip", "stop", "item", "transport", "accommodation", "tripMember", "travelTime", "hopMode"]) };
+  return { db: mockDb(["trip", "stop", "item", "transport", "accommodation", "tripMember", "travelTime", "hopMode", "flagDismissal"]) };
 });
 vi.mock("@/lib/google-fetch", () => ({ hasServerKey: () => true }));
 vi.mock("@/lib/routes", () => ({ computeRoute: vi.fn() }));

@@ -13,6 +13,7 @@ import { registerPlanWriteTools } from "./tools/plan-write";
 import { registerBookingsWriteTools } from "./tools/bookings-write";
 import { registerBookingStateTools } from "./tools/booking-state-write";
 import { registerNothingToAttachTool } from "./tools/nothing-to-attach";
+import { registerMarkedFineTools } from "./tools/marked-fine-write";
 import { registerListWriteTools } from "./tools/lists-write";
 import { registerMakeItFitTools } from "./tools/make-it-fit";
 import { registerReviewReadTools, registerReviewRunTool } from "./tools/reviews";
@@ -75,6 +76,7 @@ export function buildMcpServer(caller: McpCaller): McpServer {
   registerBookingsWriteTools(server);
   registerBookingStateTools(server);
   registerNothingToAttachTool(server);
+  registerMarkedFineTools(server);
   registerListWriteTools(server);
   registerMakeItFitTools(server);
   registerReviewReadTools(server);

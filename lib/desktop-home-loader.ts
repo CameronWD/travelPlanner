@@ -55,6 +55,7 @@ import { resolveEndpointZones } from "@/lib/time-display";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { ITEM_HOP_ORDER, homePointOf } from "@/lib/travel-times/hops";
 import { loadHopModes } from "@/lib/hop-modes";
+import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 
 const COST_SELECT = {
@@ -166,6 +167,7 @@ async function load(
     pretripCount,
     slug,
     bookingConfirmationsToAdd,
+    markedFine,
   ] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -250,6 +252,7 @@ async function load(
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
     tripSlugFor(tripId),
     loadBookingConfirmationsToAdd(tripId, viewerId),
+    loadMarkedFineRows(tripId),
   ]);
   const base = tripPath(slug);
   // A hidden real-plan Item still holds its slot: a placeholder titled
@@ -403,6 +406,7 @@ async function load(
       limit: Number.POSITIVE_INFINITY,
       travel,
       hopModes,
+      markedFine,
       travelStops: allStopsRaw,
       homePoint: homePointOf(trip),
     });

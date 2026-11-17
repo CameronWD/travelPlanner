@@ -20,6 +20,7 @@ import {
   type FlagItem,
 } from "@/lib/flags";
 import { buildNextSteps, type NextStep, type SurpriseToReveal } from "@/lib/next-steps";
+import { applyMarkedFine, type MarkedFineRow } from "@/lib/flag-dismissals";
 import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { TripDeadline } from "@/lib/trip-deadline";
@@ -68,6 +69,8 @@ export interface BuildTripNextStepsInput {
   travelStops?: HopStopRow[];
   homePoint?: Pt | null;
   hopModes?: ReadonlyMap<string, HopModeChoice>;
+  /** The Trip's Marked fine rows (lib/flag-dismissals-read.ts): a Marked fine Flag is no Next step. */
+  markedFine: readonly MarkedFineRow[];
 }
 
 /** Pure: Flags + nudges → the ranked Next steps list. */
@@ -79,7 +82,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
   const firstStop = input.allStops[0] ?? null;
   const lastStop = input.allStops[input.allStops.length - 1] ?? null;
 
-  const flags = detectFlags({
+  const detected = detectFlags({
     stops: input.datedStops,
     transports: input.transports,
     accommodations: input.accommodations,
@@ -108,7 +111,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
   });
 
   return buildNextSteps({
-    flags,
+    flags: applyMarkedFine(detected, input.markedFine).shown,
     phase: input.phase,
     nudges: {
       hasDates: true, // caller only reaches here for a dated trip

@@ -58,6 +58,7 @@ vi.mock("@/lib/db", () => ({
     dayTitle: { findMany: dayTitleFindManyMock },
     chapter: { findMany: chapterFindManyMock },
     travelTime: { findMany: vi.fn().mockResolvedValue([]) },
+    flagDismissal: { findMany: flagDismissalFindManyMock },
   },
 }));
 vi.mock("@/lib/tz", async (importOriginal) => {
@@ -82,7 +83,7 @@ import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from 
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 import { zoneLabel } from "@/lib/time-display";
 
-const { loadHopModesMock } = vi.hoisted(() => ({ loadHopModesMock: vi.fn() }));
+const { loadHopModesMock, flagDismissalFindManyMock } = vi.hoisted(() => ({ loadHopModesMock: vi.fn(), flagDismissalFindManyMock: vi.fn() }));
 vi.mock("@/lib/hop-modes", () => ({ loadHopModes: loadHopModesMock }));
 
 const TRIP_ID = "trip-xmas";
@@ -214,6 +215,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   loadHopModesMock.mockResolvedValue(new Map());
   loadHolidayLinesMock.mockResolvedValue(new Map());
+  flagDismissalFindManyMock.mockResolvedValue([]);
   setup();
 });
 
@@ -474,6 +476,43 @@ describe("getDays — hops", () => {
     expect(d.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual(expect.arrayContaining([["ha", "hm"], ["hm", "hb"], ["ha", "hb"]]));
     expect(d.hops.find((h) => h.fromItemId === "ha" && h.toItemId === "hb")).toMatchObject({ mode: "WALK", modeSetByHand: true });
     expect(d.feasibility.filter((f) => f.hop?.fromItemId === "ha")).toEqual([]);
+  });
+
+  describe("Marked fine (spec 2026-11-18 T5)", () => {
+    const tightPair = [
+      { ...at("h1", "09:00", 48.57), endTime: "10:00" },
+      { ...at("h2", "10:05", 48.58), endTime: "11:00" },
+    ];
+    const markedBy = (fingerprint: string) => [
+      { flagId: "tight-h1-h2", fingerprint, createdAt: new Date("2026-12-01T09:00:00Z"), markedBy: { id: CO, name: "Xanthia Smith", image: null } },
+    ];
+
+    it("each tight row carries its Flag id", async () => {
+      useItems(tightPair);
+      const d = await loadDay("2026-12-11");
+      expect(d.feasibility).toEqual([expect.objectContaining({ flagId: "tight-h1-h2" })]);
+      expect(d.markedFine).toEqual([]);
+    });
+
+    it("a Marked fine hop leaves the warnings for the Marked fine list, with who marked it", async () => {
+      useItems(tightPair);
+      const before = await loadDay("2026-12-11");
+      const { flagTightConnections } = await import("@/lib/flags");
+      const fingerprint = flagTightConnections(tightPair, [], { windingFactor: 1.5, avgSpeedKph: 80 })[0].fingerprint!;
+      flagDismissalFindManyMock.mockResolvedValue(markedBy(fingerprint));
+      const d = await loadDay("2026-12-11");
+      expect(flagDismissalFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: TRIP_ID } }));
+      expect(d.feasibility).toEqual([]);
+      expect(d.markedFine).toEqual([{ flagId: "tight-h1-h2", message: before.feasibility[0].message, markedByName: "Xanthia" }]);
+    });
+
+    it("a stale row is ignored", async () => {
+      useItems(tightPair);
+      flagDismissalFindManyMock.mockResolvedValue(markedBy("an older fingerprint"));
+      const d = await loadDay("2026-12-11");
+      expect(d.feasibility).toHaveLength(1);
+      expect(d.markedFine).toEqual([]);
+    });
   });
 
   it("a hop touching a hidden Surprise is not listed (the placeholder has no place)", async () => {

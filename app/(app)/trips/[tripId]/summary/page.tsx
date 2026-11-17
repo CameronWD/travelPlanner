@@ -16,6 +16,7 @@ import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
+import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
 import { homePointOf, routeLegPaths } from "@/lib/travel-times/hops";
 import { loadHopModes } from "@/lib/hop-modes";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
@@ -249,7 +250,7 @@ export default async function SummaryPage({
   // The projection is computed from Stops/Transports already read above (spec
   // 2026-10-06 §C) — never `getTripProjection`, which would re-read them.
   const projection = computeProjection({ trip, stops: allStops, transports });
-  const hopModes = await loadHopModes(tripId);
+  const [hopModes, markedFine] = await Promise.all([loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip), hopModes });
 
   // lib/flags-loader.ts's `flagsFromRows` is the same detectFlags input
@@ -270,6 +271,7 @@ export default async function SummaryPage({
     today: tripTodayISO(allStops, trip.homeTimezone),
     travel,
     hopModes,
+    markedFine,
   });
 
   // ---------------------------------------------------------------------------
@@ -615,7 +617,7 @@ export default async function SummaryPage({
                 isOwner={isOwner}
               />
             )}
-            <FlagList flags={flags} tripBasePath={tripBasePath} />
+            <FlagList flags={flags} tripId={tripId} tripBasePath={tripBasePath} />
           </section>
         </div>
 

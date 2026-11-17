@@ -81,6 +81,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "driving-settings.ts": ["updateDrivingSettings"],
   "error-reports.ts": ["clearAllErrorReports", "clearErrorReport", "listErrorReports"],
   "feedback.ts": ["createFeedbackNote", "deleteFeedbackNote", "listFeedbackNeedingReview", "listFeedbackNotes"],
+  "flag-dismissals.ts": ["markFlagFine", "unmarkFlagFine"],
   "forks.ts": [
     "createFork",
     "discardFork",

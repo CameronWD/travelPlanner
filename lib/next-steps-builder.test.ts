@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { surprisesToReveal, buildTripNextSteps } from "./next-steps-builder";
 import type { SurpriseView } from "@/lib/surprise";
+import { detectFlags } from "@/lib/flags";
 
 const view = (plannerId: string): SurpriseView => ({
   plannerId, plannerName: "P", forIds: ["other"], forNames: ["O"], youAreSurprised: false,
@@ -48,6 +49,7 @@ describe("buildTripNextSteps: the planning Flags (spec 2026-10-17 R7)", () => {
     datedStops: [{ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-12", timezone: "Europe/Berlin", sortOrder: 0, lat: null, lng: null }],
     roughStopCount: 0, allStops: [{ id: "nbg", name: "Nuremberg" }], transports: [], accommodations: [],
     projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
+    markedFine: [],
   };
   const closedTue = { week: { tue: [] }, seasons: [], closed: [] };
   const museum = { id: "i1", stopId: "nbg", date: "2026-12-08", title: "Memorium Nuremberg Trials", openingHours: closedTue };
@@ -71,12 +73,35 @@ describe("buildTripNextSteps: booking confirmations", () => {
     datedStops: [{ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-12", timezone: "Europe/Berlin", sortOrder: 0, lat: null, lng: null }],
     roughStopCount: 0, allStops: [{ id: "nbg", name: "Nuremberg" }], transports: [], accommodations: [], items: [],
     projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
-    travel: new Map(), today: "2026-12-01",
+    travel: new Map(), today: "2026-12-01", markedFine: [],
   };
 
   it("passes the count through, and defaults to none", () => {
     const withCount = buildTripNextSteps({ ...input, bookingConfirmationsToAdd: 2 });
     expect(withCount.find((s) => s.id === "nudge-booking-confirmations")?.title).toBe("Add booking confirmations (2)");
     expect(buildTripNextSteps(input).map((s) => s.id)).not.toContain("nudge-booking-confirmations");
+  });
+});
+
+describe("buildTripNextSteps: Marked fine (spec 2026-11-18 T5)", () => {
+  const input = {
+    tripBasePath: "/trips/t", phase: "planning" as const, tripStart: "2026-12-06", tripEnd: "2026-12-12", roundTrip: false, home: null,
+    datedStops: [{ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-12", timezone: "Europe/Berlin", sortOrder: 0, lat: null, lng: null }],
+    roughStopCount: 0, allStops: [{ id: "nbg", name: "Nuremberg" }], transports: [], accommodations: [],
+    items: [
+      { id: "a", stopId: "nbg", date: "2026-12-08", startTime: "10:00", endTime: "12:00", lat: 49.45, lng: 11.07 },
+      { id: "b", stopId: "nbg", date: "2026-12-08", startTime: "12:20", endTime: "13:00", lat: 49.4581, lng: 11.07, sortOrder: 1 },
+    ],
+    projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
+    travel: new Map(), today: "2026-12-01", markedFine: [],
+  };
+
+  it("a Marked fine Flag is no Next step", () => {
+    const tight = buildTripNextSteps(input).find((s) => s.id === "tight-a-b");
+    expect(tight).toBeDefined();
+    const fingerprint = detectFlags({ stops: input.datedStops, transports: [], accommodations: [], items: input.items, tripStart: input.tripStart, tripEnd: input.tripEnd, travel: new Map() })
+      .find((f) => f.id === "tight-a-b")!.fingerprint!;
+    const marked = buildTripNextSteps({ ...input, markedFine: [{ flagId: "tight-a-b", fingerprint, markedByName: "Xanthia", createdAt: new Date() }] });
+    expect(marked.map((s) => s.id)).not.toContain("tight-a-b");
   });
 });

@@ -29,6 +29,7 @@ import type { OpeningHours } from "@/lib/opening-hours";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
+import { applyMarkedFine, type MarkedFineRow } from "@/lib/flag-dismissals";
 import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type HopModeChoice, type TravelLookup } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
@@ -135,6 +136,8 @@ export interface PlanMetricsInput {
   travel: TravelLookup;
   /** Hop modes Travellers chose (lib/hop-modes.ts); they only match the real plan's Items. */
   hopModes?: ReadonlyMap<string, HopModeChoice>;
+  /** The Trip's Marked fine rows (lib/flag-dismissals-read.ts); like Hop modes, they only match the real plan's Items. */
+  markedFine?: readonly MarkedFineRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +406,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       ? { id: sortedStops[sortedStops.length - 1].id, name: sortedStops[sortedStops.length - 1].name }
       : null;
 
-    const flags = detectFlags({
+    const detected = detectFlags({
       stops: scheduledStops,
       transports: flagTransports,
       accommodations: flagAccoms,
@@ -434,7 +437,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       hopModes: input.hopModes,
     });
 
-    for (const f of flags) {
+    for (const f of applyMarkedFine(detected, input.markedFine ?? []).shown) {
       if (f.severity === "warning") warningCount++;
       else if (f.severity === "info") infoCount++;
     }

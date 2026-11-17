@@ -108,7 +108,7 @@ describe("read tools", () => {
     });
     loadFlags.mockImplementation(async (tripId: string) => {
       await requireTripAccess(tripId);
-      return [];
+      return { shown: [], markedFine: [] };
     });
     loadCostsForMcp.mockImplementation(async (tripId: string) => {
       await requireTripAccess(tripId);
@@ -175,29 +175,67 @@ describe("read tools", () => {
   });
 
   it("get_flags reshapes the loader's Flags to severity/title/detail/stopId", async () => {
-    loadFlags.mockResolvedValue([
-      { id: "stop-without-accommodation", severity: "warning", message: "Rome has no accommodation booked.", targetType: "STOP", stopId: "s1" },
-      { id: "hard-end-over", severity: "warning", message: "Your trip runs past its hard end date.", targetType: "TRIP" },
-    ]);
+    loadFlags.mockResolvedValue({
+      shown: [
+        { id: "stop-without-accommodation", severity: "warning", message: "Rome has no accommodation booked.", targetType: "STOP", stopId: "s1" },
+        { id: "hard-end-over", severity: "warning", message: "Your trip runs past its hard end date.", targetType: "TRIP" },
+      ],
+      markedFine: [],
+    });
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
     expect(r.isError).toBeFalsy();
-    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
-      { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1", itemId: null },
-      { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null, itemId: null },
-    ]);
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      flags: [
+        { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1", itemId: null, flagId: null },
+        { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null, itemId: null, flagId: null },
+      ],
+      markedFine: [],
+    });
+  });
+
+  it("get_flags gives each travel-time Flag its flagId and lists the Marked fine ones (spec 2026-11-18 T5)", async () => {
+    loadFlags.mockResolvedValue({
+      shown: [{ id: "tight-a-b", severity: "warning", message: "Tight on 2026-07-02 between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02", fingerprint: "fp-1" }],
+      markedFine: [
+        { id: "tight-c-d", severity: "info", message: "Cutting it close between Tea and Tower.", targetType: "DAY", fingerprint: "fp-2", markedByName: "Xanthia", markedAt: new Date("2026-06-01T10:00:00Z") },
+      ],
+    });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
+      flags: [{ severity: "warning", title: "day", detail: "Tight on 2026-07-02 between Louvre and Lunch.", stopId: null, itemId: null, flagId: "tight-a-b" }],
+      markedFine: [{ flagId: "tight-c-d", detail: "Cutting it close between Tea and Tower.", by: "Xanthia", at: "2026-06-01T10:00:00.000Z" }],
+    });
+  });
+
+  it("get_flags' markedFine omits rows about a Surprise hidden from the caller: it is the caller's own Flags, never the raw rows", async () => {
+    loadFlags.mockImplementation(async (_tripId: string, viewerId: string) => ({
+      shown: [],
+      markedFine:
+        viewerId === "u1"
+          ? []
+          : [{ id: "tight-a-hidden", severity: "info", message: "Cutting it close between Lunch and the Surprise.", targetType: "DAY", fingerprint: "fp", markedByName: "Sam", markedAt: new Date() }],
+    }));
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
+    expect(loadFlags).toHaveBeenCalledWith(TRIP_ID, "u1");
+    expect(JSON.parse((r.content as { text: string }[])[0].text).markedFine).toEqual([]);
   });
 
   it("get_flags names the Item an item Flag is about, so Claude can open or fix it (spec 2026-10-17 R7)", async () => {
-    loadFlags.mockResolvedValue([
-      { id: "item-closed-i1", severity: "warning", message: "Memorium Nuremberg Trials is closed on Tuesdays.", targetType: "ITEM", targetId: "i1", date: "2026-12-08", stopId: "s1" },
-      { id: "still-to-book-t1", severity: "info", message: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", targetType: "TRANSPORT", targetId: "t1", stopId: "s1" },
-    ]);
+    loadFlags.mockResolvedValue({
+      shown: [
+        { id: "item-closed-i1", severity: "warning", message: "Memorium Nuremberg Trials is closed on Tuesdays.", targetType: "ITEM", targetId: "i1", date: "2026-12-08", stopId: "s1" },
+        { id: "still-to-book-t1", severity: "info", message: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", targetType: "TRANSPORT", targetId: "t1", stopId: "s1" },
+      ],
+      markedFine: [],
+    });
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
-    expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
-      { severity: "warning", title: "item", detail: "Memorium Nuremberg Trials is closed on Tuesdays.", stopId: "s1", itemId: "i1" },
-      { severity: "info", title: "transport", detail: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", stopId: "s1", itemId: null },
+    expect(JSON.parse((r.content as { text: string }[])[0].text).flags).toEqual([
+      { severity: "warning", title: "item", detail: "Memorium Nuremberg Trials is closed on Tuesdays.", stopId: "s1", itemId: "i1", flagId: null },
+      { severity: "info", title: "transport", detail: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", stopId: "s1", itemId: null, flagId: null },
     ]);
   });
 

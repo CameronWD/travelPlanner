@@ -20,14 +20,14 @@ import type { item, cost } from "@/test/builders";
 //     chapter-gating behaviour in page.tsx is exercised end to end, proving
 //     a disabled trip renders flat (Task 13).
 
-const { readPlanMock } = vi.hoisted(() => ({ readPlanMock: vi.fn() }));
+const { readPlanMock, flagDismissalFindMany } = vi.hoisted(() => ({ readPlanMock: vi.fn(), flagDismissalFindMany: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("@/lib/plan-reads", () => ({ readPlan: readPlanMock }));
 // The page itself no longer imports `@/lib/db` (Task 13), but
 // `@/lib/flags-loader`'s `loadFlags` (an export the page never calls) still
 // does at module scope — stub it so that import doesn't try to open Postgres.
-vi.mock("@/lib/db", () => ({ db: {} }));
+vi.mock("@/lib/db", () => ({ db: { flagDismissal: { findMany: flagDismissalFindMany } } }));
 vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
 // requireTripAccess now returns { user, membership } here too (I5): the page
 // keeps them to compute isOwner for Make it fit's owner-only Drop half.
@@ -74,7 +74,13 @@ vi.mock("@/components/trip/chapter-chip", () => ({
 }));
 vi.mock("@/components/trip/cost-amounts", () => ({ CostAmounts: () => null }));
 vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => <div data-testid="route-map" /> }));
-vi.mock("@/components/trip/flag-list", () => ({ FlagList: () => <div data-testid="flag-list" /> }));
+vi.mock("@/components/trip/flag-list", () => ({
+  FlagList: ({ flags, tripId }: { flags: { id: string }[]; tripId: string }) => (
+    <div data-testid="flag-list" data-trip-id={tripId}>
+      {flags.map((f) => f.id).join(",")}
+    </div>
+  ),
+}));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-testid="make-it-fit" /> }));
 
 const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
@@ -207,6 +213,7 @@ function renderSummary() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  flagDismissalFindMany.mockResolvedValue([]);
 });
 
 describe("SummaryPage chapter gating — dated trip (Task 13)", () => {
@@ -497,5 +504,26 @@ describe("SummaryPage — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     const { tripTodayISO } = await import("@/lib/trip-today");
     expect(vi.mocked(tripTodayISO)).toHaveBeenCalledWith([expect.objectContaining({ id: "s1" })], expect.anything());
     expect(vi.mocked(detectFlags)).toHaveBeenCalledWith(expect.objectContaining({ today: "2026-01-03", hiddenItemIds: ["hid"] }));
+  });
+});
+
+describe("SummaryPage — Marked fine (spec 2026-11-18 T5)", () => {
+  it("leaves a Marked fine Flag out of Trip health and hands the list its Trip", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    const { detectFlags } = await import("@/lib/flags");
+    vi.mocked(detectFlags).mockReturnValueOnce([
+      { id: "tight-a-b", severity: "info", message: "Cutting it close.", targetType: "DAY", fingerprint: "fp-1" },
+      { id: "packed-2026-01-03", severity: "info", message: "Packed.", targetType: "DAY" },
+    ]);
+    flagDismissalFindMany.mockResolvedValue([
+      { flagId: "tight-a-b", fingerprint: "fp-1", createdAt: new Date(), markedBy: { id: "u2", name: "Xanthia", image: null } },
+    ]);
+
+    render(await renderSummary());
+
+    expect(flagDismissalFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: "trip-1" } }));
+    const list = screen.getByTestId("flag-list");
+    expect(list).toHaveTextContent(/^packed-2026-01-03$/);
+    expect(list).toHaveAttribute("data-trip-id", "trip-1");
   });
 });

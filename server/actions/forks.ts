@@ -18,6 +18,7 @@ import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { readPlan } from "@/lib/plan-reads";
 import { homePointOf } from "@/lib/travel-times/hops";
 import { loadHopModes } from "@/lib/hop-modes";
+import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { type ActionResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
@@ -516,7 +517,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
   // Spec 2026-10-17 R7: every plan's book-by Flags count from the Trip's own
   // today, the real plan's (planData[0]), so the columns compare like with like.
   const today = tripTodayISO(planData[0].stops);
-  const hopModes = await loadHopModes(tripId);
+  const [hopModes, markedFine] = await Promise.all([loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const travelByPlan = await Promise.all(
     planData.map(({ stops, transports, items }) => loadTravelLookupFor({ items, stops, transports, home: homePointOf(shell), hopModes })),
   );
@@ -542,6 +543,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
       today,
       travel: travelByPlan[i],
       hopModes,
+      markedFine,
     });
     return { forkId, name, metrics };
   });
@@ -733,7 +735,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
   // Both sides count from the Trip's own today, the real plan's, as Compare does.
   const today = tripTodayISO(realStops);
   const home = homePointOf(trip);
-  const hopModes = await loadHopModes(tripId);
+  const [hopModes, markedFine] = await Promise.all([loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const [realTravel, forkTravel] = await Promise.all([
     loadTravelLookupFor({ items: realItems, stops: realStops, transports: realTransports, home, hopModes }),
     loadTravelLookupFor({ items: forkItems, stops: forkStops, transports: forkTransports, home, hopModes }),
@@ -750,6 +752,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     today,
     travel: realTravel,
     hopModes,
+    markedFine,
   });
 
   const forkMetrics = computePlanMetrics({
@@ -763,6 +766,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     today,
     travel: forkTravel,
     hopModes,
+    markedFine,
   });
 
   const deltas = diffMetrics(realPlanMetrics, forkMetrics);

@@ -147,6 +147,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     strip: { dates: [], line: { homeStart: null, homeEnd: null, segments: [] } },
     journal: { open: false, mine: null, others: [] },
     feasibility: [],
+    markedFine: [],
     hops: [],
     weatherInput: { lat: 48.58, lng: 7.75, timezone: "Europe/Paris" },
     ...over,
@@ -242,7 +243,7 @@ describe("Day page", () => {
   });
 
   it("keeps the feasibility advisory on a planned day", async () => {
-    getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 2, feasibility: [{ severity: "warning", message: "Tight connection to the train" }] }));
+    getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 2, feasibility: [{ flagId: "tight-a-b", severity: "warning", message: "Tight connection to the train" }] }));
     await renderPage();
     expect(screen.getAllByText("Tight connection to the train").length).toBeGreaterThan(0);
   });

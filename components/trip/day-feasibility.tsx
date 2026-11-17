@@ -5,8 +5,10 @@ import { AlertTriangle, ChevronRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { DayHopEntry } from "@/lib/day-view-loader";
 import { HopModeChooser, type HopModeChooserProps } from "@/components/trip/day/hop-mode-chooser";
+import { MarkFineButton, MarkedFineList, type MarkedFineEntry } from "@/components/trip/marked-fine";
 
 export interface DayFeasibilityEntry {
+  flagId?: string;
   severity: "warning" | "info";
   message: string;
   hop?: HopModeChooserProps;
@@ -37,11 +39,22 @@ function HopRow({ hop }: { hop: DayHopEntry }) {
 /**
  * Kit "heads up" card (DDays.jsx day panel: a sun Card under the plan). Text on
  * the sun island stays plain ink; the icon carries warning vs info. Flagged
- * hops and hand-set hops are always shown; the rest sit behind "All hops".
+ * hops and hand-set hops are always shown; the rest sit behind "All hops",
+ * Marked fine ones (not in `entries`) among them.
  */
-export function DayFeasibility({ entries, hops = [] }: { entries: DayFeasibilityEntry[]; hops?: DayHopEntry[] }) {
+export function DayFeasibility({
+  tripId,
+  entries,
+  markedFine = [],
+  hops = [],
+}: {
+  tripId: string;
+  entries: DayFeasibilityEntry[];
+  markedFine?: MarkedFineEntry[];
+  hops?: DayHopEntry[];
+}) {
   const [open, setOpen] = React.useState(false);
-  if (entries.length === 0 && hops.length === 0) return null;
+  if (entries.length === 0 && markedFine.length === 0 && hops.length === 0) return null;
 
   const flagged = new Set(entries.flatMap((e) => (e.hop ? [hopKey(e.hop)] : [])));
   const handSet = hops.filter((h) => h.modeSetByHand && !flagged.has(hopKey(h)));
@@ -58,9 +71,11 @@ export function DayFeasibility({ entries, hops = [] }: { entries: DayFeasibility
             <Clock className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} aria-hidden />
           )}
           <p className="min-w-0 flex-1">{e.message}</p>
+          {e.flagId ? <MarkFineButton tripId={tripId} flagId={e.flagId} /> : null}
           {e.hop ? <HopModeChooser {...e.hop} /> : null}
         </div>
       ))}
+      <MarkedFineList tripId={tripId} entries={markedFine} />
       {handSet.map((h) => (
         <HopRow key={hopKey(h)} hop={h} />
       ))}

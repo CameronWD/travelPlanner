@@ -42,7 +42,7 @@ import { packingVisibleWhere } from "@/lib/packing-access";
 import { loadPackingViewer } from "@/lib/packing-viewer";
 import { CHECKLIST_VIEW_SELECT, toChecklistView, toMcpIdea, WISHLIST_IDEA_SELECT } from "../reads/lists";
 import { loadBudget } from "@/lib/money/budget-loader";
-import { loadFlags } from "@/lib/flags-loader";
+import { loadFlagsForMcp } from "../reads/flags";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { runTool, runToolContent } from "../run-tool";
 
@@ -140,29 +140,6 @@ async function loadBudgetForMcp(tripId: string) {
     byStop: budget.byStop,
     missingRates: budget.missingRates,
   };
-}
-
-// ---------------------------------------------------------------------------
-// get_flags
-// ---------------------------------------------------------------------------
-
-/**
- * `loadFlags`'s `Flag[]` reshaped to the fields a Claude connection needs:
- * `title` is the flag's targetType (what kind of thing it's about: "stop",
- * "transport", "accommodation", "item", "day", or "trip"); `detail` is its
- * message; `itemId` names the Item an "item" Flag is about (spec 2026-10-17
- * R7), so Claude can read it with get_item or fix it with set_opening_hours.
- */
-async function loadFlagsForMcp(tripId: string) {
-  const { user } = await requireTripAccess(tripId);
-  const flags = await loadFlags(tripId, user.id);
-  return flags.map((f) => ({
-    severity: f.severity,
-    title: f.targetType.toLowerCase(),
-    detail: f.message,
-    stopId: f.stopId ?? null,
-    itemId: f.targetType === "ITEM" ? (f.targetId ?? null) : null,
-  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -352,7 +329,8 @@ export function registerReadTools(server: McpServer): void {
     "get_flags",
     {
       title: "Get flags",
-      description: "Reads the trip's health flags: things worth a second look, such as a stop with no accommodation booked, a packed day, a thing to do on a day it is closed, a ticket you would be late for, or a booking due soon.",
+      description:
+        "Reads the trip's health flags: things worth a second look, such as a stop with no accommodation booked, a packed day, a thing to do on a day it is closed, a ticket you would be late for, a booking due soon, or too little time to get between two things to do. A travel-time flag has a flagId; markedFine lists the travel-time flags a Traveller marked fine, by whom and when, which show again when either thing's time or place or the travel time changes.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
