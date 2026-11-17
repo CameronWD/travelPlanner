@@ -137,8 +137,7 @@ export interface DayEntryEditor {
     { accommodation: AccommodationCardAccommodation; stopDateRange: { arriveDate: string; departDate: string } }
   >;
   costsByOwner: Record<string, CostRow[]>;
-  /** Travelling or Past: on a phone a tap shows the entry read-only first, Edit one tap further. */
+  // Decided on the server from the Phase, so a Planning Trip never reads first.
   readFirst: boolean;
-  /** The day's Local travel mode, for the details sheet's Directions; null on a gap day. */
   localMode?: LocalMode | null;
 }

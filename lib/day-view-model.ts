@@ -399,7 +399,6 @@ export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: bo
   };
 }
 
-/** What the edit dialogs and the details sheet look rows up in, shared by every day of a window. */
 export function buildEditorBase(tripId: string, rows: DayRows, costs: CostRow[]): Omit<DayEntryEditor, "accommodations" | "readFirst" | "localMode"> {
   const { trip, stops, items, transports } = rows;
   const stopById = new Map(stops.map((s) => [s.id, s]));
@@ -430,7 +429,6 @@ export function buildEditorBase(tripId: string, rows: DayRows, costs: CostRow[])
   };
 }
 
-/** One day's editor: the window's base plus that day's stays, its Local travel mode, and whether taps read first (Travelling or Past). */
 export function buildDayEntryEditor(
   rows: DayRows,
   base: ReturnType<typeof buildEditorBase>,

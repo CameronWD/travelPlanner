@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, onTestFinished } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -124,5 +124,18 @@ describe("DayEntryLink on the road (readFirst)", () => {
     await user.click(screen.getByRole("button", { name: "Surprise" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Surprise");
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  it("without matchMedia falls back to the phone layout, like the dialogs", async () => {
+    const user = userEvent.setup();
+    const original = window.matchMedia;
+    // @ts-expect-error simulating an environment with no matchMedia
+    window.matchMedia = undefined;
+    onTestFinished(() => {
+      window.matchMedia = original;
+    });
+    render(<DayEntryLink editor={road} attachments={[]} target={{ kind: "item", item }}>Tower</DayEntryLink>);
+    await user.click(screen.getByRole("button", { name: "Tower" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Tower");
   });
 });

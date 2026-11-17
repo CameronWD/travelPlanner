@@ -6,6 +6,7 @@ import { ItemFormDialog } from "@/components/trip/item-form-dialog";
 import { TransportFormDialog } from "@/components/trip/transport-form-dialog";
 import { AccommodationFormDialog } from "@/components/trip/accommodation-form-dialog";
 import { DetailsSheet } from "@/components/trip/details-sheet";
+import { isPhoneViewport } from "@/lib/viewport";
 import { accommodationDetails, itemDetails, transportDetails } from "@/lib/details-view";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import type {
@@ -26,9 +27,6 @@ export type DayEntryTarget =
       stopDateRange: { arriveDate: string; departDate: string };
     };
 
-// The edit dialogs turn from a bottom sheet into a centred dialog at sm (components/ui/dialog.tsx).
-const PHONE_QUERY = "(max-width: 639px)";
-
 interface DayEntryLinkProps {
   target: DayEntryTarget;
   editor: DayEntryEditor;
@@ -38,10 +36,10 @@ interface DayEntryLinkProps {
 }
 
 /**
- * Makes a Timeline row's title a button that opens the same edit dialog the
- * plan editor uses, in place — read or edit the train, the hotel or the
- * Item without leaving the day. The day page is always the real plan, so
- * every dialog gets forkId null.
+ * Makes a Timeline row's title a button. Travelling or Past on a phone it
+ * opens the read-only details sheet (Edit one tap further); otherwise it opens
+ * the plan editor's edit dialog in place. The day page is always the real
+ * plan, so every dialog gets forkId null.
  */
 export function DayEntryLink({ target, editor, attachments, className, children }: DayEntryLinkProps) {
   const [open, setOpen] = React.useState(false);
@@ -51,7 +49,7 @@ export function DayEntryLink({ target, editor, attachments, className, children 
   const costs = editor.costsByOwner[ownerId] ?? [];
 
   // Decided at tap time, not render, so the server and first client render agree.
-  const onTap = () => (editor.readFirst && window.matchMedia(PHONE_QUERY).matches ? setSheetOpen(true) : setOpen(true));
+  const onTap = () => (editor.readFirst && isPhoneViewport() ? setSheetOpen(true) : setOpen(true));
   const view = sheetOpen
     ? target.kind === "item"
       ? itemDetails(target.item, { ...editor, attachments, costs })
