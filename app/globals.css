@@ -701,8 +701,10 @@
 @keyframes wx-turn { to { transform: rotate(360deg); } }
 @keyframes wx-breathe { from { transform: scale(0.92); } to { transform: scale(1.08); } }
 @keyframes wx-splash { 0% { transform: scale(0.3); opacity: 1; } 16% { transform: scale(1.15); opacity: 0; } 100% { transform: scale(1.15); opacity: 0; } }
-/* Two short flashes every 7s: far under the 3-per-second photosensitivity line. */
-@keyframes wx-flash { 0%, 88%, 90%, 92.5%, 100% { opacity: 0; } 89% { opacity: 0.55; } 91.2% { opacity: 0.35; } }
+/* Two soft flashes every 7s: peaks at 86% and 94% (6.02s and 6.58s, 0.56s
+   apart), opacity 0.35 then 0.22, each about 140ms long, then 6.3s dark. Never
+   more than two in any second, under the 3-per-second photosensitivity line. */
+@keyframes wx-flash { 0%, 85%, 87%, 93%, 95%, 100% { opacity: 0; } 86% { opacity: 0.35; } 94% { opacity: 0.22; } }
 @keyframes wx-twinkle { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.4); } }
 @utility wx-pan { animation: wx-pan 60s linear infinite; }
 @utility wx-bob { animation: wx-bob 9s ease-in-out infinite alternate; }
