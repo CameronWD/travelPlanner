@@ -571,6 +571,38 @@ describe("getDays — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
   });
 });
 
+describe("getDays — a day that is a Surprise for the viewer (ADR 0072)", () => {
+  const hideStrasbourg = () =>
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: VIEWER, hiddenStopIds: [STRASBOURG.id] }));
+
+  it("a day inside the hidden Stop is whole, and the field says only who is planning", async () => {
+    hideStrasbourg();
+    const d = await loadDay("2026-12-11");
+    expect(d.surprise).toEqual({ plannedByName: "Pat", whole: true });
+    expect(Object.keys(d.surprise!).sort()).toEqual(["plannedByName", "whole"]);
+  });
+
+  it("a Changeover day shared with a visible Stop is not whole", async () => {
+    hideStrasbourg();
+    expect((await loadDay("2026-12-10")).surprise).toEqual({ plannedByName: "Pat", whole: false });
+    expect((await loadDay("2026-12-13")).surprise).toEqual({ plannedByName: "Pat", whole: false });
+  });
+
+  it("a day outside the hidden Stop has none", async () => {
+    hideStrasbourg();
+    expect((await loadDay("2026-12-08")).surprise).toBeNull();
+  });
+
+  it("the planner viewing the same day gets none", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue({
+      ...NO_SURPRISES,
+      viewerId: VIEWER,
+      views: { stops: new Map([[STRASBOURG.id, { ...SURPRISED_VIEW, youAreSurprised: false }]]), items: new Map() },
+    });
+    expect((await loadDay("2026-12-11")).surprise).toBeNull();
+  });
+});
+
 describe("getDays — the carousel window in one read (NAV-05)", () => {
   const dateOf = (d: Awaited<ReturnType<typeof one>>) => (typeof d === "string" ? d : d.date);
 

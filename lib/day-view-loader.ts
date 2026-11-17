@@ -47,6 +47,7 @@ import {
   tripDays,
   stopLine,
   dayIdeasRows,
+  daySurprise,
   forecastOpensOn as forecastOpensOnFor,
   type DayModel,
   type DayRows,
@@ -154,6 +155,8 @@ export interface DayViewData {
   feasibility: Array<{ flagId: string; severity: string; message: string; hop?: Flag["hop"] }>;
   /** The day's tight Flags a Traveller Marked fine (CONTEXT.md "Marked fine"), out of `feasibility`. */
   markedFine: Array<{ flagId: string; message: string; markedByName: string }>;
+  /** Set only for a viewer a Surprise Stop on this day is for (ADR 0072): the planner's name, and whether it is the whole day. */
+  surprise: { plannedByName: string; whole: boolean } | null;
   /** Every hop of the day the viewer can see, as the Day map and get_day resolve them. */
   hops: DayHopEntry[];
   /** For the weather Suspense island; null when the day has no located Stop. */
@@ -508,6 +511,7 @@ function projectDayView(
     feasibility,
     markedFine,
     hops,
+    surprise: daySurprise(rows.stops, date),
     weatherInput: dayStop?.lat != null && dayStop?.lng != null ? { lat: dayStop.lat, lng: dayStop.lng, timezone: stopTimezone } : null,
   };
 }

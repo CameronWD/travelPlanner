@@ -8,6 +8,7 @@ import { DayFeasibility, type DayFeasibilityEntry } from "@/components/trip/day-
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { DayMapButton } from "@/components/trip/day/day-map-dialog";
 import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
+import { SurpriseShell } from "@/components/plan/surprise-badge";
 
 /**
  * The Day plan card (DAY_VIEW §2 "Left", §3.6): "Day plan" h2 with the count;
@@ -23,10 +24,17 @@ import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
  */
 export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size: "desktop" | "phone"; addButton: React.ReactNode }) {
   const phone = size === "phone";
+  const surprise = data.surprise;
+  const whole = surprise?.whole === true;
   const dateLabel = formatDayLabel(data.date);
   const empty = !data.hasEntries && data.ideas.rows.length === 0;
   const allowNearMe = data.phase === "travelling" && data.isToday;
-  const whatsAround = data.whatsAround.enabled && (data.whatsAround.starts.length > 0 || allowNearMe) ? (
+  const restSurprise = surprise && !surprise.whole ? (
+    <p data-slot="day-surprise-rest" className="text-sm font-semibold text-muted-foreground">
+      The rest of today is a surprise, planned by {surprise.plannedByName}.
+    </p>
+  ) : null;
+  const whatsAround = !whole && data.whatsAround.enabled && (data.whatsAround.starts.length > 0 || allowNearMe) ? (
     <WhatsAroundSheet
       tripId={data.tripId}
       date={data.date}
@@ -49,15 +57,18 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
           Day plan
         </h2>
         <div className="flex items-center gap-3">
-          {data.hasEntries ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} /> : null}
-          <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>
+          {data.hasEntries && !whole ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} /> : null}
+          {whole ? null : <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>}
         </div>
       </div>
-      {empty ? (
+      {whole && surprise ? (
+        <SurpriseShell view={{ plannerName: surprise.plannedByName, forNames: [], youAreSurprised: true }} />
+      ) : empty ? (
         // An empty day is a small block, not a tall empty card (spec 2026-09-29 D5):
         // about three or four Items' worth of room, the line and the add action centred.
         <div data-slot="day-plan-empty" className="flex min-h-[12rem] flex-col items-center justify-center gap-3.5 text-center">
           <p className="text-sm font-semibold text-muted-foreground">Nothing planned</p>
+          {restSurprise}
           <div className="w-full">{addButton}</div>
         </div>
       ) : (
@@ -89,6 +100,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
                 size={size}
               />
             )}
+            {restSurprise}
           </div>
           <div className="flex flex-col gap-2.5">
             {addButton}

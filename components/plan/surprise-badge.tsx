@@ -38,7 +38,7 @@ export function SurpriseBadge({ view, size = "md", className }: SurpriseBadgePro
  * and nothing else (no stay, ideas, days or extras). Desktop open body and the
  * mobile Stop sheet both render it.
  */
-export function SurpriseShell({ view }: { view: SurpriseView }) {
+export function SurpriseShell({ view }: { view: Pick<SurpriseView, "youAreSurprised" | "plannerName" | "forNames"> }) {
   return (
     <div data-testid="surprise-shell" className="rounded-2xl border-2 border-dashed border-border p-6 text-center text-muted-foreground">
       <Gift className="mx-auto size-6" aria-hidden />

@@ -149,6 +149,7 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     feasibility: [],
     markedFine: [],
     hops: [],
+    surprise: null,
     weatherInput: { lat: 48.58, lng: 7.75, timezone: "Europe/Paris" },
     ...over,
   };
@@ -296,6 +297,24 @@ describe("Day page", () => {
     expect(screen.queryByText("No bed yet")).toBeNull();
     expect(screen.queryByText("Hôtel Cour du Corbeau")).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Sat 12 Dec" })).toBeInTheDocument();
+  });
+
+  it("a day that is wholly a Surprise: the shell, no add anywhere, no Tonight, the weather and Journal stay", async () => {
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: true }, tonight: null, hasEntries: false }));
+    const { container } = await renderPage();
+    expect(within(shownPanel(container)).getAllByTestId("surprise-shell")).toHaveLength(2);
+    expect(screen.getAllByText("Surprise, planned by Xanthia").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /^Add (to this day|something else)/ })).toBeNull();
+    expect(screen.queryByText("No bed yet")).toBeNull();
+    expect(shownPanel(container).querySelectorAll('[data-slot="tonight"]')).toHaveLength(0);
+    expect(screen.getAllByRole("region", { name: "Weather" }).length).toBeGreaterThan(0);
+  });
+
+  it("a Changeover day shared with a Surprise keeps the add buttons and says the rest is a surprise", async () => {
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: false } }));
+    await renderPage();
+    expect(screen.getAllByRole("button", { name: "Add to this day" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("The rest of today is a surprise, planned by Xanthia.").length).toBeGreaterThan(0);
   });
 
   it("a Stop with no bed shows 'No bed yet' and '+ Add a stay'", async () => {

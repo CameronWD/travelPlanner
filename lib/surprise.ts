@@ -130,7 +130,7 @@ function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-export function surpriseLine(view: SurpriseView): string {
+export function surpriseLine(view: Pick<SurpriseView, "youAreSurprised" | "plannerName" | "forNames">): string {
   return view.youAreSurprised
     ? `Surprise, planned by ${view.plannerName}`
     : `Surprise for ${joinNames(view.forNames)}`;

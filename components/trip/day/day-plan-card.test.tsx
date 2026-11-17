@@ -122,3 +122,29 @@ describe("DayPlanCard Day map button", () => {
     expect(screen.queryByRole("button", { name: /show day map/i })).toBeNull();
   });
 });
+
+describe("DayPlanCard Surprise (spec 2026-11-18 D7)", () => {
+  const surprise = (whole: boolean) => ({ plannedByName: "Xanthia", whole });
+
+  it("a whole Surprise day is the shell: no Timeline, Day map, Getting around, add or What's around", () => {
+    render(<DayPlanCard data={data({ surprise: surprise(true) })} size="desktop" addButton={<button>Add to this day</button>} />);
+    expect(screen.getByTestId("surprise-shell")).toHaveTextContent("Surprise, planned by Xanthia");
+    expect(screen.queryByRole("button", { name: "Add to this day" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Day map" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "What's around" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Nothing planned")).not.toBeInTheDocument();
+  });
+
+  it("the rest of a shared day is a line after the day's own things; add stays", () => {
+    render(<DayPlanCard data={data({ surprise: surprise(false) })} size="desktop" addButton={<button>Add to this day</button>} />);
+    expect(screen.getByText("The rest of today is a surprise, planned by Xanthia.")).toBeInTheDocument();
+    expect(screen.queryByTestId("surprise-shell")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to this day" })).toBeInTheDocument();
+  });
+
+  it("an ordinary day shows neither", () => {
+    render(<DayPlanCard data={data({ surprise: null })} size="phone" addButton={<button>Add</button>} />);
+    expect(screen.queryByTestId("surprise-shell")).not.toBeInTheDocument();
+    expect(screen.queryByText(/surprise/i)).not.toBeInTheDocument();
+  });
+});
