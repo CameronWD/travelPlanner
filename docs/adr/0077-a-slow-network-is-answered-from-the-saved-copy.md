@@ -54,7 +54,11 @@ copy sat in the cache.
    (header, message, record), as is the page an offline `/` redirects to.
 6. **Navigations only.** Attachments (cache-first), the trip cover
    (network-first, but an image request), static chunks and every other
-   request behave as before. The rules (`NAVIGATION_TIMEOUT_MS`,
+   request behave as before, with one addition for the offline save: a
+   request that is not a navigation and is answered from the cache because
+   its fetch failed carries the same header, with no message and no record,
+   so the save can tell an old copy from a fresh answer and not count it. A
+   response from the network never carries it. The rules (`NAVIGATION_TIMEOUT_MS`,
    `SAVED_COPY_HEADER`, `SAVED_COPY_MESSAGE`, `isServerFailure`,
    `savedCopyResponse`, `savedCopyMessage`, `WAS_SAVED_COPY_MESSAGE`, `withSavedCopyRecord`,
    `withoutSavedCopyRecord`, `wasSavedCopy`, `wasSavedCopyQueryPath` and the
@@ -94,7 +98,8 @@ copy sat in the cache.
 - A slow network on a page that was never saved still waits: there is
   nothing to show instead.
 - **Signed-out safety.** The timeout does not widen who can see a cached
-  page. The cache is cleared on sign-out (`CLEAR_CACHE`), so a saved copy
+  page. The cache is cleared on sign-out (`CLEAR_CACHE`, which keeps only the
+  offline page and the build record), so a saved copy
   only exists for the user signed in on this browser. The known exception is
   an expired session: its cache stays, and a slow network now shows that
   user's saved copy where the network would have redirected to sign-in
@@ -102,7 +107,8 @@ copy sat in the cache.
 - The pushed message depends on `FetchEvent.resultingClientId`. Where a
   browser does not provide it, the page's pull still works, because it asks
   `navigator.serviceWorker.controller` by URL path. Page script cannot read a
-  navigation's headers, so the header is for tests and devtools. Support for
+  navigation's headers, so on a navigation the header is for tests and
+  devtools; the offline save reads it on its own fetches. Support for
   `resultingClientId` on iOS Safari is unverified.
 - Verifying this needs `next build` and `next start`: the worker is not
   registered under `next dev` (ADR 0016).

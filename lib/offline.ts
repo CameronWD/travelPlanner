@@ -281,6 +281,14 @@ export function fileCacheKey(url: string): string {
   return kept.length ? `${url.slice(0, queryAt)}?${kept.join('&')}` : url.slice(0, queryAt);
 }
 
+// Where a request is cached: a file warmed with the offline flag lives under
+// its plain URL. Mirrored in sw.js.
+export function cacheKeyFor<R extends { url: string }>(request: R): R | string {
+  if (cacheStoreFor(request.url) !== 'files') return request;
+  const key = fileCacheKey(request.url);
+  return key === request.url ? request : key;
+}
+
 // ---------------------------------------------------------------------------
 // Strategy selector
 // ---------------------------------------------------------------------------
@@ -446,6 +454,9 @@ export function queryFallbackPath(url: string, mode: string, exactServable: bool
   return search ? pathname : null;
 }
 
+// Every navigation answered from the cache carries the mark. A request that is
+// not a navigation carries it only when the network failed and the cache
+// answered instead, so the offline save can tell an old copy from a fresh one.
 export function savedCopyResponse(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set(SAVED_COPY_HEADER, '1');
@@ -557,5 +568,14 @@ export function nextBuildMeta(stored: BuildMeta | null, buildId: string): BuildM
 export function staleCacheNames(existing: string[], buildId: string, previousBuildId?: string | null): string[] {
   const keep = new Set([...Object.values(cacheNames(buildId)), META_CACHE_NAME]);
   if (previousBuildId) keep.add(cacheNames(previousBuildId).static);
+  return existing.filter((name) => !keep.has(name));
+}
+
+// Sign-out deletes every store but this build's static store, which the worker
+// then empties down to its pinned offline page, and the meta store, which keeps
+// the build record: with no deploy there is no new install to precache the
+// offline page again. Mirrored in sw.js.
+export function signOutCacheNames(existing: string[], buildId: string): string[] {
+  const keep = new Set([cacheNames(buildId).static, META_CACHE_NAME]);
   return existing.filter((name) => !keep.has(name));
 }

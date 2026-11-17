@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse, queryFallbackPath } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse, queryFallbackPath, cacheKeyFor, signOutCacheNames } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -697,5 +697,35 @@ describe('queryFallbackPath (ADR 0077)', () => {
 
   it('only for navigations', () => {
     expect(queryFallbackPath(url, 'cors', false, true)).toBeNull();
+  });
+});
+
+describe('cacheKeyFor', () => {
+  it('keys a file warmed with the offline flag under its plain URL', () => {
+    expect(cacheKeyFor({ url: 'https://app.example/api/attachments/a1?offline=1' })).toBe('https://app.example/api/attachments/a1');
+    expect(cacheKeyFor({ url: 'https://app.example/api/trips/t1/cover?v=k&w=480&offline=1' })).toBe('https://app.example/api/trips/t1/cover?v=k&w=480');
+  });
+
+  it('keys a file asked for plainly by its own request', () => {
+    const request = { url: 'https://app.example/api/attachments/a1' };
+    expect(cacheKeyFor(request)).toBe(request);
+  });
+
+  it('never rewrites a page or a chunk, whatever its query', () => {
+    const page = { url: 'https://app.example/trips/a/budget?offline=1' };
+    const chunk = { url: 'https://app.example/_next/static/chunks/a.js?offline=1' };
+    expect(cacheKeyFor(page)).toBe(page);
+    expect(cacheKeyFor(chunk)).toBe(chunk);
+  });
+});
+
+describe('signOutCacheNames', () => {
+  it("deletes every store but this build's static store and the meta store", () => {
+    expect(signOutCacheNames(['trip-planner-v6', 'teepee-static-b0', 'teepee-static-b1', 'teepee-pages-v1', 'teepee-files-v1', META_CACHE_NAME], 'b1'))
+      .toEqual(['trip-planner-v6', 'teepee-static-b0', 'teepee-pages-v1', 'teepee-files-v1']);
+  });
+
+  it('deletes nothing when only the kept stores exist', () => {
+    expect(signOutCacheNames(['teepee-static-b1', META_CACHE_NAME], 'b1')).toEqual([]);
   });
 });

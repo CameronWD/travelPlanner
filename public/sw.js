@@ -14,6 +14,10 @@
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
  *
+ * With the network down, slow or answering 5xx (ADR 0077): a navigation to `/`
+ * redirects to the saved Trip, and a navigation that adds a query to a saved
+ * page redirects to the plain path, which is then answered from its saved copy.
+ *
  * Stores (spec 2026-10-06 §T), oldest entries trimmed past each cap:
  *   - static  teepee-static-<build>  /_next/static/*, /offline.html   cap 300
  *   - pages   teepee-pages-v1        navigations / pages              cap 400
@@ -29,6 +33,7 @@
  * when the network fails or, for a navigation, is slow or answers 5xx, ADR
  * 0077) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
  * message — never serve one user's cached pages to another on a shared device.
+ * Sign-out keeps only /offline.html and the build record.
  */
 
 // Spec 2026-10-06 §T (mirrors lib/offline.ts cacheNames / CACHE_ENTRY_LIMITS).
@@ -252,7 +257,7 @@ function fileCacheKey(url) {
   return kept.length ? url.slice(0, queryAt) + '?' + kept.join('&') : url.slice(0, queryAt);
 }
 
-/** Where a request is cached: a file warmed with the offline flag lives under its plain URL. */
+/** Mirrors cacheKeyFor() in lib/offline.ts: a file warmed with the offline flag lives under its plain URL. */
 function cacheKeyFor(request) {
   if (cacheStoreFor(request.url) !== 'files') return request;
   const key = fileCacheKey(request.url);
@@ -363,6 +368,25 @@ function staleCacheNames(existing, buildId, previousBuildId) {
   return existing.filter((name) => !keep.has(name));
 }
 
+/** Mirrors signOutCacheNames() in lib/offline.ts. */
+function signOutCacheNames(existing, buildId) {
+  const keep = new Set(['teepee-static-' + buildId, META_CACHE_NAME]);
+  return existing.filter((name) => !keep.has(name));
+}
+
+// No deploy means no new install to precache /offline.html again, so sign-out
+// empties this build's static store around it rather than deleting the store.
+async function clearPrivateCaches() {
+  const names = await caches.keys();
+  await Promise.all(signOutCacheNames(names, BUILD_ID).map((name) => caches.delete(name)));
+  const meta = await caches.open(META_CACHE_NAME);
+  await meta.delete(LAST_TRIP_PATH);
+  const statics = await caches.open(CACHE_NAMES.static);
+  const keys = await statics.keys();
+  await Promise.all(keys.filter((key) => !isPinnedCacheEntry(key.url)).map((key) => statics.delete(key)));
+  if (!keys.some((key) => isPinnedCacheEntry(key.url))) await statics.addAll(PRECACHE_URLS);
+}
+
 /** Read the stored build record, then overwrite it with this build's. */
 async function recordBuild() {
   const meta = await caches.open(META_CACHE_NAME);
@@ -419,7 +443,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (strategy === 'cache-first') {
-    event.respondWith(cacheFirst(event.request));
+    event.respondWith(cacheFirst(event));
     return;
   }
 
@@ -438,12 +462,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
   const data = event.data;
   if (data && data.type === 'CLEAR_CACHE') {
-    event.waitUntil(
-      caches
-        .keys()
-        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
-        .catch((err) => console.warn('[SW] cache clear failed:', err))
-    );
+    event.waitUntil(clearPrivateCaches().catch((err) => console.warn('[SW] cache clear failed:', err)));
   }
   const askedPath = wasSavedCopyQueryPath(data);
   if (askedPath !== null && event.ports && event.ports[0]) {
@@ -460,8 +479,11 @@ self.addEventListener('message', (event) => {
 /**
  * cache-first: serve from cache; fall back to network and populate cache.
  * Used for immutable hashed assets — never serve stale if unavailable.
+ * The put is held open by the event so the worker is not stopped mid-write
+ * (a large file); a body that fails makes the put reject and keeps nothing.
  */
-async function cacheFirst(request) {
+async function cacheFirst(event) {
+  const { request } = event;
   try {
     const cached = await servableCached(request);
     if (cached) return cached;
@@ -469,15 +491,23 @@ async function cacheFirst(request) {
     const response = await fetch(request);
     if (shouldStoreResponse(asksForBytes(request.url), response)) {
       const store = cacheStoreFor(request.url);
-      const cache = await caches.open(CACHE_NAMES[store]);
-      cache
-        .put(cacheKeyFor(request), storableResponse(response.clone()))
-        .then(() => trimCache(store))
-        .catch(() => {}); // non-blocking
+      const copy = storableResponse(response.clone());
+      event.waitUntil(
+        caches
+          .open(CACHE_NAMES[store])
+          .then((cache) => cache.put(cacheKeyFor(request), copy))
+          .then(() => trimCache(store))
+          .catch(() => {})
+      );
     }
     return response;
   } catch (err) {
     console.warn('[SW] cache-first fetch failed:', err);
+    // A file opened in its own tab gets the offline page, not the browser's error.
+    if (request.mode === 'navigate') {
+      const fallback = await caches.match('/offline.html').catch(() => null);
+      if (fallback) return fallback;
+    }
     // For static assets there's no useful fallback — re-throw so the browser
     // shows its default error rather than a confusing blank page.
     throw err;
@@ -503,7 +533,7 @@ async function networkFirst(event) {
     const redirect = takeOfflineRedirect(request.url);
     if (redirect) {
       const cached = await servableCached(request);
-      if (cached) return redirect.savedCopy ? announceSavedCopy(event, cached) : cached;
+      if (cached) return announceSavedCopy(event, cached);
     }
   }
 
@@ -550,7 +580,7 @@ async function navigationAnswer(event, network) {
   const copy = await savedCopy(event.request);
   if (!copy) return response || network;
   if (!response) event.waitUntil(network.catch(() => {}));
-  if (copy.redirect) return redirectToSavedTrip(copy.redirect, true);
+  if (copy.redirect) return redirectToSavedTrip(copy.redirect);
   return announceSavedCopy(event, copy.cached);
 }
 
@@ -584,8 +614,8 @@ async function recordLastTrip(path) {
 
 // The offline redirect from `/` was decided a moment ago with the network
 // down or slow, so the navigation that follows it reads the cache without
-// asking the network again; after a slow or failed network it is marked as the saved
-// copy. In memory only: a restarted worker just asks the network.
+// asking the network again, and is marked as the saved copy. In memory only: a
+// restarted worker just asks the network.
 const OFFLINE_REDIRECT_TTL_MS = 10000;
 let offlineRedirect = null;
 
@@ -596,8 +626,8 @@ function takeOfflineRedirect(url) {
   return marker;
 }
 
-function redirectToSavedTrip(path, savedCopy) {
-  offlineRedirect = { path, at: Date.now(), savedCopy };
+function redirectToSavedTrip(path) {
+  offlineRedirect = { path, at: Date.now() };
   return Response.redirect(new URL(path, self.location.origin).href, 302);
 }
 
@@ -646,8 +676,10 @@ async function savedCopy(request) {
 async function offlineResponse(event) {
   const { request } = event;
   const copy = await savedCopy(request);
-  if (copy && copy.redirect) return redirectToSavedTrip(copy.redirect, true);
-  if (copy) return request.mode === 'navigate' ? announceSavedCopy(event, copy.cached) : copy.cached;
+  if (copy && copy.redirect) return redirectToSavedTrip(copy.redirect);
+  // A caller that is not a navigation (the offline save) reads the mark to tell
+  // an old copy from a fresh answer.
+  if (copy) return request.mode === 'navigate' ? announceSavedCopy(event, copy.cached) : savedCopyResponse(copy.cached);
 
   if (request.mode === 'navigate') {
     const fallback = await caches.match('/offline.html').catch(() => null);

@@ -1232,7 +1232,7 @@ describe("public/sw.js — a slow network falls back to the saved copy (spec A5)
     expect(ask(dispatch, "/trips/a/plan")).toHaveBeenCalledWith({ savedCopy: true });
   });
 
-  it("a rejected non-navigation request is not marked", async () => {
+  it("a rejected non-navigation request answered from the cache is marked, but not announced", async () => {
     const c = matchingCaches();
     const cover = "https://teepee.example/api/trips/t1/cover?v=k";
     const files = await c.api.open("teepee-files-v1");
@@ -1243,7 +1243,8 @@ describe("public/sw.js — a slow network falls back to the saved copy (spec A5)
 
     const response = await open(dispatch, new Request(cover)).answered;
 
-    expect(response.headers.get(SAVED_COPY_HEADER)).toBeNull();
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    expect(await response.text()).toBe("saved-cover");
   });
 
   it("offline /, then the Trip it opens, is marked as a saved copy", async () => {
@@ -1418,5 +1419,244 @@ describe("public/sw.js — an unsaved query falls back to the saved page (ADR 00
     const response = await open(dispatch, { url: QUERY, method: "GET", mode: "cors", headers: new Headers() }).answered;
 
     expect(response.status).toBe(503);
+  });
+});
+
+describe("public/sw.js — sign-out keeps the offline page", () => {
+  const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
+  const OFFLINE_PAGE = "https://teepee.example/offline.html";
+
+  async function signedInCaches() {
+    const c = matchingCaches();
+    const statics = await c.api.open("teepee-static-b1");
+    await statics.put(new Request(OFFLINE_PAGE), new Response("offline-page"));
+    await statics.put(new Request("https://teepee.example/_next/static/chunks/a.js"), new Response("js"));
+    await (await c.api.open("teepee-static-b0")).put(new Request("https://teepee.example/_next/static/chunks/old.js"), new Response("js"));
+    await (await c.api.open("teepee-pages-v1")).put(new Request("https://teepee.example/trips/a"), new Response("trip-home"));
+    await (await c.api.open("teepee-files-v1")).put(new Request("https://teepee.example/api/attachments/a1"), new Response("pdf"));
+    const meta = await c.api.open(META_CACHE_NAME);
+    await meta.put(BUILD_META_PATH, new Response(JSON.stringify({ build: "b1", previous: "b0" })));
+    await meta.put(LAST_TRIP_PATH, new Response("/trips/a"));
+    return c;
+  }
+
+  async function navigate(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, url: string) {
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: navigation(url), respondWith: (p: Promise<Response>) => { answered = p; } });
+    return answered!;
+  }
+
+  it("after CLEAR_CACHE an offline navigation to an unsaved page still serves offline.html", async () => {
+    const c = await signedInCaches();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await dispatch("message", { data: { type: "CLEAR_CACHE" } });
+
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const response = await navigate(dispatch, "https://teepee.example/trips/a");
+    expect(await response.text()).toBe("offline-page");
+  });
+
+  it("clears every private entry and keeps only the offline page and the build record", async () => {
+    const c = await signedInCaches();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await dispatch("message", { data: { type: "CLEAR_CACHE" } });
+
+    expect([...c.stores.keys()].sort()).toEqual([META_CACHE_NAME, "teepee-static-b1"]);
+    expect(c.stores.get("teepee-static-b1")!.keys.map((k) => k.url)).toEqual([OFFLINE_PAGE]);
+    const meta = c.stores.get(META_CACHE_NAME)!;
+    expect(meta.keys.map((k) => new URL(k.url).pathname)).toEqual([BUILD_META_PATH]);
+    expect(await meta.bodies.get(`https://teepee.example${BUILD_META_PATH}`)!.json()).toEqual({ build: "b1", previous: "b0" });
+  });
+
+  it("asks for the offline page again when the static store had lost it", async () => {
+    const c = matchingCaches();
+    const addAll = vi.fn(async () => {});
+    const open = c.api.open;
+    c.api.open = vi.fn(async (name: string) => ({ ...(await open(name)), addAll })) as never;
+    await (await c.api.open("teepee-pages-v1")).put(new Request("https://teepee.example/trips/a"), new Response("trip-home"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await dispatch("message", { data: { type: "CLEAR_CACHE" } });
+
+    expect(addAll).toHaveBeenCalledWith(["/offline.html"]);
+    expect(c.stores.has("teepee-pages-v1")).toBe(false);
+  });
+
+  it("names the stores sign-out deletes exactly as lib/offline.ts does", () => {
+    expect(SW_SOURCE).toContain("function signOutCacheNames(existing, buildId) {\n  const keep = new Set(['teepee-static-' + buildId, META_CACHE_NAME]);\n  return existing.filter((name) => !keep.has(name));\n}");
+  });
+});
+
+describe("public/sw.js — a file is saved only once its bytes are stored", () => {
+  const ATTACHMENT = "https://teepee.example/api/attachments/a1";
+
+  function open(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, request: unknown) {
+    let answered: Promise<Response> | undefined;
+    const waits: Promise<unknown>[] = [];
+    dispatch("fetch", {
+      request,
+      respondWith: (p: Promise<Response>) => { answered = p; },
+      waitUntil: (p: Promise<unknown>) => { waits.push(p); },
+    });
+    return { answered: answered!, waits };
+  }
+
+  // The real Cache reads the whole body before it keeps anything; the shared fake does not.
+  function readingCaches() {
+    const c = matchingCaches();
+    const baseOpen = c.api.open;
+    c.api.open = vi.fn(async (name: string) => {
+      const cache = await baseOpen(name);
+      return {
+        ...cache,
+        put: vi.fn(async (req: Request | string, res: Response) => {
+          const bytes = await res.arrayBuffer();
+          await cache.put(req, new Response(bytes, { headers: res.headers }));
+        }),
+      };
+    }) as never;
+    return c;
+  }
+
+  it("holds the worker open until the bytes are in the cache", async () => {
+    const c = readingCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("pdf-bytes"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const file = open(dispatch, new Request(`${ATTACHMENT}?offline=1`));
+    await file.answered;
+
+    expect(file.waits).toHaveLength(1);
+    await file.waits[0];
+    expect(await c.stores.get("teepee-files-v1")!.bodies.get(ATTACHMENT)!.text()).toBe("pdf-bytes");
+  });
+
+  it("a body that errors mid-stream leaves nothing in the cache", async () => {
+    const c = readingCaches();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    globalThis.fetch = vi.fn(async () => {
+      let sent = false;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (sent) return controller.error(new TypeError("connection lost"));
+          sent = true;
+          controller.enqueue(new TextEncoder().encode("half"));
+        },
+      });
+      return new Response(body, { headers: { "Content-Length": "5000000" } });
+    }) as never;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const file = open(dispatch, new Request(`${ATTACHMENT}?offline=1`));
+    const response = await file.answered;
+    await expect(response.arrayBuffer()).rejects.toThrow();
+
+    expect(file.waits).toHaveLength(1);
+    await expect(file.waits[0]).resolves.toBeUndefined();
+    expect(c.stores.get("teepee-files-v1")?.keys ?? []).toEqual([]);
+  });
+
+  it("a put that rejects leaves nothing in the cache and still answers the request", async () => {
+    const c = matchingCaches();
+    const baseOpen = c.api.open;
+    c.api.open = vi.fn(async (name: string) => ({
+      ...(await baseOpen(name)),
+      put: vi.fn().mockRejectedValue(new DOMException("full", "QuotaExceededError")),
+    })) as never;
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("pdf-bytes"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const file = open(dispatch, new Request(`${ATTACHMENT}?offline=1`));
+    const response = await file.answered;
+
+    expect(await response.text()).toBe("pdf-bytes");
+    expect(file.waits).toHaveLength(1);
+    await expect(file.waits[0]).resolves.toBeUndefined();
+    expect(c.stores.get("teepee-files-v1")?.keys ?? []).toEqual([]);
+  });
+});
+
+describe("public/sw.js — an uncached file opened offline", () => {
+  const ATTACHMENT = "https://teepee.example/api/attachments/a1";
+
+  async function answer(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, request: unknown) {
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request, respondWith: (p: Promise<Response>) => { answered = p; } });
+    return answered!;
+  }
+
+  async function offlineWithOfflinePage() {
+    const c = matchingCaches();
+    await (await c.api.open("teepee-static-b1")).put(new Request("https://teepee.example/offline.html"), new Response("offline-page"));
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    return c;
+  }
+
+  it("as a navigation, is answered with offline.html", async () => {
+    const c = await offlineWithOfflinePage();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await answer(dispatch, { url: ATTACHMENT, method: "GET", mode: "navigate", headers: new Headers() });
+
+    expect(await response.text()).toBe("offline-page");
+  });
+
+  it("as an image or a fetch, still fails", async () => {
+    const c = await offlineWithOfflinePage();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    await expect(answer(dispatch, new Request(ATTACHMENT))).rejects.toThrow("offline");
+  });
+});
+
+describe("public/sw.js — only a cache fallback is marked for a request that is not a navigation", () => {
+  const PLAN = "https://teepee.example/trips/a/plan";
+
+  async function answer(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, request: unknown) {
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request, respondWith: (p: Promise<Response>) => { answered = p; } });
+    return answered!;
+  }
+
+  it("a page fetch the network answers carries no mark, even with an older copy saved", async () => {
+    const c = matchingCaches();
+    await (await c.api.open("teepee-pages-v1")).put(new Request(PLAN), new Response("old-plan"));
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("fresh-plan"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+
+    const response = await answer(dispatch, new Request(PLAN));
+
+    expect(await response.text()).toBe("fresh-plan");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBeNull();
+  });
+
+  it("a page fetch that fails on the network gets the older copy, marked", async () => {
+    const c = matchingCaches();
+    await (await c.api.open("teepee-pages-v1")).put(new Request(PLAN), new Response("old-plan"));
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { dispatch, getClient } = loadServiceWorker({ caches: c.api });
+
+    const response = await answer(dispatch, new Request(PLAN));
+
+    expect(await response.text()).toBe("old-plan");
+    expect(response.headers.get(SAVED_COPY_HEADER)).toBe("1");
+    expect(getClient).not.toHaveBeenCalled();
+  });
+
+  it("marks it in the one place a fallback is answered", () => {
+    expect(SW_SOURCE).toContain("if (copy) return request.mode === 'navigate' ? announceSavedCopy(event, copy.cached) : savedCopyResponse(copy.cached);");
+  });
+});
+
+describe("public/sw.js — the redirect to a saved page (R1-8)", () => {
+  it("has no unused flag, and keys a cached file exactly as lib/offline.ts does", () => {
+    expect(SW_SOURCE).toContain("function redirectToSavedTrip(path) {");
+    expect(SW_SOURCE).not.toContain("redirect.savedCopy");
+    expect(SW_SOURCE).toContain("function cacheKeyFor(request) {\n  if (cacheStoreFor(request.url) !== 'files') return request;\n  const key = fileCacheKey(request.url);\n  return key === request.url ? request : key;\n}");
   });
 });
