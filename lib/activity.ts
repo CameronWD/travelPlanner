@@ -494,6 +494,10 @@ export function headline(a: {
     return `made the ${a.entityLabel} what-if plan the real plan`;
   }
 
+  if (a.entityType === "COST" && a.entityLabel === "cost") {
+    return `${VERB_WORD[a.verb]} a cost`;
+  }
+
   const verbWord = VERB_WORD[a.verb];
   const noun = ENTITY_NOUN[a.entityType];
   return `${verbWord} the ${a.entityLabel} ${noun}`;

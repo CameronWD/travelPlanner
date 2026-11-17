@@ -247,6 +247,7 @@ export function formatMoneyCompact(
       style: "currency",
       currency: currency.toUpperCase(),
       notation: "compact",
+      minimumFractionDigits: 0,
       maximumFractionDigits: 1,
       currencyDisplay: "narrowSymbol",
     })

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   parseAmountToMinor,
   toMoneyValue,
@@ -342,6 +342,18 @@ describe("formatMoneyCompact", () => {
     // 184000 minor JPY = ¥184,000 → Node ICU compact → "¥184K" → lowercased → "¥184k"
     expect(formatMoneyCompact(184000, "JPY")).toBe("¥184k"); // ¥184,000 → ¥184k
     expect(formatMoneyCompact(950, "JPY")).toBe("¥950");     // below 1k: no suffix
+  });
+
+  it("drops the fraction on whole amounts so Node 22 and 24 agree", () => {
+    expect(formatMoneyCompact(0, "AUD")).toBe("$0");
+    expect(formatMoneyCompact(100000, "AUD")).toBe("$1k");
+  });
+
+  it("passes minimumFractionDigits: 0 to Intl", () => {
+    const spy = vi.spyOn(Intl, "NumberFormat");
+    formatMoneyCompact(100000, "AUD");
+    expect(spy).toHaveBeenCalledWith("en-AU", expect.objectContaining({ minimumFractionDigits: 0 }));
+    spy.mockRestore();
   });
 
   it("falls back to formatMoney for invalid currency codes", () => {

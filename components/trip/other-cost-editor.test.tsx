@@ -275,6 +275,16 @@ describe("OtherCostFormDialog Travelling defaults (spec 2026-10-06 §K)", () => 
     );
   });
 
+  it("a blank Description while Travelling saves the Category as the Description", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);
+    await user.click(screen.getByText("Choose a category").closest("button")!);
+    await user.click(await screen.findByRole("option", { name: "Food & Drink" }));
+    await user.type(screen.getByLabelText(/cost amount/i), "4.50");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith("trip-1", expect.objectContaining({ label: "Food & Drink", category: "Food & Drink" }));
+  });
+
   it("every default stays editable", async () => {
     const user = userEvent.setup();
     render(<OtherCostFormDialog {...baseProps} defaults={travelling} />);

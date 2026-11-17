@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
+import { formatLongDate } from "@/lib/dates";
 import { saveJournalEntry, deleteJournalEntry, setJournalShareHidden } from "@/server/actions/journal";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
@@ -372,15 +373,10 @@ export function JournalEditor({
   const hasChanges = body !== baseline;
   const hasEntry = lastSaved !== null;
 
-  // Format date label for header (YYYY-MM-DD → e.g. "Monday 1 Jun 2026")
+  // Format date label for header (YYYY-MM-DD → e.g. "Mon 1 Jun 2026")
   const dateLabel = React.useMemo(() => {
     try {
-      return new Date(date + "T00:00:00").toLocaleDateString("en-GB", {
-        weekday: "long",
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
+      return formatLongDate(date);
     } catch {
       return date;
     }

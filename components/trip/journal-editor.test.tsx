@@ -125,6 +125,16 @@ describe("JournalEditor", () => {
   // blanking the textarea must never silently delete (covered by the
   // server-action tests); this component-level suite covers the separate
   // "Remove entry" affordance.
+  describe("date heading", () => {
+    it("uses the deterministic formatter, not toLocaleDateString", () => {
+      const spy = vi.spyOn(Date.prototype, "toLocaleDateString");
+      render(<JournalEditor {...BASE_PROPS} initialBody="" updatedAt={null} />);
+      expect(screen.getByText("Mon 1 Jun 2026")).toBeInTheDocument();
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+  });
+
   describe("removing an entry", () => {
     it("does not show a remove control when there is no saved entry yet", () => {
       render(<JournalEditor {...BASE_PROPS} initialBody="" updatedAt={null} />);

@@ -109,7 +109,7 @@ function costToFormState(cost: CostRow): FormState {
  * no parseable paid amount is "Enter what you paid" (`toCostPayload`). The
  * paid date is only ever the interactive pre-fill, never fabricated here.
  */
-function parseFormToInput(form: FormState): { input: CostRawInput } | { errors: FieldErrors } {
+function parseFormToInput(form: FormState, travelling: boolean): { input: CostRawInput } | { errors: FieldErrors } {
   const payload = toCostPayload(form);
   if (payload.kind === "none") return { errors: { costMinor: ["Enter the cost"] } };
   if (payload.kind === "invalid") return { errors: payload.errors };
@@ -118,7 +118,7 @@ function parseFormToInput(form: FormState): { input: CostRawInput } | { errors: 
       ...payload.fields,
       ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
       ownerType: "OTHER",
-      label: form.label,
+      label: travelling && !form.label.trim() && form.category ? form.category : form.label,
       category: form.category || undefined,
     },
   };
@@ -334,7 +334,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
   async function handleSubmit(form: FormState) {
-    const parsed = parseFormToInput(form);
+    const parsed = parseFormToInput(form, !cost && Boolean(defaults?.paidToday));
     if ("errors" in parsed) {
       setErrors(parsed.errors);
       return;

@@ -327,6 +327,14 @@ describe("headline", () => {
     expect(h).toContain("transport");
   });
 
+  it("a Cost with a description reads 'updated the Lunch cost'", () => {
+    expect(headline({ verb: "UPDATED", entityType: "COST", entityLabel: "Lunch" })).toBe("updated the Lunch cost");
+  });
+
+  it("a Cost with no description reads 'updated a cost'", () => {
+    expect(headline({ verb: "UPDATED", entityType: "COST", entityLabel: entityLabel("COST", {}) })).toBe("updated a cost");
+  });
+
   it("DELETED → 'removed the ... accommodation'", () => {
     const h = headline({
       verb: "DELETED",
