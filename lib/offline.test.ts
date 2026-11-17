@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -424,5 +424,32 @@ describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
     expect(nextBuildMeta({ build: 'b1', previous: null }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
     expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b2')).toEqual({ build: 'b2', previous: 'b1' });
     expect(nextBuildMeta({ build: 'b2', previous: 'b1' }, 'b3')).toEqual({ build: 'b3', previous: 'b2' });
+  });
+});
+
+describe('redirected responses', () => {
+  function redirected(body: string) {
+    const res = new Response(body, { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+    Object.defineProperty(res, 'redirected', { value: true });
+    return res;
+  }
+
+  it('hands back a response that was not redirected untouched', () => {
+    const res = new Response('x');
+    expect(storableResponse(res)).toBe(res);
+  });
+
+  it('rebuilds a redirected response without the redirect, keeping body and headers', async () => {
+    const out = storableResponse(redirected('pdf-bytes'));
+    expect(out.redirected).toBe(false);
+    expect(out.status).toBe(200);
+    expect(out.headers.get('Content-Type')).toBe('application/pdf');
+    expect(await out.text()).toBe('pdf-bytes');
+  });
+
+  it('refuses a redirected cache hit only for navigations', () => {
+    expect(isServableCacheHit('navigate', { redirected: true })).toBe(false);
+    expect(isServableCacheHit('navigate', { redirected: false })).toBe(true);
+    expect(isServableCacheHit('no-cors', { redirected: true })).toBe(true);
   });
 });

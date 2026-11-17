@@ -549,3 +549,57 @@ describe("public/sw.js — cache bounds (spec 2026-10-06 §T)", () => {
     expect(c.stores.has("teepee-static-b1")).toBe(true);
   });
 });
+
+describe("public/sw.js — redirected responses", () => {
+  function redirectedResponse(body: string) {
+    const res = new Response(body, { status: 200, headers: { "Content-Type": "application/pdf" } });
+    Object.defineProperty(res, "redirected", { value: true });
+    const clone = res.clone.bind(res);
+    res.clone = () => {
+      const copy = clone();
+      Object.defineProperty(copy, "redirected", { value: true });
+      return copy;
+    };
+    return res;
+  }
+  // undici refuses mode "navigate" on a constructed Request, so a navigation is faked.
+  const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
+
+  it("stores a clean copy of a redirected response", async () => {
+    const c = fakeCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(redirectedResponse("pdf-bytes"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request: new Request("https://teepee.example/api/attachments/a1"), respondWith: (p: Promise<Response>) => { answered = p; } });
+    await answered;
+    await new Promise((r) => setTimeout(r, 0));
+    const stored = c.stores.get("teepee-files-v1")!.bodies.get("https://teepee.example/api/attachments/a1")!;
+    expect(stored.redirected).toBe(false);
+    expect(stored.headers.get("Content-Type")).toBe("application/pdf");
+    expect(await stored.text()).toBe("pdf-bytes");
+  });
+
+  it("a redirected cached entry is not returned to a navigation", async () => {
+    const c = fakeCaches();
+    const url = "https://teepee.example/api/attachments/a1";
+    const files = await c.api.open("teepee-files-v1");
+    const request = navigation(url);
+    await files.put(request as unknown as Request, redirectedResponse("stale"));
+    c.api.match = vi.fn(async () => c.stores.get("teepee-files-v1")!.bodies.get(url)) as never;
+    const deleted: unknown[] = [];
+    const open = c.api.open;
+    c.api.open = vi.fn(async (name: string) => {
+      const cache = await open(name);
+      return { ...cache, delete: vi.fn(async (req: unknown) => { deleted.push(req); return cache.delete(req as Request); }) };
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response("fresh"));
+    globalThis.fetch = fetchMock;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    let answered: Promise<Response> | undefined;
+    dispatch("fetch", { request, respondWith: (p: Promise<Response>) => { answered = p; } });
+    const response = await answered!;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await response.text()).toBe("fresh");
+    expect(deleted).toEqual([request]);
+  });
+});

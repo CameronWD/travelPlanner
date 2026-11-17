@@ -357,6 +357,25 @@ export function isPinnedCacheEntry(url: string): boolean {
   }
 }
 
+/**
+ * A response reached by following a redirect has `redirected === true`, and a
+ * browser refuses to use one to answer a navigation. Never store it as-is: a
+ * fresh Response over the same body carries no redirect. Mirrored in sw.js.
+ */
+export function storableResponse(response: Response): Response {
+  if (!response.redirected) return response;
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+/** Whether a cache hit may answer the request; a redirected entry never answers a navigation. Mirrored in sw.js. */
+export function isServableCacheHit(mode: string, cached: { redirected: boolean }): boolean {
+  return !(mode === 'navigate' && cached.redirected);
+}
+
 /** How many of the oldest entries to drop to get back under `limit`. */
 export function evictionCount(entries: number, limit: number | null): number {
   if (limit === null) return 0;

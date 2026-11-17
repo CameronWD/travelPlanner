@@ -153,6 +153,31 @@ async function trimCache(store) {
   for (let i = 0; i < extra && i < evictable.length; i++) await cache.delete(evictable[i]);
 }
 
+/** Mirrors storableResponse() in lib/offline.ts: a redirected response is never kept as-is. */
+function storableResponse(response) {
+  if (!response.redirected) return response;
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+/** Mirrors isServableCacheHit() in lib/offline.ts. */
+function isServableCacheHit(mode, cached) {
+  return !(mode === 'navigate' && cached.redirected);
+}
+
+/** A cache hit the request may be answered with; a redirected one for a navigation is dropped. */
+async function servableCached(request) {
+  const cached = await caches.match(request);
+  if (!cached) return undefined;
+  if (isServableCacheHit(request.mode, cached)) return cached;
+  const cache = await caches.open(CACHE_NAMES[cacheStoreFor(request.url)]);
+  await cache.delete(request);
+  return undefined;
+}
+
 /**
  * Determines cache strategy for a given fetch event.
  * Mirrors cacheStrategyFor() in lib/offline.ts.
@@ -319,7 +344,7 @@ self.addEventListener('message', (event) => {
  */
 async function cacheFirst(request) {
   try {
-    const cached = await caches.match(request);
+    const cached = await servableCached(request);
     if (cached) return cached;
 
     const response = await fetch(request);
@@ -327,7 +352,7 @@ async function cacheFirst(request) {
       const store = cacheStoreFor(request.url);
       const cache = await caches.open(CACHE_NAMES[store]);
       cache
-        .put(request, response.clone())
+        .put(request, storableResponse(response.clone()))
         .then(() => trimCache(store))
         .catch(() => {}); // non-blocking
     }
@@ -357,7 +382,7 @@ async function networkFirst(request) {
     const response = await fetch(request);
     if (response.ok) {
       cache
-        .put(request, response.clone())
+        .put(request, storableResponse(response.clone()))
         .then(() => trimCache(store))
         .catch(() => {}); // non-blocking
     }
@@ -365,7 +390,7 @@ async function networkFirst(request) {
   } catch (err) {
     console.warn('[SW] network-first fetch failed, falling back to cache:', err);
 
-    const cached = await caches.match(request);
+    const cached = await servableCached(request);
     if (cached) return cached;
 
     if (request.mode === 'navigate') {
