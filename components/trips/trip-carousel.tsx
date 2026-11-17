@@ -59,19 +59,21 @@ export function TripCarousel({ children }: { children: React.ReactNode }) {
   // Steps to the next/previous CARD, not by a fixed width+gap: cards aren't
   // all the same width (the hero is roughly double a standard card — TRIPS_PAGE.md
   // §3–4), so a fixed step under- or overshoots and skips cards. Instead, land
-  // on whichever card's own `offsetLeft` is just past the current scroll
-  // position in the requested direction (I4).
+  // on whichever card sits just past the current scroll position in the
+  // requested direction (I4). `offsetLeft` is measured from the nearest
+  // positioned ancestor, not the track, so subtract the track's own.
   const scrollByCard = React.useCallback((dir: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
     const children = Array.from(el.children) as HTMLElement[];
     const scrollLeft = el.scrollLeft;
+    const left = (c: HTMLElement) => c.offsetLeft - el.offsetLeft;
     const target =
       dir === 1
-        ? children.find((c) => c.offsetLeft > scrollLeft + 1)
-        : [...children].reverse().find((c) => c.offsetLeft < scrollLeft - 1);
+        ? children.find((c) => left(c) > scrollLeft + 1)
+        : [...children].reverse().find((c) => left(c) < scrollLeft - 1);
     if (!target) return;
-    el.scrollTo({ left: target.offsetLeft, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    el.scrollTo({ left: left(target), behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }, []);
 
   const value = React.useMemo<CarouselState>(() => ({ trackRef, ...metrics, scrollByCard }), [metrics, scrollByCard]);
@@ -81,7 +83,7 @@ export function TripCarousel({ children }: { children: React.ReactNode }) {
 const ARROW =
   "grid size-11 shrink-0 place-items-center rounded-[12px] border-2 bg-card transition-colors " +
   "enabled:border-border enabled:text-foreground enabled:shadow-hard-1 " +
-  "disabled:border-border-soft disabled:text-border-soft disabled:shadow-none " +
+  "disabled:border-border-soft disabled:text-muted-foreground disabled:shadow-none " +
   "focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 /** Two 44×44 arrows; hidden entirely when every card fits. */
