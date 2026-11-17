@@ -91,7 +91,7 @@ export default async function ChecklistsPage({
     // The current user's packing templates
     listTemplates(),
     stopsPromise,
-    Promise.all([stopsPromise, tripPromise]).then(([rows, t]) => listRemindersForTrip(tripId, tripTodayISO(rows, t?.homeTimezone))),
+    Promise.all([stopsPromise, tripPromise]).then(([rows, t]) => listRemindersForTrip(tripId, tripTodayISO(rows, t?.homeTimezone), { includePast: true })),
     readReminderAboutOptions(tripId),
   ]);
 

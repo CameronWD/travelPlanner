@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), updateReminder: vi.fn(), deleteReminder: vi.fn() }));
 vi.mock("@/components/trip/note-thread", () => ({ NoteThread: () => <div>note thread</div> }));
 vi.mock("@/components/trip/attachment-list", () => ({ AttachmentList: () => <div>attachment list</div> }));
 

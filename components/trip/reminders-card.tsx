@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Bell, Plus, Trash2 } from "lucide-react";
+import { Bell, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
   type ReminderItem,
 } from "@/server/actions/reminders";
 import { aboutFromPick, aboutPickValue, reminderAboutLabel, type ReminderAboutOptions } from "@/lib/reminder-about";
+import { AddReminderDialog } from "@/components/trip/add-reminder-dialog";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { failureMessage } from "@/components/ui/failure-message";
@@ -67,14 +68,10 @@ function formatWhen(
     return { relative: null, absolute: date };
   }
 
-  // `listRemindersForTrip` queries `date >= today` and the card is given the
-  // trip's own today, so a Reminder already gone by is unreachable here in
-  // practice. But "unreachable in practice" isn't "impossible" — a stale prop
-  // or a clock skew could still hand this a past date — and this card has no
-  // copy for that: "31 days ago" would be prose invented for a state nobody
-  // has seen and nobody can test against reality. A null relative label is
-  // the safe shape instead: the row falls back to showing just the absolute
-  // date, which is always correct, rather than risking "in -31 days".
+  // A Reminder already gone by (listed under "Earlier") gets no relative
+  // label: "31 days ago" would be prose invented for a state nobody has
+  // tested against reality. A null relative label falls back to just the
+  // absolute date, which is always correct, rather than risking "in -31 days".
   if (days < 0) {
     return { relative: null, absolute: formatDayLabel(date) };
   }
@@ -245,6 +242,7 @@ function ReminderRow({
   today: string;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
   const { relative, absolute } = formatWhen(reminder.date, today);
   const about = reminderAboutLabel(reminder);
 
@@ -260,7 +258,7 @@ function ReminderRow({
   }
 
   return (
-    <li className="flex items-start justify-between gap-3 py-2">
+    <li className={reminder.past ? "flex items-start justify-between gap-3 py-2 opacity-60" : "flex items-start justify-between gap-3 py-2"}>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <p className="break-words text-sm font-medium text-foreground">
@@ -286,6 +284,16 @@ function ReminderRow({
       <Button
         variant="ghost"
         size="icon"
+        className="shrink-0"
+        aria-label={`Edit reminder: ${reminder.title}`}
+        onClick={() => setEditing(true)}
+      >
+        <Pencil className="size-4" aria-hidden="true" />
+      </Button>
+      {editing && <AddReminderDialog reminder={reminder} open onOpenChange={setEditing} />}
+      <Button
+        variant="ghost"
+        size="icon"
         className="shrink-0 text-destructive hover:bg-destructive/10"
         aria-label={`Delete reminder: ${reminder.title}`}
         onClick={handleDelete}
@@ -302,7 +310,7 @@ function ReminderRow({
 // ---------------------------------------------------------------------------
 
 /**
- * RemindersCard — a Trip's dated notes, with add/delete. Rendered on the trip
+ * RemindersCard — a Trip's dated notes, with add/edit/delete. Rendered on the trip
  * Home in *every* Phase (it used to sit behind the Travelling gate, which is
  * why nobody could write one on a trip that had not started yet).
  *
@@ -310,12 +318,8 @@ function ReminderRow({
  * Server data (including `today`) is passed in via props from the page.
  */
 export function RemindersCard({ tripId, reminders, today, about }: RemindersCardProps) {
-  // No "passed" drawer, deliberately: a Reminder is said once, on its day, and
-  // is not something you complete (CONTEXT.md "Reminder"). A drawer of missed
-  // notes would quietly turn Reminders into tasks and duplicate what a
-  // Checklist item already does properly — that is where a thing that must
-  // survive being missed belongs.
-  const upcoming = [...reminders].sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = reminders.filter((r) => !r.past).sort((a, b) => a.date.localeCompare(b.date));
+  const earlier = reminders.filter((r) => r.past).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <Card radius="2xl" shadow={3} className="flex flex-col gap-3 p-4">
@@ -338,6 +342,17 @@ export function RemindersCard({ tripId, reminders, today, about }: RemindersCard
         <p className="text-sm text-muted-foreground italic">
           No upcoming reminders.
         </p>
+      )}
+
+      {earlier.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <h3 className="text-xs font-extrabold text-muted-foreground">Earlier</h3>
+          <ul className="divide-y-2 divide-muted" aria-label="Earlier reminders">
+            {earlier.map((r) => (
+              <ReminderRow key={r.id} reminder={r} today={today} />
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Add form */}

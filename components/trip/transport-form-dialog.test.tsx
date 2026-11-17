@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), updateReminder: vi.fn(), deleteReminder: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn(async () => ({ success: true })) }));
 import { setNothingToAttach } from "@/server/actions/booking-confirmation";

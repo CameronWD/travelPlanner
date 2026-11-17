@@ -1,10 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { reminderItem } from "@/test/helpers/reminder-item";
+
+const { deleteReminder, updateReminder } = vi.hoisted(() => ({
+  deleteReminder: vi.fn().mockResolvedValue({ success: true }),
+  updateReminder: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), deleteReminder, updateReminder }));
+
 import { ReminderList } from "./reminder-list";
 
 describe("ReminderList", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("lists each Reminder with its day and folded notes", () => {
     render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Book the Louvre", date: "2026-11-20", notes: "Timed entry" })]} />);
     expect(screen.getByRole("list", { name: "Reminders" })).toBeInTheDocument();
@@ -23,5 +32,55 @@ describe("ReminderList", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Add a reminder" }));
     expect(onAdd).toHaveBeenCalledTimes(1);
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Delete asks first, then calls deleteReminder with the id", async () => {
+    const user = userEvent.setup();
+    render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Book the Louvre", date: "2026-11-20" })]} />);
+    await user.click(screen.getByRole("button", { name: "Delete reminder: Book the Louvre" }));
+    expect(deleteReminder).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteReminder).toHaveBeenCalledWith("r1"));
+  });
+
+  it("Cancelling the confirm deletes nothing", async () => {
+    const user = userEvent.setup();
+    render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Book the Louvre", date: "2026-11-20" })]} />);
+    await user.click(screen.getByRole("button", { name: "Delete reminder: Book the Louvre" }));
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(deleteReminder).not.toHaveBeenCalled();
+  });
+
+  it("Edit opens the dialog prefilled and saves through updateReminder without submitting an outer form", async () => {
+    const user = userEvent.setup();
+    const outerSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <form onSubmit={outerSubmit}>
+        <ReminderList reminders={[reminderItem({ id: "r1", title: "Book the Louvre", date: "2026-11-20", notes: "Timed" })]} />
+      </form>,
+    );
+    await user.click(screen.getByRole("button", { name: "Edit reminder: Book the Louvre" }));
+    expect(await screen.findByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/reminder title/i)).toHaveValue("Book the Louvre");
+    await user.click(screen.getByRole("button", { name: /save reminder/i }));
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledWith("r1", { title: "Book the Louvre", date: "2026-11-20", notes: "Timed" }));
+    expect(outerSubmit).not.toHaveBeenCalled();
+  });
+
+  it("lists a past Reminder dimmed under Earlier, with Delete", () => {
+    render(
+      <ReminderList
+        reminders={[
+          reminderItem({ id: "r1", title: "Soon", date: "2026-11-20" }),
+          reminderItem({ id: "r0", title: "Gone by", date: "2026-11-10", past: true }),
+        ]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Earlier" })).toBeInTheDocument();
+    const earlier = screen.getByRole("list", { name: "Earlier reminders" });
+    expect(within(earlier).getByText("Gone by")).toBeInTheDocument();
+    expect(earlier.querySelector("li")).toHaveClass("opacity-60");
+    expect(within(earlier).getByRole("button", { name: "Delete reminder: Gone by" })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Reminders" })).queryByText("Gone by")).not.toBeInTheDocument();
   });
 });
