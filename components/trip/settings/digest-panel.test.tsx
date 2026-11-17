@@ -560,13 +560,13 @@ describe("DigestPanel", () => {
   });
 
   it("says when the schedule reaches the stored zone at no hour at all", async () => {
-    // A device in America/New_York under EST: the cron's UTC hours land at
-    // 01:00, 04:00, 05:00, 14:00 and 15:00 local, none of them in a window.
+    // A device in Asia/Kolkata (UTC+5:30): the cron's UTC hours land on
+    // the half hour or outside both windows, none of them in a window.
     // The cron considers it every run and reaches it never, silently.
     vi.setSystemTime(new Date("2026-12-05T12:00:00Z"));
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
-    vi.mocked(deviceTimeZone).mockReturnValue("America/New_York");
-    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: "America/New_York" })]);
+    vi.mocked(deviceTimeZone).mockReturnValue("Asia/Kolkata");
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: "Asia/Kolkata" })]);
 
     render(
       <DigestPanel
@@ -579,7 +579,7 @@ describe("DigestPanel", () => {
     );
 
     expect(
-      await screen.findByText(/Nothing is scheduled to reach America\/New_York/),
+      await screen.findByText(/Nothing is scheduled to reach Asia\/Kolkata/),
     ).toBeInTheDocument();
   });
 
