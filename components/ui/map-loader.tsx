@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import dynamic from "next/dynamic";
 import { MapUnavailable } from "@/components/map/map-unavailable";
+import { createResilientLoader } from "@/components/ui/lazy-loader";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
 
 /**
@@ -28,7 +28,8 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
 
 /**
  * Build a client-only loader for a map component. `next/dynamic` with
- * `ssr:false` must live in a Client Component; this factory is that boundary.
+ * `ssr:false` must live in a Client Component; this factory is that boundary
+ * (through createResilientLoader, which the Plan's lazy dialogs share).
  *
  *   export const RouteMapLoader = createMapLoader<RouteMapProps>(
  *     () => import("./route-map").then((m) => m.RouteMap),
@@ -49,26 +50,10 @@ export function useMapMount(mountWhen: MapMountWhen = true): boolean {
 export function createMapLoader<P extends object>(
   load: () => Promise<React.ComponentType<P>>,
 ): (props: P & { mountWhen?: MapMountWhen }) => React.ReactElement | null {
-  let failed = false;
-  const make = () =>
-    dynamic(
-      () =>
-        load().catch(() => {
-          failed = true;
-          return MapUnavailable as React.ComponentType<P>;
-        }),
-      { ssr: false },
-    ) as React.ComponentType<P>;
-  let Inner = make();
+  const loader = createResilientLoader<P>(load, MapUnavailable as React.ComponentType<P>);
   return function MapLoader({ mountWhen = true, ...props }: P & { mountWhen?: MapMountWhen }) {
     const show = useMapMount(mountWhen);
-    const [Current] = React.useState(() => {
-      if (failed) {
-        failed = false;
-        Inner = make();
-      }
-      return Inner;
-    });
+    const [Current] = React.useState(loader.current);
     if (!show) return null;
     return <Current {...(props as unknown as P)} />;
   };

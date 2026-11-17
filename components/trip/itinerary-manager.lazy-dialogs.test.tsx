@@ -5,10 +5,16 @@
  * its loader. Importing the manager must not load any of them.
  */
 import { describe, it, expect, vi } from "vitest";
+import { act, render } from "@testing-library/react";
 
 const loaded = vi.hoisted(() => [] as string[]);
 
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/trips/trip-1/plan",
+  useSearchParams: () => new URLSearchParams(""),
+}));
 
 vi.mock("@/components/plan/stay-dialog", () => { loaded.push("stay-dialog"); return { StayDialog: () => null }; });
 vi.mock("@/components/plan/stop-extras-dialog", () => { loaded.push("stop-extras-dialog"); return { StopExtrasDialog: () => null }; });
@@ -45,5 +51,46 @@ describe("ItineraryManager initial import graph (spec 2026-10-06 §P)", () => {
     const mod = await import("./itinerary-manager");
     expect(typeof mod.ItineraryManager).toBe("function");
     expect(loaded).toEqual([]);
+  }, 30_000);
+
+  it("asks for all of them once the Plan has mounted and the browser is idle, and only then", async () => {
+    const idle: Array<() => void> = [];
+    const win = window as unknown as Record<string, unknown>;
+    win.requestIdleCallback = (cb: () => void) => idle.push(cb);
+    win.cancelIdleCallback = () => {};
+    try {
+      const { ItineraryManager } = await import("./itinerary-manager");
+      const { PlanBody } = await import("@/components/plan/plan-body");
+      const plan = (
+        <PlanBody initialOpen={[]} today="2030-01-01">
+          <ItineraryManager tripId="trip-1" initialStops={[]} initialTransports={[]} chapters={[]} />
+        </PlanBody>
+      );
+      const { rerender } = render(plan);
+      expect(loaded).toEqual([]);
+      expect(idle).toHaveLength(1);
+
+      await act(async () => { for (const cb of idle.splice(0)) cb(); });
+      await vi.waitFor(() => expect(loaded).toHaveLength(11));
+      expect([...loaded].sort()).toEqual([
+        "accommodation-form-dialog",
+        "add-reminder-dialog",
+        "delete-stop-dialog",
+        "item-form-dialog",
+        "stay-dialog",
+        "stop-actions-sheet",
+        "stop-extras-dialog",
+        "stop-form-dialog",
+        "stop-sheet",
+        "surprise-dialog",
+        "transport-form-dialog",
+      ]);
+
+      rerender(plan);
+      expect(idle).toHaveLength(0);
+    } finally {
+      delete win.requestIdleCallback;
+      delete win.cancelIdleCallback;
+    }
   }, 30_000);
 });
