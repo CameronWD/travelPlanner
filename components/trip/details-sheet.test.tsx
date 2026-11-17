@@ -35,8 +35,8 @@ const bare: DetailsView = {
   notes: null, link: null, tryList: null, openingHours: null, cost: null,
 };
 
-function renderSheet(view: DetailsView, onEdit = vi.fn()) {
-  render(<DetailsSheet view={view} open onOpenChange={() => {}} onEdit={onEdit} mode="DRIVE" />);
+function renderSheet(view: DetailsView, onEdit = vi.fn(), canEdit?: boolean) {
+  render(<DetailsSheet view={view} open onOpenChange={() => {}} onEdit={onEdit} mode="DRIVE" canEdit={canEdit} />);
   return screen.getByRole("dialog");
 }
 
@@ -89,6 +89,30 @@ describe("DetailsSheet", () => {
     );
   });
 
+  it("a place with no address is a Directions row with no Address heading", () => {
+    const dialog = renderSheet({ ...bare, place: { lat: 48.1, lng: 11.5 } });
+    const rows = [...dialog.querySelectorAll("[data-row]")].map((el) => el.getAttribute("data-row"));
+    expect(rows).toEqual(["title", "directions", "edit"]);
+    expect(dialog).not.toHaveTextContent("Address");
+    expect(within(dialog).getByRole("link", { name: "Directions" })).toHaveAttribute(
+      "href",
+      directionsFromHereUrl({ lat: 48.1, lng: 11.5 }, "DRIVE").google,
+    );
+  });
+
+  it("every link out of the app opens with noopener noreferrer", () => {
+    const dialog = renderSheet(full);
+    const external = within(dialog).getAllByRole("link").filter((a) => a.getAttribute("target") === "_blank");
+    expect(external).toHaveLength(3);
+    for (const a of external) expect(a).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("each Try list entry says whether it was tried", () => {
+    const dialog = renderSheet(full);
+    expect(within(dialog).getByText("Pretzel").closest("li")).toHaveTextContent("Pretzel(tried)");
+    expect(within(dialog).getByText("Weisswurst").closest("li")).toHaveTextContent("Weisswurst(not tried yet)");
+  });
+
   it("an unpaid cost says so", () => {
     const dialog = renderSheet({ ...full, cost: { label: "€120.00", paid: false } });
     expect(dialog).toHaveTextContent("Not paid yet");
@@ -106,6 +130,7 @@ describe("DetailsSheet", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Copy reference" }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ABC123");
     expect(await within(dialog).findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Reference copied");
   });
 
   it("Edit calls onEdit", () => {
@@ -113,5 +138,11 @@ describe("DetailsSheet", () => {
     const dialog = renderSheet(bare, onEdit);
     fireEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
     expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("canEdit false leaves Edit out", () => {
+    const dialog = renderSheet(bare, vi.fn(), false);
+    expect(within(dialog).queryByRole("button", { name: "Edit" })).toBeNull();
+    expect([...dialog.querySelectorAll("[data-row]")].map((el) => el.getAttribute("data-row"))).toEqual(["title"]);
   });
 });

@@ -22,26 +22,47 @@ function Row({ row, label, children }: { row: string; label: string; children: R
   );
 }
 
+function DirectionsLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-bold underline underline-offset-2"
+    >
+      <Navigation className="size-4 shrink-0" aria-hidden="true" />
+      Directions
+    </a>
+  );
+}
+
 export function DetailsSheet({
   view,
   open,
   onOpenChange,
   onEdit,
   mode,
+  canEdit = true,
 }: {
   view: DetailsView;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: () => void;
   mode: LocalMode | null;
+  canEdit?: boolean;
 }) {
   const [copied, setCopied] = React.useState(false);
+  const copiedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
   const reference = view.reference;
   function copyReference() {
     if (!reference) return;
     void navigator.clipboard.writeText(reference).then(() => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     });
   }
 
@@ -97,27 +118,24 @@ export function DetailsSheet({
               >
                 {copied ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
               </button>
+              <span role="status" className="sr-only">
+                {copied ? "Reference copied" : ""}
+              </span>
             </div>
           </Row>
         ) : null}
 
-        {destination ? (
+        {view.address && mapHref && destination ? (
           <Row row="address" label="Address">
-            {view.address && mapHref ? (
-              <a href={mapHref} target="_blank" rel="noreferrer" className="self-start text-sm font-semibold underline underline-offset-2">
-                {view.address}
-              </a>
-            ) : null}
-            <a
-              href={directionsFromHereUrl(destination, mode).google}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-bold underline underline-offset-2"
-            >
-              <Navigation className="size-4 shrink-0" aria-hidden="true" />
-              Directions
+            <a href={mapHref} target="_blank" rel="noopener noreferrer" className="self-start text-sm font-semibold underline underline-offset-2">
+              {view.address}
             </a>
+            <DirectionsLink href={directionsFromHereUrl(destination, mode).google} />
           </Row>
+        ) : destination ? (
+          <div data-row="directions">
+            <DirectionsLink href={directionsFromHereUrl(destination, mode).google} />
+          </div>
         ) : null}
 
         {view.notes ? (
@@ -128,7 +146,7 @@ export function DetailsSheet({
 
         {view.link ? (
           <Row row="link" label="Link">
-            <a href={view.link} target="_blank" rel="noreferrer" className="break-all text-sm font-semibold underline underline-offset-2">
+            <a href={view.link} target="_blank" rel="noopener noreferrer" className="break-all text-sm font-semibold underline underline-offset-2">
               {view.link}
             </a>
           </Row>
@@ -140,11 +158,12 @@ export function DetailsSheet({
               {view.tryList.map((e) => (
                 <li key={e.id} className="flex items-center gap-2">
                   {e.tried ? (
-                    <Check className="size-4 shrink-0" aria-label="Tried" />
+                    <Check className="size-4 shrink-0" aria-hidden="true" />
                   ) : (
                     <span className="size-4 shrink-0" aria-hidden="true" />
                   )}
                   <span className={cn(e.tried && "text-muted-foreground line-through")}>{e.text}</span>
+                  <span className="sr-only">{e.tried ? "(tried)" : "(not tried yet)"}</span>
                 </li>
               ))}
             </ul>
@@ -168,11 +187,13 @@ export function DetailsSheet({
           </Row>
         ) : null}
 
-        <DialogFooter data-row="edit">
-          <Button type="button" variant="secondary" onClick={onEdit}>
-            Edit
-          </Button>
-        </DialogFooter>
+        {canEdit ? (
+          <DialogFooter data-row="edit">
+            <Button type="button" variant="secondary" onClick={onEdit}>
+              Edit
+            </Button>
+          </DialogFooter>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

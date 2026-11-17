@@ -155,6 +155,12 @@ describe("itemDetails", () => {
     expect(v.cost).toEqual({ label: `${formatMoney(12000, "EUR")} + ${formatMoney(3000, "AUD")}`, paid: false });
   });
 
+  it("the link is only ever a web address", () => {
+    expect(itemDetails({ ...bare, link: "javascript:alert(1)" }, ctx).link).toBeNull();
+    expect(itemDetails({ ...bare, link: "data:text/html,hi" }, ctx).link).toBeNull();
+    expect(itemDetails({ ...bare, link: "example.com" }, ctx).link).toBe("https://example.com/");
+  });
+
   it("an empty Try list is no Try list", () => {
     expect(itemDetails({ ...bare, tryList: [] }, ctx).tryList).toBeNull();
   });

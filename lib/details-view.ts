@@ -16,6 +16,7 @@ import { openingHoursSummary, openingLine } from "@/lib/opening-hours-display";
 import { slotLabel } from "@/lib/slot-time";
 import { shortDate, transportTimeDisplay } from "@/lib/time-display";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import { safeWebHref } from "@/lib/url";
 
 export interface DetailsView {
   title: string;
@@ -139,7 +140,7 @@ export function itemDetails(i: ItemCardItem, ctx: DetailsContext): DetailsView {
     address: text(i.address),
     place: point(i.lat, i.lng),
     notes: text(i.notes),
-    link: text(i.link),
+    link: safeWebHref(i.link),
     tryList: i.tryList?.length ? i.tryList : null,
     openingHours: hoursText(i.openingHours, i.date),
     cost: costSummary(ctx.costs),
