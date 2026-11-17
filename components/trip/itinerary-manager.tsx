@@ -34,6 +34,7 @@ import { ringId, scrollToId, whenScrollSettles } from "@/lib/scroll-to";
 import { setDayCollapsed } from "@/lib/plan/day-collapse";
 import { type TransportCardTransport } from "./transport-card";
 import { HOME_ENDPOINT } from "./transport-endpoints";
+import { dayTransportDefaults } from "@/lib/day-transport-defaults";
 import type { StopOption } from "./transport-form-dialog";
 import { type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationRow } from "./accommodation-row";
@@ -544,6 +545,7 @@ export function ItineraryManager({
     fromStopId?: string;
     toStopId?: string;
     anchorStopId?: string;
+    defaultDate?: string;
   } | null>(null);
 
   // `/plan?add=stop` (the desktop Home's "+ Add a stop") opens the add-Stop
@@ -611,6 +613,7 @@ export function ItineraryManager({
   // ── Add reminder dialog state (Task 7) ──
   const [addReminderAbout, setAddReminderAbout] =
     React.useState<ReminderAbout | null>(null);
+  const [addReminderDate, setAddReminderDate] = React.useState<string | undefined>(undefined);
 
   // ── Chapter dialog state ──
   const [chapterDialogOpen, setChapterDialogOpen] = React.useState(false);
@@ -1538,6 +1541,22 @@ export function ItineraryManager({
                     onAddIdea={() => setItemForm({ mode: "create", stopId: stop.id, unscheduled: true })}
                     onOpenIdea={(idea) => setOpenIdea({ stopId: stop.id, idea })}
                     onAddPlan={(date) => setItemForm({ mode: "create", stopId: stop.id, date })}
+                    onAddTransport={(date) =>
+                      setAddTransportDefaults({
+                        ...dayTransportDefaults(
+                          date,
+                          stop.arriveDate && stop.departDate ? { id: stop.id, arriveDate: stop.arriveDate, departDate: stop.departDate } : null,
+                          HOME_ENDPOINT,
+                          stops,
+                        ),
+                        anchorStopId: stop.id,
+                        defaultDate: date,
+                      })
+                    }
+                    onAddReminder={(date) => {
+                      setAddReminderDate(date);
+                      setAddReminderAbout({ stopId: stop.id });
+                    }}
                     onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
                     onGiveDates={() => handleAdjustDates(stop)}
                     onOpenExtras={(kind) => setExtras({ stopId: stop.id, kind })}
@@ -2033,6 +2052,7 @@ export function ItineraryManager({
           defaultFromStopId={addTransportDefaults.fromStopId}
           defaultToStopId={addTransportDefaults.toStopId}
           defaultAnchorStopId={addTransportDefaults.anchorStopId}
+          defaultDate={addTransportDefaults.defaultDate}
           open={true}
           onOpenChange={(open) => {
             if (!open) setAddTransportDefaults(null);
@@ -2126,9 +2146,13 @@ export function ItineraryManager({
         <AddReminderDialog
           tripId={tripId}
           about={addReminderAbout}
+          defaultDate={addReminderDate}
           open={true}
           onOpenChange={(open) => {
-            if (!open) setAddReminderAbout(null);
+            if (!open) {
+              setAddReminderAbout(null);
+              setAddReminderDate(undefined);
+            }
           }}
         />
       )}

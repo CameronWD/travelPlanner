@@ -29,6 +29,7 @@ export interface AddReminderDialogProps {
    * Reminders card's add form is where a Traveller picks.
    */
   about: ReminderAbout;
+  defaultDate?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
@@ -47,6 +48,7 @@ export interface AddReminderDialogProps {
 export function AddReminderDialog({
   tripId,
   about,
+  defaultDate,
   open,
   onOpenChange,
   onSaved,
@@ -56,6 +58,7 @@ export function AddReminderDialog({
       <AddReminderForm
         tripId={tripId}
         about={about}
+        defaultDate={defaultDate}
         onClose={() => onOpenChange(false)}
         onSaved={onSaved}
       />
@@ -70,16 +73,18 @@ export function AddReminderDialog({
 function AddReminderForm({
   tripId,
   about,
+  defaultDate,
   onClose,
   onSaved,
 }: {
   tripId: string;
   about: ReminderAbout;
+  defaultDate?: string;
   onClose: () => void;
   onSaved?: () => void;
 }) {
   const [title, setTitle] = React.useState("");
-  const [date, setDate] = React.useState("");
+  const [date, setDate] = React.useState(defaultDate ?? "");
   const [notes, setNotes] = React.useState("");
 
   const { errors, isPending, onSubmit } = useEntityForm({

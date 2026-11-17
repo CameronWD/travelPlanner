@@ -12,6 +12,7 @@ import { PresenceSpan } from "./presence";
 import { TweenNumber } from "./tween-number";
 import { useMotionTiming } from "./use-motion-timing";
 import { SurpriseBadge } from "./surprise-badge";
+import { AddCard } from "./add-card";
 
 /** MOTION.md P7: a scheduled idea's chip shrinks and fades out. */
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
@@ -153,9 +154,10 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
             className="shrink-0 whitespace-nowrap text-[11px] font-extrabold tracking-[0.08em] tabular-nums"
           />
         )}
-        <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text">
+        <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text lg:hidden">
           + Add an idea
         </button>
+        <AddCard label="Add an idea" onClick={onAdd} disabled={disabled} className="h-[26px] min-h-0 w-auto shrink-0 rounded-full px-2.5 text-xs" />
       </div>
       {ideas.length > 0 && (
         <div

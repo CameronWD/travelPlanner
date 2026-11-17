@@ -18,6 +18,7 @@ import {
 import type { AccommodationCardAccommodation } from "@/components/trip/accommodation-card";
 import type { CostRow } from "@/server/actions/costs";
 import { plural } from "@/lib/plural";
+import { AddCard } from "./add-card";
 import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 
 /** One Accommodation as the stay panel lists it: the card's fields plus its Costs and file count. */
@@ -36,7 +37,7 @@ export interface StayPanelProps {
   onAdd(): void;
 }
 
-const ADD_CLASS = "tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text";
+const ADD_CLASS = "tap-target shrink-0 lg:hidden whitespace-nowrap text-xs font-bold text-coral-text";
 
 /** The first non-blank line of an Accommodation's notes. */
 function firstLine(notes: string | null | undefined): string | null {
@@ -121,24 +122,27 @@ function StayBlock({
 }
 
 function CoverageLine({ coverage, onAdd }: { coverage: Exclude<StayCoverage, { kind: "rough" }>; onAdd(): void }) {
-  const add = coverage.kind === "covered" || coverage.kind === "partial" ? "+ Add another place" : "+ Add a stay";
+  const addLabel = coverage.kind === "covered" || coverage.kind === "partial" ? "Add another place" : "Add a stay";
   return (
-    <p data-testid="stay-coverage" className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold">
-      <span
-        className={cn(
-          coverage.kind === "covered" && "text-teal-text",
-          (coverage.kind === "partial" || coverage.kind === "none") && "text-coral-text",
-          coverage.kind === "day-visit" && "text-muted-foreground",
-        )}
-      >
-        {coverage.kind === "covered" && <Check className="mr-0.5 inline size-3" aria-hidden="true" />}
-        {stayCoverageLine(coverage)}
-      </span>
-      <span aria-hidden="true">·</span>
-      <button type="button" className={ADD_CLASS} onClick={onAdd}>
-        {add}
-      </button>
-    </p>
+    <>
+      <p data-testid="stay-coverage" className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold">
+        <span
+          className={cn(
+            coverage.kind === "covered" && "text-teal-text",
+            (coverage.kind === "partial" || coverage.kind === "none") && "text-coral-text",
+            coverage.kind === "day-visit" && "text-muted-foreground",
+          )}
+        >
+          {coverage.kind === "covered" && <Check className="mr-0.5 inline size-3" aria-hidden="true" />}
+          {stayCoverageLine(coverage)}
+        </span>
+        <span aria-hidden="true" className="lg:hidden">·</span>
+        <button type="button" className={ADD_CLASS} onClick={onAdd}>
+          + {addLabel}
+        </button>
+      </p>
+      <AddCard label={addLabel} onClick={onAdd} />
+    </>
   );
 }
 

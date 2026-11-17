@@ -212,4 +212,14 @@ describe("IdeasBox, Surprise ideas (CONTEXT.md Surprise)", () => {
     expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Surprise" })).toBeNull();
   });
+
+  it("an Add an idea card for desktop sits beside the phone's link, which is hidden at lg", async () => {
+    const onAdd = vi.fn();
+    render(<IdeasBox ideas={IDEAS} onOpen={vi.fn()} onAdd={onAdd} />);
+    expect(screen.getByRole("button", { name: "+ Add an idea" }).className).toContain("lg:hidden");
+    const card = screen.getByRole("button", { name: "Add an idea" });
+    expect(card.className).toContain("border-dashed");
+    await userEvent.click(card);
+    expect(onAdd).toHaveBeenCalled();
+  });
 });

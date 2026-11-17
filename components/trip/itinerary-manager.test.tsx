@@ -3265,6 +3265,38 @@ describe("nights stepper (spec 2026-10-06 §N)", () => {
 // Surprise (CONTEXT.md): Make it a surprise, Reveal the surprise, the surprised shell
 // ---------------------------------------------------------------------------
 
+describe("Day add card (spec P1)", () => {
+  const openPlan = (stops: ItineraryStop[]) => renderPlan(<ItineraryManager {...baseProps} initialStops={stops} />, stops.map((s) => s.id));
+
+  it("Reminder opens the dialog with the Stop and the day preset", async () => {
+    const user = userEvent.setup();
+    openPlan([PARIS]);
+    await user.click(desktop().getAllByRole("button", { name: "Add to Fri 11" })[0]);
+    await user.click(await screen.findByRole("menuitem", { name: "Reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("2026-12-11");
+    await user.type(screen.getByLabelText(/reminder title/i), "Print tickets");
+    await user.click(screen.getByRole("button", { name: /^add reminder$/i }));
+    await waitFor(() => {
+      expect(addReminder).toHaveBeenCalledWith(TRIP_ID, { title: "Print tickets", date: "2026-12-11", stopId: "par" });
+    });
+  });
+
+  it("Transport opens the Transport form on that day", async () => {
+    const user = userEvent.setup();
+    openPlan([PARIS]);
+    await user.click(desktop().getAllByRole("button", { name: "Add to Fri 11" })[0]);
+    await user.click(await screen.findByRole("menuitem", { name: "Transport" }));
+    expect(await screen.findByDisplayValue("2026-12-11T09:00")).toBeInTheDocument();
+  });
+
+  it("a Stop that is a Surprise for the viewer shows no add cards", () => {
+    const view = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: true };
+    renderPlan(<ItineraryManager {...baseProps} currentUserId="sam" initialStops={[{ ...PARIS, surprise: view }]} />, ["par"]);
+    expect(screen.queryByRole("button", { name: /^Add to / })).toBeNull();
+  });
+});
+
 describe("Surprise Stops", () => {
   const MEMBERS = [
     { id: "cam", name: "Cam Williams", image: null },

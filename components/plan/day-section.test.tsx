@@ -140,7 +140,7 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     const trigger = screen.getByRole("button", { name: "or pick an idea" });
     expect(trigger.className).toContain("tap-target");
     await userEvent.click(trigger);
-    expect(await screen.findByText("Add to Fri 11")).toBeInTheDocument();
+    expect(within(await screen.findByRole("menu")).getByText("Add to Fri 11")).toBeInTheDocument();
     expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Orsay", "Sainte-Chapelle"]);
     await userEvent.click(screen.getByRole("menuitem", { name: "Sainte-Chapelle" }));
     expect(props.onScheduleIdea).toHaveBeenCalledWith(IDEAS[1], "2026-12-11");
@@ -418,5 +418,35 @@ describe("DaySection Slot time (spec 2026-10-17 R3)", () => {
     renderDay({ items: [{ ...ITEMS[1], startTime: "09:45", slotTime: "10:00", arriveByMinutes: 15, refundable: false }] });
     expect(screen.getByText("Slot 10:00 · be there 09:45 · Richelieu entrance")).toBeInTheDocument();
     expect(screen.getByText("Non-refundable")).toBeInTheDocument();
+  });
+});
+
+describe("DaySection add card (spec P1)", () => {
+  it("a desktop-only dashed card offers Something to do, Transport and Reminder for the day", async () => {
+    const onAdd = vi.fn();
+    const onAddTransport = vi.fn();
+    const onAddReminder = vi.fn();
+    renderDay({ onAdd, onAddTransport, onAddReminder });
+    const card = screen.getByRole("button", { name: "Add to Fri 11" });
+    expect(card.className).toContain("lg:flex");
+    expect(card.className).toContain("border-dashed");
+    await userEvent.click(card);
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Transport" }));
+    expect(onAddTransport).toHaveBeenCalledWith("2026-12-11");
+    await userEvent.click(screen.getByRole("button", { name: "Add to Fri 11" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Reminder" }));
+    expect(onAddReminder).toHaveBeenCalledWith("2026-12-11");
+    await userEvent.click(screen.getByRole("button", { name: "Add to Fri 11" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Something to do" }));
+    expect(onAdd).toHaveBeenCalledWith("2026-12-11");
+  });
+
+  it("keeps the phone's text links, hidden on desktop, on a day with plans and an empty one", () => {
+    const { unmount } = renderDay();
+    expect(screen.getByRole("button", { name: "+ Add to Fri 11" }).className).toContain("lg:hidden");
+    unmount();
+    renderDay({ items: [] });
+    expect(screen.getByRole("button", { name: "+ Add to Fri 11" }).className).toContain("lg:hidden");
+    expect(screen.getByRole("button", { name: "Add to Fri 11" })).toBeInTheDocument();
   });
 });

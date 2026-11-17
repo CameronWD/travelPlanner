@@ -170,3 +170,21 @@ describe("StayPanel booking confirmation marker", () => {
     expect(within(screen.getByTestId("stay-block")).getByText("No booking confirmation yet")).toBeInTheDocument();
   });
 });
+
+describe("StayPanel add cards (spec P1)", () => {
+  it("offers Add another place once covered, with the phone link kept and hidden at lg", async () => {
+    const onAdd = vi.fn();
+    render(<StayPanel {...props({ accommodations: [{ ...HOTEL, checkIn: "2026-12-10", checkOut: "2026-12-14" }], onAdd })} />);
+    expect(screen.getByRole("button", { name: "+ Add another place" }).className).toContain("lg:hidden");
+    const card = screen.getByRole("button", { name: "Add another place" });
+    expect(card.className).toContain("border-dashed");
+    await userEvent.click(card);
+    expect(onAdd).toHaveBeenCalled();
+  });
+
+  it("offers Add a stay when nothing is booked", () => {
+    render(<StayPanel {...props({ accommodations: [] })} />);
+    expect(screen.getByRole("button", { name: "+ Add a stay" }).className).toContain("lg:hidden");
+    expect(screen.getByRole("button", { name: "Add a stay" }).className).toContain("lg:flex");
+  });
+});

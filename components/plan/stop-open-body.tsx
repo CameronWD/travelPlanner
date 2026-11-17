@@ -49,6 +49,8 @@ export interface StopOpenBodyProps {
   onAddIdea(): void;
   onOpenIdea(idea: ThingToDo): void;
   onAddPlan(dateISO: string): void;
+  onAddTransport?(dateISO: string): void;
+  onAddReminder?(dateISO: string): void;
   onEditItem(item: StopDayItem): void;
   onGiveDates(): void;
   onOpenExtras(kind: ExtrasKind): void;
@@ -93,6 +95,8 @@ export function StopOpenBody({
   onAddIdea,
   onOpenIdea,
   onAddPlan,
+  onAddTransport,
+  onAddReminder,
   onEditItem,
   onGiveDates,
   onOpenExtras,
@@ -176,6 +180,8 @@ export function StopOpenBody({
               flash={flashDate === s.dateISO}
               showDragHint={s.dateISO === hintDate}
               onAdd={onAddPlan}
+              onAddTransport={onAddTransport}
+              onAddReminder={onAddReminder}
               onEditItem={onEditItem}
               onScheduleIdea={onScheduleIdea}
               needsConfirmationIds={needsConfirmationIds}
