@@ -193,8 +193,8 @@ describe("Day page", () => {
     // Arrows link to the neighbouring days.
     expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-11");
     expect(screen.getByRole("link", { name: "Next day: Sun 13 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-13");
-    // Bell: in the phone/tablet top bar (below lg) and the desktop right cluster.
-    expect(screen.getAllByRole("button", { name: "Notifications (4)" })).toHaveLength(2);
+    // Bell: phone/tablet top bar, the lg-to-xl pill row cluster, and the xl date-row cluster.
+    expect(screen.getAllByRole("button", { name: "Notifications (4)" })).toHaveLength(3);
     // Every add-an-item button preselects the date. "Add a title" is a
     // different affordance (DayTitleInline, spec 2026-09-28 D4) and has no
     // default date to preselect.
@@ -234,8 +234,8 @@ describe("Day page", () => {
     expect(screen.getAllByTestId("day-map").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 things").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ideas")).toBeNull();
-    // Header button + phone dashed row.
-    expect(screen.getAllByRole("button", { name: "Add to this day" })).toHaveLength(2);
+    // Header button (pill-row and date-row clusters) + phone dashed row.
+    expect(screen.getAllByRole("button", { name: "Add to this day" })).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Add something else · a place, an activity, a note" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add something else" })).toBeNull();
   });

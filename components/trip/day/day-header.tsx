@@ -74,6 +74,31 @@ export function DayHeader({
 }: DayHeaderProps) {
   const shown = members.slice(0, MAX_AVATARS);
   const extra = members.length - shown.length;
+  const cluster = (
+    <>
+      <ShareTripButton />
+      <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
+      {members.length > 0 ? (
+        <Link
+          href={tripPath(tripSlug, "/settings#travellers")}
+          aria-label={`Travellers (${members.length})`}
+          className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <span className="flex -space-x-2.5">
+            {shown.map((m) => (
+              <TravellerAvatar key={m.id} traveller={m} size={40} className="border-2 border-border" />
+            ))}
+            {extra > 0 ? (
+              <span className="relative grid size-10 place-items-center rounded-full border-2 border-border bg-card text-xs font-extrabold text-foreground">
+                +{extra}
+              </span>
+            ) : null}
+          </span>
+        </Link>
+      ) : null}
+      {addButton}
+    </>
+  );
   return (
     <div className="flex flex-col gap-1">
       {/* The trip layout's header is hidden on this route at every width
@@ -89,12 +114,15 @@ export function DayHeader({
             <ShareTripButton />
             <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
           </div>
+          <div data-slot="day-pill-row-cluster" className="ml-auto hidden flex-wrap items-center justify-end gap-2.5 lg:flex xl:hidden">
+            {cluster}
+          </div>
         </div>
       ) : null}
-      <header data-slot="day-header-row" className="flex items-end gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-        {/* lg+: an empty first column balances the right cluster so the date and
+      <header data-slot="day-header-row" className="flex items-end gap-4 lg:justify-center xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        {/* xl+: an empty first column balances the right cluster so the date and
             its arrows sit in the true centre (spec 2026-09-29 D2). */}
-        <div data-slot="day-header-spacer" aria-hidden="true" className="hidden lg:block" />
+        <div data-slot="day-header-spacer" aria-hidden="true" className="hidden xl:block" />
         {/* Phone: a 44px | 1fr | 44px grid pins the arrows to the row's edges.
             md+: the arrows sit beside a title block whose min width comes
             from the invisible widest heading below; the block never shrinks
@@ -119,28 +147,8 @@ export function DayHeader({
           </div>
           <DayArrow href={nextHref} label={nextLabel} dir="next" />
         </div>
-        <div className="hidden shrink-0 items-center gap-2.5 lg:flex lg:justify-self-end">
-          <ShareTripButton />
-          <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
-          {members.length > 0 ? (
-            <Link
-              href={tripPath(tripSlug, "/settings#travellers")}
-              aria-label={`Travellers (${members.length})`}
-              className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
-              <span className="flex -space-x-2.5">
-                {shown.map((m) => (
-                  <TravellerAvatar key={m.id} traveller={m} size={40} className="border-2 border-border" />
-                ))}
-                {extra > 0 ? (
-                  <span className="relative grid size-10 place-items-center rounded-full border-2 border-border bg-card text-xs font-extrabold text-foreground">
-                    +{extra}
-                  </span>
-                ) : null}
-              </span>
-            </Link>
-          ) : null}
-          {addButton}
+        <div data-slot="day-header-cluster" className="hidden shrink-0 items-center gap-2.5 xl:flex xl:justify-self-end">
+          {cluster}
         </div>
       </header>
       {holidays.map((line) => (
