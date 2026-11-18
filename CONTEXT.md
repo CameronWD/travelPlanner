@@ -239,7 +239,7 @@ An optional second place on an **Item** that finishes somewhere other than where
 _Avoid_: End point, destination, route (that is the **Travel time**'s), finish
 
 **Marked fine**:
-A Traveller's say-so that one travel-time **Flag** (a tight or close-run hop between two Items) is not a problem. A Flag Marked fine is hidden wherever Flags are counted or listed as problems, for every Traveller, and records who marked it; the Day view's "Getting around" keeps it under a "marked fine" line, where it can be undone. It shows again if either Item's time or place changes, the way of travel changes, the hop's **Travel time** shifts by about five minutes, or the Flag becomes more serious. Only travel-time Flags can be Marked fine — every other Flag is a fact about the plan, not an estimate.
+A Traveller's say-so that one travel-time **Flag** (a tight or close-run hop between two Items) is not a problem. A Flag Marked fine is hidden wherever Flags are counted or listed as problems, for every Traveller, and records who marked it; the Day view's "Getting around" keeps it under a "marked fine" line, where it can be undone. It shows again if either Item's time or place changes, the way of travel changes, the **Travel time** shifts by about five minutes or a looked-up time replaces a guess, or the Flag's seriousness changes. Only travel-time Flags can be Marked fine — every other Flag is a fact about the plan, not an estimate.
 _Avoid_: Dismissed (that is a **Finding**'s state), ignored, snoozed, acknowledged
 
 **Day ideas**:
