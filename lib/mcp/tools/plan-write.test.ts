@@ -29,6 +29,7 @@ const {
   loadWishlistIdeaForMcp,
   loadVotesForMcp,
   loadNoteForMcp,
+  loadHopForMcp,
 } = vi.hoisted(() => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
@@ -58,6 +59,7 @@ const {
   loadWishlistIdeaForMcp: vi.fn(),
   loadVotesForMcp: vi.fn(),
   loadNoteForMcp: vi.fn(),
+  loadHopForMcp: vi.fn(),
 }));
 
 vi.mock("@/server/actions/items", () => ({
@@ -77,6 +79,7 @@ vi.mock("@/server/actions/day-titles", () => ({ setDayTitle }));
 vi.mock("@/server/actions/hop-modes", () => ({ setHopMode }));
 vi.mock("@/server/actions/notes", () => ({ addNote, deleteNote }));
 vi.mock("../reads/notes", () => ({ loadNoteForMcp, loadNotesForMcp: vi.fn() }));
+vi.mock("../reads/day", async (importOriginal) => ({ ...(await importOriginal<typeof import("../reads/day")>()), loadHopForMcp }));
 vi.mock("@/server/actions/chapters", () => ({ createChapter, updateChapter }));
 vi.mock("../reads/entities", () => ({ loadItemForMcp, loadStopForMcp, loadChapterForMcp }));
 vi.mock("../reads/lists", () => ({ loadWishlistIdeaForMcp, loadVotesForMcp }));
@@ -524,17 +527,43 @@ describe("plan write tools", () => {
     expect(setDayTitle).toHaveBeenCalledWith({ stopId: "stop-1", date: "2026-05-02", title: "" });
   });
 
-  it("set_hop_mode maps walk, public_transport, drive and automatic to WALK, TRANSIT, DRIVE and null", async () => {
-    setHopMode.mockResolvedValue({ success: true });
+  describe("set_hop_mode", () => {
     const body = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
-    const c = await connectTestClient();
-    for (const [mode, stored] of [["walk", "WALK"], ["public_transport", "TRANSIT"], ["drive", "DRIVE"], ["automatic", null]] as const) {
-      const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode } });
-      expect(setHopMode).toHaveBeenLastCalledWith("item-1", "item-2", stored);
-      expect(body(r)).toEqual({ hop: { fromItemId: "item-1", toItemId: "item-2", mode, setByHand: mode !== "automatic" } });
-    }
-    const bad = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode: "bike" } });
-    expect(bad.isError).toBe(true);
+    const text = (r: unknown) => (r as { content: { text: string }[] }).content[0].text;
+    const hop = (mode: string, setByHand: boolean) => ({ fromItemId: "item-1", toItemId: "item-2", mode, setByHand, minutes: 14, estimated: false });
+
+    it("maps walk, public_transport, drive and automatic to WALK, TRANSIT, DRIVE and null, and returns the hop as get_day lists it", async () => {
+      setHopMode.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      for (const [mode, stored] of [["walk", "WALK"], ["public_transport", "TRANSIT"], ["drive", "DRIVE"], ["automatic", null]] as const) {
+        loadHopForMcp.mockResolvedValue(hop(mode === "automatic" ? "walk" : mode, mode !== "automatic"));
+        const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode } });
+        expect(setHopMode).toHaveBeenLastCalledWith("item-1", "item-2", stored);
+        expect(body(r)).toEqual({ hop: hop(mode === "automatic" ? "walk" : mode, mode !== "automatic") });
+      }
+      const bad = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode: "bike" } });
+      expect(bad.isError).toBe(true);
+    });
+
+    it("a pair that is not a current hop (reversed, or not next to each other) is refused, tells Claude to use get_day's ids, and stores nothing", async () => {
+      setHopMode.mockClear();
+      loadHopForMcp.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-2", toItemId: "item-1", mode: "walk" } });
+      expect(r.isError).toBe(true);
+      expect(text(r)).toMatch(/fromItemId and toItemId exactly as a hop in get_day lists them/);
+      expect(setHopMode).not.toHaveBeenCalled();
+    });
+
+    it("automatic on a pair that is no longer a hop still clears the stored row", async () => {
+      setHopMode.mockResolvedValue({ success: true });
+      loadHopForMcp.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode: "automatic" } });
+      expect(r.isError).toBeFalsy();
+      expect(setHopMode).toHaveBeenLastCalledWith("item-1", "item-2", null);
+      expect(body(r)).toEqual({ hop: null });
+    });
   });
 
   it("add_note returns the new Note: id, body and what it is on", async () => {

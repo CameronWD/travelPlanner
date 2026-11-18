@@ -70,6 +70,10 @@ vi.mock("../reads/stop-changes", async (importOriginal) => ({
 }));
 vi.mock("../reads/flags", () => ({ loadFlagsForMcp: vi.fn(async () => ({ flags: [], markedFine: [] })) }));
 vi.mock("../reads/notes", () => ({ loadNoteForMcp: row(), loadNotesForMcp: vi.fn() }));
+vi.mock("../reads/day", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../reads/day")>()),
+  loadHopForMcp: vi.fn(async (_t: string, fromItemId: string, toItemId: string) => ({ fromItemId, toItemId, mode: "walk", setByHand: true, minutes: 9, estimated: false })),
+}));
 vi.mock("../reads/costs", () => ({ loadCostForMcp: row(), loadCostsForMcp: vi.fn() }));
 vi.mock("../reads/lists", () => ({
   loadChecklistItemForMcp: row(),

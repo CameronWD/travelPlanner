@@ -65,6 +65,8 @@ import { runWrite } from "../run-tool";
 import { loadItemForMcp, loadStopForMcp, loadChapterForMcp } from "../reads/entities";
 import { loadWishlistIdeaForMcp, loadVotesForMcp } from "../reads/lists";
 import { loadNoteForMcp } from "../reads/notes";
+import { loadHopForMcp } from "../reads/day";
+import { fail } from "@/lib/action-result";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, REFUNDABLE_MEANING, REFUNDABLE_VALUES, describeValues, type RefundableLabel } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
@@ -435,18 +437,25 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Set hop mode",
       description:
-        "Sets how one hop between two consecutive things to do on a day is travelled: walk, public_transport, drive, or automatic (back to the Stop's Local travel mode). It has no length limit, and stops applying if the two things are no longer next to each other on the day. get_day shows each hop's mode and whether it was set by hand.",
+        "Sets how one hop between two consecutive things to do on a day is travelled: walk, public_transport, drive, or automatic (back to the Stop's Local travel mode). It has no length limit, and stops applying if the two things are no longer next to each other on the day. Use fromItemId and toItemId exactly as a hop in get_day lists them, in that order: any other pair is refused (automatic still clears one that no longer is a hop). Returns the hop as it now stands.",
       inputSchema: { fromItemId: z.string(), toItemId: z.string(), mode: z.enum(["walk", "public_transport", "drive", "automatic"]) },
     },
-    ({ fromItemId, toItemId, mode }) =>
-      runWrite(
+    ({ fromItemId, toItemId, mode }) => {
+      let tripId = "";
+      return runWrite(
         "set_hop_mode",
         async () => {
-          await requireRealPlanRows([["item", fromItemId], ["item", toItemId]]);
-          return setHopMode(fromItemId, toItemId, mode === "walk" ? "WALK" : mode === "public_transport" ? "TRANSIT" : mode === "drive" ? "DRIVE" : null);
+          ({ tripId } = await requireRealPlanRow("item", fromItemId));
+          await requireRealPlanRow("item", toItemId);
+          const stored = mode === "walk" ? "WALK" : mode === "public_transport" ? "TRANSIT" : mode === "drive" ? "DRIVE" : null;
+          if (stored !== null && !(await loadHopForMcp(tripId, fromItemId, toItemId))) {
+            return fail({ _: ["Those two things are not a hop on a day right now. Use fromItemId and toItemId exactly as a hop in get_day lists them, in that order."] });
+          }
+          return setHopMode(fromItemId, toItemId, stored);
         },
-        async () => ({ hop: { fromItemId, toItemId, mode, setByHand: mode !== "automatic" } }),
-      ),
+        async () => ({ hop: await loadHopForMcp(tripId, fromItemId, toItemId) }),
+      );
+    },
   );
 
   server.registerTool(

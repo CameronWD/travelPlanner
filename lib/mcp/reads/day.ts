@@ -180,3 +180,17 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
     hops,
   };
 }
+
+/** One hop of the item's day, as get_day lists it; null when the pair is not a current hop there. */
+export async function loadHopForMcp(
+  tripId: string,
+  fromItemId: string,
+  toItemId: string,
+): Promise<{ fromItemId: string; toItemId: string; mode: "walk" | "drive" | "public_transport"; setByHand: boolean; minutes: number; estimated: boolean } | null> {
+  const from = await db.item.findUnique({ where: { id: fromItemId }, select: { date: true } });
+  if (!from?.date) return null;
+  const day = await loadDayForMcp(tripId, from.date);
+  if ("success" in day) return null;
+  const hop = day.hops.find((h) => h.fromItemId === fromItemId && h.toItemId === toItemId);
+  return hop ? { fromItemId, toItemId, mode: hop.mode, setByHand: hop.setByHand, minutes: hop.minutes, estimated: hop.estimated } : null;
+}
