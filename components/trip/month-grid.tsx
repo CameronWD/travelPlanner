@@ -145,7 +145,7 @@ export function MonthGrid({
               aria-hidden="true"
               style={{ gridRow: weekIdx + 1, gridColumn: `${band.startCol + 1} / span ${band.span}` }}
               className={cn(
-                "pointer-events-none z-10 mx-1 mt-1 hidden min-w-0 self-start truncate rounded-sm px-2 py-0.5 text-[10px] font-extrabold uppercase leading-tight tracking-[0.08em] lg:block",
+                "pointer-events-none z-10 mx-1 mt-1 hidden min-w-0 self-start truncate rounded-sm px-2 py-0.5 text-[10px] font-extrabold uppercase leading-tight tracking-[0.08em] lg:block lg:text-xs",
                 HUE_CLASSES[stopHue(sortOrderByStop.get(band.stopId) ?? 0)].chip,
               )}
             >
@@ -249,7 +249,7 @@ export function MonthGrid({
                 tile,
                 "border-border transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop hover:shadow-hard-1",
                 day?.stop
-                  ? cn(stopPillClass(day.stop.sortOrder), stopBandBorderClass(day.stop.sortOrder), "border-l-4 sm:border-l-8 lg:pt-8")
+                  ? cn(stopPillClass(day.stop.sortOrder), stopBandBorderClass(day.stop.sortOrder), "border-l-4 sm:border-l-8 lg:pt-9")
                   : "bg-card text-foreground",
                 isToday && "-translate-x-px -translate-y-px shadow-hard-1 sm:-translate-x-0.5 sm:-translate-y-0.5 sm:shadow-hard-2",
                 onDropItem && dragOver === cell.dateISO && "ring-2 ring-primary ring-offset-2 ring-offset-background",
@@ -261,7 +261,7 @@ export function MonthGrid({
                 <span className="hidden min-w-0 flex-wrap items-center justify-end gap-0.5 sm:flex lg:flex-nowrap lg:overflow-hidden">
                   {markers.map((marker, i) => <MarkerIcon key={marker.key} marker={marker} over={i >= MAX_MARKERS ? "lg:hidden" : ""} />)}
                   {markers.length > MAX_MARKERS && (
-                    <span className="hidden shrink-0 text-[10px] font-bold leading-none lg:inline-flex">+{markers.length - MAX_MARKERS}</span>
+                    <span className="hidden shrink-0 text-[10px] font-bold leading-none lg:inline-flex lg:text-xs">+{markers.length - MAX_MARKERS}</span>
                   )}
                 </span>
               </span>
@@ -274,7 +274,7 @@ export function MonthGrid({
                 </span>
               )}
               {day?.stop?.country && (
-                <span title={day.stop.country} className="hidden shrink-0 truncate text-[11px] font-medium leading-tight lg:block">{day.stop.country}</span>
+                <span title={day.stop.country} className="hidden shrink-0 truncate text-[11px] font-medium leading-tight lg:block lg:text-xs">{day.stop.country}</span>
               )}
               {dayTitles?.[cell.dateISO]?.title && (
                 <span className="mt-0.5 hidden shrink-0 truncate text-[10px] font-bold leading-tight sm:block">
@@ -284,11 +284,11 @@ export function MonthGrid({
               {things.shown.length > 0 && (
                 <ul data-day-things className="mt-1 hidden min-w-0 flex-col gap-0.5 lg:flex">
                   {things.shown.map((t) => (
-                    <li key={t.id} title={t.label} className="truncate text-[11px] font-medium leading-tight">
+                    <li key={t.id} title={t.label} className="truncate text-[11px] font-medium leading-tight lg:text-xs">
                       {t.label}
                     </li>
                   ))}
-                  {things.more > 0 && <li className="text-[11px] font-bold leading-tight text-muted-foreground">+{things.more} more</li>}
+                  {things.more > 0 && <li className="text-[11px] font-bold leading-tight text-muted-foreground lg:text-xs">+{things.more} more</li>}
                 </ul>
               )}
               {itemCount > 0 && (

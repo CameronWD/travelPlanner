@@ -419,7 +419,7 @@ function TransportRow({
           </span>
         </EntryTitle>
         {t.reference && (
-          <span className="rounded-full border-2 border-border bg-card px-1.5 text-[10px] font-extrabold leading-4 text-foreground">
+          <span className="rounded-full border-2 border-border bg-card px-1.5 text-[10px] font-extrabold leading-4 text-foreground lg:text-xs">
             {t.reference}
           </span>
         )}

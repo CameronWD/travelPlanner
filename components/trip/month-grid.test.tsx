@@ -275,6 +275,7 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     const country = screen.getByText("France");
     expect(country.className).toContain("lg:block");
     expect(country.className).not.toContain("sm:block");
+    expect(country.className).toContain("lg:text-xs");
     const badge = screen.getByText("2 things").parentElement!;
     expect(badge.className).toContain("max-w-full");
   });
