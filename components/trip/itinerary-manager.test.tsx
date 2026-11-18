@@ -3282,6 +3282,14 @@ describe("Day add card (spec P1)", () => {
     });
   });
 
+  it("a What-if plan's add menu has no Reminder entry", async () => {
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} forkId={FORK_ID} />, [PARIS.id]);
+    await user.click(desktop().getAllByRole("button", { name: "Add to Fri 11" })[0]);
+    expect(await screen.findByRole("menuitem", { name: "Transport" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Reminder" })).toBeNull();
+  });
+
   it("Transport opens the Transport form on that day", async () => {
     const user = userEvent.setup();
     openPlan([PARIS]);

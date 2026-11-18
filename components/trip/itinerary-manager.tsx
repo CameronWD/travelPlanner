@@ -1553,10 +1553,14 @@ export function ItineraryManager({
                         defaultDate: date,
                       })
                     }
-                    onAddReminder={(date) => {
-                      setAddReminderDate(date);
-                      setAddReminderAbout({ stopId: stop.id });
-                    }}
+                    onAddReminder={
+                      forkId
+                        ? undefined
+                        : (date) => {
+                            setAddReminderDate(date);
+                            setAddReminderAbout({ stopId: stop.id });
+                          }
+                    }
                     onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
                     onGiveDates={() => handleAdjustDates(stop)}
                     onOpenExtras={(kind) => setExtras({ stopId: stop.id, kind })}
