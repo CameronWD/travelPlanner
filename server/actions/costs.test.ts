@@ -1097,3 +1097,13 @@ describe("Surprise write guard", () => {
     );
   });
 });
+
+describe("What-if plans hidden", () => {
+  it("markCostPaid and markCostUnpaid treat a Fork's Cost as missing and write nothing", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "t1", forkId: "fork-1", ownerType: "OTHER", ownerId: null });
+
+    expect(await markCostPaid("c1", 1000, "2026-06-04")).toEqual({ success: false, errors: { _: ["Cost not found"] } });
+    expect(await markCostUnpaid("c1")).toEqual({ success: false, errors: { _: ["Cost not found"] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+});

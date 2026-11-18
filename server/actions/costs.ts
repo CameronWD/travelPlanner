@@ -11,6 +11,7 @@ import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 import { notFound } from "next/navigation";
 import { mergeCostPatch } from "@/lib/money/cost-patch";
 import { type Patch } from "@/lib/patch";
@@ -291,7 +292,7 @@ export async function markCostPaid(
     where: { id: costId },
     select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
-  if (!cost) return formFail("Cost not found");
+  if (!cost || (WHAT_IF_PLANS_HIDDEN && cost.forkId)) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 
@@ -325,7 +326,7 @@ export async function markCostUnpaid(costId: string): Promise<CostActionResult> 
     where: { id: costId },
     select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
   });
-  if (!cost) return formFail("Cost not found");
+  if (!cost || (WHAT_IF_PLANS_HIDDEN && cost.forkId)) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 

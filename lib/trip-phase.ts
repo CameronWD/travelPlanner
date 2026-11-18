@@ -5,6 +5,7 @@
  * what the Home leads with and how the trips list is ordered. Derived from the
  * trip's start date and today — never stored. See ADR 0010.
  */
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
 import { addDays, daysBetween, dayNumberInTrip } from "@/lib/dates";
 
 const FINAL_PREP_WINDOW_DAYS = 14;
@@ -39,7 +40,7 @@ export function computeTripPhase({ startDate, endDate, today }: TripPhaseInput):
  * TripHeaderTrailing so the two can't drift on when the switcher shows.
  */
 export function showForkSwitcher(forksEnabled: boolean, phase: TripPhase): boolean {
-  return forksEnabled && phase !== "travelling" && phase !== "past";
+  return !WHAT_IF_PLANS_HIDDEN && forksEnabled && phase !== "travelling" && phase !== "past";
 }
 
 const PHASE_LABELS: Record<TripPhase, string> = {

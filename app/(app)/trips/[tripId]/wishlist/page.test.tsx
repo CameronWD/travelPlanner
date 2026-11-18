@@ -65,6 +65,8 @@ import WishlistPage from "./page";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 async function renderPage(searchParams: { plan?: string } = {}) {
   render(await WishlistPage({
     params: Promise.resolve({ tripId: "t1" }),

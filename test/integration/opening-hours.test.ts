@@ -44,6 +44,8 @@ import { scheduleItem, setOpeningHours, updateItem } from "@/server/actions/item
 import { createFork } from "@/server/actions/forks";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 const USER = "it-oh-user";
 const TRIP_ID = "it-oh-trip";
 const FORK_ID = "it-oh-fork";

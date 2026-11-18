@@ -3,6 +3,13 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripDetailsForm } from "./trip-details-form";
 
+const whatIf = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/lib/what-if", () => ({
+  get WHAT_IF_PLANS_HIDDEN() {
+    return whatIf.hidden;
+  },
+}));
+
 const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
 vi.mock("@vis.gl/react-google-maps", () => mock.module);
 
@@ -83,6 +90,26 @@ describe("TripDetailsForm", () => {
     expect(drawn.className).toMatch(/\bsize-6\b/);
     expect(drawn.className).toMatch(/\bborder-2\b/);
     expect(drawn.className).toMatch(/\bpeer-checked:bg-primary\b/);
+  });
+
+  describe("while What-if plans are hidden", () => {
+    beforeEach(() => {
+      whatIf.hidden = true;
+    });
+    afterEach(() => {
+      whatIf.hidden = false;
+    });
+
+    it("renders no What-if plans switch, even when the trip has them on", () => {
+      render(
+        <TripDetailsForm
+          tripId="t1"
+          defaultValues={{ name: "Trip", startDate: "", endDate: "", hardEndDate: "", homeCurrency: "AUD", forksEnabled: true }}
+        />,
+      );
+      expect(screen.queryByRole("switch", { name: /what-if plans/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/what-if/i)).not.toBeInTheDocument();
+    });
   });
 
   describe("Plan variants switch", () => {

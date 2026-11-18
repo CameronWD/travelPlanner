@@ -24,6 +24,8 @@ vi.mock("@/components/shell/trip-switcher", () => ({
 import { TripHeaderTrailing } from "./trip-header-trailing";
 import { readForks } from "@/lib/trip-shell-reads";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 const TRIP = { id: "t1", name: "EU", startDate: "2026-12-04", endDate: "2027-01-08", homeCurrency: "AUD", forksEnabled: true, members: [], stops: [] };
 
 beforeEach(() => {

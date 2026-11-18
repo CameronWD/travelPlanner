@@ -25,6 +25,8 @@ import { db as realDb } from "@/lib/db";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { readPlan, resolvePlanParam, mergePlanItems, maskPlanStops, COST_SELECT } from "./plan-reads";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 const db = realDb as unknown as MockDb<"stop" | "transport" | "accommodation" | "item" | "cost" | "exchangeRate" | "chapter" | "fork">;
 
 /** The shell row readTripShell hands back: a Trip plus the layout's members/stops. */

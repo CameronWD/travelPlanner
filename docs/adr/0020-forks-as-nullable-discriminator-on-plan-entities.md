@@ -14,3 +14,5 @@ A **Fork** is a variant **Plan** over six entities that currently hang directly 
 - **Promote** = delete the real plan's rows for those entities, re-tag the chosen Fork's rows to `forkId = null`, delete the remaining Forks' rows.
 - Trip-wide tables (Wishlist/unscheduled Items, ExchangeRate, Note, Vote, ChecklistItem, Attachment, JournalEntry, ShareLink, CalendarFeed, Activity) are never tagged and so are shared by all Plans for free.
 - Every query over the six Plan entities must be audited to scope by `forkId` correctly — the main ongoing cost of this approach.
+
+**Note, 2026-11-18:** What-if plans are hidden behind `WHAT_IF_PLANS_HIDDEN` (`lib/plan-scope.ts`) pending removal after the Christmas trip. Existing `forkId` data stays in the database, unreachable; removal will drop the columns.

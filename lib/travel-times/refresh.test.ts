@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockDb } from "@/test/helpers/db-mock";
 import { driveKey, hopKeys, type Pt } from "@/lib/travel-times/hops";
 
@@ -25,6 +25,13 @@ vi.mock("@/lib/surprise-visibility", () => ({
   loadSurpriseVisibility: vi.fn(async (_tripId: string, viewerId: string | null) => ({
     hiddenItemIds: m.hidden[viewerId ?? "null"] ?? [],
   })),
+}));
+
+const whatIf = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/lib/what-if", () => ({
+  get WHAT_IF_PLANS_HIDDEN() {
+    return whatIf.hidden;
+  },
 }));
 
 import { db as realDb } from "@/lib/db";
@@ -117,6 +124,38 @@ beforeEach(() => {
   });
   db.hopMode.findMany.mockResolvedValue([]);
   plan({});
+});
+
+describe("refreshTripTravelTimes while What-if plans are hidden", () => {
+  beforeEach(() => {
+    whatIf.hidden = true;
+  });
+  afterEach(() => {
+    whatIf.hidden = false;
+  });
+
+  it("asks for the real plan's rows only and fetches no key for a Fork", async () => {
+    const stops = [
+      stop({ id: "real", at: FAR(10) }),
+      stop({ id: "realB", at: FAR(20) }),
+      stop({ id: "fork", forkId: "f1", at: FAR(50) }),
+      stop({ id: "forkB", forkId: "f1", at: FAR(60) }),
+    ];
+    const transports = [
+      transport({ forkId: null, mode: "CAR", fromStopId: "real", toStopId: "realB" }),
+      transport({ forkId: "f1", mode: "CAR", fromStopId: "fork", toStopId: "forkB" }),
+    ];
+    const honour = (rows: { forkId: string | null }[]) => async ({ where }: { where: { forkId?: null } }) =>
+      rows.filter((r) => !("forkId" in where) || r.forkId === where.forkId);
+    plan({ stops, transports });
+    db.stop.findMany.mockImplementation(honour(stops));
+    db.transport.findMany.mockImplementation(honour(transports));
+
+    await refreshTripTravelTimes("t1", { now: NOW });
+
+    expect(db.item.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }));
+    expect([...table.keys()]).toEqual([driveKey(FAR(10), FAR(20))]);
+  });
 });
 
 describe("refreshTripTravelTimes", () => {

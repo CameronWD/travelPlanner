@@ -163,15 +163,6 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "advanced",
   },
   {
-    id: "forks",
-    // Titled for the words the UI actually uses ("New what-if plan",
-    // "Compare plans"). The id stays "forks" — it is the anchor slug, and
-    // Fork is the domain noun in CONTEXT.md; travellers see "What-if plan".
-    title: "What-if plans and comparing plans",
-    blurb: "Trying two versions of the trip side by side.",
-    group: "advanced",
-  },
-  {
     id: "globe",
     title: "Your Globe",
     blurb: "The places you'd go someday, kept across every trip.",
@@ -228,7 +219,6 @@ export const GUIDE_TRIP_SEGMENTS = [
   "checklists",
   "files",
   "activity",
-  "compare",
   "settings",
 ] as const;
 
@@ -373,7 +363,6 @@ export const GUIDE_UI_STRINGS = [
   // Flags, fitting and the home screen
   "Next steps",
   "Make it fit",
-  "Runs over",
   "Trim nights",
   "Or drop a stop",
   "Apply trim",
@@ -383,10 +372,6 @@ export const GUIDE_UI_STRINGS = [
   "Suggest from countries",
   "Firm up all stops",
   "Make rough",
-  // What-if plans
-  "What-if plans",
-  "New what-if plan",
-  "Compare plans",
   // Search
   "Search or jump",
   "Search needs a connection",

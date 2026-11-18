@@ -78,12 +78,12 @@ describe("HelpHashOpen", () => {
   it("opens the section again when the hash changes after mount", async () => {
     // The contents nav is same-page navigation: no remount, only hashchange.
     render(<HelpGuide tripId="t1" />);
-    const forks = document.querySelector<HTMLDetailsElement>("details#forks")!;
-    expect(forks.open).toBe(false);
+    const globe = document.querySelector<HTMLDetailsElement>("details#globe")!;
+    expect(globe.open).toBe(false);
 
-    window.location.hash = "#forks";
+    window.location.hash = "#globe";
 
-    await waitFor(() => expect(forks.open).toBe(true));
+    await waitFor(() => expect(globe.open).toBe(true));
     await waitFor(() => expect(window.location.hash).toBe(""));
   });
 

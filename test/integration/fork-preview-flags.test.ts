@@ -19,6 +19,8 @@ import { db } from "@/lib/db";
 import { getComparison, getPromotionPreview } from "@/server/actions/forks";
 import { driveKey, hopKeys } from "@/lib/travel-times/hops";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 const USER = "it-fpf-user";
 const TRIP_ID = "it-fpf-trip";
 const FORK_ID = "it-fpf-fork";

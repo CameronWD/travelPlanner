@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CircleAlert,
   Clock,
-  Copy,
   Gift,
   Globe,
   Heart,
@@ -195,7 +194,6 @@ const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_
   chapters: { icon: List, tone: "lilac" },
   "dates-and-pins": { icon: Pin, tone: "sun" },
   "make-it-fit": { icon: CalendarClock, tone: "sun" },
-  forks: { icon: Copy, tone: "coral" },
   globe: { icon: Globe, tone: "teal" },
   "trip-settings": { icon: Settings, tone: "white" },
   links: { icon: Link2, tone: "teal" },
@@ -383,8 +381,7 @@ function lifeOfOneTrip(tripId?: string): {
       body: (
         <>
           In <Go tripId={tripId} segment="settings">Settings</Go>, invite them
-          by email or make a share link. Want to try two versions of the trip?
-          Make a what-if plan and compare them side by side.
+          by email or make a share link.
         </>
       ),
     },
@@ -972,10 +969,7 @@ export function HelpGuide({
               when it came to something else.{" "}
               <strong className="font-semibold">Add a cost</strong> is for money
               that isn&rsquo;t attached to anything on the plan: insurance,
-              visas, a travel SIM, spending money. Both belong to the real plan,
-              so neither shows while you&rsquo;re editing a what-if plan, a
-              second version of the plan with a section of its own further
-              down.
+              visas, a travel SIM, spending money.
             </p>
           </Section>
 
@@ -1120,12 +1114,8 @@ export function HelpGuide({
               </li>
             </ul>
             <p>
-              Two things worth knowing.{" "}
-              <strong className="font-semibold">Find</strong> only ever searches
-              the real plan. Anything that only exists inside a what-if plan
-              won&rsquo;t come back, which is deliberate, so a search never
-              hands you something that isn&rsquo;t really happening. And Find
-              needs a signal: offline it says{" "}
+              <strong className="font-semibold">Find</strong> needs a signal:
+              offline it says{" "}
               <strong className="font-semibold">
                 Search needs a connection
               </strong>
@@ -1255,9 +1245,7 @@ export function HelpGuide({
               are only ever amber or blue. A flag is never red, a nudge rather
               than a failure. But the app does turn red when the plan runs past
               the day you have to be home: that shows on the Plan, again in the
-              Make it fit dialog, and as an{" "}
-              <strong className="font-semibold">Runs over</strong> badge
-              when you compare plans. (Red shows up elsewhere too, wherever
+              Make it fit dialog. (Red shows up elsewhere too, wherever
               something&rsquo;s about to be deleted or a form has a problem.
               It&rsquo;s not saved just for flags.)
             </p>
@@ -1512,67 +1500,6 @@ export function HelpGuide({
             </p>
           </Section>
 
-          <Section heading={Sub} section={sectionById("forks")}>
-            <p>
-              A <strong className="font-semibold">what-if plan</strong> is a
-              second version of the plan, kept beside the real one. Italy
-              first, or Switzerland bolted on the end? What-if plans are off
-              by default: turn on{" "}
-              <strong className="font-semibold">What-if plans</strong> in the
-              trip&rsquo;s Settings first. Then, up in the trip header, next
-              to the Traveller avatars and the notification bell, there&rsquo;s
-              a dropdown for this. Open it and tap{" "}
-              <strong className="font-semibold">New what-if plan</strong> to
-              get one of each to look at side by side instead of arguing in
-              the abstract. It stays with you across the Plan, Money and the
-              Wishlist, the screens that follow the what-if plan you&rsquo;re
-              editing. Everywhere else, including every dated screen, keeps
-              showing the real plan, and the switcher steps aside altogether
-              once you&rsquo;re travelling or the trip is over. (You&rsquo;ll
-              see this called a Fork in the code, same thing.)
-            </p>
-            <p>
-              A what-if plan is a full plan, not a sketch. You edit it with
-              exactly the same tools, and it gets its own dates, its own
-              flags and its own total. While you&rsquo;re in one, a banner
-              along the top says{" "}
-              <strong className="font-semibold">Editing what-if plan</strong>,
-              names the one you&rsquo;re in, and tells you it isn&rsquo;t
-              live, your calendar, summary and sharing still follow your real
-              plan. That&rsquo;s the whole point: editing a what-if plan
-              never touches the real plan, the dated screens, the{" "}
-              <Go tripId={tripId} segment="summary">
-                Summary
-              </Go>{" "}
-              or the calendar feed, so you can make as much mess in one as you
-              like. The Wishlist, the checklists and the journal are shared by
-              all of them.
-            </p>
-            <p>
-              <Go tripId={tripId} segment="compare">
-                Compare plans
-              </Go>{" "}
-              puts them in columns with the real plan on the left, and shows each
-              what-if plan as a difference against it: which places were
-              added, dropped, re-nighted or reordered, and how the end date,
-              the total and the number of flags move.
-            </p>
-            <p>
-              When you&rsquo;ve decided,{" "}
-              <strong className="font-semibold">Make this the real plan</strong>{" "}
-              makes that what-if plan the real plan, and discards every other
-              one, including the one it replaces. It can&rsquo;t be undone,
-              so the confirmation spells out what the swap would remove:
-              payments you&rsquo;ve recorded, confirmation numbers, and files
-              attached to the plan being replaced. Read that list before you
-              tap it.
-            </p>
-            <p>
-              What-if plans are only offered before you leave. Once the trip
-              is under way there&rsquo;s nothing left to compare.
-            </p>
-          </Section>
-
           <Section heading={Sub} section={sectionById("globe")}>
             <p>
               Everything else in here belongs to one trip. Your{" "}
@@ -1801,7 +1728,6 @@ export function HelpGuide({
                 online, and to say when it couldn&rsquo;t verify something.
               </li>
             </ul>
-            <p>It only ever works on the real plan, never a What-if plan.</p>
           </Section>
 
           <Section heading={Sub} section={sectionById("home-screen")}>
@@ -1938,14 +1864,6 @@ export function HelpGuide({
                   The ranked list of what to deal with next (flags plus gentler
                   nudges) on the trip&rsquo;s Home screen while you&rsquo;re
                   still planning. Called Sort these out on a wide screen.
-                </dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-foreground">What-if plan</dt>
-                <dd className="text-muted-foreground">
-                  A second version of the plan, kept beside the real one for
-                  comparison, not live until you make it the real plan. Called
-                  a Fork in the code.
                 </dd>
               </div>
               <div>

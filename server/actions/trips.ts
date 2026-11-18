@@ -32,7 +32,7 @@ import {
 } from "@/lib/validations/trip";
 import { type ActionResult, fail, formFail, validationResult } from "@/lib/action-result";
 import { applyPatch, type Patch } from "@/lib/patch";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { REAL_PLAN, WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
 import { revalidateTrip, revalidateTripsList } from "@/lib/revalidate";
 
 export type CreateTripResult = ActionResult<{ tripId: string; href: Route }>;
@@ -853,6 +853,7 @@ export type SetForksEnabledResult = UpdateTripResult;
  */
 export async function setForksEnabled(tripId: string, enabled: boolean): Promise<SetForksEnabledResult> {
   await requireTripAccess(tripId);
+  if (enabled && WHAT_IF_PLANS_HIDDEN) return formFail("What-if plans are switched off.");
 
   await db.trip.update({ where: { id: tripId }, data: { forksEnabled: enabled } });
 

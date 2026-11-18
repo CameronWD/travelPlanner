@@ -11,6 +11,7 @@ import { tripPath } from "@/lib/trip-path";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { comparePlansMeta } from "@/lib/page-meta";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 
 export const metadata: Metadata = { title: "Compare plans" };
 
@@ -28,6 +29,8 @@ export default async function ComparePage({
   // the real access control, this only drives whether the button renders).
   const { user, membership } = await requireTripAccess(tripId);
   const isOwner = isTripOwnerOrAdmin(membership, user.email);
+
+  if (WHAT_IF_PLANS_HIDDEN) redirect(tripPath(await tripSlugFor(tripId), "/plan"));
 
   const [data, shell, slug] = await Promise.all([
     getComparison(tripId),

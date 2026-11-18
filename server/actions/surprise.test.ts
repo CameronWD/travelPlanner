@@ -35,6 +35,12 @@ const {
   tripMemberFindManyMock: vi.fn(),
 }));
 
+const whatIf = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/lib/what-if", () => ({
+  get WHAT_IF_PLANS_HIDDEN() {
+    return whatIf.hidden;
+  },
+}));
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/revalidate", () => ({ revalidateTrip: revalidateTripMock }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: recordActivityMock }));
@@ -348,5 +354,24 @@ describe("revealSurprise", () => {
     stopFindUniqueMock.mockResolvedValue(stopRow({ ...LIVE_BY_CAM, surpriseRevealedAt: new Date("2026-01-01") }));
     const result = await revealSurprise({ kind: "STOP", id: "stop-1" });
     expect(result).toEqual({ success: false, errors: { _: ["This isn't a surprise."] } });
+  });
+});
+
+describe("What-if plans hidden", () => {
+  beforeEach(() => {
+    whatIf.hidden = true;
+  });
+  afterEach(() => {
+    whatIf.hidden = false;
+  });
+
+  it("setSurprise and revealSurprise answer not-found for a Fork's Stop or Item and write nothing", async () => {
+    stopFindUniqueMock.mockResolvedValue(stopRow({ forkId: "fork-1" }));
+    itemFindUniqueMock.mockResolvedValue(itemRow({ forkId: "fork-1" }));
+
+    await expect(setSurprise({ kind: "STOP", id: "stop-1" })).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    await expect(revealSurprise({ kind: "ITEM", id: "item-1" })).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
   });
 });

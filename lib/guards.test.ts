@@ -125,6 +125,8 @@ import {
   requireUser,
 } from "@/lib/guards";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 // Card C (requireRowAccess) tests address db.<kind>.findUnique directly,
 // matching the brief's test shape, rather than threading each delegate mock
 // through as its own hoisted name.

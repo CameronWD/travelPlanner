@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // them doesn't change execution order — top-of-file here for readability).
 import React from "react";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 // plan/page.tsx is a heavy async server component. Its Plan data (since
 // Task 15) comes from one `readPlan` call — mocked here with the `PlanRows` a
 // real call would have produced for the scenario (built with the reader's own

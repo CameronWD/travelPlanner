@@ -34,9 +34,20 @@ vi.mock("@/lib/db", () => ({
       create: noteCreateMock,
       delete: noteDeleteMock,
     },
+    stop: { findUnique: stopFindUniqueMock },
+    item: { findUnique: vi.fn() },
+    transport: { findUnique: vi.fn() },
+    accommodation: { findUnique: vi.fn() },
   },
 }));
 vi.mock("@/lib/activity-record", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+const whatIf = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/lib/what-if", () => ({
+  get WHAT_IF_PLANS_HIDDEN() {
+    return whatIf.hidden;
+  },
+}));
+const stopFindUniqueMock = vi.hoisted(() => vi.fn());
 const requireOutsideSurpriseMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@/lib/surprise-guard", () => ({
   requireOutsideSurprise: requireOutsideSurpriseMock,
@@ -195,6 +206,36 @@ describe("addNote", () => {
 // ---------------------------------------------------------------------------
 // deleteNote
 // ---------------------------------------------------------------------------
+
+describe("deleteNote while What-if plans are hidden", () => {
+  const stopNote = { id: NOTE_ID, tripId: TRIP_ID, authorId: "user-1", targetType: "STOP", targetId: "stop-1" };
+  beforeEach(() => {
+    whatIf.hidden = true;
+    noteFindUniqueMock.mockResolvedValue(stopNote);
+    noteDeleteMock.mockResolvedValue({});
+  });
+  afterEach(() => {
+    whatIf.hidden = false;
+  });
+
+  it("refuses a Note on a Fork's thing and deletes nothing", async () => {
+    stopFindUniqueMock.mockResolvedValue({ forkId: "fork-1" });
+    await expect(deleteNote(NOTE_ID)).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    expect(noteDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes a Note on a real-plan thing as before", async () => {
+    stopFindUniqueMock.mockResolvedValue({ forkId: null });
+    expect(await deleteNote(NOTE_ID)).toEqual({ success: true });
+    expect(noteDeleteMock).toHaveBeenCalledWith({ where: { id: NOTE_ID } });
+  });
+
+  it("still deletes an orphaned Note whose target row is gone", async () => {
+    stopFindUniqueMock.mockResolvedValue(null);
+    expect(await deleteNote(NOTE_ID)).toEqual({ success: true });
+    expect(noteDeleteMock).toHaveBeenCalled();
+  });
+});
 
 describe("deleteNote", () => {
   // The old "looks up the note by id" test asserted the guard's own

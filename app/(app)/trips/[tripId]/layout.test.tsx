@@ -3,6 +3,8 @@ import { render, screen, within } from "@testing-library/react";
 import { addDays } from "@/lib/dates";
 import { todayISOInZone } from "@/lib/tz";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 // layout.tsx is an async server component. DB access, server actions and leaf
 // components are mocked; leaf components are marker-mocked so we can assert
 // presence/absence and props without depending on their internals.
