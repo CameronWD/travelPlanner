@@ -183,9 +183,10 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     });
   }, [phone, carousel]);
 
-  // Desktop: a vertical wheel gesture over the strip scrolls it horizontally
-  // instead — but only when the strip actually has overflow to scroll, and
-  // only by *not* also scrolling the page vertically. React's onWheel is
+  // 768-1023: a vertical wheel gesture over the strip scrolls it horizontally
+  // instead, but only when the strip actually has overflow to scroll, and only
+  // by *not* also scrolling the page vertically. From lg the strip always
+  // overflows and the page must keep scrolling. React's onWheel is
   // registered passively at the root, so calling preventDefault from a
   // synthetic handler is a no-op (and can warn); a native listener with
   // `{ passive: false }` is required to actually suppress the page scroll.
@@ -195,6 +196,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     if (!el) return;
     const handleWheel = (e: WheelEvent) => {
       if (e.deltaY === 0 || e.deltaX !== 0) return;
+      if (window.matchMedia(LG_UP).matches) return;
       if (el.scrollWidth <= el.clientWidth) return;
       e.preventDefault();
       el.scrollLeft += e.deltaY;

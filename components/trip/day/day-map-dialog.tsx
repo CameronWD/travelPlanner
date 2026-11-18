@@ -86,14 +86,15 @@ export function DayMapDialog({
 
 /**
  * The Day plan card renders once per size (phone, desktop), one of them
- * CSS-hidden, so only the card that matches the viewport mounts the dialog.
+ * CSS-hidden, so only the card that matches the viewport mounts the dialog;
+ * a neighbour day in the phone carousel never does (ADR 0065).
  */
-export function DayMapButton({ tripId, model, size }: { tripId: string; model: DayMapModel; size: "phone" | "desktop" }) {
+export function DayMapButton({ tripId, model, size, shown = true }: { tripId: string; model: DayMapModel; size: "phone" | "desktop"; shown?: boolean }) {
   const open = useSyncExternalStore(subscribeMapParam, mapParamOpen, () => false);
   const mdUp = useMediaQuery(MD_UP);
   if (model.points.length === 0) return null;
 
-  const mounted = mdUp !== null && (size === "desktop") === mdUp;
+  const mounted = shown && mdUp !== null && (size === "desktop") === mdUp;
 
   return (
     <>

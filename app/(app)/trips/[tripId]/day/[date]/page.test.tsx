@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import type { DayViewData } from "@/lib/day-view-loader";
 import { addDays } from "@/lib/dates";
 
@@ -72,14 +72,29 @@ vi.mock("@/components/trip/day/day-weather", () => ({
 vi.mock("@/components/trip/journal-editor", () => ({ JournalEditor: () => <div data-testid="journal-editor" /> }));
 vi.mock("@/components/trip/journal-entry-view", () => ({ JournalEntryView: () => null }));
 vi.mock("@/components/day/day-add-menu", () => ({
-  DayAddMenu: ({ label, date }: { label: string; date: string }) => <button data-default-date={date}>{label}</button>,
+  DayAddMenu: ({ label, date, stop }: { label: string; date: string; stop: { id: string } | null }) => (
+    <button data-default-date={date} data-default-stop={stop?.id ?? ""}>
+      {label}
+    </button>
+  ),
 }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: { variant: string }) => <ol data-testid="timeline" data-variant={p.variant} /> }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
-vi.mock("@/components/trip/day/day-map-dialog", () => ({ DayMapButton: () => <button data-testid="day-map">Day map</button> }));
+vi.mock("@/components/trip/day-map", () => ({ DayMap: () => <div /> }));
+vi.mock("@/components/trip/day/day-map-dialog", async (importActual) => {
+  const actual = await importActual<typeof import("@/components/trip/day/day-map-dialog")>();
+  return {
+    DayMapButton: (p: React.ComponentProps<typeof actual.DayMapButton>) => (
+      <span data-testid="day-map">
+        <actual.DayMapButton {...p} />
+      </span>
+    ),
+  };
+});
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: ({ unreadCount }: { unreadCount: number }) => <button aria-label={`Notifications (${unreadCount})`} /> }));
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => null }));
 
+import { setMatchMedia } from "@/test/setup";
 import DayPage, { generateMetadata } from "./page";
 
 function fixture(over: Partial<DayViewData> = {}): DayViewData {
@@ -177,6 +192,37 @@ beforeEach(() => {
 });
 
 describe("Day page", () => {
+  it("opens one Day map when ?map=1 is set, and it is the shown day's, not a neighbour's", async () => {
+    getDayMock.mockImplementation((_t: string, date: string) =>
+      dayFor({
+        hasEntries: true,
+        dayMap: { points: [{ kind: "item", id: `i-${date}`, lat: 1, lng: 2, label: `Place on ${date}`, order: 1 }], routePoints: [], perItemPrev: {} },
+      })(_t, date),
+    );
+    window.history.replaceState(null, "", "/?map=1");
+    try {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+      await renderPage();
+      await waitFor(() => expect(document.querySelectorAll('[role="dialog"]').length).toBeGreaterThan(0));
+      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
+      expect(dialogs).toHaveLength(1);
+      expect(within(dialogs[0]).getByText("Place on 2026-12-12")).toBeInTheDocument();
+      expect(within(dialogs[0]).queryByText("Place on 2026-12-11")).toBeNull();
+      expect(within(dialogs[0]).queryByText("Place on 2026-12-13")).toBeNull();
+    } finally {
+      window.history.replaceState(null, "", "/");
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+
+  it("a Changeover day whose Stop is the Surprise does not preselect that Stop on its add buttons", async () => {
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: false, dayStopHidden: true }, tonight: null }));
+    const { container } = await renderPage();
+    const buttons = within(shownPanel(container)).getAllByRole("button", { name: /Add/ });
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) expect(b).toHaveAttribute("data-default-stop", "");
+  });
+
   it("renders the h1 date, the strip, the plan card empty state with three idea rows, tonight and the future journal", async () => {
     const { container } = await renderPage();
     expect(getDayMock.mock.calls.map((c) => c[1]).sort()).toEqual(["2026-12-11", "2026-12-12", "2026-12-13"]);

@@ -22,7 +22,7 @@ import { SurpriseShell } from "@/components/plan/surprise-badge";
  * collapsible "Nearby from your Wishlist" rail (both come from the loader),
  * and a header button that opens the Day map (CONTEXT.md "Day map") over the page.
  */
-export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size: "desktop" | "phone"; addButton: React.ReactNode }) {
+export function DayPlanCard({ data, size, addButton, shown = true }: { data: DayViewData; size: "desktop" | "phone"; addButton: React.ReactNode; shown?: boolean }) {
   const phone = size === "phone";
   const surprise = data.surprise;
   const whole = surprise?.whole === true;
@@ -57,7 +57,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
           Day plan
         </h2>
         <div className="flex items-center gap-3">
-          {data.hasEntries ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} /> : null}
+          {data.hasEntries ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} shown={shown} /> : null}
           {whole && !data.hasEntries ? null : <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>}
         </div>
       </div>

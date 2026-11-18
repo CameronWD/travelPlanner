@@ -70,7 +70,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
     tripId,
     slug,
     date: day.date,
-    stop: day.stop ? { id: day.stop.id, arriveDate: day.stop.arriveDate, departDate: day.stop.departDate } : null,
+    stop: day.stop && !day.surprise?.dayStopHidden ? { id: day.stop.id, arriveDate: day.stop.arriveDate, departDate: day.stop.departDate } : null,
     stopOptions: day.stopOptions,
     homeCurrency: day.trip.homeCurrency,
     homeBaseName: day.trip.homeName,
@@ -121,10 +121,10 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
         {phoneWeather ? <div className="md:hidden">{phoneWeather}</div> : null}
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start lg:gap-[18px]">
           <div className="md:hidden">
-            <DayPlanCard data={day} size="phone" addButton={dashedAdd(day, "phone")} />
+            <DayPlanCard data={day} size="phone" addButton={dashedAdd(day, "phone")} shown={day.date === d.date} />
           </div>
           <div className="hidden md:block">
-            <DayPlanCard data={day} size="desktop" addButton={dashedAdd(day, "desktop")} />
+            <DayPlanCard data={day} size="desktop" addButton={dashedAdd(day, "desktop")} shown={day.date === d.date} />
           </div>
           <div data-day-side className="flex flex-col gap-3.5 lg:sticky lg:top-6 lg:self-start lg:gap-[18px] lg:data-tall:static">
             {desktopWeather ? <div className="hidden md:block">{desktopWeather}</div> : null}

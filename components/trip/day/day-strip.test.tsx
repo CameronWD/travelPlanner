@@ -440,6 +440,32 @@ describe("DayStrip", () => {
     const { container } = render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
     expect(container.innerHTML).toMatchSnapshot();
   });
+  describe("a vertical wheel over the strip", () => {
+    const overflowing = () => {
+      const el = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      Object.defineProperty(el, "scrollWidth", { configurable: true, value: 900 });
+      Object.defineProperty(el, "clientWidth", { configurable: true, value: 300 });
+      el.scrollLeft = 0;
+      return el;
+    };
+    afterEach(() => setMatchMedia(false));
+    it("slides the strip sideways between 768 and 1023, where the page would not otherwise reach it", () => {
+      setMatchMedia(false);
+      render(<DayStrip tripId="t-wheel-1" dates={dates} line={segments} size="desktop" />);
+      const el = overflowing();
+      const notPrevented = fireEvent.wheel(el, { deltaY: 40 });
+      expect(notPrevented).toBe(false);
+      expect(el.scrollLeft).toBe(40);
+    });
+    it("from lg leaves the wheel to the page", () => {
+      setMatchMedia((q) => q === "(min-width: 1024px)");
+      render(<DayStrip tripId="t-wheel-2" dates={dates} line={segments} size="desktop" />);
+      const el = overflowing();
+      const notPrevented = fireEvent.wheel(el, { deltaY: 40 });
+      expect(notPrevented).toBe(true);
+      expect(el.scrollLeft).toBe(0);
+    });
+  });
   it("marks a public holiday chip with a marker and a spoken suffix", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
