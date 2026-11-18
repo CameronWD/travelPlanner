@@ -190,7 +190,6 @@ describe("HelpGuide", () => {
     // what-if plan can come back. Without this the sentence could be deleted
     // and the test would still pass under its own name.
     expect(body).toContain("only ever searches the real plan");
-    expect(body).toContain("only exists inside a what-if plan");
   });
 
   it("never calls Search a command palette", () => {
@@ -199,10 +198,9 @@ describe("HelpGuide", () => {
     expect(container.textContent?.toLowerCase()).not.toContain("command palette");
   });
 
-  it("calls the header's people 'Traveller avatars', never 'member avatars'", () => {
+  it("never calls the header's people 'member avatars'", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const text = container.textContent ?? "";
-    expect(text).toContain("Traveller avatars");
     expect(text.toLowerCase()).not.toContain("member avatars");
   });
 
@@ -442,33 +440,14 @@ describe("HelpGuide", () => {
     expect(body).toContain("only as far as they have to");
   });
 
-  it("does not quote the variant banner as text the app never renders", () => {
-    // variant-banner.tsx interpolates the variant name and carries a second
-    // sentence; "Editing what-if plan — not live" is never rendered as such.
+  it("has no What-if plan section, links or wording while the feature is hidden", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
-    const body = container.querySelector("details#forks")?.textContent ?? "";
-    expect(body).toContain("your calendar, summary and sharing still follow");
-    expect(body).not.toContain("Editing what-if plan — not live");
-    expect(body).not.toContain("Editing variant — not live");
-  });
-
-  it("names the three screens a variant actually follows you onto", () => {
-    // trip-nav.tsx appends ?plan= on plan-scoped links only; the dated screens
-    // always follow the real plan.
-    const { container } = render(<HelpGuide tripId="t1" />);
-    const body = container.querySelector("details#forks")?.textContent ?? "";
-    expect(body).toContain("the Plan, Money and the Wishlist");
-  });
-
-  it("does not claim the Wishlist is a screen a variant can change", () => {
-    // It contradicted the next paragraph, which says the Wishlist is shared by
-    // every variant — and the paragraph is the true one: Wishlist ideas are
-    // forkId: null (wishlist/page.tsx:55). Only the scheduled copies are
-    // fork-scoped. What follows the variant is the screen, not the ideas.
-    const { container } = render(<HelpGuide tripId="t1" />);
-    const body = container.querySelector("details#forks")?.textContent ?? "";
-    expect(body).not.toContain("the screens a variant can change");
-    expect(body).toContain("The Wishlist, the checklists and the journal are shared");
+    expect(container.querySelector("details#forks")).toBeNull();
+    expect(container.querySelector('a[href$="/compare"]')).toBeNull();
+    const text = (container.textContent ?? "").toLowerCase();
+    expect(text).not.toContain("what-if");
+    expect(text).not.toContain("compare plans");
+    expect(text).not.toContain("fork");
   });
 
   it("says a Globe appears on first visit, not that sharing is the gate", () => {
@@ -577,15 +556,15 @@ describe("HelpGuide", () => {
           <OnThisPage groups={helpContents()} />
         </div>,
       );
-      const forks = container.querySelector<HTMLDetailsElement>("details#forks")!;
-      expect(forks.open).toBe(false);
-      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
-      await waitFor(() => expect(forks.open).toBe(true));
+      const globe = container.querySelector<HTMLDetailsElement>("details#globe")!;
+      expect(globe.open).toBe(false);
+      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#globe"]')!);
+      await waitFor(() => expect(globe.open).toBe(true));
       await waitFor(() => expect(window.location.hash).toBe(""));
       // A second click on the same entry is again a hash change, so it still opens.
-      forks.open = false;
-      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#forks"]')!);
-      await waitFor(() => expect(forks.open).toBe(true));
+      globe.open = false;
+      fireEvent.click(screen.getByRole("navigation", { name: "On this page" }).querySelector('a[href="#globe"]')!);
+      await waitFor(() => expect(globe.open).toBe(true));
     } finally {
       window.history.replaceState(null, "", "/help");
     }

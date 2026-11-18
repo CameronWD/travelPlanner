@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { REAL_PLAN, WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
 import { dailyCap } from "@/lib/google-budget";
 import { hasServerKey } from "@/lib/google-fetch";
 import { takeGoogleQuota } from "@/lib/google-usage";
@@ -51,21 +52,25 @@ function fetchOrder(keysByPlan: Set<string>[]): string[] {
   return out;
 }
 
+function forkFilter() {
+  return WHAT_IF_PLANS_HIDDEN ? REAL_PLAN : {};
+}
+
 async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
   const trip = await db.trip.findUnique({ where: { id: tripId, deletedAt: null }, select: { homeLat: true, homeLng: true } });
   if (!trip) return null;
   const [stops, items, transports, views, hopModes] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...forkFilter() },
       select: { id: true, forkId: true, localTravelMode: true, lat: true, lng: true, timezone: true },
     }),
     db.item.findMany({
-      where: { tripId, date: { not: null }, lat: { not: null }, lng: { not: null } },
+      where: { tripId, ...forkFilter(), date: { not: null }, lat: { not: null }, lng: { not: null } },
       select: { id: true, forkId: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, endLat: true, endLng: true },
       orderBy: [...ITEM_HOP_ORDER],
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, ...forkFilter() },
       select: {
         id: true, forkId: true, mode: true, fromStopId: true, toStopId: true,
         depLat: true, depLng: true, arrLat: true, arrLng: true, depIsHome: true, arrIsHome: true,

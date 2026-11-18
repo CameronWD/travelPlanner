@@ -25,6 +25,8 @@ import { db } from "@/lib/db";
 import { createFork, getComparison, promoteFork } from "@/server/actions/forks";
 import { pointKey } from "@/lib/travel-times/hops";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 const USER = "it-fhm-user";
 const TRIP_ID = "it-fhm-trip";
 const A = { lat: 35.71477, lng: 139.79666 };

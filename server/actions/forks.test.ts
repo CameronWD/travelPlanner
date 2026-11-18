@@ -333,6 +333,13 @@ import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { planRows } from "@/test/builders/plan-rows";
 
+const whatIf = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/lib/what-if", () => ({
+  get WHAT_IF_PLANS_HIDDEN() {
+    return whatIf.hidden;
+  },
+}));
+
 vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
 
 // ---------------------------------------------------------------------------
@@ -424,6 +431,30 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe("What-if plans hidden", () => {
+  beforeEach(() => {
+    whatIf.hidden = true;
+  });
+  afterEach(() => {
+    whatIf.hidden = false;
+  });
+
+  it("createFork refuses and writes nothing, even with Forks enabled on the trip", async () => {
+    forkCountMock.mockResolvedValue(0);
+    setupDefaultTrip();
+
+    const res = await createFork("trip-1", "Plan B");
+
+    expect(res).toEqual({ success: false, errors: { _: ["What-if plans are switched off."] } });
+    expect(txMock).not.toHaveBeenCalled();
+  });
+
+  it("getComparison answers not-found and reads no Forks", async () => {
+    await expect(getComparison("trip-1")).rejects.toThrow();
+    expect(forkFindManyMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("createFork", () => {
   describe("pre-condition: cap enforcement", () => {

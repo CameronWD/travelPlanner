@@ -10,7 +10,8 @@ import { recordActivity } from "@/lib/activity-record";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
-import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
+import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, WHAT_IF_PLANS_HIDDEN, type PlanId } from "@/lib/plan-scope";
+import { notFound } from "next/navigation";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
@@ -45,6 +46,7 @@ export async function createFork(
 ): Promise<CreateForkResult> {
   // 1. Auth check
   const { user } = await requireTripAccess(tripId);
+  if (WHAT_IF_PLANS_HIDDEN) return formFail("What-if plans are switched off.");
 
   // 2. Load trip for phase gate
   const trip = await db.trip.findUnique({
@@ -464,6 +466,7 @@ export interface ComparisonResult {
 export async function getComparison(tripId: string): Promise<ComparisonResult> {
   // 1. Auth check
   const { user } = await requireTripAccess(tripId);
+  if (WHAT_IF_PLANS_HIDDEN) notFound();
 
   // 2. Forks in sortOrder
   const forks = await db.fork.findMany({

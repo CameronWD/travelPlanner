@@ -31,10 +31,6 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     text: "Travelling: no signal opens your saved trip, tickets work offline, and Home leads with today. On a phone, tap a booking to read it first.",
   },
   {
-    publishedAt: "2026-10-09T00:00:00Z",
-    text: "Plan variants are now called what-if plans. Pick one with \"Make this the real plan\".",
-  },
-  {
     publishedAt: "2026-10-07T00:32:00Z",
     text: "Travelling: a new cost starts in the local currency, set to On the trip and already paid. Change any of it before saving.",
   },

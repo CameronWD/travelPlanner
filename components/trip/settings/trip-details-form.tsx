@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
 import { updateTrip, setForksEnabled, type UpdateTripResult } from "@/server/actions/trips";
 import { tripPath } from "@/lib/trip-path";
 import { CURRENCIES } from "@/lib/money/currencies";
@@ -248,25 +249,27 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         />
       </Field>
 
-      <div className="space-y-1.5">
-        <div className="flex min-h-11 items-center justify-between gap-3">
-          <label htmlFor="forksEnabled" className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-            What-if plans
-          </label>
-          <Switch
-            id="forksEnabled"
-            checked={forksEnabled}
-            disabled={forksPending}
-            aria-describedby="forksEnabled-description"
-            onCheckedChange={handleForksToggle}
-            className="disabled:opacity-45"
-          />
+      {!WHAT_IF_PLANS_HIDDEN && (
+        <div className="space-y-1.5">
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <label htmlFor="forksEnabled" className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+              What-if plans
+            </label>
+            <Switch
+              id="forksEnabled"
+              checked={forksEnabled}
+              disabled={forksPending}
+              aria-describedby="forksEnabled-description"
+              onCheckedChange={handleForksToggle}
+              className="disabled:opacity-45"
+            />
+          </div>
+          <p id="forksEnabled-description" className="text-xs text-muted-foreground">
+            Keep what-if plans beside the real plan. Off by default.
+          </p>
+          {forksError && <p className="text-xs text-destructive">{forksError}</p>}
         </div>
-        <p id="forksEnabled-description" className="text-xs text-muted-foreground">
-          Keep what-if plans beside the real plan. Off by default.
-        </p>
-        {forksError && <p className="text-xs text-destructive">{forksError}</p>}
-      </div>
+      )}
 
       <div className="flex items-center gap-3">
         <Button type="submit" loading={isPending}>

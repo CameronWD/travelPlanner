@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   REAL_PLAN,
   planScope,
@@ -8,6 +8,8 @@ import {
   firstSearchParam,
   resolvePlan,
 } from "./plan-scope";
+
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
 
 describe("planScope", () => {
   it("REAL_PLAN scopes to the null discriminator", () => {

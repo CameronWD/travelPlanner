@@ -250,6 +250,13 @@ import {
   leaveTrip,
 } from "./trips";
 
+const whatIf = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/lib/what-if", () => ({
+  get WHAT_IF_PLANS_HIDDEN() {
+    return whatIf.hidden;
+  },
+}));
+
 const VALID_INPUT = {
   name: "Japan 2026",
   startDate: "2026-03-01",
@@ -2034,6 +2041,32 @@ describe("setChaptersEnabled", () => {
 // ---------------------------------------------------------------------------
 // setForksEnabled
 // ---------------------------------------------------------------------------
+
+describe("setForksEnabled while What-if plans are hidden", () => {
+  beforeEach(() => {
+    whatIf.hidden = true;
+  });
+  afterEach(() => {
+    whatIf.hidden = false;
+  });
+
+  it("refuses to turn it on and writes nothing", async () => {
+    const result = await setForksEnabled(TRIP_ID, true);
+
+    expect(result).toEqual({ success: false, errors: { _: ["What-if plans are switched off."] } });
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("still turns it off", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setForksEnabled(TRIP_ID, false);
+
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { forksEnabled: false } });
+  });
+});
 
 describe("setForksEnabled", () => {
   it("is access-checked — calls requireTripAccess with the tripId", async () => {

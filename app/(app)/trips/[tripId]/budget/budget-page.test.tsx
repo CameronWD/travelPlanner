@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 // The Money page's Plan data comes from one `readPlan` call (lib/plan-reads.ts)
 // — mocked here with the `PlanRows` a real call would hand back for the
 // scenario (`planRows()`); `readPlan`'s query shapes, plan scoping and

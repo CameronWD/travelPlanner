@@ -1,5 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+
+const whatIf = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/lib/what-if", () => ({
+  get WHAT_IF_PLANS_HIDDEN() {
+    return whatIf.hidden;
+  },
+}));
 
 // compare/page.tsx is an async Server Component; mock its data + guards.
 const getComparison = vi.fn();
@@ -59,5 +66,22 @@ describe("Compare page kit shape (Task 15)", () => {
       "NEXT_REDIRECT /trips/t1/plan",
     );
     expect(redirectMock).toHaveBeenCalledWith("/trips/t1/plan");
+  });
+});
+
+describe("Compare page while What-if plans are hidden", () => {
+  beforeEach(() => {
+    whatIf.hidden = true;
+    getComparison.mockClear();
+    redirectMock.mockClear();
+  });
+  afterEach(() => {
+    whatIf.hidden = false;
+  });
+
+  it("redirects to the Plan before reading anything, even when the trip has Forks enabled", async () => {
+    getComparison.mockResolvedValue({ trip, plans: [{ forkId: null, name: "Real plan", metrics: {} }, { forkId: "f1", name: "B", metrics: {} }] });
+    await expect(ComparePage({ params: Promise.resolve({ tripId: "t1" }) })).rejects.toThrow("NEXT_REDIRECT /trips/t1/plan");
+    expect(getComparison).not.toHaveBeenCalled();
   });
 });

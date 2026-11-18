@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   computeTripPhase,
   describePhase,
@@ -8,6 +8,8 @@ import {
   compareForTripList,
   type TripListItem,
 } from "./trip-phase";
+
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
 
 describe("computeTripPhase", () => {
   it("is sketching when there is no start date", () => {

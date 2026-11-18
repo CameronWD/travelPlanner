@@ -30,6 +30,8 @@ import { db } from "@/lib/db";
 import { createFork } from "@/server/actions/forks";
 import { duplicateTrip } from "@/server/actions/trips";
 
+vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
+
 const USER = "it-fdc-user";
 const TRIP_ID = "it-fdc-trip";
 const PORTO = "it-fdc-porto";

@@ -11,6 +11,7 @@ import { tripPath } from "@/lib/trip-path";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { comparePlansMeta } from "@/lib/page-meta";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
 
 export const metadata: Metadata = { title: "Compare plans" };
 
@@ -20,6 +21,8 @@ export default async function ComparePage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
+
+  if (WHAT_IF_PLANS_HIDDEN) redirect(tripPath(await tripSlugFor(tripId), "/plan"));
 
   // getComparison enforces requireTripAccess internally; calling it again
   // here is free (cache()-memoised per tripId, see lib/guards.ts) and is how

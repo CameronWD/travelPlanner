@@ -7,7 +7,7 @@ import { findMembership } from "@/lib/access";
 import { isAdminEmail } from "@/lib/admin";
 import { getActingTraveller } from "@/lib/mcp/acting-traveller";
 import type { TripPhase } from "@/lib/trip-phase";
-import type { PlanId } from "@/lib/plan-scope";
+import { WHAT_IF_PLANS_HIDDEN, type PlanId } from "@/lib/plan-scope";
 import { requireOutsideSurprise, type SurpriseRef, type SurpriseRoot } from "@/lib/surprise-guard";
 import { CHECKLIST_ITEM_ACTIVITY_SELECT } from "@/lib/checklists";
 import type { TravellerLike } from "@/lib/traveller";
@@ -127,7 +127,7 @@ export async function requireForkAccess(forkId: string) {
       trip: { select: { id: true, startDate: true, endDate: true, forksEnabled: true } },
     },
   });
-  if (!fork) notFound();
+  if (!fork || WHAT_IF_PLANS_HIDDEN) notFound();
   await requireTripAccess(fork.tripId);
   return { user, fork, trip: fork.trip };
 }
@@ -146,6 +146,7 @@ export async function requirePlanAccess(
 ): Promise<Awaited<ReturnType<typeof requireTripAccess>> & { plan: PlanId }> {
   const { user, membership } = await requireTripAccess(tripId);
   if (!forkId) return { user, membership, plan: null };
+  if (WHAT_IF_PLANS_HIDDEN) notFound();
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { forksEnabled: true } });
   if (!trip?.forksEnabled) notFound();
   const fork = await db.fork.findFirst({ where: { id: forkId, tripId }, select: { id: true } });
@@ -358,7 +359,7 @@ export async function requireRowAccess<K extends RowKind>(
   id: string,
   opts: { realPlanOnly?: boolean } = {},
 ) {
-  const row = await findRow(kind, id, opts.realPlanOnly === true);
+  const row = await findRow(kind, id, opts.realPlanOnly === true || WHAT_IF_PLANS_HIDDEN);
   if (!row) notFound();
   const { user, membership } = await requireTripAccess(row.tripId);
   const ref = surpriseRefFor(kind, row);

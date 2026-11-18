@@ -1,3 +1,7 @@
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
+
+export { WHAT_IF_PLANS_HIDDEN };
+
 /**
  * A Plan is identified by its forkId. `null` is the real (live) plan;
  * a string is a Fork. (ADR 0020)
@@ -39,7 +43,7 @@ export function resolvePlan({
   plan: string | string[] | undefined;
   forksEnabled: boolean;
 }): PlanId {
-  return forksEnabled ? firstSearchParam(plan) : null;
+  return forksEnabled && !WHAT_IF_PLANS_HIDDEN ? firstSearchParam(plan) : null;
 }
 
 // ---------------------------------------------------------------------------
