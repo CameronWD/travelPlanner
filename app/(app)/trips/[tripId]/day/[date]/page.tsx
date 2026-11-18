@@ -104,10 +104,10 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   };
 
   // Tonight: a gap day with no bed shows nothing (there is no Stop to add a
-  // stay to), and the trip's last day has no night to plan. A Surprise day with
+  // stay to), and the trip's last day has no night to plan. A day owned by a hidden Stop with
   // no visible bed would read "No bed yet" about a stay it cannot see.
   const tonight = (day: DayViewData, size: "desktop" | "phone") =>
-    !day.isLast && (day.tonight != null || (day.stop != null && day.surprise == null)) ? (
+    !day.isLast && (day.tonight != null || (day.stop != null && !day.surprise?.dayStopHidden)) ? (
       <TonightCard tripId={tripId} tonight={day.tonight} isLastDay={day.isLast} stopId={day.stop?.id ?? null} size={size} />
     ) : null;
 

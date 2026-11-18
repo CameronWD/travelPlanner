@@ -578,14 +578,26 @@ describe("getDays — a day that is a Surprise for the viewer (ADR 0072)", () =>
   it("a day inside the hidden Stop is whole, and the field says only who is planning", async () => {
     hideStrasbourg();
     const d = await loadDay("2026-12-11");
-    expect(d.surprise).toEqual({ plannedByName: "Pat", whole: true });
-    expect(Object.keys(d.surprise!).sort()).toEqual(["plannedByName", "whole"]);
+    expect(d.surprise).toEqual({ plannedByName: "Pat", whole: true, dayStopHidden: true });
+    expect(Object.keys(d.surprise!).sort()).toEqual(["dayStopHidden", "plannedByName", "whole"]);
+  });
+
+  it("a whole day keeps the Transport the viewer can see: the leg from Home into the hidden first Stop", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: VIEWER, hiddenStopIds: [PARIS.id] }));
+    const fromHome = { ...TRAIN, id: "tr-home", fromStopId: null, toStopId: PARIS.id, depIsHome: true, depAt: new Date("2026-12-06T01:00:00Z"), arrAt: new Date("2026-12-06T09:00:00Z"), mode: "FLIGHT" };
+    setup({ transports: [fromHome] });
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: VIEWER, hiddenStopIds: [PARIS.id] }));
+    const d = await loadDay("2026-12-06");
+    expect(d.surprise).toMatchObject({ whole: true });
+    expect(d.hasEntries).toBe(true);
+    expect(d.plan.transportEntries.map((e) => e.transport.id)).toEqual(["tr-home"]);
   });
 
   it("a Changeover day shared with a visible Stop is not whole", async () => {
     hideStrasbourg();
-    expect((await loadDay("2026-12-10")).surprise).toEqual({ plannedByName: "Pat", whole: false });
-    expect((await loadDay("2026-12-13")).surprise).toEqual({ plannedByName: "Pat", whole: false });
+    expect((await loadDay("2026-12-10")).surprise).toEqual({ plannedByName: "Pat", whole: false, dayStopHidden: true });
+    // The arriving Stop owns the day: here the visible one.
+    expect((await loadDay("2026-12-13")).surprise).toEqual({ plannedByName: "Pat", whole: false, dayStopHidden: false });
   });
 
   it("a day outside the hidden Stop has none", async () => {

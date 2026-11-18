@@ -331,11 +331,11 @@ function deriveTrip(rows: DayRows): TripDerived {
 }
 
 /** Set only for a viewer a Surprise Stop covering `date` is for: who is planning it, and whether it is the day's only Stop. */
-export function daySurprise(stops: DayRows["stops"], date: string): { plannedByName: string; whole: boolean } | null {
+export function daySurprise(stops: DayRows["stops"], date: string, dayStopId: string | null): { plannedByName: string; whole: boolean; dayStopHidden: boolean } | null {
   const covering = stops.filter((s) => s.arriveDate! <= date && date <= s.departDate!);
   const hidden = covering.find((s) => s.surprise?.youAreSurprised);
   if (!hidden) return null;
-  return { plannedByName: hidden.surprise!.plannerName, whole: covering.every((s) => s.surprise?.youAreSurprised) };
+  return { plannedByName: hidden.surprise!.plannerName, whole: covering.every((s) => s.surprise?.youAreSurprised), dayStopHidden: dayStopId !== null && covering.some((s) => s.id === dayStopId && s.surprise?.youAreSurprised === true) };
 }
 
 /** One dated day, from the rows `lib/day-reads.ts` read — the Day view's and Today's shared core. */

@@ -57,13 +57,12 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
           Day plan
         </h2>
         <div className="flex items-center gap-3">
-          {data.hasEntries && !whole ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} /> : null}
-          {whole ? null : <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>}
+          {data.hasEntries ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} /> : null}
+          {whole && !data.hasEntries ? null : <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>}
         </div>
       </div>
-      {whole && surprise ? (
-        <SurpriseShell view={{ plannerName: surprise.plannedByName, forNames: [], youAreSurprised: true }} />
-      ) : empty ? (
+      {whole && surprise ? <SurpriseShell view={{ plannerName: surprise.plannedByName, forNames: [], youAreSurprised: true }} /> : null}
+      {whole && !data.hasEntries ? null : empty ? (
         // An empty day is a small block, not a tall empty card (spec 2026-09-29 D5):
         // about three or four Items' worth of room, the line and the add action centred.
         <div data-slot="day-plan-empty" className="flex min-h-[12rem] flex-col items-center justify-center gap-3.5 text-center">
@@ -102,9 +101,11 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
             )}
             {restSurprise}
           </div>
-          <div className="flex flex-col gap-2.5">
-            {addButton}
-          </div>
+          {whole ? null : (
+            <div className="flex flex-col gap-2.5">
+              {addButton}
+            </div>
+          )}
         </>
       )}
       {whatsAround ? <div className={empty ? "flex justify-center" : undefined}>{whatsAround}</div> : null}

@@ -300,7 +300,7 @@ describe("Day page", () => {
   });
 
   it("a day that is wholly a Surprise: the shell, no add anywhere, no Tonight, the weather and Journal stay", async () => {
-    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: true }, tonight: null, hasEntries: false }));
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: true, dayStopHidden: true }, tonight: null, hasEntries: false }));
     const { container } = await renderPage();
     expect(within(shownPanel(container)).getAllByTestId("surprise-shell")).toHaveLength(2);
     expect(screen.getAllByText("Surprise, planned by Xanthia").length).toBeGreaterThan(0);
@@ -311,10 +311,11 @@ describe("Day page", () => {
   });
 
   it("a Changeover day shared with a Surprise keeps the add buttons and says the rest is a surprise", async () => {
-    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: false } }));
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: false, dayStopHidden: false }, tonight: null }));
     await renderPage();
     expect(screen.getAllByRole("button", { name: "Add to this day" }).length).toBeGreaterThan(0);
     expect(screen.getAllByText("The rest of today is a surprise, planned by Xanthia.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No bed yet").length).toBeGreaterThan(0);
   });
 
   it("a Stop with no bed shows 'No bed yet' and '+ Add a stay'", async () => {
