@@ -12,7 +12,7 @@ Activity feed marked **via Claude**, same as any other change, so your travel
 partner always sees what happened and who (really) did it. A little personal
 bookkeeping, listed below, deliberately doesn't.
 
-It only ever works on the real plan, never a What-if plan.
+It only ever works on the real plan.
 
 ## Connect from claude.ai or the phone app
 
@@ -115,7 +115,7 @@ It can change:
 Editing something through Claude changes only what you asked for; everything
 else about it stays as it was.
 
-It cannot touch: What-if plans, Trip delete/duplicate/restore, members,
+It cannot touch: Trip delete/duplicate/restore, members,
 Invites, Share links, Calendar feeds, uploading, renaming or deleting
 Attachments, Item photos, covers, Journal, Globe writes, push, or Admin.
 It can leave a Feedback note (see below) but cannot read, list or delete

@@ -117,16 +117,14 @@ it("enum inputs on the tools carry descriptions", async () => {
   }
 });
 
-it("Claude reads a Fork by its on-screen name, \"What-if plan\", one way everywhere (CF-05)", async () => {
+it("Claude is told nothing about What-if plans while they are hidden", async () => {
   const c = await connectTestClient();
   const { tools } = await c.listTools();
   const texts = [MCP_INSTRUCTIONS, ...tools.flatMap((t) => [t.description ?? "", JSON.stringify(t.inputSchema)])];
   for (const text of texts) {
-    // Every mention is cased "What-if plan"; "Fork" is the code's word, not Claude's.
-    expect(text.match(/what-if plans?/gi)?.filter((m) => !m.startsWith("What-if plan")) ?? []).toEqual([]);
+    expect(text).not.toMatch(/what-if/i);
     expect(text).not.toMatch(/\bforks?\b(?!Id)/i);
   }
-  expect(tools.find((t) => t.name === "update_trip")!.description).toContain("every What-if plan");
 });
 
 it("a Review's depth is the same word in review_trip and in get_review (R13)", () => {

@@ -28,7 +28,6 @@ Paths marked A: are under `docs/archive/`.
 
 ## Correctness
 
-- **CF-08** `add_note` and `delete_note` do not check the target is in the real plan, so Claude can write on a Fork (`lib/mcp/tools/plan-write.ts` ~428). A: `open-follow-ups.md`
 - **CF-10** `add_reminder` / `update_reminder` check `notes` with `max(2000)` before trimming (`lib/mcp/tools/lists-write.ts` 136, 164). A: `open-follow-ups.md`
 - **FT-02** Compare passes no `hiddenStopIds` / `hiddenItemIds` to `detectFlags` (`lib/compare.ts` ~400); a Surprise's real Flags could leak into a Fork's count. A: `open-follow-ups.md`
 - **FT-04** `get_wishlist` ideas carry no Try list or Opening hours (`lib/mcp/reads/lists.ts` `WISHLIST_IDEA_SELECT`). A: `open-follow-ups.md`
@@ -42,7 +41,7 @@ Paths marked A: are under `docs/archive/`.
 - **Forks today** `server/actions/forks.ts` callers compute "today" without the Home timezone.
 - **Marked fine revival** A mark comes back if a thing is inserted between a Marked-fine pair and then removed.
 - **Hop modes on duplicate** Duplicating a Trip does not copy Hop modes.
-- **What-if plans and Marked fine** (Cam, 2026-11-18) Hide, then remove, What-if plans; decision pending. Until then Compare shows a What-if plan with one more travel-time warning than the real plan once something is Marked fine, because marks are not copied.
+- **Remove What-if plans** (hidden since 2026-11-18, `WHAT_IF_PLANS_HIDDEN` in `lib/plan-scope.ts`; remove after the Christmas trip). Removal must cover: the `forkId` columns, the fork actions, Compare, the demo seed's "Italy First" Fork, and Fork-owned attachments on Files and in the storage quota. CF-08 (`add_note` / `delete_note` on a Fork) is closed by the hide. The Marked fine copy gap in Compare goes with it.
 
 ## Auth and access
 
