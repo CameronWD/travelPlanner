@@ -94,6 +94,10 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     const stars = xs('[data-layer="stars"] circle', (c) => Number(c.getAttribute("cx")));
     expect(Math.max(...stars)).toBeGreaterThanOrEqual(widestUnits);
   });
+  it("keeps the date and place on one line, so a long place name never pushes the words into the scene", () => {
+    card(wx({ code: 73 }), "regular", { placeName: "Llanfairpwllgwyngyll and Holyhead Ferry Terminal" });
+    expect(screen.getByText(/Sat 12 Dec · Llanfairpwllgwyngyll/)).toHaveClass("truncate");
+  });
   it("rain leans with the day's gusts", () => {
     card(wx({ code: 61, gustsKph: 60 }));
     expect(article().querySelector<HTMLElement>('[data-scene="rain"]')!.style.getPropertyValue("--wx-rain-angle")).toBe("30deg");

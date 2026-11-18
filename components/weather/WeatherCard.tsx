@@ -46,7 +46,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
     className,
   );
   const eyebrow = !compact ? (
-    <p className={cn("text-[11px] font-extrabold uppercase tracking-[0.08em]", tooFar && "text-muted-foreground")}>{dateLabel} · {placeName}</p>
+    <p className={cn("truncate text-[11px] font-extrabold uppercase tracking-[0.08em]", tooFar && "text-muted-foreground")}>{dateLabel} · {placeName}</p>
   ) : null;
 
   if (tooFar) {

@@ -51,10 +51,10 @@ describe("SCATTER_W", () => {
 describe("sceneClip", () => {
   it("leaves the label line out across the whole regular card and the daylight strip out at both sizes", () => {
     const regular = sceneClip("snow", "regular");
-    expect(regular).toMatch(/^polygon\(100% 0%, 100% 72\.88%, /);
+    expect(regular).toMatch(/^polygon\(100% 0%, 100% 70\.34%, /);
     expect(regular).toContain(", 100% 18.22%, ");
     expect(regular).toMatch(/, 100% 0\.00%\)$/);
-    expect(sceneClip("snow", "compact")).toMatch(/^polygon\(100% 0%, 100% 72\.88%, /);
+    expect(sceneClip("snow", "compact")).toMatch(/^polygon\(100% 0%, 100% 70\.34%, /);
   });
   it("steps out past the widest words of each row, in pixels of the canvas", () => {
     const zones = textZones("partly", "compact");

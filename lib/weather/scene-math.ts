@@ -34,16 +34,18 @@ const CANVAS_PX: Record<CardSize, number> = { regular: 232, compact: 136 };
 // - compact, below md: 767px viewport less 2 x 24px page padding = 719px;
 // - regular, md to lg, full width: 1023px less the 96px dock and 2 x 32px padding = 863px.
 // The narrowest: compact on a 320px phone, 288px; regular in the lg side
-// column, (1024 - 96 - 64 - 18) x 5/12 = 352px.
+// column, (1024 - 96 - 64 - 18) x 5/12 = 352px, or about 346px when a
+// classic scrollbar takes 15px of the 1024px window, so 343 to be safe.
 export const CARD_WIDTHS: Record<CardSize, { narrowest: number; widest: number }> = {
-  regular: { narrowest: 352, widest: 863 },
+  regular: { narrowest: 343, widest: 863 },
   compact: { narrowest: 288, widest: 719 },
 };
 export const canvasUnits = (size: CardSize, cardPx: number) => ((cardPx - 4) * SCENE_H) / CANVAS_PX[size];
 export const SCATTER_W = Math.ceil(Math.max(canvasUnits("regular", 863), canvasUnits("compact", 719)) / 20) * 20 + 40;
 
-// The daylight row sits on a plain strip from here down: nothing is drawn in it.
-export const STRIP_TOP = 172;
+// The daylight row sits on a plain strip from here down: nothing is drawn in
+// it. Today's sun marker rides above the compact arc to about 168.
+export const STRIP_TOP = 166;
 
 // Where the card's words sit, in scene units from the canvas's top-left,
 // measured in Chromium and WebKit with the app's fonts and each scene's

@@ -302,7 +302,7 @@ function Town({ buildings, fill, outline }: { buildings: readonly Building[]; fi
   );
 }
 
-const FAR_TOWN: readonly Building[] = [[70, 26, 122, 10], [100, 22, 112, 0], [122, 30, 124, 14], [156, 34, 116, 0], [194, 18, 104, 44], [214, 28, 120, 12]];
+const FAR_TOWN: readonly Building[] = [[74, 26, 122, 10], [100, 22, 112, 0], [122, 30, 124, 14], [156, 34, 116, 0], [194, 18, 104, 44], [214, 28, 120, 12]];
 const NEAR_TOWN: readonly Building[] = [[76, 28, 150, 12], [108, 22, 144, 0], [134, 32, 154, 14], [170, 26, 148, 0], [196, 34, 142, 14], [228, 16, 152, 0]];
 
 const BOLT = "M22 0 L2 38 L18 38 L10 70 L40 26 L24 26 L32 0 Z";
@@ -365,7 +365,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
               <Cutout shape={LONG} fill="wx-cloud" x={560} y={124} s={0.45} shadow={0} outline={false} />
             </Pan>
           </Layer>
-          <Layer name="sun"><Sun cx={184} cy={100} r={30} reach={20} fill="wx-sun-disc" rays={2} /></Layer>
+          <Layer name="sun"><Sun cx={189} cy={96} r={28} reach={18} fill="wx-sun-disc" rays={2} /></Layer>
         </>
       );
     case "partly":
@@ -378,7 +378,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
             </Pan>
           </Layer>
           <Layer name="sun"><Sun cx={182} cy={69} r={14} reach={8} fill="wx-sunny" rays={1} /></Layer>
-          <Layer name="near-cloud"><Cloud shape={LONG} fill="wx-cloud" x={98} y={60} s={0.8} dx={8} seconds={9} /></Layer>
+          <Layer name="near-cloud"><Cloud shape={LONG} fill="wx-cloud" x={106} y={60} s={0.75} dx={8} seconds={9} /></Layer>
         </>
       );
     case "overcast":
@@ -393,13 +393,13 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           </Layer>
           <Layer name="mid-clouds" world moving>
             <Pan tile={640} seconds={70}>
-              <Cutout shape={PUFF} fill="wx-cloud-back" x={120} y={142} s={0.5} shadow={2} />
-              <Cutout shape={LONG} fill="wx-cloud-back" x={400} y={146} s={0.5} shadow={2} />
+              <Cutout shape={PUFF} fill="wx-cloud-back" x={360} y={136} s={0.5} shadow={2} />
+              <Cutout shape={LONG} fill="wx-cloud-back" x={520} y={140} s={0.5} shadow={2} />
             </Pan>
           </Layer>
           <Layer name="near-clouds">
-            <Cloud shape={PUFF} fill="wx-cloud-back" x={92} y={142} s={0.5} shadow={2} dx={-4} seconds={11} />
-            <Cloud shape={PUFF} fill="wx-cloud" x={116} y={46} s={1.2} dx={2} dy={-2} seconds={8} />
+            <Cloud shape={PUFF} fill="wx-cloud-back" x={152} y={136} s={0.5} shadow={2} dx={-4} seconds={11} />
+            <Cloud shape={PUFF} fill="wx-cloud" x={125} y={46} s={1.1} dy={-2} seconds={8} />
           </Layer>
         </>
       );
@@ -416,14 +416,14 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           <Layer name="far-town"><Town buildings={FAR_TOWN} fill="wx-overcast" outline={false} /></Layer>
           <Layer name="mid-fog" world moving>
             <Pan tile={700} seconds={100}>
-              <Pill x={20} y={146} w={240} h={14} fill="wx-cloud-back" outline />
-              <Pill x={380} y={152} w={200} h={14} fill="wx-cloud-back" outline />
+              <Pill x={20} y={140} w={240} h={14} fill="wx-cloud-back" outline />
+              <Pill x={380} y={146} w={200} h={14} fill="wx-cloud-back" outline />
             </Pan>
           </Layer>
           <Layer name="near-town"><Town buildings={NEAR_TOWN} fill="wx-overcast" outline /></Layer>
           <Layer name="near-fog" world moving>
             <Pan tile={560} seconds={60}>
-              <Pill x={30} y={154} w={300} h={16} fill="wx-cloud" outline shadow={2} />
+              <Pill x={340} y={148} w={200} h={14} fill="wx-cloud" outline shadow={2} />
               <Pill x={300} y={108} w={150} h={14} fill="wx-cloud" />
             </Pan>
           </Layer>
@@ -439,7 +439,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
             </Pan>
           </Layer>
           <Layer name="rain" moving><Rain lean={lean} /></Layer>
-          <Layer name="near-cloud"><Cloud shape={HEAVY} fill="wx-cloud" x={101} y={44} s={1.12} dx={-2} dy={2} seconds={10} /></Layer>
+          <Layer name="near-cloud"><Cloud shape={HEAVY} fill="wx-cloud" x={108} y={44} s={1.05} dx={-2} dy={2} seconds={10} /></Layer>
         </>
       );
     case "snow":
@@ -458,8 +458,8 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           </Layer>
           <Layer name="far-hills" world>
             <Still boxes={[[0, 157, WORLD_W, STRIP_TOP - 157]]}>
-              <path d={`${farHills(14, 162, 8)} V${STRIP_TOP} H0 Z`} fill={tok("wx-cloud-back")} />
-              <path d={farHills(14, 162, 8)} fill="none" stroke={INK} strokeWidth={2} />
+              <path d={`${farHills(14, 160, 4)} V${STRIP_TOP} H0 Z`} fill={tok("wx-cloud-back")} />
+              <path d={farHills(14, 160, 4)} fill="none" stroke={INK} strokeWidth={2} />
             </Still>
           </Layer>
           <Layer name="mid-snow" moving>
@@ -468,7 +468,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
             </Drift>
           </Layer>
           <Layer name="near-hill">
-            <Hill from={[60, STRIP_TOP - 1]} control={[170, 160]} to={[244, 124]} fill="wx-cloud" />
+            <Hill from={[60, STRIP_TOP - 1]} control={[180, 162]} to={[244, 124]} fill="wx-cloud" />
             <Tree x={200} base={146} s={1} />
             <Tree x={226} base={136} s={0.72} />
           </Layer>
@@ -491,14 +491,14 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           </Layer>
           <Layer name="rain" moving><Rain lean={lean} front={RAIN_FRONT.filter((_, i) => i % 2 === 0)} back={RAIN_BACK.filter((_, i) => i % 2 === 1)} /></Layer>
           <Layer name="bolt">
-            <Still boxes={[[150, 108, 40 * 0.8 + 4, 70 * 0.8 + 4]]}>
-              <g transform="translate(150 108) scale(0.8)">
+            <Still boxes={[[150, 104, 40 * 0.8 + 4, 70 * 0.8 + 4]]}>
+              <g transform="translate(150 104) scale(0.8)">
                 <path d={BOLT} fill={INK} transform="translate(3 3)" />
                 <path d={BOLT} fill={tok("wx-sunny")} stroke={INK} strokeWidth={2} strokeLinejoin="round" />
               </g>
             </Still>
           </Layer>
-          <Layer name="near-cloud"><Cloud shape={HEAVY} fill="wx-cloud-storm" x={101} y={44} s={1.12} dx={-2} dy={2} seconds={9} /></Layer>
+          <Layer name="near-cloud"><Cloud shape={HEAVY} fill="wx-cloud-storm" x={111} y={44} s={1.02} dx={-2} dy={2} seconds={9} /></Layer>
         </>
       );
     case "wind":
@@ -512,8 +512,8 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           <Layer name="near-cloud"><Cloud shape={PUFF} fill="wx-cloud" x={124} y={48} s={1} dx={-14} seconds={4} /></Layer>
           <Layer name="near-gusts" world moving>
             <g fill="none" strokeLinecap="round">
-              <Pan tile={700} seconds={7}><Streak x={60} y={146} len={190} width={3} /></Pan>
-              <Pan tile={820} seconds={4.5}><Streak x={380} y={152} len={240} width={4} /></Pan>
+              <Pan tile={700} seconds={7}><Streak x={300} y={143} len={190} width={3} /></Pan>
+              <Pan tile={820} seconds={4.5}><Streak x={560} y={146} len={240} width={4} /></Pan>
             </g>
           </Layer>
         </>
@@ -524,7 +524,7 @@ function draw(scene: SceneKey, lean: number): ReactNode {
           <Layer name="sun"><Sun cx={196} cy={69} r={14} reach={8} fill="wx-sunny" rays={2} /></Layer>
           <Layer name="shimmer" world moving>
             <g fill="none" stroke={tok("wx-partly")} strokeWidth={3} strokeLinecap="round" strokeDasharray="46 38">
-              {[[146, 3.2, 0], [156, 4.4, 30], [166, 5.6, 60]].map(([y, s, offset]) => (
+              {[[140, 3.2, 0], [149, 4.4, 30], [158, 5.6, 60]].map(([y, s, offset]) => (
                 <Pan key={y} tile={80} seconds={s}><path d={`M0 ${y} q10 -5 20 0 t20 0 t20 0 t20 0`} strokeDashoffset={offset} /></Pan>
               ))}
             </g>
