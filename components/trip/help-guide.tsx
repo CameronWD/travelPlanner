@@ -969,7 +969,7 @@ export function HelpGuide({
               when it came to something else.{" "}
               <strong className="font-semibold">Add a cost</strong> is for money
               that isn&rsquo;t attached to anything on the plan: insurance,
-              visas, a travel SIM, spending money. Both belong to the real plan.
+              visas, a travel SIM, spending money.
             </p>
           </Section>
 
@@ -1114,10 +1114,8 @@ export function HelpGuide({
               </li>
             </ul>
             <p>
-              Two things worth knowing.{" "}
-              <strong className="font-semibold">Find</strong> only ever searches
-              the real plan. And Find
-              needs a signal: offline it says{" "}
+              <strong className="font-semibold">Find</strong> needs a signal:
+              offline it says{" "}
               <strong className="font-semibold">
                 Search needs a connection
               </strong>

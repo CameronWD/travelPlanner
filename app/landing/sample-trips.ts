@@ -68,6 +68,6 @@ export const SAMPLE_TRIPS: SampleTrip[] = [
     date: "Sat 13 Jun",
     plan: [{ time: "09:30", what: "Ferry to Bellagio" }, { time: "13:00", what: "Il Gatto Nero" }, { time: "17:00", what: "Swim at the lido" }],
     spend: "Ferry tickets", amount: "€27.60", owes: "Mia owes you €13.80",
-    who: ["MR", "JM"], note: ["Mia added", "“Lakes, slower”"], wish: "Villa del Balbianello", hearts: 2,
+    who: ["MR", "JM"], note: ["Mia added", "“Lakes swim day”"], wish: "Villa del Balbianello", hearts: 2,
   },
 ];

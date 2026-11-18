@@ -185,11 +185,7 @@ describe("HelpGuide", () => {
     expect(body).toContain("Go to");
     expect(body).toContain("Find");
     expect(body).toContain("connection");
-    // The section's most load-bearing claim: server/actions/search.ts scopes
-    // every Find query with REAL_PLAN, so nothing that lives only inside a
-    // what-if plan can come back. Without this the sentence could be deleted
-    // and the test would still pass under its own name.
-    expect(body).toContain("only ever searches the real plan");
+    expect(body).toContain("needs a signal");
   });
 
   it("never calls Search a command palette", () => {
