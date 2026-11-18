@@ -640,7 +640,7 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
 
     const headings = [...dom.querySelectorAll("h2, h3")].map((h) => h.textContent?.trim());
-    expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today's plan", "Where you are"]);
+    expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today's plan", "Tonight's stay", "Where you are"]);
 
     for (const text of ["Today's plan", "Where you are"]) {
       const h = [...dom.querySelectorAll("h3")].find((el) => el.textContent?.trim() === text)!;

@@ -7,7 +7,7 @@ export interface MarkedFineRow {
   createdAt: Date;
 }
 
-export type MarkedFineFlag<F extends Flag = Flag> = F & { markedByName: string; markedAt: Date };
+type MarkedFineFlag<F extends Flag = Flag> = F & { markedByName: string; markedAt: Date };
 
 export interface MarkedFineSplit<F extends Flag = Flag> {
   shown: F[];

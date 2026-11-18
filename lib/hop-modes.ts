@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { hopModeKey, type HopModeChoice } from "@/lib/travel-times/hops";
 
-export { hopModeKey, type HopModeChoice };
+export type { HopModeChoice };
 
 export async function loadHopModes(tripId: string): Promise<Map<string, HopModeChoice>> {
   const rows = await db.hopMode.findMany({ where: { tripId }, select: { fromItemId: true, toItemId: true, mode: true } });

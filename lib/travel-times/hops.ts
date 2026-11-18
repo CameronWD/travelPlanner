@@ -37,10 +37,10 @@ export type ResolvedHop = {
 // Items are read in this order wherever hops are built: dayHops breaks equal start times by input order.
 export const ITEM_HOP_ORDER = [{ date: "asc" }, { startTime: "asc" }, { sortOrder: "asc" }, { id: "asc" }] as const;
 
-export const WALK_ROW_UNDER_KM = 3;
-export const MAX_REAL_WALK_MIN = 20;
-export const WALK_ABOUT_AS_QUICK_MIN = 5;
-export const WALK_STOP_MAX_MIN = 30;
+const WALK_ROW_UNDER_KM = 3;
+const MAX_REAL_WALK_MIN = 20;
+const WALK_ABOUT_AS_QUICK_MIN = 5;
+const WALK_STOP_MAX_MIN = 30;
 const ESTIMATE_WALK_KMH = 4.5;
 const ESTIMATE_MAX_WALK_MIN = 30;
 const TRANSIT_SLOT_MS = 15 * 60_000;

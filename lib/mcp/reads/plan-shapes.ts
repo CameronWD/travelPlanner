@@ -61,7 +61,7 @@ export interface McpAccommodation {
   files: McpFileRef[];
 }
 
-export interface McpEndsAt {
+interface McpEndsAt {
   address: string;
   lat: number | null;
   lng: number | null;

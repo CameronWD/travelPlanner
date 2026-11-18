@@ -240,7 +240,7 @@ type DayHopInput = {
 };
 
 /** Each consecutive located pair on the Day map, with its resolved travel when the pair is a planned hop. One source for the map and the Claude connection. */
-export function resolvedDayHops(
+function resolvedDayHops(
   model: DayMapModel,
   input: DayHopInput,
 ): { fromId: string; toId: string; resolved: ResolvedHop | null; forced: HopModeChoice | undefined }[] {

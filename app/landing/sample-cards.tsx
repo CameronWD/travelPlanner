@@ -179,7 +179,7 @@ export function CollageCards() {
           <FrontCard trip={trip} size="desktop" onShuffle={() => void shuffle()} />
         </div>
         <div ref={pieceRef("train")} data-piece="train" aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[360px] z-30 flex justify-center">
-          <Badge variant="sun" className="tp-card-in px-3.5 py-2 text-xs shadow-hard-2" style={entrance(-4, 2, 610)}>
+          <Badge variant="sun" className="tp-card-in px-3.5 py-2 text-xs shadow-hard-2 lg:px-3.5" style={entrance(-4, 2, 610)}>
             <ArrowRight />
             {trip.leg}
           </Badge>
@@ -255,7 +255,7 @@ export function PhoneSampleCards() {
           <FrontCard trip={trip} size="phone" onShuffle={() => void shuffle()} />
         </div>
         <div ref={pieceRef("train")} data-piece="train" aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[166px] z-30 flex justify-center">
-          <Badge variant="sun" className="tp-card-in px-2.5 py-1 text-[11px] shadow-hard-1" style={entrance(-4, 3, 610)}>
+          <Badge variant="sun" className="tp-card-in px-2.5 py-1 text-[11px] shadow-hard-1 lg:text-[11px]" style={entrance(-4, 3, 610)}>
             <ArrowRight />
             {trip.leg}
           </Badge>

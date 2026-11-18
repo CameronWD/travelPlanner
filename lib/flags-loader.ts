@@ -358,7 +358,7 @@ export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[]
   return splitFlagsForRows(rows, projection).shown;
 }
 
-export function splitFlagsForRows(rows: FlagRows, projection: TripProjection): MarkedFineSplit {
+function splitFlagsForRows(rows: FlagRows, projection: TripProjection): MarkedFineSplit {
   return splitFlagsFromRows({
     trip: rows.trip,
     allStops: rows.allStops,

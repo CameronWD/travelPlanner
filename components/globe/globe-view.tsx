@@ -109,10 +109,10 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <Badge variant="lilac" className="min-h-7 px-2.5 py-1 text-[11px]">
+        <Badge variant="lilac" className="min-h-7 px-2.5 py-1 text-[11px] lg:text-[11px]">
           {countryCount} {countryCount === 1 ? "country" : "countries"}
         </Badge>
-        <Badge variant="coral" className="min-h-7 px-2.5 py-1 text-[11px]">
+        <Badge variant="coral" className="min-h-7 px-2.5 py-1 text-[11px] lg:text-[11px]">
           {markers.length} {markers.length === 1 ? "marker" : "markers"}
         </Badge>
       </div>

@@ -205,7 +205,7 @@ export async function PhaseTravelling({
       {/* Tonight's accommodation (kit "Tonight" card on the stay fill), with
           the Day view Tonight card's details shown open. */}
       {tonightAccom && (
-        <StayCard data-testid="tonights-stay" label="Tonight's stay" icon={Bed} name={tonightAccom.name}>
+        <StayCard data-testid="tonights-stay" label="Tonight's stay" labelAs="h3" icon={Bed} name={tonightAccom.name}>
           {tonightAccom.address && (
             <a
               href={mapsUrl({ lat: tonightAccom.lat, lng: tonightAccom.lng, address: tonightAccom.address, label: tonightAccom.name, placeId: tonightAccom.placeId }) ?? undefined}

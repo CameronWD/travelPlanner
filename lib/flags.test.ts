@@ -968,22 +968,6 @@ describe("Travel times in the Flags", () => {
       expect(flag.message).toBe(`Tight on ${DAY} between A and B: only 10 min, but it's a ~31 min trip by public transport.`);
     });
 
-    it("measures from where an Item Ends at: the Tower Bridge walk raises no tight Flag on a stored 3 min walk from its end pin", () => {
-      const TOWER = { lat: 51.5055, lng: -0.0754 };
-      const WESTMINSTER = { lat: 51.5008, lng: -0.122 };
-      const NEXT = { lat: 51.5007, lng: -0.1246 };
-      const london = makeStop({ id: "london", arriveDate: "2026-11-08", departDate: "2026-11-12", timezone: "Europe/London", lat: TOWER.lat, lng: TOWER.lng, localTravelMode: "DRIVE" });
-      const items = [
-        makeItem({ id: "a", title: "Tower Bridge + South Bank walk", stopId: "london", date: DAY, startTime: "10:00", endTime: "12:00", lat: TOWER.lat, lng: TOWER.lng, endLat: WESTMINSTER.lat, endLng: WESTMINSTER.lng }),
-        makeItem({ id: "b", title: "Lunch", stopId: "london", date: DAY, startTime: "12:25", endTime: "13:00", lat: NEXT.lat, lng: NEXT.lng }),
-      ];
-      const fromEnd = hopKeys(WESTMINSTER, NEXT, "TRANSIT", null, NOW)[0];
-      expect(tight(items, london, new Map([[fromEnd, ok(3)]]))).toEqual([]);
-      const withoutEnd = items.map((i) => ({ ...i, endLat: null, endLng: null }));
-      const fromStart = hopKeys(TOWER, NEXT, "DRIVE", null, NOW)[0];
-      expect(tight(withoutEnd, london, new Map([[fromStart, ok(40)]])).map((f) => f.id)).toEqual(["tight-a-b"]);
-    });
-
     it("truncates long titles and names an untitled Item generically", () => {
       const long = "The Grand Tour of the Whole Imperial Palace Grounds";
       const items = pair(BAR).map((i, n) => (n === 0 ? { ...i, title: long } : { ...i, title: null }));

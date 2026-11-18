@@ -36,7 +36,7 @@ const CURRENCY_DECIMALS: Record<string, number> = {
 // IDR is stored with 2 decimals; shown whole. Display only: stored amounts and decimalsFor stay as they are.
 const WHOLE_UNIT_DISPLAY = new Set(["IDR"]);
 
-function displayDecimals(currency: string): number {
+export function displayDecimals(currency: string): number {
   return WHOLE_UNIT_DISPLAY.has(currency.toUpperCase()) ? 0 : decimalsFor(currency);
 }
 

@@ -751,7 +751,7 @@ export function isTightFlag(flag: Flag): flag is TightFlag {
 
 const TIGHT_PREFIX = "tight-";
 
-export function tightFlagId(prevId: string, nextId: string): string {
+function tightFlagId(prevId: string, nextId: string): string {
   return `${TIGHT_PREFIX}${prevId}-${nextId}`;
 }
 
@@ -765,7 +765,7 @@ export function tightFlagItems(flagId: string): { fromItemId: string; toItemId: 
 
 type FingerprintItem = Pick<FlagItem, "date" | "startTime" | "endTime" | "lat" | "lng" | "endLat" | "endLng">;
 
-export function tightFingerprint(
+function tightFingerprint(
   prev: FingerprintItem,
   next: FingerprintItem,
   hop: Pick<ResolvedHop, "minutes" | "estimated" | "mode">,

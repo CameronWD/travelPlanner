@@ -1,7 +1,4 @@
-import { decimalsFor, formatMoney } from "@/lib/money/money";
-
-/** Stored with two decimals (ISO 4217) but never shown with cents. */
-const NO_CENTS_DISPLAY = new Set(["IDR"]);
+import { decimalsFor, displayDecimals, formatMoney } from "@/lib/money/money";
 
 /**
  * The Cost tile's total as two spans (MONEY.md §3): "$14,820" and ".40".
@@ -15,7 +12,7 @@ export function formatMoneyParts(
 ): { whole: string; fraction: string | null } {
   const code = currency.toUpperCase();
   const decimals = decimalsFor(code);
-  const shown = NO_CENTS_DISPLAY.has(code) ? 0 : decimals;
+  const shown = displayDecimals(code);
   try {
     const parts = new Intl.NumberFormat(locale, {
       style: "currency",

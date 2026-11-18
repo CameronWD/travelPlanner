@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 
 export function StayCard({
   label,
+  labelAs: Label = "span",
   icon: Icon,
   name,
   children,
@@ -11,6 +12,7 @@ export function StayCard({
   ...rest
 }: {
   label: string;
+  labelAs?: "h3" | "span";
   icon: LucideIcon;
   name: ReactNode;
   children?: ReactNode;
@@ -26,7 +28,7 @@ export function StayCard({
         className="flex items-center gap-2 bg-lilac px-4 py-1.5 text-on-accent"
       >
         <Icon className="size-4 shrink-0" strokeWidth={2.5} aria-hidden="true" />
-        <span className="text-[11px] font-extrabold uppercase tracking-[0.08em]">{label}</span>
+        <Label className="text-[11px] font-extrabold uppercase leading-[inherit] tracking-[0.08em] text-inherit [font-family:inherit]">{label}</Label>
       </div>
       <div data-slot="stay-body" className="flex flex-col gap-1 bg-hue-lilac/25 px-4 py-3 text-foreground">
         <div className="font-display text-[20px] font-extrabold leading-tight">{name}</div>
