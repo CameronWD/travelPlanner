@@ -821,8 +821,9 @@ export function HelpGuide({
               you&rsquo;re sleeping), and your Journal box, with{" "}
               <strong className="font-semibold">Add to this day</strong> at the
               top for something new.{" "}
-              <strong className="font-semibold">Show day map</strong> draws the
-              day as a route and hands it to your phone&rsquo;s maps app.
+              <strong className="font-semibold">Day map</strong>, a button in the
+              Day plan&rsquo;s header, opens the day&rsquo;s places as a route in a
+              dialog (full screen on a phone).
             </p>
             <p>
               The day you swap places shows under both stops&rsquo; cards on the{" "}
