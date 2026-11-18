@@ -178,7 +178,7 @@ describe("HelpGuide", () => {
     expect(shape).toMatch(/turn(ed)? (them )?on|switch (them )?on|Group into chapters/);
   });
 
-  it("documents Search, including that Find is real-plan only", () => {
+  it("documents Search, including that Find needs a signal", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#search")?.textContent ?? "";
     expect(body).toContain("Search or jump");

@@ -41,7 +41,7 @@ Paths marked A: are under `docs/archive/`.
 - **Forks today** `server/actions/forks.ts` callers compute "today" without the Home timezone.
 - **Marked fine revival** A mark comes back if a thing is inserted between a Marked-fine pair and then removed.
 - **Hop modes on duplicate** Duplicating a Trip does not copy Hop modes.
-- **Remove What-if plans** (hidden since 2026-11-18, `WHAT_IF_PLANS_HIDDEN` in `lib/what-if.ts`, re-exported from `lib/plan-scope.ts`; remove after the Christmas trip). Bringing the feature back is a revert of the `chore/hide-what-if` branch, not only flipping the constant: the guide, What's new, landing and MCP wording were removed outright.. Removal must cover: the `forkId` columns, the fork actions, Compare, the demo seed's "Italy First" Fork, and Fork-owned attachments on Files and in the storage quota. CF-08 (`add_note` / `delete_note` on a Fork) is closed by the hide. The Marked fine copy gap in Compare goes with it.
+- **Remove What-if plans** (hidden since 2026-11-18, `WHAT_IF_PLANS_HIDDEN` in `lib/what-if.ts`, re-exported from `lib/plan-scope.ts`; remove after the Christmas trip). Bringing the feature back is a revert of the `chore/hide-what-if` branch, not only flipping the constant: the guide, What's new, landing and MCP wording were removed outright. Removal must cover: the `forkId` columns, the fork actions, Compare, the demo seed's "Italy First" Fork, and Fork-owned attachments on Files and in the storage quota. CF-08 (`add_note` / `delete_note` on a Fork) is closed by the hide. The Marked fine copy gap in Compare goes with it.
 
 ## Auth and access
 
