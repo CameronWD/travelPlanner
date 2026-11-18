@@ -86,3 +86,14 @@ inner scroll").
   carousel marks it `data-tall` and it scrolls with the page instead of hiding its foot.
 - Below `lg` nothing changes: three panels, finger tracking, the glide, and everything in
   the Decision and Consequences above.
+
+What was built from `lg` up (spec 2026-11-18 D1, D2):
+
+- One day on a wide screen, scrolling with the page, with the right column sticky.
+- The Day strip is the carousel there: a fixed centre frame holds the shown day while the
+  strip glides beneath it (about 250 ms), with an arrow at each end. The frame fades while
+  the shown day is off-centre, and the strip returns to the shown day after about 1.5 s of
+  quiet.
+- A day change made inside the app crossfades in about 150 ms; browser back and forward cut.
+- A neighbour panel never opens its own Day map: only the day shown mounts the dialog, so
+  the phone carousel's three panels do not stack three dialogs.

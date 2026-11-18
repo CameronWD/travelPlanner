@@ -757,6 +757,25 @@ left room.
     3. Both modes then fetch Google's public holiday feeds for every country
        the Trips touch. The feeds are public: no key, no quota.
 
+## 4k. 2026-11-18 Desktop polish and travel warnings (`feat/desktop-polish-travel-warnings`) — deploy order
+
+This branch carries one migration:
+
+- `prisma/migrations/20261118120000_hop_mode_ends_at_marked_fine` — adds nullable
+  columns to `Item` (the Ends at place) and two new tables, `HopMode` and
+  `FlagDismissal`.
+
+Applying it under the old build is safe: the columns are nullable and the tables
+are new, so the code already running neither selects nor writes them. The reverse
+is the risk. Beta and previews share the production database (§4d) and do not run
+migrations, so new code on either reads the new `Item` columns and the new tables
+before they exist, and Trip pages and plan edits fail with P2022 or a missing table
+until production has migrated.
+
+**Deploy `main` first, confirm the migration applied (the production build log shows
+`migrate deploy`), and only then push `beta`.** Do not push `main` and `beta`
+together, and do not let a preview of this branch run before `main` has deployed.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:

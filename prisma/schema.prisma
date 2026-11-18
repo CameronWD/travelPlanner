@@ -655,7 +655,7 @@ model Stop {
   chapterId        String? // explicit chapter membership while rough
   chapterSortOrder Int     @default(0) // order within the chapter while rough
   notes            String?
-  localTravelMode  String? // "DRIVE" | "TRANSIT" — how Items here are reached beyond a walk; null = inferred
+  localTravelMode  String? // "DRIVE" | "TRANSIT" | "WALK" — how Items here are reached beyond a walk; null = inferred
 
   // CONTEXT.md "Surprise" (spec 2026-10-12-tc-12). Null plannerId = not a
   // Surprise. forIds is a JSON array of User ids (schema convention: JSON as
@@ -830,8 +830,8 @@ model Item {
   countryCode      String? // ISO 3166-1 alpha-2, lowercase, derived by geocoding — same as Stop/Marker
   address          String?
   placeId          String? // Google place ID — set by a pick or the backfill
-  // Spec 2026-11-18 T3: an optional end pin for a one-way thing (a hike or
-  // drive that finishes somewhere else). Null = the thing ends where it starts.
+  // Spec 2026-11-18 T4: an optional end pin for a one-way thing (a walk or
+  // wander that finishes somewhere else). Null = the thing ends where it starts.
   endAddress       String?
   endLat           Float?
   endLng           Float?
