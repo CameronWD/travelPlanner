@@ -28,6 +28,7 @@ import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
 import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks } from "@/lib/trip-shell-reads";
 import { computeTripPhase, showForkSwitcher } from "@/lib/trip-phase";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 import { showsPortraitCoverFrame } from "@/lib/cover";
 import { PortraitCoverFrame } from "@/components/trip/home/portrait-cover-frame";
 import { TripHomeOnly } from "@/components/trip/trip-home-only";
@@ -71,7 +72,7 @@ export default async function TripLayout({
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
     // Plan variants off (spec B3): no switcher, so no need to list Forks.
-    shellPromise.then((shell) => (shell?.forksEnabled ? readForks(tripId) : [])),
+    shellPromise.then((shell) => (shell?.forksEnabled && !WHAT_IF_PLANS_HIDDEN ? readForks(tripId) : [])),
     // The offline warm list (ADR 0043): newest first and capped, so a Trip
     // with hundreds of files doesn't ship them all to every page render.
     // tripOfflinePaths still applies the 200 MB budget on top. Chains on the

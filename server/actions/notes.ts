@@ -9,6 +9,7 @@ import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 
 /**
  * ARCH-TEN-9: targetType → RowKind for the four kinds requireRowAccess
@@ -47,6 +48,23 @@ export type NoteActionResult = ActionResult;
 async function requireNoteAccess(noteId: string) {
   const { row, surpriseOf } = await requireRowAccess("note", noteId);
   return { ...row, surpriseOf };
+}
+
+// A Note whose target row is gone is an orphan and stays deletable.
+async function forkOfNoteTarget(targetType: string, targetId: string): Promise<{ forkId: string | null } | null> {
+  const args = { where: { id: targetId }, select: { forkId: true } };
+  switch (targetType) {
+    case "STOP":
+      return db.stop.findUnique(args);
+    case "ITEM":
+      return db.item.findUnique(args);
+    case "TRANSPORT":
+      return db.transport.findUnique(args);
+    case "ACCOMMODATION":
+      return db.accommodation.findUnique(args);
+    default:
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +120,10 @@ export async function addNote(
  */
 export async function deleteNote(noteId: string): Promise<NoteActionResult> {
   const note = await requireNoteAccess(noteId);
+  if (WHAT_IF_PLANS_HIDDEN) {
+    const target = await forkOfNoteTarget(note.targetType, note.targetId);
+    if (target?.forkId) notFound();
+  }
 
   await db.note.delete({ where: { id: noteId } });
   await recordActivity({ tripId: note.tripId, verb: "DELETED", entityType: "NOTE", entityId: noteId, entityLabel: "note", surpriseOf: note.surpriseOf });

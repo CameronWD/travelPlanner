@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
-import { WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 import { updateTrip, setForksEnabled, type UpdateTripResult } from "@/server/actions/trips";
 import { tripPath } from "@/lib/trip-path";
 import { CURRENCIES } from "@/lib/money/currencies";

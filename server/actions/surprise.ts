@@ -16,6 +16,7 @@ import { TRAVELLER_SELECT, travellerFirstName } from "@/lib/traveller";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { type ActionResult, fail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 
 export type SurpriseKind = "STOP" | "ITEM";
 
@@ -44,7 +45,7 @@ async function writeColumns(kind: SurpriseKind, id: string, data: SurpriseWrite)
 /** Make a Stop or Item a Surprise, or (planner only) change who it surprises. `forIds` defaults to everyone else on the Trip. */
 export async function setSurprise(input: { kind: SurpriseKind; id: string; forIds?: string[] }): Promise<ActionResult> {
   const row = await loadRow(input.kind, input.id);
-  if (!row) notFound();
+  if (!row || (WHAT_IF_PLANS_HIDDEN && row.forkId)) notFound();
   const { user } = await requireTripAccess(row.tripId);
   if (row.enclosingStopId) await requireOutsideSurprise(user.id, { stopId: row.enclosingStopId });
 
@@ -97,7 +98,7 @@ export async function setSurprise(input: { kind: SurpriseKind; id: string; forId
 /** The planner reveals their Surprise: one line in the feed, unstamped unless an Item's Stop is still a Surprise. */
 export async function revealSurprise(input: { kind: SurpriseKind; id: string }): Promise<ActionResult> {
   const row = await loadRow(input.kind, input.id);
-  if (!row) notFound();
+  if (!row || (WHAT_IF_PLANS_HIDDEN && row.forkId)) notFound();
   const { user } = await requireTripAccess(row.tripId);
   if (surpriseState(row, row.over, new Date()) !== "live") return fail({ _: ["This isn't a surprise."] });
   if (row.surprisePlannerId !== user.id) return fail({ _: ["Only the planner can reveal a surprise."] });

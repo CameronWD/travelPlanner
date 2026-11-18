@@ -451,7 +451,7 @@ describe("What-if plans hidden", () => {
   });
 
   it("getComparison answers not-found and reads no Forks", async () => {
-    await expect(getComparison("trip-1")).rejects.toThrow();
+    await expect(getComparison("trip-1")).rejects.toMatchObject({ digest: expect.stringContaining("404") });
     expect(forkFindManyMock).not.toHaveBeenCalled();
   });
 });

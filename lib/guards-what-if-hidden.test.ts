@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { authMock, memberMock, forkFindUniqueMock, forkFindFirstMock, tripFindUniqueMock, itemFindUniqueMock } = vi.hoisted(() => ({
+const { noteFindUniqueMock, reminderFindUniqueMock, checklistItemFindUniqueMock, authMock, memberMock, forkFindUniqueMock, forkFindFirstMock, tripFindUniqueMock, itemFindUniqueMock } = vi.hoisted(() => ({
+  noteFindUniqueMock: vi.fn(),
+  reminderFindUniqueMock: vi.fn(),
+  checklistItemFindUniqueMock: vi.fn(),
   authMock: vi.fn(),
   memberMock: vi.fn(),
   forkFindUniqueMock: vi.fn(),
@@ -16,6 +19,9 @@ vi.mock("@/lib/db", () => ({
     fork: { findUnique: forkFindUniqueMock, findFirst: forkFindFirstMock },
     trip: { findUnique: tripFindUniqueMock },
     item: { findUnique: itemFindUniqueMock },
+    note: { findUnique: noteFindUniqueMock },
+    reminder: { findUnique: reminderFindUniqueMock },
+    checklistItem: { findUnique: checklistItemFindUniqueMock },
   },
 }));
 vi.mock("@/lib/surprise-guard", () => ({ requireOutsideSurprise: vi.fn() }));
@@ -76,5 +82,15 @@ describe("What-if plans hidden (guards)", () => {
     await expect(requireRowAccess("item", "fork-item")).rejects.toThrow("NEXT_NOT_FOUND");
     const real = await requireRowAccess("item", "real-item");
     expect(real.row.id).toBe("real-item");
+  });
+
+  it("note, reminder and checklistItem lookups keep where: { id } (no forkId column)", async () => {
+    asMember();
+    const mocks = { note: noteFindUniqueMock, reminder: reminderFindUniqueMock, checklistItem: checklistItemFindUniqueMock };
+    for (const [kind, m] of Object.entries(mocks)) {
+      m.mockResolvedValue({ id: "x1", tripId: "trip-1", authorId: "u1", targetType: "STOP", targetId: "s1" });
+      await requireRowAccess(kind as keyof typeof mocks, "x1");
+      expect(m).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "x1" } }));
+    }
   });
 });

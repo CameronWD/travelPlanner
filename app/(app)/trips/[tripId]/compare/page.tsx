@@ -11,7 +11,7 @@ import { tripPath } from "@/lib/trip-path";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { comparePlansMeta } from "@/lib/page-meta";
-import { WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
+import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 
 export const metadata: Metadata = { title: "Compare plans" };
 
@@ -22,8 +22,6 @@ export default async function ComparePage({
 }) {
   const { tripId } = await params;
 
-  if (WHAT_IF_PLANS_HIDDEN) redirect(tripPath(await tripSlugFor(tripId), "/plan"));
-
   // getComparison enforces requireTripAccess internally; calling it again
   // here is free (cache()-memoised per tripId, see lib/guards.ts) and is how
   // we get the membership role to gate the Promote control (ARCH-DAT-1b:
@@ -31,6 +29,8 @@ export default async function ComparePage({
   // the real access control, this only drives whether the button renders).
   const { user, membership } = await requireTripAccess(tripId);
   const isOwner = isTripOwnerOrAdmin(membership, user.email);
+
+  if (WHAT_IF_PLANS_HIDDEN) redirect(tripPath(await tripSlugFor(tripId), "/plan"));
 
   const [data, shell, slug] = await Promise.all([
     getComparison(tripId),
