@@ -68,6 +68,8 @@ describe("DayHeader", () => {
     expect(bar.querySelector('[aria-label="Switch trip"]')).not.toBeNull();
     const bell = bar.querySelector('[aria-label="Notifications"]') as HTMLElement;
     expect(bell.parentElement!.className).toContain("lg:hidden");
+    expect(bell.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex", "items-center", "gap-2.5"]));
+    expect(bell.parentElement).toContainElement(screen.getAllByRole("button", { name: "Share" })[0]);
     expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(3);
   });
   it("travelling: the switcher, Share and bell row is hidden on a phone and unchanged from md up", () => {
@@ -128,7 +130,14 @@ describe("DayHeader", () => {
       expect(title).toHaveTextContent("");
       const subs = document.querySelectorAll('[data-slot="day-sub-line"]');
       expect(subs).toHaveLength(2);
-      for (const s of Array.from(subs)) expect(s.className).toContain("h-5");
+      for (const s of Array.from(subs)) expect(s.className.split(/\s+/)).toContain("min-h-5");
+    });
+    it("a long sub-line wraps to a centred second line instead of cutting off", () => {
+      render(<DayHeader {...base} {...variants[2]} />);
+      for (const s of Array.from(document.querySelectorAll('[data-slot="day-sub-line"]'))) {
+        expect(s.className.split(/\s+/)).not.toContain("truncate");
+        expect(s.className.split(/\s+/)).toContain("text-center");
+      }
     });
     it("only the ghost and the date size the block: text lines are w-0 min-w-full, and the block never shrinks at md+", () => {
       render(<DayHeader {...base} {...variants[2]} />);
