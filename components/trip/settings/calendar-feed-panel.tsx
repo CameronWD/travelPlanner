@@ -12,6 +12,7 @@ import {
 } from "@/server/actions/calendar-feed";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toastRejected } from "@/components/ui/action-failure";
+import { useOrigin } from "@/lib/use-origin";
 
 const FEED_FAILED = "Couldn't update the calendar feed. Try again.";
 
@@ -83,13 +84,10 @@ export function CalendarFeedPanel({
     });
   };
 
+  const origin = useOrigin();
   const path = token ? `/api/calendar/${token}` : null;
-  const httpsUrl =
-    path && typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
-  const webcalUrl =
-    path && typeof window !== "undefined"
-      ? `webcal://${window.location.host}${path}`
-      : null;
+  const httpsUrl = path && `${origin}${path}`;
+  const webcalUrl = path && origin ? `webcal://${origin.replace(/^https?:\/\//, "")}${path}` : null;
 
   const handleCreate = () =>
     startTransition(async () => {

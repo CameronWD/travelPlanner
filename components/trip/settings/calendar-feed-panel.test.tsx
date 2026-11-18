@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { CalendarFeedPanel } from "./calendar-feed-panel";
 
 vi.mock("@/server/actions/calendar-feed", () => ({
@@ -24,6 +25,19 @@ import {
 describe("CalendarFeedPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("prints the same feed address on the server and in the first client render, then the full one", () => {
+    const panel = (
+      <CalendarFeedPanel
+        tripId="trip-1"
+        initialToken="tok-abc"
+        initialFilter={{ includeTransport: true, includeAccommodation: true, includeActivities: true }}
+      />
+    );
+    expect(renderToString(panel)).toContain(">/api/calendar/tok-abc<");
+    render(panel);
+    expect(screen.getByText(`${window.location.origin}/api/calendar/tok-abc`)).toBeInTheDocument();
   });
 
   it("LA-140: the feed actions wrap as pairs so Revoke never drops to a line of its own", () => {

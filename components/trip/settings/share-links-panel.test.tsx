@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ShareLinkView } from "@/server/actions/share";
@@ -50,6 +51,13 @@ beforeEach(() => {
 });
 
 describe("ShareLinksPanel", () => {
+  it("prints the same link text on the server and in the first client render, then the full address", () => {
+    const panel = <ShareLinksPanel tripId="t" initialLinks={[link()]} />;
+    expect(renderToString(panel)).toContain(">/share/tok-1<");
+    render(panel);
+    expect(screen.getByText(`${window.location.origin}/share/tok-1`)).toBeInTheDocument();
+  });
+
   it("renders each link with its label and scope caption", () => {
     render(
       <ShareLinksPanel

@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toastRejected } from "@/components/ui/action-failure";
 import { shareUrl } from "@/lib/share/share-url";
+import { useOrigin } from "@/lib/use-origin";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).
@@ -165,10 +166,11 @@ function TravellersDial({
 
 function CopyUrlBar({ token }: { token: string }) {
   const [copied, setCopied] = React.useState(false);
+  const origin = useOrigin();
   return (
     <div className="flex items-center gap-2">
       <span className="min-w-0 flex-1 truncate rounded-[10px] border border-border px-3 py-2 font-mono text-xs text-muted-foreground">
-        {shareUrl(token)}
+        {`${origin}/share/${token}`}
       </span>
       <Button
         type="button"
