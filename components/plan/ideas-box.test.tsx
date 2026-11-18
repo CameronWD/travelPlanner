@@ -232,6 +232,9 @@ describe("IdeasBox, Surprise ideas (CONTEXT.md Surprise)", () => {
     expect(screen.getByRole("button", { name: "+ Add an idea" }).className).toContain("lg:hidden");
     const card = screen.getByRole("button", { name: "Add an idea" });
     expect(card.className).toContain("border-dashed");
+    const box = card.closest("[class*='rounded-[14px]']") as HTMLElement;
+    expect(box.className).toContain("border-dashed");
+    expect(box.className).toContain("lg:border-solid");
     await userEvent.click(card);
     expect(onAdd).toHaveBeenCalled();
   });

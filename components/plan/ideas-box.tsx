@@ -137,7 +137,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
   return (
     <div
       className={cn(
-        "relative flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 [contain:size]",
+        "relative flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 lg:border-solid [contain:size]",
         ideas.length > 0 ? "min-h-[74px] lg:min-h-[120px]" : "min-h-[42px] lg:min-h-[56px]",
         className,
       )}
