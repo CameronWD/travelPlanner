@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clockTime, rainAngleDeg, SCATTER_W, sunArcPosition } from "@/lib/weather/scene-math";
+import { clockTime, rainAngleDeg, SCATTER_W, sceneClip, sunArcPosition, textZones, wordsReach } from "@/lib/weather/scene-math";
 
 describe("rainAngleDeg", () => {
   it("falls straight when calm or unknown", () => {
@@ -35,13 +35,31 @@ describe("clockTime", () => {
 
 describe("SCATTER_W", () => {
   // The widest weather cards (day/[date]/page.tsx): compact 719px wide at
-  // 140px tall below md, regular 863px wide at 236px tall from md to lg.
-  const compactUnits = (719 * 236) / 140;
+  // 140px tall below md, regular 863px wide at 236px tall from md to lg. The
+  // scene is drawn on the padding box, 4px narrower and 4px shorter.
+  const compactUnits = ((719 - 4) * 236) / 136;
+  const regularUnits = ((863 - 4) * 236) / 232;
   it("covers the widest card at both heights, with a margin", () => {
     expect(SCATTER_W).toBeGreaterThanOrEqual(compactUnits + 20);
-    expect(SCATTER_W).toBeGreaterThanOrEqual(863 + 20);
+    expect(SCATTER_W).toBeGreaterThanOrEqual(regularUnits + 20);
   });
   it("stays well short of the whole 2400-unit world strip", () => {
     expect(SCATTER_W).toBeLessThan(compactUnits + 100);
+  });
+});
+
+describe("sceneClip", () => {
+  it("leaves the label line out across the whole regular card and the daylight strip out at both sizes", () => {
+    const regular = sceneClip("snow", "regular");
+    expect(regular).toMatch(/^polygon\(100% 0%, 100% 72\.88%, /);
+    expect(regular).toContain(", 100% 18.22%, ");
+    expect(regular).toMatch(/, 100% 0\.00%\)$/);
+    expect(sceneClip("snow", "compact")).toMatch(/^polygon\(100% 0%, 100% 72\.88%, /);
+  });
+  it("steps out past the widest words of each row, in pixels of the canvas", () => {
+    const zones = textZones("partly", "compact");
+    const reach = wordsReach(zones, 120, 130);
+    expect(reach).toBe(448 + 8);
+    expect(sceneClip("partly", "compact")).toContain(`${(reach * (136 / 236)).toFixed(1)}px`);
   });
 });

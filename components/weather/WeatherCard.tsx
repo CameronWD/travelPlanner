@@ -69,7 +69,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
   return (
     <section aria-label="Weather" className={box}>
       <h2 className="sr-only">Weather</h2>
-      {theme.scene ? <Scene scene={theme.scene} isDay={day?.current?.isDay ?? true} gustsKph={day?.gustsKph ?? null} /> : null}
+      {theme.scene ? <Scene scene={theme.scene} isDay={day?.current?.isDay ?? true} gustsKph={day?.gustsKph ?? null} size={size} /> : null}
       {theme.offline ? <Chip ink testId="wx-offline" className="absolute right-3 top-3">{theme.offline}</Chip> : null}
 
       <div className="relative flex flex-col">

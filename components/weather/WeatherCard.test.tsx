@@ -4,6 +4,7 @@ import { WeatherCard } from "@/components/weather/WeatherCard";
 import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
 import { getWeatherTheme } from "@/lib/weather/theme";
 import type { DayWeather } from "@/lib/weather";
+import { CARD_WIDTHS, canvasUnits } from "@/lib/weather/scene-math";
 
 function wx(over: Partial<DayWeather> = {}): DayWeather {
   return { source: "forecast", highC: 9, lowC: 5, code: 3, label: "Overcast", precipProbMax: null, gustsKph: null, uvMax: null, snowfallCm: null, current: null, fetchedAt: 0, stale: false, ...over };
@@ -82,25 +83,8 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
     expect(article().querySelectorAll(animated).length).toBeLessThanOrEqual(20);
   });
-  it.each(scenes)("%s: outlined pieces that cross the card stay below the text at both heights", (_key, day, isToday) => {
-    // The text block ends near 132px on the 236px card and near 88px on the
-    // 140px one (88 / 0.593 = 148 scene units); 152 leaves a margin for both.
-    card(day, "regular", {}, { isToday });
-    for (const piece of article().querySelectorAll(".wx-pan [data-top]")) {
-      expect(Number(piece.getAttribute("data-top"))).toBeGreaterThanOrEqual(152);
-    }
-  });
-  it("the crossing checks above actually meet outlined pieces", () => {
-    let seen = 0;
-    for (const [, day, isToday] of scenes) {
-      card(day, "regular", {}, { isToday });
-      seen += article().querySelectorAll(".wx-pan [data-top]").length;
-      cleanup();
-    }
-    expect(seen).toBeGreaterThan(0);
-  });
   it("far snow and stars reach across the widest card at either height", () => {
-    const widestUnits = (719 * 236) / 140;
+    const widestUnits = Math.max(canvasUnits("compact", CARD_WIDTHS.compact.widest), canvasUnits("regular", CARD_WIDTHS.regular.widest));
     const xs = (sel: string, read: (el: Element) => number) => [...article().querySelectorAll(sel)].map(read);
     card(wx({ code: 73 }));
     const flakes = xs('[data-layer="far-snow"] g[transform] > circle', (c) => Number(/translate\(([\d.]+)/.exec(c.parentElement!.getAttribute("transform")!)![1]));
