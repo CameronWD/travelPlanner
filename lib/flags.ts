@@ -66,6 +66,8 @@ export interface Flag {
   hop?: { fromItemId: string; toItemId: string; mode: HopModeChoice; modeSetByHand: boolean };
   /** Set only on a tight connection: what a Marked fine row must still match (spec 2026-11-18 T5, lib/flag-dismissals.ts). */
   fingerprint?: string;
+  /** A tight connection's two things, named as its message names them. */
+  between?: { from: string; to: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -741,13 +743,19 @@ function tightName(item: FlagItem): string {
   return name.length > TIGHT_NAME_MAX ? `${name.slice(0, TIGHT_NAME_MAX - 1).trimEnd()}…` : name;
 }
 
+export type TightFlag = Flag & Required<Pick<Flag, "hop" | "fingerprint" | "between">>;
+
+export function isTightFlag(flag: Flag): flag is TightFlag {
+  return flag.fingerprint !== undefined;
+}
+
 const TIGHT_PREFIX = "tight-";
 
 export function tightFlagId(prevId: string, nextId: string): string {
   return `${TIGHT_PREFIX}${prevId}-${nextId}`;
 }
 
-/** The two Items a tight Flag id joins (Item ids are cuids, so never hyphenated); null for any other id. */
+// Item ids are cuids, so never hyphenated.
 export function tightFlagItems(flagId: string): { fromItemId: string; toItemId: string } | null {
   if (!flagId.startsWith(TIGHT_PREFIX)) return null;
   const parts = flagId.slice(TIGHT_PREFIX.length).split("-");
@@ -757,16 +765,21 @@ export function tightFlagItems(flagId: string): { fromItemId: string; toItemId: 
 
 type FingerprintItem = Pick<FlagItem, "date" | "startTime" | "endTime" | "lat" | "lng" | "endLat" | "endLng">;
 
-export function tightFingerprint(prev: FingerprintItem, next: FingerprintItem, hop: Pick<ResolvedHop, "minutes" | "estimated" | "mode">): string {
+export function tightFingerprint(
+  prev: FingerprintItem,
+  next: FingerprintItem,
+  hop: Pick<ResolvedHop, "minutes" | "estimated" | "mode">,
+  severity: FlagSeverity,
+): string {
   const at = (i: FingerprintItem) => [i.date, i.startTime, i.endTime, i.lat, i.lng, i.endLat, i.endLng];
-  return [...at(prev), ...at(next), hop.mode, hop.estimated ? "est" : Math.round(hop.minutes / 5) * 5].join("|");
+  return [...at(prev), ...at(next), hop.mode, hop.estimated ? "est" : "stored", Math.round(hop.minutes / 5) * 5, severity].join("|");
 }
 
 export function flagTightConnections(
   items: FlagItem[],
   transports: FlagTransport[],
   opts: TravelOpts,
-): Flag[] {
+): TightFlag[] {
   // Build a direction-agnostic set of stop pairs connected by a transport leg.
   const connectedStopPairs = new Set<string>();
   for (const t of transports) {
@@ -793,7 +806,7 @@ export function flagTightConnections(
     byDate.set(it.date, arr);
   }
 
-  const flags: Flag[] = [];
+  const flags: TightFlag[] = [];
   for (const [date, dayItems] of byDate) {
     // Ties break as the refresh's hop order does, so each pair here is one it fetched.
     const sorted = [...dayItems].sort(
@@ -822,7 +835,8 @@ export function flagTightConnections(
       const label = resolved.estimated && resolved.mode === "transit" ? "trip" : HOP_LABEL[resolved.mode];
       const how = `a ~${Math.round(travel)} min ${label}${estimatedSuffix(resolved.estimated)}`;
       const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
-      const between = `between ${tightName(prev)} and ${tightName(next)}`;
+      const names = { from: tightName(prev), to: tightName(next) };
+      const between = `between ${names.from} and ${names.to}`;
       const retime = tightRetime(prev, next, travel);
       const hopInfo = {
         fromItemId: prev.id,
@@ -830,7 +844,6 @@ export function flagTightConnections(
         mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
         modeSetByHand: forced !== undefined,
       } as const;
-      const fingerprint = tightFingerprint(prev, next, resolved);
       if (gap < travel) {
         flags.push({
           id: tightFlagId(prev.id, next.id),
@@ -840,7 +853,8 @@ export function flagTightConnections(
           date,
           ...(retime ? { retime } : {}),
           hop: hopInfo,
-          fingerprint,
+          fingerprint: tightFingerprint(prev, next, resolved, "warning"),
+          between: names,
         });
       } else if (gap < travel + TIGHT_CONNECTION_BUFFER_MIN) {
         flags.push({
@@ -851,7 +865,8 @@ export function flagTightConnections(
           date,
           ...(retime ? { retime } : {}),
           hop: hopInfo,
-          fingerprint,
+          fingerprint: tightFingerprint(prev, next, resolved, "info"),
+          between: names,
         });
       }
     }

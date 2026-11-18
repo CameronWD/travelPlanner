@@ -5,10 +5,10 @@ import { AlertTriangle, ChevronRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { DayHopEntry } from "@/lib/day-view-loader";
 import { HopModeChooser, type HopModeChooserProps } from "@/components/trip/day/hop-mode-chooser";
-import { MarkFineButton, MarkedFineList, type MarkedFineEntry } from "@/components/trip/marked-fine";
+import { MarkFineButton, MarkedFineList, type MarkedFineEntry, type MarkFineTarget } from "@/components/trip/marked-fine";
 
 export interface DayFeasibilityEntry {
-  flagId?: string;
+  fine?: MarkFineTarget;
   severity: "warning" | "info";
   message: string;
   hop?: HopModeChooserProps;
@@ -71,7 +71,7 @@ export function DayFeasibility({
             <Clock className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} aria-hidden />
           )}
           <p className="min-w-0 flex-1">{e.message}</p>
-          {e.flagId ? <MarkFineButton tripId={tripId} flagId={e.flagId} /> : null}
+          {e.fine ? <MarkFineButton tripId={tripId} target={e.fine} /> : null}
           {e.hop ? <HopModeChooser {...e.hop} /> : null}
         </div>
       ))}

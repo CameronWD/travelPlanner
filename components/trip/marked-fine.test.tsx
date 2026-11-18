@@ -19,18 +19,22 @@ beforeEach(() => {
 });
 
 describe("MarkFineButton", () => {
-  it('"This is fine" marks the Flag fine', async () => {
-    render(<MarkFineButton tripId="t1" flagId="tight-a-b" />);
-    await userEvent.click(screen.getByRole("button", { name: "This is fine" }));
-    expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-a-b");
+  const target = { flagId: "tight-a-b", fingerprint: "fp-1", between: { from: "Louvre", to: "Lunch" } };
+
+  it('"This is fine" marks the Flag fine with the fingerprint it was shown with, named for its two things', async () => {
+    render(<MarkFineButton tripId="t1" target={target} />);
+    const button = screen.getByRole("button", { name: "This is fine: Louvre to Lunch" });
+    expect(button).toHaveTextContent(/^This is fine$/);
+    await userEvent.click(button);
+    expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-a-b", "fp-1");
     expect(toastRefused).not.toHaveBeenCalled();
   });
 
   it("says why when the action refuses", async () => {
-    const refusal = { success: false, errors: { _: ["That warning is no longer showing."] } };
+    const refusal = { success: false, errors: { _: ["That warning has changed. Have another look."] } };
     markFlagFine.mockResolvedValue(refusal);
-    render(<MarkFineButton tripId="t1" flagId="tight-a-b" />);
-    await userEvent.click(screen.getByRole("button", { name: "This is fine" }));
+    render(<MarkFineButton tripId="t1" target={target} />);
+    await userEvent.click(screen.getByRole("button", { name: /^This is fine/ }));
     expect(toastRefused).toHaveBeenCalledWith(refusal, expect.any(String));
   });
 });

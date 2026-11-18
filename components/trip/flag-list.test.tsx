@@ -30,16 +30,21 @@ describe("FlagList: Item Flags (spec 2026-10-17 R7)", () => {
 });
 
 describe("FlagList: Marked fine (spec 2026-11-18 T5)", () => {
-  const tight: Flag = { id: "tight-a-b", severity: "warning", message: "Tight on 2026-07-02 between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02", fingerprint: "fp-1" };
+  const tight: Flag = {
+    id: "tight-a-b", severity: "warning", message: "Tight on 2026-07-02 between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02",
+    fingerprint: "fp-1", between: { from: "Louvre", to: "Lunch" }, hop: { fromItemId: "a", toItemId: "b", mode: "WALK", modeSetByHand: false },
+  };
+  const other: Flag = { ...tight, id: "tight-c-d", message: "Cutting it close on 2026-07-02 between Tea and Tower.", fingerprint: "fp-2", between: { from: "Tea", to: "Tower" } };
   const packed: Flag = { id: "packed-2026-07-02", severity: "info", message: "2026-07-02 looks packed.", targetType: "DAY", date: "2026-07-02" };
 
-  it('offers "This is fine" on a tight row only, beside its link, and it calls the action', async () => {
+  it('offers "This is fine" on tight rows only, beside the link, each named for its two things', async () => {
     markFlagFine.mockResolvedValue({ success: true });
-    render(<FlagList flags={[tight, packed]} tripId="t1" tripBasePath={BASE} />);
-    const button = screen.getByRole("button", { name: "This is fine" });
+    render(<FlagList flags={[tight, other, packed]} tripId="t1" tripBasePath={BASE} />);
+    expect(screen.getAllByRole("button", { name: /^This is fine/ })).toHaveLength(2);
+    const button = screen.getByRole("button", { name: "This is fine: Louvre to Lunch" });
     expect(button.closest("a")).toBeNull();
     expect(screen.getByRole("link", { name: /between Louvre and Lunch/ })).toHaveAttribute("href", "/trips/t/day/2026-07-02");
     await userEvent.click(button);
-    expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-a-b");
+    expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-a-b", "fp-1");
   });
 });

@@ -152,7 +152,7 @@ export interface DayViewData {
     mine: { body: string; updatedAt: Date | null; photo: AttachmentView | null; extraPhotos: AttachmentView[]; hiddenFromShares: boolean } | null;
     others: Array<{ authorId: string; body: string; updatedAt: Date; author: TravellerLike | null; photos: AttachmentView[] }>;
   };
-  feasibility: Array<{ flagId: string; severity: string; message: string; hop?: Flag["hop"] }>;
+  feasibility: Array<{ fine: { flagId: string; fingerprint: string; between: { from: string; to: string } }; severity: string; message: string; hop: Flag["hop"] }>;
   /** The day's tight Flags a Traveller Marked fine (CONTEXT.md "Marked fine"), out of `feasibility`. */
   markedFine: Array<{ flagId: string; message: string; markedByName: string }>;
   /** Set only for a viewer a Surprise Stop on this day is for (ADR 0072): the planner's name, and whether it is the whole day. */
@@ -434,7 +434,12 @@ function projectDayView(
     ),
     shared.markedFine,
   );
-  const feasibility = tight.shown.map((f) => ({ flagId: f.id, severity: f.severity, message: f.message, hop: f.hop }));
+  const feasibility = tight.shown.map((f) => ({
+    fine: { flagId: f.id, fingerprint: f.fingerprint, between: f.between },
+    severity: f.severity,
+    message: f.message,
+    hop: f.hop,
+  }));
   const markedFine = tight.markedFine.map((f) => ({ flagId: f.id, message: f.message, markedByName: f.markedByName }));
 
   const titleById = new Map(items.map((it) => [it.id, it.title]));

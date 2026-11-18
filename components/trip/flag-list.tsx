@@ -14,7 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import type { Flag } from "@/lib/flags";
+import { isTightFlag, type Flag } from "@/lib/flags";
 import { flagHref } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
 import { MarkFineButton } from "@/components/trip/marked-fine";
@@ -116,12 +116,11 @@ function FlagRow({ flag, tripId, tripBasePath }: { flag: Flag; tripId: string; t
   ) : (
     content
   );
-  // Only a tight connection carries a fingerprint, and only it can be Marked fine (CONTEXT.md).
-  if (flag.fingerprint === undefined) return row;
+  if (!isTightFlag(flag)) return row;
   return (
     <div className="flex items-center gap-2">
       <div className="min-w-0 flex-1">{row}</div>
-      <MarkFineButton tripId={tripId} flagId={flag.id} />
+      <MarkFineButton tripId={tripId} target={{ flagId: flag.id, fingerprint: flag.fingerprint, between: flag.between }} />
     </div>
   );
 }

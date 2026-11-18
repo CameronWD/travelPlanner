@@ -187,14 +187,14 @@ describe("read tools", () => {
     expect(r.isError).toBeFalsy();
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
       flags: [
-        { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1", itemId: null, flagId: null },
-        { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null, itemId: null, flagId: null },
+        { severity: "warning", title: "stop", detail: "Rome has no accommodation booked.", stopId: "s1", itemId: null, flagId: null, fingerprint: null },
+        { severity: "warning", title: "trip", detail: "Your trip runs past its hard end date.", stopId: null, itemId: null, flagId: null, fingerprint: null },
       ],
       markedFine: [],
     });
   });
 
-  it("get_flags gives each travel-time Flag its flagId and lists the Marked fine ones (spec 2026-11-18 T5)", async () => {
+  it("get_flags gives each travel-time Flag its flagId and fingerprint and lists the Marked fine ones (spec 2026-11-18 T5)", async () => {
     loadFlags.mockResolvedValue({
       shown: [{ id: "tight-a-b", severity: "warning", message: "Tight on 2026-07-02 between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02", fingerprint: "fp-1" }],
       markedFine: [
@@ -204,7 +204,7 @@ describe("read tools", () => {
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual({
-      flags: [{ severity: "warning", title: "day", detail: "Tight on 2026-07-02 between Louvre and Lunch.", stopId: null, itemId: null, flagId: "tight-a-b" }],
+      flags: [{ severity: "warning", title: "day", detail: "Tight on 2026-07-02 between Louvre and Lunch.", stopId: null, itemId: null, flagId: "tight-a-b", fingerprint: "fp-1" }],
       markedFine: [{ flagId: "tight-c-d", detail: "Cutting it close between Tea and Tower.", by: "Xanthia", at: "2026-06-01T10:00:00.000Z" }],
     });
   });
@@ -234,8 +234,8 @@ describe("read tools", () => {
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
     expect(JSON.parse((r.content as { text: string }[])[0].text).flags).toEqual([
-      { severity: "warning", title: "item", detail: "Memorium Nuremberg Trials is closed on Tuesdays.", stopId: "s1", itemId: "i1", flagId: null },
-      { severity: "info", title: "transport", detail: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", stopId: "s1", itemId: null, flagId: null },
+      { severity: "warning", title: "item", detail: "Memorium Nuremberg Trials is closed on Tuesdays.", stopId: "s1", itemId: "i1", flagId: null, fingerprint: null },
+      { severity: "info", title: "transport", detail: "The train from Nuremberg to Munich is still to book and leaves in 8 days (Wed 9 Dec).", stopId: "s1", itemId: null, flagId: null, fingerprint: null },
     ]);
   });
 

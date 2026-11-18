@@ -490,7 +490,9 @@ describe("getDays — hops", () => {
     it("each tight row carries its Flag id", async () => {
       useItems(tightPair);
       const d = await loadDay("2026-12-11");
-      expect(d.feasibility).toEqual([expect.objectContaining({ flagId: "tight-h1-h2" })]);
+      expect(d.feasibility).toEqual([
+        expect.objectContaining({ fine: { flagId: "tight-h1-h2", fingerprint: expect.any(String), between: { from: "Item h1", to: "Item h2" } } }),
+      ]);
       expect(d.markedFine).toEqual([]);
     });
 

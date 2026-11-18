@@ -149,21 +149,23 @@ describe("DayFeasibility", () => {
 });
 
 describe("DayFeasibility: Marked fine (spec 2026-11-18 T5)", () => {
-  const tightEntry = { flagId: "tight-i1-i2", severity: "warning" as const, message: "Tight between Place 1 and Place 2.", hop: { fromItemId: "i1", toItemId: "i2", mode: "WALK" as const, modeSetByHand: false } };
+  const tightEntry = {
+    fine: { flagId: "tight-i1-i2", fingerprint: "fp-1", between: { from: "Place 1", to: "Place 2" } },
+    severity: "warning" as const, message: "Tight between Place 1 and Place 2.", hop: { fromItemId: "i1", toItemId: "i2", mode: "WALK" as const, modeSetByHand: false } };
   const marked = { flagId: "tight-i1-i2", message: "Tight between Place 1 and Place 2.", markedByName: "Xanthia" };
 
   it('"This is fine" on a tight row calls the action', async () => {
     markFlagFine.mockResolvedValue({ success: true });
     render(<DayFeasibility tripId="t1" entries={[tightEntry]} hops={[hop(1)]} />);
-    await userEvent.click(screen.getByRole("button", { name: "This is fine" }));
-    expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-i1-i2");
+    await userEvent.click(screen.getByRole("button", { name: "This is fine: Place 1 to Place 2" }));
+    expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-i1-i2", "fp-1");
   });
 
   it('a Marked fine hop sits under "1 marked fine", not in the always-shown rows, and stays in All hops', async () => {
     unmarkFlagFine.mockResolvedValue({ success: true });
     render(<DayFeasibility tripId="t1" entries={[]} markedFine={[marked]} hops={[hop(1), hop(2)]} />);
     expect(screen.queryByText("Tight between Place 1 and Place 2.")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "This is fine" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^This is fine/ })).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(0);
 
     await userEvent.click(screen.getByRole("button", { name: "1 marked fine" }));

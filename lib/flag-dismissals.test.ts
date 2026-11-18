@@ -65,6 +65,40 @@ describe("applyMarkedFine", () => {
     expect(applyMarkedFine([stored], [markedBy(estimated)]).shown).toEqual([stored]);
   });
 
+  it("a stored 13 min hop refreshed to 16 min turns Cutting it close into Tight, and shows again", () => {
+    const close = tight(pair("12:15"), { lookup: walkRow(13) });
+    const tighter = tight(pair("12:15"), { lookup: walkRow(16) });
+    expect(close.severity).toBe("info");
+    expect(tighter.severity).toBe("warning");
+    expect(applyMarkedFine([tighter], [markedBy(close)]).shown).toEqual([tighter]);
+  });
+
+  describe("an estimated drive", () => {
+    // ~8.9 km apart: 13.4 road km at the Trip's winding factor of 1.5.
+    const far = (): FlagItem[] => [
+      item({ id: "a", startTime: "10:00", endTime: "12:00", ...A }),
+      item({ id: "c", startTime: "12:05", endTime: "13:00", lat: 48.94, lng: 2.337, sortOrder: 1 }),
+    ];
+    const driven = (avgSpeedKph: number) => tight(far(), { avgSpeedKph, hopModes: new Map([["a|c", "DRIVE"]]) });
+
+    it("moving from 10 to 40 min shows it again", () => {
+      const ten = driven(80);
+      const forty = driven(20);
+      expect(ten.message).toContain("~10 min drive (estimated)");
+      expect(forty.message).toContain("~40 min drive (estimated)");
+      expect(ten.severity).toBe(forty.severity);
+      expect(applyMarkedFine([forty], [markedBy(ten)]).shown).toEqual([forty]);
+    });
+
+    it("moving from 11 to 12 min keeps it Marked fine", () => {
+      const eleven = driven(73);
+      const twelve = driven(67);
+      expect(eleven.message).toContain("~11 min drive (estimated)");
+      expect(twelve.message).toContain("~12 min drive (estimated)");
+      expect(applyMarkedFine([twelve], [markedBy(eleven)]).markedFine).toHaveLength(1);
+    });
+  });
+
   it("choosing a different Hop mode for it shows it again, even at the same minutes", () => {
     const lookup: TravelLookup = new Map([
       ...walkRow(10),

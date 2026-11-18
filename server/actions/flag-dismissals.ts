@@ -9,7 +9,6 @@ import { loadFlags } from "@/lib/flags-loader";
 
 const ONLY_TIGHT = "Only a travel-time warning can be marked fine.";
 
-/** The caller, once both Items the tight Flag joins are on this Trip's real plan and outside any Surprise hidden from them. */
 async function requireTightFlag(tripId: string, flagId: string): Promise<{ userId: string } | string> {
   const pair = tightFlagItems(flagId);
   if (!pair) return ONLY_TIGHT;
@@ -21,13 +20,17 @@ async function requireTightFlag(tripId: string, flagId: string): Promise<{ userI
   return { userId: from.user.id };
 }
 
-export async function markFlagFine(tripId: string, flagId: string): Promise<ActionResult> {
+export async function markFlagFine(tripId: string, flagId: string, fingerprint: string): Promise<ActionResult> {
   const caller = await requireTightFlag(tripId, flagId);
   if (typeof caller === "string") return formFail(caller);
 
   const { shown, markedFine } = await loadFlags(tripId, caller.userId);
-  const fingerprint = [...shown, ...markedFine].find((f) => f.id === flagId)?.fingerprint;
-  if (fingerprint === undefined) return formFail("That warning is no longer showing.");
+  const current = [...shown, ...markedFine].find((f) => f.id === flagId)?.fingerprint;
+  // A stale page must never wave through a warning the Traveller has not seen; refresh it instead.
+  if (current !== fingerprint) {
+    revalidateTrip(tripId, "plan");
+    return formFail(current === undefined ? "That warning is no longer showing." : "That warning has changed. Have another look.");
+  }
 
   await db.flagDismissal.upsert({
     where: { tripId_flagId: { tripId, flagId } },

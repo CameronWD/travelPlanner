@@ -358,7 +358,6 @@ export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[]
   return splitFlagsForRows(rows, projection).shown;
 }
 
-/** `flagsForRows` with the Marked fine Flags kept apart rather than dropped (get_flags, the Marked fine actions). */
 export function splitFlagsForRows(rows: FlagRows, projection: TripProjection): MarkedFineSplit {
   return splitFlagsFromRows({
     trip: rows.trip,

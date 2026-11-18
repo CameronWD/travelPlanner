@@ -27,8 +27,8 @@ describe("mark_flag_fine / unmark_flag_fine", () => {
 
   it("marks it fine through the app's action and returns the Flags as they now stand", async () => {
     const c = await connectTestClient();
-    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "tight-a-b" } });
-    expect(m.markFlagFine).toHaveBeenCalledWith("trip-1", "tight-a-b");
+    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "tight-a-b", fingerprint: "fp-1" } });
+    expect(m.markFlagFine).toHaveBeenCalledWith("trip-1", "tight-a-b", "fp-1");
     expect(m.loadFlagsForMcp).toHaveBeenCalledWith("trip-1");
     expect(JSON.parse(text(r))).toEqual(AFTER);
   });
@@ -42,16 +42,33 @@ describe("mark_flag_fine / unmark_flag_fine", () => {
   it("reports the action's refusal and reads nothing back", async () => {
     m.markFlagFine.mockResolvedValue({ success: false, errors: { _: ["Only a travel-time warning can be marked fine."] } });
     const c = await connectTestClient();
-    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "packed-2026-07-02" } });
+    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "packed-2026-07-02", fingerprint: "fp-1" } });
     expect(r.isError).toBe(true);
     expect(text(r)).toContain("Only a travel-time warning can be marked fine.");
     expect(m.loadFlagsForMcp).not.toHaveBeenCalled();
   });
 
+  it("refuses a stale fingerprint, says so, and reads nothing back", async () => {
+    m.markFlagFine.mockResolvedValue({ success: false, errors: { _: ["That warning has changed. Have another look."] } });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "tight-a-b", fingerprint: "an-old-one" } });
+    expect(m.markFlagFine).toHaveBeenCalledWith("trip-1", "tight-a-b", "an-old-one");
+    expect(r.isError).toBe(true);
+    expect(text(r)).toContain("That warning has changed.");
+    expect(m.loadFlagsForMcp).not.toHaveBeenCalled();
+  });
+
+  it("asks for the fingerprint", async () => {
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "tight-a-b" } });
+    expect(r.isError).toBe(true);
+    expect(m.markFlagFine).not.toHaveBeenCalled();
+  });
+
   it("a hidden Surprise or another Trip's Item reads as not found", async () => {
     m.markFlagFine.mockRejectedValue(Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" }));
     const c = await connectTestClient();
-    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "tight-a-b" } });
+    const r = await c.callTool({ name: "mark_flag_fine", arguments: { tripId: "trip-1", flagId: "tight-a-b", fingerprint: "fp-1" } });
     expect(text(r)).toBe(NOT_FOUND_TEXT);
   });
 });

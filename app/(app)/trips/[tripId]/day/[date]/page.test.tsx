@@ -244,7 +244,7 @@ describe("Day page", () => {
   });
 
   it("keeps the feasibility advisory on a planned day", async () => {
-    getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 2, feasibility: [{ flagId: "tight-a-b", severity: "warning", message: "Tight connection to the train" }] }));
+    getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 2, feasibility: [{ fine: { flagId: "tight-a-b", fingerprint: "fp-1", between: { from: "Lunch", to: "Train" } }, severity: "warning", message: "Tight connection to the train", hop: undefined }] }));
     await renderPage();
     expect(screen.getAllByText("Tight connection to the train").length).toBeGreaterThan(0);
   });

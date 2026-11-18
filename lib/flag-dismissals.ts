@@ -7,19 +7,18 @@ export interface MarkedFineRow {
   createdAt: Date;
 }
 
-export type MarkedFineFlag = Flag & { markedByName: string; markedAt: Date };
+export type MarkedFineFlag<F extends Flag = Flag> = F & { markedByName: string; markedAt: Date };
 
-export interface MarkedFineSplit {
-  shown: Flag[];
-  markedFine: MarkedFineFlag[];
+export interface MarkedFineSplit<F extends Flag = Flag> {
+  shown: F[];
+  markedFine: MarkedFineFlag<F>[];
 }
 
-/** CONTEXT.md "Marked fine": a row hides its Flag only while the Flag still fires with the fingerprint it was marked at. */
-export function applyMarkedFine(flags: Flag[], rows: readonly MarkedFineRow[]): MarkedFineSplit {
+export function applyMarkedFine<F extends Flag>(flags: F[], rows: readonly MarkedFineRow[]): MarkedFineSplit<F> {
   if (rows.length === 0) return { shown: flags, markedFine: [] };
   const byFlagId = new Map(rows.map((r) => [r.flagId, r]));
-  const shown: Flag[] = [];
-  const markedFine: MarkedFineFlag[] = [];
+  const shown: F[] = [];
+  const markedFine: MarkedFineFlag<F>[] = [];
   for (const flag of flags) {
     const row = byFlagId.get(flag.id);
     if (row && flag.fingerprint !== undefined && row.fingerprint === flag.fingerprint) {

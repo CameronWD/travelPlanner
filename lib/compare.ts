@@ -137,7 +137,7 @@ export interface PlanMetricsInput {
   /** Hop modes Travellers chose (lib/hop-modes.ts); they only match the real plan's Items. */
   hopModes?: ReadonlyMap<string, HopModeChoice>;
   /** The Trip's Marked fine rows (lib/flag-dismissals-read.ts); like Hop modes, they only match the real plan's Items. */
-  markedFine?: readonly MarkedFineRow[];
+  markedFine: readonly MarkedFineRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -437,7 +437,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       hopModes: input.hopModes,
     });
 
-    for (const f of applyMarkedFine(detected, input.markedFine ?? []).shown) {
+    for (const f of applyMarkedFine(detected, input.markedFine).shown) {
       if (f.severity === "warning") warningCount++;
       else if (f.severity === "info") infoCount++;
     }

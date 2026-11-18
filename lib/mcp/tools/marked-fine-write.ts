@@ -10,11 +10,11 @@ export function registerMarkedFineTools(server: McpServer): void {
     {
       title: "Mark flag fine",
       description:
-        "Marks one travel-time flag from get_flags (by its flagId) as fine, when the person says that hop is not a problem. It is hidden for every Traveller until either thing's time or place, or the travel time, changes. Only travel-time flags can be marked fine. Returns the trip's flags as they now stand.",
-      inputSchema: { tripId: z.string(), flagId: z.string() },
+        "Marks one travel-time flag from get_flags as fine, when the person says that hop is not a problem. Pass its flagId and the fingerprint get_flags returned with it; if the flag has changed since, it is refused, so read get_flags again and check with the person. It is hidden for every Traveller until either thing's time or place, or the travel time, changes. Only travel-time flags can be marked fine. Returns the trip's flags as they now stand.",
+      inputSchema: { tripId: z.string(), flagId: z.string(), fingerprint: z.string() },
     },
-    ({ tripId, flagId }) =>
-      runWrite("mark_flag_fine", () => markFlagFine(tripId, flagId), () => loadFlagsForMcp(tripId)),
+    ({ tripId, flagId, fingerprint }) =>
+      runWrite("mark_flag_fine", () => markFlagFine(tripId, flagId, fingerprint), () => loadFlagsForMcp(tripId)),
   );
 
   server.registerTool(

@@ -137,6 +137,7 @@ const emptyInput = (): PlanMetricsInput => ({
   trip: makeTrip(),
   exchangeRates: [],
   travel: new Map(),
+  markedFine: [],
 });
 
 // ---------------------------------------------------------------------------
@@ -735,7 +736,7 @@ describe("diffMetrics", () => {
 
 describe("computePlanMetrics — legs", () => {
   it("emits one leg per transport whose endpoints both resolve, with resolved stop names", () => {
-    const metrics = computePlanMetrics({ travel: new Map(),
+    const metrics = computePlanMetrics({ travel: new Map(), markedFine: [],
       stops: [
         { id: "s1", name: "Rome", country: "IT", nights: 3, sortOrder: 0, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },
         { id: "s2", name: "Florence", country: "IT", nights: 2, sortOrder: 1, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },
