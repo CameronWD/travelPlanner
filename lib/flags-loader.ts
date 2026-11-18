@@ -289,7 +289,7 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
 
   const v = await loadSurpriseVisibility(tripId, viewerId);
 
-  const [allStops, transports, accommodations, items, markedFine] = await Promise.all([
+  const [allStops, transports, accommodations, items, markedFine, hopModes] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...planScope(plan) },
       orderBy: { sortOrder: "asc" },
@@ -310,6 +310,7 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
       select: FLAG_ITEM_SELECT,
     }),
     loadMarkedFineRows(tripId),
+    loadHopModes(tripId),
   ]);
 
   // A hidden root Item still holds its slot (CONTEXT.md Surprise: the
@@ -332,7 +333,6 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
       endLat: null,
       endLng: null,
     }));
-  const hopModes = await loadHopModes(tripId);
   const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip), hopModes });
 
   return {

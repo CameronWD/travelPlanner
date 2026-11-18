@@ -32,7 +32,7 @@ export const SCOPE_PAGES: Record<TripScope, readonly TripPage[] | "layout"> = {
 
 /** The tables each scope's writers write. Read by the coverage test. */
 export const SCOPE_TABLES: Record<TripScope, readonly string[]> = {
-  plan: ["stop", "item", "transport", "accommodation", "chapter", "dayTitle", "fork", "note", "vote", "reminder"],
+  plan: ["stop", "item", "transport", "accommodation", "chapter", "dayTitle", "fork", "note", "vote", "reminder", "hopMode", "flagDismissal"],
   money: ["cost", "exchangeRate"],
   lists: ["checklistItem", "packingTemplate"],
   journal: ["journalEntry", "attachment"],

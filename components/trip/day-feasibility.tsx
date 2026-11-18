@@ -22,8 +22,8 @@ function hopKey(h: { fromItemId: string; toItemId: string }): string {
 
 function HopRow({ hop }: { hop: DayHopEntry }) {
   return (
-    <div className="flex items-center gap-2 text-[13px] font-medium">
-      <p className="min-w-0 flex-1">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] font-medium sm:flex-nowrap">
+      <p className="min-w-0 flex-1 basis-full sm:basis-0">
         {hop.fromTitle} → {hop.toTitle}
         <span className="text-muted-foreground">
           {" "}
@@ -64,15 +64,19 @@ export function DayFeasibility({
     <Card tone="sun" className="flex flex-col gap-2 px-3.5 py-3">
       <h3 className="text-label">Getting around</h3>
       {entries.map((e, i) => (
-        <div key={i} className="flex items-start gap-2 text-[13px] font-medium">
+        <div key={i} data-slot="getting-around-row" className="flex flex-wrap items-start gap-x-2 gap-y-1.5 text-[13px] font-medium sm:flex-nowrap">
           {e.severity === "warning" ? (
             <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} aria-label="Warning" />
           ) : (
             <Clock className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} aria-hidden />
           )}
-          <p className="min-w-0 flex-1">{e.message}</p>
-          {e.fine ? <MarkFineButton tripId={tripId} target={e.fine} /> : null}
-          {e.hop ? <HopModeChooser {...e.hop} /> : null}
+          <p className="min-w-0 flex-1 basis-[calc(100%-1.5rem)] sm:basis-0">{e.message}</p>
+          {e.fine || e.hop ? (
+            <div data-slot="getting-around-controls" className="flex basis-full flex-wrap items-center gap-2 pl-6 sm:basis-auto sm:pl-0">
+              {e.fine ? <MarkFineButton tripId={tripId} target={e.fine} /> : null}
+              {e.hop ? <HopModeChooser {...e.hop} /> : null}
+            </div>
+          ) : null}
         </div>
       ))}
       <MarkedFineList tripId={tripId} entries={markedFine} />

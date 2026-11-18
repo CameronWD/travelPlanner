@@ -46,8 +46,8 @@ export interface BuildTripNextStepsInput {
   hardEndDate: string | null;
   /** The Trip's deadline from getTripProjection (ADR 0068); omitted → derived from hardEndDate. */
   deadline?: TripDeadline | null;
-  drivingWindingFactor?: number;
-  drivingAvgSpeedKph?: number;
+  drivingWindingFactor: number;
+  drivingAvgSpeedKph: number;
   /** The Trip's Home base IANA timezone (spec 2026-10-14, TB-01) — a Home-flagged transport end reads its calendar date in this zone; omitted → UTC. */
   homeTimezone?: string | null;
   undatedChapterCount: number;

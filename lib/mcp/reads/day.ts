@@ -104,7 +104,7 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
 
   const filesFor = (_kind: string, id: string) =>
     (model.attachmentsByTarget[id] ?? []).map((a) => ({ id: a.id, title: a.title ?? a.filename }));
-  const needsConfirmation = await loadNeedsConfirmation(tripId, user.id);
+  const [needsConfirmation, hopModes] = await Promise.all([loadNeedsConfirmation(tripId, user.id), loadHopModes(tripId)]);
   const stopName = new Map(stopRows.map((s) => [s.id, s.name]));
   const item = (e: ItemEntry): McpDayItem => toMcpDayItem(e.item, filesFor, stopName, needsConfirmation);
   // The timeline's legs and stays are itinerary entries; their Booking state
@@ -145,7 +145,6 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
   });
 
   const dayItems = rows.items.filter((it) => it.date === date);
-  const hopModes = await loadHopModes(tripId);
   const lookup = await loadTravelLookupFor({ items: dayItems, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip), hopModes });
   const hops = resolvedPlanHops({
     dayItems,

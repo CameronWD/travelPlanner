@@ -49,7 +49,7 @@ describe("buildTripNextSteps: the planning Flags (spec 2026-10-17 R7)", () => {
     datedStops: [{ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-12", timezone: "Europe/Berlin", sortOrder: 0, lat: null, lng: null }],
     roughStopCount: 0, allStops: [{ id: "nbg", name: "Nuremberg" }], transports: [], accommodations: [],
     projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
-    markedFine: [],
+    markedFine: [], drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
   };
   const closedTue = { week: { tue: [] }, seasons: [], closed: [] };
   const museum = { id: "i1", stopId: "nbg", date: "2026-12-08", title: "Memorium Nuremberg Trials", openingHours: closedTue };
@@ -73,7 +73,7 @@ describe("buildTripNextSteps: booking confirmations", () => {
     datedStops: [{ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-12", timezone: "Europe/Berlin", sortOrder: 0, lat: null, lng: null }],
     roughStopCount: 0, allStops: [{ id: "nbg", name: "Nuremberg" }], transports: [], accommodations: [], items: [],
     projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
-    travel: new Map(), today: "2026-12-01", markedFine: [],
+    travel: new Map(), today: "2026-12-01", markedFine: [], drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
   };
 
   it("passes the count through, and defaults to none", () => {
@@ -93,7 +93,7 @@ describe("buildTripNextSteps: Marked fine (spec 2026-11-18 T5)", () => {
       { id: "b", stopId: "nbg", date: "2026-12-08", startTime: "12:20", endTime: "13:00", lat: 49.4581, lng: 11.07, sortOrder: 1 },
     ],
     projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
-    travel: new Map(), today: "2026-12-01", markedFine: [],
+    travel: new Map(), today: "2026-12-01", markedFine: [], drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
   };
 
   it("a Marked fine Flag is no Next step", () => {

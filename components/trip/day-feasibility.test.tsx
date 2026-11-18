@@ -154,6 +154,23 @@ describe("DayFeasibility: Marked fine (spec 2026-11-18 T5)", () => {
     severity: "warning" as const, message: "Tight between Place 1 and Place 2.", hop: { fromItemId: "i1", toItemId: "i2", mode: "WALK" as const, modeSetByHand: false } };
   const marked = { flagId: "tight-i1-i2", message: "Tight between Place 1 and Place 2.", markedByName: "Xanthia" };
 
+  it("on a phone a warning's message takes the full row and its two controls sit on a line beneath it", () => {
+    const { container } = render(<DayFeasibility tripId="t1" entries={[tightEntry]} hops={[hop(1), hop(3, { mode: "TRANSIT", modeSetByHand: true })]} />);
+    const row = container.querySelector('[data-slot="getting-around-row"]') as HTMLElement;
+    expect(row.className).toContain("flex-wrap");
+    expect(row.className).toContain("sm:flex-nowrap");
+    expect(within(row).getByText("Tight between Place 1 and Place 2.").className).toContain("basis-[calc(100%-1.5rem)]");
+    const controls = row.querySelector('[data-slot="getting-around-controls"]') as HTMLElement;
+    expect(controls.className).toContain("basis-full");
+    expect(controls.className).toContain("sm:basis-auto");
+    expect(within(controls).getAllByRole("button", { name: /This is fine/ })).toHaveLength(1);
+    expect(within(controls).getAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(1);
+    const handSet = screen.getByText(/Place 3 → Place 4/).parentElement as HTMLElement;
+    expect(handSet.className).toContain("flex-wrap");
+    expect(screen.getByText(/Place 3 → Place 4/).className).toContain("basis-full");
+    expect(within(handSet).getAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(1);
+  });
+
   it('"This is fine" on a tight row calls the action', async () => {
     markFlagFine.mockResolvedValue({ success: true });
     render(<DayFeasibility tripId="t1" entries={[tightEntry]} hops={[hop(1)]} />);

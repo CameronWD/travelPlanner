@@ -97,7 +97,7 @@ export default async function SummaryPage({
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
   // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
-  const rows = await readPlan(tripId, user.id, null);
+  const [rows, hopModes, markedFine] = await Promise.all([readPlan(tripId, user.id, null), loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const { trip } = rows;
 
   // For a date-less trip: still show rough Stops (if any), then the date-less notice.
@@ -250,7 +250,6 @@ export default async function SummaryPage({
   // The projection is computed from Stops/Transports already read above (spec
   // 2026-10-06 §C) — never `getTripProjection`, which would re-read them.
   const projection = computeProjection({ trip, stops: allStops, transports });
-  const [hopModes, markedFine] = await Promise.all([loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip), hopModes });
 
   // lib/flags-loader.ts's `flagsFromRows` is the same detectFlags input

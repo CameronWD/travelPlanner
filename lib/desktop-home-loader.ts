@@ -168,6 +168,7 @@ async function load(
     slug,
     bookingConfirmationsToAdd,
     markedFine,
+    hopModes,
   ] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -253,6 +254,7 @@ async function load(
     tripSlugFor(tripId),
     loadBookingConfirmationsToAdd(tripId, viewerId),
     loadMarkedFineRows(tripId),
+    loadHopModes(tripId),
   ]);
   const base = tripPath(slug);
   // A hidden real-plan Item still holds its slot: a placeholder titled
@@ -374,7 +376,6 @@ async function load(
       stops: allStopsRaw,
       transports,
     });
-    const hopModes = await loadHopModes(tripId);
     const travel = await loadTravelLookupFor({ items: itemRows, stops: allStopsRaw, transports, home: homePointOf(trip), hopModes });
     steps = buildTripNextSteps({
       tripBasePath: base,
