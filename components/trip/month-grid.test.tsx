@@ -412,6 +412,25 @@ describe("MonthGrid — desktop month (spec E5)", () => {
     expect(screen.getByRole("link", { name: /Tue 14 Jul 2026/ })).toHaveAttribute("href", expect.stringContaining("/day/2026-07-14"));
   });
 
+  it("keeps the room under the Stop band at every width from lg up", () => {
+    render(<MonthGrid {...props} days={[dayPlan("2026-07-14", 0)]} />);
+    const banded = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    expect(banded.className).toMatch(/\blg:pt-9\b/);
+    expect(banded.className).not.toMatch(/\b(xl|2xl):p[ty]?-/);
+  });
+
+  it("puts the thing's title first, with the time only where the cell is wide", () => {
+    const things = [{ id: "a", title: "Louvre", startTime: "10:30" }, { id: "b", title: "Lunch" }];
+    render(<MonthGrid {...props} days={[withItems("2026-07-14", things)]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    const [timed, untimed] = Array.from(link.querySelectorAll("[data-day-things] li"));
+    expect(timed).toHaveAttribute("title", "10:30 Louvre");
+    expect(timed).toHaveAttribute("aria-label", "10:30 Louvre");
+    expect(timed.firstElementChild!.className).toMatch(/\bhidden\b.*@min-\[\d+px\]:inline/);
+    expect(timed.lastChild!.textContent).toBe("Louvre");
+    expect(untimed.querySelector("span")).toBeNull();
+  });
+
   it("leaves the compact tile classes in place below lg", () => {
     render(<MonthGrid {...props} days={[dayPlan("2026-07-14", 1)]} />);
     const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });

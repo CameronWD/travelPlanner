@@ -5,7 +5,7 @@ export interface DayThingInput {
 }
 
 export interface DayThings {
-  shown: { id: string; label: string }[];
+  shown: { id: string; title: string; time: string | null; label: string }[];
   more: number;
 }
 
@@ -16,7 +16,7 @@ export function dayThings(things: readonly DayThingInput[], max = 3): DayThings 
   const untimed = things.filter((t) => !t.startTime);
   const ordered = [...timed, ...untimed];
   return {
-    shown: ordered.slice(0, max).map((t) => ({ id: t.id, label: t.startTime ? `${t.startTime} ${t.title}` : t.title })),
+    shown: ordered.slice(0, max).map((t) => ({ id: t.id, title: t.title, time: t.startTime || null, label: t.startTime ? `${t.startTime} ${t.title}` : t.title })),
     more: Math.max(0, ordered.length - max),
   };
 }

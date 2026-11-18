@@ -18,6 +18,8 @@ describe("dayThings", () => {
     const r = dayThings([t("a", "Lunch"), t("b", "Louvre", "10:30"), t("c", "Dinner"), t("d", "Coffee", "08:00")], 4);
     expect(r.shown.map((s) => s.label)).toEqual(["08:00 Coffee", "10:30 Louvre", "Lunch", "Dinner"]);
     expect(r.more).toBe(0);
+    expect(r.shown[0]).toMatchObject({ title: "Coffee", time: "08:00" });
+    expect(r.shown[2]).toMatchObject({ title: "Lunch", time: null });
   });
 });
 

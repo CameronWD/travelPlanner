@@ -125,7 +125,7 @@ export function MonthGrid({
       {/* Weekday header — kit micro/label type; the tiles carry the full date for assistive tech. */}
       <div
         aria-hidden="true"
-        className="grid grid-cols-7 gap-1 px-0.5 text-center text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground sm:gap-2 sm:text-left sm:text-[11px]"
+        className="grid grid-cols-7 gap-1 px-0.5 text-center text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground sm:gap-2 sm:text-left sm:text-[11px] lg:text-xs"
       >
         {MONTH_GRID_WEEKDAYS.map((wd) => (
           <span key={wd}>
@@ -155,12 +155,12 @@ export function MonthGrid({
         )}
         {weeks.flatMap((week, weekIdx) => week.map((cell, colIdx) => {
           const place = { gridRow: weekIdx + 1, gridColumn: colIdx + 1 };
-          const tile = "@container flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 lg:h-auto lg:min-h-28 lg:overflow-visible xl:p-2.5";
+          const tile = "@container flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 lg:h-auto lg:min-h-28 lg:overflow-visible xl:px-2.5 xl:pb-2.5";
 
           if (!cell.inMonth) {
             // Kit: the month's leading/trailing slots are empty space, not dim days.
             return (
-              <div key={cell.dateISO} data-month-pad="" aria-hidden="true" style={place} className={cn(tile, "invisible border-transparent")} />
+              <div key={cell.dateISO} data-month-pad="" aria-hidden="true" style={place} className={cn(tile, "invisible border-transparent xl:pt-2.5")} />
             );
           }
 
@@ -170,7 +170,7 @@ export function MonthGrid({
           if (!inWindow(cell.dateISO)) {
             // In the month, outside the trip: the kit's soft-outlined, muted tile.
             return (
-              <div key={cell.dateISO} role="presentation" style={place} className={cn(tile, "border-border-soft text-muted-foreground")}>
+              <div key={cell.dateISO} role="presentation" style={place} className={cn(tile, "border-border-soft text-muted-foreground xl:pt-2.5")}>
                 <span className={numberClass}>{dayNum}</span>
               </div>
             );
@@ -250,7 +250,7 @@ export function MonthGrid({
                 "border-border transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop hover:shadow-hard-1",
                 day?.stop
                   ? cn(stopPillClass(day.stop.sortOrder), stopBandBorderClass(day.stop.sortOrder), "border-l-4 sm:border-l-8 lg:pt-9")
-                  : "bg-card text-foreground",
+                  : "bg-card text-foreground xl:pt-2.5",
                 isToday && "-translate-x-px -translate-y-px shadow-hard-1 sm:-translate-x-0.5 sm:-translate-y-0.5 sm:shadow-hard-2",
                 onDropItem && dragOver === cell.dateISO && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
@@ -284,8 +284,9 @@ export function MonthGrid({
               {things.shown.length > 0 && (
                 <ul data-day-things className="mt-1 hidden min-w-0 flex-col gap-0.5 lg:flex">
                   {things.shown.map((t) => (
-                    <li key={t.id} title={t.label} className="truncate text-[11px] font-medium leading-tight lg:text-xs">
-                      {t.label}
+                    <li key={t.id} title={t.label} aria-label={t.label} className="truncate text-[11px] font-medium leading-tight lg:text-xs">
+                      {t.time && <span className="hidden @min-[96px]:inline">{t.time} </span>}
+                      {t.title}
                     </li>
                   ))}
                   {things.more > 0 && <li className="text-[11px] font-bold leading-tight text-muted-foreground lg:text-xs">+{things.more} more</li>}
