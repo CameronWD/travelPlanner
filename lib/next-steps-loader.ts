@@ -120,6 +120,8 @@ export async function loadNextSteps(tripId: string, today: string, viewerId: str
     // The caller's today, the same one the phase gate above used.
     today,
     travel: rows.travel,
+    hopModes: rows.hopModes,
+    markedFine: rows.markedFine,
     travelStops: rows.allStops,
     homePoint: homePointOf(rows.trip),
   });

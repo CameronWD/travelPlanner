@@ -1,9 +1,11 @@
 /**
- * Day-to-day motion (ADR 0063, amended by ADR 0065). Adjacent days scroll in
- * the carousel (components/trip/day/day-carousel.tsx) and navigate typed
- * day-settle: the body is already in place, so it maps to "none", while the
- * heading text still crossfades. A far jump from the strip is typed by
- * direction and runs the full-width page-turn in app/globals.css. Untyped
+ * Day-to-day motion (ADR 0063, amended by ADR 0065). Below lg, adjacent days
+ * scroll in the carousel (components/trip/day/day-carousel.tsx) and navigate
+ * typed day-settle: the body is already in place, so it maps to "none", while
+ * the heading text still crossfades. A far jump from the strip is typed by
+ * direction and runs the full-width page-turn in app/globals.css. From lg
+ * there is no carousel, so every day change arrives typed by direction and
+ * the body crossfades in place instead (DAY_BODY_TRANSITION_WIDE). Untyped
  * navigations (browser back/forward, router.refresh(), a section switch
  * landing on a day) map to "none".
  */
@@ -14,6 +16,14 @@ export const DAY_SETTLE = "day-settle";
 export const DAY_BODY_TRANSITION = {
   enter: { [DAY_FORWARD]: DAY_FORWARD, [DAY_BACK]: DAY_BACK, [DAY_SETTLE]: "none", default: "none" },
   exit: { [DAY_FORWARD]: DAY_FORWARD, [DAY_BACK]: DAY_BACK, [DAY_SETTLE]: "none", default: "none" },
+  default: "none",
+} as const;
+
+export const DAY_FADE = "day-fade";
+
+export const DAY_BODY_TRANSITION_WIDE = {
+  enter: { [DAY_FORWARD]: DAY_FADE, [DAY_BACK]: DAY_FADE, [DAY_SETTLE]: "none", default: "none" },
+  exit: { [DAY_FORWARD]: DAY_FADE, [DAY_BACK]: DAY_FADE, [DAY_SETTLE]: "none", default: "none" },
   default: "none",
 } as const;
 

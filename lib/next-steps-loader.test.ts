@@ -47,6 +47,7 @@ const BASE_ROWS = {
   hiddenStopIds: [] as readonly string[],
   hiddenItemIds: [] as readonly string[],
   today: "2026-06-01",
+  markedFine: [],
 };
 
 beforeEach(() => {

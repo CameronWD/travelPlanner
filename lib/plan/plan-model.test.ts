@@ -205,6 +205,10 @@ describe("fitTileModel (PLAN.md §6.2)", () => {
     expect(m).toMatchObject({ tone: "coral", big: 2, words: "nights over", pill: "RUNS OVER" });
     expect(m.bar!.overPct).toBeGreaterThan(0);
   });
+  it("a fitting plan never paints an overrun, even when its summed nights pass the window", () => {
+    const m = fitTileModel(summary({ hardEndState: "ok", hardEndSlackNights: 2, projectedNights: 40 }));
+    expect(m.bar!.overPct).toBe(0);
+  });
   it("unset and dormant: card, no number, no bar", () => {
     expect(fitTileModel(summary({ hardEndState: "unset", hardEndSlackNights: null, deadline: null }))).toMatchObject({ tone: "card", big: null, words: "Set a home-by date", pill: null, bar: null });
     expect(fitTileModel(summary({ hardEndState: "dormant", hardEndSlackNights: null }))).toMatchObject({ tone: "card", big: null, words: "Set a start date to check this" });

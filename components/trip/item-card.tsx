@@ -133,7 +133,7 @@ export function ItemCard({
             {placed && (
               <span
                 data-testid={`placed-marker-${item.id}`}
-                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold leading-tight text-foreground"
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold leading-tight text-foreground lg:px-2.5 lg:text-xs"
               >
                 <Check className="size-3 shrink-0" strokeWidth={3} aria-hidden="true" />
                 in this plan

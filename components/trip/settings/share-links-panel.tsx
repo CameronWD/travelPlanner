@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toastRejected } from "@/components/ui/action-failure";
 import { shareUrl } from "@/lib/share/share-url";
+import { useOrigin } from "@/lib/use-origin";
 
 // ---------------------------------------------------------------------------
 // Share links panel — one row per audience (ADR 0051).
@@ -165,10 +166,11 @@ function TravellersDial({
 
 function CopyUrlBar({ token }: { token: string }) {
   const [copied, setCopied] = React.useState(false);
+  const origin = useOrigin();
   return (
     <div className="flex items-center gap-2">
       <span className="min-w-0 flex-1 truncate rounded-[10px] border border-border px-3 py-2 font-mono text-xs text-muted-foreground">
-        {shareUrl(token)}
+        {`${origin}/share/${token}`}
       </span>
       <Button
         type="button"
@@ -334,7 +336,7 @@ function LinkRow({
 
       {editing && (
         <div className="space-y-3 rounded-xl bg-muted/30 p-3">
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1.5">
             <label htmlFor={`label-${link.id}`} className="text-xs font-medium text-muted-foreground">
               Label
             </label>
@@ -432,7 +434,7 @@ export function ShareLinksPanel({
 
       {creating && (
         <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-4">
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="new-link-label" className="text-xs font-medium text-muted-foreground">
               Label
             </label>

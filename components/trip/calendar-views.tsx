@@ -317,7 +317,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
                       ))}
                     </ul>
                   )}
-                  <p className="mt-2 text-[11px] font-medium text-muted-foreground">Drag onto a day to schedule.</p>
+                  <p className="mt-2 text-[11px] font-medium text-muted-foreground lg:text-xs">Drag onto a day to schedule.</p>
                 </aside>
               )}
             </div>

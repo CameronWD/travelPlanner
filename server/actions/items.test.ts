@@ -2198,6 +2198,72 @@ describe("Item place on save (Google)", () => {
     });
   });
 
+  describe("Ends at", () => {
+    it("createItem stores the end address with the picked place", async () => {
+      itemFindFirstMock.mockResolvedValue(null);
+      itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+      await createItem("trip-1", { ...VALID_INPUT, endAddress: "Westminster Bridge", endPlaceId: "wb-id", endLat: 51.5008, endLng: -0.122 });
+
+      expect(locateVenueMock).not.toHaveBeenCalled();
+      expect(itemCreateMock).toHaveBeenCalledWith({
+        data: expect.objectContaining({ endAddress: "Westminster Bridge", endPlaceId: "wb-id", endLat: 51.5008, endLng: -0.122 }),
+      });
+    });
+
+    it("createItem with only an end address looks it up, without the title", async () => {
+      itemFindFirstMock.mockResolvedValue(null);
+      itemCreateMock.mockResolvedValue({ id: "item-1" });
+      locateVenueMock.mockResolvedValue(FOUND);
+
+      await createItem("trip-1", { ...VALID_INPUT, endAddress: "Westminster Bridge" });
+
+      expect(locateVenueMock).toHaveBeenCalledWith("", "Westminster Bridge", { near: undefined });
+      expect(itemCreateMock).toHaveBeenCalledWith({
+        data: expect.objectContaining({ endAddress: "Westminster Bridge", endPlaceId: "found-id", endLat: 35.661, endLng: 139.701 }),
+      });
+    });
+
+    it("createItem refuses end coordinates without a picked end place", async () => {
+      const result = await createItem("trip-1", { ...VALID_INPUT, endLat: 1, endLng: 2 });
+      expect(result.success).toBe(false);
+    });
+
+    describe("updateItem", () => {
+      const row = {
+        id: "item-1", tripId: "trip-1", forkId: null, stopId: null, title: "Walk", category: "ACTIVITY",
+        date: null, startTime: null, endTime: null, address: null, link: null, booking: null, notes: null,
+        hiddenFromShares: false, bookingState: "NONE", bookingStateSet: false, bookBy: null,
+        lat: null, lng: null, countryCode: null, placeId: null, businessStatus: null,
+        endAddress: "Westminster Bridge", endLat: 51.5008, endLng: -0.122, endPlaceId: "wb-id",
+      };
+      beforeEach(() => {
+        itemFindUniqueMock.mockResolvedValue(row);
+        itemUpdateMock.mockResolvedValue(row);
+      });
+
+      it("keeps the end place and looks nothing up while the end address is unchanged", async () => {
+        await updateItem("item-1", { notes: "bring water" });
+
+        expect(locateVenueMock).not.toHaveBeenCalled();
+        expect(itemUpdateMock.mock.calls[0][0].data).toMatchObject({ endAddress: "Westminster Bridge", endLat: 51.5008, endLng: -0.122, endPlaceId: "wb-id" });
+      });
+
+      it("clearing the end address nulls all four fields", async () => {
+        await updateItem("item-1", { endAddress: null });
+
+        expect(locateVenueMock).not.toHaveBeenCalled();
+        expect(itemUpdateMock.mock.calls[0][0].data).toMatchObject({ endAddress: null, endLat: null, endLng: null, endPlaceId: null });
+      });
+
+      it("a new end pick replaces the stored end place", async () => {
+        await updateItem("item-1", { endAddress: "Lambeth Bridge", endPlaceId: "lb-id", endLat: 51.4947, endLng: -0.1235 });
+
+        expect(itemUpdateMock.mock.calls[0][0].data).toMatchObject({ endAddress: "Lambeth Bridge", endLat: 51.4947, endLng: -0.1235, endPlaceId: "lb-id" });
+      });
+    });
+  });
+
   describe("updateItem", () => {
     const row = {
       id: "item-1", tripId: "trip-1", forkId: null, stopId: "stop-1", title: "Colosseum", category: "SIGHTSEEING",

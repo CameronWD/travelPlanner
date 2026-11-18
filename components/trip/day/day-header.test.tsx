@@ -41,9 +41,9 @@ describe("DayHeader", () => {
     expect(screen.getByText("Christmas markets")).toBeInTheDocument();
     expect(screen.getByLabelText("Previous day")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("link", { name: "Next day: Sun 13 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-13");
-    expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Travellers (1)" })).toHaveAttribute("href", "/trips/t1/settings#travellers");
-    expect(screen.getByRole("button", { name: "+ Add to this day" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Travellers (1)" })[0]).toHaveAttribute("href", "/trips/t1/settings#travellers");
+    expect(screen.getAllByRole("button", { name: "+ Add to this day" })).toHaveLength(2);
   });
   it("tags the arrows' navigations as day-back / day-forward for the body's View Transition (ADR 0063)", () => {
     hoisted.links.length = 0;
@@ -63,17 +63,20 @@ describe("DayHeader", () => {
   it("below lg, a top bar carries the switcher pill and the bell (the trip header is hidden on this route)", () => {
     render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+ Add to this day</button>} />);
     const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
-    expect(bar.className).toContain("xl:hidden");
+    expect(bar.className).toContain("@min-[84rem]:hidden");
+    expect(bar.querySelector('[data-slot="day-trip-switcher-pill"]')!.className).toContain("xl:hidden");
     expect(bar.querySelector('[aria-label="Switch trip"]')).not.toBeNull();
     const bell = bar.querySelector('[aria-label="Notifications"]') as HTMLElement;
     expect(bell.parentElement!.className).toContain("lg:hidden");
-    expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(2);
+    expect(bell.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex", "items-center", "gap-2.5"]));
+    expect(bell.parentElement).toContainElement(screen.getAllByRole("button", { name: "Share" })[0]);
+    expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(3);
   });
   it("travelling: the switcher, Share and bell row is hidden on a phone and unchanged from md up", () => {
     render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" slimOnPhone eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
     const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
     expect(bar.className).toContain("max-md:hidden");
-    expect(bar.className).toContain("xl:hidden");
+    expect(bar.className).toContain("@min-[84rem]:hidden");
   });
   it("planning: the row is not hidden on a phone", () => {
     render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
@@ -127,7 +130,14 @@ describe("DayHeader", () => {
       expect(title).toHaveTextContent("");
       const subs = document.querySelectorAll('[data-slot="day-sub-line"]');
       expect(subs).toHaveLength(2);
-      for (const s of Array.from(subs)) expect(s.className).toContain("h-5");
+      for (const s of Array.from(subs)) expect(s.className.split(/\s+/)).toContain("min-h-5");
+    });
+    it("a long sub-line wraps to a centred second line instead of cutting off", () => {
+      render(<DayHeader {...base} {...variants[2]} />);
+      for (const s of Array.from(document.querySelectorAll('[data-slot="day-sub-line"]'))) {
+        expect(s.className.split(/\s+/)).not.toContain("truncate");
+        expect(s.className.split(/\s+/)).toContain("text-center");
+      }
     });
     it("only the ghost and the date size the block: text lines are w-0 min-w-full, and the block never shrinks at md+", () => {
       render(<DayHeader {...base} {...variants[2]} />);
@@ -143,19 +153,36 @@ describe("DayHeader", () => {
   });
   describe("desktop centring (spec 2026-09-29 D2)", () => {
     const props = { tripId: "t1", tripSlug: "t1", eyebrow: "E", heading: "Sat 12 Dec", subLine: "", subLineCompact: "", dayTitle: null, prevHref: "/trips/t1/day/2026-12-11" as Route, nextHref: "/trips/t1/day/2026-12-13" as Route, prevLabel: "Previous day: Fri 11 Dec", nextLabel: "Next day: Sun 13 Dec", unreadCount: 0, recent: [], members: [], addButton: <button>+</button> };
-    it("from lg the header is a 1fr | auto | 1fr grid: an empty spacer, the date with its arrows centred, the right cluster at the end", () => {
+    it("when the header is 84rem wide it is a 1fr | auto | 1fr grid: an empty spacer, the date with its arrows centred, the right cluster at the end", () => {
       render(<DayHeader {...props} />);
       const row = document.querySelector('[data-slot="day-header-row"]') as HTMLElement;
-      expect(row.className).toContain("lg:grid");
-      expect(row.className).toContain("lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]");
+      expect(row.className).toContain("@min-[84rem]:grid");
+      expect(row.className).toContain("@min-[84rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]");
       const spacer = row.querySelector('[data-slot="day-header-spacer"]') as HTMLElement;
       expect(spacer).toHaveAttribute("aria-hidden", "true");
       expect(spacer.className).toContain("hidden");
-      expect(spacer.className).toContain("lg:block");
+      expect(spacer.className).toContain("@min-[84rem]:block");
       const arrows = (document.querySelector('[data-slot="day-title-block"]') as HTMLElement).parentElement as HTMLElement;
       expect(arrows.className).toContain("lg:justify-center");
       expect(arrows.className).toContain("lg:flex-none");
-      expect(screen.getByRole("button", { name: "+" }).parentElement!.className).toContain("lg:justify-self-end");
+      expect(row.querySelector('[data-slot="day-header-cluster"]')!.className).toContain("@min-[84rem]:justify-self-end");
+    });
+    it("the cluster follows the header's width: upper row until the header is 84rem wide, then the date row's grid", () => {
+      render(<DayHeader {...props} tripName="Christmas in Europe" members={[{ id: "u1", name: "Cam", email: "c@x", image: null }]} addButton={<button>+ Add to this day</button>} />);
+      expect(document.querySelector('[data-slot="day-trip-switcher"]')!.parentElement!.className.split(/\s+/)).toContain("@container");
+      const upper = document.querySelector('[data-slot="day-pill-row-cluster"]') as HTMLElement;
+      expect(upper.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:flex", "flex-wrap", "ml-auto", "justify-end"]));
+      expect(upper.parentElement!.className).toContain("@min-[84rem]:hidden");
+      expect(upper.className).not.toMatch(/absolute|xl:hidden/);
+      for (const label of ["Notifications", "Share", "Travellers (1)"]) expect(upper.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+      expect(upper.textContent).toContain("+ Add to this day");
+      const row = document.querySelector('[data-slot="day-header-row"]') as HTMLElement;
+      const lower = row.querySelector('[data-slot="day-header-cluster"]') as HTMLElement;
+      expect(lower.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "@min-[84rem]:flex"]));
+      expect(lower.className).not.toMatch(/(^|\s)(lg|xl):/);
+      expect(row.className).not.toMatch(/(^|\s)(lg|xl):grid/);
+      expect(row.className).toContain("lg:justify-center");
+      expect(row.className).not.toMatch(/absolute/);
     });
     it("below lg nothing changes: the row is still flex, the arrows still sit start-aligned from md", () => {
       render(<DayHeader {...props} />);

@@ -691,14 +691,37 @@
 }
 @keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
-@keyframes wx-drift { from { transform: translateX(0); } to { transform: translateX(6px); } }
-@keyframes wx-fall-rain { from { transform: translateY(0) rotate(18deg); opacity: 1; } to { transform: translateY(8px) rotate(18deg); opacity: 0.4; } }
-@keyframes wx-fall-snow { from { transform: translateY(0); } to { transform: translateY(10px); } }
-@keyframes wx-spin { to { transform: rotate(360deg); } }
-@utility wx-drift { animation: wx-drift 8s ease-in-out infinite alternate; }
-@utility wx-rain { animation: wx-fall-rain 1.2s linear infinite; }
-@utility wx-snow { animation: wx-fall-snow 3s ease-in-out infinite alternate; }
-@utility wx-spin { animation: wx-spin 40s linear infinite; }
+/* Weather scenes (components/weather/scenes.tsx). Durations, delays and
+   distances ride inline on each piece; these only name the motion. SVG pieces
+   that turn or scale pivot on their own box, not the canvas origin. */
+@keyframes wx-pan { to { transform: translateX(var(--wx-pan-by)); } }
+@keyframes wx-bob { to { transform: translate(var(--wx-bob-x, 0px), var(--wx-bob-y, 0px)); } }
+@keyframes wx-fall { from { transform: translate(var(--wx-fx, 0px), var(--wx-fy, 0px)); } to { transform: translate(var(--wx-tx, 0px), var(--wx-ty, 0px)); } }
+@keyframes wx-sway { from { transform: translateX(-5px); } to { transform: translateX(5px); } }
+@keyframes wx-turn { to { transform: rotate(360deg); } }
+@keyframes wx-breathe { from { transform: scale(0.92); } to { transform: scale(1.08); } }
+@keyframes wx-splash { 0% { transform: scale(0.3); opacity: 1; } 16% { transform: scale(1.15); opacity: 0; } 100% { transform: scale(1.15); opacity: 0; } }
+/* Two soft flashes every 7s: peaks at 86% and 94% (6.02s and 6.58s, 0.56s
+   apart), opacity 0.35 then 0.22, each about 140ms long, then 6.3s dark. Never
+   more than two in any second, under the 3-per-second photosensitivity line. */
+@keyframes wx-flash { 0%, 85%, 87%, 93%, 95%, 100% { opacity: 0; } 86% { opacity: 0.35; } 94% { opacity: 0.22; } }
+@keyframes wx-twinkle { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.4); } }
+@utility wx-pan { animation: wx-pan 60s linear infinite; }
+@utility wx-bob { animation: wx-bob 9s ease-in-out infinite alternate; }
+@utility wx-fall { animation: wx-fall 1s linear infinite; }
+@utility wx-sway { animation: wx-sway 4s ease-in-out infinite alternate; }
+@utility wx-turn { animation: wx-turn 90s linear infinite; transform-box: fill-box; transform-origin: center; }
+@utility wx-breathe { animation: wx-breathe 3.2s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@utility wx-splash { animation: wx-splash 1s linear infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@utility wx-flash { opacity: 0; animation: wx-flash 7s linear infinite; }
+@utility wx-twinkle { animation: wx-twinkle 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@utility wx-drop { rotate: var(--wx-rain-angle, 0deg); transform-box: fill-box; transform-origin: 50% 0; }
+/* The global reduced-motion rule only shortens each loop to one 0.01ms run.
+   Scenes are decoration: stop them outright, every piece at its drawn rest
+   position. */
+@media (prefers-reduced-motion: reduce) {
+  [data-scene] * { animation: none !important; }
+}
 
 @utility tp-fade-in { animation: tp-fade-in var(--dur-base) linear; }
 /* Paced to tp-slide-up (--dur-slow), so a sheet's backdrop and its panel arrive
@@ -822,12 +845,13 @@
 
 /* ── Route motion (ADR 0063, amended by ADR 0065) ────────────────────────
    React <ViewTransition> classes. Section switches are a cut — no rule here
-   (components/navigation/section-transition.tsx). The Day body runs a
-   full-width page-turn only on a far jump from the strip (day-forward /
+   (components/navigation/section-transition.tsx). Below lg the Day body runs
+   a full-width page-turn only on a far jump from the strip (day-forward /
    day-back); adjacent days scroll in the carousel and navigate typed
    day-settle, which maps the body to "none" and the heading text to
-   day-text. Untyped transitions — browser back/forward, router.refresh(),
-   Suspense reveals — map to "none" in the components. */
+   day-text. From lg every day change maps the body to day-fade. Untyped
+   transitions — browser back/forward, router.refresh(), Suspense reveals —
+   map to "none" in the components. */
 ::view-transition { pointer-events: none; }
 
 @keyframes tp-vt-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -843,6 +867,12 @@
 ::view-transition-new(.day-forward) { --tp-vt-from: 100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-in; }
 ::view-transition-old(.day-back) { --tp-vt-to: 100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-out; }
 ::view-transition-new(.day-back) { --tp-vt-from: -100%; animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both tp-vt-page-in; }
+
+/* Wide-screen day change (spec 2026-11-18 D2): the old day fades out as the
+   new one fades in, in place, with no slide; the strip's glide is the only
+   movement. */
+::view-transition-old(.day-fade) { animation: 150ms ease-in both tp-vt-fade reverse; }
+::view-transition-new(.day-fade) { animation: 150ms ease-out both tp-vt-fade; }
 
 /* Day heading text (spec 2026-09-29 D4): the old text fades out as the new
    fades in, in place, over the first 150ms of the body slide. */

@@ -153,7 +153,7 @@ One thing a **Review** noticed, about a Stop, Item, Transport leg, Accommodation
 _Avoid_: Issue, result, warning (warnings are Flags)
 
 **Flag**:
-An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, **no Transport connecting two consecutive Stops** (a missing connection), no Transport from the **Home base** to the first Stop or — on a round trip — from the last Stop back to the Home base (a missing home connection), a **return** leg that lands after the **Hard end date**, a night at a Stop with **no Accommodation cover** (a coverage gap, finer than a Stop with none at all), an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, a scheduled Item whose place has **closed** (for good, or temporarily when last checked), or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**. A Flag is always something the Traveller can act on; pure awareness signals (e.g. spending over estimate — see **Spend so far**) are not Flags.
+An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, **no Transport connecting two consecutive Stops** (a missing connection), no Transport from the **Home base** to the first Stop or — on a round trip — from the last Stop back to the Home base (a missing home connection), a **return** leg that lands after the **Hard end date**, a night at a Stop with **no Accommodation cover** (a coverage gap, finer than a Stop with none at all), an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, a scheduled Item whose place has **closed** (for good, or temporarily when last checked), or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**. A travel-time Flag can be **Marked fine**. A Flag is always something the Traveller can act on; pure awareness signals (e.g. spending over estimate — see **Spend so far**) are not Flags.
 _Avoid_: Warning, alert, issue, error
 
 **Home**:
@@ -195,7 +195,7 @@ The page for one dated day of the Trip: the date is its heading, with what is pl
 _Avoid_: Days page, day page, daily view, itinerary (that is the whole Timeline)
 
 **Day strip**:
-The row of every day of the Trip, one chip per day, across the top of the **Day view**. It keeps the day shown in view — on a phone, centred — and moves with the day's content as that is swiped. Tapping a day opens it; scrolling the strip only looks, it never changes the day on its own.
+The row of every day of the Trip, one chip per day, across the top of the **Day view**. It keeps the day shown centred: on a phone it moves with the day's content as that is swiped; on a wide screen the shown day holds the middle with arrows at each end, and the strip slides beneath it; after a look around, the strip returns to the shown day by itself. Tapping a day opens it; scrolling the strip only looks, it never changes the day on its own.
 _Avoid_: Day picker (that is the plan editor's menu), date bar, week strip (it holds the whole Trip, not a week), carousel (describes the motion, not the thing)
 
 **Calendar**:
@@ -219,7 +219,7 @@ The first-level part of a country a place lies in — a German state such as Bav
 _Avoid_: State (avoided for **Phase**), province, subdivision; not the "area" a Stop is searched as (a city or district)
 
 **Day map**:
-An on-demand map of a single day's plan — its located Items as a numbered route in time order, with tonight's Accommodation and the day's Transport points marked. Available on both the Day view and the Travelling **Home**, collapsed until opened. It offers one-tap **directions** out to an external maps app (the whole day's route, or a single hop between Items), draws each hop along its **Travel time**'s route where one is known, and plots only what has coordinates.
+An on-demand map of a single day's plan — its located Items as a numbered route in time order, with tonight's Accommodation and the day's Transport points marked. Opens over the **Day view**; from the Travelling **Home** its link lands on the Day view with the map open (the wide-screen Home tile still shows a map in place). One dialog: edge to edge on a phone, large on a wide screen, with the day's places listed beside the map on a wide screen. An Item that **Ends at** a second place is drawn as its own route between the two. It offers one-tap **directions** out to an external maps app (the whole day's route, or a single hop between Items), draws each hop along its **Travel time**'s route where one is known, and plots only what has coordinates.
 _Avoid_: Route map (that's the whole-Trip map shown in the Summary)
 
 **Travel time**:
@@ -227,8 +227,20 @@ How long one hop takes — between consecutive located Items on a day, or along 
 _Avoid_: Drive estimate (that is the stand-in, not the thing), journey time, leg time, distance
 
 **Local travel mode**:
-How the Travellers get about while based at a **Stop** — **Drive** or **Public transport** — used for any hop there too long to walk. Guessed from the Stop (Drive when a car **Transport** arrives or leaves, Public transport otherwise) and changeable per Stop. A hop short enough to walk is walked whatever the Stop's Local travel mode.
+How the Travellers get about while based at a **Stop** — **Drive**, **Public transport** or **Walk** — used for any hop there too long to walk. Guessed from the Stop (Drive when a car **Transport** arrives or leaves, Public transport otherwise) and changeable per Stop. A hop short enough to walk, or one where walking takes about as long as the Stop's mode, is walked whatever the Local travel mode; a **Walk** Stop walks anything up to half an hour and takes public transport beyond. A **Hop mode** overrides it for one hop.
 _Avoid_: Getting around (that is a **Category**), transport mode (that is a **Transport**'s), travel mode
+
+**Hop mode**:
+The way one particular hop is travelled — Walk, Public transport or Drive — chosen by a Traveller for that hop alone ("we're walking this bit"). It overrides the **Local travel mode** and has no length limit, so a two-hour walk is timed and drawn as a walk. Shared by the Trip's Travellers; it stops applying when the two **Items** are no longer next to each other on the day. A What-if plan starts with the real plan's Hop modes, but they cannot be changed there.
+_Avoid_: Leg mode, travel mode, gap mode
+
+**Ends at**:
+An optional second place on an **Item** that finishes somewhere other than where it starts — a walk, a wander, a river cruise. The Item's own location is where it starts; the hop *to* it is measured to the start and the hop *from* it is measured from where it Ends at. The **Day map** draws the Item as a route between the two.
+_Avoid_: End point, destination, route (that is the **Travel time**'s), finish
+
+**Marked fine**:
+A Traveller's say-so that one travel-time **Flag** (a tight or close-run hop between two Items) is not a problem. A Flag Marked fine is hidden wherever Flags are counted or listed as problems, for every Traveller, and records who marked it; the Day view's "Getting around" keeps it under a "marked fine" line, where it can be undone. It shows again if either Item's time or place changes, the way of travel changes, the **Travel time** shifts by about five minutes or a looked-up time replaces a guess, or the Flag's seriousness changes. Only travel-time Flags can be Marked fine — every other Flag is a fact about the plan, not an estimate.
+_Avoid_: Dismissed (that is a **Finding**'s state), ignored, snoozed, acknowledged
 
 **Day ideas**:
 The menu a **Day view** offers when the day is **free-form** (no scheduled Items): the candidates the Travellers already collected, each one tap from being scheduled onto the day. Drawn only from the Travellers' own pools — never fetched from outside: the current Stop's dateless **things to do** first, then **Wishlist** ideas near the Stop (~30km) and Wishlist ideas whose country matches the Stop's (located or not). The Day view shows the first three and offers the rest on request. Offered in every **Phase** — while planning, an empty day is exactly where a saved idea wants slotting in — and the plan editor is unaffected. On a day that has plans the menu stays out of the way as the existing collapsed nearby-Wishlist section (tight 1.5km matching against the day's plan). Scheduling from it uses the normal copy-in placement (ADR 0019).

@@ -1,0 +1,108 @@
+"use client";
+
+import { useState, useSyncExternalStore } from "react";
+import { Map } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { createMapLoader } from "@/components/ui/map-loader";
+import { useMediaQuery } from "@/components/ui/use-media-query";
+import { cn } from "@/lib/cn";
+import type { DayMapModel } from "@/lib/day-map";
+
+const DayMapLoader = createMapLoader<{ tripId: string; model: DayMapModel; highlightId?: string; fill?: boolean }>(() =>
+  import("@/components/trip/day-map").then((m) => m.DayMap),
+);
+
+const MD_UP = "(min-width: 768px)";
+
+// The URL is the one source of truth for "the Day map is open", so the two
+// Day plan cards (one CSS-hidden) can never disagree about it.
+const mapParamListeners = new Set<() => void>();
+
+function subscribeMapParam(listener: () => void) {
+  mapParamListeners.add(listener);
+  window.addEventListener("popstate", listener);
+  return () => {
+    mapParamListeners.delete(listener);
+    window.removeEventListener("popstate", listener);
+  };
+}
+
+const mapParamOpen = () => new URLSearchParams(window.location.search).get("map") === "1";
+
+function setMapParam(open: boolean) {
+  const url = new URL(window.location.href);
+  if (open) url.searchParams.set("map", "1");
+  else url.searchParams.delete("map");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  mapParamListeners.forEach((l) => l());
+}
+
+export function DayMapDialog({
+  open,
+  onOpenChange,
+  tripId,
+  model,
+}: {
+  open: boolean;
+  onOpenChange(open: boolean): void;
+  tripId: string;
+  model: DayMapModel;
+}) {
+  const [highlightId, setHighlightId] = useState<string | undefined>();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="full">
+        <DialogHeader>
+          <DialogTitle>Day map</DialogTitle>
+        </DialogHeader>
+        <div className="flex min-h-0 flex-1 flex-col gap-3.5 lg:flex-row">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <DayMapLoader tripId={tripId} model={model} highlightId={highlightId} fill />
+          </div>
+          <ol aria-label="Today's places" className="hidden w-72 shrink-0 flex-col gap-1.5 overflow-y-auto lg:flex">
+            {model.points.map((point) => (
+              <li key={`${point.kind}:${point.id}`}>
+                <button
+                  type="button"
+                  onClick={() => setHighlightId(point.id)}
+                  aria-pressed={highlightId === point.id}
+                  className={cn(
+                    "flex min-h-11 w-full items-center gap-2.5 rounded-md border-2 border-border px-3 text-left text-sm font-bold transition-colors hover:bg-muted",
+                    highlightId === point.id && "bg-muted",
+                  )}
+                >
+                  {point.order ? <span className="text-muted-foreground">{point.order}</span> : null}
+                  <span className="min-w-0 truncate">{point.label}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The Day plan card renders once per size (phone, desktop), one of them
+ * CSS-hidden, so only the card that matches the viewport mounts the dialog;
+ * a neighbour day in the phone carousel never does (ADR 0065).
+ */
+export function DayMapButton({ tripId, model, size, shown = true }: { tripId: string; model: DayMapModel; size: "phone" | "desktop"; shown?: boolean }) {
+  const open = useSyncExternalStore(subscribeMapParam, mapParamOpen, () => false);
+  const mdUp = useMediaQuery(MD_UP);
+  if (model.points.length === 0) return null;
+
+  const mounted = shown && mdUp !== null && (size === "desktop") === mdUp;
+
+  return (
+    <>
+      <Button type="button" variant="secondary" size="sm" shape="pill" onClick={() => setMapParam(true)}>
+        <Map aria-hidden="true" />
+        Day map
+      </Button>
+      {mounted ? <DayMapDialog open={open} onOpenChange={setMapParam} tripId={tripId} model={model} /> : null}
+    </>
+  );
+}

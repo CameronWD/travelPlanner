@@ -41,6 +41,7 @@ const BASE_ROWS = {
   accommodations: [],
   items: [],
   hiddenStopIds: [] as readonly string[],
+  markedFine: [] as { flagId: string; fingerprint: string; markedByName: string; createdAt: Date }[],
 };
 
 beforeEach(() => {
@@ -133,5 +134,15 @@ describe("loadNavCounts", () => {
     expect(detectFlagsMock).toHaveBeenCalledWith(
       expect.objectContaining({ deadline: { kind: "return-leg", date: "2026-12-06", mode: "FLIGHT", homeward: true } }),
     );
+  });
+
+  it("the badge leaves out a Flag a Traveller Marked fine (spec 2026-11-18 T5)", async () => {
+    detectFlagsMock.mockReturnValue([
+      { id: "tight-a-b", severity: "info", message: "Cutting it close.", targetType: "DAY", fingerprint: "fp-1" },
+      { id: "packed-2026-12-08", severity: "info", message: "Packed.", targetType: "DAY" },
+    ]);
+    expect((await loadNavCounts("t1")).flags).toBe(2);
+    loadFlagRowsMock.mockResolvedValue({ ...BASE_ROWS, markedFine: [{ flagId: "tight-a-b", fingerprint: "fp-1", markedByName: "Xanthia", createdAt: new Date() }] });
+    expect((await loadNavCounts("t2")).flags).toBe(1);
   });
 });

@@ -4,7 +4,7 @@ import { driveKey, hopKeys, type Pt } from "@/lib/travel-times/hops";
 
 vi.mock("@/lib/db", async () => {
   const { mockDb } = await import("@/test/helpers/db-mock");
-  return { db: mockDb(["trip", "stop", "item", "transport", "tripMember", "travelTime"]) };
+  return { db: mockDb(["trip", "stop", "item", "transport", "tripMember", "travelTime", "hopMode"]) };
 });
 
 const m = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ vi.mock("@/lib/surprise-visibility", () => ({
 import { db as realDb } from "@/lib/db";
 import { refreshTripTravelTimes } from "./refresh";
 
-const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "tripMember" | "travelTime">;
+const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "tripMember" | "travelTime" | "hopMode">;
 
 const NOW = new Date("2026-11-01T00:00:00Z");
 const DAY = "2026-11-10";
@@ -115,6 +115,7 @@ beforeEach(() => {
     table.set(create.key, row);
     return row;
   });
+  db.hopMode.findMany.mockResolvedValue([]);
   plan({});
 });
 
@@ -311,6 +312,18 @@ describe("refreshTripTravelTimes", () => {
     });
     await refreshTripTravelTimes("t1", { now: NOW });
     expect([...table.keys()]).toEqual([driveKey(FAR(2), FAR(3))]);
+  });
+
+  it("a hop with a Hop mode fetches that mode's key whatever its length", async () => {
+    const [a, b] = [FAR(0), FAR(2)];
+    plan({
+      items: [item({ id: "a", at: a, start: "10:00", end: "11:00" }), item({ id: "b", at: b, start: "13:00", end: "14:00" })],
+    });
+    db.hopMode.findMany.mockResolvedValue([{ fromItemId: "a", toItemId: "b", mode: "WALK" }]);
+
+    await refreshTripTravelTimes("t1", { now: NOW });
+
+    expect(calledKeys()).toEqual([`WALK|${a.lat.toFixed(5)},${a.lng.toFixed(5)}|${b.lat.toFixed(5)},${b.lng.toFixed(5)}`]);
   });
 
   it("Review Focus 3: a surprised Traveller's day gets the hop that steps over the Surprise", async () => {

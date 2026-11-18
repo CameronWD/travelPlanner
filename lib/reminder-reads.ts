@@ -15,7 +15,10 @@ import {
 export type { ReminderItem } from "@/lib/reminder-about";
 
 /**
- * Reminders for a trip dated on or after `fromDate`, soonest first.
+ * Reminders for a trip dated on or after `fromDate`, soonest first. With
+ * `includePast`, the 20 most recent earlier ones follow, newest first and
+ * flagged `past` (the Checklists card's "Earlier"); they pass through the
+ * same Surprise fragment, so a hidden thing's Reminder stays absent.
  *
  * Called by the trip Home, the Checklists page, the Trips page loader and the
  * Claude connection's get_reminders. Access-checked: `requireTripAccess` is
@@ -23,17 +26,29 @@ export type { ReminderItem } from "@/lib/reminder-about";
  * or Item hidden from the viewer stays in the database. A lib read (spec
  * 2026-10-14 card 3.N), no longer a published action.
  */
-export async function listRemindersForTrip(tripId: string, fromDate: string): Promise<ReminderItem[]> {
+export async function listRemindersForTrip(
+  tripId: string,
+  fromDate: string,
+  opts: { includePast?: boolean } = {},
+): Promise<ReminderItem[]> {
   const { user } = await requireTripAccess(tripId);
   const v = await loadSurpriseVisibility(tripId, user.id);
 
-  const rows = await db.reminder.findMany({
+  const upcoming = await db.reminder.findMany({
     where: { tripId, date: { gte: fromDate }, ...v.where.reminder },
     orderBy: { date: "asc" },
     take: 20,
     select: REMINDER_ITEM_SELECT,
   });
-  return rows.map(toReminderItem);
+  if (!opts.includePast) return upcoming.map(toReminderItem);
+
+  const earlier = await db.reminder.findMany({
+    where: { tripId, date: { lt: fromDate }, ...v.where.reminder },
+    orderBy: { date: "desc" },
+    take: 20,
+    select: REMINDER_ITEM_SELECT,
+  });
+  return [...upcoming.map(toReminderItem), ...earlier.map((r) => ({ ...toReminderItem(r), past: true as const }))];
 }
 
 /**
@@ -66,7 +81,7 @@ export interface RemindersAbout {
  * Surprise visibility it already loaded for this viewer (readPlan's) so the
  * pre-query isn't run twice; access is still checked first (memoised).
  */
-export async function readRemindersAbout(tripId: string, v: SurpriseVisibility): Promise<RemindersAbout> {
+export async function readRemindersAbout(tripId: string, v: SurpriseVisibility, today?: string): Promise<RemindersAbout> {
   await requireTripAccess(tripId);
   const rows = await db.reminder.findMany({
     where: {
@@ -79,7 +94,7 @@ export async function readRemindersAbout(tripId: string, v: SurpriseVisibility):
   });
   const out: RemindersAbout = { byStopId: new Map(), byItemId: new Map(), byTransportId: new Map() };
   const push = (m: Map<string, ReminderItem[]>, id: string, r: ReminderItem) => m.set(id, [...(m.get(id) ?? []), r]);
-  for (const r of rows.map(toReminderItem)) {
+  for (const r of rows.map((row) => (today && row.date < today ? { ...toReminderItem(row), past: true as const } : toReminderItem(row)))) {
     if (r.stopId) push(out.byStopId, r.stopId, r);
     else if (r.itemId) push(out.byItemId, r.itemId, r);
     else if (r.transportId) push(out.byTransportId, r.transportId, r);

@@ -16,12 +16,15 @@ Paths marked A: are under `docs/archive/`.
 - **Where you are** A Transport used as a day trip on a changeover or arrival day blanks "Where you are" between its legs; mis-dated legs with no arrival time; the second leg of a two-leg day landing after the arrive date; a leg departing the evening before the depart date (`lib/now-next.ts`).
 - **Trip today** A Traveller still in the last Stop after about 15:00 local on its depart date, with Home ahead, sees "today" a day early for up to about 9 h (`lib/tz.ts`); a Trip whose end date equals the last depart date goes Past early.
 - **Where you are card** The phone Home keeps a leftover "Where you are" card beside Now / next (redundant, not contradictory).
-- **Day map** "Day map" lands at the top of the Day view, where the map is a collapsed panel.
 - **Check-in** "Check-in" shows on every night of a stay, not only the first.
 - **Trip header** On the phone Home the Trip header (name, dates, avatars, Share, bell) takes about 250px before the day line.
 - **Row tap at 640px** Rows open the edit form at 640px and up (phone landscape).
 - **What's around in transit** "What's around" while in transit creates a dated Item with no Stop.
 - **Open today zone** "Open today" uses the saved copy's zone, so a copy rendered in Bali and read in Europe shows Bali's today.
+- **Day view focus** Focus drops to the page on every Day view day change (header arrows, chips and strip arrows), because the page remounts.
+- **Day map back and offline** The phone back gesture leaves the Day view instead of closing the Day map; offline, Home's Day map link opens the Day view without the map.
+- **Walk directions** At a Walk Stop "Directions from here" always opens walking directions.
+- **Day view header width** The Day view header's container threshold (84rem) is tight with five avatars and the widest heading, between about 1656 and 1700px.
 
 ## Correctness
 
@@ -37,6 +40,9 @@ Paths marked A: are under `docs/archive/`.
 - **MCP link string** MCP Item create and update accept an unvalidated link string (`lib/mcp/tools/plan-write.ts` 118, 136); the render-time guard `safeWebHref` covers display.
 - **Surprise Reminders** `unscheduleItem`'s placed-copy delete and fork promote do not clean up a Surprise's Reminders (`deleteStop` does).
 - **Forks today** `server/actions/forks.ts` callers compute "today" without the Home timezone.
+- **Marked fine revival** A mark comes back if a thing is inserted between a Marked-fine pair and then removed.
+- **Hop modes on duplicate** Duplicating a Trip does not copy Hop modes.
+- **What-if plans and Marked fine** (Cam, 2026-11-18) Hide, then remove, What-if plans; decision pending. Until then Compare shows a What-if plan with one more travel-time warning than the real plan once something is Marked fine, because marks are not copied.
 
 ## Auth and access
 
@@ -69,4 +75,7 @@ Paths marked A: are under `docs/archive/`.
 
 ## Ideas, not commitments
 
-From the Google maps and extras specs: per-hop override of the way a hop is travelled, a compliance refresh cron, Places phone / rating / photos, reordering a day by Route Matrix, severe-weather alerts, Place Photos covers (`docs/specs/2026-10-30-google-maps.md`, `docs/specs/2026-11-06-google-extras.md`, "Not in this work").
+From the Google maps and extras specs: a compliance refresh cron, Places phone / rating / photos, reordering a day by Route Matrix, severe-weather alerts, Place Photos covers (`docs/specs/2026-10-30-google-maps.md`, `docs/specs/2026-11-06-google-extras.md`, "Not in this work").
+
+- **Usage tracking** (Cam, 2026-11-18) To see what gets used before simplifying: first-party counts of sections opened and actions used per Traveller per day, a trend table on /admin, no third-party tracker. Check what is already recorded first.
+- **Mystery destination** (Cam, 2026-11-18) A Surprise that also hides the Stop's name and the Transport's destination; the map, weather, Calendar band, timezone, Digest and tickets would all need handling.

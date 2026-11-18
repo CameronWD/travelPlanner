@@ -212,4 +212,30 @@ describe("IdeasBox, Surprise ideas (CONTEXT.md Surprise)", () => {
     expect(screen.getByRole("img", { name: "Surprise, planned by Cam" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Surprise" })).toBeNull();
   });
+
+  it("the Add an idea card is full width at Item-row height, after the chips, and the only content of an empty box on desktop", async () => {
+    const { unmount } = render(<IdeasBox ideas={IDEAS} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    const card = screen.getByRole("button", { name: "Add an idea" });
+    expect(card.className).toContain("w-full");
+    expect(card.className).toContain("min-h-10");
+    expect(card.className).not.toContain("h-[26px]");
+    expect(screen.getByTestId("ideas-chips").compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    unmount();
+    render(<IdeasBox ideas={[]} onOpen={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByTestId("ideas-header").className).toContain("lg:hidden");
+    expect(screen.getByRole("button", { name: "Add an idea" }).className).toContain("lg:flex");
+  });
+
+  it("an Add an idea card for desktop sits beside the phone's link, which is hidden at lg", async () => {
+    const onAdd = vi.fn();
+    render(<IdeasBox ideas={IDEAS} onOpen={vi.fn()} onAdd={onAdd} />);
+    expect(screen.getByRole("button", { name: "+ Add an idea" }).className).toContain("lg:hidden");
+    const card = screen.getByRole("button", { name: "Add an idea" });
+    expect(card.className).toContain("border-dashed");
+    const box = card.closest("[class*='rounded-[14px]']") as HTMLElement;
+    expect(box.className).toContain("border-dashed");
+    expect(box.className).toContain("lg:border-solid");
+    await userEvent.click(card);
+    expect(onAdd).toHaveBeenCalled();
+  });
 });

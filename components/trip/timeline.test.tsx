@@ -802,7 +802,7 @@ describe("Timeline — Unschedule control (Task 7)", () => {
 describe("Timeline — day-page entries open their details (editor)", () => {
   it("wraps entry titles in DayEntryLink when an editor is supplied, and not otherwise", () => {
     const editor: DayEntryEditor = {
-      tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY", bookingStateSet: false } },
+      tripId: "t1", stops: [], items: { [ITEM_ID]: { id: ITEM_ID, title: ITEM_TITLE, category: "ACTIVITY", bookingStateSet: false, endAddress: null } },
       transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
     };
     const { unmount } = render(<Timeline day={dayPlan} variant="day" editor={editor} />);
@@ -1057,12 +1057,26 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(row.className).not.toMatch(/\bborder-dotted\b/);
     expect(row.className).toContain("border-t-2");
   });
-  it("colours transport tiles sun and stay tiles lilac", () => {
+  it("colours transport tiles sun and renders stays as StayCards, not lilac tiles", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
     const fills = [...container.querySelectorAll("[data-testid='timeline-tile']")].map((t) => t.className);
     expect(fills.some((c) => c.includes("bg-sun"))).toBe(true);
-    expect(fills.some((c) => c.includes("bg-lilac"))).toBe(true);
+    expect(fills.some((c) => c.includes("bg-lilac"))).toBe(false);
     expect(fills.some((c) => c.includes("bg-background"))).toBe(false);
+    const band = container.querySelector("[data-slot='stay-band']")!;
+    expect(band.textContent).toBe("Check-in");
+    expect(band.className).toContain("bg-lilac");
+    expect(container.querySelector("[data-slot='stay-body']")!.className).not.toContain("bg-lilac ");
+    expect(screen.getByText("Osaka Hotel")).toBeInTheDocument();
+  });
+  it("a check-out is a StayCard labelled Check-out", () => {
+    const { container } = render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />);
+    expect(container.querySelector("[data-slot='stay-band']")!.textContent).toBe("Check-out");
+  });
+  it("the default size keeps the neutral stay tile and no StayCard", () => {
+    const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
+    expect(container.querySelector("[data-slot='stay-band']")).toBeNull();
+    expect(screen.getByText("Check-in: Osaka Hotel")).toBeInTheDocument();
   });
   it("the default size keeps the kit 28px tile and dotted rule", () => {
     const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" />);
@@ -1083,7 +1097,7 @@ describe("Timeline, Surprise Items (CONTEXT.md Surprise)", () => {
     accommodationEntries: [],
   });
   const editorFor = (title: string): DayEntryEditor => ({
-    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER", bookingStateSet: false } }, transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
+    tripId: "t1", stops: [], items: { s1: { id: "s1", title, category: "OTHER", bookingStateSet: false, endAddress: null } }, transports: {}, accommodations: {}, costsByOwner: {}, readFirst: false,
   });
 
   it("the planner's Item carries its badge and still opens", () => {
@@ -1376,7 +1390,7 @@ describe("Timeline: booking confirmation marker", () => {
     render(<Timeline day={dayPlanWithTransport} variant="day" editor={editor} needsConfirmationIds={["tr-1"]} />);
     render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} needsConfirmationIds={["acc-1"]} />);
     expect(screen.queryByText(MARKER)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Doesn't need one" })).toBeNull();
   });
 
   it("keeps the marker while planning (readFirst false)", () => {

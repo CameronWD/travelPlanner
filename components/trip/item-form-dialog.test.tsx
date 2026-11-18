@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), updateReminder: vi.fn(), deleteReminder: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn(async () => ({ success: true })) }));
 import { setNothingToAttach } from "@/server/actions/booking-confirmation";
@@ -56,7 +57,7 @@ const baseProps = {
 };
 
 const existingItem: ItemCardItem = {
-  id: "item-99", bookingStateSet: false,
+  id: "item-99", bookingStateSet: false, endAddress: null,
   title: "Museum visit",
   category: "SIGHTSEEING",
   date: null,
@@ -993,7 +994,7 @@ describe("defaultDate prop", () => {
         tripId="t1"
         stops={[{ id: "s1", name: "Paris" }]}
         item={{
-          id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07", bookingStateSet: false,
+          id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07", bookingStateSet: false, endAddress: null,
           startTime: null, endTime: null, address: null, link: null,
           booking: null, notes: null, stopId: "s1",
         }}
@@ -1788,6 +1789,27 @@ describe("ItemFormDialog address search", () => {
       expect.objectContaining({ address: "1-22-7 Jinnan, Shibuya, Tokyo", placeId: "ChIJIchiran", lat: 35.66, lng: 139.7, countryCode: "jp" }),
       undefined,
     );
+  });
+
+  it("picking an Ends at place sends endAddress, endPlaceId, endLat, endLng and leaves the start place alone", async () => {
+    render(<ItemFormDialog {...baseProps} />);
+    await userEvent.type(screen.getByLabelText(/title/i), "Walk");
+    await userEvent.type(screen.getByRole("combobox", { name: "Ends at" }), "Ichi");
+    await screen.findByRole("option", { name: /Ichiran/ });
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Ends at" })).toHaveValue("1-22-7 Jinnan, Shibuya, Tokyo"));
+    await userEvent.click(screen.getByRole("button", { name: /add item/i }));
+    const input = vi.mocked(createItem).mock.calls[0][1];
+    expect(input).toMatchObject({ endAddress: "1-22-7 Jinnan, Shibuya, Tokyo", endPlaceId: "ChIJIchiran", endLat: 35.66, endLng: 139.7 });
+    for (const k of ["address", "placeId", "lat", "lng"] as const) expect(input[k]).toBeUndefined();
+  });
+
+  it("emptying Ends at on an edit sends endAddress as null, clearing it", async () => {
+    render(<ItemFormDialog {...baseProps} item={{ ...existingItem, endAddress: "Westminster Bridge" }} />);
+    await userEvent.clear(screen.getByRole("combobox", { name: "Ends at" }));
+    await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    expect(vi.mocked(updateItem).mock.calls[0][1]).toMatchObject({ endAddress: null });
   });
 
   it("a venue pick fills empty opening hours and an empty link from venueDetailsForPick", async () => {

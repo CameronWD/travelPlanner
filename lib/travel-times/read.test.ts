@@ -4,7 +4,7 @@ import { driveKey, hopKeys, type Pt } from "@/lib/travel-times/hops";
 
 vi.mock("@/lib/db", async () => {
   const { mockDb } = await import("@/test/helpers/db-mock");
-  return { db: mockDb(["trip", "stop", "item", "transport", "accommodation", "tripMember", "travelTime"]) };
+  return { db: mockDb(["trip", "stop", "item", "transport", "accommodation", "tripMember", "travelTime", "hopMode", "flagDismissal"]) };
 });
 vi.mock("@/lib/google-fetch", () => ({ hasServerKey: () => true }));
 vi.mock("@/lib/routes", () => ({ computeRoute: vi.fn() }));
@@ -33,7 +33,7 @@ import { db as realDb } from "@/lib/db";
 import { refreshTripTravelTimes } from "./refresh";
 import { loadFlagRows } from "@/lib/flags-loader";
 
-const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "accommodation" | "tripMember" | "travelTime">;
+const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "accommodation" | "tripMember" | "travelTime" | "hopMode">;
 
 const NOW = new Date("2026-11-01T00:00:00Z");
 const DAY = "2026-11-10";
@@ -110,6 +110,7 @@ beforeEach(() => {
   db.transport.findMany.mockImplementation(async (args) => project(TRANSPORTS, args));
   db.tripMember.findMany.mockResolvedValue([{ userId: "viv" }, { userId: "pat" }]);
   db.travelTime.findMany.mockResolvedValue([]);
+  db.hopMode.findMany.mockResolvedValue([]);
 });
 
 async function refreshKeys(): Promise<Set<string>> {
@@ -148,6 +149,23 @@ describe("loadFlagRows's Travel-time keys", () => {
         expect(read).toContain(k);
       }
       expect(read).not.toContain(driveKey(HAKONE, { lat: 35.25, lng: 139.02 }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a Hop mode changes the refresh's and the Flags' keys in the same way", async () => {
+    db.hopMode.findMany.mockResolvedValue([{ fromItemId: "lake", toItemId: "cave", mode: "WALK" }]);
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    try {
+      const refreshed = await refreshKeys();
+      await loadFlagRows("t1", "viv");
+      const [read] = keysAsked();
+
+      const [walk] = hopKeys(FUJI, { lat: 35.45, lng: 138.62 }, "DRIVE", null, NOW, "fetch", "WALK");
+      expect(refreshed).toContain(walk);
+      expect(refreshed).not.toContain(hopKeys(FUJI, { lat: 35.45, lng: 138.62 }, "DRIVE", null, NOW)[0]);
+      expect(read).toEqual(new Set([...refreshed, ...outOfWindowTransit()]));
     } finally {
       vi.useRealTimers();
     }

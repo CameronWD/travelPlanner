@@ -2226,7 +2226,7 @@ describe("day-aware plan editor wiring", () => {
     expect(block).toHaveTextContent("1 file");
     expect(desktop().getByTestId("stay-coverage")).toHaveTextContent("All 3 nights covered");
 
-    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
+    await user.click(within(desktop().getByTestId("stay-phone")).getByRole("button", { name: "Hotel Roma" }));
     const dialog = await screen.findByRole("dialog", { name: "Staying in Rome" });
     const detail = within(dialog).getByTestId("stay-detail");
     expect(within(detail).getByRole("heading", { name: "Hotel Roma" })).toBeInTheDocument();
@@ -3148,7 +3148,7 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     vi.mocked(deleteAccommodation).mockResolvedValueOnce({ success: false, errors: { _: ["That stay was already removed."] } });
     const user = userEvent.setup();
     renderPlan(<ItineraryManager {...baseProps} initialStops={[ROME_STAY]} />, ["s1"]);
-    await user.click(desktop().getByRole("button", { name: "Hotel Roma" }));
+    await user.click(within(desktop().getByTestId("stay-phone")).getByRole("button", { name: "Hotel Roma" }));
     const stay = await screen.findByRole("dialog", { name: "Staying in Rome" });
     await user.click(within(stay).getByRole("button", { name: "Delete Hotel Roma" }));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
@@ -3264,6 +3264,47 @@ describe("nights stepper (spec 2026-10-06 §N)", () => {
 // ---------------------------------------------------------------------------
 // Surprise (CONTEXT.md): Make it a surprise, Reveal the surprise, the surprised shell
 // ---------------------------------------------------------------------------
+
+describe("Day add card (spec P1)", () => {
+  const openPlan = (stops: ItineraryStop[]) => renderPlan(<ItineraryManager {...baseProps} initialStops={stops} />, stops.map((s) => s.id));
+
+  it("Reminder opens the dialog with the Stop and the day preset", async () => {
+    const user = userEvent.setup();
+    openPlan([PARIS]);
+    await user.click(desktop().getAllByRole("button", { name: "Add to Fri 11" })[0]);
+    await user.click(await screen.findByRole("menuitem", { name: "Reminder" }));
+    expect(await screen.findByRole("heading", { name: /add a reminder/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("2026-12-11");
+    await user.type(screen.getByLabelText(/reminder title/i), "Print tickets");
+    await user.click(screen.getByRole("button", { name: /^add reminder$/i }));
+    await waitFor(() => {
+      expect(addReminder).toHaveBeenCalledWith(TRIP_ID, { title: "Print tickets", date: "2026-12-11", stopId: "par" });
+    });
+  });
+
+  it("a What-if plan's add menu has no Reminder entry", async () => {
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} forkId={FORK_ID} />, [PARIS.id]);
+    await user.click(desktop().getAllByRole("button", { name: "Add to Fri 11" })[0]);
+    expect(await screen.findByRole("menuitem", { name: "Transport" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Reminder" })).toBeNull();
+  });
+
+  it("Transport opens the Transport form on that day", async () => {
+    const user = userEvent.setup();
+    openPlan([PARIS]);
+    await user.click(desktop().getAllByRole("button", { name: "Add to Fri 11" })[0]);
+    await user.click(await screen.findByRole("menuitem", { name: "Transport" }));
+    expect(await screen.findByDisplayValue("2026-12-11T09:00")).toBeInTheDocument();
+  });
+
+  it("a Stop that is a Surprise for the viewer shows no add cards", () => {
+    const view = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: true };
+    renderPlan(<ItineraryManager {...baseProps} currentUserId="sam" initialStops={[{ ...PARIS, surprise: view }]} />, ["par"]);
+    expect(screen.queryByRole("button", { name: /^Add to / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Add a stay|Add another place|Add an idea/ })).toBeNull();
+  });
+});
 
 describe("Surprise Stops", () => {
   const MEMBERS = [

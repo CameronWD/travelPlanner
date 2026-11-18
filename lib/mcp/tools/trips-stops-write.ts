@@ -424,15 +424,15 @@ export function registerTripStopWriteTools(server: McpServer): void {
     {
       title: "Set local travel mode",
       description:
-        "Sets how Travel times are worked out around a Stop: drive, public_transport, or automatic (public transport unless a Car Transport touches the Stop).",
-      inputSchema: { stopId: z.string(), mode: z.enum(["drive", "public_transport", "automatic"]) },
+        "Sets how Travel times are worked out around a Stop: drive, public_transport, walk (walks anything up to 30 minutes, public transport beyond), or automatic (public transport unless a Car Transport touches the Stop).",
+      inputSchema: { stopId: z.string(), mode: z.enum(["drive", "public_transport", "walk", "automatic"]) },
     },
     ({ stopId, mode }) =>
       runWrite(
         "set_local_travel_mode",
         async () => {
           await requireRealPlanRow("stop", stopId);
-          return setStopLocalTravelMode(stopId, mode === "drive" ? "DRIVE" : mode === "public_transport" ? "TRANSIT" : null);
+          return setStopLocalTravelMode(stopId, mode === "drive" ? "DRIVE" : mode === "public_transport" ? "TRANSIT" : mode === "walk" ? "WALK" : null);
         },
         async () => ({ stop: await loadStopForMcp(stopId) }),
       ),

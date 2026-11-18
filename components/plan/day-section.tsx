@@ -20,6 +20,8 @@ import type { CostRow } from "@/server/actions/costs";
 import { PresenceDiv } from "./presence";
 import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
 import { IdeaPickerMenu } from "./idea-picker-menu";
+import { AddCard } from "./add-card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SurpriseBadge } from "./surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
@@ -325,6 +327,8 @@ export interface DaySectionProps {
   flash?: boolean;
   showDragHint: boolean;
   onAdd(dateISO: string): void;
+  onAddTransport?(dateISO: string): void;
+  onAddReminder?(dateISO: string): void;
   onEditItem(item: StopDayItem): void;
   onScheduleIdea(idea: ThingToDo, dateISO: string): void;
   needsConfirmationIds?: ReadonlySet<string>;
@@ -352,6 +356,8 @@ export function DaySection({
   flash = false,
   showDragHint,
   onAdd,
+  onAddTransport,
+  onAddReminder,
   onEditItem,
   onScheduleIdea,
   needsConfirmationIds,
@@ -386,6 +392,19 @@ export function DaySection({
     const before = new Set(seen.ids.split("|"));
     setSeen({ ids, fresh: new Set(rows.map((r) => r.id).filter((id) => !before.has(id))) });
   }
+
+  const addCard = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <AddCard label={`Add to ${shortDayLabel(dateISO)}`} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onSelect={() => onAdd(dateISO)}>Something to do</DropdownMenuItem>
+        {onAddTransport && <DropdownMenuItem onSelect={() => onAddTransport(dateISO)}>Transport</DropdownMenuItem>}
+        {onAddReminder && <DropdownMenuItem onSelect={() => onAddReminder(dateISO)}>Reminder</DropdownMenuItem>}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   const sectionId = daySectionId(stopId, dateISO);
   const toggleId = `${sectionId}-toggle`;
@@ -465,12 +484,13 @@ export function DaySection({
             {rows.length === 0 ? (
               <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 text-sm">
                 <span>Nothing planned yet</span>
-                <button type="button" className="tap-target font-bold text-coral-text" onClick={() => onAdd(dateISO)}>
+                <button type="button" className="tap-target font-bold text-coral-text lg:hidden" onClick={() => onAdd(dateISO)}>
                   + Add to {shortDayLabel(dateISO)}
                 </button>
                 {ideas.length > 0 && (
                   <IdeaPickerMenu ideas={ideas} dayLabel={shortDayLabel(dateISO)} onPick={(idea) => onScheduleIdea(idea, dateISO)} />
                 )}
+                <div className="hidden w-full lg:block">{addCard}</div>
               </div>
             ) : (
               <>
@@ -491,8 +511,9 @@ export function DaySection({
                     needsConfirmation={needsConfirmationIds?.has(item.id) ?? false}
                   />
                 ))}
+                <div className="hidden px-3.5 pb-1 pt-2 lg:block">{addCard}</div>
                 <div className="flex items-center justify-between px-3.5 py-2">
-                  <button type="button" className="tap-target text-[13px] font-bold text-coral-text" onClick={() => onAdd(dateISO)}>
+                  <button type="button" className="tap-target text-[13px] font-bold text-coral-text lg:hidden" onClick={() => onAdd(dateISO)}>
                     + Add to {shortDayLabel(dateISO)}
                   </button>
                   {showDragHint && <span className="text-[13px] text-on-accent-muted">Drag a plan onto another day to move it</span>}

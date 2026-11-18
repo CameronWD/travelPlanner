@@ -4,6 +4,7 @@ import { dailyCap } from "@/lib/google-budget";
 import { hasServerKey } from "@/lib/google-fetch";
 import { takeGoogleQuota } from "@/lib/google-usage";
 import { computeRoute } from "@/lib/routes";
+import { loadHopModes } from "@/lib/hop-modes";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { ITEM_HOP_ORDER, parseHopKey, planTravelKeys, type HopItem } from "@/lib/travel-times/hops";
 import { saveTravelTime, settledTravelKeys } from "@/lib/travel-times/store";
@@ -53,14 +54,14 @@ function fetchOrder(keysByPlan: Set<string>[]): string[] {
 async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
   const trip = await db.trip.findUnique({ where: { id: tripId, deletedAt: null }, select: { homeLat: true, homeLng: true } });
   if (!trip) return null;
-  const [stops, items, transports, views] = await Promise.all([
+  const [stops, items, transports, views, hopModes] = await Promise.all([
     db.stop.findMany({
       where: { tripId },
       select: { id: true, forkId: true, localTravelMode: true, lat: true, lng: true, timezone: true },
     }),
     db.item.findMany({
       where: { tripId, date: { not: null }, lat: { not: null }, lng: { not: null } },
-      select: { id: true, forkId: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true },
+      select: { id: true, forkId: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, endLat: true, endLng: true },
       orderBy: [...ITEM_HOP_ORDER],
     }),
     db.transport.findMany({
@@ -71,6 +72,7 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
       },
     }),
     hiddenItemViews(tripId, now),
+    loadHopModes(tripId),
   ]);
 
   const home = trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null;
@@ -84,7 +86,7 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
     const keys = new Set<string>();
     for (const hidden of views) {
       const viewItems = planItems.filter((i) => !hidden.has(i.id));
-      for (const k of planTravelKeys({ items: viewItems, stops, transports: planTransports, home }, now)) keys.add(k);
+      for (const k of planTravelKeys({ items: viewItems, stops, transports: planTransports, home, hopModes }, now)) keys.add(k);
     }
     return keys;
   });

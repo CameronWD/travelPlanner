@@ -14,6 +14,7 @@ const {
   setVote,
   clearVote,
   setDayTitle,
+  setHopMode,
   addNote,
   deleteNote,
   createChapter,
@@ -28,6 +29,7 @@ const {
   loadWishlistIdeaForMcp,
   loadVotesForMcp,
   loadNoteForMcp,
+  loadHopForMcp,
 } = vi.hoisted(() => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
@@ -42,6 +44,7 @@ const {
   setVote: vi.fn(),
   clearVote: vi.fn(),
   setDayTitle: vi.fn(),
+  setHopMode: vi.fn(),
   addNote: vi.fn(),
   deleteNote: vi.fn(),
   createChapter: vi.fn(),
@@ -56,6 +59,7 @@ const {
   loadWishlistIdeaForMcp: vi.fn(),
   loadVotesForMcp: vi.fn(),
   loadNoteForMcp: vi.fn(),
+  loadHopForMcp: vi.fn(),
 }));
 
 vi.mock("@/server/actions/items", () => ({
@@ -72,8 +76,10 @@ vi.mock("@/server/actions/items", () => ({
 }));
 vi.mock("@/server/actions/votes", () => ({ setVote, clearVote }));
 vi.mock("@/server/actions/day-titles", () => ({ setDayTitle }));
+vi.mock("@/server/actions/hop-modes", () => ({ setHopMode }));
 vi.mock("@/server/actions/notes", () => ({ addNote, deleteNote }));
 vi.mock("../reads/notes", () => ({ loadNoteForMcp, loadNotesForMcp: vi.fn() }));
+vi.mock("../reads/day", async (importOriginal) => ({ ...(await importOriginal<typeof import("../reads/day")>()), loadHopForMcp }));
 vi.mock("@/server/actions/chapters", () => ({ createChapter, updateChapter }));
 vi.mock("../reads/entities", () => ({ loadItemForMcp, loadStopForMcp, loadChapterForMcp }));
 vi.mock("../reads/lists", () => ({ loadWishlistIdeaForMcp, loadVotesForMcp }));
@@ -190,6 +196,7 @@ describe("plan write tools", () => {
         "set_vote",
         "clear_vote",
         "set_day_title",
+        "set_hop_mode",
         "add_note",
         "delete_note",
         "add_chapter",
@@ -251,6 +258,37 @@ describe("plan write tools", () => {
         arguments: { tripId: TRIP_ID, title: "Alhambra", category: "SIGHTSEEING", bookingState: "TO_BOOK", bookBy: "2027-05-01" },
       });
       expect(createItem).toHaveBeenCalledWith(TRIP_ID, expect.objectContaining({ bookingState: "TO_BOOK", bookBy: "2027-05-01" }));
+    });
+  });
+
+  describe("endsAt", () => {
+    it("add_thing_to_do passes endsAt to createItem as endAddress", async () => {
+      createItem.mockResolvedValue({ success: true, id: "item-1" });
+      const c = await connectTestClient();
+      await c.callTool({ name: "add_thing_to_do", arguments: { tripId: TRIP_ID, title: "Walk", category: "ACTIVITY", endsAt: "Westminster Bridge, London" } });
+      expect(createItem).toHaveBeenCalledWith(TRIP_ID, expect.objectContaining({ endAddress: "Westminster Bridge, London" }));
+    });
+
+    it("update_thing_to_do sets endsAt as endAddress", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, endsAt: "Lambeth Bridge" } });
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, expect.objectContaining({ endAddress: "Lambeth Bridge" }));
+    });
+
+    it("update_thing_to_do with endsAt: null clears it", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, endsAt: null } });
+      expect(r.isError).toBeFalsy();
+      expect(updateItem).toHaveBeenCalledWith(ITEM_ID, expect.objectContaining({ endAddress: null }));
+    });
+
+    it("update_thing_to_do without endsAt leaves it alone", async () => {
+      updateItem.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_thing_to_do", arguments: { itemId: ITEM_ID, notes: "x" } });
+      expect(updateItem.mock.calls[0][1].endAddress).toBeUndefined();
     });
   });
 
@@ -489,6 +527,45 @@ describe("plan write tools", () => {
     expect(setDayTitle).toHaveBeenCalledWith({ stopId: "stop-1", date: "2026-05-02", title: "" });
   });
 
+  describe("set_hop_mode", () => {
+    const body = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
+    const text = (r: unknown) => (r as { content: { text: string }[] }).content[0].text;
+    const hop = (mode: string, setByHand: boolean) => ({ fromItemId: "item-1", toItemId: "item-2", mode, setByHand, minutes: 14, estimated: false });
+
+    it("maps walk, public_transport, drive and automatic to WALK, TRANSIT, DRIVE and null, and returns the hop as get_day lists it", async () => {
+      setHopMode.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      for (const [mode, stored] of [["walk", "WALK"], ["public_transport", "TRANSIT"], ["drive", "DRIVE"], ["automatic", null]] as const) {
+        loadHopForMcp.mockResolvedValue(hop(mode === "automatic" ? "walk" : mode, mode !== "automatic"));
+        const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode } });
+        expect(setHopMode).toHaveBeenLastCalledWith("item-1", "item-2", stored);
+        expect(body(r)).toEqual({ hop: hop(mode === "automatic" ? "walk" : mode, mode !== "automatic") });
+      }
+      const bad = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode: "bike" } });
+      expect(bad.isError).toBe(true);
+    });
+
+    it("a pair that is not a current hop (reversed, or not next to each other) is refused, tells Claude to use get_day's ids, and stores nothing", async () => {
+      setHopMode.mockClear();
+      loadHopForMcp.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-2", toItemId: "item-1", mode: "walk" } });
+      expect(r.isError).toBe(true);
+      expect(text(r)).toMatch(/fromItemId and toItemId exactly as a hop in get_day lists them/);
+      expect(setHopMode).not.toHaveBeenCalled();
+    });
+
+    it("automatic on a pair that is no longer a hop still clears the stored row", async () => {
+      setHopMode.mockResolvedValue({ success: true });
+      loadHopForMcp.mockResolvedValue(null);
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "set_hop_mode", arguments: { fromItemId: "item-1", toItemId: "item-2", mode: "automatic" } });
+      expect(r.isError).toBeFalsy();
+      expect(setHopMode).toHaveBeenLastCalledWith("item-1", "item-2", null);
+      expect(body(r)).toEqual({ hop: null });
+    });
+  });
+
   it("add_note returns the new Note: id, body and what it is on", async () => {
     addNote.mockResolvedValue({ success: true, id: "note-1" });
     loadNoteForMcp.mockResolvedValue({ id: "note-1", targetType: "ITEM", targetId: "item-1", body: "Book ahead", author: "Cam", createdAt: "2026-10-16T09:00:00.000Z" });
@@ -611,6 +688,7 @@ describe("plan write tools", () => {
       ["place_idea_at_stop", { itemId: "fork-item", stopId: "stop-1" }, () => placeIdeaAtStop],
       ["set_vote", { tripId: TRIP_ID, itemId: "fork-item", level: "MUST" }, () => setVote],
       ["clear_vote", { tripId: TRIP_ID, itemId: "fork-item" }, () => clearVote],
+      ["set_hop_mode", { fromItemId: "fork-item", toItemId: "fork-item", mode: "walk" }, () => setHopMode],
     ];
     for (const [tool, args, action] of itemCases) {
       it(`${tool} with a Fork's item id is NOT_FOUND_TEXT and calls no action`, async () => {

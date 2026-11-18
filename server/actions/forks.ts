@@ -17,6 +17,8 @@ import { deleteItemAttachmentsTx } from "@/lib/item-attachment-cleanup";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { readPlan } from "@/lib/plan-reads";
 import { homePointOf } from "@/lib/travel-times/hops";
+import { loadHopModes } from "@/lib/hop-modes";
+import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { type ActionResult, formFail } from "@/lib/action-result";
 import { revalidateTrip } from "@/lib/revalidate";
@@ -114,6 +116,14 @@ export async function createFork(
     ? await db.dayTitle.findMany({ where: { stopId: { in: stops.map((s) => s.id) } } })
     : [];
 
+  // A Hop mode rides with its two Items (CONTEXT.md "Hop mode"), so a What-if plan starts as a faithful copy.
+  const hopModeRows = items.length
+    ? await db.hopMode.findMany({
+        where: { tripId, fromItemId: { in: items.map((i) => i.id) }, toItemId: { in: items.map((i) => i.id) } },
+        select: { fromItemId: true, toItemId: true, mode: true, setById: true },
+      })
+    : [];
+
   // 6. Build create-payloads (pure, no IDs minted yet)
   const plan = buildForkPlan({ chapters, stops, transports, accommodations, items, costs });
 
@@ -205,6 +215,13 @@ export async function createFork(
       if (it.sourcePhotoAttachmentId) {
         photoCopies.push({ newItemId: created.id, sourcePhotoAttachmentId: it.sourcePhotoAttachmentId });
       }
+    }
+
+    for (const h of hopModeRows) {
+      const from = itemIdMap.get(h.fromItemId);
+      const to = itemIdMap.get(h.toItemId);
+      if (!from || !to) continue;
+      await tx.hopMode.create({ data: { tripId, fromItemId: from, toItemId: to, mode: h.mode, setById: h.setById } });
     }
 
     // Transports (remap fromStopId/toStopId; build transportIdMap keyed by SOURCE transport id)
@@ -500,8 +517,9 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
   // Spec 2026-10-17 R7: every plan's book-by Flags count from the Trip's own
   // today, the real plan's (planData[0]), so the columns compare like with like.
   const today = tripTodayISO(planData[0].stops);
+  const [hopModes, markedFine] = await Promise.all([loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const travelByPlan = await Promise.all(
-    planData.map(({ stops, transports, items }) => loadTravelLookupFor({ items, stops, transports, home: homePointOf(shell) })),
+    planData.map(({ stops, transports, items }) => loadTravelLookupFor({ items, stops, transports, home: homePointOf(shell), hopModes })),
   );
 
   const plans: ComparisonPlan[] = planEntries.map(({ forkId, name }, i) => {
@@ -524,6 +542,8 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
       exchangeRates,
       today,
       travel: travelByPlan[i],
+      hopModes,
+      markedFine,
     });
     return { forkId, name, metrics };
   });
@@ -558,7 +578,7 @@ const PREVIEW_TRANSPORT_SELECT = {
 } as const;
 const PREVIEW_ACCOMMODATION_SELECT = { id: true, stopId: true, name: true, checkIn: true, checkOut: true, bookingState: true, bookBy: true } as const;
 const PREVIEW_ITEM_SELECT = {
-  id: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, category: true,
+  id: true, stopId: true, date: true, startTime: true, endTime: true, sortOrder: true, lat: true, lng: true, endLat: true, endLng: true, category: true,
   title: true, openingHours: true, slotTime: true, arriveByMinutes: true, bookingState: true, bookBy: true,
   businessStatus: true, statusCheckedAt: true,
 } as const;
@@ -715,9 +735,10 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
   // Both sides count from the Trip's own today, the real plan's, as Compare does.
   const today = tripTodayISO(realStops);
   const home = homePointOf(trip);
+  const [hopModes, markedFine] = await Promise.all([loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const [realTravel, forkTravel] = await Promise.all([
-    loadTravelLookupFor({ items: realItems, stops: realStops, transports: realTransports, home }),
-    loadTravelLookupFor({ items: forkItems, stops: forkStops, transports: forkTransports, home }),
+    loadTravelLookupFor({ items: realItems, stops: realStops, transports: realTransports, home, hopModes }),
+    loadTravelLookupFor({ items: forkItems, stops: forkStops, transports: forkTransports, home, hopModes }),
   ]);
 
   const realPlanMetrics = computePlanMetrics({
@@ -730,6 +751,8 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     exchangeRates,
     today,
     travel: realTravel,
+    hopModes,
+    markedFine,
   });
 
   const forkMetrics = computePlanMetrics({
@@ -742,6 +765,8 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     exchangeRates,
     today,
     travel: forkTravel,
+    hopModes,
+    markedFine,
   });
 
   const deltas = diffMetrics(realPlanMetrics, forkMetrics);

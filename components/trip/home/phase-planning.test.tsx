@@ -4,6 +4,8 @@ import React from "react";
 import { render } from "@testing-library/react";
 import { reminderItem } from "@/test/helpers/reminder-item";
 
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
+
 // phase-planning.tsx is a heavy async server component with DB calls.
 // We test the desktop grid className via an exported constant so we can assert
 // the correct rail width without standing up the full DB/RSC stack.
@@ -57,6 +59,7 @@ vi.mock("@/lib/db", () => ({
     exchangeRate: { findMany: exchangeRateFindManyMock },
     chapter: { findMany: chapterFindManyMock, count: chapterCountMock },
     checklistItem: { count: checklistItemCountMock },
+    flagDismissal: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async (id: string) => id }));

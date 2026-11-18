@@ -63,6 +63,10 @@ interface DuplicateSourceItem {
   placeId?: string | null;
   businessStatus?: string | null;
   statusCheckedAt?: Date | null;
+  endAddress?: string | null;
+  endLat?: number | null;
+  endLng?: number | null;
+  endPlaceId?: string | null;
   address: string | null;
   link: string | null;
   booking: string | null;
@@ -139,6 +143,7 @@ export interface DuplicatePlan {
       title: string; category: string; date: null; startTime: null; endTime: null; booking: null;
       lat: number | null; lng: number | null; countryCode: string | null; placeId: string | null; businessStatus: string | null;
       statusCheckedAt: Date | null;
+      endAddress: string | null; endLat: number | null; endLng: number | null; endPlaceId: string | null;
       address: string | null; link: string | null; notes: string | null; sortOrder: number;
       openingHours: string | null;
       tryList: string | null;
@@ -225,6 +230,10 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string, dup
         placeId: it.placeId ?? null,
         businessStatus: it.businessStatus ?? null,
         statusCheckedAt: it.statusCheckedAt ?? null,
+        endAddress: it.endAddress ?? null,
+        endLat: it.endLat ?? null,
+        endLng: it.endLng ?? null,
+        endPlaceId: it.endPlaceId ?? null,
         address: it.address,
         link: it.link,
         notes: it.notes,

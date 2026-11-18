@@ -160,9 +160,10 @@ describe("stopSchema — Google place", () => {
     for (const base of [VALID, rough]) {
       expect(stopSchema.safeParse({ ...base, localTravelMode: "TRANSIT" }).success).toBe(true);
       expect(stopSchema.safeParse({ ...base, localTravelMode: "DRIVE" }).success).toBe(true);
+      expect(stopSchema.safeParse({ ...base, localTravelMode: "WALK" }).success).toBe(true);
       expect(stopSchema.safeParse({ ...base, localTravelMode: null }).success).toBe(true);
       expect(stopSchema.safeParse({ ...base }).success).toBe(true);
-      expect(stopSchema.safeParse({ ...base, localTravelMode: "WALK" }).success).toBe(false);
+      expect(stopSchema.safeParse({ ...base, localTravelMode: "BIKE" }).success).toBe(false);
     }
   });
 });

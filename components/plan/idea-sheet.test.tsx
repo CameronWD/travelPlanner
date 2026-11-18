@@ -12,7 +12,7 @@ vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi
 vi.mock("@/server/actions/votes", () => ({ upsertVote: vi.fn(), deleteVote: vi.fn() }));
 
 const IDEA: ItemCardItem = {
-  id: "i1", bookingStateSet: false,
+  id: "i1", bookingStateSet: false, endAddress: null,
   title: "Musée d'Orsay",
   category: "SIGHTSEEING",
   date: null,

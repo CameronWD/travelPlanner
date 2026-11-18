@@ -225,3 +225,19 @@ describe("WishlistPage — place IDs", () => {
     expect(select.placeId).toBe(true);
   });
 });
+
+describe("WishlistPage — Ends at", () => {
+  it("hands an idea's end address to the board, so editing it does not clear it", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      id: "t1", name: "Europe", startDate: "2026-07-01", endDate: "2026-07-20", homeCurrency: "USD", forksEnabled: false, stops: [],
+      items: [{
+        id: "i1", title: "River walk", category: "ACTIVITY", date: null, startTime: null, endTime: null, address: "Tower Bridge", endAddress: "Westminster Bridge",
+        link: null, booking: null, notes: null, stopId: null, lat: null, lng: null, placeId: null, sourceMarkerId: null,
+        hiddenFromShares: false, photoAttachmentId: null, stop: null,
+      }],
+    });
+    await renderPage();
+    expect((boardProps.items as { endAddress: string | null }[])[0].endAddress).toBe("Westminster Bridge");
+    expect(tripFindUniqueMock.mock.calls[0][0].select.items.select.endAddress).toBe(true);
+  });
+});

@@ -127,7 +127,7 @@ export function appleDirectionsUrl(points: DirectionsPoint[]): string | null {
   return `https://maps.apple.com/?${params.toString()}`;
 }
 
-const GOOGLE_TRAVEL_MODE: Record<LocalMode, string> = { DRIVE: "driving", TRANSIT: "transit" };
+const GOOGLE_TRAVEL_MODE: Record<LocalMode, string> = { DRIVE: "driving", TRANSIT: "transit", WALK: "walking" };
 
 /**
  * Directions to a destination from wherever the Traveller is standing: no
@@ -140,7 +140,7 @@ export function directionsFromHereUrl(
 ): { google: string; apple: string } {
   const destination = "address" in dest ? dest.address : `${dest.lat},${dest.lng}`;
   const google = new URLSearchParams({ api: "1", destination, travelmode: GOOGLE_TRAVEL_MODE[mode ?? "TRANSIT"] });
-  const apple = new URLSearchParams({ daddr: destination, dirflg: mode === "DRIVE" ? "d" : "r" });
+  const apple = new URLSearchParams({ daddr: destination, dirflg: mode === "DRIVE" ? "d" : mode === "WALK" ? "w" : "r" });
   return {
     google: `https://www.google.com/maps/dir/?${google.toString()}`,
     apple: `https://maps.apple.com/?${apple.toString()}`,

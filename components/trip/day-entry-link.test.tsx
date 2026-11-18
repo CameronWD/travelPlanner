@@ -24,7 +24,7 @@ describe("DayEntryLink", () => {
   it("is a button that opens the Item dialog for an item", async () => {
     const user = userEvent.setup();
     render(
-      <DayEntryLink editor={editor} attachments={[]} target={{ kind: "item", item: { id: "i1", bookingStateSet: false, title: "Tower", category: "SIGHTSEEING" } }}>
+      <DayEntryLink editor={editor} attachments={[]} target={{ kind: "item", item: { id: "i1", bookingStateSet: false, endAddress: null, title: "Tower", category: "SIGHTSEEING" } }}>
         Tower
       </DayEntryLink>,
     );
@@ -75,8 +75,8 @@ function setViewport(phone: boolean) {
 
 describe("DayEntryLink on the road (readFirst)", () => {
   const road: DayEntryEditor = { ...editor, readFirst: true };
-  const item = { id: "i1", bookingStateSet: false, title: "Tower", category: "SIGHTSEEING" } as const;
-  const transport = { id: "tr1", bookingStateSet: false, mode: "TRAIN", sortOrder: 0 } as const;
+  const item = { id: "i1", bookingStateSet: false, endAddress: null, title: "Tower", category: "SIGHTSEEING" } as const;
+  const transport = { id: "tr1", bookingStateSet: false, endAddress: null, mode: "TRAIN", sortOrder: 0 } as const;
 
   beforeEach(() => setViewport(true));
 

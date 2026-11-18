@@ -365,7 +365,7 @@ function ItemPhotoField({
 
 /** An edit's empty fields are clears (ADR 0075). Not surpriseForIds (omitted = leave the Surprise alone). */
 // `bookingState` is deliberately absent: a null would hand a choice back to automatic; an un-chosen state is simply not sent.
-const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "slotTime", "arriveByMinutes", "refundable", "address", "link", "booking", "notes", "paidAt", "bookBy"] as const;
+const ITEM_CLEARABLE = ["stopId", "date", "startTime", "endTime", "slotTime", "arriveByMinutes", "refundable", "address", "endAddress", "link", "booking", "notes", "paidAt", "bookBy"] as const;
 
 // ---------------------------------------------------------------------------
 // Dialog wrapper
@@ -582,6 +582,8 @@ function ItemForm({
   const [refundable, setRefundable] = React.useState<boolean | null>(item?.refundable ?? proposed?.refundable ?? null);
   const [ticketOpenAtStart] = React.useState(() => Boolean(slotTime || arriveBy || refundable !== null));
   const [address, setAddress] = React.useState(item?.address ?? proposed?.address ?? "");
+  const [endAddress, setEndAddress] = React.useState(item?.endAddress ?? "");
+  const [endPick, setEndPick] = React.useState<{ endPlaceId: string; endLat: number; endLng: number } | null>(null);
   const [link, setLink] = React.useState(item?.link ?? "");
   // A place picked in THIS dialog session; an unchanged save never resends the row's own place.
   const [pick, setPick] = React.useState<ItemPick | null>(null);
@@ -653,7 +655,7 @@ function ItemForm({
   const [costSeed] = React.useState(() => seedCostFormState(singleCost, proposed, defaultCurrency));
   const cost = useCostFields(costSeed);
 
-  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, openingHours, tryList, surpriseForIds, cost: cost.dirtyValues });
+  useFormDirty({ title, category, stopId, date, startTime, endTime, slotTime, arriveBy, refundable, address, endAddress, link, booking, bookingState: bookingField.dirtyValues, notes, hiddenFromShares, openingHours, tryList, surpriseForIds, cost: cost.dirtyValues });
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -676,8 +678,10 @@ function ItemForm({
       // turns the absent field into a clearing null on update (lib/patch.ts).
       refundable: refundable === null ? undefined : refundable,
       address: address.trim() || undefined,
+      endAddress: endAddress.trim() || undefined,
       link: link.trim() || undefined,
       ...pick,
+      ...endPick,
       booking: booking.trim() || undefined,
       ...bookingField.payload(),
       notes: notes.trim() || undefined,
@@ -937,6 +941,25 @@ function ItemForm({
           rankNear={rankNear}
           placeholder="e.g. 12 Rue de la Paix, Paris"
           aria-label="Address"
+          disabled={isPending}
+        />
+      </Field>
+
+      <Field label="Ends at (optional)" description="For a walk or wander that finishes somewhere else." error={errors.endAddress?.[0]} className="sm:col-span-2">
+        <PlaceCombobox
+          kind="venue"
+          value={endAddress}
+          onValueChange={(t) => {
+            setEndAddress(t);
+            setEndPick(null);
+          }}
+          onPick={(p) => {
+            setEndAddress(p.address ?? p.name);
+            if (!onSubmitOverride) setEndPick({ endPlaceId: p.placeId, endLat: p.lat, endLng: p.lng });
+          }}
+          rankNear={rankNear}
+          placeholder="e.g. Westminster Bridge, London"
+          aria-label="Ends at"
           disabled={isPending}
         />
       </Field>

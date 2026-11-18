@@ -31,8 +31,11 @@ import type { TripProjection } from "@/lib/trip-projection";
 import { tripHomeBase } from "@/lib/home-base";
 import { tripTodayISO } from "@/lib/trip-today";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
-import { ITEM_HOP_ORDER, homePointOf, type TravelLookup } from "@/lib/travel-times/hops";
+import { loadHopModes } from "@/lib/hop-modes";
+import { ITEM_HOP_ORDER, homePointOf, type HopModeChoice, type TravelLookup } from "@/lib/travel-times/hops";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
+import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
+import { applyMarkedFine, type MarkedFineRow, type MarkedFineSplit } from "@/lib/flag-dismissals";
 import {
   detectFlags,
   type Flag,
@@ -94,6 +97,10 @@ export interface FlagsAssemblyInput {
   today: string;
   /** Stored Travel times for these rows (lib/travel-times/read.ts loadTravelLookupFor). Required; an empty Map estimates every hop. */
   travel: TravelLookup;
+  /** Hop modes Travellers chose (lib/hop-modes.ts). Omitted: every hop resolves automatically. */
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
+  /** The Trip's Marked fine rows (lib/flag-dismissals-read.ts). Required, so no surface counts a Flag another hides. */
+  markedFine: readonly MarkedFineRow[];
 }
 
 /**
@@ -103,7 +110,11 @@ export interface FlagsAssemblyInput {
  * below is for a caller that doesn't. It reads no clock: the caller passes
  * the Trip's today.
  */
-export function flagsFromRows({
+export function flagsFromRows(input: FlagsAssemblyInput): Flag[] {
+  return splitFlagsFromRows(input).shown;
+}
+
+function splitFlagsFromRows({
   trip,
   allStops,
   transports,
@@ -116,7 +127,9 @@ export function flagsFromRows({
   hiddenItemIds,
   today,
   travel,
-}: FlagsAssemblyInput): Flag[] {
+  hopModes,
+  markedFine,
+}: FlagsAssemblyInput): MarkedFineSplit {
   const stops = allStops.filter((s) => s.arriveDate !== null);
   const roughStops = allStops.filter((s) => s.arriveDate === null);
 
@@ -128,7 +141,7 @@ export function flagsFromRows({
   const homeFirstStop = allStopsSorted[0] ?? null;
   const homeLastStop = allStopsSorted[allStopsSorted.length - 1] ?? null;
 
-  return detectFlags({
+  const flags = detectFlags({
     stops: stops as FlagStop[],
     transports,
     accommodations,
@@ -153,7 +166,9 @@ export function flagsFromRows({
     travel,
     travelStops: allStops,
     homePoint: homePointOf(trip),
+    hopModes,
   });
+  return applyMarkedFine(flags, markedFine);
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +240,8 @@ const FLAG_ITEM_SELECT = {
   sortOrder: true,
   lat: true,
   lng: true,
+  endLat: true,
+  endLng: true,
   title: true,
   openingHours: true,
   slotTime: true,
@@ -249,6 +266,8 @@ export type FlagRows = {
   today: string;
   /** Stored Travel times for exactly the hops these rows make (lib/travel-times/read.ts). */
   travel: TravelLookup;
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
+  markedFine: MarkedFineRow[];
 };
 
 /**
@@ -270,7 +289,7 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
 
   const v = await loadSurpriseVisibility(tripId, viewerId);
 
-  const [allStops, transports, accommodations, items] = await Promise.all([
+  const [allStops, transports, accommodations, items, markedFine, hopModes] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...planScope(plan) },
       orderBy: { sortOrder: "asc" },
@@ -290,6 +309,8 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
       orderBy: [...ITEM_HOP_ORDER],
       select: FLAG_ITEM_SELECT,
     }),
+    loadMarkedFineRows(tripId),
+    loadHopModes(tripId),
   ]);
 
   // A hidden root Item still holds its slot (CONTEXT.md Surprise: the
@@ -309,8 +330,10 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
       sortOrder: p.sortOrder,
       lat: null,
       lng: null,
+      endLat: null,
+      endLng: null,
     }));
-  const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip) });
+  const travel = await loadTravelLookupFor({ items, stops: allStops, transports, home: homePointOf(trip), hopModes });
 
   return {
     trip,
@@ -325,12 +348,18 @@ export async function loadFlagRows(tripId: string, viewerId: string | null, plan
     hiddenItemIds: v.hiddenItemIds,
     today: tripTodayISO(allStops, trip.homeTimezone),
     travel,
+    hopModes,
+    markedFine,
   };
 }
 
 /** `flagsFromRows`, fed straight from `loadFlagRows`'s rows and a `TripProjection`. */
 export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[] {
-  return flagsFromRows({
+  return splitFlagsForRows(rows, projection).shown;
+}
+
+function splitFlagsForRows(rows: FlagRows, projection: TripProjection): MarkedFineSplit {
+  return splitFlagsFromRows({
     trip: rows.trip,
     allStops: rows.allStops,
     transports: rows.transports,
@@ -343,6 +372,8 @@ export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[]
     hiddenItemIds: rows.hiddenItemIds,
     today: rows.today,
     travel: rows.travel,
+    hopModes: rows.hopModes,
+    markedFine: rows.markedFine,
   });
 }
 
@@ -361,14 +392,14 @@ export function flagsForRows(rows: FlagRows, projection: TripProjection): Flag[]
  * through their visibility fragments, as the Summary page reads them, so
  * nothing inside a Surprise hidden from them is read or named.
  */
-export async function loadFlags(tripId: string, viewerId: string): Promise<Flag[]> {
+export async function loadFlags(tripId: string, viewerId: string): Promise<MarkedFineSplit> {
   await requireTripAccess(tripId);
 
   // One wave (spec 2026-10-06 §C): the row read and the projection don't
   // depend on each other, so they go out together; the projection is simply
   // discarded below when the trip turns out to have no dates.
   const [rows, projection] = await Promise.all([loadFlagRows(tripId, viewerId), getTripProjection(tripId)]);
-  if (!rows) return [];
+  if (!rows) return { shown: [], markedFine: [] };
 
-  return flagsForRows(rows, projection);
+  return splitFlagsForRows(rows, projection);
 }

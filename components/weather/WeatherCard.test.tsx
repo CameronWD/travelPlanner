@@ -4,6 +4,7 @@ import { WeatherCard } from "@/components/weather/WeatherCard";
 import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
 import { getWeatherTheme } from "@/lib/weather/theme";
 import type { DayWeather } from "@/lib/weather";
+import { CARD_WIDTHS, canvasUnits } from "@/lib/weather/scene-math";
 
 function wx(over: Partial<DayWeather> = {}): DayWeather {
   return { source: "forecast", highC: 9, lowC: 5, code: 3, label: "Overcast", precipProbMax: null, gustsKph: null, uvMax: null, snowfallCm: null, current: null, fetchedAt: 0, stale: false, ...over };
@@ -15,6 +16,11 @@ function card(day: DayWeather | null, size: "regular" | "compact" = "regular", e
   return render(<WeatherCard size={size} dateLabel="Sat 12 Dec" placeName="Strasbourg" theme={theme} day={day} daylight={daylight} {...extra} />);
 }
 const article = () => screen.getByRole("region", { name: "Weather" });
+const scenes = ([
+  ["sunny", wx({ code: 0 })], ["partly", wx({ code: 2 })], ["overcast", wx({ code: 3 })], ["fog", wx({ code: 45 })],
+  ["rain", wx({ code: 61 })], ["snow", wx({ code: 73 })], ["storm", wx({ code: 95 })], ["wind", wx({ code: 1, gustsKph: 55 })],
+  ["heat", wx({ code: 0, highC: 36 })], ["night", wx({ code: 0, current: { tempC: -2, isDay: false } })],
+] as const).map(([key, day]) => [key, day, key === "night"] as const);
 
 describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour not snapshots)", () => {
   const themes: Array<[string, DayWeather, string, string]> = [
@@ -40,7 +46,7 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
       else expect(screen.getByText("Sat 12 Dec · Strasbourg")).toBeInTheDocument();
     });
   }
-  it("night: ink fill, paper text, coral shadow, moon scene, '−2° now', now tick", () => {
+  it("night: ink fill, paper text, coral shadow, moon scene, '−2° now', no sun on the arc", () => {
     card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
     const el = article();
     expect(el.className).toContain("bg-wx-night");
@@ -49,24 +55,60 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     expect(el.querySelector('[data-scene="night"]')).toBeTruthy();
     expect(screen.getByText("-2°")).toBeInTheDocument();
     expect(screen.getByText("now")).toBeInTheDocument();
-    expect(el.querySelector("[data-now-tick]")).toBeTruthy();
+    expect(el.querySelector("[data-daylight-arc]")).toBeTruthy();
+    expect(el.querySelector("[data-sun-marker]")).toBeNull();
   });
-  it("anchors rain drops, snow dots and stars from the right edge, with the cloud and moon", () => {
-    // Pinned to the handoff's 420px card: right = 420 − x − width.
-    card(wx({ code: 80, precipProbMax: 70 }));
-    const drop = article().querySelector<HTMLElement>(".wx-rain")!;
-    expect(drop.style.right).toBe("186px"); // 420 − 230 − 4
-    expect(drop.style.left).toBe("");
+  it("today in daylight puts the sun on the arc; another day never does", () => {
+    card(wx({ code: 3, current: { tempC: 4, isDay: true } }), "regular", { nowLocal: "12:00" }, { isToday: true });
+    expect(article().querySelector("[data-sun-marker]")).toBeTruthy();
     cleanup();
-    card(wx({ code: 71, snowfallCm: 2 }));
-    const dot = article().querySelector<HTMLElement>(".wx-snow")!;
-    expect(dot.style.right).toBe("182px"); // 420 − 228 − 10
-    expect(dot.style.left).toBe("");
+    card(wx({ code: 3 }));
+    expect(article().querySelector("[data-sun-marker]")).toBeNull();
+  });
+  it.each(scenes)("%s draws a hidden SVG scene of at least two layers at both sizes", (key, day) => {
+    for (const size of ["regular", "compact"] as const) {
+      card(day, size, {}, { isToday: key === "night" });
+      const scene = article().querySelector<HTMLElement>(`[data-scene="${key}"]`)!;
+      expect(scene.getAttribute("aria-hidden")).toBe("true");
+      expect(scene.querySelector("svg")).toBeTruthy();
+      expect(scene.querySelectorAll("[data-layer]").length).toBeGreaterThanOrEqual(2);
+      cleanup();
+    }
+  });
+  it("animates only what the card can show: snow and night stay within their budgets", () => {
+    const animated = '.wx-pan, .wx-bob, .wx-fall, .wx-sway, .wx-turn, .wx-breathe, .wx-splash, .wx-flash, .wx-twinkle';
+    card(wx({ code: 73 }));
+    expect(article().querySelectorAll(animated).length).toBeLessThanOrEqual(60);
     cleanup();
     card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
-    const star = article().querySelector<HTMLElement>('[data-scene="night"] .bg-wx-night-text')!;
-    expect(star.style.right).toBe("167px"); // 420 − 250 − 3
-    expect(star.style.left).toBe("");
+    expect(article().querySelectorAll(animated).length).toBeLessThanOrEqual(20);
+  });
+  it("far snow and stars reach across the widest card at either height", () => {
+    const widestUnits = Math.max(canvasUnits("compact", CARD_WIDTHS.compact.widest), canvasUnits("regular", CARD_WIDTHS.regular.widest));
+    const xs = (sel: string, read: (el: Element) => number) => [...article().querySelectorAll(sel)].map(read);
+    card(wx({ code: 73 }));
+    const flakes = xs('[data-layer="far-snow"] g[transform] > circle', (c) => Number(/translate\(([\d.]+)/.exec(c.parentElement!.getAttribute("transform")!)![1]));
+    expect(Math.max(...flakes)).toBeGreaterThanOrEqual(widestUnits);
+    cleanup();
+    card(wx({ code: 0, current: { tempC: -2, isDay: false } }), "regular", { nowLocal: "21:00" }, { isToday: true });
+    const stars = xs('[data-layer="stars"] circle', (c) => Number(c.getAttribute("cx")));
+    expect(Math.max(...stars)).toBeGreaterThanOrEqual(widestUnits);
+  });
+  it("keeps the date and place on one line, so a long place name never pushes the words into the scene", () => {
+    card(wx({ code: 73 }), "regular", { placeName: "Llanfairpwllgwyngyll and Holyhead Ferry Terminal" });
+    expect(screen.getByText(/Sat 12 Dec · Llanfairpwllgwyngyll/)).toHaveClass("truncate");
+  });
+  it("rain leans with the day's gusts", () => {
+    card(wx({ code: 61, gustsKph: 60 }));
+    expect(article().querySelector<HTMLElement>('[data-scene="rain"]')!.style.getPropertyValue("--wx-rain-angle")).toBe("30deg");
+    cleanup();
+    card(wx({ code: 61, gustsKph: null }));
+    expect(article().querySelector<HTMLElement>('[data-scene="rain"]')!.style.getPropertyValue("--wx-rain-angle")).toBe("0deg");
+  });
+  it("an evening card today takes the night sky bands", () => {
+    card(wx({ code: 3, current: { tempC: 4, isDay: false } }), "regular", { nowLocal: "19:00" }, { isToday: true });
+    const top = article().querySelector("[data-layer=\"sky\"] rect")!;
+    expect(top.getAttribute("fill")).toBe("hsl(var(--wx-cloud-storm))");
   });
   it("shows exactly one chip, or none", () => {
     card(wx({ code: 80, precipProbMax: 70 }));

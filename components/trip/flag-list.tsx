@@ -14,9 +14,10 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import type { Flag } from "@/lib/flags";
+import { isTightFlag, type Flag } from "@/lib/flags";
 import { flagHref } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
+import { MarkFineButton } from "@/components/trip/marked-fine";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -24,6 +25,7 @@ import { tripSubPath } from "@/lib/trip-path";
 
 export interface FlagListProps {
   flags: Flag[];
+  tripId: string;
   /** Base path for this trip, e.g. "/trips/abc123". Used to build deep links. */
   tripBasePath: Route;
 }
@@ -84,7 +86,7 @@ function buildLink(flag: Flag, basePath: Route): Route | null {
 // Single flag row
 // ---------------------------------------------------------------------------
 
-function FlagRow({ flag, tripBasePath }: { flag: Flag; tripBasePath: Route }) {
+function FlagRow({ flag, tripId, tripBasePath }: { flag: Flag; tripId: string; tripBasePath: Route }) {
   const config = SEVERITY_CONFIG[flag.severity];
   const Icon = config.icon;
   const link = buildLink(flag, tripBasePath);
@@ -107,15 +109,20 @@ function FlagRow({ flag, tripBasePath }: { flag: Flag; tripBasePath: Route }) {
     </div>
   );
 
-  if (link) {
-    return (
-      <Link href={link} className="block">
-        {content}
-      </Link>
-    );
-  }
-
-  return content;
+  const row = link ? (
+    <Link href={link} className="block">
+      {content}
+    </Link>
+  ) : (
+    content
+  );
+  if (!isTightFlag(flag)) return row;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">{row}</div>
+      <MarkFineButton tripId={tripId} target={{ flagId: flag.id, fingerprint: flag.fingerprint, between: flag.between }} />
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -125,10 +132,12 @@ function FlagRow({ flag, tripBasePath }: { flag: Flag; tripBasePath: Route }) {
 function FlagSection({
   title,
   flags,
+  tripId,
   tripBasePath,
 }: {
   title: string;
   flags: Flag[];
+  tripId: string;
   tripBasePath: Route;
 }) {
   if (flags.length === 0) return null;
@@ -140,7 +149,7 @@ function FlagSection({
       <ul className="flex flex-col gap-2" role="list">
         {flags.map((flag) => (
           <li key={flag.id}>
-            <FlagRow flag={flag} tripBasePath={tripBasePath} />
+            <FlagRow flag={flag} tripId={tripId} tripBasePath={tripBasePath} />
           </li>
         ))}
       </ul>
@@ -152,7 +161,7 @@ function FlagSection({
 // Main FlagList
 // ---------------------------------------------------------------------------
 
-export function FlagList({ flags, tripBasePath }: FlagListProps) {
+export function FlagList({ flags, tripId, tripBasePath }: FlagListProps) {
   const warnings = flags.filter((f) => f.severity === "warning");
   const infos = flags.filter((f) => f.severity === "info");
 
@@ -175,11 +184,13 @@ export function FlagList({ flags, tripBasePath }: FlagListProps) {
       <FlagSection
         title="Warnings"
         flags={warnings}
+        tripId={tripId}
         tripBasePath={tripBasePath}
       />
       <FlagSection
         title="Notes"
         flags={infos}
+        tripId={tripId}
         tripBasePath={tripBasePath}
       />
     </div>

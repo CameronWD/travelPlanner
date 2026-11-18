@@ -2,7 +2,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { formatMoneyAuto, formatMoneyNarrow } from "@/lib/money/money";
-import { paymentAmountLabel } from "@/lib/money/upcoming-payments";
+import { paymentAmountParts } from "@/lib/money/upcoming-payments";
 import { paidPct } from "@/lib/money/summary-lines";
 import { formatDayLabel } from "@/lib/dates";
 import { Card } from "@/components/ui/card";
@@ -75,7 +75,7 @@ export function TripCostTile({
   );
 
   const nextAmount = nextPayment
-    ? paymentAmountLabel(
+    ? paymentAmountParts(
         { costMinor: nextPayment.amountMinor, currency: nextPayment.currency, homeMinor: nextPayment.homeMinor, homeCurrency: currency },
         formatMoneyNarrow,
       )
@@ -104,9 +104,11 @@ export function TripCostTile({
             <p className={EYEBROW}>Next payment</p>
             {nextPayment ? (
               <>
-                <p className="truncate text-[15px] font-bold">
-                  {nextAmount} · {nextPayment.label}
-                </p>
+                <p className="break-words text-[15px] font-bold">{nextAmount?.main}</p>
+                {nextAmount?.original ? (
+                  <p className="break-words text-xs font-semibold text-on-accent-muted">{nextAmount.original}</p>
+                ) : null}
+                <p className="truncate text-sm font-semibold">{nextPayment.label}</p>
                 {due}
               </>
             ) : (
@@ -124,9 +126,12 @@ export function TripCostTile({
             <p className={EYEBROW}>Next payment</p>
             {nextPayment ? (
               <>
-                <p className="mt-2 font-display text-[28px] font-extrabold leading-none">
-                  {nextAmount}
+                <p className="mt-2 break-words font-display text-[28px] font-extrabold leading-none">
+                  {nextAmount?.main}
                 </p>
+                {nextAmount?.original ? (
+                  <p className="mt-1 break-words text-xs font-semibold text-on-accent-muted">{nextAmount.original}</p>
+                ) : null}
                 <p className="mt-1 truncate text-sm font-semibold">{nextPayment.label}</p>
                 <div className="mt-auto">{due}</div>
               </>

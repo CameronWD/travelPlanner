@@ -469,16 +469,18 @@ describe("trip and stop write tools", () => {
     expect(assignStopToChapter).toHaveBeenCalledWith(STOP_ID, null);
   });
 
-  it("set_local_travel_mode maps drive, public_transport and automatic to DRIVE, TRANSIT and null", async () => {
+  it("set_local_travel_mode maps drive, public_transport, walk and automatic to DRIVE, TRANSIT, WALK and null", async () => {
     setStopLocalTravelMode.mockResolvedValue({ success: true });
     const c = await connectTestClient();
     await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "drive" } });
     expect(setStopLocalTravelMode).toHaveBeenLastCalledWith(STOP_ID, "DRIVE");
     await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "public_transport" } });
     expect(setStopLocalTravelMode).toHaveBeenLastCalledWith(STOP_ID, "TRANSIT");
+    await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "walk" } });
+    expect(setStopLocalTravelMode).toHaveBeenLastCalledWith(STOP_ID, "WALK");
     await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "automatic" } });
     expect(setStopLocalTravelMode).toHaveBeenLastCalledWith(STOP_ID, null);
-    const bad = await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "walk" } });
+    const bad = await c.callTool({ name: "set_local_travel_mode", arguments: { stopId: STOP_ID, mode: "bike" } });
     expect(bad.isError).toBe(true);
   });
 

@@ -170,6 +170,7 @@ interface DayStopRow {
 interface DayItemRow {
   id: string; title: string; category: string; date: string | null; startTime: string | null; endTime: string | null;
   sortOrder: number; stopId: string | null; lat: number | null; lng: number | null; placeId: string | null; address: string | null;
+  endAddress: string | null; endLat: number | null; endLng: number | null; endPlaceId: string | null;
   link: string | null; booking: string | null; notes: string | null; hiddenFromShares: boolean;
   photoAttachmentId: string | null; surprise: SurpriseView | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state). */
@@ -304,7 +305,7 @@ function deriveTrip(rows: DayRows): TripDerived {
       })),
       items: rows.items.map((i) => ({
         id: i.id, title: i.title, category: i.category, date: i.date, startTime: i.startTime, endTime: i.endTime,
-        stopId: i.stopId, address: i.address, link: i.link, booking: i.booking, notes: i.notes,
+        stopId: i.stopId, address: i.address, endAddress: i.endAddress, endLat: i.endLat, endLng: i.endLng, link: i.link, booking: i.booking, notes: i.notes,
         hiddenFromShares: i.hiddenFromShares, photoUrl: itemPhotoUrl(i, attachmentsById), surprise: i.surprise,
         bookingState: i.bookingState, bookingStateSet: i.bookingStateSet, nothingToAttach: i.nothingToAttach, bookBy: i.bookBy,
         slotTime: i.slotTime, arriveByMinutes: i.arriveByMinutes, refundable: i.refundable,
@@ -329,6 +330,14 @@ function deriveTrip(rows: DayRows): TripDerived {
   return derived;
 }
 
+/** Set only for a viewer a Surprise Stop covering `date` is for: who is planning it, and whether it is the day's only Stop. */
+export function daySurprise(stops: DayRows["stops"], date: string, dayStopId: string | null): { plannedByName: string; whole: boolean; dayStopHidden: boolean } | null {
+  const covering = stops.filter((s) => s.arriveDate! <= date && date <= s.departDate!);
+  const hidden = covering.find((s) => s.surprise?.youAreSurprised);
+  if (!hidden) return null;
+  return { plannedByName: hidden.surprise!.plannerName, whole: covering.every((s) => s.surprise?.youAreSurprised), dayStopHidden: dayStopId !== null && covering.some((s) => s.id === dayStopId && s.surprise?.youAreSurprised === true) };
+}
+
 /** One dated day, from the rows `lib/day-reads.ts` read — the Day view's and Today's shared core. */
 export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: boolean }): DayModel {
   const trip = deriveTrip(rows);
@@ -342,7 +351,7 @@ export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: bo
 
   const dayItems = rows.items
     .filter((i) => i.date === date)
-    .map((i) => ({ id: i.id, title: i.title, lat: i.lat, lng: i.lng, placeId: i.placeId, address: i.address, startTime: i.startTime, sortOrder: i.sortOrder }));
+    .map((i) => ({ id: i.id, title: i.title, lat: i.lat, lng: i.lng, placeId: i.placeId, address: i.address, startTime: i.startTime, sortOrder: i.sortOrder, category: i.category, endLat: i.endLat, endLng: i.endLng }));
   const legIds = new Set((dayPlan?.transportEntries ?? []).map((e) => e.transport.id));
   const dayMap = buildDayMapModel({
     date,

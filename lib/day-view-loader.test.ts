@@ -57,6 +57,8 @@ vi.mock("@/lib/db", () => ({
     cost: { findMany: costFindManyMock },
     dayTitle: { findMany: dayTitleFindManyMock },
     chapter: { findMany: chapterFindManyMock },
+    travelTime: { findMany: vi.fn().mockResolvedValue([]) },
+    flagDismissal: { findMany: flagDismissalFindManyMock },
   },
 }));
 vi.mock("@/lib/tz", async (importOriginal) => {
@@ -80,6 +82,9 @@ import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from "@/test/helpers/surprise-visibility";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 import { zoneLabel } from "@/lib/time-display";
+
+const { loadHopModesMock, flagDismissalFindManyMock } = vi.hoisted(() => ({ loadHopModesMock: vi.fn(), flagDismissalFindManyMock: vi.fn() }));
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: loadHopModesMock }));
 
 const TRIP_ID = "trip-xmas";
 const VIEWER = "u-cam";
@@ -208,7 +213,9 @@ async function loadDay(date: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadHopModesMock.mockResolvedValue(new Map());
   loadHolidayLinesMock.mockResolvedValue(new Map());
+  flagDismissalFindManyMock.mockResolvedValue([]);
   setup();
 });
 
@@ -431,6 +438,92 @@ describe("getDays — one day", () => {
   });
 });
 
+describe("getDays — hops", () => {
+  const at = (id: string, startTime: string, lat: number) => ({ ...datedItem(id, "2026-12-11", startTime), lat, lng: 7.75 });
+  const located = [at("h1", "09:00", 48.57), at("h2", "11:00", 48.572), at("h3", "14:00", 48.574)];
+  const useItems = (items: unknown[]) =>
+    itemFindManyMock.mockImplementation(async ({ where }: { where: Where }) => {
+      if (where.date === null && where.stopId === null) return WISHLIST;
+      if (where.date === null && typeof where.stopId === "object" && where.stopId !== null) return THINGS_TO_DO;
+      return items;
+    });
+
+  it("lists every hop of the day with its title, resolved way of travel and mode", async () => {
+    useItems(located);
+    const d = await loadDay("2026-12-11");
+    expect(d.hops).toEqual([
+      expect.objectContaining({ fromItemId: "h1", toItemId: "h2", fromTitle: "Item h1", toTitle: "Item h2", estimated: true, modeSetByHand: false }),
+      expect.objectContaining({ fromItemId: "h2", toItemId: "h3", modeSetByHand: false }),
+    ]);
+  });
+
+  it("a hand-set Hop mode is the hop's mode and marked set by hand", async () => {
+    useItems(located);
+    loadHopModesMock.mockResolvedValue(new Map([["h1|h2", "DRIVE"]]));
+    const d = await loadDay("2026-12-11");
+    expect(d.hops[0]).toMatchObject({ fromItemId: "h1", travel: "drive", mode: "DRIVE", modeSetByHand: true });
+    expect(d.hops[1].modeSetByHand).toBe(false);
+  });
+
+  it("a hand-set pair that exists only in the Flags' order (an untimed-end Item between) still has a row", async () => {
+    useItems([
+      { ...at("ha", "09:00", 48.57), endTime: "10:00" },
+      at("hm", "10:30", 48.572),
+      { ...at("hb", "11:00", 48.574), endTime: "12:00" },
+    ]);
+    loadHopModesMock.mockResolvedValue(new Map([["ha|hb", "WALK"]]));
+    const d = await loadDay("2026-12-11");
+    expect(d.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual(expect.arrayContaining([["ha", "hm"], ["hm", "hb"], ["ha", "hb"]]));
+    expect(d.hops.find((h) => h.fromItemId === "ha" && h.toItemId === "hb")).toMatchObject({ mode: "WALK", modeSetByHand: true });
+    expect(d.feasibility.filter((f) => f.hop?.fromItemId === "ha")).toEqual([]);
+  });
+
+  describe("Marked fine (spec 2026-11-18 T5)", () => {
+    const tightPair = [
+      { ...at("h1", "09:00", 48.57), endTime: "10:00" },
+      { ...at("h2", "10:05", 48.58), endTime: "11:00" },
+    ];
+    const markedBy = (fingerprint: string) => [
+      { flagId: "tight-h1-h2", fingerprint, createdAt: new Date("2026-12-01T09:00:00Z"), markedBy: { id: CO, name: "Xanthia Smith", image: null } },
+    ];
+
+    it("each tight row carries its Flag id", async () => {
+      useItems(tightPair);
+      const d = await loadDay("2026-12-11");
+      expect(d.feasibility).toEqual([
+        expect.objectContaining({ fine: { flagId: "tight-h1-h2", fingerprint: expect.any(String), between: { from: "Item h1", to: "Item h2" } } }),
+      ]);
+      expect(d.markedFine).toEqual([]);
+    });
+
+    it("a Marked fine hop leaves the warnings for the Marked fine list, with who marked it", async () => {
+      useItems(tightPair);
+      const before = await loadDay("2026-12-11");
+      const { flagTightConnections } = await import("@/lib/flags");
+      const fingerprint = flagTightConnections(tightPair, [], { windingFactor: 1.5, avgSpeedKph: 80 })[0].fingerprint!;
+      flagDismissalFindManyMock.mockResolvedValue(markedBy(fingerprint));
+      const d = await loadDay("2026-12-11");
+      expect(flagDismissalFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: TRIP_ID } }));
+      expect(d.feasibility).toEqual([]);
+      expect(d.markedFine).toEqual([{ flagId: "tight-h1-h2", message: before.feasibility[0].message, markedByName: "Xanthia" }]);
+    });
+
+    it("a stale row is ignored", async () => {
+      useItems(tightPair);
+      flagDismissalFindManyMock.mockResolvedValue(markedBy("an older fingerprint"));
+      const d = await loadDay("2026-12-11");
+      expect(d.feasibility).toHaveLength(1);
+      expect(d.markedFine).toEqual([]);
+    });
+  });
+
+  it("a hop touching a hidden Surprise is not listed (the placeholder has no place)", async () => {
+    useItems([located[0], { ...located[1], lat: null, lng: null, title: "Surprise" }, located[2]]);
+    const d = await loadDay("2026-12-11");
+    expect(d.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual([["h1", "h3"]]);
+  });
+});
+
 describe("getDays — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
   function surprised() {
     loadSurpriseVisibilityMock.mockResolvedValue(
@@ -477,6 +570,50 @@ describe("getDays — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
 
     const day11 = await loadDay("2026-12-11");
     expect([...day11.plan.timedItems, ...day11.plan.untimedItems].map((e) => e.item.surprise)).toEqual([null, null, null]);
+  });
+});
+
+describe("getDays — a day that is a Surprise for the viewer (ADR 0072)", () => {
+  const hideStrasbourg = () =>
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: VIEWER, hiddenStopIds: [STRASBOURG.id] }));
+
+  it("a day inside the hidden Stop is whole, and the field says only who is planning", async () => {
+    hideStrasbourg();
+    const d = await loadDay("2026-12-11");
+    expect(d.surprise).toEqual({ plannedByName: "Pat", whole: true, dayStopHidden: true });
+    expect(Object.keys(d.surprise!).sort()).toEqual(["dayStopHidden", "plannedByName", "whole"]);
+  });
+
+  it("a whole day keeps the Transport the viewer can see: the leg from Home into the hidden first Stop", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: VIEWER, hiddenStopIds: [PARIS.id] }));
+    const fromHome = { ...TRAIN, id: "tr-home", fromStopId: null, toStopId: PARIS.id, depIsHome: true, depAt: new Date("2026-12-06T01:00:00Z"), arrAt: new Date("2026-12-06T09:00:00Z"), mode: "FLIGHT" };
+    setup({ transports: [fromHome] });
+    loadSurpriseVisibilityMock.mockResolvedValue(hiddenVisibility({ viewerId: VIEWER, hiddenStopIds: [PARIS.id] }));
+    const d = await loadDay("2026-12-06");
+    expect(d.surprise).toMatchObject({ whole: true });
+    expect(d.hasEntries).toBe(true);
+    expect(d.plan.transportEntries.map((e) => e.transport.id)).toEqual(["tr-home"]);
+  });
+
+  it("a Changeover day shared with a visible Stop is not whole", async () => {
+    hideStrasbourg();
+    expect((await loadDay("2026-12-10")).surprise).toEqual({ plannedByName: "Pat", whole: false, dayStopHidden: true });
+    // The arriving Stop owns the day: here the visible one.
+    expect((await loadDay("2026-12-13")).surprise).toEqual({ plannedByName: "Pat", whole: false, dayStopHidden: false });
+  });
+
+  it("a day outside the hidden Stop has none", async () => {
+    hideStrasbourg();
+    expect((await loadDay("2026-12-08")).surprise).toBeNull();
+  });
+
+  it("the planner viewing the same day gets none", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValue({
+      ...NO_SURPRISES,
+      viewerId: VIEWER,
+      views: { stops: new Map([[STRASBOURG.id, { ...SURPRISED_VIEW, youAreSurprised: false }]]), items: new Map() },
+    });
+    expect((await loadDay("2026-12-11")).surprise).toBeNull();
   });
 });
 

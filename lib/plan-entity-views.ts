@@ -19,6 +19,8 @@ export interface ItemCardItem {
   startTime?: string | null;
   endTime?: string | null;
   address?: string | null;
+  /** CONTEXT.md "Ends at": where it finishes when that is not where it starts. Required so a builder cannot forget it: the edit form would then save it as cleared. */
+  endAddress: string | null;
   link?: string | null;
   booking?: string | null;
   /** CONTEXT.md "Booking state" — as stored (the effective state); absent on rows that don't read it (the Share page). */

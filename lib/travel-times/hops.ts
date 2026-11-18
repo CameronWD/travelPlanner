@@ -3,8 +3,9 @@ import { estimateDriveMinutes, haversineKm } from "@/lib/geo";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 
 export type Pt = { lat: number; lng: number };
-export type LocalMode = "DRIVE" | "TRANSIT";
-export type TravelMode = "WALK" | LocalMode;
+export type LocalMode = "DRIVE" | "TRANSIT" | "WALK";
+export type TravelMode = LocalMode;
+export type HopModeChoice = LocalMode;
 export type TravelTimeStatus = "OK" | "NONE" | "ERROR";
 
 export type HopItem = {
@@ -15,6 +16,8 @@ export type HopItem = {
   sortOrder: number;
   lat: number | null;
   lng: number | null;
+  endLat: number | null;
+  endLng: number | null;
   stopId: string | null;
 };
 
@@ -34,14 +37,27 @@ export type ResolvedHop = {
 // Items are read in this order wherever hops are built: dayHops breaks equal start times by input order.
 export const ITEM_HOP_ORDER = [{ date: "asc" }, { startTime: "asc" }, { sortOrder: "asc" }, { id: "asc" }] as const;
 
-const WALK_ROW_UNDER_KM = 2;
+const WALK_ROW_UNDER_KM = 3;
 const MAX_REAL_WALK_MIN = 20;
+const WALK_ABOUT_AS_QUICK_MIN = 5;
+const WALK_STOP_MAX_MIN = 30;
 const ESTIMATE_WALK_KMH = 4.5;
 const ESTIMATE_MAX_WALK_MIN = 30;
 const TRANSIT_SLOT_MS = 15 * 60_000;
 const DAY_MS = 24 * 60 * 60_000;
 const TRANSIT_WINDOW_MS = 90 * DAY_MS;
 const MODES: readonly TravelMode[] = ["WALK", "DRIVE", "TRANSIT"];
+
+export function hopModeKey(fromItemId: string, toItemId: string): string {
+  return `${fromItemId}|${toItemId}`;
+}
+
+export function forcedModeFor(
+  hopModes: ReadonlyMap<string, HopModeChoice> | undefined,
+  pair: { from: { id: string }; to: { id: string } },
+): HopModeChoice | undefined {
+  return hopModes?.get(hopModeKey(pair.from.id, pair.to.id));
+}
 
 function coord(n: number): string {
   return (Math.round(n * 1e5) / 1e5 + 0).toFixed(5);
@@ -90,7 +106,7 @@ export function effectiveLocalMode(
   stop: { id: string; localTravelMode: string | null },
   transports: { mode: string; fromStopId?: string | null; toStopId?: string | null }[],
 ): LocalMode {
-  if (stop.localTravelMode === "DRIVE" || stop.localTravelMode === "TRANSIT") return stop.localTravelMode;
+  if (stop.localTravelMode === "DRIVE" || stop.localTravelMode === "TRANSIT" || stop.localTravelMode === "WALK") return stop.localTravelMode;
   const drives = transports.some(
     (t) => t.mode === "CAR" && (t.fromStopId === stop.id || t.toStopId === stop.id),
   );
@@ -99,6 +115,27 @@ export function effectiveLocalMode(
 
 function located(lat: number | null | undefined, lng: number | null | undefined): Pt | null {
   return lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+export function departurePoint(item: {
+  lat: number | null | undefined;
+  lng: number | null | undefined;
+  endLat?: number | null;
+  endLng?: number | null;
+}): Pt | null {
+  return located(item.endLat, item.endLng) ?? located(item.lat, item.lng);
+}
+
+export function itemRouteKey(item: {
+  lat: number | null | undefined;
+  lng: number | null | undefined;
+  endLat?: number | null;
+  endLng?: number | null;
+}): string | null {
+  const end = located(item.endLat, item.endLng);
+  const start = located(item.lat, item.lng);
+  if (!end || !start || samePoint(start, end)) return null;
+  return routeKey("WALK", start, end);
 }
 
 function hhmmToMin(t: string): number {
@@ -191,7 +228,7 @@ export function hopInputs(
     planTransports: PlanTransport[];
   },
 ): { from: Pt; to: Pt; localMode: LocalMode; departure: Date | null } | null {
-  const from = located(pair.from.lat, pair.from.lng);
+  const from = departurePoint(pair.from);
   const to = located(pair.to.lat, pair.to.lng);
   if (!from || !to) return null;
   const stop = pair.from.stopId ? ctx.stopsById.get(pair.from.stopId) : undefined;
@@ -230,8 +267,13 @@ export function hopKeys(
   departure: Date | null,
   now: Date,
   purpose: KeyPurpose = "fetch",
+  forced?: HopModeChoice,
 ): string[] {
   if (samePoint(from, to)) return [];
+  if (forced) {
+    if (forced !== "TRANSIT") return [routeKey(forced, from, to)];
+    return departure && (purpose === "read" || transitBookable(departure, now)) ? [routeKey("TRANSIT", from, to, departure)] : [];
+  }
   const keys: string[] = [];
   if (haversineKm(from, to) < WALK_ROW_UNDER_KM) keys.push(routeKey("WALK", from, to));
   if (localMode === "DRIVE") keys.push(routeKey("DRIVE", from, to));
@@ -253,21 +295,25 @@ function noRoute(mode: ResolvedHop["mode"]): ResolvedHop {
 export function resolveHop(
   from: Pt,
   to: Pt,
-  localMode: LocalMode,
+  stopMode: LocalMode,
   departure: Date | null,
   lookup: TravelLookup,
   estimateOpts: { windingFactor: number; avgSpeedKph: number },
+  forced?: HopModeChoice,
 ): ResolvedHop {
   if (samePoint(from, to)) return noRoute("walk");
+  if (forced) return resolveForcedHop(from, to, forced, departure, lookup, estimateOpts);
+  const localMode = stopMode === "WALK" ? "TRANSIT" : stopMode;
   const km = haversineKm(from, to);
   const walk = km < WALK_ROW_UNDER_KM ? realHop(lookup, routeKey("WALK", from, to), "walk", km) : null;
-  if (walk && walk.minutes <= MAX_REAL_WALK_MIN) return walk;
+  if (stopMode === "WALK" && walk && walk.minutes <= WALK_STOP_MAX_MIN) return walk;
   const local =
     localMode === "DRIVE"
       ? realHop(lookup, routeKey("DRIVE", from, to), "drive", km)
       : departure
         ? realHop(lookup, routeKey("TRANSIT", from, to, departure), "transit", km)
         : null;
+  if (walk && (walk.minutes <= MAX_REAL_WALK_MIN || (local && walk.minutes <= local.minutes + WALK_ABOUT_AS_QUICK_MIN))) return walk;
   if (local) return local;
   if (walk) return walk;
 
@@ -275,6 +321,25 @@ export function resolveHop(
   return walkMin <= ESTIMATE_MAX_WALK_MIN
     ? { minutes: walkMin, distanceKm: km, mode: "walk", estimated: true, polyline: null }
     : { minutes: estimateDriveMinutes(km, estimateOpts), distanceKm: km, mode: localMode === "TRANSIT" ? "transit" : "drive", estimated: true, polyline: null };
+}
+
+const FORCED_MODE_NAME = { WALK: "walk", DRIVE: "drive", TRANSIT: "transit" } as const;
+
+function resolveForcedHop(
+  from: Pt,
+  to: Pt,
+  forced: HopModeChoice,
+  departure: Date | null,
+  lookup: TravelLookup,
+  estimateOpts: { windingFactor: number; avgSpeedKph: number },
+): ResolvedHop {
+  const km = haversineKm(from, to);
+  const mode = FORCED_MODE_NAME[forced];
+  const key = forced === "TRANSIT" ? (departure ? routeKey("TRANSIT", from, to, departure) : null) : routeKey(forced, from, to);
+  const real = key ? realHop(lookup, key, mode, km) : null;
+  if (real) return real;
+  const minutes = forced === "WALK" ? (km / ESTIMATE_WALK_KMH) * 60 : estimateDriveMinutes(km, estimateOpts);
+  return { minutes, distanceKm: km, mode, estimated: true, polyline: null };
 }
 
 export function resolveDriveLeg(
@@ -307,6 +372,8 @@ export type HopItemRow = {
   sortOrder?: number | null;
   lat?: number | null;
   lng?: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
   stopId?: string | null;
 };
 export type HopStopRow = { id: string; localTravelMode?: string | null; timezone?: string | null; lat?: number | null; lng?: number | null };
@@ -347,6 +414,8 @@ export function toHopItem(it: HopItemRow): HopItem {
     sortOrder: it.sortOrder ?? 0,
     lat: it.lat ?? null,
     lng: it.lng ?? null,
+    endLat: it.endLat ?? null,
+    endLng: it.endLng ?? null,
     stopId: it.stopId ?? null,
   };
 }
@@ -382,7 +451,13 @@ export function homePointOf(trip: { homeLat?: number | null; homeLng?: number | 
 }
 
 export function planTravelKeys(
-  plan: { items: HopItemRow[]; stops: HopStopRow[]; transports: HopTransportRow[]; home: Pt | null },
+  plan: {
+    items: HopItemRow[];
+    stops: HopStopRow[];
+    transports: HopTransportRow[];
+    home: Pt | null;
+    hopModes?: ReadonlyMap<string, HopModeChoice>;
+  },
   now: Date,
   opts: { purpose?: KeyPurpose } = {},
 ): Set<string> {
@@ -390,9 +465,13 @@ export function planTravelKeys(
   const planTransports = plan.transports.map(toPlanTransport);
   const items = plan.items.map(toHopItem).sort(byHopOrder);
   const keys = new Set<string>();
+  for (const it of items) {
+    const route = itemRouteKey(it);
+    if (route) keys.add(route);
+  }
   for (const pair of planHops(items, planTransports)) {
     const hop = hopInputs(pair, { stopsById, planTransports });
-    if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now, opts.purpose)) keys.add(k);
+    if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now, opts.purpose, forcedModeFor(plan.hopModes, pair))) keys.add(k);
   }
   for (const leg of carLegs(planTransports, stopsById, plan.home)) {
     if (!samePoint(leg.from, leg.to)) keys.add(driveKey(leg.from, leg.to));

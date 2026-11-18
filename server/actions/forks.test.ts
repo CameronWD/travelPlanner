@@ -60,6 +60,8 @@ const {
   costUpdateManyMock,
   dayTitleFindManyMock,
   dayTitleCreateMock,
+  hopModeFindManyMock,
+  hopModeCreateMock,
   attachmentFindManyMock,
   exchangeRateFindManyMock,
   tripFindUniqueMock,
@@ -110,6 +112,8 @@ const {
   const costUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const dayTitleFindManyMock = vi.fn().mockResolvedValue([]);
   const dayTitleCreateMock = vi.fn();
+  const hopModeFindManyMock = vi.fn().mockResolvedValue([]);
+  const hopModeCreateMock = vi.fn();
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const exchangeRateFindManyMock = vi.fn().mockResolvedValue([]);
   const tripFindUniqueMock = vi.fn();
@@ -157,6 +161,7 @@ const {
       transport: { create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
       cost: { create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
       dayTitle: { create: dayTitleCreateMock },
+      hopMode: { create: hopModeCreateMock },
       trip: { updateMany: tripUpdateManyMock },
     };
     return cb(tx);
@@ -213,6 +218,8 @@ const {
     costUpdateManyMock,
     dayTitleFindManyMock,
     dayTitleCreateMock,
+    hopModeFindManyMock,
+    hopModeCreateMock,
     attachmentFindManyMock,
     exchangeRateFindManyMock,
     tripFindUniqueMock,
@@ -286,6 +293,8 @@ vi.mock("@/lib/db", () => ({
     transport: { findMany: transportFindManyMock, create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
     cost: { findMany: costFindManyMock, create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
     dayTitle: { findMany: dayTitleFindManyMock, create: dayTitleCreateMock },
+    hopMode: { findMany: hopModeFindManyMock, create: hopModeCreateMock },
+    flagDismissal: { findMany: vi.fn().mockResolvedValue([]) },
     attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
     exchangeRate: { findMany: exchangeRateFindManyMock },
     trip: { findUnique: tripFindUniqueMock },
@@ -323,6 +332,8 @@ import { formatMoney } from "@/lib/money/money";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
 import { planRows } from "@/test/builders/plan-rows";
+
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -380,6 +391,7 @@ afterEach(() => {
   costDeleteManyMock.mockResolvedValue({ count: 0 });
   costUpdateManyMock.mockResolvedValue({ count: 0 });
   dayTitleFindManyMock.mockResolvedValue([]);
+  hopModeFindManyMock.mockResolvedValue([]);
   attachmentFindManyMock.mockResolvedValue([]);
   exchangeRateFindManyMock.mockResolvedValue([]);
   computePlanMetricsMock.mockReturnValue({
@@ -738,6 +750,23 @@ describe("createFork", () => {
       );
       expect(dayTitleCreateMock).toHaveBeenCalledWith({
         data: { stopId: "stop-new", dayIndex: 1, title: "Sintra day trip" },
+      });
+    });
+
+    it("copies a Hop mode onto the new Item ids, keeping its mode and who set it, and only when both Items were copied", async () => {
+      const row = { title: "x", category: "SIGHTSEEING", sortOrder: 0, stopId: null, date: "2026-10-02" };
+      itemFindManyMock.mockResolvedValue([{ ...row, id: "i-a" }, { ...row, id: "i-b" }]);
+      itemCreateMock.mockResolvedValueOnce({ id: "i-a-new" }).mockResolvedValueOnce({ id: "i-b-new" });
+      hopModeFindManyMock.mockResolvedValue([
+        { fromItemId: "i-a", toItemId: "i-b", mode: "WALK", setById: "user-9" },
+        { fromItemId: "i-a", toItemId: "i-gone", mode: "DRIVE", setById: "user-9" },
+      ]);
+
+      await createFork("trip-1", "Plan B");
+
+      expect(hopModeCreateMock).toHaveBeenCalledTimes(1);
+      expect(hopModeCreateMock).toHaveBeenCalledWith({
+        data: { tripId: "trip-1", fromItemId: "i-a-new", toItemId: "i-b-new", mode: "WALK", setById: "user-9" },
       });
     });
 
@@ -1416,6 +1445,14 @@ describe("getPromotionPreview", () => {
 
       expect(requireForkAccessMock).toHaveBeenCalledWith("fork-9");
     });
+  });
+
+  it("counts Flags for both sides with the Trip's Hop modes", async () => {
+    await getPromotionPreview("fork-9");
+
+    const sides = computePlanMetricsMock.mock.calls.slice(-2).map(([input]) => input);
+    expect(sides).toHaveLength(2);
+    for (const input of sides) expect(input.hopModes).toBeInstanceOf(Map);
   });
 
   describe("Surprise (CONTEXT.md)", () => {

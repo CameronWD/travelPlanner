@@ -11,6 +11,7 @@ import { MapUnavailable } from "@/components/map/map-unavailable";
 import { useFitBounds } from "@/components/map/use-fit-bounds";
 import { pinHtml } from "@/lib/map/pins";
 import { hueHex } from "@/lib/map/palette";
+import { categoryMeta, type Category } from "@/lib/categories";
 
 export type { DayMapModel };
 
@@ -58,16 +59,40 @@ function FitDay({ points }: { points: { lat: number; lng: number }[] }) {
 
 const ROUTE_COLOR = "#2563eb";
 
+function categoryHex(point: DayMapPoint, dark: boolean): string {
+  return hueHex(categoryMeta((point.category ?? "OTHER") as Category).hue, dark);
+}
+
+function ItemWalks({ points, dark }: { points: DayMapPoint[]; dark: boolean }) {
+  return (
+    <>
+      {points.map((p) =>
+        p.kind === "item" && p.end ? (
+          <MapPolyline
+            key={`walk:${p.id}`}
+            {...(p.routePolyline ? { encodedPath: p.routePolyline } : { path: [{ lat: p.lat, lng: p.lng }, p.end], dashed: true })}
+            color={categoryHex(p, dark)}
+            weight={6}
+            opacity={0.95}
+            zIndex={2}
+          />
+        ) : null,
+      )}
+    </>
+  );
+}
+
 function DayRoute({ routePoints, hops }: { routePoints: DayMapPoint[]; hops: DayMapHop[] | undefined }) {
   const path = useMemo(() => routePoints.map((p) => ({ lat: p.lat, lng: p.lng })), [routePoints]);
   const legs = useMemo(() => {
     if (!hops) return null;
     const at = new Map(routePoints.map((p) => [p.id, { lat: p.lat, lng: p.lng }]));
+    const leaving = new Map(routePoints.map((p) => [p.id, p.end ?? { lat: p.lat, lng: p.lng }]));
     const bed = routePoints[0]?.kind === "accommodation" && routePoints[1] ? [{ key: "bed", path: [path[0], path[1]], polyline: null }] : [];
     return [
       ...bed,
       ...hops.flatMap((h) => {
-        const from = at.get(h.fromId);
+        const from = leaving.get(h.fromId);
         const to = at.get(h.toId);
         return from && to ? [{ key: `${h.fromId}>${h.toId}`, path: [from, to], polyline: h.polyline }] : [];
       }),
@@ -100,44 +125,64 @@ function DayPointList({ points }: { points: DayMapPoint[] }) {
   );
 }
 
-export function DayMap({ tripId, model }: { tripId: string; model: DayMapModel }) {
+export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: string; model: DayMapModel; highlightId?: string; fill?: boolean }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [seenHighlight, setSeenHighlight] = useState(highlightId);
 
   const { points, routePoints, perItemPrev } = model;
+  if (highlightId !== seenHighlight) {
+    setSeenHighlight(highlightId);
+    const target = points.find((p) => p.id === highlightId);
+    setOpenKey(target ? `${target.kind}:${target.id}` : null);
+  }
   if (points.length === 0) return null;
 
   const googleRouteUrl = googleDirectionsUrl(routePoints);
   const appleRouteUrl = appleDirectionsUrl(routePoints);
 
+  const routeLinks =
+    googleRouteUrl || appleRouteUrl ? (
+      <div className="flex items-center gap-3 text-sm">
+        <span className="text-muted-foreground font-medium">Open today&apos;s route:</span>
+        {googleRouteUrl && (
+          <a href={googleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+            Google Maps
+          </a>
+        )}
+        {appleRouteUrl && (
+          <a href={appleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+            Apple Maps
+          </a>
+        )}
+      </div>
+    ) : null;
+
   return (
-    <div className="flex flex-col gap-2">
-      {(googleRouteUrl || appleRouteUrl) && (
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground font-medium">Open today&apos;s route:</span>
-          {googleRouteUrl && (
-            <a href={googleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-              Google Maps
-            </a>
-          )}
-          {appleRouteUrl && (
-            <a href={appleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-              Apple Maps
-            </a>
-          )}
-        </div>
-      )}
+    <div className={fill ? "flex min-h-0 flex-1 flex-col gap-2" : "flex flex-col gap-2"}>
+      {fill ? null : routeLinks}
       <GoogleMapFrame
         role="region"
         aria-label={`Day route map for trip ${tripId}`}
         dark={isDark}
         fallback={<MapUnavailable><DayPointList points={points} /></MapUnavailable>}
-        style={{ height: 360 }}
-        className="w-full rounded-2xl overflow-hidden border border-border shadow-sm"
+        style={fill ? undefined : { height: 360 }}
+        className={fill ? "min-h-[240px] w-full flex-1 overflow-hidden rounded-lg border border-border shadow-sm" : "w-full rounded-2xl overflow-hidden border border-border shadow-sm"}
       >
-        <FitDay points={points} />
+        <FitDay points={points.flatMap((p) => (p.end ? [p, p.end] : [p]))} />
         {routePoints.length >= 2 && <DayRoute routePoints={routePoints} hops={model.hops} />}
+        <ItemWalks points={points} dark={isDark} />
+        {points.map((point) =>
+          point.kind === "item" && point.end ? (
+            <HtmlPin
+              key={`end:${point.id}`}
+              position={point.end}
+              html={pinHtml({ variant: "stop", fill: categoryHex(point, isDark), label: "", dark: isDark, size: 18 })}
+              title={`${point.label} ends here`}
+            />
+          ) : null,
+        )}
         {points.map((point) => {
           const key = `${point.kind}:${point.id}`;
           return (
@@ -159,6 +204,7 @@ export function DayMap({ tripId, model }: { tripId: string; model: DayMapModel }
           );
         })}
       </GoogleMapFrame>
+      {fill ? routeLinks : null}
     </div>
   );
 }

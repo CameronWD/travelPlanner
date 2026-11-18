@@ -341,10 +341,11 @@ been looked up, and is shown as "(estimated)".
 ### 7.1 Travel times (Routes API)
 
 - **Hops** (`lib/travel-times/hops.ts`, pure). A hop is two consecutive located
-  Items on a day, or a car Transport leg. The way it is travelled: under 2 km
+  Items on a day, or a car Transport leg. The way it is travelled: under 3 km
   walk; a walk of 20 minutes or less stays a walk; anything longer uses the
-  Stop's **Local travel mode** (Drive or Public transport, guessed from the
-  Stop's Transport, set on the Stop form or by MCP `set_local_travel_mode`).
+  Stop's **Local travel mode** (Drive, Public transport or Walk, guessed from the
+  Stop's Transport, set on the Stop form or by MCP `set_local_travel_mode`; a Walk
+  Stop walks anything up to half an hour).
   Car legs are DRIVE only.
 - **Keys.** Each hop has a key `MODE|lat,lng|lat,lng` (5-decimal points; public transport adds its departure, rounded to 15 minutes) into
   the global `TravelTime` cache: status OK (minutes, distance, polyline), NONE

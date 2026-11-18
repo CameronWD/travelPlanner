@@ -74,14 +74,14 @@ describe("revalidateTrip", () => {
  *   it via stop/item).
  */
 const PAGE_READS: Record<TripPage, readonly string[]> = {
-  "": ["trip", "stop", "item", "transport", "accommodation", "cost", "exchangeRate", "chapter", "checklistItem", "reminder", "review", "finding"],
+  "": ["trip", "stop", "item", "transport", "accommodation", "cost", "exchangeRate", "chapter", "checklistItem", "reminder", "review", "finding", "hopMode", "flagDismissal"],
   "/plan": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "fork", "attachment", "note", "dayTitle", "reminder", "tripMember"],
   "/budget": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "fork"],
   "/calendar": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "dayTitle"],
-  "/summary": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "trip"],
+  "/summary": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "trip", "hopMode", "flagDismissal"],
   "/print": ["stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate"],
-  "/compare": ["fork", "stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate"],
-  "/day": ["accommodation", "attachment", "chapter", "cost", "dayTitle", "item", "journalEntry", "stop", "transport", "trip"],
+  "/compare": ["fork", "stop", "item", "transport", "accommodation", "chapter", "cost", "exchangeRate", "hopMode", "flagDismissal"],
+  "/day": ["accommodation", "attachment", "chapter", "cost", "dayTitle", "item", "journalEntry", "stop", "transport", "trip", "hopMode", "flagDismissal"],
   "/journal": ["journalEntry", "attachment", "trip", "tripMember"],
   "/checklists": ["checklistItem", "packingTemplate", "trip", "tripMember", "stop", "reminder"],
   "/wishlist": ["trip", "item", "cost", "note", "vote", "stop", "attachment", "tripMember", "fork"],

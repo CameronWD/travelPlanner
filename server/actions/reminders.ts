@@ -90,7 +90,7 @@ async function assertAboutOnTrip(
   tripId: string,
 ): Promise<FieldErrors | null> {
   if (about.stopId !== undefined) {
-    const stop = await db.stop.findFirst({ where: { id: about.stopId, tripId }, select: { id: true } });
+    const stop = await db.stop.findFirst({ where: { id: about.stopId, tripId, forkId: null }, select: { id: true } });
     if (!stop) return { stopId: ["That Stop isn't on this trip"] };
   }
   if (about.itemId !== undefined) {

@@ -53,6 +53,7 @@ import { openingHoursSchema } from "@/lib/validations/opening-hours";
 import { tryListInputSchema } from "@/lib/validations/try-list";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { setDayTitle } from "@/server/actions/day-titles";
+import { setHopMode } from "@/server/actions/hop-modes";
 import { addNote, deleteNote } from "@/server/actions/notes";
 import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { categorySchema } from "@/lib/validations/category";
@@ -64,6 +65,8 @@ import { runWrite } from "../run-tool";
 import { loadItemForMcp, loadStopForMcp, loadChapterForMcp } from "../reads/entities";
 import { loadWishlistIdeaForMcp, loadVotesForMcp } from "../reads/lists";
 import { loadNoteForMcp } from "../reads/notes";
+import { loadHopForMcp } from "../reads/day";
+import { fail } from "@/lib/action-result";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, REFUNDABLE_MEANING, REFUNDABLE_VALUES, describeValues, type RefundableLabel } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
@@ -106,6 +109,9 @@ function refundableFromMcp(v: RefundableLabel | undefined): boolean | null | und
   return v === "YES" ? true : v === "NO" ? false : null;
 }
 
+const ENDS_AT_DESCRIPTION =
+  "Where it finishes, when that is not where it starts (a walk or wander that ends somewhere else). A full street address or place name, geocoded like address. The next thing to do is measured from here.";
+
 /** add_thing_to_do: title and category are required. */
 const itemCreateShape = {
   title: z.string().trim().min(1),
@@ -115,6 +121,7 @@ const itemCreateShape = {
   startTime: hhmm.optional(),
   endTime: hhmm.optional(),
   address: z.string().optional(),
+  endsAt: z.string().optional().describe(ENDS_AT_DESCRIPTION),
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
@@ -133,6 +140,7 @@ const itemPatchShape = {
   startTime: hhmm.nullable().optional().describe("Clear it (null) to let a slot time, if set, default it again."),
   endTime: hhmm.optional(),
   address: z.string().optional(),
+  endsAt: z.string().nullable().optional().describe(`${ENDS_AT_DESCRIPTION} null clears it.`),
   link: z.string().optional(),
   booking: z.string().optional(),
   notes: z.string().optional().describe(ITEM_NOTES_DESCRIPTION),
@@ -152,14 +160,14 @@ export function registerPlanWriteTools(server: McpServer): void {
         "Adds a thing to do or see. With stopId it sits under that Stop; with date it is scheduled on that day; with neither it is a Wishlist idea, one of the ideas not yet placed. When you give a date, pass stopId too (the Stop whose stay covers that day) so it files under that Stop. Location comes from address, not from lat/lng.",
       inputSchema: { tripId: z.string(), ...itemCreateShape },
     },
-    ({ tripId, refundable, ...rest }) =>
+    ({ tripId, refundable, endsAt, ...rest }) =>
       runWrite(
         "add_thing_to_do",
         async () => {
           await requireRealPlanRows([["stop", rest.stopId]]);
           // UNKNOWN maps to null, but there's nothing to clear on a create: that's
           // just not setting it, same as omitting the field (?? undefined).
-          return createItem(tripId, { ...rest, refundable: refundableFromMcp(refundable) ?? undefined });
+          return createItem(tripId, { ...rest, endAddress: endsAt, refundable: refundableFromMcp(refundable) ?? undefined });
         },
         async (done) => ({ item: await loadItemForMcp(done.id) }),
       ),
@@ -176,7 +184,7 @@ export function registerPlanWriteTools(server: McpServer): void {
         "A null startTime clears it too, letting a slot (if set) default it again. Moving the slot never moves a start time that is already set.",
       inputSchema: { itemId: z.string(), ...itemPatchShape },
     },
-    ({ itemId, refundable, ...patch }) =>
+    ({ itemId, refundable, endsAt, ...patch }) =>
       runWrite(
         "update_thing_to_do",
         async () => {
@@ -184,7 +192,7 @@ export function registerPlanWriteTools(server: McpServer): void {
             ["item", itemId],
             ["stop", patch.stopId],
           ]);
-          return updateItem(itemId, bookingPatchFrom({ ...patch, refundable: refundableFromMcp(refundable) }));
+          return updateItem(itemId, bookingPatchFrom({ ...patch, endAddress: endsAt, refundable: refundableFromMcp(refundable) }));
         },
         async () => ({ item: await loadItemForMcp(itemId) }),
       ),
@@ -422,6 +430,32 @@ export function registerPlanWriteTools(server: McpServer): void {
         },
         async () => ({ stopId, day: (await loadStopForMcp(stopId)).days.find((d) => d.date === date) ?? null }),
       ),
+  );
+
+  server.registerTool(
+    "set_hop_mode",
+    {
+      title: "Set hop mode",
+      description:
+        "Sets how one hop between two consecutive things to do on a day is travelled: walk, public_transport, drive, or automatic (back to the Stop's Local travel mode). It has no length limit, and stops applying if the two things are no longer next to each other on the day. Use fromItemId and toItemId exactly as a hop in get_day lists them, in that order: any other pair is refused (automatic still clears one that no longer is a hop). Returns the hop as it now stands.",
+      inputSchema: { fromItemId: z.string(), toItemId: z.string(), mode: z.enum(["walk", "public_transport", "drive", "automatic"]) },
+    },
+    ({ fromItemId, toItemId, mode }) => {
+      let tripId = "";
+      return runWrite(
+        "set_hop_mode",
+        async () => {
+          ({ tripId } = await requireRealPlanRow("item", fromItemId));
+          await requireRealPlanRow("item", toItemId);
+          const stored = mode === "walk" ? "WALK" : mode === "public_transport" ? "TRANSIT" : mode === "drive" ? "DRIVE" : null;
+          if (stored !== null && !(await loadHopForMcp(tripId, fromItemId, toItemId))) {
+            return fail({ _: ["Those two things are not a hop on a day right now. Use fromItemId and toItemId exactly as a hop in get_day lists them, in that order."] });
+          }
+          return setHopMode(fromItemId, toItemId, stored);
+        },
+        async () => ({ hop: await loadHopForMcp(tripId, fromItemId, toItemId) }),
+      );
+    },
   );
 
   server.registerTool(

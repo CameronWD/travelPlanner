@@ -19,6 +19,7 @@ const { addReminderMock, deleteReminderMock } = vi.hoisted(() => ({
 vi.mock("@/server/actions/reminders", () => ({
   addReminder: addReminderMock,
   deleteReminder: deleteReminderMock,
+  updateReminder: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
@@ -412,5 +413,37 @@ describe("RemindersCard delete failures (spec 2026-10-06 §E)", () => {
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't find that reminder." }),
     );
+  });
+});
+
+describe("RemindersCard Earlier", () => {
+  it("lists past Reminders under Earlier, newest first, each deletable and editable", async () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[
+          reminderItem({ id: "n", title: "Next up", date: "2026-12-01" }),
+          reminderItem({ id: "p1", title: "Older one", date: "2026-11-01", past: true }),
+          reminderItem({ id: "p2", title: "Newer one", date: "2026-11-20", past: true }),
+        ]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Earlier" })).toBeInTheDocument();
+    const earlier = screen.getByRole("list", { name: "Earlier reminders" });
+    expect(within(earlier).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      expect.stringContaining("Newer one"),
+      expect.stringContaining("Older one"),
+    ]);
+    expect(within(screen.getByRole("list", { name: "Upcoming reminders" })).queryByText("Older one")).not.toBeInTheDocument();
+    await userEvent.setup().click(within(earlier).getByRole("button", { name: "Delete reminder: Newer one" }));
+    await waitFor(() => expect(deleteReminderMock).toHaveBeenCalledWith("p2"));
+    await userEvent.setup().click(within(earlier).getByRole("button", { name: "Edit reminder: Older one" }));
+    expect(await screen.findByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+  });
+
+  it("shows no Earlier heading when nothing is past", () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "n", title: "Next up", date: "2026-12-01" })]} />);
+    expect(screen.queryByRole("heading", { name: "Earlier" })).not.toBeInTheDocument();
   });
 });

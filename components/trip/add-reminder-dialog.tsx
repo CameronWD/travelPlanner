@@ -11,7 +11,7 @@ import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
-import { addReminder } from "@/server/actions/reminders";
+import { addReminder, updateReminder } from "@/server/actions/reminders";
 import { checkReminderInput } from "@/lib/reminder-input";
 import type { ReminderAbout } from "@/lib/reminder-about";
 
@@ -20,19 +20,35 @@ import type { ReminderAbout } from "@/lib/reminder-about";
 // ---------------------------------------------------------------------------
 
 
-export interface AddReminderDialogProps {
-  /** The trip this reminder belongs to. */
-  tripId: string;
-  /**
-   * What this Reminder is about — the Stop, thing to do or Transport leg whose
-   * card opened the dialog (spec F8). Fixed and hidden, never a picker: the
-   * Reminders card's add form is where a Traveller picks.
-   */
-  about: ReminderAbout;
+interface DialogBase {
+  defaultDate?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
 }
+
+export type EditableReminder = { id: string; title: string; date: string; notes: string | null };
+
+export type AddReminderDialogProps = DialogBase &
+  (
+    | {
+        /** The trip this reminder belongs to. */
+        tripId: string;
+        /**
+         * What this Reminder is about — the Stop, thing to do or Transport leg whose
+         * card opened the dialog (spec F8). Fixed and hidden, never a picker: the
+         * Reminders card's add form is where a Traveller picks.
+         */
+        about: ReminderAbout;
+        reminder?: undefined;
+      }
+    | {
+        /** Edit mode: title, date and notes are changed; what it is about stays as it is. */
+        reminder: EditableReminder;
+        tripId?: undefined;
+        about?: undefined;
+      }
+  );
 
 // ---------------------------------------------------------------------------
 // Dialog wrapper
@@ -47,15 +63,19 @@ export interface AddReminderDialogProps {
 export function AddReminderDialog({
   tripId,
   about,
+  reminder,
+  defaultDate,
   open,
   onOpenChange,
   onSaved,
 }: AddReminderDialogProps) {
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title="Add a Reminder">
+    <FormDialog open={open} onOpenChange={onOpenChange} title={reminder ? "Edit reminder" : "Add a Reminder"}>
       <AddReminderForm
         tripId={tripId}
         about={about}
+        reminder={reminder}
+        defaultDate={defaultDate}
         onClose={() => onOpenChange(false)}
         onSaved={onSaved}
       />
@@ -70,17 +90,21 @@ export function AddReminderDialog({
 function AddReminderForm({
   tripId,
   about,
+  reminder,
+  defaultDate,
   onClose,
   onSaved,
 }: {
-  tripId: string;
-  about: ReminderAbout;
+  tripId?: string;
+  about?: ReminderAbout;
+  reminder?: EditableReminder;
+  defaultDate?: string;
   onClose: () => void;
   onSaved?: () => void;
 }) {
-  const [title, setTitle] = React.useState("");
-  const [date, setDate] = React.useState("");
-  const [notes, setNotes] = React.useState("");
+  const [title, setTitle] = React.useState(reminder?.title ?? "");
+  const [date, setDate] = React.useState(reminder?.date ?? defaultDate ?? "");
+  const [notes, setNotes] = React.useState(reminder?.notes ?? "");
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: async () => {
@@ -96,7 +120,8 @@ function AddReminderForm({
       // are left out rather than sent empty.
       const checked = checkReminderInput({ title, date, ...(notes.trim() ? { notes } : {}) });
       if (!checked.success) return checked;
-      return addReminder(tripId, { ...checked.data, ...about });
+      if (reminder) return updateReminder(reminder.id, { ...checked.data, notes: checked.data.notes ?? null });
+      return addReminder(tripId!, { ...checked.data, ...about! });
     },
     onClose,
     onSaved,
@@ -141,7 +166,7 @@ function AddReminderForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          Add Reminder
+          {reminder ? "Save Reminder" : "Add Reminder"}
         </Button>
       </DialogFooter>
     </form>

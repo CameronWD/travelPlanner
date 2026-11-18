@@ -4,8 +4,9 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/reminders", () => ({
   addReminder: vi.fn().mockResolvedValue({ success: true, id: "rem-new" }),
+  updateReminder: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { addReminder } from "@/server/actions/reminders";
+import { addReminder, updateReminder } from "@/server/actions/reminders";
 
 import { AddReminderDialog } from "./add-reminder-dialog";
 
@@ -96,5 +97,29 @@ describe("AddReminderDialog", () => {
     await waitFor(() =>
       expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Reconfirm the tour", date: "2026-12-05", notes: "Ask for Wayan", stopId: "s1" }),
     );
+  });
+
+  it("with a reminder it reads 'Edit reminder', is prefilled, and saves through updateReminder", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <AddReminderDialog
+        reminder={{ id: "r1", title: "Reconfirm", date: "2026-12-05", notes: "Ask Wayan" }}
+        open
+        onOpenChange={onOpenChange}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/reminder title/i)).toHaveValue("Reconfirm");
+    expect(screen.getByLabelText(/^notes/i)).toHaveValue("Ask Wayan");
+
+    await user.type(screen.getByLabelText(/reminder title/i), " the tour");
+    await user.click(screen.getByRole("button", { name: /save reminder/i }));
+
+    await waitFor(() =>
+      expect(updateReminder).toHaveBeenCalledWith("r1", { title: "Reconfirm the tour", date: "2026-12-05", notes: "Ask Wayan" }),
+    );
+    expect(addReminder).not.toHaveBeenCalled();
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 });

@@ -99,7 +99,7 @@ describe("ChecklistsPage Reminders (Task 16 fix — the desktop Home has no Remi
     expect(card.closest('[data-testid="checklists-layout"]')).toBeNull();
     const today = todayISOInZone("Europe/Paris");
     expect(card).toHaveAttribute("data-today", today);
-    expect(listRemindersForTrip).toHaveBeenCalledWith("trip-1", today);
+    expect(listRemindersForTrip).toHaveBeenCalledWith("trip-1", today, { includePast: true });
   });
 });
 

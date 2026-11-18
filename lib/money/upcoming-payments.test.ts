@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatMoneyNarrow } from "@/lib/money/money";
-import { buildUpcomingPayments, paymentAmountLabel, type UpcomingPaymentsInput } from "./upcoming-payments";
+import { buildUpcomingPayments, paymentAmountLabel, paymentAmountParts, type UpcomingPaymentsInput } from "./upcoming-payments";
 
 const cost = (o: Partial<UpcomingPaymentsInput["costs"][number]> & { id: string }): UpcomingPaymentsInput["costs"][number] => ({
   costMinor: 10000,
@@ -159,5 +159,21 @@ describe("paymentAmountLabel", () => {
   it("keeps the symbol on the original when it differs from the Home symbol", () => {
     const label = paymentAmountLabel({ costMinor: 12000, currency: "EUR", homeMinor: 19800, homeCurrency: "AUD" }, formatMoneyNarrow);
     expect(label.replace(/\u00a0/g, " ")).toBe("$198.00 (€120.00)");
+  });
+});
+
+describe("paymentAmountParts", () => {
+  const nb = (s: string | null) => s?.replace(/\u00a0/g, " ");
+
+  it("splits a foreign payment into Home main and original", () => {
+    const parts = paymentAmountParts({ costMinor: 100_000_000, currency: "IDR", homeMinor: 6_420, homeCurrency: "AUD" }, formatMoneyNarrow);
+    expect(nb(parts.main)).toBe("$64.20");
+    expect(nb(parts.original)).toBe("Rp 1,000,000");
+  });
+
+  it("has no original when the payment is already in the Trip currency", () => {
+    const parts = paymentAmountParts({ costMinor: 6_420, currency: "AUD", homeMinor: 6_420, homeCurrency: "AUD" }, formatMoneyNarrow);
+    expect(nb(parts.main)).toBe("$64.20");
+    expect(parts.original).toBeNull();
   });
 });

@@ -15,8 +15,9 @@ import { orderDayEntries, type ItemEntry } from "@/lib/itinerary";
 import { fail, type ActionFailure } from "@/lib/action-result";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { BookingState } from "@/lib/enum-values";
-import { resolvedDayHops } from "@/lib/day-map";
+import { resolvedPlanHops } from "@/lib/day-map";
 import { homePointOf } from "@/lib/travel-times/hops";
+import { loadHopModes } from "@/lib/hop-modes";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { loadHolidayLines } from "@/lib/holidays/trip-days";
 import { loadNeedsConfirmation } from "./confirmations";
@@ -69,11 +70,11 @@ export interface McpDay {
   anytime: McpDayItem[];
   publicHolidays: string[];
   /**
-   * Travel between the day's located things, in the Day map's order, only for
+   * Travel between the day's located things (every pair the plan treats as a hop), only for
    * Items the viewer can see (a hidden Surprise is stepped over). estimated
    * true means a straight-line guess, not a routed time.
    */
-  hops: { fromItemId: string; toItemId: string; minutes: number; mode: "walk" | "drive" | "public_transport"; distanceKm: number; estimated: boolean }[];
+  hops: { fromItemId: string; toItemId: string; minutes: number; mode: "walk" | "drive" | "public_transport"; setByHand: boolean; distanceKm: number; estimated: boolean }[];
 }
 
 export async function loadDayForMcp(tripId: string, date: string): Promise<McpDay | ActionFailure> {
@@ -103,7 +104,7 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
 
   const filesFor = (_kind: string, id: string) =>
     (model.attachmentsByTarget[id] ?? []).map((a) => ({ id: a.id, title: a.title ?? a.filename }));
-  const needsConfirmation = await loadNeedsConfirmation(tripId, user.id);
+  const [needsConfirmation, hopModes] = await Promise.all([loadNeedsConfirmation(tripId, user.id), loadHopModes(tripId)]);
   const stopName = new Map(stopRows.map((s) => [s.id, s.name]));
   const item = (e: ItemEntry): McpDayItem => toMcpDayItem(e.item, filesFor, stopName, needsConfirmation);
   // The timeline's legs and stays are itinerary entries; their Booking state
@@ -144,22 +145,20 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
   });
 
   const dayItems = rows.items.filter((it) => it.date === date);
-  const lookup = await loadTravelLookupFor({ items: dayItems, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip) });
-  const hops = resolvedDayHops(model.dayMap, {
+  const lookup = await loadTravelLookupFor({ items: dayItems, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip), hopModes });
+  const hops = resolvedPlanHops({
     dayItems,
     stops: rows.stops,
     transports: rows.transports,
     lookup,
     estimateOpts: { windingFactor: rows.trip.drivingWindingFactor, avgSpeedKph: rows.trip.drivingAvgSpeedKph },
-  }).flatMap(({ fromId, toId, resolved }) =>
-    resolved
-      ? [{
-          fromItemId: fromId, toItemId: toId, minutes: Math.round(resolved.minutes),
-          mode: resolved.mode === "transit" ? ("public_transport" as const) : resolved.mode,
-          distanceKm: Math.round(resolved.distanceKm * 10) / 10, estimated: resolved.estimated,
-        }]
-      : [],
-  );
+    hopModes,
+  }).map(({ fromId, toId, resolved, forced }) => ({
+    fromItemId: fromId, toItemId: toId, minutes: Math.round(resolved.minutes),
+    mode: resolved.mode === "transit" ? ("public_transport" as const) : resolved.mode,
+    setByHand: forced !== undefined,
+    distanceKm: Math.round(resolved.distanceKm * 10) / 10, estimated: resolved.estimated,
+  }));
 
   const publicHolidays = (await loadHolidayLines(tripId, [date])).get(date) ?? [];
 
@@ -180,4 +179,18 @@ export async function loadDayForMcp(tripId: string, date: string): Promise<McpDa
     publicHolidays,
     hops,
   };
+}
+
+/** One hop of the item's day, as get_day lists it; null when the pair is not a current hop there. */
+export async function loadHopForMcp(
+  tripId: string,
+  fromItemId: string,
+  toItemId: string,
+): Promise<{ fromItemId: string; toItemId: string; mode: "walk" | "drive" | "public_transport"; setByHand: boolean; minutes: number; estimated: boolean } | null> {
+  const from = await db.item.findUnique({ where: { id: fromItemId }, select: { date: true } });
+  if (!from?.date) return null;
+  const day = await loadDayForMcp(tripId, from.date);
+  if ("success" in day) return null;
+  const hop = day.hops.find((h) => h.fromItemId === fromItemId && h.toItemId === toItemId);
+  return hop ? { fromItemId, toItemId, mode: hop.mode, setByHand: hop.setByHand, minutes: hop.minutes, estimated: hop.estimated } : null;
 }

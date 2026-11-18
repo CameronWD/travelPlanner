@@ -1,33 +1,83 @@
 "use client";
 
-import { Bell } from "lucide-react";
+import { useState } from "react";
+import { Bell, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AddReminderDialog } from "@/components/trip/add-reminder-dialog";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
+import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
+import { deleteReminder } from "@/server/actions/reminders";
 import { formatDayLabel } from "@/lib/dates";
 import type { ReminderItem } from "@/lib/reminder-about";
 
 /**
  * The Reminders about one thing — a Stop, a thing to do or a Transport leg
  * (spec F8: "the thing's card lists the Reminder"). Notes fold (ReminderNotes).
- * "Add a reminder" is a plain button (type="button") so it never submits the
- * Item or Transport form it sits inside.
+ * Every row can be edited or deleted (spec 2026-11-18 P4); a Reminder flagged
+ * `past` sits under "Earlier", dimmed. Every button is type="button" so none
+ * submits the Item or Transport form this sits inside.
  */
 export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; onAdd?: () => void }) {
+  const [editing, setEditing] = useState<ReminderItem | null>(null);
+  const { requestDelete, isPending, dialog } = useDeleteWithConfirm({
+    action: (...[id]: [string, string]) => deleteReminder(id),
+    buildConfirm: (_id, title) => ({
+      title: "Delete this reminder?",
+      description: `"${title}" will be removed.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    }),
+  });
+
+  const upcoming = reminders.filter((r) => !r.past);
+  const earlier = reminders.filter((r) => r.past);
+
+  const row = (r: ReminderItem) => (
+    <li key={r.id} className={r.past ? "flex flex-col text-sm opacity-60" : "flex flex-col text-sm"}>
+      <div className="flex items-center gap-2">
+        <Bell className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="min-w-0 flex-1 break-words text-foreground">{r.title}</span>
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDayLabel(r.date)}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0"
+          aria-label={`Edit reminder: ${r.title}`}
+          onClick={() => setEditing(r)}
+        >
+          <Pencil className="size-3.5" aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0 text-destructive hover:bg-destructive/10"
+          aria-label={`Delete reminder: ${r.title}`}
+          disabled={isPending}
+          onClick={() => requestDelete(r.id, r.title)}
+        >
+          <Trash2 className="size-3.5" aria-hidden="true" />
+        </Button>
+      </div>
+      {r.notes && <div className="pl-5.5"><ReminderNotes notes={r.notes} /></div>}
+    </li>
+  );
+
   return (
     <div className="flex flex-col gap-2">
-      {reminders.length > 0 && (
+      {upcoming.length > 0 && (
         <ul aria-label="Reminders" className="flex flex-col gap-1">
-          {reminders.map((r) => (
-            <li key={r.id} className="flex flex-col text-sm">
-              <div className="flex items-center gap-2">
-                <Bell className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="min-w-0 flex-1 break-words text-foreground">{r.title}</span>
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDayLabel(r.date)}</span>
-              </div>
-              {r.notes && <div className="pl-5.5"><ReminderNotes notes={r.notes} /></div>}
-            </li>
-          ))}
+          {upcoming.map(row)}
         </ul>
+      )}
+      {earlier.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <h4 className="text-xs font-extrabold text-muted-foreground">Earlier</h4>
+          <ul aria-label="Earlier reminders" className="flex flex-col gap-1">
+            {earlier.map(row)}
+          </ul>
+        </div>
       )}
       {onAdd && (
         <Button type="button" variant="outline" size="sm" className="self-start" onClick={onAdd}>
@@ -35,6 +85,20 @@ export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; 
           Add a reminder
         </Button>
       )}
+      {dialog}
+      {/* The dialog's own <form> submits through the React tree: without this its submit bubbles into the Item or Transport form this list sits in. */}
+      <div onSubmit={(e) => e.stopPropagation()}>
+        {editing && (
+          <AddReminderDialog
+            key={editing.id}
+            reminder={editing}
+            open
+            onOpenChange={(open) => {
+              if (!open) setEditing(null);
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }

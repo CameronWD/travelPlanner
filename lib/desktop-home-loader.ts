@@ -54,6 +54,8 @@ import { buildStillToBook, type StillToBookRow } from "@/lib/still-to-book";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { ITEM_HOP_ORDER, homePointOf } from "@/lib/travel-times/hops";
+import { loadHopModes } from "@/lib/hop-modes";
+import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 
 const COST_SELECT = {
@@ -165,6 +167,8 @@ async function load(
     pretripCount,
     slug,
     bookingConfirmationsToAdd,
+    markedFine,
+    hopModes,
   ] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -213,6 +217,8 @@ async function load(
         sortOrder: true,
         lat: true,
         lng: true,
+        endLat: true,
+        endLng: true,
         bookingState: true,
         bookBy: true,
         openingHours: true,
@@ -247,6 +253,8 @@ async function load(
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
     tripSlugFor(tripId),
     loadBookingConfirmationsToAdd(tripId, viewerId),
+    loadMarkedFineRows(tripId),
+    loadHopModes(tripId),
   ]);
   const base = tripPath(slug);
   // A hidden real-plan Item still holds its slot: a placeholder titled
@@ -368,7 +376,7 @@ async function load(
       stops: allStopsRaw,
       transports,
     });
-    const travel = await loadTravelLookupFor({ items: itemRows, stops: allStopsRaw, transports, home: homePointOf(trip) });
+    const travel = await loadTravelLookupFor({ items: itemRows, stops: allStopsRaw, transports, home: homePointOf(trip), hopModes });
     steps = buildTripNextSteps({
       tripBasePath: base,
       phase,
@@ -398,6 +406,8 @@ async function load(
       surprisesToReveal: surprisesToReveal({ views: v.views, viewerId, today, stops: allStopsRaw, items: itemRows }),
       limit: Number.POSITIVE_INFINITY,
       travel,
+      hopModes,
+      markedFine,
       travelStops: allStopsRaw,
       homePoint: homePointOf(trip),
     });

@@ -251,6 +251,8 @@ Left to right:
 ### 6.2 Fit tile (replaces PlanOverview)
 Built from `summarizePlan()` output, with no new logic.
 
+**Hidden** (desktop rail only) when every Stop is Scheduled and the slack is 0 or more, since there is nothing left to check (`showFitTile`). It shows when any Stop is Rough, the plan runs over, or the state is `unset` / `dormant`. The mobile Fit strip stays, as it carries the Map button.
+
 | `hardEndState` | Tile colour | Big number | Words |
 |---|---|---|---|
 | `ok` | `bg-teal` | slack nights | "nights / spare" |
@@ -263,7 +265,7 @@ Built from `summarizePlan()` output, with no new logic.
 - **Bar:**
   - 18px tall, `border-2 rounded-full bg-card overflow-hidden flex`.
   - The first segment is scheduled nights (`bg-foreground`). The second is rough projected nights (a hatched `repeating-linear-gradient` of foreground and card, 3px/4px). The remainder is empty.
-  - When over, the bar is full and a coral hatch extends past the end marker.
+  - When over, the bar is full and a coral hatch fills the end of the bar, inside its border. It shows only when the state is "over"; a plan that fits never paints it.
 - **Legend line:** "28 set · ~5 rough" on the left and "of 35" on the right, in `text-xs font-bold`.
 - **Live region:** keep `role="status" aria-live="polite"` on the words, as today.
 

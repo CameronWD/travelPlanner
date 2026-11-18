@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), updateReminder: vi.fn(), deleteReminder: vi.fn() }));
 vi.mock("@/components/trip/note-thread", () => ({ NoteThread: () => <div>note thread</div> }));
 vi.mock("@/components/trip/attachment-list", () => ({ AttachmentList: () => <div>attachment list</div> }));
 
@@ -26,6 +27,17 @@ describe("StopExtrasDialog (spec D2)", () => {
     expect(screen.getByText("Fri 20 Nov")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add a reminder" }));
     expect(onAddReminder).toHaveBeenCalled();
+  });
+  it("reminders groups a past Reminder under Earlier, dimmed, with Delete", () => {
+    const reminders = [
+      ...base.reminders,
+      reminderItem({ id: "r0", title: "Pay the deposit", date: "2026-11-01", stopId: "par", stopName: "Paris", past: true }),
+    ];
+    render(<StopExtrasDialog kind="reminders" {...base} reminders={reminders} />);
+    const earlier = screen.getByRole("list", { name: "Earlier reminders" });
+    expect(within(earlier).getByText("Pay the deposit")).toBeInTheDocument();
+    expect(earlier.querySelector("li")).toHaveClass("opacity-60");
+    expect(within(earlier).getByRole("button", { name: "Delete reminder: Pay the deposit" })).toBeInTheDocument();
   });
   it("closed when kind is null", () => {
     render(<StopExtrasDialog kind={null} {...base} />);

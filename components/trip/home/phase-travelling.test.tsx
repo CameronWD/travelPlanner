@@ -121,8 +121,7 @@ vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: TimelineProps) => timelineMock(p) }));
 vi.mock("@/components/trip/day-map-panel", () => ({
-  DayMapPanel: ({ variant, mountWhen }: { variant?: string; mountWhen?: unknown }) =>
-    variant === "tile" ? <div data-testid="day-map-tile" data-mount-when={String(mountWhen)} /> : null,
+  DayMapPanel: ({ mountWhen }: { mountWhen?: unknown }) => <div data-testid="day-map-tile" data-mount-when={String(mountWhen)} />,
 }));
 // The desktop countdown tile's polaroid/uploader pull in next/image and the
 // cover-upload action — out of scope here.
@@ -148,6 +147,8 @@ vi.mock("@/components/trip/todays-journal", () => ({
 }));
 // React import needed for JSX in mocks above
 import React from "react";
+
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
 
 // "Where you are" is judged against the clock (lib/now-next.ts whereYouAre):
 // pin it inside the fixture Stop's 1 to 10 Jan 2026 stay.
@@ -633,7 +634,7 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     expect(dom.textContent).not.toContain("Sintra day trip");
   });
 
-  it("puts every module in a kit Card, headings in order, with tonight's stay on the lilac (stay) fill", async () => {
+  it("puts every module in a kit Card, headings in order, with tonight's stay as a lilac-banded StayCard", async () => {
     pinClockInsideStay();
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
@@ -641,12 +642,14 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     const headings = [...dom.querySelectorAll("h2, h3")].map((h) => h.textContent?.trim());
     expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today's plan", "Tonight's stay", "Where you are"]);
 
-    for (const text of ["Today's plan", "Where you are", "Tonight's stay"]) {
+    for (const text of ["Today's plan", "Where you are"]) {
       const h = [...dom.querySelectorAll("h3")].find((el) => el.textContent?.trim() === text)!;
       expect(closestKitCard(h), `${text} sits in a kit Card`).not.toBeNull();
     }
-    const tonight = [...dom.querySelectorAll("h3")].find((el) => el.textContent === "Tonight's stay")!;
-    expect(closestKitCard(tonight)!.className).toContain("bg-lilac");
+    const band = dom.querySelector('[data-testid="tonights-stay"] [data-slot="stay-band"]')!;
+    expect(band.textContent).toBe("Tonight's stay");
+    expect(band.className).toContain("bg-lilac");
+    expect(dom.querySelector('[data-testid="tonights-stay"] [data-slot="stay-body"]')!.className).not.toMatch(/bg-lilac(\s|$)/);
 
     // No old-shape containers survive.
     expect(dom.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft|bg-hue-leaf\/25/);
@@ -1482,7 +1485,7 @@ describe("PhaseTravelling phone Today view (spec C)", () => {
     const { NowNextCard } = await import("@/components/trip/home/now-next-card");
     stopFindManyMock.mockResolvedValue([{ ...MUNICH, localTravelMode: "DRIVE" }, VIENNA]);
     const card = findElementByType(await PhaseTravelling({ tripId: "trip-1" }), NowNextCard)!;
-    expect(card.props.dayMapHref).toBe("/trips/trip-1/day/2026-01-05");
+    expect(card.props.dayMapHref).toBe("/trips/trip-1/day/2026-01-05?map=1");
     expect(card.props.localMode).toBe("DRIVE");
   });
 

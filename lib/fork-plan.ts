@@ -129,6 +129,10 @@ interface ForkSourceItem {
   placeId?: string | null;
   businessStatus?: string | null;
   statusCheckedAt?: Date | null;
+  endAddress?: string | null;
+  endLat?: number | null;
+  endLng?: number | null;
+  endPlaceId?: string | null;
   address: string | null;
   link: string | null;
   booking: string | null;
@@ -290,6 +294,10 @@ export interface ForkPlan {
       placeId: string | null;
       businessStatus: string | null;
       statusCheckedAt: Date | null;
+      endAddress: string | null;
+      endLat: number | null;
+      endLng: number | null;
+      endPlaceId: string | null;
       address: string | null;
       link: string | null;
       booking: string | null;
@@ -380,6 +388,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         title: it.title, category: it.category, date: it.date, startTime: it.startTime, endTime: it.endTime,
         lat: it.lat, lng: it.lng, placeId: it.placeId ?? null, businessStatus: it.businessStatus ?? null,
         statusCheckedAt: it.statusCheckedAt ?? null,
+        endAddress: it.endAddress ?? null, endLat: it.endLat ?? null, endLng: it.endLng ?? null, endPlaceId: it.endPlaceId ?? null,
         address: it.address, link: it.link, booking: it.booking,
         notes: it.notes, sortOrder: it.sortOrder, sourceItemId: null,
         hiddenFromShares: it.hiddenFromShares ?? false,

@@ -29,6 +29,8 @@ export interface ReminderItem {
   itemTitle: string | null;
   transportId: string | null;
   transportLabel: string | null;
+  /** Set only on a Reminder dated before the viewer's today, where a read was asked for those. */
+  past?: true;
 }
 
 /** What the add form's "About" picker offers (lib/reminder-reads.ts readReminderAboutOptions). */

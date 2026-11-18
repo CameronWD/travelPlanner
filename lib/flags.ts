@@ -17,10 +17,12 @@ import {
   hopInputs,
   hopStopsById,
   resolveDriveLeg,
+  forcedModeFor,
   resolveHop,
   toHopItem,
   toPlanTransport,
   transportEnds,
+  type HopModeChoice,
   type HopStopRow,
   type Pt,
   type ResolvedHop,
@@ -60,6 +62,12 @@ export interface Flag {
   connection?: { from: string; to: string };
   /** A tight connection's own fix (spec 2026-10-18 A3): move the later Item to here, keeping its length. */
   retime?: { itemId: string; startTime: string; endTime: string };
+  /** A tight connection's hop: the Items it joins and how it is travelled (spec 2026-11-18 T3). */
+  hop?: { fromItemId: string; toItemId: string; mode: HopModeChoice; modeSetByHand: boolean };
+  /** Set only on a tight connection: what a Marked fine row must still match (spec 2026-11-18 T5, lib/flag-dismissals.ts). */
+  fingerprint?: string;
+  /** A tight connection's two things, named as its message names them. */
+  between?: { from: string; to: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +124,8 @@ export interface FlagItem {
   sortOrder?: number | null;
   lat?: number | null;
   lng?: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
   /** The Item's title, for the planning Flags' wording (spec 2026-10-17 R7). */
   title?: string | null;
   /** CONTEXT.md "Opening hours", already parsed (lib/opening-hours-stored.ts withOpeningHours); read in the Stop's local time, like startTime. */
@@ -198,6 +208,8 @@ export interface DetectFlagsInput {
   travelStops?: HopStopRow[];
   /** The Trip's Home point (homeLat/homeLng), for a car leg with a Home end. */
   homePoint?: Pt | null;
+  /** Hop modes Travellers chose (lib/hop-modes.ts loadHopModes). Omitted: every hop resolves automatically. */
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 }
 
 // ---------------------------------------------------------------------------
@@ -623,6 +635,7 @@ type TravelOpts = {
   avgSpeedKph: number;
   lookup?: TravelLookup;
   travelStops?: HopStopRow[];
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 };
 
 function estimatedSuffix(estimated: boolean): string {
@@ -730,11 +743,43 @@ function tightName(item: FlagItem): string {
   return name.length > TIGHT_NAME_MAX ? `${name.slice(0, TIGHT_NAME_MAX - 1).trimEnd()}…` : name;
 }
 
+export type TightFlag = Flag & Required<Pick<Flag, "hop" | "fingerprint" | "between">>;
+
+export function isTightFlag(flag: Flag): flag is TightFlag {
+  return flag.fingerprint !== undefined;
+}
+
+const TIGHT_PREFIX = "tight-";
+
+function tightFlagId(prevId: string, nextId: string): string {
+  return `${TIGHT_PREFIX}${prevId}-${nextId}`;
+}
+
+// Item ids are cuids, so never hyphenated.
+export function tightFlagItems(flagId: string): { fromItemId: string; toItemId: string } | null {
+  if (!flagId.startsWith(TIGHT_PREFIX)) return null;
+  const parts = flagId.slice(TIGHT_PREFIX.length).split("-");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  return { fromItemId: parts[0], toItemId: parts[1] };
+}
+
+type FingerprintItem = Pick<FlagItem, "date" | "startTime" | "endTime" | "lat" | "lng" | "endLat" | "endLng">;
+
+function tightFingerprint(
+  prev: FingerprintItem,
+  next: FingerprintItem,
+  hop: Pick<ResolvedHop, "minutes" | "estimated" | "mode">,
+  severity: FlagSeverity,
+): string {
+  const at = (i: FingerprintItem) => [i.date, i.startTime, i.endTime, i.lat, i.lng, i.endLat, i.endLng];
+  return [...at(prev), ...at(next), hop.mode, hop.estimated ? "est" : "stored", Math.round(hop.minutes / 5) * 5, severity].join("|");
+}
+
 export function flagTightConnections(
   items: FlagItem[],
   transports: FlagTransport[],
   opts: TravelOpts,
-): Flag[] {
+): TightFlag[] {
   // Build a direction-agnostic set of stop pairs connected by a transport leg.
   const connectedStopPairs = new Set<string>();
   for (const t of transports) {
@@ -761,7 +806,7 @@ export function flagTightConnections(
     byDate.set(it.date, arr);
   }
 
-  const flags: Flag[] = [];
+  const flags: TightFlag[] = [];
   for (const [date, dayItems] of byDate) {
     // Ties break as the refresh's hop order does, so each pair here is one it fetched.
     const sorted = [...dayItems].sort(
@@ -784,30 +829,44 @@ export function flagTightConnections(
 
       const hop = hopInputs({ from: toHopItem(prev), to: toHopItem(next) }, { stopsById, planTransports });
       if (!hop) continue;
-      const resolved = resolveHop(hop.from, hop.to, hop.localMode, hop.departure, lookup, opts);
+      const forced = forcedModeFor(opts.hopModes, { from: prev, to: next });
+      const resolved = resolveHop(hop.from, hop.to, hop.localMode, hop.departure, lookup, opts, forced);
       const travel = resolved.minutes;
       const label = resolved.estimated && resolved.mode === "transit" ? "trip" : HOP_LABEL[resolved.mode];
       const how = `a ~${Math.round(travel)} min ${label}${estimatedSuffix(resolved.estimated)}`;
       const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
-      const between = `between ${tightName(prev)} and ${tightName(next)}`;
+      const names = { from: tightName(prev), to: tightName(next) };
+      const between = `between ${names.from} and ${names.to}`;
       const retime = tightRetime(prev, next, travel);
+      const hopInfo = {
+        fromItemId: prev.id,
+        toItemId: next.id,
+        mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
+        modeSetByHand: forced !== undefined,
+      } as const;
       if (gap < travel) {
         flags.push({
-          id: `tight-${prev.id}-${next.id}`,
+          id: tightFlagId(prev.id, next.id),
           severity: "warning",
           message: `Tight on ${date} ${between}: only ${Math.max(0, Math.round(gap))} min, but it's ${how}.`,
           targetType: "DAY",
           date,
           ...(retime ? { retime } : {}),
+          hop: hopInfo,
+          fingerprint: tightFingerprint(prev, next, resolved, "warning"),
+          between: names,
         });
       } else if (gap < travel + TIGHT_CONNECTION_BUFFER_MIN) {
         flags.push({
-          id: `tight-${prev.id}-${next.id}`,
+          id: tightFlagId(prev.id, next.id),
           severity: "info",
           message: `Cutting it close on ${date} ${between}: ${Math.round(gap)} min, and it's ${how}.`,
           targetType: "DAY",
           date,
           ...(retime ? { retime } : {}),
+          hop: hopInfo,
+          fingerprint: tightFingerprint(prev, next, resolved, "info"),
+          between: names,
         });
       }
     }
@@ -1361,6 +1420,7 @@ export function detectFlags({
   travel,
   travelStops,
   homePoint,
+  hopModes,
 }: DetectFlagsInput): Flag[] {
   const hidden = new Set(hiddenStopIds ?? []);
   const hiddenStops = stops.filter((s) => hidden.has(s.id));
@@ -1382,6 +1442,7 @@ export function detectFlags({
     avgSpeedKph: drivingAvgSpeedKph ?? 80,
     lookup: travel,
     travelStops: travelStops ?? stops,
+    hopModes,
   };
   return [
     ...flagStopsWithoutAccommodation(insideVisible, accommodations),

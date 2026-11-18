@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import type { DayViewData } from "@/lib/day-view-loader";
 import { addDays } from "@/lib/dates";
 
@@ -72,14 +72,29 @@ vi.mock("@/components/trip/day/day-weather", () => ({
 vi.mock("@/components/trip/journal-editor", () => ({ JournalEditor: () => <div data-testid="journal-editor" /> }));
 vi.mock("@/components/trip/journal-entry-view", () => ({ JournalEntryView: () => null }));
 vi.mock("@/components/day/day-add-menu", () => ({
-  DayAddMenu: ({ label, date }: { label: string; date: string }) => <button data-default-date={date}>{label}</button>,
+  DayAddMenu: ({ label, date, stop }: { label: string; date: string; stop: { id: string } | null }) => (
+    <button data-default-date={date} data-default-stop={stop?.id ?? ""}>
+      {label}
+    </button>
+  ),
 }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: (p: { variant: string }) => <ol data-testid="timeline" data-variant={p.variant} /> }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
-vi.mock("@/components/trip/day-map-panel", () => ({ DayMapPanel: () => <div data-testid="day-map" /> }));
+vi.mock("@/components/trip/day-map", () => ({ DayMap: () => <div /> }));
+vi.mock("@/components/trip/day/day-map-dialog", async (importActual) => {
+  const actual = await importActual<typeof import("@/components/trip/day/day-map-dialog")>();
+  return {
+    DayMapButton: (p: React.ComponentProps<typeof actual.DayMapButton>) => (
+      <span data-testid="day-map">
+        <actual.DayMapButton {...p} />
+      </span>
+    ),
+  };
+});
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: ({ unreadCount }: { unreadCount: number }) => <button aria-label={`Notifications (${unreadCount})`} /> }));
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => null }));
 
+import { setMatchMedia } from "@/test/setup";
 import DayPage, { generateMetadata } from "./page";
 
 function fixture(over: Partial<DayViewData> = {}): DayViewData {
@@ -147,6 +162,9 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     strip: { dates: [], line: { homeStart: null, homeEnd: null, segments: [] } },
     journal: { open: false, mine: null, others: [] },
     feasibility: [],
+    markedFine: [],
+    hops: [],
+    surprise: null,
     weatherInput: { lat: 48.58, lng: 7.75, timezone: "Europe/Paris" },
     ...over,
   };
@@ -174,6 +192,37 @@ beforeEach(() => {
 });
 
 describe("Day page", () => {
+  it("opens one Day map when ?map=1 is set, and it is the shown day's, not a neighbour's", async () => {
+    getDayMock.mockImplementation((_t: string, date: string) =>
+      dayFor({
+        hasEntries: true,
+        dayMap: { points: [{ kind: "item", id: `i-${date}`, lat: 1, lng: 2, label: `Place on ${date}`, order: 1 }], routePoints: [], perItemPrev: {} },
+      })(_t, date),
+    );
+    window.history.replaceState(null, "", "/?map=1");
+    try {
+      setMatchMedia((q) => q === "(min-width: 640px)");
+      await renderPage();
+      await waitFor(() => expect(document.querySelectorAll('[role="dialog"]').length).toBeGreaterThan(0));
+      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
+      expect(dialogs).toHaveLength(1);
+      expect(within(dialogs[0]).getByText("Place on 2026-12-12")).toBeInTheDocument();
+      expect(within(dialogs[0]).queryByText("Place on 2026-12-11")).toBeNull();
+      expect(within(dialogs[0]).queryByText("Place on 2026-12-13")).toBeNull();
+    } finally {
+      window.history.replaceState(null, "", "/");
+      setMatchMedia((q) => q === "(min-width: 640px)");
+    }
+  });
+
+  it("a Changeover day whose Stop is the Surprise does not preselect that Stop on its add buttons", async () => {
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: false, dayStopHidden: true }, tonight: null }));
+    const { container } = await renderPage();
+    const buttons = within(shownPanel(container)).getAllByRole("button", { name: /Add/ });
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) expect(b).toHaveAttribute("data-default-stop", "");
+  });
+
   it("renders the h1 date, the strip, the plan card empty state with three idea rows, tonight and the future journal", async () => {
     const { container } = await renderPage();
     expect(getDayMock.mock.calls.map((c) => c[1]).sort()).toEqual(["2026-12-11", "2026-12-12", "2026-12-13"]);
@@ -193,8 +242,8 @@ describe("Day page", () => {
     // Arrows link to the neighbouring days.
     expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-11");
     expect(screen.getByRole("link", { name: "Next day: Sun 13 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-13");
-    // Bell: in the phone/tablet top bar (below lg) and the desktop right cluster.
-    expect(screen.getAllByRole("button", { name: "Notifications (4)" })).toHaveLength(2);
+    // Bell: phone/tablet top bar, the lg-to-xl pill row cluster, and the xl date-row cluster.
+    expect(screen.getAllByRole("button", { name: "Notifications (4)" })).toHaveLength(3);
     // Every add-an-item button preselects the date. "Add a title" is a
     // different affordance (DayTitleInline, spec 2026-09-28 D4) and has no
     // default date to preselect.
@@ -230,18 +279,18 @@ describe("Day page", () => {
     const timelines = screen.getAllByTestId("timeline");
     expect(timelines.length).toBeGreaterThan(0);
     for (const t of timelines) expect(t).toHaveAttribute("data-variant", "day");
-    // The Day map sits in the plan card on a planned day (collapsed by default, in DayMapPanel).
+    // The Day map sits in the plan card on a planned day (a header button that opens the dialog).
     expect(screen.getAllByTestId("day-map").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 things").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ideas")).toBeNull();
-    // Header button + phone dashed row.
-    expect(screen.getAllByRole("button", { name: "Add to this day" })).toHaveLength(2);
+    // Header button (pill-row and date-row clusters) + phone dashed row.
+    expect(screen.getAllByRole("button", { name: "Add to this day" })).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Add something else · a place, an activity, a note" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add something else" })).toBeNull();
   });
 
   it("keeps the feasibility advisory on a planned day", async () => {
-    getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 2, feasibility: [{ severity: "warning", message: "Tight connection to the train" }] }));
+    getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 2, feasibility: [{ fine: { flagId: "tight-a-b", fingerprint: "fp-1", between: { from: "Lunch", to: "Train" } }, severity: "warning", message: "Tight connection to the train", hop: undefined }] }));
     await renderPage();
     expect(screen.getAllByText("Tight connection to the train").length).toBeGreaterThan(0);
   });
@@ -263,13 +312,20 @@ describe("Day page", () => {
     }
   });
 
-  it("a busy day keeps the max height and internal scroll", async () => {
+  it("a busy day grows with the page: no max height, no internal scroll (spec 2026-11-18 D1)", async () => {
     getDayMock.mockImplementation(dayFor({ hasEntries: true, planCount: 9 }));
     const { container } = await renderPage();
     const body = shownPanel(container).querySelector('[data-slot="day-plan-body"][data-size="desktop"]') as HTMLElement;
-    expect(body.className).toContain("lg:max-h-[max(20rem,calc(100dvh-22rem))]");
-    expect(body.className).toContain("lg:overflow-y-auto");
+    expect(body.className).not.toMatch(/max-h/);
+    expect(body.className).not.toMatch(/overflow-y/);
     expect(body.className).not.toContain("flex-1");
+  });
+
+  it("the right column sticks below the top of the viewport on a wide screen, unless it is too tall to fit (spec 2026-11-18 D1)", async () => {
+    const { container } = await renderPage();
+    const side = shownPanel(container).querySelector("[data-day-body] > .grid > [data-day-side]") as HTMLElement;
+    for (const c of ["lg:sticky", "lg:top-6", "lg:self-start", "lg:data-tall:static"]) expect(side.className.split(" ")).toContain(c);
+    expect(within(side).getByRole("link", { name: "Weather by Open-Meteo" })).toBeInTheDocument();
   });
 
   it("both desktop columns are top-aligned and neither card stretches (spec 2026-09-29 D5/D6)", async () => {
@@ -287,6 +343,25 @@ describe("Day page", () => {
     expect(screen.queryByText("No bed yet")).toBeNull();
     expect(screen.queryByText("Hôtel Cour du Corbeau")).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Sat 12 Dec" })).toBeInTheDocument();
+  });
+
+  it("a day that is wholly a Surprise: the shell, no add anywhere, no Tonight, the weather and Journal stay", async () => {
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: true, dayStopHidden: true }, tonight: null, hasEntries: false }));
+    const { container } = await renderPage();
+    expect(within(shownPanel(container)).getAllByTestId("surprise-shell")).toHaveLength(2);
+    expect(screen.getAllByText("Surprise, planned by Xanthia").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /^Add (to this day|something else)/ })).toBeNull();
+    expect(screen.queryByText("No bed yet")).toBeNull();
+    expect(shownPanel(container).querySelectorAll('[data-slot="tonight"]')).toHaveLength(0);
+    expect(screen.getAllByRole("region", { name: "Weather" }).length).toBeGreaterThan(0);
+  });
+
+  it("a Changeover day shared with a Surprise keeps the add buttons and says the rest is a surprise", async () => {
+    getDayMock.mockImplementation(dayFor({ surprise: { plannedByName: "Xanthia", whole: false, dayStopHidden: false }, tonight: null }));
+    await renderPage();
+    expect(screen.getAllByRole("button", { name: "Add to this day" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("The rest of today is a surprise, planned by Xanthia.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No bed yet").length).toBeGreaterThan(0);
   });
 
   it("a Stop with no bed shows 'No bed yet' and '+ Add a stay'", async () => {

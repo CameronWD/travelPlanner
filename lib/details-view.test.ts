@@ -103,7 +103,7 @@ describe("accommodationDetails", () => {
 });
 
 describe("itemDetails", () => {
-  const bare: ItemCardItem = { id: "i1", title: "Tower", category: "OTHER", bookingStateSet: false };
+  const bare: ItemCardItem = { id: "i1", title: "Tower", category: "OTHER", bookingStateSet: false, endAddress: null };
 
   it("a bare Item is its title and nothing else", () => {
     expect(itemDetails(bare, ctx)).toEqual({ ...EMPTY, title: "Tower" });
@@ -171,7 +171,7 @@ describe("itemDetails", () => {
     const masked: PlaceholderItem = {
       id: "i9", tripId: "t1", forkId: null, stopId: "s1", date: "2026-12-07", startTime: "19:00", endTime: null,
       title: "Surprise", category: "OTHER", address: null, link: null, booking: null, notes: null,
-      lat: null, lng: null, placeId: null, businessStatus: null, countryCode: null, hiddenFromShares: false,
+      lat: null, lng: null, placeId: null, endAddress: null, endLat: null, endLng: null, endPlaceId: null, businessStatus: null, countryCode: null, hiddenFromShares: false,
       sortOrder: 0, photoAttachmentId: null, sourceItemId: null, bookingState: "NONE", bookingStateSet: false,
       bookBy: null, nothingToAttach: false, slotTime: null, arriveByMinutes: null, refundable: null,
       openingHours: null, tryList: null,

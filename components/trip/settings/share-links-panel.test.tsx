@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ShareLinkView } from "@/server/actions/share";
@@ -50,6 +51,13 @@ beforeEach(() => {
 });
 
 describe("ShareLinksPanel", () => {
+  it("prints the same link text on the server and in the first client render, then the full address", () => {
+    const panel = <ShareLinksPanel tripId="t" initialLinks={[link()]} />;
+    expect(renderToString(panel)).toContain(">/share/tok-1<");
+    render(panel);
+    expect(screen.getByText(`${window.location.origin}/share/tok-1`)).toBeInTheDocument();
+  });
+
   it("renders each link with its label and scope caption", () => {
     render(
       <ShareLinksPanel
@@ -314,5 +322,19 @@ describe("ShareLinksPanel failures (spec 2026-10-06 §E)", () => {
       expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You're offline. Plan changes need a connection." }),
     );
     Object.defineProperty(navigator, "onLine", { value: true, writable: true, configurable: true });
+  });
+
+  it("leaves 6px between a Label field's label and its input so the focus ring clears it", async () => {
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+
+    const inputs = screen.getAllByLabelText(/^label$/i);
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) {
+      const wrapper = input.parentElement as HTMLElement;
+      expect(wrapper).toHaveClass("gap-1.5");
+      expect(wrapper).not.toHaveClass("space-y-1");
+    }
   });
 });

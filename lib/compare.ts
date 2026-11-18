@@ -29,7 +29,8 @@ import type { OpeningHours } from "@/lib/opening-hours";
 import { daysBetween, nightsBetween } from "@/lib/dates";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
-import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type TravelLookup } from "@/lib/travel-times/hops";
+import { applyMarkedFine, type MarkedFineRow } from "@/lib/flag-dismissals";
+import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type HopModeChoice, type TravelLookup } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -86,6 +87,8 @@ interface CompareItem {
   sortOrder?: number;
   lat: number | null;
   lng: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
   category: string;
   /** Spec 2026-10-17 R7: what the planning Flags read (Plan rows carry them; lib/plan-reads.ts). */
   title?: string | null;
@@ -131,6 +134,10 @@ export interface PlanMetricsInput {
   today?: string;
   /** Stored Travel times for this plan's rows (lib/travel-times/read.ts). Required; an empty Map estimates every hop. */
   travel: TravelLookup;
+  /** Hop modes Travellers chose (lib/hop-modes.ts); they only match the real plan's Items. */
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
+  /** The Trip's Marked fine rows (lib/flag-dismissals-read.ts); like Hop modes, they only match the real plan's Items. */
+  markedFine: readonly MarkedFineRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +364,8 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     sortOrder: i.sortOrder,
     lat: i.lat,
     lng: i.lng,
+    endLat: i.endLat ?? null,
+    endLng: i.endLng ?? null,
     title: i.title ?? null,
     openingHours: i.openingHours ?? null,
     slotTime: i.slotTime ?? null,
@@ -397,7 +406,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       ? { id: sortedStops[sortedStops.length - 1].id, name: sortedStops[sortedStops.length - 1].name }
       : null;
 
-    const flags = detectFlags({
+    const detected = detectFlags({
       stops: scheduledStops,
       transports: flagTransports,
       accommodations: flagAccoms,
@@ -425,9 +434,10 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
       travel: input.travel,
       travelStops: stops,
       homePoint: homePointOf(trip),
+      hopModes: input.hopModes,
     });
 
-    for (const f of flags) {
+    for (const f of applyMarkedFine(detected, input.markedFine).shown) {
       if (f.severity === "warning") warningCount++;
       else if (f.severity === "info") infoCount++;
     }

@@ -1,6 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { Route } from "next";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+const { markFlagFine } = vi.hoisted(() => ({ markFlagFine: vi.fn() }));
+vi.mock("@/server/actions/flag-dismissals", () => ({ markFlagFine, unmarkFlagFine: vi.fn() }));
+
 import { FlagList } from "./flag-list";
 import type { Flag } from "@/lib/flags";
 
@@ -11,7 +16,7 @@ describe("FlagList: Item Flags (spec 2026-10-17 R7)", () => {
     const flags: Flag[] = [
       { id: "item-closed-i1", severity: "warning", message: "Memorium Nuremberg Trials is closed on Tuesdays.", targetType: "ITEM", targetId: "i1", date: "2026-12-08", stopId: "s1" },
     ];
-    render(<FlagList flags={flags} tripBasePath={BASE} />);
+    render(<FlagList flags={flags} tripId="t1" tripBasePath={BASE} />);
     expect(screen.getByRole("link", { name: /closed on Tuesdays/ })).toHaveAttribute("href", "/trips/t/day/2026-12-08");
   });
 
@@ -19,7 +24,27 @@ describe("FlagList: Item Flags (spec 2026-10-17 R7)", () => {
     const flags: Flag[] = [
       { id: "book-by-soon-i2", severity: "info", message: "Book Tram pass by Fri 4 Dec, in 3 days.", targetType: "ITEM", targetId: "i2", stopId: "s1" },
     ];
-    render(<FlagList flags={flags} tripBasePath={BASE} />);
+    render(<FlagList flags={flags} tripId="t1" tripBasePath={BASE} />);
     expect(screen.getByRole("link", { name: /Tram pass/ })).toHaveAttribute("href", "/trips/t/plan?stop=s1");
+  });
+});
+
+describe("FlagList: Marked fine (spec 2026-11-18 T5)", () => {
+  const tight: Flag = {
+    id: "tight-a-b", severity: "warning", message: "Tight on 2026-07-02 between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02",
+    fingerprint: "fp-1", between: { from: "Louvre", to: "Lunch" }, hop: { fromItemId: "a", toItemId: "b", mode: "WALK", modeSetByHand: false },
+  };
+  const other: Flag = { ...tight, id: "tight-c-d", message: "Cutting it close on 2026-07-02 between Tea and Tower.", fingerprint: "fp-2", between: { from: "Tea", to: "Tower" } };
+  const packed: Flag = { id: "packed-2026-07-02", severity: "info", message: "2026-07-02 looks packed.", targetType: "DAY", date: "2026-07-02" };
+
+  it('offers "This is fine" on tight rows only, beside the link, each named for its two things', async () => {
+    markFlagFine.mockResolvedValue({ success: true });
+    render(<FlagList flags={[tight, other, packed]} tripId="t1" tripBasePath={BASE} />);
+    expect(screen.getAllByRole("button", { name: /^This is fine/ })).toHaveLength(2);
+    const button = screen.getByRole("button", { name: "This is fine: Louvre to Lunch" });
+    expect(button.closest("a")).toBeNull();
+    expect(screen.getByRole("link", { name: /between Louvre and Lunch/ })).toHaveAttribute("href", "/trips/t/day/2026-07-02");
+    await userEvent.click(button);
+    expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-a-b", "fp-1");
   });
 });

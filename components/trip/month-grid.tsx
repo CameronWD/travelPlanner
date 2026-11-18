@@ -10,9 +10,28 @@ import { TRANSPORT_MODE_META, TRANSPORT_MODE_LIST } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enum-values";
 import type { DayPlan } from "@/lib/itinerary";
 import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
-import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
+import { stopBandBorderClass, stopHue, stopPillClass } from "@/lib/stop-colours";
+import { HUE_CLASSES } from "@/lib/hues";
+import { dayThings, stopBands, type BandStop } from "@/lib/calendar/month-layout";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { useTripHref } from "@/components/trip/use-trip-href";
+
+const MAX_MARKERS = 3;
+
+type Marker = { key: string; mode: TransportMode } | { key: string; stay: "Check-in" | "Check-out" };
+
+function MarkerIcon({ marker, over }: { marker: Marker; over: string }) {
+  if ("mode" in marker) {
+    const Icon = TRANSPORT_MODE_META[marker.mode]?.icon ?? Navigation;
+    return <Icon className={cn("size-3.5 shrink-0", over)} aria-hidden="true" />;
+  }
+  const Icon = marker.stay === "Check-in" ? BedDouble : DoorOpen;
+  return (
+    <span role="img" aria-label={marker.stay} className={cn("inline-flex shrink-0", over)}>
+      <Icon className="size-3.5" aria-hidden="true" />
+    </span>
+  );
+}
 
 export interface MonthGridProps {
   tripId: string;
@@ -60,6 +79,20 @@ export function MonthGrid({
 
   const inWindow = (dateISO: string) => dateISO >= tripStart && dateISO <= tripEnd;
 
+  const bandStops = React.useMemo(() => {
+    const seen = new Map<string, BandStop>();
+    for (const d of days) if (d.stop) seen.set(d.stop.id, d.stop);
+    return [...seen.values()];
+  }, [days]);
+  const bandWeeks = React.useMemo(
+    () =>
+      weeks.map((week) =>
+        stopBands(week.map((c) => (c.inMonth && c.dateISO >= tripStart && c.dateISO <= tripEnd ? c.dateISO : null)), bandStops),
+      ),
+    [weeks, bandStops, tripStart, tripEnd],
+  );
+  const sortOrderByStop = new Map(bandStops.map((s) => [s.id, s.sortOrder] as const));
+
   // Legend: each stop seen on this month's in-window days, in date order.
   const legend = React.useMemo(() => {
     const month = monthKey(monthAnchorISO);
@@ -92,7 +125,7 @@ export function MonthGrid({
       {/* Weekday header — kit micro/label type; the tiles carry the full date for assistive tech. */}
       <div
         aria-hidden="true"
-        className="grid grid-cols-7 gap-1 px-0.5 text-center text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground sm:gap-2 sm:text-left sm:text-[11px]"
+        className="grid grid-cols-7 gap-1 px-0.5 text-center text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground sm:gap-2 sm:text-left sm:text-[11px] lg:text-xs"
       >
         {MONTH_GRID_WEEKDAYS.map((wd) => (
           <span key={wd}>
@@ -103,14 +136,31 @@ export function MonthGrid({
       </div>
 
       {/* Weeks */}
-      <div className="grid grid-cols-7 gap-1 sm:gap-2">
-        {weeks.flat().map((cell) => {
-          const tile = "@container flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 xl:p-2.5";
+      <div className="grid grid-cols-7 gap-1 sm:gap-2 lg:auto-rows-fr">
+        {bandWeeks.flatMap((bands, weekIdx) =>
+          bands.map((band) => (
+            <span
+              key={`band-${weekIdx}-${band.startCol}`}
+              data-stop-band={band.stopId}
+              aria-hidden="true"
+              style={{ gridRow: weekIdx + 1, gridColumn: `${band.startCol + 1} / span ${band.span}` }}
+              className={cn(
+                "pointer-events-none z-10 mx-1 mt-1 hidden min-w-0 self-start truncate rounded-sm px-2 py-0.5 text-[10px] font-extrabold uppercase leading-tight tracking-[0.08em] lg:block lg:text-xs",
+                HUE_CLASSES[stopHue(sortOrderByStop.get(band.stopId) ?? 0)].chip,
+              )}
+            >
+              {band.name}
+            </span>
+          )),
+        )}
+        {weeks.flatMap((week, weekIdx) => week.map((cell, colIdx) => {
+          const place = { gridRow: weekIdx + 1, gridColumn: colIdx + 1 };
+          const tile = "@container flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 lg:h-auto lg:min-h-28 lg:overflow-visible xl:px-2.5 xl:pb-2.5";
 
           if (!cell.inMonth) {
             // Kit: the month's leading/trailing slots are empty space, not dim days.
             return (
-              <div key={cell.dateISO} data-month-pad="" aria-hidden="true" className={cn(tile, "invisible border-transparent")} />
+              <div key={cell.dateISO} data-month-pad="" aria-hidden="true" style={place} className={cn(tile, "invisible border-transparent xl:pt-2.5")} />
             );
           }
 
@@ -120,16 +170,19 @@ export function MonthGrid({
           if (!inWindow(cell.dateISO)) {
             // In the month, outside the trip: the kit's soft-outlined, muted tile.
             return (
-              <div key={cell.dateISO} role="presentation" className={cn(tile, "border-border-soft text-muted-foreground")}>
+              <div key={cell.dateISO} role="presentation" style={place} className={cn(tile, "border-border-soft text-muted-foreground xl:pt-2.5")}>
                 <span className={numberClass}>{dayNum}</span>
               </div>
             );
           }
 
           const day = byDate.get(cell.dateISO);
-          const timed = day?.timedItems ?? [];
-          const itemCount = timed.length + (day?.untimedItems.length ?? 0);
+          const visible = (entries: DayPlan["timedItems"]) => entries.filter((e) => !e.item.surprise?.youAreSurprised);
+          const timed = visible(day?.timedItems ?? []);
+          const untimed = visible(day?.untimedItems ?? []);
+          const itemCount = timed.length + untimed.length;
           const packed = timed.length > PACKED_DAY_THRESHOLD;
+          const things = dayThings([...timed, ...untimed].map((e) => e.item));
           const thingsLabel = `${itemCount} ${itemCount === 1 ? "thing" : "things"}`;
           const isToday = cell.dateISO === todayISO;
 
@@ -140,6 +193,14 @@ export function MonthGrid({
             const modeLabel = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.label ?? "Transport";
             return `${modeLabel.toLowerCase()} ${t.kind === "transport-departure" ? "departs" : "arrives"}`;
           });
+
+          const markers: Marker[] = [
+            ...(day?.transportEntries ?? []).map((t): Marker => ({ key: `${t.kind}-${t.transport.id}`, mode: t.transport.mode as TransportMode })),
+            ...(day?.accommodationEntries ?? []).map((a): Marker => ({
+              key: `${a.kind}-${a.accommodation.id}`,
+              stay: a.kind === "accommodation-checkin" ? "Check-in" : "Check-out",
+            })),
+          ];
 
           const holidayLines = holidayDates?.[cell.dateISO] ?? [];
 
@@ -180,6 +241,7 @@ export function MonthGrid({
               key={cell.dateISO}
               href={tripHref(`/day/${cell.dateISO}`)}
               aria-label={label}
+              style={place}
               title={holidayLines.length > 0 ? holidayLines.join("\n") : undefined}
               aria-current={isToday ? "date" : undefined}
               {...dropProps}
@@ -187,40 +249,19 @@ export function MonthGrid({
                 tile,
                 "border-border transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop hover:shadow-hard-1",
                 day?.stop
-                  ? cn(stopPillClass(day.stop.sortOrder), stopBandBorderClass(day.stop.sortOrder), "border-l-4 sm:border-l-8")
-                  : "bg-card text-foreground",
+                  ? cn(stopPillClass(day.stop.sortOrder), stopBandBorderClass(day.stop.sortOrder), "border-l-4 sm:border-l-8 lg:pt-9")
+                  : "bg-card text-foreground xl:pt-2.5",
                 isToday && "-translate-x-px -translate-y-px shadow-hard-1 sm:-translate-x-0.5 sm:-translate-y-0.5 sm:shadow-hard-2",
                 onDropItem && dragOver === cell.dateISO && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
             >
-              <span className="flex items-start justify-between gap-1">
-                <span className={numberClass}>{dayNum}</span>
+              <span className="flex flex-nowrap items-start justify-between gap-1">
+                <span className={cn(numberClass, "shrink-0")}>{dayNum}</span>
                 {holidayLines.length > 0 ? <span data-holiday aria-hidden="true" className="mt-0.5 size-1.5 shrink-0 rotate-45 border border-current sm:mt-1 sm:size-2" /> : null}
-                <span className="hidden min-w-0 flex-wrap items-center justify-end gap-0.5 sm:flex">
-                  {day?.transportEntries.map((t) => {
-                    const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
-                    return <Icon key={`${t.kind}-${t.transport.id}`} className="size-3.5 shrink-0" aria-hidden="true" />;
-                  })}
-                  {day?.accommodationEntries.map((a) =>
-                    a.kind === "accommodation-checkin" ? (
-                      <span
-                        key={`in-${a.accommodation.id}`}
-                        role="img"
-                        aria-label="Check-in"
-                        className="inline-flex shrink-0"
-                      >
-                        <BedDouble className="size-3.5" aria-hidden="true" />
-                      </span>
-                    ) : (
-                      <span
-                        key={`out-${a.accommodation.id}`}
-                        role="img"
-                        aria-label="Check-out"
-                        className="inline-flex shrink-0"
-                      >
-                        <DoorOpen className="size-3.5" aria-hidden="true" />
-                      </span>
-                    ),
+                <span className="hidden min-w-0 flex-wrap items-center justify-end gap-0.5 sm:flex lg:flex-nowrap lg:overflow-hidden">
+                  {markers.map((marker, i) => <MarkerIcon key={marker.key} marker={marker} over={i >= MAX_MARKERS ? "lg:hidden" : ""} />)}
+                  {markers.length > MAX_MARKERS && (
+                    <span className="hidden shrink-0 text-[10px] font-bold leading-none lg:inline-flex lg:text-xs">+{markers.length - MAX_MARKERS}</span>
                   )}
                 </span>
               </span>
@@ -228,17 +269,28 @@ export function MonthGrid({
               {day?.stop && (
                 // One line, ellipsis, never a break inside a word (LA-125): the cell is
                 // a dense grid, so the name clamps and the title carries the rest.
-                <span title={day.stop.name} className="mt-1 shrink-0 truncate text-[7px] font-extrabold uppercase leading-tight sm:mt-2 sm:text-[10px] sm:tracking-[0.08em]">
+                <span title={day.stop.name} className="mt-1 shrink-0 truncate text-[7px] font-extrabold uppercase leading-tight sm:mt-2 sm:text-[10px] sm:tracking-[0.08em] lg:hidden">
                   {day.stop.name}
                 </span>
               )}
               {day?.stop?.country && (
-                <span title={day.stop.country} className="hidden shrink-0 truncate text-[11px] font-medium leading-tight lg:block">{day.stop.country}</span>
+                <span title={day.stop.country} className="hidden shrink-0 truncate text-[11px] font-medium leading-tight lg:block lg:text-xs">{day.stop.country}</span>
               )}
               {dayTitles?.[cell.dateISO]?.title && (
                 <span className="mt-0.5 hidden shrink-0 truncate text-[10px] font-bold leading-tight sm:block">
                   {dayTitles[cell.dateISO].title}
                 </span>
+              )}
+              {things.shown.length > 0 && (
+                <ul data-day-things className="mt-1 hidden min-w-0 flex-col gap-0.5 lg:flex">
+                  {things.shown.map((t) => (
+                    <li key={t.id} title={t.label} aria-label={t.label} className="truncate text-[11px] font-medium leading-tight lg:text-xs">
+                      {t.time && <span className="hidden @min-[96px]:inline">{t.time} </span>}
+                      {t.title}
+                    </li>
+                  ))}
+                  {things.more > 0 && <li className="text-[11px] font-bold leading-tight text-muted-foreground lg:text-xs">+{things.more} more</li>}
+                </ul>
               )}
               {itemCount > 0 && (
                 // No aria-label here — the enclosing Link already names the day with
@@ -249,7 +301,7 @@ export function MonthGrid({
                   // shrink-0 + last child: after the text, never over it (LA-126). The
                   // long label is a container query on the cell, not a viewport step —
                   // a cell beside the wishlist panel at 1280 is narrower than one at 1024 alone.
-                  className="mt-auto hidden max-w-full shrink-0 self-start sm:inline-flex"
+                  className="mt-auto hidden max-w-full shrink-0 self-start sm:inline-flex lg:hidden"
                 >
                   <span className="@min-[104px]:hidden">{itemCount}</span>
                   <span className="hidden @min-[104px]:inline">{thingsLabel}</span>
@@ -257,7 +309,7 @@ export function MonthGrid({
               )}
             </Link>
           );
-        })}
+        }))}
       </div>
 
       {legend.length > 0 && (

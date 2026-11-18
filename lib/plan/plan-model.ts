@@ -296,18 +296,18 @@ export function fitTileModel(s: PlanSummary): {
 } {
   const rough = s.projectedNights - s.scheduledNights;
   const legendLeft = rough > 0 ? `${s.scheduledNights} set · ~${rough} rough` : `${s.scheduledNights} set`;
+  const slack = s.hardEndSlackNights ?? 0;
   const of = s.spanStart && s.deadline ? daysBetween(s.spanStart, s.deadline.date) : null;
   const bar =
     of && of > 0 && (s.hardEndState === "ok" || s.hardEndState === "approaching" || s.hardEndState === "over")
       ? (() => {
           const setPct = Math.min(100, (s.scheduledNights / of) * 100);
           const roughPct = Math.min(100 - setPct, (rough / of) * 100);
-          const overPct = s.projectedNights > of ? Math.min(20, ((s.projectedNights - of) / of) * 100) : 0;
+          const overPct = s.hardEndState === "over" ? Math.min(20, (-slack / of) * 100) : 0;
           return { setPct, roughPct, overPct };
         })()
       : null;
   const legendRight = of ? `of ${of}` : null;
-  const slack = s.hardEndSlackNights ?? 0;
   const nightsWord = (n: number, tail: string) => `night${n === 1 ? "" : "s"} ${tail}`;
   switch (s.hardEndState) {
     case "ok":

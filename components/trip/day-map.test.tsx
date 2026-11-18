@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { DayMapModel } from "@/lib/day-map";
+import { buildDayMapModel, type DayMapModel } from "@/lib/day-map";
 
 const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
 vi.mock("@vis.gl/react-google-maps", () => mock.module);
@@ -116,6 +116,15 @@ describe("DayMap popups", () => {
     expect(popup).toHaveTextContent("Directions from previous");
   });
 
+  it("Directions from previous leave from where the previous thing ends", () => {
+    const walk = { id: "w", title: "River walk", lat: 51.5055, lng: -0.0754, endLat: 51.5008, endLng: -0.122, startTime: "10:00", sortOrder: 0 };
+    const lunch = { id: "l", title: "Lunch", lat: 51.5007, lng: -0.1246, startTime: "12:00", sortOrder: 1 };
+    render(<DayMap tripId="t1" model={buildDayMapModel({ date: "2026-01-02", items: [walk, lunch], transports: [] })} />);
+    fireEvent.click(screen.getAllByTestId("marker").at(-1)!);
+    const hrefs = [...screen.getByRole("dialog").querySelectorAll("a")].map((a) => a.getAttribute("href")!).filter((h) => h.includes("/dir/"));
+    expect(hrefs.map((h) => new URL(h).searchParams.get("origin"))).toEqual(["51.5008,-0.122"]);
+  });
+
   it("omits Directions from previous on a point with no previous item", () => {
     render(<DayMap tripId="t1" model={MODEL} />);
     fireEvent.click(screen.getAllByTestId("marker")[0]);
@@ -166,5 +175,62 @@ describe("DayMap route hops", () => {
     expect(opts[1].icons).toEqual([]);
     expect(opts[2].strokeOpacity).toBe(0);
     expect(opts[2].path).toEqual([{ lat: 35.66, lng: 139.75 }, { lat: 35.67, lng: 139.76 }]);
+  });
+});
+
+describe("DayMap fill", () => {
+  it("puts the route links under the map instead of above it", () => {
+    const withRoute = { ...MODEL, routePoints: MODEL.points.slice(0, 2) };
+    const { container, rerender } = render(<DayMap tripId="t1" model={withRoute} />);
+    const links = () => screen.getByText("Open today's route:");
+    const map = () => screen.getByRole("region");
+    expect(links().compareDocumentPosition(map()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    rerender(<DayMap tripId="t1" model={withRoute} fill />);
+    expect(map().compareDocumentPosition(links()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.firstElementChild?.className).toMatch(/flex-1/);
+  });
+});
+
+describe("DayMap Ends at", () => {
+  const WALK = { kind: "item" as const, id: "w", lat: 35.65, lng: 139.74, label: "River walk", order: 1, category: "ACTIVITY", end: { lat: 35.67, lng: 139.76 } };
+  const NEXT = { kind: "item" as const, id: "n", lat: 35.7, lng: 139.8, label: "Dinner", order: 2 };
+  const model = (walk: typeof WALK & { routePolyline?: string | null }): DayMapModel => ({
+    points: [walk, NEXT],
+    routePoints: [walk, NEXT],
+    perItemPrev: {},
+    hops: [{ fromId: "w", toId: "n", polyline: null, estimated: true }],
+  });
+
+  it("draws a smaller second pin at the end", () => {
+    render(<DayMap tripId="t1" model={model(WALK)} />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(3);
+  });
+
+  it("draws the walk as a thick solid line in the Category colour along its stored route", () => {
+    render(<DayMap tripId="t1" model={model({ ...WALK, routePolyline: "_p~iF~ps|U_ulLnnqC" })} />);
+    const walk = mock.recorded.polylines.map((p) => p.options).find((o) => o.strokeWeight === 6)!;
+    expect(walk.strokeColor).toBe("#A6D96A");
+    expect(walk.strokeOpacity).toBe(0.95);
+    expect(walk.icons).toEqual([]);
+    expect((walk.path as unknown[]).length).toBe(2);
+  });
+
+  it("stands in a straight dashed segment until the route arrives", () => {
+    render(<DayMap tripId="t1" model={model(WALK)} />);
+    const walk = mock.recorded.polylines.map((p) => p.options).find((o) => o.strokeWeight === 6)!;
+    expect(walk.path).toEqual([{ lat: 35.65, lng: 139.74 }, { lat: 35.67, lng: 139.76 }]);
+    expect(walk.strokeOpacity).toBe(0);
+  });
+
+  it("starts the straight hop out of it at the end pin", () => {
+    render(<DayMap tripId="t1" model={model(WALK)} />);
+    const hop = mock.recorded.polylines.map((p) => p.options).find((o) => o.strokeWeight === 3)!;
+    expect(hop.path).toEqual([{ lat: 35.67, lng: 139.76 }, { lat: 35.7, lng: 139.8 }]);
+  });
+
+  it("draws no second pin or walk for an Item with no end", () => {
+    render(<DayMap tripId="t1" model={model({ ...WALK, end: null } as never)} />);
+    expect(screen.getAllByTestId("marker")).toHaveLength(2);
+    expect(mock.recorded.polylines.map((p) => p.options).some((o) => o.strokeWeight === 6)).toBe(false);
   });
 });

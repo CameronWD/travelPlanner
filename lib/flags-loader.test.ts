@@ -6,6 +6,8 @@ const db = vi.hoisted(() => ({
   transport: { findMany: vi.fn() },
   accommodation: { findMany: vi.fn() },
   item: { findMany: vi.fn() },
+  flagDismissal: { findMany: vi.fn() },
+  travelTime: { findMany: vi.fn() },
 }));
 const requireTripAccess = vi.hoisted(() => vi.fn());
 const getTripProjection = vi.hoisted(() => vi.fn());
@@ -26,11 +28,14 @@ vi.mock("@/lib/flags", async (orig) => ({
 const tripTodayISO = vi.hoisted(() => vi.fn(() => "2026-01-01"));
 vi.mock("@/lib/trip-today", () => ({ tripTodayISO }));
 
-import { loadFlags, flagsFromRows, loadFlagRows, flagsForRows } from "./flags-loader";
+import { loadFlags, flagsFromRows, loadFlagRows, flagsForRows, type FlagsAssemblyInput } from "./flags-loader";
+import type { Flag } from "./flags";
 import { mergePlanItems } from "@/lib/plan-reads";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE, placeholderItem } from "@/test/helpers/surprise-visibility";
 import { trip, datedTripFixture } from "@/test/builders";
+
+vi.mock("@/lib/hop-modes", () => ({ loadHopModes: vi.fn().mockResolvedValue(new Map()) }));
 
 const TRIP_ID = "trip-1";
 const notFoundErr = () => Object.assign(new Error("nf"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -57,6 +62,7 @@ beforeEach(() => {
   db.transport.findMany.mockResolvedValue([]);
   db.accommodation.findMany.mockResolvedValue([]);
   db.item.findMany.mockResolvedValue([]);
+  db.flagDismissal.findMany.mockResolvedValue([]);
   getTripProjection.mockResolvedValue({ projectedEnd: null, hardEndDate: null, deadline: null });
   detectFlags.mockReturnValue([]);
 });
@@ -78,7 +84,7 @@ describe("loadFlags", () => {
   it("a date-less trip returns [] without reading the plan (the projection, requested in parallel, is fetched and simply discarded)", async () => {
     db.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: null, endDate: null });
     const result = await loadFlags(TRIP_ID, "u1");
-    expect(result).toEqual([]);
+    expect(result).toEqual({ shown: [], markedFine: [] });
     expect(db.stop.findMany).not.toHaveBeenCalled();
     expect(getTripProjection).toHaveBeenCalledWith(TRIP_ID);
   });
@@ -108,7 +114,7 @@ describe("loadFlags", () => {
   it("returns detectFlags' result", async () => {
     const flags = [{ id: "f1", severity: "warning" as const, message: "No stay booked", targetType: "STOP" as const }];
     detectFlags.mockReturnValue(flags);
-    expect(await loadFlags(TRIP_ID, "u1")).toEqual(flags);
+    expect(await loadFlags(TRIP_ID, "u1")).toEqual({ shown: flags, markedFine: [] });
   });
 
   it("selects the Trip's homeTimezone and feeds it to detectFlags (spec 2026-10-14)", async () => {
@@ -155,7 +161,7 @@ describe("flagsFromRows", () => {
   const PROJECTION = { projectedEnd: "2026-01-11", hardEndDate: "2026-01-10", deadline: null };
 
   it("does no I/O — assembles detectFlags' input straight from the given rows and projection", () => {
-    flagsFromRows({ travel: new Map(),
+    flagsFromRows({ travel: new Map(), markedFine: [],
       trip: BASE_TRIP,
       allStops: [{ id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 }],
       transports: [],
@@ -184,7 +190,7 @@ describe("flagsFromRows", () => {
   });
 
   it("passes the Trip's homeTimezone through to detectFlags (spec 2026-10-14)", () => {
-    flagsFromRows({ travel: new Map(),
+    flagsFromRows({ travel: new Map(), markedFine: [],
       trip: { ...BASE_TRIP, homeTimezone: "Australia/Brisbane" },
       allStops: [],
       transports: [],
@@ -216,6 +222,8 @@ describe("flagsFromRows", () => {
       hiddenItemIds: [],
       today: "2026-01-01",
       travel: new Map(),
+      hopModes: new Map(),
+      markedFine: [],
     });
     expect(detectFlags.mock.calls[0][0]).toEqual(fromLoadFlags);
   });
@@ -275,7 +283,7 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
     const rows = await loadFlagRows(TRIP_ID, "u-viewer");
     expect(rows?.items).toEqual([
       VISIBLE,
-      { id: "hid", stopId: "s1", category: "OTHER", date: "2026-01-03", startTime: "10:00", endTime: "12:00", sortOrder: 0, lat: null, lng: null },
+      { id: "hid", stopId: "s1", category: "OTHER", date: "2026-01-03", startTime: "10:00", endTime: "12:00", sortOrder: 0, lat: null, lng: null, endLat: null, endLng: null },
     ]);
   });
 
@@ -300,7 +308,7 @@ describe("loadFlagRows — Surprise placeholders (TB-01 follow-up)", () => {
     const rows = await loadFlagRows(TRIP_ID, "u-viewer");
     const badge = flagsForRows(rows!, projection);
     // The Summary page: readPlan's items (visible rows + mergePlanItems' placeholders).
-    const summary = flagsFromRows({ travel: new Map(),
+    const summary = flagsFromRows({ travel: new Map(), markedFine: [],
       trip: BASE_TRIP,
       allStops: [STOP],
       transports: [],
@@ -365,7 +373,7 @@ describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 20
   });
 
   it("flagsFromRows hands today, the hidden Items and every Stop's name (rough included) to detectFlags, reading no clock", () => {
-    flagsFromRows({ travel: new Map(),
+    flagsFromRows({ travel: new Map(), markedFine: [],
       trip: BASE_TRIP,
       allStops: [
         { id: "s1", name: "Rome", lat: null, lng: null, timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 },
@@ -387,5 +395,73 @@ describe("loadFlagRows / flagsFromRows: the planning Flags' ingredients (spec 20
     detectFlags.mockClear();
     flagsForRows(rows!, { projectedEnd: null, hardEndDate: null, deadline: null });
     expect(detectFlags).toHaveBeenCalledWith(expect.objectContaining({ today: "2026-01-01", hiddenItemIds: ["hid"] }));
+  });
+});
+
+describe("Marked fine (spec 2026-11-18 T5)", () => {
+  const TIGHT: Flag = { id: "tight-a-b", severity: "info", message: "Cutting it close.", targetType: "DAY", date: "2026-01-03", fingerprint: "fp-1" };
+  const PACKED: Flag = { id: "packed-2026-01-03", severity: "info", message: "Packed.", targetType: "DAY", date: "2026-01-03" };
+  const MARKED_AT = new Date("2026-01-01T09:00:00Z");
+  const XANTHIA = { id: "u2", name: "Xanthia Jones", image: null, displayName: null, photoKey: null, photoUpdatedAt: null, photoFocalX: null, photoFocalY: null };
+  const dismissal = (over: Record<string, unknown> = {}) => ({ flagId: "tight-a-b", fingerprint: "fp-1", createdAt: MARKED_AT, markedBy: XANTHIA, ...over });
+  const ROW = { flagId: "tight-a-b", fingerprint: "fp-1", createdAt: MARKED_AT, markedByName: "Xanthia" };
+  const PROJECTION = { projectedEnd: null, hardEndDate: null, deadline: null };
+
+  beforeEach(() => {
+    db.travelTime.findMany.mockResolvedValue([]);
+  });
+
+  it("loadFlagRows reads the Trip's rows in its one wave, naming who marked each by first name", async () => {
+    db.item.findMany.mockImplementation(() => new Promise(() => {}));
+    void loadFlagRows(TRIP_ID, "u1");
+    await vi.waitFor(() => expect(db.flagDismissal.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tripId: TRIP_ID } })));
+
+    db.item.findMany.mockResolvedValue([]);
+    db.flagDismissal.findMany.mockResolvedValue([dismissal()]);
+    expect((await loadFlagRows(TRIP_ID, "u1"))?.markedFine).toEqual([ROW]);
+  });
+
+  it("Summary count drops by one when a tight Flag is Marked fine", () => {
+    detectFlags.mockReturnValue([TIGHT, PACKED]);
+    const input: FlagsAssemblyInput = {
+      trip: BASE_TRIP, allStops: [], transports: [], accommodations: [], items: [], tripStart: "2026-01-01", tripEnd: "2026-01-10",
+      projection: PROJECTION, today: "2026-01-01", travel: new Map(), markedFine: [],
+    };
+    expect(flagsFromRows(input)).toHaveLength(2);
+    expect(flagsFromRows({ ...input, markedFine: [ROW] })).toEqual([PACKED]);
+  });
+
+  it("flagsForRows (the badge, Reviews) counts only what is shown; loadFlags (get_flags) keeps the Marked fine ones apart", async () => {
+    detectFlags.mockReturnValue([TIGHT, PACKED]);
+    db.flagDismissal.findMany.mockResolvedValue([dismissal()]);
+    const rows = await loadFlagRows(TRIP_ID, "u1");
+    expect(flagsForRows(rows!, PROJECTION)).toEqual([PACKED]);
+    expect(await loadFlags(TRIP_ID, "u1")).toEqual({ shown: [PACKED], markedFine: [{ ...TIGHT, markedByName: "Xanthia", markedAt: MARKED_AT }] });
+  });
+
+  it("never reports a Marked fine row about a hop touching an Item hidden from the viewer", async () => {
+    const actual = await vi.importActual<typeof import("./flags")>("./flags");
+    detectFlags.mockImplementation(actual.detectFlags);
+    const at = (id: string, startTime: string, endTime: string, lat: number) => ({
+      id, stopId: null, title: id, category: "SIGHTSEEING", date: "2026-01-03", startTime, endTime, sortOrder: 0, lat, lng: 2.337,
+      endLat: null, endLng: null, openingHours: null, slotTime: null, arriveByMinutes: null, bookingState: "NONE", bookBy: null,
+    });
+    const a = at("a", "10:00", "12:00", 48.86);
+    const b = at("b", "12:20", "13:00", 48.8681);
+    const c = at("c", "13:20", "14:00", 48.8762);
+    const planner = actual.flagTightConnections([a, b, c] as never, [], { windingFactor: 1.5, avgSpeedKph: 80, lookup: new Map(), travelStops: [] });
+    expect(planner.map((f) => f.id)).toEqual(["tight-a-b", "tight-b-c"]);
+    db.flagDismissal.findMany.mockResolvedValue(planner.map((f) => dismissal({ flagId: f.id, fingerprint: f.fingerprint })));
+
+    db.item.findMany.mockResolvedValue([a, b, c]);
+    expect((await loadFlags(TRIP_ID, "u-planner")).markedFine.map((f) => f.id)).toEqual(["tight-a-b", "tight-b-c"]);
+
+    loadSurpriseVisibilityMock.mockResolvedValue(
+      hiddenVisibility({ placeholders: [placeholderItem({ id: "b", date: "2026-01-03", startTime: "12:20", endTime: "13:00" })] }),
+    );
+    db.item.findMany.mockResolvedValue([a, c]);
+    const surprised = await loadFlags(TRIP_ID, "u-viewer");
+    expect(surprised.markedFine).toEqual([]);
+    expect(surprised.shown.filter((f) => f.hop?.fromItemId === "b" || f.hop?.toItemId === "b")).toEqual([]);
   });
 });

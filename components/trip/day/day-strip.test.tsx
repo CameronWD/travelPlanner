@@ -1,13 +1,17 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, act } from "@testing-library/react";
 import { DayStrip } from "@/components/trip/day/day-strip";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 import { DayCarouselContext, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import type { StopLine } from "@/lib/day-view-model";
+import { setMatchMedia } from "@/test/setup";
+import { centredScrollLeft, STRIP_CHIP_GAP_PX } from "@/components/trip/day/strip-scroll";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, scroll, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} data-scroll={String(scroll)} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
-vi.mock("next/navigation", () => ({ usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
+const push = vi.fn();
+const router = { push, prefetch: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn() };
+vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
 
 const dates = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, count: [1, 1, 3, 0, 2][i], isCurrent: iso === "2026-12-12", isToday: iso === "2026-12-11", holiday: iso === "2026-12-10" ? "public" as const : iso === "2026-12-09" ? "early" as const : false as const }));
 const segments: StopLine = {
@@ -32,15 +36,19 @@ describe("DayStrip", () => {
     expect(links[2]).not.toHaveAttribute("data-lit");
     const highlight = nav.querySelector("[data-strip-highlight]") as HTMLElement;
     expect(highlight.className).toContain("bg-coral");
-    // Desktop chips are 3.5rem + a 0.5rem gap: day index 3 → 12rem.
+    // Desktop chips are 3.5rem + a 0.5rem gap: day index 3 → 12rem. Only
+    // the md to lg band shows this one; from lg the centre frame holds still.
     expect(highlight.style.transform).toBe("translateX(12rem)");
+    expect(highlight.className.split(/\s+/)).toContain("lg:hidden");
   });
   it("the lit chip carries the coral fill itself with the accent ink; the highlight only animates the move (W17 contrast)", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
     const lit = links[3].className.split(/\s+/);
-    expect(lit).toEqual(expect.arrayContaining(["island", "bg-coral", "transition-colors", "motion-reduce:transition-none"]));
+    expect(lit).toEqual(expect.arrayContaining(["island", "bg-coral", "max-lg:transition-colors", "motion-reduce:transition-none"]));
     expect(lit).not.toContain("bg-transparent");
+    // From lg the fill lights at once: the strip's slide is the only motion (spec 2026-11-18 D2).
+    expect(lit).not.toContain("transition-colors");
     expect(links[2].className.split(/\s+/)).toContain("bg-card");
   });
   it("lights and marks the tapped chip pending while aria-current stays on the day shown (ADR 0063)", () => {
@@ -226,6 +234,237 @@ describe("DayStrip", () => {
       delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollLeft;
       vi.useRealTimers();
     }
+  });
+  describe("wide screen: the strip slides under a fixed centre (spec 2026-11-18 D2)", () => {
+    const rect = (width: number) => ({ left: 0, width, top: 0, right: width, bottom: 62, height: 62, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    const FAKE: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
+    const dayOne = dates.map((d, i) => ({ ...d, isCurrent: i === 0 }));
+
+    it("a frame fixed at the centre marks the day shown; it sits outside the scrolled row and never moves", () => {
+      render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
+      const scroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      const centre = document.querySelector("[data-strip-centre]") as HTMLElement;
+      expect(centre).toHaveAttribute("aria-hidden", "true");
+      expect(scroller).not.toContainElement(centre);
+      expect(centre.parentElement).toBe(scroller.parentElement);
+      expect(centre.parentElement!.className.split(/\s+/)).toContain("relative");
+      expect(centre.style.transform).toBe("");
+      expect(centre.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:block", "pointer-events-none", "absolute", "left-1/2", "-translate-x-1/2"]));
+      expect(centre.className).not.toContain("coral");
+      // The end padding lets the first and last day reach the centre.
+      expect(scroller.className.split(/\s+/)).toContain("lg:px-[calc(50%-1.75rem)]");
+    });
+    it("Previous day and Next day buttons step one day, typed by direction, keeping the vertical position", async () => {
+      push.mockClear();
+      // Held in flight, as a real navigation is until the next day is ready.
+      const releases: Array<() => void> = [];
+      push.mockImplementation(() => new Promise<void>((r) => { releases.push(r); }));
+      try {
+        render(<NavigationPendingProvider><DayStrip tripId="t1" dates={dates} line={segments} size="desktop" /></NavigationPendingProvider>);
+        const group = screen.getByRole("group", { name: "Day strip" });
+        const prev = within(group).getByRole("button", { name: "Previous day" });
+        const next = within(group).getByRole("button", { name: "Next day" });
+        expect(prev.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:inline-grid"]));
+        fireEvent.click(next);
+        expect(push).toHaveBeenCalledWith("/trips/t1/day/2026-12-13", { scroll: false, transitionTypes: ["day-forward"] });
+        // The day stepped to lights at once (ADR 0063).
+        expect(within(screen.getByRole("navigation", { name: "Days" })).getByRole("link", { name: /Sun 13 Dec/ })).toHaveAttribute("data-lit", "true");
+        fireEvent.click(prev);
+        expect(push).toHaveBeenLastCalledWith("/trips/t1/day/2026-12-12", { scroll: false, transitionTypes: ["day-back"] });
+      } finally {
+        await act(async () => { for (const r of releases) r(); });
+        push.mockReset();
+      }
+    });
+    it("Previous day is disabled on the first day and Next day on the last", () => {
+      const { unmount } = render(<DayStrip tripId="t1" dates={dayOne} line={segments} size="desktop" />);
+      expect(screen.getByRole("button", { name: "Previous day" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Next day" })).toBeEnabled();
+      unmount();
+      render(<DayStrip tripId="t1" dates={dates.map((d, i) => ({ ...d, isCurrent: i === dates.length - 1 }))} line={segments} size="desktop" />);
+      expect(screen.getByRole("button", { name: "Previous day" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Next day" })).toBeDisabled();
+    });
+    it("a one-day Trip shows its one chip under the centre with both buttons disabled", () => {
+      render(<DayStrip tripId="t1" dates={[{ ...dates[0], isCurrent: true }]} line={{ homeStart: null, homeEnd: null, segments: [] }} size="desktop" />);
+      expect(within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link")).toHaveLength(1);
+      expect(document.querySelector("[data-strip-centre]")).not.toBeNull();
+      expect(screen.getByRole("button", { name: "Previous day" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Next day" })).toBeDisabled();
+    });
+    it("the phone strip has no buttons and no centre frame", () => {
+      render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
+      expect(screen.queryByRole("button")).toBeNull();
+      expect(document.querySelector("[data-strip-centre]")).toBeNull();
+    });
+    it("a later mount slides the strip from where it was to centre the day shown, in one 250ms glide", () => {
+      vi.useFakeTimers(FAKE);
+      const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        return rect(this.hasAttribute("data-lit") ? 56 : 0);
+      });
+      try {
+        const first = render(<DayStrip tripId="t-wide" dates={dayOne} line={segments} size="desktop" />);
+        expect((document.querySelector("[data-day-strip-scroller]") as HTMLElement).scrollLeft).toBe(0);
+        first.unmount();
+        render(<DayStrip tripId="t-wide" dates={dates} line={segments} size="desktop" />);
+        const s = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+        act(() => { vi.advanceTimersByTime(230); });
+        expect(s.scrollLeft).toBeGreaterThan(0);
+        expect(s.scrollLeft).toBeLessThan(192);
+        act(() => { vi.advanceTimersByTime(100); });
+        // Day index 3, a 56px chip and an 8px gap.
+        expect(s.scrollLeft).toBe(192);
+      } finally {
+        spy.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+    describe("a look around (spec 2026-11-18 D2 follow-up)", () => {
+      const frame = () => document.querySelector("[data-strip-centre]") as HTMLElement;
+      const scrollerEl = () => document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      const look = (to: number) => {
+        scrollerEl().scrollLeft = to;
+        fireEvent.scroll(scrollerEl());
+      };
+      let spy: ReturnType<typeof vi.spyOn>;
+      beforeEach(() => {
+        vi.useFakeTimers(FAKE);
+        spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+          return rect(this.hasAttribute("data-lit") ? 56 : 0);
+        });
+      });
+      afterEach(() => {
+        spy.mockRestore();
+        vi.useRealTimers();
+      });
+
+      it("scrolling by hand fades the frame out; 1.5s of quiet glides back to the day shown and the frame returns", () => {
+        render(<DayStrip tripId="t-look-1" dates={dates} line={segments} size="desktop" />);
+        expect(scrollerEl().scrollLeft).toBe(192);
+        expect(frame()).not.toHaveAttribute("data-away");
+        expect(frame().className.split(/\s+/)).toEqual(expect.arrayContaining(["transition-opacity", "data-away:opacity-0", "motion-reduce:transition-none"]));
+        look(600);
+        expect(frame()).toHaveAttribute("data-away");
+        act(() => { vi.advanceTimersByTime(1499); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        act(() => { vi.advanceTimersByTime(101); });
+        expect(scrollerEl().scrollLeft).toBeLessThan(600);
+        expect(scrollerEl().scrollLeft).toBeGreaterThan(192);
+        act(() => { vi.advanceTimersByTime(300); });
+        expect(scrollerEl().scrollLeft).toBe(centredScrollLeft(3, 56, STRIP_CHIP_GAP_PX, scrollerEl().clientWidth));
+        expect(frame()).not.toHaveAttribute("data-away");
+      });
+      it("scrolling back to the day shown by hand brings the frame straight back", () => {
+        render(<DayStrip tripId="t-look-2" dates={dates} line={segments} size="desktop" />);
+        look(600);
+        look(192);
+        expect(frame()).not.toHaveAttribute("data-away");
+      });
+      it("a wheel at 1.0s restarts the wait", () => {
+        render(<DayStrip tripId="t-look-3" dates={dates} line={segments} size="desktop" />);
+        look(600);
+        act(() => { vi.advanceTimersByTime(1000); });
+        fireEvent.wheel(scrollerEl(), { deltaY: 10 });
+        act(() => { vi.advanceTimersByTime(1000); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        act(() => { vi.advanceTimersByTime(500 + 300); });
+        expect(scrollerEl().scrollLeft).toBe(192);
+      });
+      it("a pointer inside the strip holds it there until it leaves", () => {
+        render(<DayStrip tripId="t-look-4" dates={dates} line={segments} size="desktop" />);
+        const group = screen.getByRole("group", { name: "Day strip" });
+        fireEvent.pointerEnter(group);
+        look(600);
+        act(() => { vi.advanceTimersByTime(5000); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        fireEvent.pointerLeave(group);
+        act(() => { vi.advanceTimersByTime(1500 + 300); });
+        expect(scrollerEl().scrollLeft).toBe(192);
+      });
+      it("focus within the strip holds it there until it moves out", () => {
+        render(<DayStrip tripId="t-look-5" dates={dates} line={segments} size="desktop" />);
+        const chip = within(screen.getByRole("navigation", { name: "Days" })).getByRole("link", { name: /Sun 13 Dec/ });
+        fireEvent.focus(chip);
+        look(600);
+        act(() => { vi.advanceTimersByTime(5000); });
+        expect(scrollerEl().scrollLeft).toBe(600);
+        fireEvent.blur(chip, { relatedTarget: document.body });
+        act(() => { vi.advanceTimersByTime(1500 + 300); });
+        expect(scrollerEl().scrollLeft).toBe(192);
+      });
+      it("under reduced motion it simply returns, with no glide", () => {
+        const original = window.matchMedia;
+        setMatchMedia(true);
+        try {
+          render(<DayStrip tripId="t-look-6" dates={dates} line={segments} size="desktop" />);
+          look(600);
+          act(() => { vi.advanceTimersByTime(1500); });
+          expect(scrollerEl().scrollLeft).toBe(192);
+          expect(frame()).not.toHaveAttribute("data-away");
+        } finally {
+          window.matchMedia = original;
+        }
+      });
+      it("below lg a hand scroll stays where it is left", () => {
+        const original = window.matchMedia;
+        setMatchMedia(false);
+        try {
+          render(<DayStrip tripId="t-look-7" dates={dates} line={segments} size="desktop" />);
+          look(600);
+          expect(frame()).not.toHaveAttribute("data-away");
+          act(() => { vi.advanceTimersByTime(5000); });
+          expect(scrollerEl().scrollLeft).toBe(600);
+        } finally {
+          window.matchMedia = original;
+        }
+      });
+    });
+    it("under reduced motion the strip is simply placed", () => {
+      const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        return rect(this.hasAttribute("data-lit") ? 56 : 0);
+      });
+      const original = window.matchMedia;
+      setMatchMedia(true);
+      try {
+        const first = render(<DayStrip tripId="t-reduced" dates={dayOne} line={segments} size="desktop" />);
+        first.unmount();
+        render(<DayStrip tripId="t-reduced" dates={dates} line={segments} size="desktop" />);
+        expect((document.querySelector("[data-day-strip-scroller]") as HTMLElement).scrollLeft).toBe(192);
+      } finally {
+        spy.mockRestore();
+        window.matchMedia = original;
+      }
+    });
+  });
+  it("phone: the strip renders exactly as before the wide-screen carousel (spec 2026-11-18 D2)", () => {
+    const { container } = render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
+    expect(container.innerHTML).toMatchSnapshot();
+  });
+  describe("a vertical wheel over the strip", () => {
+    const overflowing = () => {
+      const el = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+      Object.defineProperty(el, "scrollWidth", { configurable: true, value: 900 });
+      Object.defineProperty(el, "clientWidth", { configurable: true, value: 300 });
+      el.scrollLeft = 0;
+      return el;
+    };
+    afterEach(() => setMatchMedia(false));
+    it("slides the strip sideways between 768 and 1023, where the page would not otherwise reach it", () => {
+      setMatchMedia(false);
+      render(<DayStrip tripId="t-wheel-1" dates={dates} line={segments} size="desktop" />);
+      const el = overflowing();
+      const notPrevented = fireEvent.wheel(el, { deltaY: 40 });
+      expect(notPrevented).toBe(false);
+      expect(el.scrollLeft).toBe(40);
+    });
+    it("from lg leaves the wheel to the page", () => {
+      setMatchMedia((q) => q === "(min-width: 1024px)");
+      render(<DayStrip tripId="t-wheel-2" dates={dates} line={segments} size="desktop" />);
+      const el = overflowing();
+      const notPrevented = fireEvent.wheel(el, { deltaY: 40 });
+      expect(notPrevented).toBe(true);
+      expect(el.scrollLeft).toBe(0);
+    });
   });
   it("marks a public holiday chip with a marker and a spoken suffix", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);

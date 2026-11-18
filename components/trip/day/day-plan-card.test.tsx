@@ -14,11 +14,14 @@ vi.mock("@/components/trip/whats-around-sheet", () => ({
     return <button>What&apos;s around</button>;
   },
 }));
-vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
+vi.mock("@/components/trip/timeline", () => ({ Timeline: () => <div data-testid="timeline" /> }));
 vi.mock("@/components/trip/day/day-ideas-rows", () => ({ DayIdeasRows: () => null }));
 vi.mock("@/components/trip/day-feasibility", () => ({ DayFeasibility: () => null }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
-vi.mock("@/components/trip/day-map-panel", () => ({ DayMapPanel: () => null }));
+vi.mock("@/components/trip/day/day-map-dialog", () => ({
+  DayMapButton: ({ model, size }: { model: { points: unknown[] }; size: string }) =>
+    model.points.length > 0 ? <button data-size={size}>Day map</button> : null,
+}));
 
 const { DayPlanCard } = await import("./day-plan-card");
 
@@ -40,8 +43,10 @@ function data(over: Partial<DayViewData> & { enabled?: boolean } = {}) {
     planCount: 1,
     ideas: { rows: [], all: [], eyebrow: "" },
     feasibility: [],
+    hops: [],
     nearby: [],
     whatsAround: { enabled, starts },
+    dayMap: { points: [], routePoints: [], perItemPrev: {} },
     ...rest,
   } as unknown as DayViewData;
 }
@@ -91,5 +96,65 @@ describe("DayPlanCard What's around", () => {
   it("renders with no start points when Near me is allowed", () => {
     render(<DayPlanCard data={data({ whatsAround: { enabled: true, starts: [] } } as never)} size="desktop" addButton={<button>Add</button>} />);
     expect(screen.getByRole("button", { name: "What's around" })).toBeInTheDocument();
+  });
+});
+
+describe("DayPlanCard on a wide screen (spec 2026-11-18 D1)", () => {
+  it("a busy day grows with the page: no max height and no inner scroll", () => {
+    const { container } = render(<DayPlanCard data={data({ planCount: 9 })} size="desktop" addButton={<button>Add</button>} />);
+    const body = container.querySelector('[data-slot="day-plan-body"]') as HTMLElement;
+    expect(body.className).not.toMatch(/max-h/);
+    expect(body.className).not.toMatch(/overflow-y/);
+  });
+});
+
+describe("DayPlanCard Day map button", () => {
+  const located = { points: [{ kind: "item", id: "i1", lat: 1, lng: 2, label: "Castle", order: 1 }], routePoints: [], perItemPrev: {} };
+
+  it("shows a Day map button in the header when the day has a located entry", () => {
+    render(<DayPlanCard data={data({ dayMap: located } as never)} size="desktop" addButton={<button>Add</button>} />);
+    expect(screen.getByRole("button", { name: "Day map" })).toHaveAttribute("data-size", "desktop");
+  });
+
+  it("shows no Day map button when nothing on the day is located, and no inline Show day map toggle ever", () => {
+    render(<DayPlanCard data={data()} size="desktop" addButton={<button>Add</button>} />);
+    expect(screen.queryByRole("button", { name: "Day map" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /show day map/i })).toBeNull();
+  });
+});
+
+describe("DayPlanCard Surprise (spec 2026-11-18 D7)", () => {
+  const surprise = (whole: boolean) => ({ plannedByName: "Xanthia", whole, dayStopHidden: whole });
+
+  it("a whole Surprise day with nothing else is the shell alone: no add, Day map or What's around", () => {
+    render(<DayPlanCard data={data({ surprise: surprise(true), hasEntries: false })} size="desktop" addButton={<button>Add to this day</button>} />);
+    expect(screen.getByTestId("surprise-shell")).toHaveTextContent("Surprise, planned by Xanthia");
+    expect(screen.queryByTestId("timeline")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add to this day" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Day map" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "What's around" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Nothing planned")).not.toBeInTheDocument();
+  });
+
+  it("a whole Surprise day still shows what the viewer can see, beneath the shell, with no add", () => {
+    render(<DayPlanCard data={data({ surprise: surprise(true), dayMap: { points: [{}], routePoints: [], perItemPrev: {} } as never })} size="desktop" addButton={<button>Add to this day</button>} />);
+    const shell = screen.getByTestId("surprise-shell");
+    const timeline = screen.getByTestId("timeline");
+    expect(shell.compareDocumentPosition(timeline) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Day map" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add to this day" })).not.toBeInTheDocument();
+  });
+
+  it("the rest of a shared day is a line after the day's own things; add stays", () => {
+    render(<DayPlanCard data={data({ surprise: surprise(false) })} size="desktop" addButton={<button>Add to this day</button>} />);
+    expect(screen.getByText("The rest of today is a surprise, planned by Xanthia.")).toBeInTheDocument();
+    expect(screen.queryByTestId("surprise-shell")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to this day" })).toBeInTheDocument();
+  });
+
+  it("an ordinary day shows neither", () => {
+    render(<DayPlanCard data={data({ surprise: null })} size="phone" addButton={<button>Add</button>} />);
+    expect(screen.queryByTestId("surprise-shell")).not.toBeInTheDocument();
+    expect(screen.queryByText(/surprise/i)).not.toBeInTheDocument();
   });
 });

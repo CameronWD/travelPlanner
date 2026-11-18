@@ -20,11 +20,12 @@ import {
   type FlagItem,
 } from "@/lib/flags";
 import { buildNextSteps, type NextStep, type SurpriseToReveal } from "@/lib/next-steps";
+import { applyMarkedFine, type MarkedFineRow } from "@/lib/flag-dismissals";
 import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
 import type { TripPhase } from "@/lib/trip-phase";
 import type { TripDeadline } from "@/lib/trip-deadline";
 import type { SurpriseView } from "@/lib/surprise";
-import type { HopStopRow, Pt, TravelLookup } from "@/lib/travel-times/hops";
+import type { HopModeChoice, HopStopRow, Pt, TravelLookup } from "@/lib/travel-times/hops";
 
 export interface BuildTripNextStepsInput {
   tripBasePath: string;
@@ -45,8 +46,8 @@ export interface BuildTripNextStepsInput {
   hardEndDate: string | null;
   /** The Trip's deadline from getTripProjection (ADR 0068); omitted → derived from hardEndDate. */
   deadline?: TripDeadline | null;
-  drivingWindingFactor?: number;
-  drivingAvgSpeedKph?: number;
+  drivingWindingFactor: number;
+  drivingAvgSpeedKph: number;
   /** The Trip's Home base IANA timezone (spec 2026-10-14, TB-01) — a Home-flagged transport end reads its calendar date in this zone; omitted → UTC. */
   homeTimezone?: string | null;
   undatedChapterCount: number;
@@ -67,6 +68,9 @@ export interface BuildTripNextStepsInput {
   travel: TravelLookup;
   travelStops?: HopStopRow[];
   homePoint?: Pt | null;
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
+  /** The Trip's Marked fine rows (lib/flag-dismissals-read.ts): a Marked fine Flag is no Next step. */
+  markedFine: readonly MarkedFineRow[];
 }
 
 /** Pure: Flags + nudges → the ranked Next steps list. */
@@ -78,7 +82,7 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
   const firstStop = input.allStops[0] ?? null;
   const lastStop = input.allStops[input.allStops.length - 1] ?? null;
 
-  const flags = detectFlags({
+  const detected = detectFlags({
     stops: input.datedStops,
     transports: input.transports,
     accommodations: input.accommodations,
@@ -103,10 +107,11 @@ export function buildTripNextSteps(input: BuildTripNextStepsInput): NextStep[] {
     travel: input.travel,
     travelStops: input.travelStops,
     homePoint: input.homePoint,
+    hopModes: input.hopModes,
   });
 
   return buildNextSteps({
-    flags,
+    flags: applyMarkedFine(detected, input.markedFine).shown,
     phase: input.phase,
     nudges: {
       hasDates: true, // caller only reaches here for a dated trip

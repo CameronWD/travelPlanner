@@ -12,6 +12,7 @@ import { PresenceSpan } from "./presence";
 import { TweenNumber } from "./tween-number";
 import { useMotionTiming } from "./use-motion-timing";
 import { SurpriseBadge } from "./surprise-badge";
+import { AddCard } from "./add-card";
 
 /** MOTION.md P7: a scheduled idea's chip shrinks and fades out. */
 const EASE_EXIT: [number, number, number, number] = [0.4, 0, 1, 1];
@@ -136,14 +137,14 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
   return (
     <div
       className={cn(
-        "relative flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 [contain:size]",
-        ideas.length > 0 ? "min-h-[74px]" : "min-h-[42px]",
+        "relative flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[14px] border-2 border-dashed border-border px-2.5 py-1.5 lg:border-solid [contain:size]",
+        ideas.length > 0 ? "min-h-[74px] lg:min-h-[120px]" : "min-h-[42px] lg:min-h-[56px]",
         className,
       )}
     >
       <div
         data-testid="ideas-header"
-        className={cn("flex h-[26px] shrink-0 items-center gap-1.5", ideas.length > 0 ? "justify-between" : "justify-start")}
+        className={cn("flex h-[26px] shrink-0 items-center gap-1.5", ideas.length > 0 ? "justify-between" : "justify-start lg:hidden")}
       >
         {ideas.length > 0 && (
           <TweenNumber
@@ -153,7 +154,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
             className="shrink-0 whitespace-nowrap text-[11px] font-extrabold tracking-[0.08em] tabular-nums"
           />
         )}
-        <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text">
+        <button type="button" onClick={onAdd} className="tap-target shrink-0 whitespace-nowrap text-xs font-bold text-coral-text lg:hidden">
           + Add an idea
         </button>
       </div>
@@ -184,6 +185,7 @@ export function IdeasBox({ ideas, onOpen, onAdd, disabled = false, className }: 
           )}
         </div>
       )}
+      <AddCard label="Add an idea" onClick={onAdd} disabled={disabled} className="shrink-0" />
       {ideas.length > 0 && (
         // Real chip widths (EyeOff, Surprise badge, all-caps titles) come from hidden copies that never depend on what is shown.
         <div

@@ -88,6 +88,7 @@ export default async function WishlistPage({
             startTime: true,
             endTime: true,
             address: true,
+            endAddress: true,
             link: true,
             booking: true,
             bookingState: true,
@@ -316,6 +317,7 @@ export default async function WishlistPage({
     startTime: item.startTime,
     endTime: item.endTime,
     address: item.address,
+    endAddress: item.endAddress,
     link: item.link,
     booking: item.booking,
     bookingState: item.bookingState as BookingState, // a stored BOOKING_STATES value (lib/booking-state.ts)

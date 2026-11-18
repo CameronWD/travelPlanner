@@ -206,7 +206,7 @@ describe("addReminder", () => {
     reminderCreateMock.mockResolvedValue({ id: "r1" });
     await addReminder(TRIP_ID, { ...VALID_INPUT, stopId: "cst0p00000000000000000000" });
     expect(stopFindFirstMock).toHaveBeenCalledWith({
-      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID, forkId: null },
       select: { id: true },
     });
     expect(reminderCreateMock).toHaveBeenCalledWith({
@@ -246,13 +246,20 @@ describe("addReminder", () => {
       stopId: "cst0p00000000000000000000",
     });
     expect(stopFindFirstMock).toHaveBeenCalledWith({
-      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID, forkId: null },
       select: { id: true },
     });
     expect(result).toEqual({
       success: false,
       errors: { stopId: ["That Stop isn't on this trip"] },
     });
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Reminder about a What-if copy of a Stop", async () => {
+    stopFindFirstMock.mockImplementation(async ({ where }: { where: { forkId?: null } }) => (where.forkId === null ? null : { id: "cst0p00000000000000000000" }));
+    const result = await addReminder(TRIP_ID, { ...VALID_INPUT, stopId: "cst0p00000000000000000000" });
+    expect(result).toEqual({ success: false, errors: { stopId: ["That Stop isn't on this trip"] } });
     expect(reminderCreateMock).not.toHaveBeenCalled();
   });
 });
@@ -337,7 +344,7 @@ describe("updateReminder", () => {
     });
 
     expect(stopFindFirstMock).toHaveBeenCalledWith({
-      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID, forkId: null },
       select: { id: true },
     });
     expect(reminderUpdateMock).toHaveBeenCalledWith({
@@ -368,7 +375,7 @@ describe("updateReminder", () => {
     });
 
     expect(stopFindFirstMock).toHaveBeenCalledWith({
-      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID },
+      where: { id: "cst0p00000000000000000000", tripId: TRIP_ID, forkId: null },
       select: { id: true },
     });
     expect(result).toEqual({

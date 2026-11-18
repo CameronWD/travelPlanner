@@ -9,6 +9,7 @@ function mount(scrollWidth: number, clientWidth: number) {
       <CarouselTrack>
         <div data-testid="card" style={{ width: 300 }} />
         <div data-testid="card" style={{ width: 300 }} />
+        <div data-testid="card" style={{ width: 300 }} />
       </CarouselTrack>
       <CarouselDots />
     </TripCarousel>,
@@ -19,6 +20,18 @@ function mount(scrollWidth: number, clientWidth: number) {
   track.scrollBy = vi.fn();
   act(() => { fireEvent.scroll(track); });
   return { ...ui, track };
+}
+
+function placeCardsInPage(track: HTMLElement) {
+  Object.defineProperty(track, "offsetLeft", { configurable: true, value: 160 });
+  screen.getAllByTestId("card").forEach((card, i) => {
+    Object.defineProperty(card, "offsetLeft", { configurable: true, value: 160 + i * 618 });
+  });
+}
+
+function scrollTrackTo(track: HTMLElement, left: number) {
+  Object.defineProperty(track, "scrollLeft", { configurable: true, value: left });
+  act(() => { fireEvent.scroll(track); });
 }
 
 beforeEach(() => {
@@ -38,41 +51,43 @@ describe("TripCarousel", () => {
     expect(screen.getByRole("button", { name: "Next trips" })).toBeEnabled();
     expect(document.querySelectorAll("[data-carousel-dot]")).toHaveLength(2);
   });
-  it("steps to the next/previous card's own offsetLeft, not a fixed width+gap (I4)", () => {
-    const { track } = mount(1236, 1000);
+  it("steps one card at a time when the track sits inside a padded page (offsets are page-relative)", () => {
+    const { track } = mount(2236, 1000);
     track.scrollTo = vi.fn();
-    const [first, second] = screen.getAllByTestId("card");
-    Object.defineProperty(first, "offsetLeft", { configurable: true, value: 0 });
-    Object.defineProperty(second, "offsetLeft", { configurable: true, value: 618 });
+    placeCardsInPage(track);
     fireEvent.click(screen.getByRole("button", { name: "Next trips" }));
-    expect(track.scrollTo).toHaveBeenCalledWith({ left: 618, behavior: "smooth" });
-    Object.defineProperty(track, "scrollLeft", { configurable: true, value: 618 });
-    act(() => { fireEvent.scroll(track); });
+    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 618, behavior: "smooth" });
+    scrollTrackTo(track, 618);
+    fireEvent.click(screen.getByRole("button", { name: "Next trips" }));
+    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 1236, behavior: "smooth" });
+    scrollTrackTo(track, 1236);
     fireEvent.click(screen.getByRole("button", { name: "Previous trips" }));
-    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
+    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 618, behavior: "smooth" });
   });
-  it("arrow keys scroll the focused track to the next/previous card (I4)", () => {
-    const { track } = mount(1236, 1000);
+  it("arrow keys step one card at a time", () => {
+    const { track } = mount(2236, 1000);
     track.scrollTo = vi.fn();
-    const [first, second] = screen.getAllByTestId("card");
-    Object.defineProperty(first, "offsetLeft", { configurable: true, value: 0 });
-    Object.defineProperty(second, "offsetLeft", { configurable: true, value: 618 });
+    placeCardsInPage(track);
     fireEvent.keyDown(track, { key: "ArrowRight" });
-    expect(track.scrollTo).toHaveBeenCalledWith({ left: 618, behavior: "smooth" });
-    Object.defineProperty(track, "scrollLeft", { configurable: true, value: 618 });
-    act(() => { fireEvent.scroll(track); });
+    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 618, behavior: "smooth" });
+    scrollTrackTo(track, 618);
     fireEvent.keyDown(track, { key: "ArrowLeft" });
     expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
   });
   it("reduced motion scrolls without smooth behaviour", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
-    const { track } = mount(1236, 1000);
+    const { track } = mount(2236, 1000);
     track.scrollTo = vi.fn();
-    const [first, second] = screen.getAllByTestId("card");
-    Object.defineProperty(first, "offsetLeft", { configurable: true, value: 0 });
-    Object.defineProperty(second, "offsetLeft", { configurable: true, value: 618 });
+    placeCardsInPage(track);
     fireEvent.click(screen.getByRole("button", { name: "Next trips" }));
     expect(track.scrollTo).toHaveBeenCalledWith({ left: 618, behavior: "auto" });
+  });
+  it("a disabled arrow stays visible but muted, not border-soft", () => {
+    mount(2236, 1000);
+    const prev = screen.getByRole("button", { name: "Previous trips" });
+    expect(prev).toBeDisabled();
+    expect(prev.className).not.toContain("disabled:text-border-soft");
+    expect(prev.className).toContain("disabled:text-muted-foreground");
   });
 });
 

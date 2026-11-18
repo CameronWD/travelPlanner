@@ -61,3 +61,39 @@ is why the page loads three days.
 - Only WebKit on a phone can judge the feel. `npm run audit:nav` proves the mechanics in
   Chrome: one-frame section swaps, the scroller on the day shown at first paint, an arrow
   press ending on the next day's URL with the vertical position kept.
+
+## Amended 2026-11-18: the carousel is the phone and tablet behaviour; desktop shows one day
+
+The three-panel snap carousel is the Day view **below `lg`** only. From `lg` (1024px) up the
+Day view shows one day and crossfades between days (spec 2026-11-18 D1, D2).
+
+Why: on a wide screen the scroller cost more than it gave. `overflow-x: auto` forces
+`overflow-y` to clip as well, so the cards' hard shadows were cut off at the right and
+bottom edges, and `position: sticky` inside it stuck to the scroller rather than the
+viewport. A horizontal trackpad swipe changed day by accident. The Day plan card also
+scrolled inside itself to fit the viewport (Feedback `cmwkhwenq000308jqhm1vhozr`: "cut off,
+inner scroll").
+
+- From `lg`, `DayCarousel` renders only the day shown, in a plain block that scrolls with
+  the page: no horizontal scroller, no neighbour panels, no scroll or wheel handling. Its
+  `goTo` declines, so the arrows, the keys and the strip take their own typed navigation.
+  The neighbours are still read and prefetched, so the next day is quick to arrive.
+- The server cannot know the viewport, so it sends the phone tree with `lg:` classes that
+  hide the neighbours and turn the scroller into a block. The first paint at desktop width
+  is already one day, and the client drops the neighbours once it knows the width.
+- The Day plan card has no maximum height and no inner scroll. The right column (Weather,
+  Tonight, Journal, credit) is sticky at `lg:top-6`. If it is taller than the viewport, the
+  carousel marks it `data-tall` and it scrolls with the page instead of hiding its foot.
+- Below `lg` nothing changes: three panels, finger tracking, the glide, and everything in
+  the Decision and Consequences above.
+
+What was built from `lg` up (spec 2026-11-18 D1, D2):
+
+- One day on a wide screen, scrolling with the page, with the right column sticky.
+- The Day strip is the carousel there: a fixed centre frame holds the shown day while the
+  strip glides beneath it (about 250 ms), with an arrow at each end. The frame fades while
+  the shown day is off-centre, and the strip returns to the shown day after about 1.5 s of
+  quiet.
+- A day change made inside the app crossfades in about 150 ms; browser back and forward cut.
+- A neighbour panel never opens its own Day map: only the day shown mounts the dialog, so
+  the phone carousel's three panels do not stack three dialogs.

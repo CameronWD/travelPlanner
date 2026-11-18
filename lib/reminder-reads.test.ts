@@ -116,7 +116,39 @@ describe("listRemindersForTrip", () => {
   });
 });
 
+describe("listRemindersForTrip includePast", () => {
+  const raw = (id: string, date: string) => ({ id, title: id, date, notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null });
+
+  it("adds the 20 most recent earlier Reminders, newest first, flagged past, behind the same Surprise filter", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ viewerId: "user-1", hiddenStopIds: ["s1"] }));
+    reminderFindManyMock.mockResolvedValueOnce([raw("up", "2026-07-02")]).mockResolvedValueOnce([raw("p2", "2026-06-30"), raw("p1", "2026-06-01")]);
+
+    const result = await listRemindersForTrip(TRIP_ID, "2026-07-01", { includePast: true });
+
+    expect(reminderFindManyMock.mock.calls[1][0]).toEqual({
+      where: { tripId: TRIP_ID, date: { lt: "2026-07-01" }, ...MARKER_WHERE.reminder },
+      orderBy: { date: "desc" },
+      take: 20,
+      select: REMINDER_ITEM_SELECT,
+    });
+    expect(result.map((r) => [r.id, r.past])).toEqual([["up", undefined], ["p2", true], ["p1", true]]);
+  });
+
+  it("reads no earlier ones unless asked", async () => {
+    reminderFindManyMock.mockResolvedValue([]);
+    await listRemindersForTrip(TRIP_ID, "2026-07-01");
+    expect(reminderFindManyMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("readRemindersAbout", () => {
+  it("flags a Reminder dated before `today` as past", async () => {
+    const row = (id: string, date: string) => ({ id, title: id, date, notes: null, stopId: "s1", stop: { name: "Lyon" }, itemId: null, item: null, transportId: null, transport: null });
+    reminderFindManyMock.mockResolvedValue([row("old", "2026-06-01"), row("new", "2026-08-01")]);
+    const out = await readRemindersAbout(TRIP_ID, hiddenVisibility({}), "2026-07-01");
+    expect(out.byStopId.get("s1")?.map((r) => r.past)).toEqual([true, undefined]);
+  });
+
   it("reads every Reminder about a thing, whatever its date, behind the viewer's Surprise filter, grouped by the thing", async () => {
     const row = (id: string, o: object) => ({ id, title: id, date: "2026-07-01", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, ...o });
     reminderFindManyMock.mockResolvedValue([

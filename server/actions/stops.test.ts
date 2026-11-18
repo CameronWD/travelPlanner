@@ -2388,9 +2388,9 @@ describe("local travel mode writes", () => {
     expect(revalidateTripMock).toHaveBeenCalledWith("t1", "plan");
   });
 
-  it("setStopLocalTravelMode refuses a mode outside DRIVE, TRANSIT or null with a field error and writes nothing", async () => {
+  it("setStopLocalTravelMode refuses a mode outside DRIVE, TRANSIT, WALK or null with a field error and writes nothing", async () => {
     stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
-    const r = await setStopLocalTravelMode("s1", "WALK" as "DRIVE");
+    const r = await setStopLocalTravelMode("s1", "BIKE" as "DRIVE");
     expect(r.success).toBe(false);
     expect(!r.success && r.errors.localTravelMode).toEqual([expect.any(String)]);
     expect(stopUpdateMock).not.toHaveBeenCalled();

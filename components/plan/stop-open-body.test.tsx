@@ -265,7 +265,7 @@ describe("StopOpenBody top row (spec 2026-10-04 §B)", () => {
     const props = baseProps({ accommodations: [HOTEL] });
     wrap(<StopOpenBody {...props} />);
     expect(screen.getByTestId("stay-block")).toHaveTextContent("Thu 10 Dec 15:00 → Mon 14 Dec · 4 nights");
-    await userEvent.click(screen.getByRole("button", { name: "Hôtel Grands Boulevards" }));
+    await userEvent.click(within(screen.getByTestId("stay-phone")).getByRole("button", { name: "Hôtel Grands Boulevards" }));
     expect(props.onOpenAccommodation).toHaveBeenCalledWith("acc1");
     await userEvent.click(screen.getByRole("button", { name: "+ Add another place" }));
     expect(props.onAddStay).toHaveBeenCalled();

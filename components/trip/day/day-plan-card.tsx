@@ -6,27 +6,35 @@ import { Timeline } from "@/components/trip/timeline";
 import { DayIdeasRows } from "@/components/trip/day/day-ideas-rows";
 import { DayFeasibility, type DayFeasibilityEntry } from "@/components/trip/day-feasibility";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
-import { DayMapPanel } from "@/components/trip/day-map-panel";
+import { DayMapButton } from "@/components/trip/day/day-map-dialog";
 import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
+import { SurpriseShell } from "@/components/plan/surprise-badge";
 
 /**
  * The Day plan card (DAY_VIEW §2 "Left", §3.6): "Day plan" h2 with the count;
  * the day's Timeline, or — on an empty day — up to three Day ideas (spec
  * decision 5). The card sizes to its content (spec 2026-09-29 D5): an empty
  * day is a compact centred block, not a tall empty card, and a busy day
- * scrolls inside the card from lg once it outgrows the viewport. The dashed
- * add row (`addButton`, spec decision 7) is its footer.
+ * grows with the page (spec 2026-11-18 D1). The dashed add row
+ * (`addButton`, spec decision 7) is its footer.
  *
  * A planned day also keeps the old page's feasibility advisory and the
  * collapsible "Nearby from your Wishlist" rail (both come from the loader),
- * and the Day map (CONTEXT.md "Day map"), collapsed until opened.
+ * and a header button that opens the Day map (CONTEXT.md "Day map") over the page.
  */
-export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size: "desktop" | "phone"; addButton: React.ReactNode }) {
+export function DayPlanCard({ data, size, addButton, shown = true }: { data: DayViewData; size: "desktop" | "phone"; addButton: React.ReactNode; shown?: boolean }) {
   const phone = size === "phone";
+  const surprise = data.surprise;
+  const whole = surprise?.whole === true;
   const dateLabel = formatDayLabel(data.date);
   const empty = !data.hasEntries && data.ideas.rows.length === 0;
   const allowNearMe = data.phase === "travelling" && data.isToday;
-  const whatsAround = data.whatsAround.enabled && (data.whatsAround.starts.length > 0 || allowNearMe) ? (
+  const restSurprise = surprise && !surprise.whole ? (
+    <p data-slot="day-surprise-rest" className="text-sm font-semibold text-muted-foreground">
+      The rest of today is a surprise, planned by {surprise.plannedByName}.
+    </p>
+  ) : null;
+  const whatsAround = !whole && data.whatsAround.enabled && (data.whatsAround.starts.length > 0 || allowNearMe) ? (
     <WhatsAroundSheet
       tripId={data.tripId}
       date={data.date}
@@ -48,22 +56,23 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
         <h2 id={`day-plan-heading-${size}`} className="font-display text-[22px] font-extrabold tracking-[-0.02em] text-foreground">
           Day plan
         </h2>
-        <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>
+        <div className="flex items-center gap-3">
+          {data.hasEntries ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} shown={shown} /> : null}
+          {whole && !data.hasEntries ? null : <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>}
+        </div>
       </div>
-      {empty ? (
+      {whole && surprise ? <SurpriseShell view={{ plannerName: surprise.plannedByName, forNames: [], youAreSurprised: true }} /> : null}
+      {whole && !data.hasEntries ? null : empty ? (
         // An empty day is a small block, not a tall empty card (spec 2026-09-29 D5):
         // about three or four Items' worth of room, the line and the add action centred.
         <div data-slot="day-plan-empty" className="flex min-h-[12rem] flex-col items-center justify-center gap-3.5 text-center">
           <p className="text-sm font-semibold text-muted-foreground">Nothing planned</p>
+          {restSurprise}
           <div className="w-full">{addButton}</div>
         </div>
       ) : (
         <>
-          <div
-            data-slot="day-plan-body"
-            data-size={size}
-            className={cn("flex flex-col gap-3.5", !phone && "lg:max-h-[max(20rem,calc(100dvh-22rem))] lg:overflow-y-auto")}
-          >
+          <div data-slot="day-plan-body" data-size={size} className="flex flex-col gap-3.5">
             {data.hasEntries ? (
               <>
                 <Timeline
@@ -77,8 +86,7 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
                   todayISO={data.today}
                   needsConfirmationIds={data.needsConfirmationIds}
                 />
-                <DayMapPanel tripId={data.tripId} model={data.dayMap} />
-                <DayFeasibility entries={data.feasibility as DayFeasibilityEntry[]} />
+                <DayFeasibility tripId={data.tripId} entries={data.feasibility as DayFeasibilityEntry[]} markedFine={data.markedFine} hops={data.hops} />
                 <NearbyWishlist tripId={data.tripId} date={data.date} items={data.nearby} />
               </>
             ) : (
@@ -91,10 +99,13 @@ export function DayPlanCard({ data, size, addButton }: { data: DayViewData; size
                 size={size}
               />
             )}
+            {restSurprise}
           </div>
-          <div className="flex flex-col gap-2.5">
-            {addButton}
-          </div>
+          {whole ? null : (
+            <div className="flex flex-col gap-2.5">
+              {addButton}
+            </div>
+          )}
         </>
       )}
       {whatsAround ? <div className={empty ? "flex justify-center" : undefined}>{whatsAround}</div> : null}

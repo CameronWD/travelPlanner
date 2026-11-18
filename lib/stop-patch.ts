@@ -37,7 +37,7 @@ export type StopPatch = {
   lat?: number | null;
   lng?: number | null;
   notes?: string | null;
-  localTravelMode?: "DRIVE" | "TRANSIT" | null;
+  localTravelMode?: "DRIVE" | "TRANSIT" | "WALK" | null;
   nights?: number;
   chapterId?: string | null;
   arriveDate?: string;

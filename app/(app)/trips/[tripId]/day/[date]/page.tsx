@@ -29,10 +29,11 @@ export async function generateMetadata({ params }: { params: Promise<{ tripId: s
 
 /**
  * The Day view (spec 2026-09-27 §C, DAY_VIEW.md; ADR 0065). The day shown and
- * the day either side come from one getDays read (NAV-05), so the carousel
- * has a neighbour to drag into view; weather streams in its own Suspense
- * boundary per day. The phone and the desktop trees are both rendered and
- * one is hidden by breakpoint (the same pattern as the Home route).
+ * the day either side come from one getDays read (NAV-05), so the phone
+ * carousel has a neighbour to drag into view (from lg only the day shown
+ * renders); weather streams in its own Suspense boundary per day. The phone
+ * and the desktop trees are both rendered and one is hidden by breakpoint
+ * (the same pattern as the Home route).
  */
 export default async function DayPage({ params }: { params: Promise<{ tripId: string; date: string }> }) {
   const { tripId, date } = await params;
@@ -69,7 +70,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
     tripId,
     slug,
     date: day.date,
-    stop: day.stop ? { id: day.stop.id, arriveDate: day.stop.arriveDate, departDate: day.stop.departDate } : null,
+    stop: day.stop && !day.surprise?.dayStopHidden ? { id: day.stop.id, arriveDate: day.stop.arriveDate, departDate: day.stop.departDate } : null,
     stopOptions: day.stopOptions,
     homeCurrency: day.trip.homeCurrency,
     homeBaseName: day.trip.homeName,
@@ -88,7 +89,7 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
       }
     />
   );
-  const headerAdd = (
+  const headerAdd = d.surprise?.whole ? null : (
     <DayAddMenu {...addProps(d)} label="Add to this day" variant="primary" size="md" className="h-11 whitespace-nowrap rounded-full px-5 text-sm font-extrabold" />
   );
 
@@ -103,9 +104,10 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   };
 
   // Tonight: a gap day with no bed shows nothing (there is no Stop to add a
-  // stay to), and the trip's last day has no night to plan.
+  // stay to), and the trip's last day has no night to plan. A day owned by a hidden Stop with
+  // no visible bed would read "No bed yet" about a stay it cannot see.
   const tonight = (day: DayViewData, size: "desktop" | "phone") =>
-    !day.isLast && (day.tonight != null || day.stop != null) ? (
+    !day.isLast && (day.tonight != null || (day.stop != null && !day.surprise?.dayStopHidden)) ? (
       <TonightCard tripId={tripId} tonight={day.tonight} isLastDay={day.isLast} stopId={day.stop?.id ?? null} size={size} />
     ) : null;
 
@@ -119,12 +121,12 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
         {phoneWeather ? <div className="md:hidden">{phoneWeather}</div> : null}
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start lg:gap-[18px]">
           <div className="md:hidden">
-            <DayPlanCard data={day} size="phone" addButton={dashedAdd(day, "phone")} />
+            <DayPlanCard data={day} size="phone" addButton={dashedAdd(day, "phone")} shown={day.date === d.date} />
           </div>
           <div className="hidden md:block">
-            <DayPlanCard data={day} size="desktop" addButton={dashedAdd(day, "desktop")} />
+            <DayPlanCard data={day} size="desktop" addButton={dashedAdd(day, "desktop")} shown={day.date === d.date} />
           </div>
-          <div className="flex flex-col gap-3.5 lg:gap-[18px]">
+          <div data-day-side className="flex flex-col gap-3.5 lg:sticky lg:top-6 lg:self-start lg:gap-[18px] lg:data-tall:static">
             {desktopWeather ? <div className="hidden md:block">{desktopWeather}</div> : null}
             {phoneTonight ? <div data-slot="tonight" className="md:hidden">{phoneTonight}</div> : null}
             {desktopTonight ? <div data-slot="tonight" className="hidden md:block">{desktopTonight}</div> : null}

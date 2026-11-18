@@ -77,7 +77,7 @@ describe("loadItemForMcp", () => {
     expect(m.readMcpCosts).toHaveBeenCalledWith("trip-1", NO_SURPRISES, { ownerType: "ITEM", ownerId: "i1" });
     expect(m.readMcpNotes).toHaveBeenCalledWith("trip-1", NO_SURPRISES, { targetType: "ITEM", targetId: "i1" });
     expect(out).toEqual({
-      id: "i1", title: "Castle", category: "SIGHTSEEING", startTime: "10:00", endTime: null, address: "Sintra",
+      id: "i1", title: "Castle", category: "SIGHTSEEING", startTime: "10:00", endTime: null, address: "Sintra", endsAt: null,
       link: null, booking: "#448", notes: "Be there 15 min early", bookingState: "BOOKED", bookBy: null,
       slotTime: null, arriveByMinutes: null, refundable: "UNKNOWN", openingHours: null, tryList: null,
       nothingToAttach: false, needsBookingConfirmation: false,

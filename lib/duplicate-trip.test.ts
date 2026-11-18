@@ -80,7 +80,7 @@ describe("buildDuplicatePlan", () => {
     expect(col.data).toEqual({
       title: "Colosseum", category: "SIGHTSEEING",
       date: null, startTime: null, endTime: null, booking: null,
-      lat: 41.89, lng: 12.49, countryCode: "it", placeId: null, businessStatus: null, statusCheckedAt: null, address: "Rome", link: "x", notes: "n",
+      lat: 41.89, lng: 12.49, countryCode: "it", placeId: null, businessStatus: null, statusCheckedAt: null, endAddress: null, endLat: null, endLng: null, endPlaceId: null, address: "Rome", link: "x", notes: "n",
       sortOrder: 0, hiddenFromShares: true,
       openingHours: null, tryList: null,
       surprisePlannerId: null, surpriseForIds: null, surpriseRevealedAt: null,

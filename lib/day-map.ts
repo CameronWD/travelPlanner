@@ -13,13 +13,16 @@ import { googleDirectionsUrl, appleDirectionsUrl, directionsFromHereUrl } from "
 import type { LocalMode } from "@/lib/travel-times/hops";
 import {
   byHopOrder,
+  itemRouteKey,
   hopStopsById,
   hopInputs,
+  forcedModeFor,
   planHops,
   resolveHop,
   toHopItem,
   toPlanTransport,
   type HopItemRow,
+  type HopModeChoice,
   type HopStopRow,
   type HopTransportRow,
   type ResolvedHop,
@@ -37,6 +40,9 @@ export interface DayMapPoint {
   order?: number;
   address?: string | null;
   placeId?: string | null;
+  category?: string;
+  end?: { lat: number; lng: number } | null;
+  routePolyline?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +58,9 @@ export interface DayMapItemInput {
   sortOrder: number;
   address?: string | null;
   placeId?: string | null;
+  category?: string;
+  endLat?: number | null;
+  endLng?: number | null;
 }
 
 export interface DayMapAccommodationInput {
@@ -135,6 +144,8 @@ export function buildDayMapModel(input: {
     order: idx + 1,
     address: item.address,
     placeId: item.placeId,
+    category: item.category,
+    end: itemRouteKey({ lat: item.lat, lng: item.lng, endLat: item.endLat, endLng: item.endLng }) ? { lat: item.endLat as number, lng: item.endLng as number } : null,
   }));
 
   // ------------------------------------------------------------------
@@ -207,11 +218,16 @@ export function buildDayMapModel(input: {
       // First located item: predecessor is accommodation (if located), else undefined
       perItemPrev[point.id] = accommodationPoint;
     } else {
-      perItemPrev[point.id] = itemPoints[i - 1];
+      perItemPrev[point.id] = leavingPoint(itemPoints[i - 1]);
     }
   }
 
   return { points, routePoints, perItemPrev };
+}
+
+// The next thing is reached from where the previous one finishes, not where it starts.
+function leavingPoint(p: DayMapPoint): DayMapPoint {
+  return p.end ? { ...p, lat: p.end.lat, lng: p.end.lng, address: null, placeId: null } : p;
 }
 
 type DayHopInput = {
@@ -220,35 +236,61 @@ type DayHopInput = {
   transports: (HopTransportRow & { id: string })[];
   lookup: TravelLookup;
   estimateOpts: { windingFactor: number; avgSpeedKph: number };
+  hopModes?: ReadonlyMap<string, HopModeChoice>;
 };
 
 /** Each consecutive located pair on the Day map, with its resolved travel when the pair is a planned hop. One source for the map and the Claude connection. */
-export function resolvedDayHops(
+function resolvedDayHops(
   model: DayMapModel,
   input: DayHopInput,
-): { fromId: string; toId: string; resolved: ResolvedHop | null }[] {
+): { fromId: string; toId: string; resolved: ResolvedHop | null; forced: HopModeChoice | undefined }[] {
   const items = input.dayItems.map(toHopItem).sort(byHopOrder);
   const byId = new Map(items.map((i) => [i.id, i]));
   const stopsById = hopStopsById(input.stops);
   const planTransports = input.transports.map(toPlanTransport);
   const planned = new Set(planHops(items, planTransports).map((h) => `${h.from.id}|${h.to.id}`));
   const order = model.routePoints.filter((p) => p.kind === "item");
-  const out: { fromId: string; toId: string; resolved: ResolvedHop | null }[] = [];
+  const out: { fromId: string; toId: string; resolved: ResolvedHop | null; forced: HopModeChoice | undefined }[] = [];
   for (let i = 1; i < order.length; i++) {
     const [a, b] = [order[i - 1].id, order[i].id];
     const from = byId.get(a);
     const to = byId.get(b);
     const inputs = from && to && planned.has(`${a}|${b}`) ? hopInputs({ from, to }, { stopsById, planTransports }) : null;
-    const resolved = inputs ? resolveHop(inputs.from, inputs.to, inputs.localMode, inputs.departure, input.lookup, input.estimateOpts) : null;
-    out.push({ fromId: a, toId: b, resolved });
+    const forced = from && to ? forcedModeFor(input.hopModes, { from, to }) : undefined;
+    const resolved = inputs ? resolveHop(inputs.from, inputs.to, inputs.localMode, inputs.departure, input.lookup, input.estimateOpts, forced) : null;
+    out.push({ fromId: a, toId: b, resolved, forced });
   }
   return out;
+}
+
+/** Every pair `planHops` makes for the day (both orderings), so each Hop mode being honoured has a row wherever hops are listed. */
+export function resolvedPlanHops(
+  input: DayHopInput,
+): { fromId: string; toId: string; resolved: ResolvedHop; forced: HopModeChoice | undefined }[] {
+  const items = input.dayItems.map(toHopItem).sort(byHopOrder);
+  const stopsById = hopStopsById(input.stops);
+  const planTransports = input.transports.map(toPlanTransport);
+  return planHops(items, planTransports).flatMap((pair) => {
+    const inputs = hopInputs(pair, { stopsById, planTransports });
+    if (!inputs) return [];
+    const forced = forcedModeFor(input.hopModes, pair);
+    const resolved = resolveHop(inputs.from, inputs.to, inputs.localMode, inputs.departure, input.lookup, input.estimateOpts, forced);
+    return [{ fromId: pair.from.id, toId: pair.to.id, resolved, forced }];
+  });
 }
 
 export function dayMapHops(model: DayMapModel, input: DayHopInput): DayMapHop[] {
   return resolvedDayHops(model, input).map(({ fromId, toId, resolved }) => {
     const polyline = resolved && !resolved.estimated && resolved.polyline ? resolved.polyline : null;
     return { fromId, toId, polyline, estimated: polyline === null };
+  });
+}
+
+function withItemRoutes(points: DayMapPoint[], lookup: TravelLookup): DayMapPoint[] {
+  return points.map((p) => {
+    if (p.kind !== "item" || !p.end) return p;
+    const row = lookup.get(itemRouteKey({ lat: p.lat, lng: p.lng, endLat: p.end.lat, endLng: p.end.lng }) ?? "");
+    return { ...p, routePolyline: row?.status === "OK" && row.polyline ? row.polyline : null };
   });
 }
 
@@ -262,15 +304,18 @@ export function withDayMapHops(
   },
   date: string,
   lookup: TravelLookup,
+  hopModes?: ReadonlyMap<string, HopModeChoice>,
 ): DayMapModel {
   return {
     ...dayMap,
+    points: withItemRoutes(dayMap.points, lookup),
     hops: dayMapHops(dayMap, {
       dayItems: rows.items.filter((it) => it.date === date),
       stops: rows.stops,
       transports: rows.transports,
       lookup,
       estimateOpts: { windingFactor: rows.trip.drivingWindingFactor, avgSpeedKph: rows.trip.drivingAvgSpeedKph },
+      hopModes,
     }),
   };
 }

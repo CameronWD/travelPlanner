@@ -52,6 +52,13 @@ describe("ACTIVITY_ENTITY_TYPES", () => {
 // describeChanges — STOP
 // ---------------------------------------------------------------------------
 
+describe("describeChanges ITEM Ends at", () => {
+  it("lists a changed end address beside Address", () => {
+    const changes = describeChanges("ITEM", { title: "Walk", endAddress: null }, { title: "Walk", endAddress: "Westminster Bridge" });
+    expect(changes).toEqual([expect.objectContaining({ field: "endAddress", label: "Ends at", to: "Westminster Bridge" })]);
+  });
+});
+
 describe("describeChanges STOP", () => {
   it("yields one change when only name differs", () => {
     const changes = describeChanges(

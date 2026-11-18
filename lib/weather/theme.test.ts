@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { getWeatherTheme, themeFill } from "@/lib/weather/theme";
+import { readFileSync } from "node:fs";
+import { getWeatherTheme, skyBands, themeFill, type SceneKey } from "@/lib/weather/theme";
 import type { DayWeather } from "@/lib/weather";
 
 function wx(over: Partial<DayWeather> = {}): DayWeather {
@@ -87,4 +88,26 @@ describe("themeFill", () => {
   it.each([
     ["sunny", "bg-wx-sunny"], ["night", "bg-wx-night"], ["too-far", "bg-background"],
   ])("%s → %s", (key, cls) => expect(themeFill(key as never)).toBe(cls));
+});
+
+describe("skyBands", () => {
+  const scenes: SceneKey[] = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night"];
+  const css = readFileSync("app/globals.css", "utf8");
+  it.each(scenes)("%s has two or three bands by day and by night, each a theme-stable wx token", (scene) => {
+    for (const isDay of [true, false]) {
+      const bands = skyBands(scene, isDay);
+      expect(bands.length).toBeGreaterThanOrEqual(2);
+      expect(bands.length).toBeLessThanOrEqual(3);
+      for (const token of bands) {
+        expect(token).toMatch(/^wx-/);
+        expect(css).toContain(`--${token}:`);
+      }
+    }
+  });
+  it("by day the top band, behind the text, is the card's own fill", () => {
+    for (const scene of scenes) expect(`bg-${skyBands(scene, true)[0]}`).toBe(themeFill(scene));
+  });
+  it("an evening card darkens its sky", () => {
+    expect(skyBands("overcast", false)[0]).not.toBe(skyBands("overcast", true)[0]);
+  });
 });

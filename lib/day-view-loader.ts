@@ -19,10 +19,13 @@ import { addDays, daysBetween, formatDayLabel } from "@/lib/dates";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
+import { resolvedPlanHops, withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import type { NearbyResult } from "@/lib/nearby";
-import { flagTightConnections } from "@/lib/flags";
-import { homePointOf, type TravelLookup } from "@/lib/travel-times/hops";
+import { flagTightConnections, type Flag } from "@/lib/flags";
+import { loadHopModes } from "@/lib/hop-modes";
+import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
+import { applyMarkedFine, type MarkedFineRow } from "@/lib/flag-dismissals";
+import { homePointOf, type HopModeChoice, type TravelLookup } from "@/lib/travel-times/hops";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { daylight, utcHmToZone, type DaylightView } from "@/lib/daylight";
 import { getDayWeather, type DayWeather } from "@/lib/weather";
@@ -44,6 +47,7 @@ import {
   tripDays,
   stopLine,
   dayIdeasRows,
+  daySurprise,
   forecastOpensOn as forecastOpensOnFor,
   type DayModel,
   type DayRows,
@@ -61,6 +65,18 @@ import { loadHolidayLines } from "@/lib/holidays/trip-days";
 
 /** Links from nearby days still resolve within this many days of the trip's ends (clamped). */
 const BUFFER_DAYS = 2;
+
+export interface DayHopEntry {
+  fromItemId: string;
+  toItemId: string;
+  fromTitle: string;
+  toTitle: string;
+  minutes: number;
+  travel: "walk" | "drive" | "transit";
+  estimated: boolean;
+  mode: HopModeChoice;
+  modeSetByHand: boolean;
+}
 
 export interface DayViewData {
   tripId: string;
@@ -136,7 +152,13 @@ export interface DayViewData {
     mine: { body: string; updatedAt: Date | null; photo: AttachmentView | null; extraPhotos: AttachmentView[]; hiddenFromShares: boolean } | null;
     others: Array<{ authorId: string; body: string; updatedAt: Date; author: TravellerLike | null; photos: AttachmentView[] }>;
   };
-  feasibility: Array<{ severity: string; message: string }>;
+  feasibility: Array<{ fine: { flagId: string; fingerprint: string; between: { from: string; to: string } }; severity: string; message: string; hop: Flag["hop"] }>;
+  /** The day's tight Flags a Traveller Marked fine (CONTEXT.md "Marked fine"), out of `feasibility`. */
+  markedFine: Array<{ flagId: string; message: string; markedByName: string }>;
+  /** Set only for a viewer a Surprise Stop on this day is for (ADR 0072): the planner's name, and whether it is the whole day. */
+  surprise: { plannedByName: string; whole: boolean; dayStopHidden: boolean } | null;
+  /** Every hop of the day the viewer can see, as the Day map and get_day resolve them. */
+  hops: DayHopEntry[];
   /** For the weather Suspense island; null when the day has no located Stop. */
   weatherInput: { lat: number; lng: number; timezone: string } | null;
 }
@@ -213,11 +235,16 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
   if (read === "dateless" || read.alongside === null) return dates.map((d) => (wellFormed(d) ? ("dateless" as const) : ("invalid" as const)));
 
   const { rows, alongside } = read;
-  const [travel, holidayLines] = await Promise.all([
-    loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip) }),
+  const hopModesRead = loadHopModes(tripId);
+  const [hopModes, travel, holidayLines, markedFine] = await Promise.all([
+    hopModesRead,
+    hopModesRead.then((modes) =>
+      loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip), hopModes: modes }),
+    ),
     loadHolidayLines(tripId, tripDays(rows.startDate, rows.endDate)),
+    loadMarkedFineRows(tripId),
   ]);
-  const shared = shareAcrossDays(tripId, rows, alongside.costs, travel);
+  const shared = shareAcrossDays(tripId, rows, alongside.costs, travel, hopModes, markedFine);
   return dates.map((d): DayResult => {
     if (!wellFormed(d)) return "invalid";
     const date = clampDate(d, rows.startDate, rows.endDate);
@@ -236,7 +263,14 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
 }
 
 /** What every day of one window shares — built once per getDays call. */
-function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[], travel: TravelLookup) {
+function shareAcrossDays(
+  tripId: string,
+  rows: DayRows,
+  costs: CostRow[],
+  travel: TravelLookup,
+  hopModes: Map<string, HopModeChoice>,
+  markedFine: MarkedFineRow[],
+) {
   const { trip, stops, items, transports } = rows;
   const stopById = new Map(stops.map((s) => [s.id, s]));
   // The strip's dots count what the day shows: the dated Items already read, placeholders included.
@@ -247,6 +281,8 @@ function shareAcrossDays(tripId: string, rows: DayRows, costs: CostRow[], travel
   return {
     today: tripTodayISO(stops, trip.homeTimezone),
     travel,
+    hopModes,
+    markedFine,
     stopById,
     itemsByDate,
     windowDates,
@@ -388,13 +424,43 @@ function projectDayView(
     line: shared.line,
   };
 
-  const feasibility = flagTightConnections(
-    items
-      .filter((it) => it.date === date)
-      .map((it) => ({ id: it.id, title: it.title, stopId: it.stopId, date: it.date, startTime: it.startTime, endTime: it.endTime, sortOrder: it.sortOrder, lat: it.lat, lng: it.lng })),
-    transports.map((t) => ({ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, mode: t.mode })),
-    { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph, lookup: shared.travel, travelStops: rows.stops },
-  ).map((f) => ({ severity: f.severity, message: f.message }));
+  const tight = applyMarkedFine(
+    flagTightConnections(
+      items
+        .filter((it) => it.date === date)
+        .map((it) => ({ id: it.id, title: it.title, stopId: it.stopId, date: it.date, startTime: it.startTime, endTime: it.endTime, sortOrder: it.sortOrder, lat: it.lat, lng: it.lng, endLat: it.endLat, endLng: it.endLng })),
+      transports.map((t) => ({ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, mode: t.mode })),
+      { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph, lookup: shared.travel, travelStops: rows.stops, hopModes: shared.hopModes },
+    ),
+    shared.markedFine,
+  );
+  const feasibility = tight.shown.map((f) => ({
+    fine: { flagId: f.id, fingerprint: f.fingerprint, between: f.between },
+    severity: f.severity,
+    message: f.message,
+    hop: f.hop,
+  }));
+  const markedFine = tight.markedFine.map((f) => ({ flagId: f.id, message: f.message, markedByName: f.markedByName }));
+
+  const titleById = new Map(items.map((it) => [it.id, it.title]));
+  const hops: DayHopEntry[] = resolvedPlanHops({
+    dayItems: items.filter((it) => it.date === date),
+    stops: rows.stops,
+    transports: rows.transports,
+    lookup: shared.travel,
+    estimateOpts: { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph },
+    hopModes: shared.hopModes,
+  }).map(({ fromId, toId, resolved, forced }) => ({
+    fromItemId: fromId,
+    toItemId: toId,
+    fromTitle: titleById.get(fromId) ?? "",
+    toTitle: titleById.get(toId) ?? "",
+    minutes: Math.round(resolved.minutes),
+    travel: resolved.mode,
+    estimated: resolved.estimated,
+    mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
+    modeSetByHand: forced !== undefined,
+  }));
 
   const stopTimezone = dayStop?.timezone ?? "UTC";
   const isFirst = date === startDate;
@@ -436,7 +502,7 @@ function projectDayView(
     planCount: ordered.entries.length + ordered.anytime.length,
     editor,
     itemDirections: model.itemDirections,
-    dayMap: withDayMapHops(model.dayMap, rows, date, shared.travel),
+    dayMap: withDayMapHops(model.dayMap, rows, date, shared.travel, shared.hopModes),
     attachmentsByTarget: model.attachmentsByTarget,
     needsConfirmationIds: day.needsConfirmationIds,
     stopOptions: shared.stopOptions,
@@ -448,6 +514,9 @@ function projectDayView(
     holidays: holidayLines.get(date) ?? [],
     journal,
     feasibility,
+    markedFine,
+    hops,
+    surprise: daySurprise(rows.stops, date, dayStop?.id ?? null),
     weatherInput: dayStop?.lat != null && dayStop?.lng != null ? { lat: dayStop.lat, lng: dayStop.lng, timezone: stopTimezone } : null,
   };
 }
