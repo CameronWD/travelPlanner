@@ -51,7 +51,7 @@ function StayMapLink({ a, className }: { a: StayPanelAccommodation; className: s
 
 function StayCost({ cost, paid, className }: { cost: string; paid: ReturnType<typeof costPaidState>; className?: string }) {
   return (
-    <p className={cn("flex items-center gap-1.5", className)}>
+    <p className={cn("flex flex-wrap items-center gap-1.5", className)}>
       <span className="font-semibold text-foreground">{cost}</span>
       {paid === "paid" ? <Badge variant="teal">Paid</Badge> : <Badge variant="muted">Unpaid</Badge>}
     </p>
@@ -60,8 +60,8 @@ function StayCost({ cost, paid, className }: { cost: string; paid: ReturnType<ty
 
 function StayToBook({ a }: { a: StayPanelAccommodation }) {
   return (
-    <p className="flex items-center gap-1.5">
-      <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} />
+    <p className="flex min-w-0 items-center gap-1.5">
+      <BookingStateBadge state={a.bookingState} bookBy={a.bookBy} className="min-w-0 shrink flex-wrap" />
     </p>
   );
 }

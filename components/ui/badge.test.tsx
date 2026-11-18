@@ -25,3 +25,13 @@ describe("Badge status variants", () => {
     expect(screen.getByText("S").className).toMatch(/\bbg-sun\b/);
   });
 });
+
+describe("Badge size", () => {
+  it("is 10px below lg and 12px with more padding from lg up", () => {
+    render(<Badge>Size</Badge>);
+    const cls = screen.getByText("Size").className;
+    expect(cls).toMatch(/(^|\s)text-\[10px\](\s|$)/);
+    expect(cls).toMatch(/(^|\s)lg:text-xs(\s|$)/);
+    expect(cls).toMatch(/(^|\s)lg:px-2\.5(\s|$)/);
+  });
+});

@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
  * For clickable chips use <Chip> (components/ui/chip.tsx).
  */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border px-2 py-0.5 text-[10px] font-extrabold leading-tight [&_svg]:size-3 [&_svg]:shrink-0",
+  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border px-2 py-0.5 text-[10px] lg:px-2.5 lg:text-xs font-extrabold leading-tight [&_svg]:size-3 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

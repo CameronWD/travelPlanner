@@ -47,7 +47,7 @@ export function TransportCountdown({ depAt, depTimeLabel, depZone, label, attach
   // "Leaves" time. Coral is the kit's primary accent here, not a status.
   return (
     <Card tone="coral" shadow={4} radius="xl" className="p-[18px] lg:p-6">
-      <Badge caps className="self-start">
+      <Badge caps className="max-w-full self-start whitespace-normal">
         <Timer aria-hidden="true" />
         Next departure{countdown}
       </Badge>
