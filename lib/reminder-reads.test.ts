@@ -110,9 +110,21 @@ describe("listRemindersForTrip", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, loadSurpriseVisibilityMock);
     expect(reminderFindManyMock.mock.calls[0][0].where).toEqual({
       tripId: TRIP_ID,
-      date: { gte: "2026-07-01" }, dismissedAt: null,
+      date: { gte: "2026-07-01" },
+      dismissedAt: null,
       ...MARKER_WHERE.reminder,
     });
+  });
+});
+
+describe("listRemindersForTrip includeDismissed", () => {
+  it("drops the dismissed filter, and the rows say dismissed", async () => {
+    reminderFindManyMock.mockResolvedValue([
+      { id: "d", title: "d", date: "2026-07-02", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, dismissedAt: new Date("2026-06-30") },
+    ]);
+    const out = await listRemindersForTrip(TRIP_ID, "2026-07-01", { includeDismissed: true });
+    expect(reminderFindManyMock.mock.calls[0][0].where).not.toHaveProperty("dismissedAt");
+    expect(out.map((r) => r.dismissed)).toEqual([true]);
   });
 });
 

@@ -20,6 +20,9 @@ export type { ReminderItem } from "@/lib/reminder-about";
  * flagged `past` (the Checklists card's "Earlier"); they pass through the
  * same Surprise fragment, so a hidden thing's Reminder stays absent.
  *
+ * Dismissed Reminders are left out unless `includeDismissed` (the Claude
+ * connection's way to find one to bring back).
+ *
  * Called by the trip Home, the Checklists page, the Trips page loader and the
  * Claude connection's get_reminders. Access-checked: `requireTripAccess` is
  * the first statement. Surprise (ADR 0051, spec F8): a Reminder about a Stop
@@ -29,13 +32,14 @@ export type { ReminderItem } from "@/lib/reminder-about";
 export async function listRemindersForTrip(
   tripId: string,
   fromDate: string,
-  opts: { includePast?: boolean } = {},
+  opts: { includePast?: boolean; includeDismissed?: boolean } = {},
 ): Promise<ReminderItem[]> {
   const { user } = await requireTripAccess(tripId);
   const v = await loadSurpriseVisibility(tripId, user.id);
+  const live = opts.includeDismissed ? {} : { dismissedAt: null };
 
   const upcoming = await db.reminder.findMany({
-    where: { tripId, date: { gte: fromDate }, dismissedAt: null, ...v.where.reminder },
+    where: { tripId, date: { gte: fromDate }, ...live, ...v.where.reminder },
     orderBy: { date: "asc" },
     take: 20,
     select: REMINDER_ITEM_SELECT,
@@ -43,7 +47,7 @@ export async function listRemindersForTrip(
   if (!opts.includePast) return upcoming.map(toReminderItem);
 
   const earlier = await db.reminder.findMany({
-    where: { tripId, date: { lt: fromDate }, dismissedAt: null, ...v.where.reminder },
+    where: { tripId, date: { lt: fromDate }, ...live, ...v.where.reminder },
     orderBy: { date: "desc" },
     take: 20,
     select: REMINDER_ITEM_SELECT,

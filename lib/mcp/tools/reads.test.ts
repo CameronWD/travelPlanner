@@ -449,10 +449,17 @@ describe("read tools", () => {
     ]);
     const c = await connectTestClient();
     const r = await c.callTool({ name: "get_reminders", arguments: { tripId: TRIP_ID, fromDate: "2026-03-01" } });
-    expect(listRemindersForTrip).toHaveBeenCalledWith(TRIP_ID, "2026-03-01");
+    expect(listRemindersForTrip).toHaveBeenCalledWith(TRIP_ID, "2026-03-01", { includeDismissed: undefined });
     expect(JSON.parse((r.content as { text: string }[])[0].text)).toEqual([
       reminderItem({ id: "r1", title: "Buy visa", date: "2026-03-01", notes: "Apply online", itemId: "i1", itemTitle: "Visa office" }),
     ]);
+  });
+
+  it("get_reminders passes includeDismissed through", async () => {
+    listRemindersForTrip.mockResolvedValue([]);
+    const c = await connectTestClient();
+    await c.callTool({ name: "get_reminders", arguments: { tripId: TRIP_ID, fromDate: "2026-03-01", includeDismissed: true } });
+    expect(listRemindersForTrip).toHaveBeenCalledWith(TRIP_ID, "2026-03-01", { includeDismissed: true });
   });
 
   it("get_checklists sorts each kind and includes templates", async () => {
