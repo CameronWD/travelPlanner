@@ -77,7 +77,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       mapProps={{
         defaultCenter: { lat: 20, lng: 0 },
         defaultZoom: 2,
-        minZoom: wide === false ? 1 : 2,
+        minZoom: wide === false ? 0 : 2,
         restriction: WORLD_RESTRICTION,
         onClick: (e: MapMouseEvent) => {
           const at = e.detail.latLng;
@@ -85,7 +85,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
         },
       }}
     >
-      <FitInitial points={located} padding={wide === false ? 16 : 40} />
+      <FitInitial points={located} padding={wide === false ? 32 : 40} />
       <FitArrival pins={arrival} />
       <PanToSelected selectedId={selectedId} located={located} />
       {located.map((mk) => {

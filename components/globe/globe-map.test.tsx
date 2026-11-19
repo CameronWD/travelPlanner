@@ -196,11 +196,11 @@ describe("GlobeMap map clicks and world view", () => {
     }));
   }
 
-  it("on a phone lets the map zoom out to 1 and fits its markers with a 16px padding", () => {
+  it("on a phone lets the map zoom out to 0 and fits its markers with a 32px padding", () => {
     stubWide(false);
     render(globeElement());
-    expect(lastMapProps()).toMatchObject({ minZoom: 1 });
-    expect(mock.map.fitBounds.mock.calls[0][1]).toBe(16);
+    expect(lastMapProps()).toMatchObject({ minZoom: 0 });
+    expect(mock.map.fitBounds.mock.calls[0][1]).toBe(32);
     vi.unstubAllGlobals();
   });
 
