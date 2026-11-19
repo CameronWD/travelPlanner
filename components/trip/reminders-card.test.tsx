@@ -512,7 +512,7 @@ describe("RemindersCard Earlier", () => {
     await userEvent.setup().click(within(earlier).getByRole("button", { name: /^Got it.*Newer one/ }));
     await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("p2", { dismissed: true }));
     await userEvent.setup().click(within(earlier).getByRole("button", { name: "Edit reminder: Older one" }));
-    expect(await screen.findByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Edit Reminder" })).toBeInTheDocument();
   });
 
   it("shows no Earlier heading when nothing is past", () => {

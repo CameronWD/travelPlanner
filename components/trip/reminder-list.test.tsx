@@ -42,7 +42,7 @@ describe("ReminderList", () => {
       </form>,
     );
     await user.click(screen.getByRole("button", { name: "Edit reminder: Book the Louvre" }));
-    expect(await screen.findByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Edit Reminder" })).toBeInTheDocument();
     expect(screen.getByLabelText(/reminder title/i)).toHaveValue("Book the Louvre");
     await user.click(screen.getByRole("button", { name: /save reminder/i }));
     await waitFor(() => expect(updateReminder).toHaveBeenCalledWith("r1", { title: "Book the Louvre", date: "2026-11-20", notes: "Timed" }));
