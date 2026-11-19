@@ -33,7 +33,6 @@ describe("formatRate", () => {
     expect(formatRate(1e-7)).toBe("0.0000001");
   });
 
-
   it("shows 4 significant figures for a normal rate (e.g. 1.2345)", () => {
     expect(formatRate(1.2345678)).toBe("1.235");
   });
@@ -120,7 +119,7 @@ describe("RatesPanel editor for an inverted rate", () => {
   it("opens with the home currency first and the inverted figure", async () => {
     await open();
     expect(screen.getByText("1 AUD =")).toBeInTheDocument();
-    expect(screen.getByRole("spinbutton")).toHaveValue(1 / 0.0000612 > 1000 ? Math.round(1 / 0.0000612) : 0);
+    expect(screen.getByRole("spinbutton")).toHaveValue(Number(formatRate(1 / 0.0000612)));
   });
 
   it("stores the reciprocal of what was entered", async () => {

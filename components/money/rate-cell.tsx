@@ -7,6 +7,10 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from 
 import { RatesPanel, displayRate, type RateEntry } from "@/components/trip/rates-panel";
 import { cn } from "@/lib/cn";
 
+export function rateFigureFontSize(n: number): string {
+  return `clamp(9px, calc(100cqw / ${Number((n * 0.62).toFixed(2))}), 17px)`;
+}
+
 /** One rate cell in the Rates strip: fetched, stale, or missing (MONEY.md §6). */
 export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; homeCurrency: string; entry: RateEntry }) {
   const [open, setOpen] = React.useState(false);
@@ -39,18 +43,17 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
           )}
         >
           <span className="text-[13px] font-extrabold">{shown?.inverted ? `1 ${shown.from} =` : entry.currency}</span>
-          <span className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1">
-            <span
-              className={cn(
-                "whitespace-nowrap font-display font-extrabold tabular-nums",
-                shown ? (shown.figure.length >= 10 ? "text-[12px]" : shown.figure.length >= 7 ? "text-[14px]" : "text-[17px]") : "text-[17px]",
-                stale && "text-sun-text",
-              )}
-            >
-              {shown ? shown.figure : "Set rate"}
+          <span className="@container w-full min-w-0">
+            <span className="flex flex-wrap items-baseline gap-x-1">
+              <span
+                className={cn("whitespace-nowrap font-display font-extrabold tabular-nums", stale && "text-sun-text")}
+                style={{ fontSize: rateFigureFontSize(shown ? shown.figure.length : "Set rate".length) }}
+              >
+                {shown ? shown.figure : "Set rate"}
+              </span>
+              {shown?.inverted ? <span className="text-[12px] font-bold text-muted-foreground">{shown.to}</span> : null}
+              {stale ? <RefreshCw className="size-3.5 text-sun-text" aria-hidden="true" /> : null}
             </span>
-            {shown?.inverted ? <span className="text-[12px] font-bold text-muted-foreground">{shown.to}</span> : null}
-            {stale ? <RefreshCw className="size-3.5 text-sun-text" aria-hidden="true" /> : null}
           </span>
         </button>
       </DialogTrigger>

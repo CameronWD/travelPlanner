@@ -17,6 +17,7 @@ vi.mock("@/components/trip/rates-panel", async (orig) => ({
 }));
 
 import { RatesStrip } from "./rates-strip";
+import { rateFigureFontSize } from "./rate-cell";
 import { formatRate, type RateEntry } from "@/components/trip/rates-panel";
 
 const RATES: RateEntry[] = [
@@ -88,18 +89,18 @@ describe("Rates strip (MONEY.md §6)", () => {
     expect(cell.textContent).toContain("VND");
   });
 
-  it("steps the figure down by its number length: up to 6, 7 to 9, 10 or more", () => {
-    const rates: RateEntry[] = [
-      { currency: "EUR", rate: 123456.7, source: "fetched", stale: false },
-      { currency: "VND", rate: 0.0000001, source: "fetched", stale: false },
-      { currency: "ZWL", rate: 0.000000001, source: "fetched", stale: false },
-    ];
-    render(<RatesStrip {...base} rates={rates} />);
-    expect(screen.getByText("123457").className).toContain("text-[17px]");
-    expect(screen.getByText("10000000").className).toContain("text-[14px]");
-    const ten = screen.getByText("1000000000");
-    expect(ten.className).toContain("text-[12px]");
-    expect(ten.className).not.toContain("truncate");
+  it("sizes the figure from its tile, never truncating it", () => {
+    render(<RatesStrip {...base} rates={[{ currency: "ZWL", rate: 0.000000001, source: "fetched", stale: false }]} />);
+    const figure = screen.getByText("1000000000");
+    expect(figure.parentElement!.parentElement!.className).toContain("@container");
+    expect(figure.className).not.toContain("truncate");
+  });
+
+  it("rateFigureFontSize shrinks with the number's length", () => {
+    expect(rateFigureFontSize(4)).toBe("clamp(9px, calc(100cqw / 2.48), 17px)");
+    expect(rateFigureFontSize(6)).toBe("clamp(9px, calc(100cqw / 3.72), 17px)");
+    expect(rateFigureFontSize(10)).toBe("clamp(9px, calc(100cqw / 6.2), 17px)");
+    expect(rateFigureFontSize(14)).toBe("clamp(9px, calc(100cqw / 8.68), 17px)");
   });
 
   it("M10: a rate that was missing pops once it is set", () => {
