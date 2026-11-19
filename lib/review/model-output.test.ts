@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { ReviewTargets } from "./input-shape";
 import { findingKey } from "./key";
-import { MAX_MODEL_FINDINGS, mergeDrafts, parseReviewOutput, reviewOutputSchema, reviewSummary, toFindingDrafts, type ReviewOutput } from "./model-output";
+import { MAX_MODEL_FINDINGS, clipSummary, mergeDrafts, parseReviewOutput, reviewOutputSchema, reviewSummary, summaryForDisplay, toFindingDrafts, type ReviewOutput } from "./model-output";
 import type { FindingDraft, SuggestedFix } from "./types";
 
 const TARGETS: ReviewTargets = {
@@ -248,5 +248,35 @@ describe("reviewSummary", () => {
     expect(reviewSummary({ summary: " ", findings: [] }, 0)).toBe("Nothing to look at.");
     expect(reviewSummary({ summary: "", findings: [] }, 1)).toBe("1 thing to look at.");
     expect(reviewSummary({ summary: "", findings: [] }, 3)).toBe("3 things to look at.");
+  });
+});
+
+describe("clipSummary", () => {
+  it("cuts a long text at a word and ends on an ellipsis within the cap", () => {
+    const text = "word ".repeat(50).trim();
+    const out = clipSummary(text);
+    expect(out.length).toBeLessThanOrEqual(200);
+    expect(out.endsWith("word…")).toBe(true);
+  });
+  it("returns text of exactly 200 characters unchanged", () => {
+    const text = "a".repeat(199) + ".";
+    expect(clipSummary(text)).toBe(text);
+  });
+  it("hard cuts when the first 200 characters hold no space", () => {
+    const out = clipSummary("x".repeat(250) + " tail");
+    expect(out).toBe("x".repeat(199) + "…");
+  });
+  it("trims trailing punctuation before the ellipsis", () => {
+    expect(clipSummary("One, two, three, four, five.", 12)).toBe("One, two…");
+  });
+});
+
+describe("summaryForDisplay", () => {
+  it("adds an ellipsis only to an unterminated 200-character string", () => {
+    const cut = "x".repeat(200);
+    expect(summaryForDisplay(cut)).toBe(cut + "…");
+    expect(summaryForDisplay("x".repeat(199) + ".")).toBe("x".repeat(199) + ".");
+    expect(summaryForDisplay("x".repeat(199) + "…")).toBe("x".repeat(199) + "…");
+    expect(summaryForDisplay("Short summary")).toBe("Short summary");
   });
 });
