@@ -83,6 +83,27 @@ describe("FindingList (R8, R10, spec 2026-10-18 A1, A2, A5)", () => {
     await waitFor(() => expect(within(row("Night train not booked")).getByText("Open")).toBeInTheDocument());
   });
 
+  it("a card carries its severity in a band, with the same border as every other card", () => {
+    const { container } = render(
+      <FindingList
+        actionable
+        open={openGroups(card(), card({ id: "f2", severity: "info", title: "Pack layers", fix: null, goTo: null, canApply: false, source: null }))}
+        dealtWith={[]}
+      />,
+    );
+    expect(row("Night train not booked").querySelector('[data-slot="finding-band"]')).toHaveClass("bg-warning");
+    expect(row("Pack layers").querySelector('[data-slot="finding-band"]')).toHaveClass("bg-hue-sky");
+    for (const li of container.querySelectorAll("li")) expect(li).toHaveClass("border-2", "border-border");
+  });
+
+  it("the actions sit in the text column, under the text", () => {
+    render(<FindingList actionable open={openGroups(card())} dealtWith={[]} />);
+    const apply = screen.getByRole("button", { name: "Apply: Night train not booked" });
+    const column = apply.closest(".flex-col") as HTMLElement;
+    expect(column).toContainElement(screen.getByText("Sells out in December."));
+    expect(screen.getByText("Sells out in December.")).toHaveClass("max-w-reading");
+  });
+
   it("an Open row-fix card shows Apply, its go-to and Dismiss together", () => {
     render(<FindingList actionable open={openGroups(card())} dealtWith={[]} />);
     const r = within(row("Night train not booked"));

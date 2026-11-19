@@ -41,6 +41,7 @@ describe("ConnectedAppsPanel", () => {
     expect(screen.getByText(/Returns to claude\.ai/)).toBeInTheDocument();
     expect(screen.getByText(/Connected 12 Oct/)).toBeInTheDocument();
     expect(screen.getByText(/Last used 2h ago/)).toBeInTheDocument();
+    expect(screen.getByText(/Connected 12 Oct/).className).not.toContain("truncate");
   });
 
   it("says an app that has not called yet is not used yet", () => {

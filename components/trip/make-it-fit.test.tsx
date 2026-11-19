@@ -89,7 +89,7 @@ describe("MakeItFit", () => {
 
     await screen.findByText(/Drop "Rome"\?/i);
 
-    // Cancel
+    expect(screen.getByRole("button", { name: /cancel/i }).className).not.toContain("border-transparent");
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(deleteStop).not.toHaveBeenCalled();
   });

@@ -28,6 +28,12 @@ describe("TripCardHero", () => {
     expect(screen.getByText("67")).toBeInTheDocument();
     expect(screen.getByTestId("cover")).toHaveAttribute("data-size", "hero");
   });
+  it("wraps a long next-step title to two lines instead of truncating it", () => {
+    render(<TripCardHero model={hero} />);
+    const title = screen.getByText("Add times to 6 transport legs");
+    expect(title).toHaveClass("line-clamp-2");
+    expect(title).not.toHaveClass("truncate");
+  });
   it("hides the chip when there is nothing to do", () => {
     render(<TripCardHero model={{ ...hero, nextStep: null }} />);
     expect(screen.queryByRole("link", { name: /transport/ })).toBeNull();

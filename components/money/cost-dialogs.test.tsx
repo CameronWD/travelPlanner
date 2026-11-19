@@ -25,7 +25,7 @@ describe("OtherCostFormDialog", () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(<OtherCostFormDialog tripId="trip-1" homeCurrency="AUD" open onOpenChange={onOpenChange} />);
-    expect(screen.getByRole("heading", { name: "Add a cost" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add a Cost" })).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText(/travel insurance/i), "eSIM");
     await user.type(screen.getByLabelText(/cost amount/i), "30");
     await user.click(screen.getByRole("button", { name: /save/i }));
@@ -36,7 +36,7 @@ describe("OtherCostFormDialog", () => {
   it("edits an existing cost, prefilled", async () => {
     const user = userEvent.setup();
     render(<OtherCostFormDialog tripId="trip-1" homeCurrency="AUD" cost={other} open onOpenChange={() => {}} />);
-    expect(screen.getByRole("heading", { name: "Edit cost" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edit Cost" })).toBeInTheDocument();
     expect(screen.getByLabelText(/cost amount/i)).toHaveValue("12.50");
     await user.click(screen.getByRole("button", { name: /save/i }));
     expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ costMinor: 1250, ownerType: "OTHER" }));

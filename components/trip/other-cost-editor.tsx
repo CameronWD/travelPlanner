@@ -293,7 +293,7 @@ function OtherCostDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="md"
               disabled={submitting}
               onClick={onCancel}
@@ -362,7 +362,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
           onOpenChange(false);
         }
       }}
-      title={cost ? "Edit cost" : "Add a cost"}
+      title={cost ? "Edit Cost" : "Add a Cost"}
       onSubmit={handleSubmit}
       initialState={cost ? costToFormState(cost) : defaultFormState(defaults ?? PLAIN_DEFAULTS(homeCurrency))}
       submitting={submitting}

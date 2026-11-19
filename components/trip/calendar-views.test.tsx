@@ -302,6 +302,16 @@ describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
     expect(prev).toBeDisabled();
   });
 
+  it("the toolbar is hidden on a phone in agenda view and not in month view", () => {
+    mockEnv(true, "agenda");
+    const agenda = render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+    expect(agenda.getByRole("heading", { level: 2, name: "Agenda", hidden: true }).parentElement).toHaveClass("max-sm:hidden");
+    agenda.unmount();
+    mockEnv(true, "month");
+    const month = render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+    expect(month.getByRole("heading", { level: 2, name: "August 2026" }).parentElement).not.toHaveClass("max-sm:hidden");
+  });
+
   it("the wishlist rail is a kit Card with a labelled, stateful toggle and kit rows", () => {
     mockEnv(true, "month");
     const { container } = render(<CalendarViews {...baseProps} wishlistItems={wishlistItems} />);

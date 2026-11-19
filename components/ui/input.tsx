@@ -2,6 +2,9 @@ import * as React from "react";
 import { useFieldControl } from "@/components/ui/field";
 import { cn } from "@/lib/cn";
 
+export const INPUT_FRAME_CLASS = "rounded-md border-2 border-input bg-card";
+export const INPUT_TEXT_CLASS = "text-base font-semibold text-foreground sm:text-[15px]";
+
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   /** Visually mark the field as invalid and wire aria-invalid. */
   invalid?: boolean;
@@ -12,6 +15,8 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 /** Outlined field that lifts with a hard shadow on focus. API unchanged (+ inputSize). */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, invalid, inputSize = "m", type = "text", ...props }, ref) => {
   const fieldProps = useFieldControl();
+  const [uncontrolledEmpty, setUncontrolledEmpty] = React.useState(props.defaultValue === undefined || props.defaultValue === "");
+  const empty = type === "date" && (props.value !== undefined ? props.value === "" : uncontrolledEmpty);
   const ariaInvalid = invalid || props["aria-invalid"] || fieldProps["aria-invalid"];
   return (
     <input
@@ -19,9 +24,16 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, inval
       type={type}
       {...fieldProps}
       {...props}
+      onChange={(e) => {
+        setUncontrolledEmpty(e.currentTarget.value === "");
+        props.onChange?.(e);
+      }}
       aria-invalid={ariaInvalid}
+      data-empty={empty ? "" : undefined}
       className={cn(
-        "flex w-full rounded-md border-2 border-input bg-card px-4 text-base font-semibold text-foreground sm:text-[15px]",
+        "flex w-full px-4",
+        INPUT_FRAME_CLASS,
+        INPUT_TEXT_CLASS,
         inputSize === "l" ? "h-14 sm:text-[17px]" : "h-12",
         "placeholder:font-medium placeholder:text-muted-foreground",
         "transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop",
@@ -33,6 +45,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, inval
         "disabled:cursor-not-allowed disabled:opacity-45",
         "aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:outline-destructive motion-safe:aria-[invalid=true]:tp-wiggle",
         "file:border-0 file:bg-transparent file:text-sm file:font-bold",
+        type === "date" &&
+          "appearance-none text-left [&::-webkit-date-and-time-value]:min-h-[1.5em] [&::-webkit-date-and-time-value]:text-left data-[empty]:font-medium data-[empty]:text-muted-foreground",
         className,
       )}
     />

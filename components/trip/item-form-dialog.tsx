@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DIALOG_DESTRUCTIVE_CLASS,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -1102,8 +1103,8 @@ function ItemForm({
         {isEdit && (
           <Button
             type="button"
-            variant="ghost"
-            className="sm:mr-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+            variant="outline"
+            className={DIALOG_DESTRUCTIVE_CLASS}
             onClick={() => void handleDelete()}
             loading={deleting}
             disabled={isPending || deleting}

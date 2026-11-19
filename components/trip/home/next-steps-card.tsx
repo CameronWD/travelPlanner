@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowRight, Info, CheckCircle2, ChevronRight } from "luc
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import { CountBadge } from "@/components/ui/count-badge";
+import { ROW_NAME_CLASS } from "@/components/ui/row-text";
 import type { NextStep } from "@/lib/next-steps";
 
 interface NextStepsCardProps {
@@ -61,7 +62,7 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
                     )}
                   </span>
                   <span className="min-w-0 flex-1 leading-tight">
-                    <span className="block text-[15px] font-semibold text-foreground">{step.title}</span>
+                    <span className={cn(ROW_NAME_CLASS, "text-[15px] font-semibold text-foreground")}>{step.title}</span>
                     {step.subtitle && (
                       <span className="block text-xs font-medium text-muted-foreground">{step.subtitle}</span>
                     )}

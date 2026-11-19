@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/cn";
+import { ROW_FIGURE_CLASS, ROW_NAME_CLASS } from "@/components/ui/row-text";
 import { formatMoney } from "@/lib/money/money";
 import { tripPath } from "@/lib/trip-path";
 import { paymentAmountParts, type UpcomingPayment } from "@/lib/money/upcoming-payments";
@@ -46,13 +48,13 @@ export function UpcomingPaymentsCard({ payments, tripSlug }: UpcomingPaymentsCar
             <li key={payment.costId}>
               <Link
                 href={href}
-                className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 py-2 text-[13px] transition-colors hover:bg-muted/40"
+                className="flex min-h-11 items-center gap-x-3 gap-y-1 py-2 text-[13px] transition-colors hover:bg-muted/40"
               >
-                <span className="min-w-0 flex-1 truncate font-extrabold text-foreground">{payment.label}</span>
-                <span className="flex max-w-full shrink-0 flex-col items-end tabular-nums">
-                  <span className="break-words font-extrabold text-foreground">{amount.main}</span>
+                <span className={cn(ROW_NAME_CLASS, "font-extrabold text-foreground")}>{payment.label}</span>
+                <span className={cn(ROW_FIGURE_CLASS, "flex flex-col items-end")}>
+                  <span className="font-extrabold text-foreground">{amount.main}</span>
                   {amount.original ? (
-                    <span className="break-words text-xs font-semibold text-muted-foreground">{amount.original}</span>
+                    <span className="text-xs font-semibold text-muted-foreground">{amount.original}</span>
                   ) : null}
                 </span>
                 {/* Overdue is a state, so it takes the status token, not an accent hue. */}
@@ -61,7 +63,7 @@ export function UpcomingPaymentsCard({ payments, tripSlug }: UpcomingPaymentsCar
                     {timingPhrase(payment.daysUntil)}
                   </Badge>
                 ) : (
-                  <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                  <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-muted-foreground">
                     {timingPhrase(payment.daysUntil)}
                   </span>
                 )}

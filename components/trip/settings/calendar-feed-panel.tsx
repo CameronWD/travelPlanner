@@ -140,7 +140,7 @@ export function CalendarFeedPanel({
       <>
         {dialog}
         <div className="flex flex-col gap-3">
-          <p className="max-w-reading text-sm text-muted-foreground">
+          <p className="max-w-reading text-xs text-muted-foreground">
             No calendar feed active. Create one to subscribe in Google, Apple or Outlook Calendar.
           </p>
           <div>

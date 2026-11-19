@@ -383,7 +383,7 @@ function DropConfirmDialog({ stopId, stopName, onCancel, onConfirm }: DropConfir
           <StopDeletionLossList preview={preview} heading="Dropping this stop will also destroy:" />
         )}
         <DialogFooter>
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
           <Button variant="destructive" disabled={!ready} onClick={onConfirm}>

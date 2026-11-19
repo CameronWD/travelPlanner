@@ -373,6 +373,15 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     expect(container.querySelector("[data-stop-open]")!.getAttribute("data-stop-open")).toBe("s1");
   });
 
+  it("before: the map sits in column 1 under the hero while the route list spans both rows beside them", async () => {
+    const { container } = await renderStage("before");
+    const cell = (key: string) => container.querySelector<HTMLElement>(`[data-share-section='${key}']`)!;
+    expect(cell("map").className).toContain("lg:order-3");
+    expect(cell("map").className).not.toContain("lg:col-span-2");
+    expect(cell("route").className).toContain("lg:row-span-2");
+    expect(cell("route").className).toContain("lg:[&>div>div>section]:h-full");
+  });
+
   it("during: hero → right-now → next → journal → map → route → days → cta", async () => {
     const { container } = await renderStage("during");
     expect(sectionOrder(container)).toEqual(["hero", "right-now", "next", "journal", "map", "route", "days", "cta"]);

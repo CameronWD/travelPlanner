@@ -34,6 +34,15 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     expect(onClick).toHaveBeenCalled();
   });
 
+  it("the date gives up width before the destination does, and a stacked pill fills its column on a phone", () => {
+    render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
+    const sub = screen.getByText("Tue 15 Dec 10:05");
+    expect(sub.className).toContain("shrink-[100]");
+    expect(sub.className).toContain("truncate");
+    expect(screen.getByText("Flight CDG → FCO").className).not.toContain("shrink-0");
+    expect(screen.getByRole("button", { name: FLIGHT.accessibleName }).className).toContain("max-md:w-full");
+  });
+
   it("the missing pill is dashed on paper with a coral Add", () => {
     render(<LegPill label={MISSING} onClick={vi.fn()} />);
     const pill = screen.getByRole("button", { name: "Add transport from Rome to Florence" });
@@ -147,7 +156,7 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(pill.className).toContain("min-w-0");
     expect(pill.className).not.toContain("shrink-0");
     expect(screen.getByText("Drive Devonport → Launceston").className).toContain("truncate");
-    expect(screen.getByText("Tue 22 Sep 08:00").className).toContain("shrink-0");
+    expect(screen.getByText("Tue 22 Sep 08:00").className).toContain("shrink-[100]");
   });
 });
 

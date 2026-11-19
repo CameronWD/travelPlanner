@@ -30,6 +30,9 @@ import { WhatsAroundSwitch } from "@/components/trip/settings/whats-around-switc
 import { ChaptersSwitch } from "@/components/trip/settings/chapters-switch";
 import { SavedForOffline } from "@/components/trip/settings/saved-for-offline";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -43,10 +46,10 @@ export const metadata: Metadata = { title: "Settings" };
  * Travellers, Sharing, Digest, Calendar feed, Driving estimates, Danger
  * zone. The two multi-card groups are `contents` below lg (so every card is
  * a direct one-column grid item) and flex columns from lg; each slot is then
- * placed explicitly. Rows are `auto 1fr auto`: the right group spans rows
- * 1–2 and Driving spans rows 2–3, so both cross the `1fr` row and neither
- * column's height forces a gap under the other's cards (a spanning item
- * never grows the `auto` rows it crosses when one of its tracks is flexible).
+ * placed explicitly. Rows are `auto 1fr auto`: the left group spans rows 1–2,
+ * the right group takes row 1 alone so only it sizes that row, and the Danger
+ * zone sits at the top of the flexible row 2 right under it, one gap under
+ * Calendar feed however tall the left column is. Driving estimates open row 3.
  */
 export const SETTINGS_GRID_CLASS =
   "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto]";
@@ -117,7 +120,8 @@ export default async function SettingsPage({
 
   if (!trip) notFound();
 
-  const [shareLinks, calendarFeed, digestSettings, chapters] = await Promise.all([
+  const [slug, shareLinks, calendarFeed, digestSettings, chapters] = await Promise.all([
+    tripSlugFor(tripId),
     listShareLinks(tripId),
     getCalendarFeed(tripId),
     getDigestSettings(tripId),
@@ -139,18 +143,27 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <div className="mx-auto flex flex-col gap-3.5">
-      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Settings</h2>
+    <div className="flex flex-col gap-6">
+      <PageHeader eyebrow={trip.name} title="Settings" trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />} />
 
       <div className={SETTINGS_GRID_CLASS}>
         {/* ── Left column (lg), top: this trip's own content ── */}
-        <div data-slot="settings-slot" className={cn(SLOT_GROUP_CLASS, "lg:col-start-1 lg:row-start-1")}>
+        <div data-slot="settings-slot" className={cn(SLOT_GROUP_CLASS, "lg:col-start-1 lg:row-span-2 lg:row-start-1")}>
           {/* ── Trip details ── */}
           <Card>
             <CardHeader className="p-5 pb-0">
               <CardTitle className="font-display text-base font-bold tracking-tight">Trip details</CardTitle>
             </CardHeader>
             <CardContent className="p-5 pt-3">
+              <div className="mb-6">
+                <CoverImageField
+                  tripId={tripId}
+                  hasCover={trip.coverImageKey != null}
+                  coverVersion={trip.coverImageKey}
+                  focalX={trip.coverFocalX}
+                  focalY={trip.coverFocalY}
+                />
+              </div>
               <TripDetailsForm
                 tripId={tripId}
                 defaultValues={{
@@ -166,15 +179,6 @@ export default async function SettingsPage({
                   forksEnabled: trip.forksEnabled,
                 }}
               />
-              <div className="mt-6">
-                <CoverImageField
-                  tripId={tripId}
-                  hasCover={trip.coverImageKey != null}
-                  coverVersion={trip.coverImageKey}
-                  focalX={trip.coverFocalX}
-                  focalY={trip.coverFocalY}
-                />
-              </div>
             </CardContent>
           </Card>
 
@@ -234,7 +238,7 @@ export default async function SettingsPage({
         {/* ── Right column (lg): travellers/sharing and outward delivery ── */}
         <div
           data-slot="settings-slot"
-          className={cn(SLOT_GROUP_CLASS, "lg:col-start-2 lg:row-span-2 lg:row-start-1")}
+          className={cn(SLOT_GROUP_CLASS, "lg:col-start-2 lg:row-start-1")}
         >
           {/* ── Travellers ── */}
           <Card id="travellers" className="scroll-mt-20 md:scroll-mt-6">
@@ -317,7 +321,7 @@ export default async function SettingsPage({
         </div>
 
         {/* ── Left column (lg), under Details/Chapters — second to last on phones ── */}
-        <div data-slot="settings-slot" className="lg:col-start-1 lg:row-span-2 lg:row-start-2">
+        <div data-slot="settings-slot" className="lg:col-start-1 lg:row-start-3">
           {/* ── Driving estimates ── */}
           <Card>
             <CardHeader className="p-5 pb-0">
@@ -339,7 +343,7 @@ export default async function SettingsPage({
 
         {/* ── Danger zone (owner or admin) — includes Duplicate ── */}
         {canManageTrip && (
-          <div data-slot="settings-slot" className="lg:col-start-2 lg:row-start-3">
+          <div data-slot="settings-slot" className="lg:col-start-2 lg:row-start-2">
             <Card className="bg-destructive/5 border-destructive/30">
               <CardHeader className="p-5 pb-0">
                 <CardTitle className="font-display text-base font-bold tracking-tight text-destructive">Danger zone</CardTitle>

@@ -587,6 +587,13 @@ describe("PhasePast desktop layout (spec D)", () => {
     expect(div.querySelector('[data-testid="polaroid"]')).not.toBeNull();
   });
 
+  it("ends the wrap card where its content ends", async () => {
+    const div = await desktopDom();
+    const card = [...div.querySelectorAll("h2")].find((h) => h.textContent === "That's a wrap")!.closest(".gap-4") as HTMLElement;
+    expect(card.className).not.toMatch(/\bh-full\b/);
+    expect(card.querySelector(".mt-auto")).toBeNull();
+  });
+
   it("renders the existing wrap-up content — no new content — as tiles on the 12-column grid", async () => {
     const div = await desktopDom();
     const grid = div.querySelector(".grid-cols-12")!;

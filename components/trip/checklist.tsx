@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { todayISO, todayLocalISO } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea, submitOnEnter } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import {
   Select,
@@ -372,9 +373,12 @@ function EditItemForm({
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4">
       <Field label="Text" required error={error}>
-        <Input
+        <Textarea
+          autoGrow
+          rows={1}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={submitOnEnter}
           disabled={pending}
           autoFocus
         />
@@ -648,7 +652,7 @@ function ChecklistRow({
         {!readOnly && (
           <div
             className={cn(
-              "flex shrink-0 items-center gap-1",
+              "flex shrink-0 items-center gap-1 pointer-coarse:max-sm:gap-2",
               "pointer-fine:absolute pointer-fine:inset-y-0 pointer-fine:right-0 pointer-fine:bg-card pointer-fine:pl-2",
               "pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100",
               "pointer-coarse:max-sm:-mt-1 pointer-coarse:max-sm:mb-1 pointer-coarse:max-sm:basis-full pointer-coarse:max-sm:justify-end",
@@ -715,6 +719,7 @@ function ChecklistRow({
               </DropdownMenu>
             )}
             <RowActions
+              className="pointer-coarse:max-sm:gap-2 [&_button]:pointer-coarse:max-sm:size-11"
               onEdit={() => setEditOpen(true)}
               onDelete={() => requestDelete(item.id)}
               editLabel="Edit Item"
@@ -730,7 +735,7 @@ function ChecklistRow({
 
 /** 32px ghost icon button with a 44px touch hit area — same shape as RowActions. */
 const ROW_ICON_BUTTON =
-  "relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']";
+  "relative size-8 pointer-coarse:max-sm:size-11 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']";
 
 // ---------------------------------------------------------------------------
 // Progress — kit "N of M done" + teal ProgressBar
@@ -798,6 +803,7 @@ export function Checklist({
           <EmptyState
             icon={Check}
             tone="teal"
+            className="border-0 px-0 py-4"
             title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "No packing items yet"}
             description={
               kind === "PRETRIP"

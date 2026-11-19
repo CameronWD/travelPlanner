@@ -152,16 +152,15 @@ function AddReminderForm({
 
   if (!open) {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
+      <button
+        type="button"
         aria-label="Add Reminder"
-        className="gap-2 self-start text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
+        className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-extrabold text-foreground underline-offset-2 hover:underline"
       >
         <Plus className="size-4" aria-hidden="true" />
         Add Reminder
-      </Button>
+      </button>
     );
   }
 

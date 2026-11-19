@@ -343,3 +343,20 @@ describe("OtherCostFormDialog offline (trip-proofing B4)", () => {
     expect(screen.getByLabelText(/cost amount/i)).toHaveValue("99.00");
   });
 });
+
+describe("OtherCostFormDialog: Cancel", () => {
+  it("is an outline button", () => {
+    renderForm();
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+  });
+});
+
+describe("OtherCostFormDialog: titles", () => {
+  it("titles add and edit in Title Case", () => {
+    const { unmount } = renderForm();
+    expect(screen.getByRole("heading", { name: "Add a Cost" })).toBeInTheDocument();
+    unmount();
+    renderForm(sampleCost);
+    expect(screen.getByRole("heading", { name: "Edit Cost" })).toBeInTheDocument();
+  });
+});

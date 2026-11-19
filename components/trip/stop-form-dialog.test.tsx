@@ -347,6 +347,11 @@ describe("StopFormDialog", () => {
       expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
     });
 
+    it("the mode toggle uses the ink tone like Add a stop", () => {
+      render(<StopFormDialog {...baseProps} />);
+      expect(screen.getByRole("radio", { name: "Exact dates" }).className).toContain("data-[state=on]:bg-primary");
+    });
+
     it("editing a dated Trip's only Stop offers no Roughly and says why (ADR 0073)", () => {
       render(<StopFormDialog {...baseProps} stop={LONDON} loneOnDatedTrip tripStartDate="2026-07-01" tripEndDate="2026-07-05" />);
       expect(screen.queryByRole("radio", { name: "Roughly" })).not.toBeInTheDocument();

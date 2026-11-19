@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
 import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { RangeCalendar } from "@/components/ui/range-calendar";
@@ -60,7 +60,7 @@ export function AddStopSheet({ open, onOpenChange, ...rest }: AddStopSheetProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined} className="sm:max-w-[560px] max-sm:h-[calc(100dvh-118px)]">
         <DialogHeader>
-          <DialogTitle className="font-display text-[26px]">Add a stop</DialogTitle>
+          <DialogTitle className="font-display text-[26px]">Add a Stop</DialogTitle>
         </DialogHeader>
         {/* Mounted only while open, so each opening starts fresh and RangeCalendar's
             client-only "today" never reaches the server render. */}
@@ -217,9 +217,11 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
       )}
       <FormError>{Object.values(errors).flat()[0]}</FormError>
 
-      <Button type="submit" variant="primary" size="lg" className="mt-auto w-full" disabled={!canSubmit} loading={pending}>
-        Add {name || "a stop"}
-      </Button>
+      <DialogFooter>
+        <Button type="submit" variant="primary" size="lg" disabled={!canSubmit} loading={pending}>
+          Add {name || "a stop"}
+        </Button>
+      </DialogFooter>
     </form>
   );
 }

@@ -916,6 +916,13 @@ describe("Timeline — Anytime bucket grouped by Category", () => {
     const headings = screen.getAllByRole("heading", { level: 4 });
     expect(headings.map((h) => h.textContent)).toEqual(["Sightseeing", "Food & Drink"]);
   });
+  it("a group label sits with its things: space above the group, none above its first row", () => {
+    render(<Timeline day={dayPlanWithTwoUntimedCategories} variant="day" />);
+    const heading = screen.getAllByRole("heading", { level: 4 })[0];
+    expect(heading.className).not.toContain("mt-1");
+    expect(heading.parentElement!.className).toContain("pt-4");
+    expect(heading.parentElement!.className).toContain("[&>h4+*]:pt-1.5");
+  });
 });
 
 describe("Timeline — Item hidden from shares (Task 9)", () => {
@@ -1057,6 +1064,21 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(row.className).not.toMatch(/\bborder-dotted\b/);
     expect(row.className).toContain("border-t-2");
   });
+  it("a phone gives the title column room: a 38px gutter, a 32px tile and a tighter gap", () => {
+    const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />);
+    const row = container.querySelector("[data-timeline-row]")!;
+    expect(row.firstElementChild!.className).toContain("max-md:w-[38px]");
+    expect(row.querySelector("[data-testid='timeline-tile']")!.className).toContain("max-md:size-8");
+    expect(row.className).toContain("max-md:gap-2");
+  });
+  it("a Check-in's name wraps to two lines and its To book badge sits on its own line", () => {
+    const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
+    const name = screen.getByText("Osaka Hotel");
+    expect(name.className).toContain("line-clamp-2");
+    expect(name.className).not.toContain("truncate");
+    expect(name).toHaveAttribute("title", "Osaka Hotel");
+    expect(container.querySelector("[data-slot='stay-band']")).not.toBeNull();
+  });
   it("colours transport tiles sun and renders stays as StayCards, not lilac tiles", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
     const fills = [...container.querySelectorAll("[data-testid='timeline-tile']")].map((t) => t.className);
@@ -1085,6 +1107,23 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     cleanup();
     const timed = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />).container;
     expect(timed.querySelector("[data-timeline-row] span.tabular-nums")).not.toBeNull();
+  });
+  it("a Check-out's name wraps to two lines like Check-in's", () => {
+    render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />);
+    const name = document.querySelector("[data-slot='stay-body'] span.line-clamp-2")!;
+    expect(name.className).not.toContain("truncate");
+    expect(name).toHaveAttribute("title", name.textContent!);
+  });
+  it("a compact Check-in and Check-out title keeps normal line spacing when it wraps", () => {
+    render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
+    const inTitle = screen.getByText("Check-in: Osaka Hotel");
+    expect(inTitle.className).toContain("leading-5");
+    expect(inTitle.className).not.toContain("leading-7");
+    cleanup();
+    render(<Timeline day={dayWithCheckoutAndItems} variant="day" />);
+    const outTitle = screen.getByText(/^Check-out:/);
+    expect(outTitle.className).toContain("leading-5");
+    expect(outTitle.className).not.toContain("leading-7");
   });
   it("the default size keeps the neutral stay tile and no StayCard", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);

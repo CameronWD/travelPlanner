@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   budgetCategoryStyle,
+  categoryHue,
+  categoryHues,
   breakdownOptions,
   parseBy,
   rowsFor,
@@ -72,11 +74,48 @@ describe("breakdownOptions and parseBy", () => {
   });
 });
 
+describe("categoryHues", () => {
+  const NINE = ["Transport", "Sightseeing", "Food & Drink", "Activity", "Nightlife", "Shopping", "Getting around", "Place", "Other"];
+  const distinct = (m: Map<string, unknown>) => new Set(m.values()).size;
+  it("the Item categories and Transport are pairwise distinct", () => {
+    expect(distinct(categoryHues(NINE))).toBe(9);
+  });
+  it("Accommodation keeps its preferred hue on a trip that also has a costed Place", () => {
+    const hues = categoryHues(["Place", "Accommodation", "Transport"]);
+    expect(hues.get("Accommodation")).toBe(categoryHue("Accommodation"));
+    expect(hues.get("Place")).not.toBe(hues.get("Accommodation"));
+  });
+  it("Activity and Insurance on one trip differ, Activity keeping its preferred hue", () => {
+    const hues = categoryHues(["Insurance", "Activity"]);
+    expect(hues.get("Activity")).toBe(categoryHue("Activity"));
+    expect(hues.get("Insurance")).not.toBe(hues.get("Activity"));
+  });
+  it("two unknown labels that hash alike still get different hues", () => {
+    const labels = ["Zz", "Ab", "Mn", "Qr", "Xy", "Cd", "Ef", "Gh", "Ij", "Kl", "Op", "St", "Uv", "Wx"];
+    const [one, two] = labels.flatMap((a, i) => labels.slice(i + 1).map((b) => [a, b] as const)).find(([a, b]) => categoryHue(a) === categoryHue(b))!;
+    const hues = categoryHues([one, two]);
+    expect(hues.get(one)).not.toBe(hues.get(two));
+  });
+  it("nine or fewer categories never share a hue, and ten repeat exactly one", () => {
+    const nine = categoryHues([...NINE.slice(0, 8), "Insurance"]);
+    expect(distinct(nine)).toBe(9);
+    const ten = categoryHues([...NINE, "Insurance"]);
+    expect(ten.size).toBe(10);
+    expect(distinct(ten)).toBe(9);
+  });
+  it("the same categories give the same hues in any order", () => {
+    const labels = ["Insurance", "Made-up", "Activity", "Transport", "Other-made-up", "Gifts"];
+    const forward = categoryHues(labels);
+    const backward = categoryHues([...labels].reverse());
+    for (const l of labels) expect(backward.get(l)).toBe(forward.get(l));
+  });
+});
+
 describe("rowsFor", () => {
   it("category: hue, icon, percent and the missing-rate flag", () => {
     const rows = rowsFor(BUDGET, "category", { missingRateCategories: new Set(["Insurance"]) });
     expect(rows.map((r) => r.label)).toEqual(["Transport", "Accommodation", "Sightseeing", "Food & Drink", "Insurance", "Visas & Docs"]);
-    expect(rows.map((r) => r.hue)).toEqual(["sun", "teal", "coral", "leaf", "lilac", "lilac"]);
+    expect(rows.map((r) => r.hue)).toEqual(["sun", "teal", "coral", "leaf", "lilac", "sky"]);
     expect(rows[0]).toMatchObject({ icon: "transport", pct: 42, costMinor: 42000, paidMinor: 10000, muted: false, missingRate: false });
     expect(rows[4].missingRate).toBe(true);
   });

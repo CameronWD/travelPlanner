@@ -54,6 +54,15 @@ describe("SpendSoFarTile", () => {
     expect(screen.queryByText(/under|over/)).toBeNull();
   });
 
+  it.each([
+    ["with figures", {}],
+    ["with nothing costed", { paidSoFarMinor: 0, costTotalMinor: 0, varianceMinor: 0, tripElapsedPct: null }],
+  ])("ends where its content ends, %s", (_n, o) => {
+    const { container } = renderTile(o);
+    expect(container.firstElementChild).not.toHaveClass("h-full");
+    expect(container.querySelector(".mt-auto")).toBeNull();
+  });
+
   it("never frames money per person", () => {
     const { container } = renderTile();
     expect(container.textContent).not.toMatch(/shared pot/i);

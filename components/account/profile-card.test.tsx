@@ -131,6 +131,22 @@ describe("ProfileCard", () => {
     expect(screen.getByRole("button", { name: "Remove photo" })).toBeInTheDocument();
   });
 
+  it("styles Change photo, Remove photo and Reposition as one outlined set", () => {
+    render(
+      <ProfileCard
+        user={{ ...baseUser, photoKey: "users/u1/x.png", photoUpdatedAt: new Date(1) }}
+      />,
+    );
+    const classes = ["Change photo", "Remove photo", "Reposition"].map(
+      (name) => screen.getByRole("button", { name }).className,
+    );
+    for (const c of classes) {
+      expect(c).toContain("border-border");
+      expect(c).not.toContain("border-transparent");
+    }
+    expect(new Set(classes.map((c) => c.split(/\s+/).filter((t) => /^(bg|border|text)-/.test(t)).join(" "))).size).toBe(1);
+  });
+
   it("calls setDisplayName with the edited name on Save", async () => {
     const user = userEvent.setup();
     render(<ProfileCard user={baseUser} />);

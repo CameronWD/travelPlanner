@@ -754,17 +754,9 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(TOPIC_GRID).not.toContain("auto-rows-fr");
   });
 
-  it("a lone last card spans both columns at sm/768, back to one at lg's 3 columns (LA-027)", () => {
-    // First card closed: an odd total strands the last card.
-    expect(TOPIC_GRID).toContain("sm:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-2");
-    expect(TOPIC_GRID).toContain("lg:[&:not(:has(>*:first-child[open]))>*:last-child:nth-child(odd)]:col-span-1");
-    // First card open (spans the row): an even total strands the last card.
-    expect(TOPIC_GRID).toContain("sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2");
-    expect(TOPIC_GRID).toContain("lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1");
-  });
-
-  it("never lets the odd-count rule fire while the first card is open — it would strand the card before the last (any section count)", () => {
-    expect(TOPIC_GRID).not.toMatch(/(^|\s)sm:\[&>\*:last-child:nth-child\(odd\)\]/);
+  it("lets cards in a row share its height and never stretches one across two columns", () => {
+    expect(TOPIC_GRID).not.toContain("items-start");
+    expect(TOPIC_GRID).not.toContain("col-span-2");
   });
 
   it("puts the contents list and the key in kit Cards", () => {

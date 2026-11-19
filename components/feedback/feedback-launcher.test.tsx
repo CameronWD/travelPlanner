@@ -1328,17 +1328,17 @@ describe("FeedbackLauncher", () => {
       expect(screen.getByText("Resolved a week ago to the minute")).toBeInTheDocument();
       expect(screen.queryByText("Old fixed thing")).toBeNull();
       expect(screen.queryByText("Old skipped thing")).toBeNull();
-      expect(screen.getByRole("button", { name: "Show resolved (2)" })).toBeInTheDocument();
+      expect(screen.getByRole("switch", { name: "Show resolved (2)" })).toBeInTheDocument();
     });
 
-    it("reveals hidden notes in their normal date order and becomes Hide resolved", async () => {
+    it("reveals hidden notes in their normal date order, and a second tap hides them again", async () => {
       listMock.mockResolvedValue({
         success: true,
         notes: [existingNote, oldDone, recentDone, oldWontFix],
       });
       const user = await openPanel();
 
-      await user.click(await screen.findByRole("button", { name: "Show resolved (2)" }));
+      await user.click(await screen.findByRole("switch", { name: "Show resolved (2)" }));
 
       const bodies = screen
         .getAllByRole("listitem")
@@ -1348,18 +1348,37 @@ describe("FeedbackLauncher", () => {
       );
       expect(order).toEqual([0, 1, 2, 3]);
 
-      await user.click(screen.getByRole("button", { name: "Hide resolved" }));
+      await user.click(screen.getByRole("switch", { name: "Show resolved (2)" }));
       expect(screen.queryByText("Old fixed thing")).toBeNull();
-      expect(screen.getByRole("button", { name: "Show resolved (2)" })).toBeInTheDocument();
+      expect(screen.getByRole("switch", { name: "Show resolved (2)" })).toBeInTheDocument();
     });
 
-    it("shows no Show resolved button when nothing is hidden", async () => {
+    it("gives a note's text the panel's full width, below the row of badges and delete", async () => {
+      listMock.mockResolvedValue({ success: true, notes: [existingNote] });
+      await openPanel();
+
+      const body = await screen.findByText("Budget totals look wrong");
+      const li = body.closest("li")!;
+      expect(body.parentElement).toBe(li);
+      expect(li.className.split(/\s+/)).toContain("flex-col");
+    });
+
+    it("shows Show resolved as a switch whose state is visible", async () => {
+      listMock.mockResolvedValue({ success: true, notes: [existingNote, oldDone] });
+      const user = await openPanel();
+
+      const toggle = await screen.findByRole("switch", { name: "Show resolved (1)" });
+      expect(toggle).toHaveAttribute("aria-checked", "false");
+      await user.click(toggle);
+      expect(screen.getByRole("switch", { name: "Show resolved (1)" })).toHaveAttribute("aria-checked", "true");
+    });
+
+    it("shows no Show resolved switch when nothing is hidden", async () => {
       listMock.mockResolvedValue({ success: true, notes: [existingNote, recentDone] });
       await openPanel();
 
       expect(await screen.findByText("Totals fixed")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /show resolved/i })).toBeNull();
-      expect(screen.queryByRole("button", { name: /hide resolved/i })).toBeNull();
+      expect(screen.queryByRole("switch", { name: /show resolved/i })).toBeNull();
     });
 
     it("writes the status, date and Resolution beneath a closed note, or just status and date without one", async () => {
@@ -1372,7 +1391,7 @@ describe("FeedbackLauncher", () => {
       // The badge is unchanged alongside the new line.
       expect(screen.getByText("Done")).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Show resolved (1)" }));
+      await user.click(screen.getByRole("switch", { name: "Show resolved (1)" }));
       expect(screen.getByText("Won't fix 21 Sep")).toBeInTheDocument();
     });
 
@@ -1390,14 +1409,14 @@ describe("FeedbackLauncher", () => {
       expect(await screen.findByText("Totals fixed")).toBeInTheDocument();
       expect(screen.queryByText("Old fixed thing")).toBeNull();
       expect(screen.queryByText("Old skipped thing")).toBeNull();
-      expect(screen.getByRole("button", { name: "Show resolved (2)" })).toBeInTheDocument();
+      expect(screen.getByRole("switch", { name: "Show resolved (2)" })).toBeInTheDocument();
     });
 
     it("keeps the toggle, not the empty-log message, when every note is hidden", async () => {
       listMock.mockResolvedValue({ success: true, notes: [oldDone] });
       await openPanel();
 
-      expect(await screen.findByRole("button", { name: "Show resolved (1)" })).toBeInTheDocument();
+      expect(await screen.findByRole("switch", { name: "Show resolved (1)" })).toBeInTheDocument();
       expect(screen.queryByText(/no feedback yet/i)).toBeNull();
     });
 
@@ -1405,14 +1424,14 @@ describe("FeedbackLauncher", () => {
       listMock.mockResolvedValue({ success: true, notes: [existingNote, oldDone] });
       const user = await openPanel();
 
-      await user.click(await screen.findByRole("button", { name: "Show resolved (1)" }));
+      await user.click(await screen.findByRole("switch", { name: "Show resolved (1)" }));
       expect(screen.getByText("Old fixed thing")).toBeInTheDocument();
 
       await user.keyboard("{Escape}");
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
       await user.click(screen.getByRole("button", { name: /leave feedback/i }));
-      expect(await screen.findByRole("button", { name: "Show resolved (1)" })).toBeInTheDocument();
+      expect(await screen.findByRole("switch", { name: "Show resolved (1)" })).toBeInTheDocument();
       expect(screen.queryByText("Old fixed thing")).toBeNull();
     });
   });

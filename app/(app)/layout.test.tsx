@@ -211,6 +211,16 @@ describe("AppLayout", () => {
     expect(header().className.split(/\s+/)).toContain("tp-vt-top-bar");
   });
 
+  it("keeps the phone top bar mostly opaque so scrolled content does not show through", async () => {
+    mockUsePathname.mockReturnValue("/trips/t1");
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const classes = header().className.split(/\s+/);
+    expect(classes).toContain("backdrop-blur");
+    expect(classes).toContain("supports-[backdrop-filter]:bg-background/90");
+    expect(classes.some((c) => c.endsWith("/60"))).toBe(false);
+  });
+
   it("renders the avatar trigger button for the user menu", async () => {
     mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });

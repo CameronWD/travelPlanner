@@ -171,6 +171,15 @@ describe("RemindersCard malformed stored date", () => {
 });
 
 describe("RemindersCard add form", () => {
+  it("the closed control reads as a link, not as disabled, and opens the form", () => {
+    render(<RemindersCard tripId="trip-7" today={TODAY} reminders={[]} />);
+    const add = screen.getByRole("button", { name: "Add Reminder" });
+    expect(add).toHaveClass("text-foreground");
+    expect(add).not.toHaveClass("text-muted-foreground");
+    fireEvent.click(add);
+    expect(screen.getByLabelText("Reminder title")).toBeInTheDocument();
+  });
+
   it("submits { title, date } — a date field, never a datetime", async () => {
     render(<RemindersCard tripId="trip-7" today={TODAY} reminders={[]} />);
 
@@ -503,7 +512,7 @@ describe("RemindersCard Earlier", () => {
     await userEvent.setup().click(within(earlier).getByRole("button", { name: /^Got it.*Newer one/ }));
     await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("p2", { dismissed: true }));
     await userEvent.setup().click(within(earlier).getByRole("button", { name: "Edit reminder: Older one" }));
-    expect(await screen.findByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Edit Reminder" })).toBeInTheDocument();
   });
 
   it("shows no Earlier heading when nothing is past", () => {

@@ -31,6 +31,12 @@ describe("TodayTile", () => {
     expect(container.querySelector(`svg.${cls}`)).not.toBeNull();
   });
 
+  it("ends where its content ends", () => {
+    const { container } = renderTile();
+    expect(container.firstElementChild).not.toHaveClass("h-full");
+    expect(container.querySelector(".mt-auto")).toBeNull();
+  });
+
   it("renders the What's around slot in the header row only when given one", () => {
     const { unmount } = renderTile();
     expect(screen.queryByTestId("whats-around")).toBeNull();

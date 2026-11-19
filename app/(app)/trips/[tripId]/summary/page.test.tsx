@@ -81,9 +81,10 @@ vi.mock("@/components/trip/flag-list", () => ({
     </div>
   ),
 }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-testid="make-it-fit" /> }));
 
-const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
+const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, SUMMARY_STOP_LIST_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { buildBudget } = await import("@/lib/money/budget");
 const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
@@ -560,5 +561,64 @@ describe("SummaryPage — Marked fine (spec 2026-11-18 T5)", () => {
     const list = screen.getByTestId("flag-list");
     expect(list).toHaveTextContent(/^packed-2026-01-03$/);
     expect(list).toHaveAttribute("data-trip-id", "trip-1");
+  });
+});
+
+describe("SummaryPage — Make it fit spacing (U1)", () => {
+  it("leaves room between Make it fit and the flag list", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    const { detectFlags } = await import("@/lib/flags");
+    vi.mocked(detectFlags).mockReturnValueOnce([
+      { id: "hard-end-over", severity: "warning", message: "Over.", targetType: "TRIP" },
+    ]);
+
+    render(await renderSummary());
+
+    expect(screen.getByTestId("make-it-fit").parentElement).toHaveClass("mb-4");
+  });
+});
+
+describe("SummaryPage — phone cards keep their shadow (U2)", () => {
+  it("widens the clip box into the gutter and never cuts a stat's amount", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+
+    const { container } = render(await renderSummary());
+
+    expect(container.firstElementChild).toHaveClass("-mr-1.5", "pr-1.5", "overflow-x-clip");
+    const values = screen.getByTestId("summary-stat-grid").querySelectorAll("p.font-mono");
+    expect(values.length).toBeGreaterThan(0);
+    values.forEach((v) => expect(v.className).not.toMatch(/\btruncate\b/));
+  });
+});
+
+describe("SummaryPage — desktop rows (U3)", () => {
+  it("puts two stop cards to a row from 1400 px", () => {
+    expect(SUMMARY_STOP_LIST_CLASS).toBe("grid grid-cols-1 gap-3 min-[1400px]:grid-cols-2");
+  });
+
+  it("uses it for the rough list and the itinerary, and caps the flags' width", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP] }));
+
+    render(await renderSummary());
+
+    const lists = document.querySelectorAll(".min-\\[1400px\\]\\:grid-cols-2");
+    expect(lists.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByTestId("flag-list").parentElement).toHaveClass("max-w-3xl");
+  });
+});
+
+describe("SummaryPage — page header (S3)", () => {
+  it("has one h1, Summary, on a dated trip", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    render(await renderSummary());
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Summary" })).toBeInTheDocument();
+  });
+
+  it("has one h1, Summary, on a date-less trip", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip({ ...BASE_TRIP, startDate: null, endDate: null }), stops: [] }));
+    render(await renderSummary());
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Summary" })).toBeInTheDocument();
   });
 });

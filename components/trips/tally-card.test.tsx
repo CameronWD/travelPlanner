@@ -25,6 +25,10 @@ describe("TallyCard", () => {
     expect(screen.getByText(/on the list/)).toBeInTheDocument();
     expect(localStorage.getItem("teepee:tally-mode")).toBe("planned");
   });
+  it("lets the toggle drop under the label instead of being clipped", () => {
+    render(<TallyCard stats={stats} hasDoneTrip />);
+    expect(screen.getByRole("radiogroup", { name: "Tally mode" }).parentElement).toHaveClass("flex-wrap");
+  });
   it("reads the saved mode", () => {
     localStorage.setItem("teepee:tally-mode", "planned");
     render(<TallyCard stats={stats} hasDoneTrip />);

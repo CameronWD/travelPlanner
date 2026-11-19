@@ -24,6 +24,64 @@ export function budgetCategoryStyle(label: string): { hue: Hue; icon: MoneyCateg
   return FIXED[label] ?? (ACTIVITY_LABELS.has(label) ? { hue: "coral", icon: "activity" } : { hue: "lilac", icon: "other" });
 }
 
+const HUES: readonly Hue[] = ["sun", "teal", "leaf", "coral", "lilac", "sky", "pink", "indigo", "stone"];
+
+const CATEGORY_HUE: Record<string, Hue> = {
+  Transport: "sun",
+  Accommodation: "teal",
+  "Food & Drink": "leaf",
+  Sightseeing: "coral",
+  Activity: "lilac",
+  Nightlife: "sky",
+  Shopping: "pink",
+  "Getting around": "indigo",
+  Other: "stone",
+  Place: "teal",
+  Activities: "lilac",
+  Surprise: "indigo",
+  Insurance: "lilac",
+  "Visas & Docs": "sky",
+  "Connectivity / eSIM": "coral",
+  "Spending money": "pink",
+};
+
+export function categoryHue(label: string): Hue {
+  const known = CATEGORY_HUE[label];
+  if (known) return known;
+  let hash = 0;
+  for (const ch of label) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return HUES[hash % HUES.length];
+}
+
+const KNOWN_ORDER = Object.keys(CATEGORY_HUE);
+
+export function categoryHues(labels: readonly string[]): Map<string, Hue> {
+  const unique = [...new Set(labels)];
+  const ordered = [
+    ...KNOWN_ORDER.filter((l) => unique.includes(l)),
+    ...unique.filter((l) => !(l in CATEGORY_HUE)).sort(),
+  ];
+  const taken = new Set<Hue>();
+  const hues = new Map<string, Hue>();
+  for (const label of ordered) {
+    const preferred = categoryHue(label);
+    let hue = preferred;
+    if (taken.size < HUES.length) {
+      const start = HUES.indexOf(preferred);
+      for (let i = 0; i < HUES.length; i++) {
+        const candidate = HUES[(start + i) % HUES.length];
+        if (!taken.has(candidate)) {
+          hue = candidate;
+          break;
+        }
+      }
+    }
+    taken.add(hue);
+    hues.set(label, hue);
+  }
+  return hues;
+}
+
 export function breakdownOptions({ chapters, days }: { chapters: boolean; days: boolean }): { value: BreakdownBy; label: string }[] {
   return [
     { value: "category", label: "Category" },
@@ -65,14 +123,15 @@ export function rowsFor(
   const base = { muted: false, missingRate: false, icon: null };
 
   switch (by) {
-    case "category":
+    case "category": {
+      const hues = categoryHues(budget.byCategory.map((c) => c.category));
       return budget.byCategory.map((c) => {
         const style = budgetCategoryStyle(c.category);
         return {
           ...base,
           key: `cat:${c.category}`,
           label: c.category,
-          hue: style.hue,
+          hue: hues.get(c.category)!,
           icon: style.icon,
           pct: pct(c.costTotalMinor),
           costMinor: c.costTotalMinor,
@@ -80,6 +139,7 @@ export function rowsFor(
           missingRate: opts.missingRateCategories?.has(c.category) ?? false,
         };
       });
+    }
     case "place":
       return budget.byStop.map((s, i) => {
         const chapterColour = s.stopId ? opts.stopChapterColour?.get(s.stopId) : undefined;

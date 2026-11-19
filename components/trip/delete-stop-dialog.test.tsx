@@ -64,6 +64,12 @@ describe("DeleteStopDialog", () => {
     expect(screen.getByText(/loading preview/i)).toBeInTheDocument();
   });
 
+  it("its Cancel is an outline button like every other dialog's", () => {
+    (previewStopDeletion as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    render(<DeleteStopDialog {...DEFAULT_PROPS} />);
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+  });
+
   it("renders a dialog title containing the stop name", async () => {
     (previewStopDeletion as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,

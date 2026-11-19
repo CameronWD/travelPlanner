@@ -73,7 +73,7 @@ describe("the Reviews tab (R10)", () => {
     await renderPage();
     expect(screen.getByRole("heading", { level: 2, name: "Standard Review" })).toBeInTheDocument();
     expect(screen.getByText("Run by Cam, Sun 18 Oct, 14:05")).toBeInTheDocument();
-    expect(screen.getByText("Two closures to plan around.")).toBeInTheDocument();
+    expect(screen.getByText("Two closures to plan around.")).toHaveClass("max-w-reading");
     expect(screen.getByText("2 open")).toBeInTheDocument();
     expect(screen.getByTestId("finding-list")).toHaveAttribute("data-actionable", "true");
     expect(screen.getByTestId("history")).toHaveAttribute("data-rows", "1");

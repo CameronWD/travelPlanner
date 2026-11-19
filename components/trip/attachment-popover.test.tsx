@@ -30,7 +30,7 @@ describe("AttachmentPopover", () => {
     const trigger = screen.getByRole("button", { name: /attachment/i });
     expect(trigger).toHaveTextContent("1");
     await userEvent.click(trigger);
-    expect(screen.getByText("boarding.pdf")).toBeInTheDocument();
+    expect(screen.getByTitle("boarding.pdf")).toBeInTheDocument();
   });
 
   it("shows no count when attachments array is empty", () => {

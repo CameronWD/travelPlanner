@@ -47,6 +47,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlagList } from "@/components/trip/flag-list";
 import { MakeItFit } from "@/components/trip/make-it-fit";
@@ -62,6 +64,8 @@ export const metadata: Metadata = { title: "Summary" };
 export const SUMMARY_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
+/** Exported for className assertion in tests — must match the JSX below. */
+export const SUMMARY_STOP_LIST_CLASS = "grid grid-cols-1 gap-3 min-[1400px]:grid-cols-2";
 /** Exported for className assertion in tests — must match the JSX below.
  *  2×2 up to lg (LA-149): four equal columns at 768 truncate the money figure. */
 export const SUMMARY_STAT_GRID_CLASS = "grid grid-cols-2 gap-3 lg:grid-cols-4";
@@ -101,6 +105,7 @@ export default async function SummaryPage({
   // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
   const [rows, hopModes, markedFine] = await Promise.all([readPlan(tripId, user.id, null), loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const { trip } = rows;
+  const slug = trip.slug ?? tripId;
 
   // For a date-less trip: still show rough Stops (if any), then the date-less notice.
   if (!trip.startDate || !trip.endDate) {
@@ -110,6 +115,7 @@ export default async function SummaryPage({
 
     return (
       <div className="flex flex-col gap-6">
+        <PageHeader eyebrow={trip.name} title="Summary" trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />} />
         {roughStopsForDateless.length > 0 && (
           <section aria-labelledby="rough-heading-dateless">
             <div className="mb-4 flex items-center gap-2">
@@ -118,7 +124,7 @@ export default async function SummaryPage({
                 Stops added so far
               </h2>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className={SUMMARY_STOP_LIST_CLASS}>
               {roughStopsForDateless.map((stop) => {
                 const nights = stop.nights ?? 1;
                 const chapter = stop.chapterId
@@ -175,8 +181,6 @@ export default async function SummaryPage({
   // Unfiltered: Summary shows no Cost lines, only buildBudget's totals.
   const costs = rows.costs;
   const exchangeRates = rows.exchangeRates;
-  const slug = trip.slug ?? tripId;
-
   // Rough (date-less) stops are excluded from the dated summary and surface
   // as "not yet scheduled".
   const stops = allStops.filter((s) => s.arriveDate !== null);
@@ -366,8 +370,8 @@ export default async function SummaryPage({
   const hasActual = grandTotal.paidTotalMinor > 0;
 
   return (
-    <div className="flex min-w-0 flex-col gap-8 overflow-x-clip">
-      <h2 className="sr-only">Trip summary</h2>
+    <div className="-mr-1.5 flex min-w-0 flex-col gap-8 overflow-x-clip pr-1.5">
+      <PageHeader eyebrow={trip.name} title="Summary" trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />} />
 
       {/* ── Header stat bar ── */}
       <div className={SUMMARY_STAT_GRID_CLASS} data-testid="summary-stat-grid">
@@ -409,7 +413,7 @@ export default async function SummaryPage({
           {roughStops.length > 0 && (
             <section aria-labelledby="rough-heading">
           <SectionHeading id="rough-heading" icon={MapPin} title="Not yet scheduled" />
-          <div className="flex flex-col gap-3">
+          <div className={SUMMARY_STOP_LIST_CLASS}>
             {roughStops.map((stop) => {
               const nights = stop.nights ?? 1;
               const chapter = stop.chapterId
@@ -493,7 +497,7 @@ export default async function SummaryPage({
                     ) : null}
 
                     {/* Per-stop cards */}
-                    <div className="flex flex-col gap-3">
+                    <div className={SUMMARY_STOP_LIST_CLASS}>
                       {group.stops.map((stop) => {
                         const stopNum = ++globalIdx;
                         const nights = nightsBetween(stop.arriveDate, stop.departDate);
@@ -609,15 +613,19 @@ export default async function SummaryPage({
           <section aria-labelledby="flags-heading">
             <SectionHeading id="flags-heading" icon={FlagIcon} title="Trip health" />
             {isOverHardEnd && (
-              <MakeItFit
-                tripId={tripId}
-                stops={fitStops}
-                anchor={trip.startDate ?? null}
-                deadline={projection.deadline ?? null}
-                isOwner={isOwner}
-              />
+              <div className="mb-4">
+                <MakeItFit
+                  tripId={tripId}
+                  stops={fitStops}
+                  anchor={trip.startDate ?? null}
+                  deadline={projection.deadline ?? null}
+                  isOwner={isOwner}
+                />
+              </div>
             )}
-            <FlagList flags={flags} tripId={tripId} tripBasePath={tripBasePath} />
+            <div className="max-w-3xl">
+              <FlagList flags={flags} tripId={tripId} tripBasePath={tripBasePath} />
+            </div>
           </section>
         </div>
 
@@ -718,7 +726,7 @@ function StatCard({
         <Icon className="size-3.5" aria-hidden="true" />
         {label}
       </div>
-      <p className="truncate font-mono text-xl font-semibold text-foreground">{value}</p>
+      <p className="break-words font-mono text-base font-semibold text-foreground sm:text-xl">{value}</p>
     </div>
   );
 }

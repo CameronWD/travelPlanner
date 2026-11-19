@@ -18,7 +18,7 @@ describe("Google InfoWindow shell", () => {
   });
   it("fills the tail with the card and casts a clip-safe hard shadow from its container", () => {
     expect(decls(rule(`${S} .gm-style-iw-tc::after`)).background).toBe("hsl(var(--card))");
-    expect(decls(rule(`${S} .gm-style-iw-tc`)).filter).toBe("drop-shadow(3px 3px 0 hsl(var(--shadow-ink)))");
+    expect(decls(rule(`${S} .gm-style-iw-tc`)).filter).toBe("drop-shadow(3px 3px 0 hsl(var(--border)))");
   });
   it("themes the close button, its hover and its focus ring", () => {
     expect(decls(rule(CLOSE)).color).toBe("hsl(var(--muted-foreground))");

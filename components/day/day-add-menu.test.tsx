@@ -1,11 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi, describe, it, expect } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import { setMatchMedia } from "@/test/setup";
 import { DayAddMenu } from "./day-add-menu";
 
 vi.mock("@/components/trip/item-form-dialog", () => ({
-  ItemFormDialog: (p: { open: boolean; defaultStopId?: string | null; defaultDate?: string; stops: { lat?: number | null; lng?: number | null }[] }) =>
-    p.open ? <div data-testid="item-dialog" data-near={`${p.stops[0]?.lat}|${p.stops[0]?.lng}`}>{p.defaultStopId}|{p.defaultDate}</div> : null,
+  ItemFormDialog: (p: { open: boolean; onOpenChange: (o: boolean) => void; defaultStopId?: string | null; defaultDate?: string; stops: { lat?: number | null; lng?: number | null }[] }) =>
+    p.open ? <div data-testid="item-dialog" data-near={`${p.stops[0]?.lat}|${p.stops[0]?.lng}`}>{p.defaultStopId}|{p.defaultDate}<button type="button" aria-label="Close form" onClick={() => p.onOpenChange(false)} /></div> : null,
 }));
 vi.mock("@/components/trip/transport-form-dialog", () => ({
   TransportFormDialog: (p: { open: boolean; defaultFromStopId?: string; defaultToStopId?: string; defaultDate?: string; settingsHref?: string }) =>
@@ -20,6 +21,7 @@ const base = {
 };
 
 describe("DayAddMenu (spec 2026-10-13 D5)", () => {
+  beforeEach(() => setMatchMedia(true));
   it("offers Something to do and A flight, train or drive", async () => {
     render(<DayAddMenu {...base} />);
     await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
@@ -66,6 +68,39 @@ describe("DayAddMenu (spec 2026-10-13 D5)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
       await userEvent.click(screen.getByRole("menuitem", { name: "A flight, train or drive" }));
       expect(screen.getByTestId("transport-dialog")).toHaveTextContent(/^\|\|2026-11-04\|\/trips\/cairns-work\/settings$/);
+    });
+  });
+  describe("on a phone", () => {
+    beforeEach(() => setMatchMedia(false));
+    it("opens a sheet titled with the label, holding both rows, instead of a menu", async () => {
+      render(<DayAddMenu {...base} />);
+      await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+      expect(screen.queryByRole("menu")).toBeNull();
+      const sheet = screen.getByRole("dialog", { name: "Add to this day" });
+      expect(within(sheet).getByRole("button", { name: "Something to do" })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "A flight, train or drive" })).toBeInTheDocument();
+    });
+    it("Something to do closes the sheet and opens the Item form", async () => {
+      render(<DayAddMenu {...base} />);
+      await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+      await userEvent.click(screen.getByRole("button", { name: "Something to do" }));
+      expect(screen.getByTestId("item-dialog")).toHaveTextContent("s1|2026-11-04");
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add to this day" })).toBeNull());
+    });
+    it("closing the form it opened returns focus to the Add to this day button", async () => {
+      render(<DayAddMenu {...base} />);
+      const trigger = screen.getByRole("button", { name: "Add to this day" });
+      await userEvent.click(trigger);
+      await userEvent.click(screen.getByRole("button", { name: "Something to do" }));
+      await userEvent.click(screen.getByRole("button", { name: "Close form" }));
+      await waitFor(() => expect(trigger).toHaveFocus());
+    });
+    it("A flight, train or drive closes the sheet and opens the Transport form", async () => {
+      render(<DayAddMenu {...base} />);
+      await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+      await userEvent.click(screen.getByRole("button", { name: "A flight, train or drive" }));
+      expect(screen.getByTestId("transport-dialog")).toHaveTextContent("__home__|s1|2026-11-04");
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add to this day" })).toBeNull());
     });
   });
 });

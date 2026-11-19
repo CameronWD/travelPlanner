@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Info,
   CheckCircle2,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { flagDisplayMessage, isTightFlag, type Flag } from "@/lib/flags";
@@ -86,48 +87,54 @@ function buildLink(flag: Flag, basePath: Route): Route | null {
 // Single flag row
 // ---------------------------------------------------------------------------
 
+const ROW_CONTAINER = "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm transition-colors";
+
 function FlagRow({ flag, tripId, tripBasePath }: { flag: Flag; tripId: string; tripBasePath: Route }) {
   const config = SEVERITY_CONFIG[flag.severity];
   const Icon = config.icon;
   const link = buildLink(flag, tripBasePath);
+  const icon = <Icon className={cn("mt-0.5 size-4 shrink-0", config.iconClass)} aria-hidden="true" />;
+  const message = flagDisplayMessage(flag);
+
+  if (isTightFlag(flag)) {
+    const text = cn("leading-snug", config.labelClass);
+    return (
+      <div className={cn(ROW_CONTAINER, config.containerClass)}>
+        {icon}
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+          {link ? (
+            <Link href={link} className={cn(text, "hover:underline")}>
+              {message}
+            </Link>
+          ) : (
+            <span className={text}>{message}</span>
+          )}
+          <MarkFineButton tripId={tripId} target={{ flagId: flag.id, fingerprint: flag.fingerprint, between: flag.between }} />
+        </div>
+      </div>
+    );
+  }
 
   const content = (
-    <div
-      className={cn(
-        "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm transition-colors",
-        config.containerClass,
-        link && "hover:opacity-80",
-      )}
-    >
-      <Icon
-        className={cn("mt-0.5 size-4 shrink-0", config.iconClass)}
-        aria-hidden="true"
-      />
-      <span className={cn("leading-snug", config.labelClass)}>
-        {flagDisplayMessage(flag)}
-      </span>
+    <div className={cn(ROW_CONTAINER, config.containerClass, link && "hover:opacity-80")}>
+      {icon}
+      <span className={cn("leading-snug", config.labelClass)}>{message}</span>
     </div>
   );
-
-  const row = link ? (
+  return link ? (
     <Link href={link} className="block">
       {content}
     </Link>
   ) : (
     content
   );
-  if (!isTightFlag(flag)) return row;
-  return (
-    <div className="flex items-center gap-2">
-      <div className="min-w-0 flex-1">{row}</div>
-      <MarkFineButton tripId={tripId} target={{ flagId: flag.id, fingerprint: flag.fingerprint, between: flag.between }} />
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
 // Section
 // ---------------------------------------------------------------------------
+
+const EMPTY_DAY_PREFIX = "empty-day-";
 
 function FlagSection({
   title,
@@ -141,17 +148,45 @@ function FlagSection({
   tripBasePath: Route;
 }) {
   if (flags.length === 0) return null;
+  const emptyDays = flags.filter((f) => f.id.startsWith(EMPTY_DAY_PREFIX));
+  const fold = emptyDays.length >= 2;
+  const config = SEVERITY_CONFIG.info;
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {title} ({flags.length})
       </h3>
       <ul className="flex flex-col gap-2" role="list">
-        {flags.map((flag) => (
-          <li key={flag.id}>
-            <FlagRow flag={flag} tripId={tripId} tripBasePath={tripBasePath} />
-          </li>
-        ))}
+        {flags.map((flag) => {
+          if (fold && flag.id.startsWith(EMPTY_DAY_PREFIX)) {
+            if (flag.id !== emptyDays[0].id) return null;
+            return (
+              <li key="empty-days">
+                <details className="group">
+                  <summary className={cn(ROW_CONTAINER, config.containerClass, "cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
+                    <Info className={cn("mt-0.5 size-4 shrink-0", config.iconClass)} aria-hidden="true" />
+                    <span className={cn("min-w-0 flex-1 leading-snug", config.labelClass)}>
+                      Nothing scheduled on {emptyDays.length} days
+                    </span>
+                    <ChevronRight className="mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
+                  </summary>
+                  <ul className="mt-2 flex flex-col gap-2" role="list">
+                    {emptyDays.map((f) => (
+                      <li key={f.id}>
+                        <FlagRow flag={f} tripId={tripId} tripBasePath={tripBasePath} />
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </li>
+            );
+          }
+          return (
+            <li key={flag.id}>
+              <FlagRow flag={flag} tripId={tripId} tripBasePath={tripBasePath} />
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

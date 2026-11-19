@@ -18,8 +18,8 @@ const BADGE: Record<FindingShownState, "outline" | "success" | "muted"> = { OPEN
 
 // Same palette as FlagList (components/trip/flag-list.tsx), so a Finding restating a Flag looks like one.
 const SEVERITY = {
-  warning: { icon: AlertTriangle, box: "bg-warning/10 border-warning/40", iconClass: "text-sun-text" },
-  info: { icon: Info, box: "bg-hue-sky/25 border-border", iconClass: "text-foreground" },
+  warning: { icon: AlertTriangle, band: "bg-warning", iconClass: "text-sun-text" },
+  info: { icon: Info, band: "bg-hue-sky", iconClass: "text-foreground" },
 } as const;
 
 /**
@@ -152,18 +152,19 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
   const showUndo = (state === "APPLIED" || state === "DISMISSED") && card.canUndo;
 
   return (
-    <li className={cn("flex flex-col gap-2 rounded-xl border px-4 py-3 text-sm", sev.box, state !== "OPEN" && "opacity-80")}>
-      <div className="flex items-start gap-3">
+    <li className={cn("flex flex-col overflow-hidden rounded-xl border-2 border-border bg-card text-sm", state !== "OPEN" && "opacity-80")}>
+      <span aria-hidden="true" data-slot="finding-band" className={cn("h-2 border-b-2 border-border", sev.band)} />
+      <div className="flex items-start gap-3 px-4 py-3">
         <Icon className={cn("mt-0.5 size-4 shrink-0", sev.iconClass)} aria-hidden="true" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{card.categoryLabel}</span>
             <Badge variant={BADGE[state]}>{stateLabel}</Badge>
           </div>
-          <p className="font-semibold leading-snug text-foreground">{card.title}</p>
-          <p className="leading-snug text-foreground">{card.detail}</p>
+          <p className="max-w-reading font-semibold leading-snug text-foreground">{card.title}</p>
+          <p className="max-w-reading leading-snug text-foreground">{card.detail}</p>
           {state === "OPEN" && card.fix ? (
-            <p className="text-[13px] text-muted-foreground">Suggested fix: {card.fix.label}</p>
+            <p className="max-w-reading text-[13px] text-muted-foreground">Suggested fix: {card.fix.label}</p>
           ) : null}
           {card.source ? (
             <a href={card.source.href} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground underline underline-offset-2">
@@ -171,47 +172,47 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
               <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           ) : null}
+          {showApply || showPacking || showPretrip || goTo || showDismiss || showUndo ? (
+            <div className="mt-1 flex flex-wrap gap-2">
+              {showApply ? (
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id })} aria-label={`Apply: ${card.title}`}>
+                  Apply
+                </Button>
+              ) : null}
+              {showPacking ? (
+                <>
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id, choice: "PACK" })} aria-label={`Need to pack: ${card.title}`}>
+                    Need to pack
+                  </Button>
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id, choice: "BUY" })} aria-label={`Need to buy: ${card.title}`}>
+                    Need to buy
+                  </Button>
+                </>
+              ) : null}
+              {showPretrip ? (
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id })} aria-label={`Add to pre-trip checklist: ${card.title}`}>
+                  Add to pre-trip checklist
+                </Button>
+              ) : null}
+              {goTo ? (
+                <Button asChild size="sm" variant="ghost">
+                  <Link href={goTo.href}>{goTo.label}</Link>
+                </Button>
+              ) : null}
+              {showDismiss ? (
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => void dismiss.run(card.id)} aria-label={`Dismiss: ${card.title}`}>
+                  Dismiss
+                </Button>
+              ) : null}
+              {showUndo ? (
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => void undo.run(card.id)} aria-label={`Undo: ${card.title}`}>
+                  Undo
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
-      {showApply || showPacking || showPretrip || goTo || showDismiss || showUndo ? (
-        <div className="flex flex-wrap gap-2 pl-7">
-          {showApply ? (
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id })} aria-label={`Apply: ${card.title}`}>
-              Apply
-            </Button>
-          ) : null}
-          {showPacking ? (
-            <>
-              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id, choice: "PACK" })} aria-label={`Need to pack: ${card.title}`}>
-                Need to pack
-              </Button>
-              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id, choice: "BUY" })} aria-label={`Need to buy: ${card.title}`}>
-                Need to buy
-              </Button>
-            </>
-          ) : null}
-          {showPretrip ? (
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void apply.run({ id: card.id })} aria-label={`Add to pre-trip checklist: ${card.title}`}>
-              Add to pre-trip checklist
-            </Button>
-          ) : null}
-          {goTo ? (
-            <Button asChild size="sm" variant="ghost">
-              <Link href={goTo.href}>{goTo.label}</Link>
-            </Button>
-          ) : null}
-          {showDismiss ? (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void dismiss.run(card.id)} aria-label={`Dismiss: ${card.title}`}>
-              Dismiss
-            </Button>
-          ) : null}
-          {showUndo ? (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void undo.run(card.id)} aria-label={`Undo: ${card.title}`}>
-              Undo
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
     </li>
   );
 }

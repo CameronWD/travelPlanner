@@ -96,7 +96,7 @@ export default async function AccountPage() {
       {/* Desktop: who you are on the left, what's true of you across Trips on
           the right (Feedback cmumcobiy000104l71fkyacxo — the You card used to
           run the full page width). Phones stack, You first. */}
-      <div data-account-grid className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-start lg:gap-[18px]">
+      <div data-account-grid className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,22rem)_minmax(0,40rem)] lg:items-start lg:gap-[18px]">
         {/* ── Left column: You, then (Admins) the Admin queue — the card the
             You tab's dot leads to (spec 2026-10-02 §C). ── */}
         <div data-account-left className="flex flex-col gap-3 lg:gap-[18px]">

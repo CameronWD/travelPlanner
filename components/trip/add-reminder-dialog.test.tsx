@@ -99,7 +99,7 @@ describe("AddReminderDialog", () => {
     );
   });
 
-  it("with a reminder it reads 'Edit reminder', is prefilled, and saves through updateReminder", async () => {
+  it("with a reminder it reads 'Edit Reminder', is prefilled, and saves through updateReminder", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
@@ -109,7 +109,7 @@ describe("AddReminderDialog", () => {
         onOpenChange={onOpenChange}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edit Reminder" })).toBeInTheDocument();
     expect(screen.getByLabelText(/reminder title/i)).toHaveValue("Reconfirm");
     expect(screen.getByLabelText(/^notes/i)).toHaveValue("Ask Wayan");
 
@@ -121,5 +121,34 @@ describe("AddReminderDialog", () => {
     );
     expect(addReminder).not.toHaveBeenCalled();
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+});
+
+describe("AddReminderDialog: footer buttons", () => {
+  it("Delete uses the destructive look and Cancel is outline", () => {
+    render(
+      <AddReminderDialog
+        reminder={{ id: "r1", title: "Reconfirm", date: "2026-12-05", notes: null }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Delete" }).className).toContain("border-destructive");
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+  });
+});
+
+describe("AddReminderDialog: title field", () => {
+  it("is a growing text area; Enter submits and Shift+Enter does not", async () => {
+    const user = userEvent.setup();
+    render(<AddReminderDialog {...baseProps} />);
+    const title = screen.getByLabelText(/reminder title/i);
+    expect(title.tagName).toBe("TEXTAREA");
+    const submit = vi.spyOn(HTMLFormElement.prototype, "requestSubmit").mockImplementation(() => {});
+    await user.type(title, "Reconfirm{Shift>}{Enter}{/Shift}");
+    expect(submit).not.toHaveBeenCalled();
+    await user.type(title, "{Enter}");
+    expect(submit).toHaveBeenCalledTimes(1);
+    submit.mockRestore();
   });
 });

@@ -37,7 +37,7 @@ import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
-import { StayCard, StayConfirmation } from "@/components/trip/stay-card";
+import { STAY_NAME_CLASS, StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { SlotFacts } from "@/components/trip/slot-facts";
 import { OpeningHoursLine } from "@/components/trip/opening-hours-line";
 import { TryListTicks } from "@/components/trip/try-list-ticks";
@@ -206,8 +206,8 @@ export function Timeline({
         <div className={cn("flex flex-col border-t-2 border-border-soft pt-2.5 first:border-t-0 first:pt-0", !large && "border-dotted")}>
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Anytime</p>
           {groupByCategory(anytime.map((e) => e.item)).map((group) => (
-            <div key={group.category} className="flex flex-col">
-              <h4 className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            <div key={group.category} className="flex flex-col pt-4 first-of-type:pt-1 [&>h4+*]:border-t-0 [&>h4+*]:pt-1.5">
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                 {group.label}
               </h4>
               {group.items.map((it) => (
@@ -272,7 +272,7 @@ function TimeGutter({ time, large }: { time?: string | null; large?: boolean }) 
       className={cn(
         "shrink-0 tabular-nums",
         large
-          ? "w-[46px] text-[13px] leading-10 font-extrabold text-foreground"
+          ? "w-[46px] text-[13px] leading-10 font-extrabold text-foreground max-md:w-[38px] max-md:text-xs"
           : "w-11 text-[11px] leading-7 font-bold text-muted-foreground",
       )}
     >
@@ -302,7 +302,7 @@ function DayRow({
         "flex border-t-2 border-border-soft first:border-t-0 first:pt-0 last:pb-0",
         // Large (Day view): the time, the 40px tile and the title block share
         // one centre line, as in the handoff's rows.
-        large ? "items-center gap-3 py-3" : "items-start gap-2.5 border-dotted py-2.5",
+        large ? "items-center gap-3 py-3 max-md:gap-2" : "items-start gap-2.5 border-dotted py-2.5",
       )}
     >
       {gutter && <TimeGutter time={time} large={large} />}
@@ -325,11 +325,11 @@ function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; cla
       className={cn(
         "grid shrink-0 place-items-center border-2 border-border",
         // Explicit 12px: this repo's rounded-xl is 24px (a circle at 40px).
-        large ? "size-10 rounded-[12px]" : "size-7 rounded-sm",
+        large ? "size-10 rounded-[12px] max-md:size-8 max-md:rounded-[10px]" : "size-7 rounded-sm",
         className,
       )}
     >
-      {I ? <I className={large ? "size-[18px]" : "size-[15px]"} strokeWidth={2.5} /> : null}
+      {I ? <I className={large ? "size-[18px] max-md:size-4" : "size-[15px]"} strokeWidth={2.5} /> : null}
     </span>
   );
 }
@@ -554,9 +554,9 @@ function AccomCheckinRow({
       className="block"
     >
       {large ? (
-        <span className="block break-words">{a.name}</span>
+        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
       ) : (
-        <span className="block break-words text-sm font-semibold leading-7 text-foreground">Check-in: {a.name}</span>
+        <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-in: {a.name}</span>
       )}
     </EntryTitle>
   );
@@ -572,7 +572,7 @@ function AccomCheckinRow({
           </p>
         ))}
       {a.bookingState === "TO_BOOK" && (
-        <p className="mt-0.5"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
+        <p className="mt-1 flex"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
       )}
       <AttachmentLinks attachments={attachments} />
       {needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
@@ -614,9 +614,9 @@ function AccomCheckoutRow({
       className="block"
     >
       {large ? (
-        <span className="block break-words">{a.name}</span>
+        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
       ) : (
-        <span className="block break-words text-sm font-semibold leading-7 text-foreground">Check-out: {a.name}</span>
+        <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-out: {a.name}</span>
       )}
     </EntryTitle>
   );

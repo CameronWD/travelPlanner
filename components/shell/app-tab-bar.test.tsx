@@ -28,10 +28,13 @@ const SHELL: ShellUser = {
 };
 
 describe("AppTabBar", () => {
-  it("has Trips, Globe and You, with Globe current, on a sun bar", () => {
+  it("has Trips, Globe and You, with Globe current, on a rail bar", () => {
     render(<AppTabBar />);
     const nav = screen.getByRole("navigation", { name: "Teepee" });
-    expect(nav.className).toContain("bg-sun");
+    const classes = nav.className.split(/\s+/);
+    expect(classes).toContain("rail");
+    expect(classes).toContain("bg-rail");
+    expect(classes).not.toContain("bg-sun");
     expect(screen.getByRole("link", { name: "Trips" })).toHaveAttribute("href", "/trips");
     expect(screen.getByRole("link", { name: "Globe" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "You" })).toHaveAttribute("href", "/account");
@@ -49,6 +52,7 @@ describe("AppTabBar", () => {
     const you = screen.getByRole("link", { name: "You, 2 waiting in Admin" });
     expect(you).toHaveAttribute("href", "/account");
     expect(within(you).getByTestId("admin-queue-dot")).toBeInTheDocument();
+    expect(within(you).getByTestId("admin-queue-dot").className.split(/\s+/)).toContain("border-rail");
     expect(screen.queryByRole("link", { name: "You" })).toBeNull();
   });
 

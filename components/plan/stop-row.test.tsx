@@ -115,9 +115,12 @@ describe("StopRow (PLAN.md §3)", () => {
     expect(screen.queryByText("No bed yet")).toBeNull();
   });
 
-  it("shows the stop's own notes as a one-line preview", () => {
+  it("shows the stop's own notes as a two-line preview", () => {
     renderRow({ stop: { ...DATED, notes: "Book the Vatican early" } });
-    expect(screen.getByText("Book the Vatican early").className).toMatch(/truncate/);
+    const note = screen.getByText("Book the Vatican early");
+    expect(note.className).toContain("line-clamp-2");
+    expect(note.className).not.toContain("truncate");
+    expect(note).toHaveAttribute("title", "Book the Vatican early");
   });
 
   it("uses no banned soft classes", () => {

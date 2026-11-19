@@ -28,6 +28,7 @@ import { StagedUploadTray, useStagedUploads } from "@/components/trip/staged-upl
 import { attachmentName } from "@/lib/attachment-name";
 import { formatBytes } from "@/lib/format-bytes";
 import { AttachmentLink } from "@/components/trip/attachment-link";
+import { MiddleTruncate } from "@/components/trip/middle-truncate";
 import type { AttachmentView } from "@/lib/attachment-view";
 
 export type { AttachmentView };
@@ -203,7 +204,7 @@ export function AttachmentList({
               <AnimatedItem key={att.id} as="li" className="flex items-center gap-3 px-4 py-2">
                 <MimeIcon mime={att.mime} className="size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-xs text-foreground">{attachmentName(att)}</p>
+                  <p className="min-w-0 font-medium text-xs text-foreground" title={attachmentName(att)}><MiddleTruncate text={attachmentName(att)} /></p>
                   {att.title ? (
                     <p className="truncate text-[11px] text-muted-foreground">{att.filename}</p>
                   ) : null}
@@ -322,13 +323,13 @@ export function AttachmentList({
         className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3"
       >
         {showUpload && (
-          <li key="upload" className="flex">
+          <li key="upload" className="flex md:col-span-2 lg:col-span-3">
             {fileInput}
             <label
               htmlFor={inputId}
               {...dropTarget}
               className={cn(
-                "flex min-h-[90px] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border-soft p-4 text-center transition-colors hover:border-border md:min-h-[150px]",
+                "flex min-h-[90px] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border-soft p-4 text-center transition-colors hover:border-border md:min-h-[90px]",
                 "has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
                 dragging && "border-primary bg-muted",
                 uploading && "opacity-50",
@@ -352,10 +353,10 @@ export function AttachmentList({
           <AnimatedItem key={att.id} as="li" className="flex">
             <Card
               data-slot="file-card"
-              // Phones stack like desktop (LA-123): tile top-left, actions pinned
-              // top-right, name and meta full-width underneath. Only the sm–md band
-              // keeps the one-row layout, where a card is wide enough for it.
-              className="relative flex w-full flex-col items-start gap-3 p-3.5 sm:flex-row sm:items-center md:flex-col md:items-start"
+              // Phones: thumbnail beside the text, actions on a short row under it.
+              // The sm–md band is one row; md and up stack with the actions pinned
+              // top-right.
+              className="relative flex w-full flex-row flex-wrap items-start gap-3 p-3.5 sm:flex-nowrap sm:items-center md:flex-col md:items-start"
             >
               <span
                 data-slot="file-tile"
@@ -368,19 +369,19 @@ export function AttachmentList({
                 {tileLabel(att.mime)}
               </span>
 
-              <div className="w-full min-w-0 sm:w-auto sm:flex-1 md:w-full md:pr-24">
-                <p className="truncate text-sm font-extrabold text-foreground" title={attachmentName(att)}>
+              <div className="min-w-0 flex-1 md:w-full md:flex-none md:pr-24">
+                <p className="min-w-0 text-sm font-extrabold text-foreground" title={attachmentName(att)}>
                   {cardLink ? (
                     <AttachmentLink
                       href={att.url}
                       mime={att.mime}
                       label={`View ${attachmentName(att)}`}
-                      className="underline-offset-2 hover:underline focus-visible:underline after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-[3px] focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
+                      className="block underline-offset-2 hover:underline focus-visible:underline after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-[3px] focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
                     >
-                      {attachmentName(att)}
+                      <MiddleTruncate text={attachmentName(att)} />
                     </AttachmentLink>
                   ) : (
-                    attachmentName(att)
+                    <MiddleTruncate text={attachmentName(att)} />
                   )}
                 </p>
                 <p className="mt-0.5 break-words text-xs font-semibold text-muted-foreground">
@@ -402,7 +403,7 @@ export function AttachmentList({
                 ) : null}
               </div>
 
-              <div className="absolute right-2 top-2 z-10 flex shrink-0 items-center sm:static md:absolute md:right-2 md:top-2">
+              <div className="z-10 flex shrink-0 basis-full items-center justify-end sm:basis-auto md:absolute md:right-2 md:top-2">
                 {onRename && (
                   <Button
                     type="button"

@@ -72,7 +72,7 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
           {lead}
         </span>
       ) : null}
-      <div className={cn("flex items-baseline", hasPhoto ? "gap-3" : "gap-2.5")}>
+      <div className={cn("flex flex-wrap items-baseline", hasPhoto ? "gap-3" : "gap-2.5")}>
         <span
           className={cn(
             "font-display font-extrabold",
@@ -86,14 +86,13 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
         {unit ? (
           <span
             className={cn(
-              "flex flex-col font-display font-extrabold",
+              "whitespace-nowrap font-display font-extrabold",
               // Size before leading: tailwind-merge drops a leading-* that precedes a text-* size.
               hasPhoto ? "text-[32px]" : "text-[26px]",
               "leading-[1.02]",
             )}
           >
-            <span>{unit[0]}</span>
-            <span>{unit[1]}</span>
+            {unit.join(" ")}
           </span>
         ) : null}
       </div>
@@ -154,7 +153,7 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
         <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 gap-6 p-6">
           <div className="flex min-w-0 flex-1 flex-col">
             {chip}
-            <div className="mt-auto">
+            <div className="mt-auto pt-4">
               {numberRow}
               {legLine}
             </div>
@@ -176,7 +175,7 @@ export function CountdownTile({ href, status, countdown, firstLeg, cover, tripId
             <AddCoverPhotoButton tripId={tripId} />
           </div>
           {statsRow}
-          <div className="mt-auto">
+          <div className="mt-auto pt-4">
             {numberRow}
             {legLine}
           </div>

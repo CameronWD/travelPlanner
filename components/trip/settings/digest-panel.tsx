@@ -205,7 +205,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
       {localResolved &&
         (deviceCount === 0 ? (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               No device is set up yet, so there&rsquo;s nowhere to send this.
             </p>
             <Link

@@ -568,6 +568,24 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     expect(html(rem)).toContain("Book the ferry");
   });
 
+  it("shows the cost tile's money under 1,000 with its cents", async () => {
+    const { StatTile } = await import("@/components/trip/home/stat-tile");
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 95050, paidTotalMinor: 12050 } });
+    costFindManyMock.mockResolvedValue([]);
+    const tree = await PhasePlanning({
+      tripId: "trip-1", userId: "u-viewer",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+      reminderItems: [],
+    });
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const [cost] = findAllByType(tree, StatTile);
+    const html = renderToStaticMarkup(cost as Parameters<typeof renderToStaticMarkup>[0]);
+    expect(html).toContain("950.50");
+    expect(html).toContain("120.50");
+  });
+
   it.each([
     ["USD", "(USD 150.00)"],
     ["EUR", "(€"],
@@ -591,7 +609,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     const [, next] = findAllByType(tree, StatTile);
     const html = renderToStaticMarkup(next as Parameters<typeof renderToStaticMarkup>[0]).replace(/\u00a0/g, " ");
     expect(html).toContain(expected);
-    expect(html).toContain("$247.5 (");
+    expect(html).toContain("$247.50 (");
   });
 
   it("draws the home map at a 4/3 tile aspect, not a fixed full-width height", async () => {

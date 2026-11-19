@@ -213,7 +213,7 @@ describe("TripLayout", () => {
     },
   );
 
-  it.each(["/trips/trip-1/settings"])(
+  it.each(["/trips/trip-1/print"])(
     "keeps the trip header at every width on %s",
     async (path) => {
       mockUsePathname.mockReturnValue(path);
@@ -224,7 +224,7 @@ describe("TripLayout", () => {
     },
   );
 
-  it.each(["files", "activity", "compare", "journal", "more", "help", "budget", "plan", "checklists", "calendar", "wishlist"])(
+  it.each(["files", "activity", "compare", "journal", "more", "help", "budget", "plan", "checklists", "calendar", "wishlist", "settings", "summary"])(
     "hides the trip header at every width on the PageHeader route /%s",
     async (seg) => {
       mockUsePathname.mockReturnValue(`/trips/trip-1/${seg}`);
@@ -232,6 +232,12 @@ describe("TripLayout", () => {
       expect(document.querySelector("[data-trip-header]")!.className.split(/\s+/)).toContain("hidden");
     },
   );
+
+  it("starts the content flush under the header on a PageHeader route, so the page keeps one gap under the top bar", async () => {
+    await renderLayout();
+    const wrapper = screen.getByTestId("offline-warmer").parentElement!;
+    expect(wrapper.className.split(/\s+/)).toContain("[[data-trip-page-header]+&]:pt-0");
+  });
 
   it("publishes this Trip into the persistent rail, with the trip name in the switcher slot", async () => {
     await renderLayout();

@@ -52,7 +52,7 @@ export function TallyCard({ stats, hasDoneTrip }: TallyProps) {
   return (
     <section aria-label="Tally" className="tally-card island h-full rounded-[24px] border-2 border-border bg-sun shadow-hard-3">
       <div className="tally-body flex h-full min-h-0 flex-col px-[22px] py-5">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
           <span className="whitespace-nowrap shrink-0 text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted">Tally</span>
           <Segmented
             type="single"

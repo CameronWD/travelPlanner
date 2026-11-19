@@ -193,6 +193,7 @@ describe("CalendarFeedPanel", () => {
     it("caps the no-feed-yet copy", () => {
       render(<CalendarFeedPanel tripId="trip-1" initialToken={null} />);
       expect(screen.getByText(/No calendar feed active/).className).toContain("max-w-reading");
+      expect(screen.getByText(/No calendar feed active/).className).toContain("text-xs");
     });
 
     it("caps the iOS instructions and the one-way explainer", () => {

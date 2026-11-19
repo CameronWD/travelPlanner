@@ -110,6 +110,13 @@ describe("MarkerForm — edit mode", () => {
     expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
   });
 
+  it("styles Delete as the destructive outline and Cancel as the outline pill", () => {
+    render(<MarkerForm {...baseProps} marker={existingMarker} />);
+    expect(screen.getByRole("button", { name: "Delete" }).className).toContain("border-destructive");
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+    expect(screen.getByRole("button", { name: "Cancel" }).className).toContain("bg-transparent");
+  });
+
   it("clicking Delete shows confirm dialog and deleteMarker fires ONLY after confirming", async () => {
     const user = userEvent.setup();
     render(<MarkerForm {...baseProps} marker={existingMarker} />);

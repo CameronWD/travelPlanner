@@ -41,6 +41,16 @@ describe("TonightCard (spec 2026-09-29 D1)", () => {
     expect(card.querySelector('[data-slot="stay-band"]')!.textContent).toBe("Tonight");
     expect(card.querySelector('[data-slot="stay-band"]')!.className).toContain("bg-lilac");
     expect(card.querySelector('[data-slot="stay-body"]')!.className).not.toMatch(/bg-lilac(\s|$)/);
+    expect(card.className).toContain("bg-background");
+    expect(card.querySelector('[data-slot="stay-body"]')!.className).toContain("bg-hue-lilac/15");
+  });
+
+  it("the name wraps to two lines instead of being cut to one, and a hover shows it whole", () => {
+    render(<TonightCard tripId="t1" tonight={tonight} isLastDay={false} stopId="s1" size="desktop" />);
+    const name = screen.getByText(tonight.name);
+    expect(name.className).toContain("line-clamp-2");
+    expect(name.className).not.toContain("truncate");
+    expect(name).toHaveAttribute("title", tonight.name);
   });
 
   it("expands in place with every detail present and an 'Edit in plan' link to the Stop; tapping again collapses", () => {

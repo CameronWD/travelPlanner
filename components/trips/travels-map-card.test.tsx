@@ -49,6 +49,12 @@ describe("TravelsMapCard", () => {
       vi.unstubAllGlobals();
     }
   });
+  it("bounds the overlay by the card and lets the chip row scroll", () => {
+    render(<TravelsMapCard trips={trips} variant="desktop" />);
+    const chips = screen.getByRole("button", { name: "All trips" }).parentElement!;
+    expect(chips).toHaveClass("overflow-x-auto", "min-w-0");
+    expect(chips.parentElement).toHaveClass("right-3.5");
+  });
   it("selecting a chip filters the map", () => {
     render(<TravelsMapCard trips={trips} variant="desktop" />);
     fireEvent.click(screen.getByRole("button", { name: "Trip b" }));

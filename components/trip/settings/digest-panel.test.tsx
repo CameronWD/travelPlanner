@@ -195,9 +195,9 @@ describe("DigestPanel", () => {
 
     render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
 
-    expect(
-      await screen.findByText("No device is set up yet, so there’s nowhere to send this."),
-    ).toBeInTheDocument();
+    const line = await screen.findByText("No device is set up yet, so there’s nowhere to send this.");
+    expect(line).toBeInTheDocument();
+    expect(line.className).toContain("text-xs");
     const link = screen.getByRole("link", { name: /manage devices/i });
     expect(link).toHaveAttribute("href", "/account");
   });

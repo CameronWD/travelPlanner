@@ -59,7 +59,7 @@ const IN_CARD_GAP_ALLOWLIST = new Set<string>([
   // buttons inside one row, not between tiles.
   "flex flex-col gap-3 sm:flex-row lg:flex-col",
   // phase-past.tsx: the "wrap" tile's own heading→CTAs stack, inside its Card.
-  "mt-auto flex flex-col gap-3",
+  "flex flex-col gap-3",
 ]);
 
 /** Every `className="..."` / `className={\`...\`}` value in the source that

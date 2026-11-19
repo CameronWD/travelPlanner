@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { formatDayLabel } from "@/lib/dates";
 import { mapsUrl } from "@/lib/map/maps";
 import type { DayViewData } from "@/lib/day-view-loader";
-import { StayCard, StayConfirmation } from "@/components/trip/stay-card";
+import { STAY_NAME_CLASS, StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
 /**
@@ -79,7 +79,7 @@ export function TonightCard({
           className="pressable flex w-full items-center justify-between gap-3 rounded-2xl text-left focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="min-w-0">
-            <span className="block truncate">{tonight.name}</span>
+            <span className={STAY_NAME_CLASS} title={tonight.name}>{tonight.name}</span>
             <span className="block font-sans text-[13px] font-semibold leading-snug">{`Night ${tonight.nightOf.night} of ${tonight.nightOf.of} · check-out ${formatDayLabel(tonight.checkOut)}`}</span>
           </span>
           <ChevronDown

@@ -174,7 +174,7 @@ function PromoteForkDialogInner({
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost">Cancel</Button>
+            <Button variant="outline">Cancel</Button>
           </DialogClose>
         </DialogFooter>
       </>
@@ -191,7 +191,7 @@ function PromoteForkDialogInner({
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost">Cancel</Button>
+            <Button variant="outline">Cancel</Button>
           </DialogClose>
         </DialogFooter>
       </>
@@ -257,7 +257,7 @@ function PromoteForkDialogInner({
 
       <DialogFooter className="flex-col-reverse sm:flex-row">
         <DialogClose asChild>
-          <Button variant="ghost" disabled={isPending}>
+          <Button variant="outline" disabled={isPending}>
             Cancel
           </Button>
         </DialogClose>

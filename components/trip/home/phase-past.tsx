@@ -200,13 +200,13 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
           />
         }
         wrap={
-          <Card radius="xl" shadow={3} className="flex h-full min-h-0 flex-col gap-4 p-6">
+          <Card radius="xl" shadow={3} className="flex min-h-0 flex-col gap-4 p-6">
             {wrapHeading}
             {/* Heading→CTAs gap inside this one Card — inner-tile content,
                 out of scope for the between-cards rule (spacing.ts); left at
                 its pre-existing gap-3. Named in the spacing.test.ts guard's
                 allowlist for the same reason. */}
-            <div className="mt-auto flex flex-col gap-3">{ctas}</div>
+            <div className="flex flex-col gap-3">{ctas}</div>
           </Card>
         }
         stats={[nightsStat, costStat, paidStat("h-full")]}

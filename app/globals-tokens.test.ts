@@ -33,4 +33,24 @@ describe("layout primitives in globals.css", () => {
   it("locks native controls to the light scheme on light-locked surfaces ([data-theme=\"light\"])", () => {
     expect(decls(lightTheme())["color-scheme"]).toBe("light");
   });
+
+  it("gives the side rail its own surface: sun in light, the dark card in dark (K2)", () => {
+    expect(decls(lightTheme())["--rail"]).toBe("42 100% 70%");
+    expect(decls(rule(".dark"))["--rail"]).toBe("38 10% 16%");
+    expect(decls(atRule("theme", "inline"))["--color-rail"]).toBe("hsl(var(--rail))");
+    const rail = utility("rail");
+    expect(decls(rail).color).toBe("hsl(var(--on-accent))");
+    const inDark = decls(rule("&:where(.dark *)", rail));
+    expect(inDark["--foreground"]).toBe("inherit");
+    expect(inDark["--muted-foreground"]).toBe("inherit");
+    expect(inDark.color).toBe("hsl(var(--foreground))");
+  });
+
+  it("draws the hard shadows in the border colour in dark, and keeps the soft edge ink dark (K3)", () => {
+    const dark = decls(rule(".dark"));
+    expect(dark["--shadow-2"]).toBe("4px 4px 0 hsl(var(--border))");
+    expect(dark["--shadow-pressed"]).toBe("1px 1px 0 hsl(var(--border))");
+    expect(dark["--shadow-ink"]).toBe("40 13% 5%");
+    expect(dark["--shadow-cta"]).toBeUndefined();
+  });
 });

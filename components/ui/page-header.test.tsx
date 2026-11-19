@@ -57,7 +57,7 @@ describe("PageHeader (AUDIT.md §1)", () => {
     expect(container.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
   });
 
-  it("stacks into two rows below md: trailing cluster first, then the title beside the phone action (spec 2026-10-12 W1, ruling R1)", () => {
+  it("puts the eyebrow and the trailing cluster on row 1 and the title beside the phone action on row 2", () => {
     const { container } = render(
       <PageHeader
         eyebrow="EU Christmas 2026"
@@ -69,27 +69,32 @@ describe("PageHeader (AUDIT.md §1)", () => {
     );
     const header = container.querySelector("[data-slot='page-header']")!;
     expect(header.className.split(/\s+/)).toEqual(
-      expect.arrayContaining(["grid", "grid-cols-[minmax(0,1fr)_auto]", "md:flex", "md:flex-wrap", "md:items-end"]),
+      expect.arrayContaining(["grid", "grid-cols-[minmax(0,1fr)_auto]", "gap-y-1", "md:flex", "md:flex-wrap", "md:items-end"]),
     );
     const trailing = container.querySelector("[data-slot='page-header-trailing']")!;
     const title = container.querySelector("[data-slot='page-header-title']")!;
     const mobile = container.querySelector("[data-slot='page-header-mobile-action']")!;
-    // Row 1: the layout cluster, full width, right-aligned. Row 2: title left, + right.
-    expect(trailing.className.split(/\s+/)).toEqual(expect.arrayContaining(["row-start-1", "col-span-2", "justify-end", "md:contents"]));
-    expect(title.className.split(/\s+/)).toEqual(expect.arrayContaining(["row-start-2", "col-start-1", "min-w-0", "md:flex-1", "md:min-w-[14rem]"]));
-    expect(mobile.className.split(/\s+/)).toEqual(expect.arrayContaining(["row-start-2", "col-start-2", "md:hidden"]));
-    // The title column holds no focusable control, so DOM order title → side (trailing, then +)
-    // already matches the visual rows for keyboard users; assert the + follows the trailing cluster.
+    const h1 = screen.getByRole("heading", { level: 1 });
+    const trailingClasses = trailing.className.split(/\s+/);
+    expect(trailingClasses).toEqual(expect.arrayContaining(["col-start-2", "row-start-1", "justify-end", "md:contents"]));
+    expect(trailingClasses).not.toContain("col-span-2");
+    expect(title.className.split(/\s+/)).toEqual(expect.arrayContaining(["max-md:contents", "min-w-0", "md:flex-1", "md:min-w-[14rem]"]));
+    expect(screen.getByText("EU Christmas 2026").className.split(/\s+/)).toEqual(expect.arrayContaining(["col-start-1", "row-start-1"]));
+    expect(h1.className.split(/\s+/)).toEqual(expect.arrayContaining(["col-start-1", "col-span-2", "row-start-2", "max-md:pr-14"]));
+    expect(mobile.className.split(/\s+/)).toEqual(expect.arrayContaining(["row-start-2", "col-span-2", "justify-self-end", "md:hidden"]));
     expect(trailing.compareDocumentPosition(mobile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // From md the side cluster is one flex unit that wraps under the title as a group, right-aligned,
-    // and wraps within itself when even a full row cannot hold it (768: no sideways scroll).
     const side = container.querySelector("[data-slot='page-header-side']")!;
     expect(side.className.split(/\s+/)).toEqual(expect.arrayContaining(["contents", "md:flex", "md:flex-wrap", "md:ml-auto", "md:justify-end"]));
   });
 
-  it("keeps the title on the first row when there is no trailing cluster", () => {
+  it("puts the meta line on the row after the title", () => {
+    render(<PageHeader eyebrow="Trip" title="X" meta="3 files" metaOnMobile />);
+    expect(screen.getByText("3 files").className.split(/\s+/)).toEqual(expect.arrayContaining(["col-span-2", "row-start-3"]));
+  });
+
+  it("keeps the title on the first row when there is nothing above it", () => {
     const { container } = render(<PageHeader title="More" mobileAction={<button type="button" aria-label="Add" />} />);
-    expect(container.querySelector("[data-slot='page-header-title']")!.className.split(/\s+/)).toContain("row-start-1");
+    expect(screen.getByRole("heading", { level: 1 }).className.split(/\s+/)).toContain("row-start-1");
     expect(container.querySelector("[data-slot='page-header-mobile-action']")!.className.split(/\s+/)).toContain("row-start-1");
     expect(container.querySelector("[data-slot='page-header-trailing']")).toBeNull();
   });

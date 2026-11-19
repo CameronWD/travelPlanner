@@ -161,7 +161,7 @@ function CostDialogForm({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="md"
               disabled={submitting}
               onClick={onCancel}
@@ -260,7 +260,7 @@ export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormD
           onOpenChange(false);
         }
       }}
-      title="Edit cost"
+      title="Edit Cost"
       onSubmit={handleSubmit}
       initialState={costToFormState(cost)}
       submitting={submitting}

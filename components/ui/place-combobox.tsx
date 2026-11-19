@@ -3,8 +3,11 @@
 import * as React from "react";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import { m } from "motion/react";
+import { Search } from "lucide-react";
 import { LayoutMotion } from "@/components/ui/layout-motion";
 import { useFieldControl } from "@/components/ui/field";
+import { INPUT_FRAME_CLASS, INPUT_TEXT_CLASS } from "@/components/ui/input";
+import { cn } from "@/lib/cn";
 import { PLACE_FIELD_HINT, usePlaceSuggestions, type PlaceKind, type PlaceSuggestion } from "@/components/places/use-place-suggestions";
 import { placesBrowserKey } from "@/lib/map/google-config";
 import type { PickedPlace } from "@/lib/picked-place";
@@ -105,7 +108,8 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
   const showList = available && open && suggestions.length > 0;
   const describedBy = [field["aria-describedby"], available ? undefined : hintId].filter(Boolean).join(" ") || undefined;
   return (
-    <div className="shrink-0 overflow-hidden rounded-[18px] border-2 border-border bg-card shadow-hard-2">
+    <div className={cn("relative shrink-0 overflow-hidden focus-within:border-border", INPUT_FRAME_CLASS)}>
+      <Search aria-hidden="true" className="pointer-events-none absolute left-4 top-3.5 size-5 text-muted-foreground" />
       <input
         id={id ?? field.id}
         role={available ? "combobox" : undefined}
@@ -125,7 +129,7 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
         onKeyDown={onKeyDown}
         onFocus={reset}
         onBlur={() => setDismissed(suggestions)}
-        className="h-[60px] w-full bg-transparent px-5 text-xl font-bold text-foreground caret-coral outline-none placeholder:text-muted-foreground focus-visible:outline-[3px] focus-visible:-outline-offset-[3px] focus-visible:outline-ring"
+        className={cn("h-12 w-full bg-transparent pl-11 pr-4 caret-coral outline-none placeholder:font-medium placeholder:text-muted-foreground focus-visible:outline-[3px] focus-visible:-outline-offset-[3px] focus-visible:outline-ring", INPUT_TEXT_CLASS)}
       />
       {showList ? (
         <>
@@ -147,7 +151,7 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => setHighlight({ list: suggestions, index: i })}
                 onClick={() => void choose(s)}
-                className="relative flex min-h-[52px] cursor-pointer items-center gap-3 px-5 py-2"
+                className="relative flex min-h-[52px] cursor-pointer items-center gap-3 px-4 py-2"
               >
                 {/* One highlight that slides to the active row (MOTION N10). */}
                 {i === active ? (
@@ -163,14 +167,14 @@ function PlaceField({ value, onValueChange, onPick, placeholder = "Search a town
               </li>
             ))}
           </m.ul>
-          <p translate="no" className="border-t-2 border-border px-5 py-1.5 text-right text-[11px] font-semibold text-muted-foreground">Google Maps</p>
+          <p translate="no" className="border-t-2 border-border px-4 py-1.5 text-right text-[11px] font-semibold text-muted-foreground">Google Maps</p>
         </>
       ) : null}
       {available && status === "empty" && open ? (
-        <p role="status" className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">No places found. Keep typing, or use it as written.</p>
+        <p role="status" className="border-t-2 border-border px-4 py-3 text-[13px] font-semibold text-muted-foreground">No places found. Keep typing, or use it as written.</p>
       ) : null}
       {available ? null : (
-        <p id={hintId} className="border-t-2 border-border px-5 py-3 text-[13px] font-semibold text-muted-foreground">{unavailableHint}</p>
+        <p id={hintId} className="border-t-2 border-border px-4 py-3 text-[13px] font-semibold text-muted-foreground">{unavailableHint}</p>
       )}
     </div>
   );

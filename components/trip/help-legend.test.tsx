@@ -18,7 +18,7 @@ describe("HelpLegend", () => {
     // readers should hear the description, never a stack of unlabelled buttons.
     const { container } = render(<HelpLegend />);
     const specimens = container.querySelectorAll("[data-testid='legend-specimen']");
-    expect(specimens.length).toBe(LEGEND_ENTRIES.length);
+    expect(specimens.length).toBeGreaterThanOrEqual(LEGEND_ENTRIES.length);
     specimens.forEach((s) => {
       expect(s.getAttribute("aria-hidden")).toBe("true");
     });
@@ -46,10 +46,23 @@ describe("HelpLegend", () => {
     const rows = Array.from(container.querySelectorAll("li")).filter((li) =>
       li.querySelector("[data-testid='legend-specimen']"),
     );
-    expect(rows.length).toBe(LEGEND_ENTRIES.length);
-    rows.forEach((row, i) => {
-      expect(row.textContent).toContain(LEGEND_ENTRIES[i].meaning);
+    expect(rows.length).toBeGreaterThanOrEqual(LEGEND_ENTRIES.length);
+    LEGEND_ENTRIES.forEach((entry, i) => {
+      expect(rows[i].textContent).toContain(entry.meaning);
     });
+  });
+
+  it("lays every block of the key out as rows with a specimen", () => {
+    const { container } = render(<HelpLegend />);
+    const blocks = container.querySelectorAll("[data-slot='help-legend'] > div");
+    expect(blocks).toHaveLength(5);
+    for (const block of Array.from(blocks)) {
+      const items = block.querySelectorAll("li");
+      expect(items.length).toBeGreaterThan(0);
+      for (const li of Array.from(items)) {
+        expect(li.querySelector("[data-testid='legend-specimen']")).not.toBeNull();
+      }
+    }
   });
 
   it("documents the five mobile tab bar destinations", () => {
@@ -97,7 +110,7 @@ describe("HelpLegend — Playground kit shape", () => {
     const { container } = render(<HelpLegend />);
     for (const s of Array.from(container.querySelectorAll("[data-testid='legend-specimen']"))) {
       expect(s.className).not.toMatch(/(^|\s)w-11(\s|$)/);
-      expect(s.className).toMatch(/\bw-24\b/);
+      expect(s.className).toMatch(/\bw-32\b/);
     }
   });
 });

@@ -638,7 +638,7 @@ describe("zero-stops empty state", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[]} chapters={[]} />);
     expect(screen.getByRole("heading", { name: "No stops yet" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add a stop" }));
-    expect(await screen.findByRole("dialog", { name: "Add a stop" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a Stop" })).toBeInTheDocument();
   });
 });
 
@@ -2450,7 +2450,7 @@ describe("?add=stop (final review #3)", () => {
   it("opens the add-Stop dialog when the URL carries add=stop, then strips add (keeping other params) without scrolling", async () => {
     navState.search = "plan=fork-1&add=stop";
     renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(await screen.findByRole("dialog", { name: "Add a stop" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a Stop" })).toBeInTheDocument();
     await waitFor(() =>
       expect(routerReplaceMock).toHaveBeenCalledWith("/trips/trip-1/plan?plan=fork-1", { scroll: false }),
     );
@@ -2466,15 +2466,15 @@ describe("?add=stop (final review #3)", () => {
 
   it("opens when add=stop arrives on a later client navigation while mounted", async () => {
     const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Add a Stop" })).toBeNull();
     navState.search = "add=stop";
     rerender(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(await screen.findByRole("dialog", { name: "Add a stop" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a Stop" })).toBeInTheDocument();
   });
 
   it("keeps it closed, and leaves the URL alone, without add=stop", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop()]} />);
-    expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Add a Stop" })).toBeNull();
     expect(routerReplaceMock).not.toHaveBeenCalled();
   });
 });
@@ -3203,14 +3203,14 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
     await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
     await user.click(await screen.findByRole("menuitem", { name: /^Adjust dates/ }));
-    const dialog = await screen.findByRole("dialog", { name: /Adjust dates for Paris/ });
+    const dialog = await screen.findByRole("dialog", { name: /Adjust Dates for Paris/ });
     await user.click(within(dialog).getByRole("button", { name: "Save dates" }));
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({ variant: "destructive", title: "Depart date must be on or after arrive date" }),
       ),
     );
-    expect(screen.getByRole("dialog", { name: /Adjust dates for Paris/ })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Adjust Dates for Paris/ })).toBeInTheDocument();
   });
 });
 

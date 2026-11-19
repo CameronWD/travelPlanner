@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
+export const STAY_NAME_CLASS = "line-clamp-2 break-words";
+
 export function StayCard({
   label,
   labelAs: Label = "span",
@@ -21,7 +23,7 @@ export function StayCard({
   return (
     <div
       {...rest}
-      className={cn("overflow-hidden rounded-3xl border-2 border-border shadow-hard-2", className)}
+      className={cn("overflow-hidden rounded-3xl border-2 border-border bg-background shadow-hard-2", className)}
     >
       <div
         data-slot="stay-band"
@@ -30,7 +32,7 @@ export function StayCard({
         <Icon className="size-4 shrink-0" strokeWidth={2.5} aria-hidden="true" />
         <Label className="text-[11px] font-extrabold uppercase leading-[inherit] tracking-[0.08em] text-inherit [font-family:inherit]">{label}</Label>
       </div>
-      <div data-slot="stay-body" className="flex flex-col gap-1 bg-hue-lilac/25 px-4 py-3 text-foreground">
+      <div data-slot="stay-body" className="flex flex-col gap-1 bg-hue-lilac/15 px-4 py-3 text-foreground">
         <div className="font-display text-[20px] font-extrabold leading-tight">{name}</div>
         {children}
       </div>

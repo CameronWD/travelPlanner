@@ -50,6 +50,18 @@ describe("PlaceCombobox", () => {
     vi.unstubAllEnvs();
   });
 
+  it("looks like every other field, marked by a magnifier", () => {
+    render(<Harness />);
+    const el = input();
+    expect(el.className).toContain("h-12");
+    expect(el.className).not.toContain("h-[60px]");
+    const wrapper = el.parentElement!;
+    expect(wrapper.className).not.toContain("shadow-hard-2");
+    const icon = wrapper.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("is a plain input with the hint when there is no browser key", async () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     render(<Harness />);

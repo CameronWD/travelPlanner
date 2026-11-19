@@ -87,10 +87,11 @@ export const viewport: Viewport = { themeColor: MAP_INK.light.paper };
 
 const STICK = "lg:sticky lg:top-6";
 const STICKY_SECTION: Record<ShareStage, ShareSection> = { before: "hero", during: "map", after: "map" };
+const ROUTE_FILL = "lg:[&>div]:h-full lg:[&>div>div]:h-full lg:[&>div>div>section]:h-full";
 const PLACEMENT: Record<ShareStage, Partial<Record<ShareSection, string>>> = {
-  before: { hero: "lg:order-1", route: "lg:order-2", map: "lg:order-3 lg:col-span-2", days: "lg:order-4 lg:col-span-2", cta: "lg:order-5 lg:col-span-2" },
-  during: { hero: "lg:order-1", "right-now": "lg:order-2", next: "lg:hidden", map: "lg:order-3", route: "lg:order-4", days: "lg:order-5 lg:col-span-2", journal: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
-  after: { hero: "lg:order-1", tally: "lg:order-2 lg:self-start", journal: "lg:order-3 lg:col-span-2", map: "hidden lg:order-4 lg:block", route: "lg:order-5", days: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
+  before: { hero: "lg:order-1", route: `lg:order-2 lg:row-span-2 ${ROUTE_FILL}`, map: "lg:order-3", days: "lg:order-4 lg:col-span-2", cta: "lg:order-5 lg:col-span-2" },
+  during: { hero: "lg:order-1", "right-now": "lg:order-2", next: "lg:hidden", map: "lg:order-3", route: `lg:order-4 ${ROUTE_FILL}`, days: "lg:order-5 lg:col-span-2", journal: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
+  after: { hero: "lg:order-1", tally: "lg:order-2 lg:self-start", journal: "lg:order-3 lg:col-span-2", map: "hidden lg:order-4 lg:block", route: `lg:order-5 ${ROUTE_FILL}`, days: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
 };
 
 // ---------------------------------------------------------------------------

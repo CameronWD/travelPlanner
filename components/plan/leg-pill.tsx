@@ -37,21 +37,21 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
         className={cn("shrink-0 border-l-2 border-border", compact ? "ml-5" : "ml-[26px]", kind !== "legs" && "border-dashed")}
       />
       {stations.length > 0 ? (
-        <div data-leg-stack className={cn("flex min-w-0 flex-col items-start gap-1.5 py-2", compact ? "ml-3" : "ml-[18px]")}>
+        <div data-leg-stack className={cn("flex min-w-0 flex-col items-start gap-1.5 py-2 max-md:items-stretch", compact ? "ml-3" : "ml-[18px]")}>
           {stations.map((node, i) => {
             const changeover = changeovers?.[i] ?? null;
             return (
               <div
                 key={React.isValidElement(node) && node.key != null ? node.key : i}
                 data-leg-station
-                className="flex min-w-0 max-w-full flex-col items-start gap-0.5"
+                className="flex min-w-0 max-w-full flex-col items-start gap-0.5 max-md:w-full"
               >
                 {changeover ? (
                   <span data-changeover className="text-[11px] font-semibold leading-tight text-muted-foreground">
                     Change at {changeover}
                   </span>
                 ) : null}
-                <div className="relative flex min-w-0 max-w-full">
+                <div className="relative flex min-w-0 max-w-full max-md:w-full">
                   {kind === "legs" ? (
                     // Centred on the connector: compact line centre is 21px from
                     // the row's left, the stack starts at 34px (ml-5 + 2px + ml-3);
@@ -99,7 +99,7 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, marker 
       aria-label={accessibleName}
       onClick={onClick}
       className={cn(
-        "group tap-target pressable inline-flex min-w-0 max-w-full items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold",
+        "group tap-target pressable inline-flex min-w-0 max-w-full items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold max-md:w-full max-md:justify-start",
         compact ? "h-7 px-2.5 text-xs" : "h-[34px] px-3 text-[13px]",
         label.missing ? "border-dashed bg-background" : "bg-card",
       )}
@@ -120,8 +120,8 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, marker 
       ) : (
         <>
           {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
-          <span className="min-w-0 truncate">{label.label}</span>
-          {label.sub ? <span className="shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
+          <span className="min-w-0 shrink truncate">{label.label}</span>
+          {label.sub ? <span className="min-w-0 shrink-[100] truncate text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
           <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden />
         </>
       )}
@@ -129,7 +129,7 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, marker 
   );
   if (!marker || compact) return pill;
   return (
-    <div className="flex min-w-0 max-w-full flex-col items-start gap-0.5">
+    <div className="flex min-w-0 max-w-full flex-col items-start gap-0.5 max-md:w-full">
       {pill}
       <BookingConfirmationMarker kind={marker.kind} id={marker.id} />
     </div>

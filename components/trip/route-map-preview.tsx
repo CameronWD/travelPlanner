@@ -32,7 +32,7 @@ export function RouteMapPreview({
   return (
     <div className={cn("relative w-full overflow-hidden border-2 border-border", frameClassName)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt={alt} loading="lazy" className="size-full bg-background object-contain" onError={() => setFailed(true)} />
+      <img src={imageUrl} alt={alt} loading="lazy" className="size-full bg-background object-contain lg:object-cover" onError={() => setFailed(true)} />
       <Button
         type="button"
         variant="secondary"

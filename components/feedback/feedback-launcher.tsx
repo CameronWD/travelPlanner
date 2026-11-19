@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastAction } from "@/components/ui/toast";
 import { toast } from "@/components/ui/use-toast";
@@ -669,15 +670,10 @@ export function FeedbackLauncher() {
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {hiddenCount > 0 ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="self-start"
-                onClick={() => setShowResolved((shown) => !shown)}
-              >
-                {showResolved ? "Hide resolved" : `Show resolved (${hiddenCount})`}
-              </Button>
+              <label className="flex min-h-11 items-center gap-2 self-start text-sm font-semibold text-foreground">
+                <Switch checked={showResolved} onCheckedChange={setShowResolved} />
+                Show resolved ({hiddenCount})
+              </label>
             ) : null}
             <ul className="flex flex-col gap-3">
               {entries.map((entry) =>
@@ -762,40 +758,40 @@ function SentEntry({
   const resolved = resolutionLine(note);
 
   return (
-    <li className="flex items-start gap-2">
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">
+    <li className="flex flex-col gap-1">
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           {note.authorName} · {whereWritten(note)} ·{" "}
           {relativeTime(new Date(note.authoredAt))}
         </p>
-        <p
-          className={cn(
-            "whitespace-pre-wrap break-words text-sm text-foreground",
-            closed && "text-muted-foreground line-through decoration-1",
-          )}
-        >
-          {note.body}
-        </p>
-        {resolved ? (
-          <p className="mt-1 pl-3 text-xs text-muted-foreground">{resolved}</p>
+        {note.siteChip ? (
+          <Badge variant="outline" aria-label={`Written on ${note.siteChip}`}>
+            {note.siteChip}
+          </Badge>
+        ) : null}
+        {statusLabel ? <Badge variant={badgeVariant}>{statusLabel}</Badge> : null}
+        {canDelete ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-label={`Delete "${note.body.slice(0, 30)}"`}
+            onClick={() => void onDelete(note.id)}
+          >
+            <Trash2 aria-hidden />
+          </Button>
         ) : null}
       </div>
-      {note.siteChip ? (
-        <Badge variant="outline" aria-label={`Written on ${note.siteChip}`}>
-          {note.siteChip}
-        </Badge>
-      ) : null}
-      {statusLabel ? <Badge variant={badgeVariant}>{statusLabel}</Badge> : null}
-      {canDelete ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          aria-label={`Delete "${note.body.slice(0, 30)}"`}
-          onClick={() => void onDelete(note.id)}
-        >
-          <Trash2 aria-hidden />
-        </Button>
+      <p
+        className={cn(
+          "whitespace-pre-wrap break-words text-sm text-foreground",
+          closed && "text-muted-foreground line-through decoration-1",
+        )}
+      >
+        {note.body}
+      </p>
+      {resolved ? (
+        <p className="mt-1 pl-3 text-xs text-muted-foreground">{resolved}</p>
       ) : null}
     </li>
   );
@@ -803,16 +799,16 @@ function SentEntry({
 
 function PendingEntry({ note }: { note: QueuedFeedbackNote }) {
   return (
-    <li className="flex items-start gap-2">
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">
+    <li className="flex flex-col gap-1">
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           {whereWritten(note)} · {relativeTime(new Date(note.authoredAt))}
         </p>
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground">
-          {note.body}
-        </p>
+        <Badge variant="muted">Pending</Badge>
       </div>
-      <Badge variant="muted">Pending</Badge>
+      <p className="whitespace-pre-wrap break-words text-sm text-foreground">
+        {note.body}
+      </p>
     </li>
   );
 }

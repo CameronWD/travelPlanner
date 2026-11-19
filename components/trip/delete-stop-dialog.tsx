@@ -65,7 +65,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost">Cancel</Button>
+            <Button variant="outline">Cancel</Button>
           </DialogClose>
         </DialogFooter>
       </>
@@ -84,7 +84,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
         <p className="text-sm text-destructive">{fetchError}</p>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost" disabled={isPending}>
+            <Button variant="outline" disabled={isPending}>
               Cancel
             </Button>
           </DialogClose>
@@ -110,7 +110,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
 
       <DialogFooter>
         <DialogClose asChild>
-          <Button variant="ghost" disabled={isPending}>
+          <Button variant="outline" disabled={isPending}>
             Cancel
           </Button>
         </DialogClose>

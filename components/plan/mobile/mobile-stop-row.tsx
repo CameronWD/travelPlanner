@@ -61,15 +61,15 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
         {stop.surprise && <SurpriseBadge view={stop.surprise} size="sm" className="mt-1 max-w-full truncate" />}
       </span>
 
-      <span className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-sm font-extrabold tabular-nums">
+      <span className="flex min-w-[4.5rem] max-w-[40%] shrink-0 flex-col items-end gap-1">
+        <span className="max-w-full truncate text-sm font-extrabold tabular-nums">
           {rough ? "Rough" : nights === 0 ? "Same day" : formatDateRangeCompact(stop.arriveDate as string, stop.departDate as string)}
         </span>
         {/* The desktop row (stop-row.tsx) hides the nights pill on a same-day stop; so does this one (LA-187). */}
         {(rough || nights > 0) && (
           <span
             className={cn(
-              "shrink-0 whitespace-nowrap rounded-full border-2 px-2 text-xs font-extrabold tabular-nums",
+              "max-w-full shrink-0 whitespace-nowrap rounded-full border-2 px-2 text-xs font-extrabold tabular-nums",
               rough ? "border-dashed border-border bg-background" : cn("border-border", HUE_CLASSES[stopHue(stop.sortOrder)].fill),
             )}
           >

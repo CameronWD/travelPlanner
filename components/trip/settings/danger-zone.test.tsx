@@ -19,4 +19,10 @@ describe("DangerZone", () => {
     fireEvent.change(screen.getByPlaceholderText("Japan 2026"), { target: { value: "Japan 2026" } });
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
+
+  it("renders Cancel as an outlined button", () => {
+    render(<DangerZone tripId="t1" tripName="Japan 2026" />);
+    fireEvent.click(screen.getByRole("button", { name: /Delete trip/i }));
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+  });
 });

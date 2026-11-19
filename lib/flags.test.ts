@@ -124,6 +124,13 @@ describe("flagDisplayMessage", () => {
     expect(flagDisplayMessage(flag)).toBe("Long driving day on Wed 9 Dec: ~5h behind the wheel.");
     expect(flag.message).toContain("2026-12-09");
   });
+  it("says no gap for a zero-minute connection and leaves other gaps alone", () => {
+    expect(flagDisplayMessage({ message: "Tight on 2026-03-02 A to B: only 0 min, but it's a ~13 min walk." })).toBe(
+      `Tight on ${formatDayLabel("2026-03-02")} A to B: no gap, but it's a ~13 min walk.`,
+    );
+    expect(flagDisplayMessage({ message: "Tight: only 10 min, but it's a walk." })).toBe("Tight: only 10 min, but it's a walk.");
+    expect(flagDisplayMessage({ message: "Tight: only 100 min." })).toBe("Tight: only 100 min.");
+  });
   it("returns a message with no date as it is", () => {
     expect(flagDisplayMessage({ message: "Add a stay." })).toBe("Add a stay.");
   });

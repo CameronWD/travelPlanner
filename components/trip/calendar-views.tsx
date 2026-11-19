@@ -198,7 +198,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
       {/* Toolbar — kit Days header: the month as a display title beside the sun Segmented. */}
       {/* One wrapping row: on a phone the title takes its own line and the
           Segmented + month arrows share the next; from `sm` it is one line. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-3", view !== "month" && "max-sm:hidden")}>
         <h2 className="w-full font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground sm:w-auto lg:text-4xl">
           {view === "month" ? formatMonthYear(monthAnchor) : "Agenda"}
         </h2>

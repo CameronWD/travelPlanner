@@ -82,7 +82,7 @@ export function ConnectedAppsPanel({ initial, now }: ConnectedAppsPanelProps) {
                 tileTone="lilac"
                 title={<span className="block truncate">{app.clientName}</span>}
                 sub={
-                  <span className="block truncate">
+                  <span className="block break-words">
                     {app.returnsTo ? `Returns to ${app.returnsTo} · ` : ""}
                     {`Connected ${connectedOn(app.connectedAt, now)} · `}
                     {app.lastUsedAt

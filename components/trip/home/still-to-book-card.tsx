@@ -5,6 +5,8 @@ import { useId, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, BedDouble, ChevronRight, Plane, Ticket } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
+import { ROW_NAME_CLASS } from "@/components/ui/row-text";
 import { CountBadge } from "@/components/ui/count-badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { StillToBookKind, StillToBookRow } from "@/lib/still-to-book";
@@ -74,7 +76,7 @@ function StillToBookRowLink({ row: r }: { row: StillToBookRow }) {
         <Icon className="size-4" strokeWidth={2.5} />
       </span>
       <span className="min-w-0 flex-1 leading-tight">
-        <span className="block truncate text-[15px] font-semibold text-foreground">{r.title}</span>
+        <span className={cn(ROW_NAME_CLASS, "text-[15px] font-semibold text-foreground")}>{r.title}</span>
         <span className="block text-xs font-medium text-muted-foreground">{r.subtitle}</span>
       </span>
       <ChevronRight className="size-[18px] shrink-0 text-muted-foreground" strokeWidth={2.5} aria-hidden="true" />

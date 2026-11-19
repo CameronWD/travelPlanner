@@ -216,7 +216,7 @@ export function StopRow({
               )}
             </div>
 
-            {stop.notes && <p className="mt-1 truncate text-xs text-muted-foreground">{stop.notes}</p>}
+            {stop.notes && <p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground" title={stop.notes}>{stop.notes}</p>}
           </div>
 
           <div data-testid="stop-row-when" className="flex shrink-0 flex-col items-start gap-1 whitespace-nowrap @min-[640px]:items-end">

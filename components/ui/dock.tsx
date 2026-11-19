@@ -30,7 +30,7 @@ export interface DockItem {
 }
 
 /**
- * Client Component. md+ left rail (96px, sun). `search` renders directly
+ * Client Component. md+ left rail (96px). `search` renders directly
  * under the mark; `children` are pinned to the bottom (the Traveller's avatar
  * menu, or member avatars).
  */
@@ -40,7 +40,7 @@ function Dock({ items, children, search, className, "aria-label": ariaLabel = "T
   const { pathname, effectivePathname, pendingPathname } = useNavState();
   const matches = (it: DockItem, p: string) => (it.match ? it.match(p) : p.startsWith(it.href));
   return (
-    <nav aria-label={ariaLabel} className={cn("island hidden w-24 shrink-0 flex-col items-center gap-2 overflow-y-auto border-r-2 border-border bg-sun py-5 md:flex print:hidden", className)}>
+    <nav aria-label={ariaLabel} className={cn("rail hidden w-24 shrink-0 flex-col items-center gap-2 overflow-y-auto border-r-2 border-border bg-rail py-5 md:flex print:hidden", className)}>
       {/* /trips, not "/": "/" redirects to /trips, and a redirect that lands on the
           page already shown never changes the URL to settle the pending state on. */}
       <AppLink href="/trips" aria-label="Teepee home" className="mb-3.5 grid size-11 place-items-center rounded-md bg-[hsl(var(--on-accent))]"><Logo variant="mark" size={30} /></AppLink>
@@ -53,7 +53,7 @@ function Dock({ items, children, search, className, "aria-label": ariaLabel = "T
         return (
           <AppLink key={it.href} href={it.href} aria-current={matches(it, pathname) ? "page" : undefined}
             data-pending={pendingPathname != null && matches(it, pendingPathname) ? "true" : undefined}
-            className={cn("grid h-11 w-16 place-items-center rounded-md border-2 text-[11px] font-bold", on ? "border-border bg-coral font-extrabold shadow-hard-1" : "border-transparent", it.muted && !on && "text-muted-foreground")}>
+            className={cn("grid h-11 w-16 place-items-center rounded-md border-2 text-[11px] font-bold", on ? "border-border bg-coral font-extrabold text-on-accent shadow-hard-1" : "border-transparent", it.muted && !on && "text-muted-foreground")}>
             {it.label}
           </AppLink>
         );

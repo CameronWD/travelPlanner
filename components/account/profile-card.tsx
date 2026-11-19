@@ -157,10 +157,10 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
     <div className="flex flex-col gap-3.5">
       <div className="flex items-center gap-3.5">
         <TravellerAvatar traveller={user} size={40} className="size-16" />
-        <div className="flex flex-col items-start gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             size="sm"
             className={SM_HIT}
             loading={uploading}
@@ -179,7 +179,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
           {hasPhoto && (
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               className={SM_HIT}
               loading={uploading}
@@ -191,7 +191,7 @@ export function ProfileCard({ user: initialUser }: ProfileCardProps) {
           {hasPhoto && (
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               className={SM_HIT}
               disabled={uploading}

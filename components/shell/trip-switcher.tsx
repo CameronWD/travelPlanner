@@ -93,7 +93,7 @@ export function TripSwitcher({ current, trips, variant = "card" }: TripSwitcherP
         <Dot />
         {variant === "card" ? (
           <span className="flex min-w-0 flex-1 flex-col items-start text-left">
-            <span className="w-full truncate text-sm font-bold">{current.name}</span>
+            <span className="line-clamp-2 w-full break-words text-sm font-bold">{current.name}</span>
             <span className="w-full truncate text-xs text-muted-foreground">{current.statusLine}</span>
           </span>
         ) : (
