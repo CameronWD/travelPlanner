@@ -84,6 +84,13 @@ describe("Sidebar", () => {
     }
   });
 
+  it("scrolls on its own when it is taller than the window", () => {
+    renderSidebar();
+    const classes = screen.getByTestId("sidebar").className.split(/\s+/);
+    expect(classes).toContain("h-dvh");
+    expect(classes).toContain("overflow-y-auto");
+  });
+
   it("renders exactly one lockup link, to /trips", () => {
     renderSidebar();
     const lockups = screen.getAllByRole("link", { name: "Teepee, go to your trips" });
@@ -169,6 +176,14 @@ describe("Sidebar", () => {
     expect(href("Days")).toBe("/trips/christmas/day");
     expect(within(mainNav()).getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByTestId("sidebar-trip-skeleton")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("sizes the switcher skeleton like the real trigger: a 20px name row, a 16px status row, a chevron's room", () => {
+    render(<SidebarTripSkeleton />);
+    const rows = screen.getByTestId("sidebar-trip-skeleton").querySelectorAll(":scope > span:nth-child(2) > span");
+    expect(rows[0].className.split(/\s+/)).toContain("h-5");
+    expect(rows[1].className.split(/\s+/)).toContain("h-4");
+    expect(screen.getByTestId("sidebar-trip-skeleton").querySelector(":scope > span.size-4")).not.toBeNull();
   });
 
   it("prefers trip.daysHref over DaysHrefProvider", () => {

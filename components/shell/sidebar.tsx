@@ -91,7 +91,7 @@ export function SidebarTripPlaceholder({ trip }: { trip?: { id: string; name: st
   return (
     <div className={cardClass}>
       {dot}
-      {trip.name ? <span className="truncate text-sm font-bold">{trip.name}</span> : null}
+      {trip.name ? <span className="line-clamp-2 break-words text-sm font-bold">{trip.name}</span> : null}
     </div>
   );
 }
@@ -99,9 +99,13 @@ export function SidebarTripPlaceholder({ trip }: { trip?: { id: string; name: st
 /** The switcher slot while the trip layout is still streaming its name (AppShellRail). */
 export function SidebarTripSkeleton() {
   return (
-    <div data-testid="sidebar-trip-skeleton" aria-hidden="true" className="flex min-h-11 items-center gap-2.5 rounded-[14px] border-2 border-border bg-card px-3 py-2.5 shadow-hard-1">
+    <div data-testid="sidebar-trip-skeleton" aria-hidden="true" className="flex min-h-11 items-center gap-2 rounded-[14px] border-2 border-border bg-card px-3 py-2.5 shadow-hard-1">
       <span className="size-2.5 shrink-0 rounded-full border-2 border-border bg-coral" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5"><Skeleton className="h-3.5 w-28" /><Skeleton className="h-2.5 w-16" /></span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="flex h-5 items-center"><Skeleton className="h-3.5 w-28" /></span>
+        <span className="flex h-4 items-center"><Skeleton className="h-2.5 w-16" /></span>
+      </span>
+      <span className="size-4 shrink-0" />
     </div>
   );
 }

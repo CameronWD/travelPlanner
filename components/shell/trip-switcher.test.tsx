@@ -80,6 +80,17 @@ describe("TripSwitcher", () => {
     expect(within(trigger).getByText("Europe 2026")).toBeInTheDocument();
     expect(within(trigger).queryByText("68 sleeps to go")).toBeNull();
   });
+
+  it("wraps a long name to two lines in the card trigger, and keeps the pill's name on one", () => {
+    const { unmount } = render(<TripSwitcher current={CURRENT} trips={TRIPS} variant="card" />);
+    const cardName = within(screen.getByRole("button", { name: /switch trip/i })).getByText("Europe 2026");
+    expect(cardName.className.split(/\s+/)).toContain("line-clamp-2");
+    expect(cardName.className.split(/\s+/)).not.toContain("truncate");
+    unmount();
+    render(<TripSwitcher current={CURRENT} trips={TRIPS} variant="pill" />);
+    const pillName = within(screen.getByRole("button", { name: /switch trip/i })).getByText("Europe 2026");
+    expect(pillName.className.split(/\s+/)).toContain("truncate");
+  });
 });
 
 describe("TripSwitcherFromContext", () => {
