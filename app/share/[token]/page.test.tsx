@@ -379,6 +379,7 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     expect(cell("map").className).toContain("lg:order-3");
     expect(cell("map").className).not.toContain("lg:col-span-2");
     expect(cell("route").className).toContain("lg:row-span-2");
+    expect(cell("route").className).toContain("lg:[&>div>div>section]:h-full");
   });
 
   it("during: hero → right-now → next → journal → map → route → days → cta", async () => {
