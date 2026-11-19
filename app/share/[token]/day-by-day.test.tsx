@@ -44,6 +44,19 @@ describe("DayByDay (SHARE.md §7)", () => {
     expect(within(folded).getAllByText(/5–10 Dec/).some((e) => /sm:hidden/.test(e.className))).toBe(true);
   });
 
+  it("an open Stop's name wraps on a phone with its dates on a muted line under it", () => {
+    const long = "A".repeat(40);
+    const { container } = render(<DayByDay stops={[{ ...stops[0], name: long }, stops[1]]} initialOpenId="lon" />);
+    const open = container.querySelector("[data-stop-open='lon']") as HTMLElement;
+    const name = within(open).getByRole("heading", { name: long });
+    expect(name.className).toMatch(/break-words/);
+    expect(name.className).toMatch(/sm:truncate/);
+    expect(name.className).not.toMatch(/(^|\s)truncate/);
+    const dates = within(open).getByText(/5 Dec.*–.*10 Dec/);
+    expect(dates.className).not.toMatch(/hidden/);
+    expect(dates.className).toMatch(/text-muted-foreground/);
+  });
+
   it("marks today with aria-current, a TODAY pill and a sun tint", () => {
     render(<DayByDay stops={stops} initialOpenId="par" />);
     const today = screen.getAllByTestId("share-day").find((d) => d.getAttribute("aria-current") === "date")!;

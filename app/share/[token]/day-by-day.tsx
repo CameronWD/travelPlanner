@@ -124,10 +124,12 @@ function OpenStop({ s }: { s: DayByDayStop }) {
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-border bg-card text-xs font-extrabold">
           {s.number}
         </span>
-        <h3 className="min-w-0 flex-1 truncate font-display text-[22px] font-extrabold">{s.name}</h3>
-        <span className="hidden shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums sm:inline">
-          {formatDayLabel(s.arriveDate)} – {formatDayLabel(s.departDate)} · {formatNights(s.nights)}
-        </span>
+        <div className="flex min-w-0 flex-1 flex-col sm:contents">
+          <h3 className="break-words font-display text-[22px] font-extrabold sm:min-w-0 sm:flex-1 sm:truncate">{s.name}</h3>
+          <span className="text-[13px] font-semibold tabular-nums text-muted-foreground sm:shrink-0 sm:whitespace-nowrap sm:font-bold sm:text-foreground">
+            {formatDayLabel(s.arriveDate)} – {formatDayLabel(s.departDate)} · {formatNights(s.nights)}
+          </span>
+        </div>
       </div>
       <ol>
         {s.days.map((d) => (
