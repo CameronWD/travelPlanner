@@ -15,6 +15,8 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 /** Outlined field that lifts with a hard shadow on focus. API unchanged (+ inputSize). */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, invalid, inputSize = "m", type = "text", ...props }, ref) => {
   const fieldProps = useFieldControl();
+  const [uncontrolledEmpty, setUncontrolledEmpty] = React.useState(props.defaultValue === undefined || props.defaultValue === "");
+  const empty = type === "date" && (props.value !== undefined ? props.value === "" : uncontrolledEmpty);
   const ariaInvalid = invalid || props["aria-invalid"] || fieldProps["aria-invalid"];
   return (
     <input
@@ -22,8 +24,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, inval
       type={type}
       {...fieldProps}
       {...props}
+      onChange={(e) => {
+        setUncontrolledEmpty(e.currentTarget.value === "");
+        props.onChange?.(e);
+      }}
       aria-invalid={ariaInvalid}
-      data-empty={type === "date" && props.value === "" ? "" : undefined}
+      data-empty={empty ? "" : undefined}
       className={cn(
         "flex w-full px-4",
         INPUT_FRAME_CLASS,
