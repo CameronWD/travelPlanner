@@ -92,6 +92,7 @@ describe("RouteMapPreview", () => {
     );
     const cls = screen.getByAltText("Route map of Alps").className;
     expect(cls).toContain("object-contain");
+    expect(cls).toContain("lg:object-cover");
     expect(cls).toContain("bg-background");
   });
 });
