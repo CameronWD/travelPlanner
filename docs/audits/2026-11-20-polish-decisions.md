@@ -43,15 +43,16 @@ and was built the recommended way so the work did not stop. Say which to change.
 | L2 | The shared trip's map preview fills its frame from lg (slight crop); phones keep the whole image. | Crop on phones too. |
 | H1 | Only "only 0 min" changed, to "no gap". The capitals (TO BOOK and the like) are in titles you typed, so no pill was built. | Recognise a fixed list of status words in titles and show them as pills. |
 | O2 | Dialog titles made Title Case everywhere, as `COMPONENTS.md` says. | Sentence case everywhere, and change the rule. |
-| H4 | Trip home's desktop cards size to their content, so a row's cards can end at different heights. | Even bottoms, blank space inside. |
+| H4 | Trip home's desktop cards keep even heights in a row; content now sits at the top, so a short card's blank space is at its foot instead of its middle. | Let each card end where its content ends, with uneven rows. |
 | E1 | New trip's place steps lose their tall field too. | Keep the tall field there. |
-| M2 | Nine category colours; a trip with more than nine categories repeats. | Group the smallest into "Other". |
+| M2 | Each category has a usual colour and keeps it across trips; when two would clash on one trip the second takes the next free colour. Nine colours, so a trip with more than nine categories repeats. | Group the smallest categories into "Other", or add colours. |
 | D1 | The Day plan title column gets 66 to 73% of a phone card; the two 44 px buttons still share the title's line. | Move the buttons under the title. |
 
 ### Not built in wave 2, waiting on you
 
 - **K3, weather card in the dark theme.** Its colours are the same in both themes on purpose and its scenes are drawn with dark outlines, so a dark card is a redesign, not a fix. Keep it light, or commission a dark palette?
 - **O3, keyboard.** Import a booking and Add a stop now keep their button visible. Edit Item and Transport edit already dock to the keyboard; whether they fail needs your phone. The inline Add reminder is a form on the page: make it a dialog on phones?
+- **K1, empty date field on an iPhone.** A desktop WebKit browser paints today's date, pale, in an empty date field. Whether your iPhone does needs a look (Settings, Hard end date, when empty). If it does, the fix is a drawn placeholder, which is a custom control, so it waits for you.
 - **S9.** Not measured yet.
 
 ## Open questions that are not builds
