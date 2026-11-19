@@ -2,6 +2,9 @@ import * as React from "react";
 import { useFieldControl } from "@/components/ui/field";
 import { cn } from "@/lib/cn";
 
+export const INPUT_FRAME_CLASS = "rounded-md border-2 border-input bg-card";
+export const INPUT_TEXT_CLASS = "text-base font-semibold text-foreground sm:text-[15px]";
+
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   /** Visually mark the field as invalid and wire aria-invalid. */
   invalid?: boolean;
@@ -21,7 +24,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, inval
       {...props}
       aria-invalid={ariaInvalid}
       className={cn(
-        "flex w-full rounded-md border-2 border-input bg-card px-4 text-base font-semibold text-foreground sm:text-[15px]",
+        "flex w-full px-4",
+        INPUT_FRAME_CLASS,
+        INPUT_TEXT_CLASS,
         inputSize === "l" ? "h-14 sm:text-[17px]" : "h-12",
         "placeholder:font-medium placeholder:text-muted-foreground",
         "transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop",
