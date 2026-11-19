@@ -1057,6 +1057,13 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(row.className).not.toMatch(/\bborder-dotted\b/);
     expect(row.className).toContain("border-t-2");
   });
+  it("a phone gives the title column room: a 38px gutter, a 32px tile and a tighter gap", () => {
+    const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />);
+    const row = container.querySelector("[data-timeline-row]")!;
+    expect(row.firstElementChild!.className).toContain("max-md:w-[38px]");
+    expect(row.querySelector("[data-testid='timeline-tile']")!.className).toContain("max-md:size-8");
+    expect(row.className).toContain("max-md:gap-2");
+  });
   it("colours transport tiles sun and renders stays as StayCards, not lilac tiles", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
     const fills = [...container.querySelectorAll("[data-testid='timeline-tile']")].map((t) => t.className);
