@@ -22,6 +22,13 @@ describe("LocationCombobox", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  it("shows the place alone on the trigger and keeps the label in its accessible name", () => {
+    renderCombo();
+    const trigger = screen.getByRole("button", { name: /^To:/ });
+    expect(trigger.textContent).not.toContain("To:");
+    expect(trigger.getAttribute("aria-label")).toMatch(/^To: /);
+  });
+
   it("lists existing stops and selects one", async () => {
     const onChange = renderCombo();
     await userEvent.click(screen.getByRole("button", { name: /^To/ }));

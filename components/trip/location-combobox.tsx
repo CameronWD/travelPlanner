@@ -91,7 +91,7 @@ export function LocationCombobox({
           aria-label={`${label}: ${currentDisplay}`}
           data-testid={testId}
         >
-          {label}: {currentDisplay}
+          {currentDisplay}
         </Button>
       </PopoverTrigger>
 
