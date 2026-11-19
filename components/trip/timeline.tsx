@@ -614,7 +614,7 @@ function AccomCheckoutRow({
       className="block"
     >
       {large ? (
-        <span className="block break-words">{a.name}</span>
+        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
       ) : (
         <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-out: {a.name}</span>
       )}

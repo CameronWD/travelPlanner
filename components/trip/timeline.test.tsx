@@ -1108,6 +1108,12 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     const timed = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />).container;
     expect(timed.querySelector("[data-timeline-row] span.tabular-nums")).not.toBeNull();
   });
+  it("a Check-out's name wraps to two lines like Check-in's", () => {
+    render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />);
+    const name = document.querySelector("[data-slot='stay-body'] span.line-clamp-2")!;
+    expect(name.className).not.toContain("truncate");
+    expect(name).toHaveAttribute("title", name.textContent!);
+  });
   it("a compact Check-in and Check-out title keeps normal line spacing when it wraps", () => {
     render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
     const inTitle = screen.getByText("Check-in: Osaka Hotel");
