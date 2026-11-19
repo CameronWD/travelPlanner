@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AppLink } from "@/components/navigation/app-link";
 import { useNavState } from "@/components/navigation/navigation-pending";
-import { useAppRouter } from "@/components/navigation/use-app-router";
-import { DAY_BACK, DAY_FORWARD, dayTransitionType } from "@/components/trip/day/day-transition";
+import { DAY_FORWARD, dayTransitionType } from "@/components/trip/day/day-transition";
 import { useDayCarousel } from "@/components/trip/day/day-carousel";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP } from "@/components/ui/use-media-query";
@@ -45,26 +43,10 @@ function targetFor(nav: HTMLElement, chip: HTMLElement, from: number, shiftPx = 
   return phoneStripScroll(input);
 }
 
-function StripStep({ dir, disabled, onClick }: { dir: "prev" | "next"; disabled: boolean; onClick: () => void }) {
-  const Icon = dir === "prev" ? ChevronLeft : ChevronRight;
-  return (
-    <button
-      type="button"
-      aria-label={dir === "prev" ? "Previous day" : "Next day"}
-      disabled={disabled}
-      onClick={onClick}
-      className="pressable hidden h-[62px] w-10 shrink-0 place-items-center rounded-[14px] border-2 border-border bg-card text-foreground shadow-hard-1 disabled:opacity-40 disabled:shadow-none lg:inline-grid"
-    >
-      <Icon className="size-5" strokeWidth={2.5} aria-hidden="true" />
-    </button>
-  );
-}
-
 export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: "public" | "early" | false }>; line: StopLine; size: "desktop" | "phone" }) {
   const phone = size === "phone";
   const tripHref = useTripHref(tripId);
   const carousel = useDayCarousel();
-  const router = useAppRouter();
   const scroller = React.useRef<HTMLDivElement>(null);
   const cancelGlide = React.useRef<() => void>(() => {});
   const centreFrame = React.useRef<HTMLSpanElement>(null);
@@ -216,10 +198,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   // 0.5rem gap. From lg the highlight is the fixed centre frame instead.
   const strideRem = phone ? 3.5 : 4;
 
-  const step = (by: -1 | 1) => {
-    if (!carousel?.step(by)) router.push(tripHref(`/day/${dates[centreIndex + by].iso}`), { scroll: false, transitionTypes: [by < 0 ? DAY_BACK : DAY_FORWARD] });
-  };
-
   const n = dates.length;
   const strip = (
     <div
@@ -233,7 +211,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
       className={cn("flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]", phone && "snap-x snap-mandatory px-[calc(50%-1.5rem)]", !phone && "lg:px-[calc(50%-1.75rem)]")}
       onScroll={(e) => onStripScroll(e.currentTarget)}
     >
-      <nav aria-label="Days" className="relative flex w-max gap-2">
+      <nav aria-label="Days" className={cn("relative flex w-max gap-2", !phone && "mx-auto")}>
         {litIndex >= 0 ? (
           <span
             data-strip-highlight
@@ -291,7 +269,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
         })}
       </nav>
       {!phone && line.segments.length > 0 ? (
-        <div className="grid w-max gap-2" style={{ gridTemplateColumns: `repeat(${n}, 3.5rem)` }} aria-hidden="true">
+        <div className="mx-auto grid w-max gap-2" style={{ gridTemplateColumns: `repeat(${n}, 3.5rem)` }} aria-hidden="true">
           {line.segments.map((s, i) => {
             const first = i === 0;
             const last = i === line.segments.length - 1;
@@ -367,7 +345,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
         waitThenReturn();
       }}
     >
-      <StripStep dir="prev" disabled={centreIndex <= 0} onClick={() => step(-1)} />
       <div className="relative min-w-0 flex-1">
         {strip}
         {/* The day shown holds the centre and the chips slide beneath this frame.
@@ -380,7 +357,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
           className="pointer-events-none absolute left-1/2 top-0 hidden h-[62px] w-14 -translate-x-1/2 rounded-[14px] border-2 border-border shadow-hard-1 transition-opacity duration-150 motion-reduce:transition-none data-away:opacity-0 lg:block"
         />
       </div>
-      <StripStep dir="next" disabled={centreIndex >= n - 1} onClick={() => step(1)} />
     </div>
   );
 }

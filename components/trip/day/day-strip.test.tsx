@@ -273,53 +273,17 @@ describe("DayStrip", () => {
       // The end padding lets the first and last day reach the centre.
       expect(scroller.className.split(/\s+/)).toContain("lg:px-[calc(50%-1.75rem)]");
     });
-    it("Previous day and Next day buttons step one day, typed by direction, keeping the vertical position", async () => {
-      push.mockClear();
-      // Held in flight, as a real navigation is until the next day is ready.
-      const releases: Array<() => void> = [];
-      push.mockImplementation(() => new Promise<void>((r) => { releases.push(r); }));
-      try {
-        render(<NavigationPendingProvider><DayStrip tripId="t1" dates={dates} line={segments} size="desktop" /></NavigationPendingProvider>);
-        const group = screen.getByRole("group", { name: "Day strip" });
-        const prev = within(group).getByRole("button", { name: "Previous day" });
-        const next = within(group).getByRole("button", { name: "Next day" });
-        expect(prev.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:inline-grid"]));
-        fireEvent.click(next);
-        expect(push).toHaveBeenCalledWith("/trips/t1/day/2026-12-13", { scroll: false, transitionTypes: ["day-forward"] });
-        // The day stepped to lights at once (ADR 0063).
-        expect(within(screen.getByRole("navigation", { name: "Days" })).getByRole("link", { name: /Sun 13 Dec/ })).toHaveAttribute("data-lit", "true");
-        fireEvent.click(prev);
-        expect(push).toHaveBeenLastCalledWith("/trips/t1/day/2026-12-12", { scroll: false, transitionTypes: ["day-back"] });
-      } finally {
-        await act(async () => { for (const r of releases) r(); });
-        push.mockReset();
-      }
+    it("the strip has no Previous day or Next day buttons: the date's arrows are the only pair", () => {
+      render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
+      const strip = document.querySelector("[data-day-strip]") as HTMLElement;
+      expect(within(strip).queryByRole("button", { name: "Previous day" })).toBeNull();
+      expect(within(strip).queryByRole("button", { name: "Next day" })).toBeNull();
+      expect(within(strip).queryAllByRole("button")).toHaveLength(0);
     });
-    it("with the carousel, Previous day and Next day step it rather than navigate", () => {
-      push.mockClear();
-      const step = vi.fn(() => true);
-      render(<NavigationPendingProvider><DayCarouselContext.Provider value={fakeCarousel({ step })}><DayStrip tripId="t1" dates={dates} line={segments} size="desktop" /></DayCarouselContext.Provider></NavigationPendingProvider>);
-      const group = screen.getByRole("group", { name: "Day strip" });
-      fireEvent.click(within(group).getByRole("button", { name: "Next day" }));
-      fireEvent.click(within(group).getByRole("button", { name: "Previous day" }));
-      expect(step.mock.calls).toEqual([[1], [-1]]);
-      expect(push).not.toHaveBeenCalled();
-    });
-    it("Previous day is disabled on the first day and Next day on the last", () => {
-      const { unmount } = render(<DayStrip tripId="t1" dates={dayOne} line={segments} size="desktop" />);
-      expect(screen.getByRole("button", { name: "Previous day" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "Next day" })).toBeEnabled();
-      unmount();
-      render(<DayStrip tripId="t1" dates={dates.map((d, i) => ({ ...d, isCurrent: i === dates.length - 1 }))} line={segments} size="desktop" />);
-      expect(screen.getByRole("button", { name: "Previous day" })).toBeEnabled();
-      expect(screen.getByRole("button", { name: "Next day" })).toBeDisabled();
-    });
-    it("a one-day Trip shows its one chip under the centre with both buttons disabled", () => {
-      render(<DayStrip tripId="t1" dates={[{ ...dates[0], isCurrent: true }]} line={{ homeStart: null, homeEnd: null, segments: [] }} size="desktop" />);
-      expect(within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link")).toHaveLength(1);
-      expect(document.querySelector("[data-strip-centre]")).not.toBeNull();
-      expect(screen.getByRole("button", { name: "Previous day" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "Next day" })).toBeDisabled();
+    it("the chips and the city legend centre when the trip is shorter than the row", () => {
+      render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
+      expect(screen.getByRole("navigation", { name: "Days" }).className).toContain("mx-auto");
+      expect(document.querySelector("[data-line-segment]")!.parentElement!.className).toContain("mx-auto");
     });
     it("the phone strip has no buttons and no centre frame", () => {
       render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
