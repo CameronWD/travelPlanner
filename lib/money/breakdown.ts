@@ -28,6 +28,7 @@ const HUES: readonly Hue[] = ["sun", "teal", "leaf", "coral", "lilac", "sky", "p
 
 const CATEGORY_HUE: Record<string, Hue> = {
   Transport: "sun",
+  Accommodation: "teal",
   "Food & Drink": "leaf",
   Sightseeing: "coral",
   Activity: "lilac",
@@ -36,7 +37,6 @@ const CATEGORY_HUE: Record<string, Hue> = {
   "Getting around": "indigo",
   Other: "stone",
   Place: "teal",
-  Accommodation: "teal",
   Activities: "lilac",
   Surprise: "indigo",
   Insurance: "lilac",

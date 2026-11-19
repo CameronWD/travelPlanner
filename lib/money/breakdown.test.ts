@@ -80,6 +80,11 @@ describe("categoryHues", () => {
   it("the Item categories and Transport are pairwise distinct", () => {
     expect(distinct(categoryHues(NINE))).toBe(9);
   });
+  it("Accommodation keeps its preferred hue on a trip that also has a costed Place", () => {
+    const hues = categoryHues(["Place", "Accommodation", "Transport"]);
+    expect(hues.get("Accommodation")).toBe(categoryHue("Accommodation"));
+    expect(hues.get("Place")).not.toBe(hues.get("Accommodation"));
+  });
   it("Activity and Insurance on one trip differ, Activity keeping its preferred hue", () => {
     const hues = categoryHues(["Insurance", "Activity"]);
     expect(hues.get("Activity")).toBe(categoryHue("Activity"));
