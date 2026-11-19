@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Pencil, Trash2 } from "lucide-react";
+import { Bell, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddReminderDialog } from "@/components/trip/add-reminder-dialog";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
 import { toastRefused } from "@/components/ui/action-failure";
 import { useServerAction } from "@/components/ui/use-server-action";
-import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
-import { deleteReminder, updateReminder } from "@/server/actions/reminders";
+import { updateReminder } from "@/server/actions/reminders";
 import { formatDayLabel } from "@/lib/dates";
 import type { ReminderItem } from "@/lib/reminder-about";
 
@@ -21,16 +20,6 @@ import type { ReminderItem } from "@/lib/reminder-about";
  */
 export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; onAdd?: () => void }) {
   const [editing, setEditing] = useState<ReminderItem | null>(null);
-  const { requestDelete, isPending, dialog } = useDeleteWithConfirm({
-    action: (...[id]: [string, string]) => deleteReminder(id),
-    buildConfirm: (_id, title) => ({
-      title: "Delete this reminder?",
-      description: `"${title}" will be removed.`,
-      confirmLabel: "Delete",
-      destructive: true,
-    }),
-  });
-
   const dismissal = useServerAction(
     (...[id, dismissed]: [string, boolean]) => updateReminder(id, { dismissed }),
     { onError: (errors) => toastRefused(errors, "Couldn't bring that reminder back.") },
@@ -71,17 +60,6 @@ export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; 
         >
           <Pencil className="size-3.5" aria-hidden="true" />
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7 shrink-0 text-destructive hover:bg-destructive/10"
-          aria-label={`Delete reminder: ${r.title}`}
-          disabled={isPending}
-          onClick={() => requestDelete(r.id, r.title)}
-        >
-          <Trash2 className="size-3.5" aria-hidden="true" />
-        </Button>
       </div>
       {r.notes && <div className="pl-5.5"><ReminderNotes notes={r.notes} /></div>}
     </li>
@@ -108,7 +86,6 @@ export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; 
           Add a reminder
         </Button>
       )}
-      {dialog}
       {/* The dialog's own <form> submits through the React tree: without this its submit bubbles into the Item or Transport form this list sits in. */}
       <div onSubmit={(e) => e.stopPropagation()}>
         {editing && (

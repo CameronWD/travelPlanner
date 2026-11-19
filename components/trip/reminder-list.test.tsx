@@ -3,11 +3,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { reminderItem } from "@/test/helpers/reminder-item";
 
-const { deleteReminder, updateReminder } = vi.hoisted(() => ({
-  deleteReminder: vi.fn().mockResolvedValue({ success: true }),
+const { updateReminder } = vi.hoisted(() => ({
   updateReminder: vi.fn().mockResolvedValue({ success: true }),
 }));
-vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), deleteReminder, updateReminder }));
+vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), deleteReminder: vi.fn(), updateReminder }));
 
 import { ReminderList } from "./reminder-list";
 
@@ -34,23 +33,6 @@ describe("ReminderList", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("Delete asks first, then calls deleteReminder with the id", async () => {
-    const user = userEvent.setup();
-    render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Book the Louvre", date: "2026-11-20" })]} />);
-    await user.click(screen.getByRole("button", { name: "Delete reminder: Book the Louvre" }));
-    expect(deleteReminder).not.toHaveBeenCalled();
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(deleteReminder).toHaveBeenCalledWith("r1"));
-  });
-
-  it("Cancelling the confirm deletes nothing", async () => {
-    const user = userEvent.setup();
-    render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Book the Louvre", date: "2026-11-20" })]} />);
-    await user.click(screen.getByRole("button", { name: "Delete reminder: Book the Louvre" }));
-    await user.click(await screen.findByRole("button", { name: "Cancel" }));
-    expect(deleteReminder).not.toHaveBeenCalled();
-  });
-
   it("Edit opens the dialog prefilled and saves through updateReminder without submitting an outer form", async () => {
     const user = userEvent.setup();
     const outerSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
@@ -67,7 +49,7 @@ describe("ReminderList", () => {
     expect(outerSubmit).not.toHaveBeenCalled();
   });
 
-  it("lists a past Reminder dimmed under Earlier, with Delete", () => {
+  it("lists a past Reminder dimmed under Earlier, with Edit and no direct Delete", () => {
     render(
       <ReminderList
         reminders={[
@@ -80,7 +62,8 @@ describe("ReminderList", () => {
     const earlier = screen.getByRole("list", { name: "Earlier reminders" });
     expect(within(earlier).getByText("Gone by")).toBeInTheDocument();
     expect(earlier.querySelector("li")).toHaveClass("opacity-60");
-    expect(within(earlier).getByRole("button", { name: "Delete reminder: Gone by" })).toBeInTheDocument();
+    expect(within(earlier).getByRole("button", { name: "Edit reminder: Gone by" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Delete reminder/ })).not.toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "Reminders" })).queryByText("Gone by")).not.toBeInTheDocument();
   });
 

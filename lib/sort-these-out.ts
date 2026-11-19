@@ -37,6 +37,8 @@ export interface SortRow {
   icon: SortIcon;
   /** A Reminder's notes, folded under the row (spec F8). */
   notes?: string;
+  /** Set only on a Reminder row: the id Got it dismisses. */
+  reminderId?: string;
 }
 
 export interface SortTheseOutInput {
@@ -112,6 +114,7 @@ export function sortTheseOut({
       const about = reminderAboutLabel(r);
       return {
         id: `reminder-${r.id}`,
+        reminderId: r.id,
         title: r.title,
         subtitle: `Due ${formatDayLabel(r.date)}${about ? ` · ${about}` : ""}`,
         href: r.stopId ? tripSubPath(basePath, `/plan#stop-${r.stopId}`) : tripSubPath(basePath, "/plan"),

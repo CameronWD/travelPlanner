@@ -28,7 +28,7 @@ describe("StopExtrasDialog (spec D2)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add a reminder" }));
     expect(onAddReminder).toHaveBeenCalled();
   });
-  it("reminders groups a past Reminder under Earlier, dimmed, with Delete", () => {
+  it("reminders groups a past Reminder under Earlier, dimmed, with Edit", () => {
     const reminders = [
       ...base.reminders,
       reminderItem({ id: "r0", title: "Pay the deposit", date: "2026-11-01", stopId: "par", stopName: "Paris", past: true }),
@@ -37,7 +37,7 @@ describe("StopExtrasDialog (spec D2)", () => {
     const earlier = screen.getByRole("list", { name: "Earlier reminders" });
     expect(within(earlier).getByText("Pay the deposit")).toBeInTheDocument();
     expect(earlier.querySelector("li")).toHaveClass("opacity-60");
-    expect(within(earlier).getByRole("button", { name: "Delete reminder: Pay the deposit" })).toBeInTheDocument();
+    expect(within(earlier).getByRole("button", { name: "Edit reminder: Pay the deposit" })).toBeInTheDocument();
   });
   it("closed when kind is null", () => {
     render(<StopExtrasDialog kind={null} {...base} />);

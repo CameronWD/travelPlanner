@@ -188,7 +188,7 @@ function AddReminderForm({
             Cancel
           </Button>
         </DialogClose>
-        <Button type="submit" variant="primary" loading={isPending}>
+        <Button type="submit" variant="primary" loading={isPending} disabled={isDeleting}>
           {reminder ? "Save Reminder" : "Add Reminder"}
         </Button>
       </DialogFooter>

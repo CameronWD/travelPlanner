@@ -1,3 +1,6 @@
+"use client";
+
+import { startTransition, useOptimistic } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
@@ -16,6 +19,9 @@ import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import type { SortIcon, SortRow, SortTone } from "@/lib/sort-these-out";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
+import { Button } from "@/components/ui/button";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { updateReminder } from "@/server/actions/reminders";
 
 export const ICONS: Record<SortIcon, LucideIcon> = {
   bell: Bell,
@@ -76,34 +82,62 @@ function RowBody({ row }: { row: SortRow }) {
  * the count badge shows everything there is to do (never a bare 0).
  */
 export function SortTheseOutTile({ rows, total, seeAllHref }: SortTheseOutTileProps) {
+  const [shown, hide] = useOptimistic(rows, (state, reminderId: string) => state.filter((r) => r.reminderId !== reminderId));
+  const shownTotal = total - (rows.length - shown.length);
+
+  function gotIt(reminderId: string) {
+    startTransition(async () => {
+      hide(reminderId);
+      try {
+        const r = await updateReminder(reminderId, { dismissed: true });
+        if (!r.success) toastRefused(r.errors, "Couldn't dismiss that reminder.");
+      } catch {
+        toastRejected("Couldn't dismiss that reminder.");
+      }
+    });
+  }
+
   return (
     <Card radius="xl" shadow={3} className="flex h-full min-h-0 flex-col gap-1 overflow-hidden p-[22px]">
       <div className="mb-1.5 flex items-center justify-between gap-3">
         <h2 className="font-display text-[22px] font-extrabold leading-tight tracking-[-0.02em]">Sort these out</h2>
-        {total > 0 ? (
+        {shownTotal > 0 ? (
           <span
-            aria-label={`${total} ${total === 1 ? "thing" : "things"} to sort out`}
+            aria-label={`${shownTotal} ${shownTotal === 1 ? "thing" : "things"} to sort out`}
             className="island grid h-[26px] min-w-[26px] place-items-center rounded-full border-2 border-border bg-coral px-1.5 text-xs font-extrabold"
           >
-            {total}
+            {shownTotal}
           </span>
         ) : null}
       </div>
       <ul className="flex min-h-0 flex-col overflow-y-auto">
-        {rows.map((row) => (
+        {shown.map((row) => (
           <li key={row.id} className="border-t-2 border-border-soft">
-            {row.href ? (
-              <Link
-                href={row.href}
-                className="flex min-h-11 items-center gap-3.5 rounded-md py-2.5 hover:bg-muted/40"
-              >
-                <RowBody row={row} />
-              </Link>
-            ) : (
-              <div className="flex items-center gap-3.5 py-2.5">
-                <RowBody row={row} />
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {row.href ? (
+                <Link
+                  href={row.href}
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-3.5 rounded-md py-2.5 hover:bg-muted/40"
+                >
+                  <RowBody row={row} />
+                </Link>
+              ) : (
+                <div className="flex min-w-0 flex-1 items-center gap-3.5 py-2.5">
+                  <RowBody row={row} />
+                </div>
+              )}
+              {row.reminderId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => gotIt(row.reminderId!)}
+                >
+                  Got it
+                  <span className="sr-only">: {row.title}</span>
+                </Button>
+              ) : null}
+            </div>
             {row.notes ? <div className="pb-2 pl-[54px]"><ReminderNotes notes={row.notes} /></div> : null}
           </li>
         ))}
