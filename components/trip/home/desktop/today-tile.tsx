@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Bed, CalendarDays, CalendarHeart, Plane } from "lucide-react";
 import { formatDayLabel } from "@/lib/dates";
+import { TRANSPORT_MODE_META } from "@/lib/transport";
+import type { TransportMode } from "@/lib/enum-values";
 import { Card } from "@/components/ui/card";
 
 export interface TodayTileProps {
@@ -17,7 +19,7 @@ export interface TodayTileProps {
   /** Today's plan (the Phase's Timeline) — null when nothing is planned. */
   plan: ReactNode | null;
   /** The next departure from today on. */
-  nextTransport: { label: string; depTimeLabel?: string | null; depZone?: string | null } | null;
+  nextTransport: { label: string; mode?: string; depTimeLabel?: string | null; depZone?: string | null } | null;
   /** Tonight's stay. */
   tonight: { name: string; address: string | null } | null;
   /** The "What's around" entry point — absent when the Trip has it off. */
@@ -32,6 +34,7 @@ const SECTION_HEADING = "text-[11px] font-extrabold uppercase tracking-[0.08em] 
  * today's Day title. Links on to the full day view.
  */
 export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nextTransport, tonight, whatsAround }: TodayTileProps) {
+  const ModeIcon = TRANSPORT_MODE_META[nextTransport?.mode as TransportMode]?.icon ?? Plane;
   const leaves = nextTransport?.depTimeLabel
     ? `Leaves ${nextTransport.depTimeLabel}${nextTransport.depZone ? ` ${nextTransport.depZone}` : ""}`
     : null;
@@ -79,7 +82,7 @@ export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nex
           <h3 className={SECTION_HEADING}>Next transport</h3>
           {nextTransport ? (
             <div className="mt-1.5 flex items-start gap-2">
-              <Plane className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <ModeIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-[15px] font-bold leading-snug">{nextTransport.label}</p>
                 {leaves ? <p className="text-[13px] font-semibold text-muted-foreground">{leaves}</p> : null}

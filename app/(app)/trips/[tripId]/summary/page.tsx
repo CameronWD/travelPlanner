@@ -3,7 +3,6 @@ import {
   MapPin,
   Calendar,
   Moon,
-  Plane,
   Home,
   DollarSign,
   Flag as FlagIcon,
@@ -11,6 +10,8 @@ import {
 import { readPlan } from "@/lib/plan-reads";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { tripPath } from "@/lib/trip-path";
+import { TRANSPORT_MODE_META } from "@/lib/transport";
+import type { TransportMode } from "@/lib/enum-values";
 import { formatMoney } from "@/lib/money/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
@@ -497,6 +498,7 @@ export default async function SummaryPage({
                         const nights = nightsBetween(stop.arriveDate, stop.departDate);
                         const accom = accomByStopId.get(stop.id);
                         const transport = transportFromStop.get(stop.id);
+                        const ModeIcon = transport ? TRANSPORT_MODE_META[transport.mode as TransportMode]?.icon : null;
                         const departDay = transport?.depAt
                           ? (transportTimeDisplay({
                               depAt: new Date(transport.depAt),
@@ -579,7 +581,7 @@ export default async function SummaryPage({
                             {/* Outbound transport */}
                             {transport && !isLast && (
                               <div className="mt-3 flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                                <Plane className="size-3.5 shrink-0" aria-hidden="true" />
+                                {ModeIcon ? <ModeIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
                                 <span className="min-w-0 break-words">
                                   {modeLabel(transport.mode)}
                                   {transport.depPlace ? ` from ${transport.depPlace}` : ""}

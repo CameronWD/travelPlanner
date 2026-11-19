@@ -20,6 +20,17 @@ function renderTile(overrides: Partial<Props> = {}) {
 }
 
 describe("TodayTile", () => {
+  it.each([
+    ["CAR", "lucide-car"],
+    ["TRAIN", "lucide-train"],
+    ["BUS", "lucide-bus"],
+    ["FERRY", "lucide-ship"],
+    ["FLIGHT", "lucide-plane"],
+  ])("shows the %s icon on the Next transport line", (mode, cls) => {
+    const { container } = renderTile({ nextTransport: { label: "Leg · A → B", mode } });
+    expect(container.querySelector(`svg.${cls}`)).not.toBeNull();
+  });
+
   it("renders the What's around slot in the header row only when given one", () => {
     const { unmount } = renderTile();
     expect(screen.queryByTestId("whats-around")).toBeNull();
