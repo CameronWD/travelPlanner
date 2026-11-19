@@ -39,6 +39,13 @@ describe("DaylightArc", () => {
     expect(screen.getByText("8h 21m")).toBeInTheDocument();
     expect(screen.queryByText("8h 21m daylight")).toBeNull();
   });
+  it("the compact arc box is shorter than the regular one, leaving the card slack", () => {
+    const { container, unmount } = render(<DaylightArc {...day} size="compact" />);
+    expect(container.querySelector("[role=img]")).toHaveClass("h-3.5");
+    unmount();
+    const regular = render(<DaylightArc {...day} size="regular" />);
+    expect(regular.container.querySelector("[role=img]")).toHaveClass("h-7");
+  });
   it("shows no sun without a now", () => {
     const { container } = render(<DaylightArc {...day} size="regular" />);
     expect(container.querySelector("[data-daylight-arc]")).toBeTruthy();

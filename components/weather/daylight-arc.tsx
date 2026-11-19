@@ -30,7 +30,7 @@ export function DaylightArc({ now, size, ...daylight }: DaylightView & { now?: s
     <div data-daylight-arc className={cn("flex flex-col font-bold leading-none", compact ? "gap-0.5 text-[11px]" : "gap-1 text-xs")}>
       <div className="flex items-end gap-2">
         {risesAndSets ? <span className="shrink-0">{`↑ ${sunrise}`}</span> : null}
-        <div role="img" aria-label={daylightLabel(daylight)} className={cn("relative min-w-0 flex-1", compact ? "h-[18px]" : "h-7")}>
+        <div role="img" aria-label={daylightLabel(daylight)} className={cn("relative min-w-0 flex-1", compact ? "h-3.5" : "h-7")}>
           <svg aria-hidden="true" className="absolute inset-0 size-full overflow-visible" viewBox="0 0 100 10" preserveAspectRatio="none">
             {polarNight ? null : <path d={ARC} {...line} strokeWidth={2} strokeDasharray={polarDay ? undefined : "0.5 5"} />}
             {t != null ? <path d={travelled(t)} {...line} strokeWidth={3} /> : null}
