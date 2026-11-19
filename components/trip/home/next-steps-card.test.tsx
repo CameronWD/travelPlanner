@@ -42,6 +42,11 @@ describe("NextStepsCard", () => {
     expect(screen.getByRole("heading", { name: /next steps/i })).toBeInTheDocument();
   });
 
+  it("wraps a long title to two lines", () => {
+    render(<NextStepsCard steps={[warn]} />);
+    expect(screen.getByText("No accommodation for Paris.").className).toContain("line-clamp-2");
+  });
+
   it("renders subtitle line when subtitle is present", () => {
     render(<NextStepsCard steps={[infoWithSubtitle]} />);
     expect(screen.getByText("Set your trip dates")).toBeInTheDocument();

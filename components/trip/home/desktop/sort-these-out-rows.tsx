@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { SortRow } from "@/lib/sort-these-out";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
+import { ROW_NAME_CLASS } from "@/components/ui/row-text";
 import { Button } from "@/components/ui/button";
 import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { updateReminder } from "@/server/actions/reminders";
@@ -26,7 +27,7 @@ function RowBody({ row }: { row: SortRow }) {
         <Icon className="size-5" strokeWidth={2.5} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span title={row.title} className="line-clamp-2 text-[15px] font-bold leading-snug">{row.title}</span>
+        <span title={row.title} className={cn(ROW_NAME_CLASS, "text-[15px] font-bold leading-snug")}>{row.title}</span>
         {row.subtitle ? (
           <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{row.subtitle}</span>
         ) : null}
