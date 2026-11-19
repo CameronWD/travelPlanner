@@ -18,7 +18,7 @@ import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
-import { formatMoneyCompact } from "@/lib/money/money";
+import { formatMoneyAuto } from "@/lib/money/money";
 import { paymentAmountLabel } from "@/lib/money/upcoming-payments";
 import type { ReminderItem } from "@/server/actions/reminders";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
@@ -193,8 +193,8 @@ export async function PhasePlanning({
       className="hidden lg:flex"
       tone="sun"
       label="Cost so far"
-      value={formatMoneyCompact(budget.grandTotal.costTotalMinor, homeCurrency)}
-      sub={<>{formatMoneyCompact(budget.grandTotal.paidTotalMinor, homeCurrency)} paid</>}
+      value={formatMoneyAuto(budget.grandTotal.costTotalMinor, homeCurrency)}
+      sub={<>{formatMoneyAuto(budget.grandTotal.paidTotalMinor, homeCurrency)} paid</>}
       href={tripPath(slug, "/budget")}
     />,
     <StatTile
@@ -202,7 +202,7 @@ export async function PhasePlanning({
       className="hidden lg:flex"
       tone="teal"
       label="Next payment"
-      value={nextPayment ? paymentAmountLabel(nextPayment, formatMoneyCompact) : "Nothing due"}
+      value={nextPayment ? paymentAmountLabel(nextPayment, formatMoneyAuto) : "Nothing due"}
       sub={nextPayment ? `${nextPayment.label} · ${paymentWhen(nextPayment.daysUntil)}` : "No unpaid cost has a due date"}
       href={tripPath(slug, "/budget")}
     />,

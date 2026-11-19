@@ -13,6 +13,14 @@ describe("BudgetGlance", () => {
     expect(link.textContent).toMatch(/312k\s*cost/);
   });
 
+  it("shows money under 1,000 with its cents, from 1,000 abbreviated, and zero bare", () => {
+    const { rerender } = render(<BudgetGlance costTotalMinor={95050} paidTotalMinor={0} homeCurrency="AUD" href={"/b" as Route} />);
+    expect(screen.getByRole("link").textContent).toContain("950.50");
+    expect(screen.getByRole("link").textContent).toContain("$0");
+    rerender(<BudgetGlance costTotalMinor={1840000} paidTotalMinor={0} homeCurrency="AUD" href={"/b" as Route} />);
+    expect(screen.getByRole("link").textContent).toContain("$18.4k");
+  });
+
   it("renders a zero-width bar when nothing is spent", () => {
     const { container } = render(<BudgetGlance costTotalMinor={312000} paidTotalMinor={0} homeCurrency="JPY" href={"/b" as Route} />);
     expect(container.querySelector('[style*="width: 0%"]')).toBeTruthy();
