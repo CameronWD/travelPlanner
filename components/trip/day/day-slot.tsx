@@ -81,12 +81,17 @@ function tonight(day: DayViewData, s: DaySlotShared, size: "desktop" | "phone") 
   ) : null;
 }
 
-/** The day's own header, which the carousel shows while this day is on screen. */
+/**
+ * The day's own header, which the carousel shows while this day is on screen.
+ * The carousel swaps one day's header for the next in place, so anything
+ * holding a draft or an open menu is keyed by the date: a Day title typed for
+ * one day must never save onto the next.
+ */
 export function dayChrome(day: DayViewData, s: DaySlotShared) {
   const prevHref = day.prevDate ? tripPath(s.slug, `/day/${day.prevDate}`) : null;
   const nextHref = day.nextDate ? tripPath(s.slug, `/day/${day.nextDate}`) : null;
   const addButton = day.surprise?.whole ? null : (
-    <DayAddMenu {...addProps(day, s)} label="Add to this day" variant="primary" size="md" className="h-11 whitespace-nowrap rounded-full px-5 text-sm font-extrabold" />
+    <DayAddMenu key={day.date} {...addProps(day, s)} label="Add to this day" variant="primary" size="md" className="h-11 whitespace-nowrap rounded-full px-5 text-sm font-extrabold" />
   );
   return (
     <DayHeader
@@ -98,7 +103,7 @@ export function dayChrome(day: DayViewData, s: DaySlotShared) {
       subLine={day.subLine}
       subLineCompact={day.subLineCompact}
       holidays={day.holidays}
-      dayTitle={<DayTitleInline stopId={day.dayTitleStopId} date={day.date} title={day.dayTitle} />}
+      dayTitle={<DayTitleInline key={day.date} stopId={day.dayTitleStopId} date={day.date} title={day.dayTitle} />}
       prevHref={prevHref}
       nextHref={nextHref}
       prevLabel={day.prevDate ? `Previous day: ${formatDayLabel(day.prevDate)}` : null}

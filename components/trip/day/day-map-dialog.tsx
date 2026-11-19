@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useContext, useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createMapLoader } from "@/components/ui/map-loader";
 import { useMediaQuery } from "@/components/ui/use-media-query";
 import { cn } from "@/lib/cn";
+import { dayFromPathname } from "@/lib/day-path";
+import { DayPanelContext, useIsDayInView } from "@/components/trip/day/day-carousel";
 import type { DayMapModel } from "@/lib/day-map";
 
 const DayMapLoader = createMapLoader<{ tripId: string; model: DayMapModel; highlightId?: string; fill?: boolean }>(() =>
@@ -86,23 +89,40 @@ export function DayMapDialog({
 
 /**
  * The Day plan card renders once per size (phone, desktop), one of them
- * CSS-hidden, so only the card that matches the viewport mounts the dialog;
- * a neighbour day in the phone carousel never does (ADR 0065).
+ * CSS-hidden, so only the card that matches the viewport mounts the dialog.
+ * In the carousel only the day in view mounts it, which a settle changes
+ * before the page's own date (`shown`) catches up (ADR 0065).
  */
 export function DayMapButton({ tripId, model, size, shown = true }: { tripId: string; model: DayMapModel; size: "phone" | "desktop"; shown?: boolean }) {
-  const open = useSyncExternalStore(subscribeMapParam, mapParamOpen, () => false);
+  const paramOpen = useSyncExternalStore(subscribeMapParam, mapParamOpen, () => false);
   const mdUp = useMediaQuery(MD_UP);
+  const inView = useIsDayInView() ?? shown;
+  // Between a swipe's settle and its landing the address is still the day
+  // before's, and Next folds a replaceState into its router, undoing the
+  // navigation in flight. So the map opens at once and ?map=1 waits for the landing.
+  const day = useContext(DayPanelContext);
+  const addressDay = dayFromPathname(usePathname() ?? "");
+  const landed = day == null || addressDay === day;
+  const [asked, setAsked] = useState(false);
+  if (asked && !inView) setAsked(false);
+  useEffect(() => {
+    if (asked && landed) setMapParam(true);
+  }, [asked, landed]);
   if (model.points.length === 0) return null;
 
-  const mounted = shown && mdUp !== null && (size === "desktop") === mdUp;
+  const mounted = inView && mdUp !== null && (size === "desktop") === mdUp;
+  const setOpen = (open: boolean) => {
+    setAsked(open && !landed);
+    if (landed) setMapParam(open);
+  };
 
   return (
     <>
-      <Button type="button" variant="secondary" size="sm" shape="pill" onClick={() => setMapParam(true)}>
+      <Button type="button" variant="secondary" size="sm" shape="pill" onClick={() => setOpen(true)}>
         <Map aria-hidden="true" />
         Day map
       </Button>
-      {mounted ? <DayMapDialog open={open} onOpenChange={setMapParam} tripId={tripId} model={model} /> : null}
+      {mounted ? <DayMapDialog open={paramOpen || asked} onOpenChange={setOpen} tripId={tripId} model={model} /> : null}
     </>
   );
 }

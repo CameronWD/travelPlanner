@@ -39,7 +39,7 @@ vi.mock("@/lib/activity-reads", () => ({
 vi.mock("@/server/actions/activity", () => ({}));
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: tripFindUniqueMock } } }));
 vi.mock("next/headers", () => ({ headers: async () => requestHeaders }));
-vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock, useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock, useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/" }));
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
 
 vi.mock("@/components/trip/day/day-strip", () => ({ DayStrip: () => <nav aria-label="Days" /> }));
@@ -69,6 +69,8 @@ vi.mock("@/components/trip/day/day-carousel", async () => {
     // from this same module path — mocking the module without this export
     // leaves it undefined and DayArrow crashes calling it.
     useDayCarousel: () => null,
+    useIsDayInView: () => null,
+    DayPanelContext: React.createContext<string | null>(null),
   };
 });
 vi.mock("@/components/trip/day/day-chrome-registry", async (importOriginal) => {
@@ -576,6 +578,19 @@ describe("Day page: a slot for every day", () => {
     expect(h.getAllByText("Sub 2026-12-07").length).toBeGreaterThan(0);
     expect(h.getByText("Title 2026-12-07")).toBeInTheDocument();
     expect(h.getByText("Holiday 2026-12-07")).toBeInTheDocument();
+  });
+
+  it("a Day title being typed for one day never carries over to the next day's header, which the carousel swaps in place", async () => {
+    getDayMock.mockImplementation(tenDays({}));
+    await renderPage("2026-12-05");
+    const header = render(<div>{registered.get("2026-12-05")}</div>);
+    const h = within(header.container);
+    fireEvent.click(h.getByRole("button", { name: "Add a title" }));
+    fireEvent.change(h.getByRole("textbox", { name: "Day title for Sat 5 Dec" }), { target: { value: "Typed for the 5th" } });
+    header.rerender(<div>{registered.get("2026-12-06")}</div>);
+    expect(h.queryByRole("textbox")).toBeNull();
+    expect(h.queryByDisplayValue("Typed for the 5th")).toBeNull();
+    expect(h.getByRole("button", { name: "Add a title" })).toBeInTheDocument();
   });
 
   it("the offline warmer's request gets the three near days only and no further read", async () => {

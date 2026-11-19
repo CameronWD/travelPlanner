@@ -6,8 +6,8 @@ import { renderToString } from "react-dom/server";
 import { NavigationPendingProvider, PENDING_NAVIGATION_TIMEOUT_MS, useNavigationPending } from "@/components/navigation/navigation-pending";
 import { setMatchMedia } from "@/test/setup";
 import { LG_UP } from "@/components/ui/use-media-query";
-import { DayCarousel, DayChromeRegistryContext, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi, type DayPanel } from "@/components/trip/day/day-carousel";
-import { DAY_BODY_TRANSITION, DAY_BODY_TRANSITION_WIDE } from "@/components/trip/day/day-transition";
+import { DayCarousel, DayChromeRegistryContext, SETTLE_QUIET_MS, useDayCarousel, useIsDayInView, type DayCarouselApi, type DayPanel } from "@/components/trip/day/day-carousel";
+import { DAY_BODY_TRANSITION_WIDE } from "@/components/trip/day/day-transition";
 
 const push = vi.fn();
 const prefetch = vi.fn();
@@ -176,6 +176,18 @@ describe("DayCarousel", () => {
     expect(scroller.className).toContain("overscroll-x-contain");
     // Not stretched to the neighbours' clipped heights, or a short day could never shrink back.
     expect(scroller.className).toContain("items-start");
+  });
+
+  it("each panel knows whether it is the day in view, from the moment a settle changes it", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    function InView() {
+      return <i data-in-view={String(useIsDayInView())} />;
+    }
+    const { scroller, panel } = mount({ panels: week().map((p) => ({ ...p, content: <InView /> })) });
+    const flag = (iso: string) => panel(iso).querySelector("i")?.dataset.inView;
+    expect([flag(WEEK[SHOWN]), flag("2026-12-13")]).toEqual(["true", "false"]);
+    dragTo(scroller, 4);
+    expect([flag(WEEK[SHOWN]), flag("2026-12-13")]).toEqual(["false", "true"]);
   });
 
   it("never prefetches: every day is already on the page", () => {
@@ -451,13 +463,49 @@ describe("DayCarousel", () => {
     expect(push).toHaveBeenLastCalledWith(href("2026-12-11"), { scroll: false });
   });
 
-  it("a navigation that never ends parks the scroller back after the pending timeout", () => {
+  it("the pending timeout runs from the latest push: settles 10 s apart, both held, do not park at 15 s after the first", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     const { scroller } = mount();
     dragTo(scroller, 4);
+    act(() => { vi.advanceTimersByTime(10_000); });
+    dragTo(scroller, 5);
+    act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS - 10_000 + 1); });
+    expect(scroller.scrollLeft).toBe(5 * WIDTH);
+    expect(api!.current()).toBe("2026-12-14");
+  });
+
+  it("a push that never ends gives up after the pending timeout and leaves a filled day in view where it is; the next settle pushes again", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading } = mount();
+    dragTo(scroller, 4);
+    act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS + 1); });
+    expect(scroller.scrollLeft).toBe(4 * WIDTH);
+    expect(heading()).toBe("real 2026-12-13");
+    dragTo(scroller, 3);
+    dragTo(scroller, 4);
+    expect(push.mock.calls.map((c) => c[0])).toEqual([href("2026-12-13"), href(WEEK[SHOWN]), href("2026-12-13")]);
+  });
+
+  it("a push that never ends parks the scroller back after the pending timeout when the day in view never filled", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const unfilled = week().map((p) => (p.iso === WEEK[6] ? { ...p, content: <div data-day-slot-skeleton /> } : p));
+    const { scroller } = mount({ panels: unfilled });
+    dragTo(scroller, 6);
     act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS + 1); });
     expect(scroller.scrollLeft).toBe(SHOWN * WIDTH);
     expect(api!.current()).toBe(WEEK[SHOWN]);
+  });
+
+  it("Back while a push is in flight: the day shown that arrives is followed at once, not held for the push", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading, rerenderWith } = mount();
+    dragTo(scroller, 4);
+    rerenderWith({ shownDate: "2026-12-10" });
+    expect(scroller.scrollLeft).toBe(1 * WIDTH);
+    expect(heading()).toBe("fallback 2026-12-10");
+    expect(api!.current()).toBe("2026-12-10");
+    dragTo(scroller, 2);
+    expect(push).toHaveBeenLastCalledWith(href("2026-12-11"), { scroll: false });
   });
 
   it("under reduced motion goTo navigates without a glide (review focus 3)", () => {
@@ -493,6 +541,19 @@ describe("DayCarousel", () => {
     expect(panel(WEEK[6]).style.minHeight).toBe("");
     dragTo(scroller, 5);
     expect(panel(WEEK[6]).style.minHeight).toBe("");
+  });
+
+  it("scrolled into the header, a header that changes height with the day moves the scroll by the difference, so the body stays still", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.textContent?.endsWith("2026-12-12") ? 194 : this.textContent === "fallback 2026-12-14" ? 150 : 170;
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ top: -120, bottom: 74, left: 0, right: WIDTH, width: WIDTH, height: 194, x: 0, y: -120, toJSON() {} } as DOMRect);
+    const { scroller } = mount();
+    expect(scrollBy).not.toHaveBeenCalled();
+    dragTo(scroller, 5);
+    expect(scrollBy).toHaveBeenCalledWith(0, -44);
   });
 
   it("the cold-load positioning script is in the server's markup and never rendered by the client", () => {
@@ -565,7 +626,7 @@ describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
     unmount();
     setMatchMedia(false);
     mount();
-    expect(viewTransition.props.at(-1)).toEqual(DAY_BODY_TRANSITION);
+    expect(viewTransition.props.at(-1)).toEqual({ default: "none" });
   });
 
   it("marks the shown day's side column tall when it does not fit the viewport, so it stops sticking", () => {

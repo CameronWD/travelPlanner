@@ -5,7 +5,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { PENDING_NAVIGATION_TIMEOUT_MS, useBeginNavigation, useSettleNavigation } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
-import { DAY_BODY_TRANSITION, DAY_BODY_TRANSITION_WIDE, dayTransitionType } from "@/components/trip/day/day-transition";
+import { DAY_BODY_TRANSITION_WIDE, dayTransitionType } from "@/components/trip/day/day-transition";
 import { isFar, panelProgress, settledPanel } from "@/components/trip/day/carousel-maths";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
@@ -31,6 +31,9 @@ export interface DayCarouselApi {
   isMoving: () => boolean;
 }
 
+/** Below lg the carousel moves the body itself: no view transition, not even React's default crossfade. */
+const PHONE_BODY_TRANSITION = { default: "none" } as const;
+
 /** Quiet time on a snap point that counts as "settled" where the browser has no scrollend. */
 export const SETTLE_QUIET_MS = 120;
 
@@ -51,7 +54,19 @@ export function useDayCarousel(): DayCarouselApi | null {
   return React.useContext(DayCarouselContext);
 }
 
+/** The date of the carousel panel this sits in. */
+export const DayPanelContext = React.createContext<string | null>(null);
+
 const noSubscription = () => () => {};
+
+/** Whether the panel this sits in is the day in view; null outside the carousel. */
+export function useIsDayInView(): boolean | null {
+  const carousel = useDayCarousel();
+  const iso = React.useContext(DayPanelContext);
+  const current = () => carousel?.current() ?? null;
+  const inView = React.useSyncExternalStore(carousel?.subscribeDay ?? noSubscription, current, current);
+  return carousel && iso ? inView === iso : null;
+}
 
 /**
  * The Day view's paged carousel (ADR 0065, amended 2026-11-19): a fixed-width
@@ -96,6 +111,13 @@ export function DayCarousel({
   // A day shown that arrived mid-gesture, for the settle to apply.
   const deferred = React.useRef<string | null>(null);
   const crossfadeTo = React.useRef<string | null>(null);
+  const shownRef = React.useRef(shownDate);
+  const backstop = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const headerBox = React.useRef<HTMLDivElement>(null);
+  const headerHeight = React.useRef(0);
+  const bodyBox = React.useRef<HTMLDivElement>(null);
+  const bodyHeight = React.useRef(0);
+  const viewHeight = React.useRef(0);
   const cancelGlide = React.useRef<() => void>(() => {});
   const desktop = useMediaQuery(LG_UP) === true;
   const hydrating = React.useSyncExternalStore(noSubscription, () => false, () => true);
@@ -114,10 +136,19 @@ export function DayCarousel({
       setView(iso);
       for (const cb of dayListeners.current) cb(iso);
     };
+    const unfilledInView = () => scroller.current?.querySelector('[data-day-panel][data-shown="true"] [data-day-slot-skeleton]') != null;
     const navigate = (p: DayPanel) => {
       if (target.current === p.iso) return;
       target.current = p.iso;
       startNavigation(() => router.push(p.href, { scroll: false }));
+      // The provider's own backstop, timed from the latest push. Giving up
+      // re-arms the next settle; a day in view that has filled stays, since
+      // the Traveller is already reading it. Only one that never will parks back.
+      clearTimeout(backstop.current);
+      backstop.current = setTimeout(() => {
+        target.current = null;
+        if (shownRef.current !== viewRef.current && unfilledInView()) reconcile(shownRef.current);
+      }, PENDING_NAVIGATION_TIMEOUT_MS);
     };
     const place = (iso: string) => {
       const el = scroller.current;
@@ -206,7 +237,7 @@ export function DayCarousel({
       },
       isMoving: () => moving.current,
     };
-    return { api, indexOf, land, navigate, reconcile };
+    return { api, indexOf, land, navigate, reconcile, settled: () => clearTimeout(backstop.current) };
   }, [router, begin, settleBegun, desktop]);
 
   // On the day in view before first paint, and again when the phone tree comes back.
@@ -216,29 +247,24 @@ export function DayCarousel({
   }, [machine, desktop]);
 
   React.useLayoutEffect(() => {
+    shownRef.current = shownDate;
     if (shownDate === viewRef.current) {
       deferred.current = null;
       return;
     }
-    // Our own push is still in flight: its end decides.
-    if (target.current != null) return;
+    // Our own push landing: its end decides. Any other day arriving while it
+    // is in flight (Back) is followed at once, and the push is given up.
+    if (target.current === shownDate) return;
+    target.current = null;
+    machine.settled();
     machine.reconcile(shownDate);
   }, [shownDate, machine]);
 
   React.useEffect(() => {
     if (navigating || target.current == null) return;
     target.current = null;
+    machine.settled();
     if (shownDate !== viewRef.current) machine.reconcile(shownDate);
-  }, [navigating, shownDate, machine]);
-
-  // The provider's own backstop for a navigation that never ends.
-  React.useEffect(() => {
-    if (!navigating) return;
-    const t = setTimeout(() => {
-      target.current = null;
-      if (shownDate !== viewRef.current) machine.reconcile(shownDate);
-    }, PENDING_NAVIGATION_TIMEOUT_MS);
-    return () => clearTimeout(t);
   }, [navigating, shownDate, machine]);
 
   // From lg the crossfade commits first and the push follows: one transition
@@ -268,7 +294,8 @@ export function DayCarousel({
     const others = Array.from(el.querySelectorAll<HTMLElement>('[data-day-panel]:not([data-shown="true"])'));
     for (const o of others) o.style.minHeight = "";
     const fit = () => {
-      const h = `${shown.offsetHeight}px`;
+      viewHeight.current = shown.offsetHeight;
+      const h = `${viewHeight.current}px`;
       for (const o of others) o.style.height = h;
     };
     fit();
@@ -277,6 +304,45 @@ export function DayCarousel({
     ro.observe(shown);
     return () => ro.disconnect();
   }, [view, desktop, panels]);
+
+  // Hold the header's, the body's and the day in view's heights through each
+  // commit, before anything in it measures the page: a landing can hand the
+  // day in view a skeleton for one commit (Back to a day outside the new
+  // window), the header remounts when it swaps between a slot's own and the
+  // fallback, and from lg the body remounts to crossfade. Out of scroll
+  // anchoring, WebKit and Chromium both clamp the scroll position to the
+  // briefly shorter page and never give it back. The layout effect below
+  // releases them.
+  React.useInsertionEffect(() => {
+    if (headerBox.current && headerHeight.current) headerBox.current.style.minHeight = `${headerHeight.current}px`;
+    if (bodyBox.current && bodyHeight.current) bodyBox.current.style.minHeight = `${bodyHeight.current}px`;
+    const shown = desktop ? null : scroller.current?.querySelector<HTMLElement>('[data-day-panel][data-shown="true"]');
+    if (shown && !shown.style.minHeight && viewHeight.current && shown.querySelector("[data-day-slot-skeleton]")) shown.style.minHeight = `${viewHeight.current}px`;
+  });
+
+  // The header changes height with the day (holiday notes, and the fallback
+  // has none). Scrolled into or past it, the Traveller is reading the body:
+  // keep that still. Scroll anchoring cannot be trusted with it (WebKit's
+  // moved the page the wrong way, and Chromium's doubled this correction).
+  // Measured inside the held box and scrolled before it is released, so a
+  // page only just long enough is never clamped on the way.
+  const ownHeader = chromeFor(view);
+  React.useLayoutEffect(() => {
+    const box = headerBox.current;
+    if (!box) return;
+    const held = headerHeight.current;
+    const above = box.getBoundingClientRect().top < 0;
+    headerHeight.current = (box.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
+    if (held && above && headerHeight.current !== held) window.scrollBy(0, headerHeight.current - held);
+    box.style.minHeight = "";
+    const body = bodyBox.current;
+    if (body) {
+      // From lg a day that has not filled keeps the height of the day it
+      // replaced too; below lg its panel does that (the effect above).
+      if (!(desktop && body.querySelector("[data-day-slot-skeleton]"))) body.style.minHeight = "";
+      bodyHeight.current = body.offsetHeight;
+    }
+  });
 
   // A sticky side column taller than the viewport would pin its foot (the
   // Journal) out of reach until the plan ends; CSS cannot compare the two,
@@ -327,68 +393,81 @@ export function DayCarousel({
     };
   }, [machine, desktop]);
 
-  React.useEffect(() => () => cancelGlide.current(), []);
+  React.useEffect(
+    () => () => {
+      cancelGlide.current();
+      clearTimeout(backstop.current);
+    },
+    [],
+  );
 
   const shownIndex = panels.findIndex((p) => p.iso === shownDate);
 
   return (
     <DayCarouselContext.Provider value={machine.api}>
-      {chromeFor(view) ?? chromeFallback(view)}
-      {chrome}
+      {/* Header, strip and body are out of scroll anchoring: the header's
+          correction above keeps the body still, and an engine's own would
+          move it again. */}
+      <div ref={headerBox} className="[overflow-anchor:none]">
+        {ownHeader ?? chromeFallback(view)}
+      </div>
+      <div className="[overflow-anchor:none]">{chrome}</div>
       {/* Only the body runs a view transition; header and strip stay put. From
           lg every day change crossfades: nothing remounts on a day change, so
           the body is keyed by the day to exit and enter. The phone keeps one
           key (the first day, so the switch to lg after hydration remounts nothing). */}
-      <ViewTransition key={desktop ? view : firstDay} {...(desktop ? DAY_BODY_TRANSITION_WIDE : DAY_BODY_TRANSITION)}>
-        {/* Out of scroll anchoring: WebKit anchored on this box and moved the
-            page by a panel's worth when a day that had not filled came into view. */}
-        <div className="[overflow-anchor:none]">
-          <div
-            ref={scroller}
-            data-day-carousel
-            data-shown-day={shownDate}
-            className={
-              desktop
-                ? undefined
-                : "-mx-4 flex items-start snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 md:mx-0 lg:block lg:snap-none lg:overflow-visible"
-            }
-          >
-            {panels.map((p, i) => {
-              const inView = i === viewIndex;
-              if (desktop && !inView) return null;
-              return (
-                <div
-                  key={p.iso}
-                  data-day-panel={p.iso}
-                  data-shown={inView ? "true" : undefined}
-                  data-far={isFar(i, viewIndex) ? "" : undefined}
-                  inert={inView ? undefined : true}
-                  aria-hidden={inView ? undefined : "true"}
-                  className={desktop ? "relative" : cn("relative w-full shrink-0 snap-start snap-always px-4 sm:px-6 md:px-0", !inView && "h-0 overflow-hidden lg:hidden")}
-                >
-                  {p.content}
-                </div>
-              );
-            })}
+      {/* Out of scroll anchoring: WebKit anchored on the body and moved the
+          page by a panel's worth when a day that had not filled came into view. */}
+      <div ref={bodyBox} className="[overflow-anchor:none]">
+        <ViewTransition key={desktop ? view : firstDay} {...(desktop ? DAY_BODY_TRANSITION_WIDE : PHONE_BODY_TRANSITION)}>
+          <div>
+            <div
+              ref={scroller}
+              data-day-carousel
+              data-shown-day={shownDate}
+              className={
+                desktop
+                  ? undefined
+                  : "-mx-4 flex items-start snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 md:mx-0 lg:block lg:snap-none lg:overflow-visible"
+              }
+            >
+              {panels.map((p, i) => {
+                const inView = i === viewIndex;
+                if (desktop && !inView) return null;
+                return (
+                  <div
+                    key={p.iso}
+                    data-day-panel={p.iso}
+                    data-shown={inView ? "true" : undefined}
+                    data-far={isFar(i, viewIndex) ? "" : undefined}
+                    inert={inView ? undefined : true}
+                    aria-hidden={inView ? undefined : "true"}
+                    className={desktop ? "relative" : cn("relative w-full shrink-0 snap-start snap-always px-4 sm:px-6 md:px-0", !inView && "h-0 overflow-hidden lg:hidden")}
+                  >
+                    <DayPanelContext.Provider value={p.iso}>{p.content}</DayPanelContext.Provider>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Cold load: the server HTML paints before hydration, and a scroller
+                starts at 0 — the Trip's first day. Position it while the HTML
+                parses. It usually parses inside React's hidden streaming
+                container (behind the trips loading boundary), where clientWidth
+                is 0, so wait for a width: a ResizeObserver fires after layout and
+                before paint in the frame the content is revealed. Rendered only
+                for the server and hydration: a script React creates on the
+                client never runs (and React says so), and the layout effects
+                above position every client render. */}
+            {hydrating ? (
+              <script
+                dangerouslySetInnerHTML={{
+                  __html: `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;var i=${shownIndex};function p(){s.scrollLeft=i*s.clientWidth}if(s.clientWidth){p();return}new ResizeObserver(function(_,o){if(s.clientWidth){p();o.disconnect()}}).observe(s)})()`,
+                }}
+              />
+            ) : null}
           </div>
-          {/* Cold load: the server HTML paints before hydration, and a scroller
-              starts at 0 — the Trip's first day. Position it while the HTML
-              parses. It usually parses inside React's hidden streaming
-              container (behind the trips loading boundary), where clientWidth
-              is 0, so wait for a width: a ResizeObserver fires after layout and
-              before paint in the frame the content is revealed. Rendered only
-              for the server and hydration: a script React creates on the
-              client never runs (and React says so), and the layout effects
-              above position every client render. */}
-          {hydrating ? (
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;var i=${shownIndex};function p(){s.scrollLeft=i*s.clientWidth}if(s.clientWidth){p();return}new ResizeObserver(function(_,o){if(s.clientWidth){p();o.disconnect()}}).observe(s)})()`,
-              }}
-            />
-          ) : null}
-        </div>
-      </ViewTransition>
+        </ViewTransition>
+      </div>
     </DayCarouselContext.Provider>
   );
 }

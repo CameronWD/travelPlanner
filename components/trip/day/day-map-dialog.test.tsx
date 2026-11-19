@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { DayMapModel } from "@/lib/day-map";
 import { setMatchMedia } from "@/test/setup";
@@ -10,7 +10,11 @@ vi.mock("@/components/trip/day-map", () => ({
   ),
 }));
 
+const nav = vi.hoisted(() => ({ pathname: "/" }));
+vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
+
 const { DayMapButton, DayMapDialog } = await import("./day-map-dialog");
+const { DayCarouselContext, DayPanelContext } = await import("./day-carousel");
 
 const model: DayMapModel = {
   points: [
@@ -26,6 +30,7 @@ const empty: DayMapModel = { points: [], routePoints: [], perItemPrev: {} };
 const wide = (q: string) => q === "(min-width: 1024px)" || q === "(min-width: 768px)";
 
 afterEach(() => {
+  nav.pathname = "/";
   window.history.replaceState(null, "", "/");
   setMatchMedia((q) => q === "(min-width: 640px)");
 });
@@ -101,6 +106,72 @@ describe("DayMapButton", () => {
     window.history.replaceState(null, "", "/?map=1");
     render(<DayMapButton tripId="t1" model={model} size="phone" />);
     expect((await screen.findByRole("dialog")).className).toMatch(/max-sm:h-\[100dvh\]/);
+  });
+});
+
+describe("DayMapButton in the carousel", () => {
+  const harbour: DayMapModel = { ...model, points: [{ kind: "item", id: "h1", lat: 3, lng: 4, label: "Harbour", order: 1 }] };
+  function inCarousel(current: () => string, subscribeDay: (cb: (iso: string) => void) => () => void) {
+    const api = { goTo: () => true, step: () => true, current, subscribeDay, subscribe: () => () => {}, isMoving: () => false };
+    return (
+      <DayCarouselContext.Provider value={api}>
+        <DayPanelContext.Provider value="2026-12-12">
+          <DayMapButton tripId="t1" model={model} size="desktop" shown />
+        </DayPanelContext.Provider>
+        <DayPanelContext.Provider value="2026-12-13">
+          <DayMapButton tripId="t1" model={harbour} size="desktop" shown={false} />
+        </DayPanelContext.Provider>
+      </DayCarouselContext.Provider>
+    );
+  }
+
+  it("only the day in view mounts the dialog, whatever the page's own date says, and it follows the day in view", async () => {
+    setMatchMedia(wide);
+    window.history.replaceState(null, "", "/?map=1");
+    let inView = "2026-12-13";
+    const heard = new Set<(iso: string) => void>();
+    const tell = (iso: string) => heard.forEach((cb) => cb(iso));
+    render(inCarousel(() => inView, (cb) => { heard.add(cb); return () => heard.delete(cb); }));
+    expect(await screen.findAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByText("Harbour")).toBeInTheDocument();
+    expect(screen.queryByText("Castle")).toBeNull();
+    act(() => {
+      inView = "2026-12-12";
+      tell(inView);
+    });
+    expect(await screen.findByText("Castle")).toBeInTheDocument();
+    expect(screen.queryByText("Harbour")).toBeNull();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+});
+
+describe("DayMapButton between a swipe's settle and its landing", () => {
+  it("opens for the day on screen without touching the address, which would undo the navigation in flight, and writes ?map=1 once it lands", async () => {
+    setMatchMedia(wide);
+    nav.pathname = "/trips/t1/day/2026-12-12";
+    window.history.replaceState(null, "", nav.pathname);
+    const replace = vi.spyOn(window.history, "replaceState");
+    const api = { goTo: () => true, step: () => true, current: () => "2026-12-13", subscribeDay: () => () => {}, subscribe: () => () => {}, isMoving: () => false };
+    const tree = () => (
+      <DayCarouselContext.Provider value={api}>
+        <DayPanelContext.Provider value="2026-12-13">
+          <DayMapButton tripId="t1" model={model} size="desktop" shown={false} />
+        </DayPanelContext.Provider>
+      </DayCarouselContext.Provider>
+    );
+    const { rerender } = render(tree());
+    await userEvent.click(screen.getByRole("button", { name: "Day map" }));
+    expect(await screen.findByRole("dialog", { name: "Day map" })).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+    nav.pathname = "/trips/t1/day/2026-12-13";
+    window.history.pushState(null, "", nav.pathname);
+    rerender(tree());
+    await waitFor(() => expect(window.location.search).toBe("?map=1"));
+    expect(screen.getByRole("dialog", { name: "Day map" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(window.location.search).toBe("");
+    replace.mockRestore();
   });
 });
 

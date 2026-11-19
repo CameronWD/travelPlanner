@@ -122,14 +122,28 @@ strip waited for it, and a second swipe met the end of a three-panel scroller.
   pushes the newer day and the router drops the older one. The page's own date catches up
   when the navigation lands; a landing for the day in view moves nothing, so it cannot
   disturb a gesture in progress. A date that differs (Back, Forward) moves the scroller there,
-  never mid-gesture. A navigation that ends with the day unchanged parks the scroller back
-  on the day shown, as before.
+  never mid-gesture, even with a push still in flight. A navigation that ends with the day
+  unchanged parks the scroller back on the day shown, as before. One that never ends is
+  given up 15 s after the latest push; a filled day in view stays, and only one that never
+  filled parks back.
 - **Not `history.pushState`.** A URL the router did not navigate to leaves it inconsistent: a
   refresh then resets the scroll position and Back breaks.
 - **What runs off screen.** Days further than one slot from the day in view are `inert` and
-  their animations pause; the Day map mounts only for the day the page shows. A slot that
-  has not filled keeps the height of the day it replaced, so landing on one does not shrink
-  the page under the Traveller.
+  their animations pause; the Day map mounts only for the day in view. Opened before that
+  day's navigation lands, it waits for the landing to write `?map=1`: Next folds a
+  `replaceState` into its router, and writing to the previous day's address undid the
+  navigation in flight.
+- **Keeping the Traveller's place.** A slot that has not filled keeps the height of the day
+  it replaced, and the day in view and the header hold their heights through every commit,
+  so WebKit never clamps the scroll position to a briefly shorter page. The header changes
+  height with the day (holiday notes, which the date-only fallback cannot know without a
+  further read); when the page is scrolled into it, the carousel scrolls by the difference so
+  the body stays still. The header, strip and body are out of scroll anchoring: WebKit's
+  moved the page the wrong way and Chromium's doubled the correction.
+- **One day's controls never act on another.** The carousel swaps one day's header for the
+  next in place, so the Day title editor and the header's add menu are keyed by date.
+- **No page-turn.** Below lg nothing runs a view transition on a day change any more; the
+  far-jump page-turn and the `day-settle` type are removed.
 - **From lg** only the day in view renders. A day change shows it and its header at once,
   crossfading the body (keyed by the day, since nothing remounts any more), then makes the
   same push. Browser Back and Forward still cut.
