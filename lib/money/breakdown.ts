@@ -24,27 +24,37 @@ export function budgetCategoryStyle(label: string): { hue: Hue; icon: MoneyCateg
   return FIXED[label] ?? (ACTIVITY_LABELS.has(label) ? { hue: "coral", icon: "activity" } : { hue: "lilac", icon: "other" });
 }
 
-const FALLBACK_HUES: readonly Hue[] = ["coral", "lilac", "sky", "pink", "indigo", "stone"];
+const HUES: readonly Hue[] = ["sun", "teal", "leaf", "coral", "lilac", "sky", "pink", "indigo", "stone"];
+
+const CATEGORY_HUE: Record<string, Hue> = {
+  Transport: "sun",
+  "Food & Drink": "leaf",
+  Sightseeing: "coral",
+  Activity: "lilac",
+  Nightlife: "sky",
+  Shopping: "pink",
+  "Getting around": "indigo",
+  Other: "stone",
+  Place: "teal",
+  Accommodation: "teal",
+  Activities: "lilac",
+  Surprise: "indigo",
+  Insurance: "lilac",
+  "Visas & Docs": "sky",
+  "Connectivity / eSIM": "coral",
+  "Spending money": "pink",
+};
+
+export function categoryHue(label: string): Hue {
+  const known = CATEGORY_HUE[label];
+  if (known) return known;
+  let hash = 0;
+  for (const ch of label) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return HUES[hash % HUES.length];
+}
 
 export function categoryHues(labels: readonly string[]): Map<string, Hue> {
-  const hues = new Map<string, Hue>();
-  const used = new Set<Hue>();
-  for (const label of labels) {
-    const fixed = FIXED[label];
-    if (fixed) {
-      hues.set(label, fixed.hue);
-      used.add(fixed.hue);
-    }
-  }
-  let cycled = 0;
-  for (const label of labels) {
-    if (hues.has(label)) continue;
-    const preferred = budgetCategoryStyle(label).hue;
-    const hue = !used.has(preferred) ? preferred : (FALLBACK_HUES.find((h) => !used.has(h)) ?? FALLBACK_HUES[cycled++ % FALLBACK_HUES.length]);
-    hues.set(label, hue);
-    used.add(hue);
-  }
-  return hues;
+  return new Map(labels.map((l) => [l, categoryHue(l)]));
 }
 
 export function breakdownOptions({ chapters, days }: { chapters: boolean; days: boolean }): { value: BreakdownBy; label: string }[] {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   budgetCategoryStyle,
+  categoryHue,
   categoryHues,
   breakdownOptions,
   parseBy,
@@ -74,17 +75,21 @@ describe("breakdownOptions and parseBy", () => {
 });
 
 describe("categoryHues", () => {
-  const LABELS = ["Transport", "Accommodation", "Sightseeing", "Activity", "Nightlife", "Food & Drink", "Other", "Made-up category"];
-  it("gives eight categories eight different hues, Transport sun and the first activity coral", () => {
-    const hues = categoryHues(LABELS);
-    expect(new Set(hues.values()).size).toBe(8);
-    expect(hues.get("Transport")).toBe("sun");
-    expect(hues.get("Sightseeing")).toBe("coral");
+  const NINE = ["Transport", "Sightseeing", "Food & Drink", "Activity", "Nightlife", "Shopping", "Getting around", "Place", "Other"];
+  it("the Item categories and Transport are pairwise distinct", () => {
+    expect(new Set(NINE.map(categoryHue)).size).toBe(9);
   });
-  it("rowsFor never repeats a hue for that list", () => {
-    const byCategory = LABELS.map((category) => ({ category, ...zero, costTotalMinor: 1000 }));
-    const rows = rowsFor({ ...BUDGET, byCategory }, "category");
-    expect(new Set(rows.map((r) => r.hue)).size).toBe(rows.length);
+  it("a category keeps its hue on trips with different category sets", () => {
+    const a = categoryHues(["Sightseeing", "Insurance"]);
+    const b = categoryHues(["Transport", "Nightlife", "Sightseeing", "Made-up"]);
+    expect(a.get("Sightseeing")).toBe(b.get("Sightseeing"));
+  });
+  it("adding a category changes no other's hue, and an unknown one is stable", () => {
+    const before = categoryHues(["Transport", "Activity"]);
+    const after = categoryHues(["Transport", "Activity", "Made-up"]);
+    expect(after.get("Transport")).toBe(before.get("Transport"));
+    expect(after.get("Activity")).toBe(before.get("Activity"));
+    expect(categoryHue("Made-up")).toBe(categoryHue("Made-up"));
   });
 });
 
