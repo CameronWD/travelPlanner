@@ -176,8 +176,8 @@ function StayBlock({
             </StayField>
             {a.address && (
               <StayField heading="Where">
-                <p className="flex min-w-0 items-center gap-1.5 text-sm">
-                  <span className="min-w-0 truncate">{a.address}</span>
+                <p className="flex min-w-0 items-start gap-1.5 text-sm">
+                  <span className="min-w-0 line-clamp-2 break-words" title={a.address}>{a.address}</span>
                   <StayMapLink a={a} className="relative z-10 shrink-0 text-foreground/80" />
                 </p>
               </StayField>

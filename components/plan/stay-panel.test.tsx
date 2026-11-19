@@ -152,6 +152,15 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
     expect(within(block).getByText("17 Bd Poissonnière, Paris").className).toContain("truncate");
   });
 
+  it("the desktop address shows two lines and its full text on hover", () => {
+    render(<StayPanel {...props()} />);
+    const el = screen
+      .getAllByText("17 Bd Poissonnière, Paris")
+      .find((n) => n.className.includes("line-clamp-2"))!;
+    expect(el.className).not.toContain("truncate");
+    expect(el).toHaveAttribute("title", "17 Bd Poissonnière, Paris");
+  });
+
   it("a stay still to book says To book beside its cost line", () => {
     render(<StayPanel {...props({ accommodations: [{ ...HOTEL, bookingState: "TO_BOOK" }] })} />);
     expect(within(screen.getByTestId("stay-phone")).getByText("To book")).toBeInTheDocument();
