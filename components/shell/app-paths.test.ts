@@ -59,5 +59,8 @@ describe("isPageHeaderPath", () => {
     expect(isPageHeaderPath("/trips/t1/calendar")).toBe(true);
     expect(isPageHeaderPath("/trips/t1/wishlist")).toBe(true);
     expect(isPageHeaderPath("/trips/t1/reviews")).toBe(true);
+    expect(isPageHeaderPath("/trips/x/settings")).toBe(true);
+    expect(isPageHeaderPath("/trips/x/summary")).toBe(true);
+    expect(isPageHeaderPath("/trips/x/print")).toBe(false);
   });
 });
