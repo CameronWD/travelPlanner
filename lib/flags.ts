@@ -70,6 +70,11 @@ export interface Flag {
   between?: { from: string; to: string };
 }
 
+/** Writes every ISO day in a message as the app writes days; the stored message stays ISO for MCP and Reviews. */
+export function flagDisplayMessage(flag: { message: string }): string {
+  return flag.message.replace(/\b\d{4}-\d{2}-\d{2}\b/g, (iso) => (formatISODate(parseISODate(iso)) === iso ? formatDayLabel(iso) : iso));
+}
+
 // ---------------------------------------------------------------------------
 // Minimal input shapes (mirror Prisma; no Prisma import)
 // ---------------------------------------------------------------------------

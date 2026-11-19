@@ -30,7 +30,31 @@ describe("DayByDay (SHARE.md §7)", () => {
     expect(screen.getAllByTestId("share-day")).toHaveLength(2);
     expect(screen.getByText("Versailles day")).toBeInTheDocument();
     expect(screen.queryByText("Borough Market")).not.toBeInTheDocument();
-    expect(screen.getByText("London · 1 day")).toBeInTheDocument();
+    expect(screen.getByText("1 day")).toBeInTheDocument();
+  });
+
+  it("a folded Stop's name wraps on a phone and keeps its day count", () => {
+    const long = "A".repeat(40);
+    const { container } = render(<DayByDay stops={[{ ...stops[0], name: long, status: "future" }, stops[1]]} initialOpenId="par" />);
+    const folded = container.querySelector("[data-stop-folded='lon']") as HTMLElement;
+    const name = within(folded).getByText(long);
+    expect(name.classList.contains("truncate")).toBe(false);
+    expect(name.className).toMatch(/break-words/);
+    expect(within(folded).getByText("1 day")).toBeInTheDocument();
+    expect(within(folded).getAllByText(/5–10 Dec/).some((e) => /sm:hidden/.test(e.className))).toBe(true);
+  });
+
+  it("an open Stop's name wraps on a phone with its dates on a muted line under it", () => {
+    const long = "A".repeat(40);
+    const { container } = render(<DayByDay stops={[{ ...stops[0], name: long }, stops[1]]} initialOpenId="lon" />);
+    const open = container.querySelector("[data-stop-open='lon']") as HTMLElement;
+    const name = within(open).getByRole("heading", { name: long });
+    expect(name.className).toMatch(/break-words/);
+    expect(name.className).toMatch(/sm:truncate/);
+    expect(name.className).not.toMatch(/(^|\s)truncate/);
+    const dates = within(open).getByText(/5 Dec.*–.*10 Dec/);
+    expect(dates.className).not.toMatch(/hidden/);
+    expect(dates.className).toMatch(/text-muted-foreground/);
   });
 
   it("marks today with aria-current, a TODAY pill and a sun tint", () => {
@@ -49,7 +73,7 @@ describe("DayByDay (SHARE.md §7)", () => {
 
   it("Show opens a folded stop and folds the open one", async () => {
     render(<DayByDay stops={stops} initialOpenId="par" />, { wrapper: MotionProvider });
-    await userEvent.click(within(screen.getByText("London · 1 day").closest("[data-stop-folded]") as HTMLElement).getByRole("button", { name: /show/i }));
+    await userEvent.click(within(screen.getByText("1 day").closest("[data-stop-folded]") as HTMLElement).getByRole("button", { name: /show/i }));
     expect(screen.getByText("Borough Market")).toBeInTheDocument();
     // The old stop folds away (MOTION.md S7), inert while it goes.
     expect(screen.getByText("Louvre").closest("[inert]")).not.toBeNull();

@@ -76,8 +76,8 @@ export interface ReviewedFinding {
   where?: string;
   suggestedFix: string;
   /** `crop` is in image pixels (the PNG's own, i.e. device px at whatever
-   * deviceScaleFactor that width was captured at — see config.ts's
-   * viewportFor: <=430 is 2x, wider is 1x). */
+   * deviceScaleFactor that device profile is captured at — see config.ts's
+   * PROFILES: phones 3x, mbp14 2x, the rest 1x). */
   screenshot: { file: string; crop: Crop };
 }
 

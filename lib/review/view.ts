@@ -2,6 +2,7 @@ import type { Route } from "next";
 import type { Flag } from "@/lib/flags";
 import { flagHref } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
+import { summaryForDisplay } from "@/lib/review/model-output";
 import { shortDate } from "@/lib/time-display";
 import type { BookingState } from "@/lib/enum-values";
 import {
@@ -380,7 +381,7 @@ export interface HistoryRow {
 function historyLine(r: ReviewForView): string {
   switch (r.status) {
     case "DONE":
-      return r.summary?.trim() || "No summary";
+      return r.summary?.trim() ? summaryForDisplay(r.summary).trim() : "No summary";
     case "RUNNING":
       return "Still running";
     case "FAILED":

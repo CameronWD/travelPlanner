@@ -154,20 +154,18 @@ export function StopSheet({
               <DialogPrimitive.Title className="truncate font-display text-[28px] font-extrabold leading-none">
                 {stop.name}
               </DialogPrimitive.Title>
-              <div className="flex min-w-0 items-center gap-2">
-                <p className="truncate text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
-                {onSetNights && !surprised && (
-                  <Stepper
-                    value={rough ? (stop.nights ?? 1) : nightsBetween(stop.arriveDate!, stop.departDate!)}
-                    onChange={onSetNights}
-                    min={0}
-                    max={366}
-                    unit="n"
-                    label={`Nights in ${stop.name}`}
-                    className="shrink-0"
-                  />
-                )}
-              </div>
+              <p className="mt-1.5 text-balance text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
+              {onSetNights && !surprised && (
+                <Stepper
+                  value={rough ? (stop.nights ?? 1) : nightsBetween(stop.arriveDate!, stop.departDate!)}
+                  onChange={onSetNights}
+                  min={0}
+                  max={366}
+                  unit="n"
+                  label={`Nights in ${stop.name}`}
+                  className="mt-2 flex w-fit"
+                />
+              )}
             </div>
             {!surprised && (
               <button

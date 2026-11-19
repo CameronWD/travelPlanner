@@ -64,6 +64,22 @@ function jumpToHomeBase(id: "home-base-top" | "home-base-bottom") {
   ringId(id);
 }
 
+/** The reading line sits at 30% of the viewport and slides to its bottom over the last viewport of scroll, so Stops near the page end can each become active. */
+export function activeStopId(
+  tops: { id: string; top: number }[],
+  innerHeight: number,
+  scrollY: number,
+  scrollHeight: number,
+): string | null {
+  if (tops.length === 0) return null;
+  const maxScroll = scrollHeight - innerHeight;
+  const t = maxScroll <= 0 ? 0 : Math.min(1, Math.max(0, (scrollY - (maxScroll - innerHeight)) / innerHeight));
+  const line = innerHeight * (0.3 + 0.7 * t);
+  let id = tops[0].id;
+  for (const s of tops) if (s.top <= line) id = s.id;
+  return id;
+}
+
 const ROW_CLASS =
   "tap-target flex h-9 w-full items-center gap-2.5 rounded-[10px] border-2 border-transparent px-2 text-left text-sm font-semibold";
 
@@ -81,31 +97,32 @@ const ROW_CLASS =
  */
 export function JumpList({ stops, chapters, homeBase }: JumpListProps) {
   const { jumpTo, actions } = usePlanBody();
-  const [activeStopId, setActiveStopId] = React.useState<string | null>(null);
+  const [activeId, setActiveStopId] = React.useState<string | null>(null);
 
-  // Scroll-spy: the topmost Stop card currently in view is "active". Moved
-  // verbatim from plan-stops-nav.tsx — it observes `[data-stop-id]`, which
-  // only desktop Stop rows carry, rendered by a sibling subtree
-  // (ItineraryManager), not by this component.
+  // Reads `[data-stop-id]`, which only desktop Stop rows carry, rendered by a
+  // sibling subtree (ItineraryManager), not by this component.
   React.useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const elements = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-id]"));
-    if (elements.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting);
-        if (visible.length === 0) return;
-        const topmost = visible.reduce((a, b) =>
-          a.boundingClientRect.top <= b.boundingClientRect.top ? a : b,
-        );
-        const id = topmost.target.getAttribute("data-stop-id");
-        if (id) setActiveStopId(id);
-      },
-      { rootMargin: "0px 0px -70% 0px", threshold: 0 },
-    );
-    elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const tops = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-id]")).map((el) => ({
+        id: el.getAttribute("data-stop-id") as string,
+        top: el.getBoundingClientRect().top,
+      }));
+      const id = activeStopId(tops, window.innerHeight, window.scrollY, document.documentElement.scrollHeight);
+      if (id) setActiveStopId(id);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
   }, [stops]);
 
   const rows = buildRows(stops, chapters);
@@ -125,7 +142,7 @@ export function JumpList({ stops, chapters, homeBase }: JumpListProps) {
         )}
 
         {rows.map(({ chapterHeading, stop }) => {
-          const active = activeStopId === stop.id;
+          const active = activeId === stop.id;
           return (
             <React.Fragment key={stop.id}>
               {chapterHeading && (

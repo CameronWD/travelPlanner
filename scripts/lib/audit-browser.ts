@@ -8,15 +8,68 @@
  * on a machine that runs an audit.
  */
 
-import { chromium, type BrowserType, type Page } from "playwright";
+import { chromium, webkit, type BrowserType, type Page } from "playwright";
 
 export type Theme = "light" | "dark";
 export type MapReveal = "wishlist-map-tab" | "show-day-map";
 
-/** The Chromium launcher every audit uses. The one place a harness file
- * takes a value from `playwright` (run.test.ts allowlists only this file). */
-export function resolvePlaywright(): { chromium: BrowserType } {
-  return { chromium };
+/** The browser launchers the audits use (the layout audit's phone profiles
+ * run in WebKit). The one place a harness file takes a value from
+ * `playwright` (run.test.ts allowlists only this file). */
+export function resolvePlaywright(): { chromium: BrowserType; webkit: BrowserType } {
+  return { chromium, webkit };
+}
+
+// --------------------------------------------------------------------------
+// Loading a page until it has settled
+// --------------------------------------------------------------------------
+
+/**
+ * True once the page has finished arriving: the document is complete, no
+ * Suspense boundary is still streaming (React marks a pending one with a
+ * `$?` comment), the app's own buttons are hydrated (React sets
+ * `__reactProps$…` on each; a click before that does nothing — a button with
+ * no React keys under an element that has them is a third party's, e.g. the
+ * map's own controls, and is not waited for), fonts are in, and no new
+ * resource has finished for 400ms.
+ *
+ * `networkidle` can't be used for this: with a Google Maps key the map's
+ * worker blobs never "finish", so Chromium never reports the network idle and
+ * every map page times out; and WebKit reports idle while /trips is still
+ * showing its loading skeleton. Plain JS string — see layout-audit.ts trap 1.
+ */
+export const SETTLED_JS = `(() => {
+  if (document.readyState !== "complete") return false;
+  const walker = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_COMMENT);
+  while (walker.nextNode()) if (walker.currentNode.data === "$?") return false;
+  const hasReact = (el) => Object.keys(el).some((k) => k.startsWith("__react"));
+  for (const b of Array.from(document.querySelectorAll("button")).slice(0, 80)) {
+    if (hasReact(b)) continue;
+    let foreign = false;
+    for (let p = b.parentElement; p && !foreign; p = p.parentElement) foreign = hasReact(p);
+    if (!foreign) return false;
+  }
+  if (document.fonts && document.fonts.status !== "loaded") return false;
+  const n = performance.getEntriesByType("resource").length;
+  const now = performance.now();
+  const state = window.__auditSettle || (window.__auditSettle = { n: -1, at: now });
+  if (state.n !== n) { state.n = n; state.at = now; return false; }
+  return now - state.at >= 400;
+})()`;
+
+/** Waits for SETTLED_JS, up to `timeoutMs`; a page that never settles (a
+ * poller, a stuck boundary) is carried on with rather than failed — the
+ * capture then shows whatever a Traveller would be looking at. */
+export async function settle(page: Page, timeoutMs = 12_000): Promise<boolean> {
+  return page.waitForFunction(SETTLED_JS, undefined, { timeout: timeoutMs, polling: 100 }).then(
+    () => true,
+    () => false,
+  );
+}
+
+export async function gotoSettled(page: Page, url: string, timeoutMs = 30_000): Promise<void> {
+  await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+  await settle(page);
 }
 
 // --------------------------------------------------------------------------
@@ -35,10 +88,7 @@ export async function ensureAuthenticated(
 ): Promise<void> {
   const timeoutMs = opts?.timeoutMs ?? 30_000;
   const authStatePath = opts?.authStatePath ?? "/tmp/auth.json";
-  await page.goto(`${baseUrl}/trips`, {
-    waitUntil: "networkidle",
-    timeout: timeoutMs,
-  });
+  await gotoSettled(page, `${baseUrl}/trips`, timeoutMs);
   await opts?.afterFirstLoad?.(page);
   // Signed out, /trips redirects to the Landing at "/", where the dev logins
   // sit inside the Sign in panel.
@@ -58,6 +108,7 @@ export async function ensureAuthenticated(
   }
   await continueButton.first().click();
   await page.waitForURL(/\/trips/, { timeout: timeoutMs }).catch(() => {});
+  await settle(page);
 }
 
 // --------------------------------------------------------------------------
@@ -123,10 +174,7 @@ export async function markerCount(page: Page): Promise<number> {
 /** Reads the trip's calendar page and returns the sorted, deduped set of
  * YYYY-MM-DD dates linked from it, rather than hard-coding one. */
 export async function deriveDayDates(page: Page, baseUrl: string, tripId: string): Promise<string[]> {
-  await page.goto(`${baseUrl}/trips/${tripId}/calendar`, {
-    waitUntil: "networkidle",
-    timeout: 30_000,
-  });
+  await gotoSettled(page, `${baseUrl}/trips/${tripId}/calendar`);
   const dates = await page.evaluate(() =>
     Array.from(document.querySelectorAll("a[href*='/day/']"))
       .map((a) => a.getAttribute("href") ?? "")

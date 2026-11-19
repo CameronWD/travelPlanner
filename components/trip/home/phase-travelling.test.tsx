@@ -1378,7 +1378,7 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
       departsAt: "2030-01-01T00:00:00.000Z", departsZone: "Europe/Paris", withinDay: false,
     });
     expect(model.nextTransport).toEqual({
-      id: "tr-1", depAt: "2030-01-01T00:00:00.000Z", depTimeLabel: "06:00", depZone: "Europe/Paris", label: "TRAIN",
+      id: "tr-1", depAt: "2030-01-01T00:00:00.000Z", depTimeLabel: "06:00", depZone: "Europe/Paris", label: "TRAIN", mode: "TRAIN",
     });
   });
 

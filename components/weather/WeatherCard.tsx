@@ -74,14 +74,14 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
 
       <div className="relative flex flex-col">
         {eyebrow}
-        <p className={cn("flex items-baseline gap-2 font-display font-extrabold tracking-[-0.04em]", compact ? "mt-1 text-[44px] leading-[.9]" : "mt-2 text-[60px] leading-[.9]")}>
+        <p className={cn("flex items-baseline gap-2 whitespace-nowrap font-display font-extrabold tracking-[-0.04em]", compact ? "mt-1 text-[44px] leading-[.9]" : "mt-2 text-[60px] leading-[.9]")}>
           <span className="sr-only">{night && day?.current ? `${Math.round(day.current.tempC)} degrees now` : `High ${day?.highC == null ? "unknown" : Math.round(day.highC)} degrees, low ${day?.lowC == null ? "unknown" : Math.round(day.lowC)} degrees`}</span>
           <span aria-hidden="true">{deg(high)}</span>
           <span aria-hidden="true" className={cn("font-display font-extrabold tracking-[-0.02em]", compact ? "text-[20px]" : "text-[26px]")}>{night ? "now" : `/ ${deg(day?.lowC ?? null)}`}</span>
         </p>
-        <p className={cn("mt-1 flex flex-wrap items-center gap-2", compact ? "text-[17px]" : "text-[20px]")}>
-          <span className="font-display font-extrabold tracking-[-0.02em]">{theme.condition}</span>
-          {theme.chip ? <Chip className={compact ? "text-[10px]" : undefined}>{theme.chip}</Chip> : null}
+        <p className={cn("mt-1 flex min-w-0 items-center gap-2", compact ? "text-[17px]" : "text-[20px]")}>
+          <span className="min-w-0 truncate font-display font-extrabold tracking-[-0.02em]">{theme.condition}</span>
+          {theme.chip ? <Chip className={cn("shrink-0", compact && "text-[10px]")}>{theme.chip}</Chip> : null}
         </p>
       </div>
 

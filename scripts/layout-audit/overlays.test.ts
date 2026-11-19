@@ -24,8 +24,17 @@ function clickLike(s: Step): { role: string; name: string } | undefined {
 
 describe("OVERLAYS", () => {
   it("has unique ids", () => expect(new Set(OVERLAYS.map((o) => o.id)).size).toBe(OVERLAYS.length));
-  // 33: the rail's More dropdown ("rail-more") went when More became a page.
-  it("covers the 33 recipes from the plan", () => expect(OVERLAYS).toHaveLength(33));
+  // A changed count is a prompt to re-read the list, not a contract.
+  it("covers the 45 recipes last walked against the app", () => expect(OVERLAYS).toHaveLength(45));
+  it("drops the recipes whose surface is gone: What-if plans (hidden) and the trips list's Trip actions", () => {
+    const ids = OVERLAYS.map((o) => o.id);
+    for (const gone of ["fork-switcher", "new-variant", "promote-fork", "trip-actions"]) expect(ids).not.toContain(gone);
+  });
+  it("only a step that says so may click inside an open dialog, and only on phones' Stop sheet", () => {
+    const within = OVERLAYS.filter((o) => o.steps.some((s) => "click" in s && s.click.within));
+    expect(within.map((o) => o.id)).toEqual(["stop-menu-phone", "item-add-phone"]);
+    expect(within.every((o) => o.only === "phone")).toBe(true);
+  });
   it("never clicks a submit/confirm/destructive label", () => {
     // Resolve through parseName first — a raw-name comparison misses a
     // RegExp trigger (e.g. /^Make .+ the real plan$/) that happens to also
@@ -70,23 +79,14 @@ describe("OVERLAYS", () => {
 });
 
 describe("command-palette recipe", () => {
-  // Task 13 removed the ⌘K keycap and renamed the triggers for label-in-name.
-  const trigger = () => {
-    const step = OVERLAYS.find((o) => o.id === "command-palette")!.steps[0];
+  const recipe = () => OVERLAYS.find((o) => o.id === "command-palette")!;
+  it("clicks the phone header's Search button, by its exact name", () => {
+    const step = recipe().steps[0];
     if (!("click" in step)) throw new Error("expected a click step");
-    return step.click;
-  };
-  it("clicks a button by the current Search trigger names", () => {
-    const { role, name } = trigger();
-    expect(role).toBe("button");
-    const parsed = parseName(name, {}) as RegExp;
-    expect(parsed).toBeInstanceOf(RegExp);
-    for (const current of ["Search", "Search or jump…"]) expect(parsed.test(current), current).toBe(true);
+    expect(step.click).toEqual({ role: "button", name: "Search", exact: true });
   });
-  it("no longer targets the retired \"Search (⌘K)\" name, nor other Search-prefixed buttons", () => {
-    const parsed = parseName(trigger().name, {}) as RegExp;
-    for (const other of ["Search (⌘K)", "Search results", "Searching"]) expect(parsed.test(other), other).toBe(false);
-  });
+  it("is phone-only: from 1280px the sidebar's inline search field replaces the dialog", () =>
+    expect(recipe().only).toBe("phone"));
 });
 
 describe("openOverlay", () => {

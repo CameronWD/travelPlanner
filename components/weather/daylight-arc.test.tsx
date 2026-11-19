@@ -24,10 +24,27 @@ describe("DaylightArc", () => {
     expect(screen.getByText("16:33 ↓")).toBeInTheDocument();
     expect(screen.getByText("8h 21m daylight")).toBeInTheDocument();
   });
+  it("hides the visible day length from assistive tech, as the image already names it", () => {
+    render(<DaylightArc {...day} size="regular" />);
+    expect(screen.getByText("8h 21m daylight").getAttribute("aria-hidden")).toBe("true");
+  });
+  it("puts the day length below the arc, in flow", () => {
+    render(<DaylightArc {...day} size="regular" />);
+    const label = screen.getByText("8h 21m daylight");
+    expect(label.className).not.toMatch(/absolute/);
+    expect(screen.getByRole("img").contains(label)).toBe(false);
+  });
   it("compact shortens the day length", () => {
     render(<DaylightArc {...day} size="compact" />);
     expect(screen.getByText("8h 21m")).toBeInTheDocument();
     expect(screen.queryByText("8h 21m daylight")).toBeNull();
+  });
+  it("the compact arc box is shorter than the regular one, leaving the card slack", () => {
+    const { container, unmount } = render(<DaylightArc {...day} size="compact" />);
+    expect(container.querySelector("[role=img]")).toHaveClass("h-3.5");
+    unmount();
+    const regular = render(<DaylightArc {...day} size="regular" />);
+    expect(regular.container.querySelector("[role=img]")).toHaveClass("h-7");
   });
   it("shows no sun without a now", () => {
     const { container } = render(<DaylightArc {...day} size="regular" />);

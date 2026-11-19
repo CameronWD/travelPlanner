@@ -20,65 +20,89 @@ describe("sliceRanges", () => {
 });
 
 describe("captureSlices", () => {
-  it("names a single slice without a part suffix and clips each slice", async () => {
-    const page = { evaluate: vi.fn(async () => 900), screenshot: vi.fn(async () => Buffer.from("")) };
-    const files = await captureSlices(page as never, { dir: "/tmp/la-test", baseName: "390-light", width: 390, deviceScaleFactor: 1 });
-    expect(files).toEqual(["/tmp/la-test/390-light.png", "/tmp/la-test/390-light-end.png"]);
-    expect(page.screenshot).toHaveBeenCalledWith(expect.objectContaining({ clip: { x: 0, y: 0, width: 390, height: 900 }, fullPage: true }));
-  });
-  it("suffixes parts when sliced", async () => {
-    const page = { evaluate: vi.fn(async () => 2500), screenshot: vi.fn(async () => Buffer.from("")) };
-    const files = await captureSlices(page as never, { dir: "/tmp/la-test", baseName: "x", width: 390, deviceScaleFactor: 2 });
-    expect(files.map((f) => f.split("/").pop())).toEqual(["x-part1.png", "x-part2.png", "x-part3.png", "x-end.png"]);
-  });
-
-  // Final review: a full-page slice paints position:fixed chrome (the mobile tab bar, the
-  // floating feedback button) at the first viewport's bottom, over real content. The slices
-  // are taken with it hidden; one viewport shot at the page end then shows it where a
-  // Traveller sees it — the state check 6 (hidden behind fixed chrome) measures.
-  const recordingPage = (height: number, failOnSlice?: number) => {
+  // A page stub that tracks its own scroll position, like a window would.
+  const recordingPage = (height: number, viewport: number, failOnSlice?: number) => {
     const events: string[] = [];
+    let scrollY = 0;
     let slice = 0;
     const page = {
+      waitForTimeout: vi.fn(async () => undefined),
       evaluate: vi.fn(async (js: string) => {
         if (js === HIDE_FIXED_JS) events.push("hide-fixed");
         else if (js === RESTORE_FIXED_JS) events.push("restore-fixed");
         else if (js === SCROLL_HEIGHT_JS) return height;
-        else if (/scrollTo/.test(js)) events.push(/scrollHeight/.test(js) ? "scroll-end" : "scroll-top");
-        else events.push(`unknown evaluate: ${js}`);
+        else if (/window\.scrollY/.test(js)) return scrollY;
+        else if (/scrollTo/.test(js)) {
+          const top = /top: document/.test(js) ? height : Number(/top: (\d+)/.exec(js)?.[1]);
+          scrollY = Math.max(0, Math.min(top, height - viewport));
+          events.push(`scroll ${scrollY}`);
+        } else events.push(`unknown evaluate: ${js}`);
         return undefined;
       }),
-      screenshot: vi.fn(async (o: { path: string; fullPage?: boolean; clip?: unknown }) => {
+      screenshot: vi.fn(async (o: { path: string; fullPage?: boolean; clip?: { y: number; height: number } }) => {
         if (o.clip && ++slice === failOnSlice) throw new Error("screenshot failed");
-        events.push(`${o.clip ? "slice" : "viewport"} ${o.path.split("/").pop()}${o.fullPage ? " fullPage" : ""}`);
+        const name = o.path.split("/").pop();
+        events.push(o.clip ? `slice ${name} y=${o.clip.y} h=${o.clip.height}${o.fullPage ? " fullPage" : ""}` : `viewport ${name}`);
         return Buffer.from("");
       }),
     };
     return { page, events };
   };
+  const shots = (events: string[]) => events.filter((e) => !e.startsWith("scroll"));
 
-  it("hides fixed chrome for the slices, then restores it and shoots the page end last", async () => {
-    const { page, events } = recordingPage(2500);
-    const files = await captureSlices(page as never, { dir: "/tmp/la-test", baseName: "x", width: 390, deviceScaleFactor: 2 });
-    expect(events).toEqual([
-      "hide-fixed",
-      "slice x-part1.png fullPage",
-      "slice x-part2.png fullPage",
-      "slice x-part3.png fullPage",
-      "restore-fixed",
-      "scroll-end",
-      "viewport x-end.png",
-      "scroll-top",
+  it("names a single slice without a part suffix; the first screen and the page end come last", async () => {
+    const { page } = recordingPage(900, 900);
+    const files = await captureSlices(page as never, { dir: "/tmp/la-test", baseName: "1440-light", width: 1440, height: 900, deviceScaleFactor: 1 });
+    expect(files).toEqual(["/tmp/la-test/1440-light.png", "/tmp/la-test/1440-light-fold.png", "/tmp/la-test/1440-light-end.png"]);
+    expect(page.screenshot).toHaveBeenCalledWith(expect.objectContaining({ clip: { x: 0, y: 0, width: 1440, height: 900 } }));
+  });
+
+  it("a slice is one viewport at most, and 2000 device px at most", async () => {
+    const tall = recordingPage(2500, 900);
+    await captureSlices(tall.page as never, { dir: "/tmp/la-test", baseName: "x", width: 1440, height: 900, deviceScaleFactor: 1 });
+    expect(shots(tall.events).filter((e) => e.startsWith("slice"))).toEqual([
+      "slice x-part1.png y=0 h=900",
+      "slice x-part2.png y=0 h=900",
+      "slice x-part3.png y=200 h=700",
     ]);
+    const phone = recordingPage(1400, 874);
+    await captureSlices(phone.page as never, { dir: "/tmp/la-test", baseName: "x", width: 402, height: 874, deviceScaleFactor: 3 });
+    expect(shots(phone.events).filter((e) => e.startsWith("slice"))).toEqual([
+      "slice x-part1.png y=0 h=666",
+      "slice x-part2.png y=140 h=666",
+      "slice x-part3.png y=806 h=68",
+    ]);
+  });
+
+  it("never resizes the viewport: no slice is a fullPage screenshot", async () => {
+    const { page, events } = recordingPage(2500, 900);
+    await captureSlices(page as never, { dir: "/tmp/la-test", baseName: "x", width: 1440, height: 900, deviceScaleFactor: 1 });
+    expect(events.some((e) => e.includes("fullPage"))).toBe(false);
+  });
+
+  it("scrolls the whole page first, shoots the first screen, hides fixed chrome for the slices, then shoots the page end", async () => {
+    const { page, events } = recordingPage(2500, 900);
+    const files = await captureSlices(page as never, { dir: "/tmp/la-test", baseName: "x", width: 1440, height: 900, deviceScaleFactor: 1 });
+    expect(events.slice(0, 4)).toEqual(["scroll 0", "scroll 900", "scroll 1600", "scroll 0"]);
+    expect(shots(events)).toEqual([
+      "viewport x-fold.png",
+      "hide-fixed",
+      "slice x-part1.png y=0 h=900",
+      "slice x-part2.png y=0 h=900",
+      "slice x-part3.png y=200 h=700",
+      "restore-fixed",
+      "viewport x-end.png",
+    ]);
+    expect(events.at(-1)).toBe("scroll 0");
     expect(files.at(-1)).toBe("/tmp/la-test/x-end.png");
   });
 
   it("restores fixed chrome even when a slice fails", async () => {
-    const { page, events } = recordingPage(2500, 2);
+    const { page, events } = recordingPage(2500, 900, 2);
     await expect(
-      captureSlices(page as never, { dir: "/tmp/la-test", baseName: "x", width: 390, deviceScaleFactor: 2 }),
+      captureSlices(page as never, { dir: "/tmp/la-test", baseName: "x", width: 1440, height: 900, deviceScaleFactor: 1 }),
     ).rejects.toThrow("screenshot failed");
-    expect(events).toEqual(["hide-fixed", "slice x-part1.png fullPage", "restore-fixed"]);
+    expect(shots(events)).toEqual(["viewport x-fold.png", "hide-fixed", "slice x-part1.png y=0 h=900", "restore-fixed"]);
   });
 });
 

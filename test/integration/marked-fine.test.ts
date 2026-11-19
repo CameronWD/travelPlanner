@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { flagDisplayMessage } from "@/lib/flags";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/server", () => ({ after: vi.fn() }));
@@ -111,7 +112,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Marked fine across Summary and
     expect((await summaryFlags()).map((f) => f.id)).not.toContain(tight!.id);
     const day = await dayView();
     expect(day.feasibility).toEqual([]);
-    expect(day.markedFine).toEqual([{ flagId: tight!.id, message: tight!.message, markedByName: "Xanthia" }]);
+    expect(day.markedFine).toEqual([{ flagId: tight!.id, message: flagDisplayMessage(tight!), markedByName: "Xanthia" }]);
     expect((await loadFlags(TRIP_ID, USER)).markedFine.map((f) => f.id)).toEqual([tight!.id]);
   });
 

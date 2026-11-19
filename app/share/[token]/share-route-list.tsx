@@ -63,7 +63,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
             <li
               key={stop.id}
               className={cn(
-                "flex min-h-[50px] items-center gap-3 border-b-2 border-muted py-2 last:border-b-0",
+                "flex min-h-[50px] flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap border-b-2 border-muted py-2 last:border-b-0",
                 stage === "during" && stop.status === "current" && "rounded-xl border-transparent bg-coral/20 px-2",
               )}
             >
@@ -77,12 +77,12 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
                 {i + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-base font-extrabold">{stop.name}</p>
+                <p className="break-words font-display text-base font-extrabold sm:truncate">{stop.name}</p>
                 <p className="truncate text-xs font-semibold text-muted-foreground">
                   {[stop.country, formatNights(stop.nights)].filter(Boolean).join(" · ")}
                 </p>
               </div>
-              <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums">
+              <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums max-sm:basis-full max-sm:pl-10">
                 {stage === "before" && datesLine(stop)}
                 {stage === "during" && stop.status === "past" && (
                   <span className="inline-flex items-center gap-1 text-teal-text">

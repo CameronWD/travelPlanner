@@ -27,6 +27,12 @@ const warn = (id: string): Flag => ({ id, severity: "warning", message: `warn ${
 const info = (id: string): Flag => ({ id, severity: "info", message: `info ${id}`, targetType: "DAY", date: "2026-07-01" });
 
 describe("buildNextSteps", () => {
+  it("writes a flag's ISO day as a friendly day in its step title", () => {
+    const flag: Flag = { id: "d", severity: "warning", message: "Tight on 2026-12-09 between A and B: only 5 min.", targetType: "DAY", date: "2026-12-09" };
+    const [step] = buildNextSteps({ flags: [flag], phase: "planning", nudges: NO_NUDGES, tripBasePath: "/trips/t" });
+    expect(step.title).toBe("Tight on Wed 9 Dec between A and B: only 5 min.");
+  });
+
   it("nudges to add booking confirmations, boosted in final-prep, absent at zero", () => {
     const run = (phase: "planning" | "final-prep", n: number) =>
       buildNextSteps({ flags: [], phase, nudges: makeNudges({ bookingConfirmationsToAdd: n }), tripBasePath: "/trips/t" })

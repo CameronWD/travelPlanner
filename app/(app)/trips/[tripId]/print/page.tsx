@@ -556,18 +556,16 @@ export default async function PrintPage({
             {/* By category */}
             {budget.byCategory.length > 0 && (
               <div>
-                <p className="mb-2 text-label text-muted-foreground">
-                  By category
-                </p>
+                <div className="mb-2 flex items-baseline justify-between text-label text-muted-foreground">
+                  <p>By category</p>
+                  <p>Cost</p>
+                </div>
                 <div className="flex flex-col gap-1.5">
                   {budget.byCategory.map((bc) => (
                     <div key={bc.category} className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">{bc.category}</span>
                       <span className="font-mono font-medium">
-                        {formatMoney(
-                          hasActual && bc.paidTotalMinor > 0 ? bc.paidTotalMinor : bc.costTotalMinor,
-                          homeCurrency,
-                        )}
+                        {formatMoney(bc.costTotalMinor, homeCurrency)}
                       </span>
                     </div>
                   ))}

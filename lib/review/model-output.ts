@@ -235,9 +235,24 @@ export function mergeDrafts(...groups: readonly FindingDraft[][]): FindingDraft[
   return merged;
 }
 
+const SUMMARY_MAX = 200;
+
+export function clipSummary(text: string, max = SUMMARY_MAX): string {
+  if (text.length <= max) return text;
+  const space = text.lastIndexOf(" ", max - 1);
+  let cut = space > 0 ? text.slice(0, space) : text.slice(0, max - 1);
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+  return `${cut.replace(/[\s.,;:!?\-–—]+$/, "")}…`;
+}
+
+export function summaryForDisplay(stored: string): string {
+  if (stored.length !== SUMMARY_MAX || /[.!?…]$/.test(stored)) return stored;
+  return `${stored}…`;
+}
+
 /** The history's summary line (R10): Claude's, on one line, or a count. */
 export function reviewSummary(output: ReviewOutput, count: number): string {
-  const line = plainCopy(output.summary.replace(/\s+/g, " ")).slice(0, 200);
+  const line = clipSummary(plainCopy(output.summary.replace(/\s+/g, " ")));
   if (line) return line;
   if (count === 0) return "Nothing to look at.";
   return `${count} ${count === 1 ? "thing" : "things"} to look at.`;

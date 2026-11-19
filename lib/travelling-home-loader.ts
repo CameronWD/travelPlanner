@@ -209,6 +209,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
             effectiveDate,
           ),
           label: buildTransportLabel(nextTransportDep.transport),
+          mode: nextTransportDep.transport.mode,
         }
       : null;
 

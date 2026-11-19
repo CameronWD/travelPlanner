@@ -496,12 +496,12 @@ export function headline(a: {
     return `made the ${a.entityLabel} what-if plan the real plan`;
   }
 
-  if (a.entityType === "COST" && a.entityLabel === "cost") {
-    return `${VERB_WORD[a.verb]} a cost`;
-  }
-
   const verbWord = VERB_WORD[a.verb];
   const noun = ENTITY_NOUN[a.entityType];
+  const label = a.entityLabel.trim().toLowerCase().replace(/^(an?|the)\s+/, "");
+  if (label === "" || label === noun) {
+    return `${verbWord} ${/^[aeiou]/.test(noun) ? "an" : "a"} ${noun}`;
+  }
   return `${verbWord} the ${a.entityLabel} ${noun}`;
 }
 

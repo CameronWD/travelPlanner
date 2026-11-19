@@ -93,7 +93,7 @@ export function StopDeletionLossList({ preview, heading }: StopDeletionLossListP
             <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
               Accommodation
             </span>
-            <span className="min-w-0 truncate text-foreground">
+            <span className="min-w-0 break-words text-foreground">
               {acc.name}
               {acc.hasConfirmation ? " (holds a confirmation number)" : ""}
             </span>

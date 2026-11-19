@@ -3,7 +3,6 @@ import {
   MapPin,
   Calendar,
   Moon,
-  Plane,
   Home,
   DollarSign,
   Flag as FlagIcon,
@@ -11,8 +10,11 @@ import {
 import { readPlan } from "@/lib/plan-reads";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { tripPath } from "@/lib/trip-path";
+import { TRANSPORT_MODE_META } from "@/lib/transport";
+import type { TransportMode } from "@/lib/enum-values";
 import { formatMoney } from "@/lib/money/money";
-import { formatDateRange, nightsBetween } from "@/lib/dates";
+import { perNightMinor } from "@/lib/money/summary-lines";
+import { formatDateRange, formatDayRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
@@ -497,6 +499,7 @@ export default async function SummaryPage({
                         const nights = nightsBetween(stop.arriveDate, stop.departDate);
                         const accom = accomByStopId.get(stop.id);
                         const transport = transportFromStop.get(stop.id);
+                        const ModeIcon = transport ? TRANSPORT_MODE_META[transport.mode as TransportMode]?.icon : null;
                         const departDay = transport?.depAt
                           ? (transportTimeDisplay({
                               depAt: new Date(transport.depAt),
@@ -506,6 +509,7 @@ export default async function SummaryPage({
                             }).dep?.dateISO ?? null)
                           : null;
                         const stopBudget = budgetByStopId.get(stop.id);
+                        const perNight = stopBudget ? perNightMinor(stopBudget.costTotalMinor, nights) : null;
                         const isLast = globalIdx === totalGroupedStops;
 
                         return (
@@ -542,22 +546,19 @@ export default async function SummaryPage({
                               {stopBudget && (
                                 <div className="sm:shrink-0 sm:text-right">
                                   <p className="font-mono text-sm font-semibold text-foreground">
-                                    {formatMoney(
-                                      stopBudget.paidTotalMinor > 0
-                                        ? stopBudget.paidTotalMinor
-                                        : stopBudget.costTotalMinor,
-                                      homeCurrency,
-                                    )}
+                                    {formatMoney(stopBudget.costTotalMinor, homeCurrency)}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {stopBudget.paidTotalMinor > 0 ? "paid" : "cost"}
-                                    {nights > 0 &&
+                                    cost
+                                    {perNight !== null &&
                                       stopBudget.costTotalMinor > 0 &&
-                                      ` · ${formatMoney(
-                                        Math.round(stopBudget.costTotalMinor / nights),
-                                        homeCurrency,
-                                      )}/night`}
+                                      ` · ${formatMoney(perNight, homeCurrency)}/night`}
                                   </p>
+                                  {stopBudget.paidTotalMinor > 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      paid {formatMoney(stopBudget.paidTotalMinor, homeCurrency)}
+                                    </p>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -570,7 +571,7 @@ export default async function SummaryPage({
                                 <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
                                   <span className="min-w-0 break-words">{accom.name}</span>
                                   <span className="shrink-0 text-xs opacity-60">
-                                    {accom.checkIn} – {accom.checkOut}
+                                    {formatDayRange(accom.checkIn, accom.checkOut)}
                                   </span>
                                 </div>
                               </div>
@@ -579,7 +580,7 @@ export default async function SummaryPage({
                             {/* Outbound transport */}
                             {transport && !isLast && (
                               <div className="mt-3 flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                                <Plane className="size-3.5 shrink-0" aria-hidden="true" />
+                                {ModeIcon ? <ModeIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
                                 <span className="min-w-0 break-words">
                                   {modeLabel(transport.mode)}
                                   {transport.depPlace ? ` from ${transport.depPlace}` : ""}
@@ -651,9 +652,10 @@ export default async function SummaryPage({
                 {/* Category breakdown */}
                 {budget.byCategory.length > 0 && (
                   <div className="w-full">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      By category
-                    </p>
+                    <div className="mb-2 flex items-baseline justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <p>By category</p>
+                      <p>Cost</p>
+                    </div>
                     <div className="flex flex-col gap-1">
                       {budget.byCategory.map((bc) => (
                         <div

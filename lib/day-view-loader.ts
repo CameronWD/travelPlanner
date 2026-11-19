@@ -21,7 +21,7 @@ import { tripTodayISO } from "@/lib/trip-today";
 import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
 import { resolvedPlanHops, withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import type { NearbyResult } from "@/lib/nearby";
-import { flagTightConnections, type Flag } from "@/lib/flags";
+import { flagDisplayMessage, flagTightConnections, type Flag } from "@/lib/flags";
 import { loadHopModes } from "@/lib/hop-modes";
 import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
 import { applyMarkedFine, type MarkedFineRow } from "@/lib/flag-dismissals";
@@ -437,10 +437,10 @@ function projectDayView(
   const feasibility = tight.shown.map((f) => ({
     fine: { flagId: f.id, fingerprint: f.fingerprint, between: f.between },
     severity: f.severity,
-    message: f.message,
+    message: flagDisplayMessage(f),
     hop: f.hop,
   }));
-  const markedFine = tight.markedFine.map((f) => ({ flagId: f.id, message: f.message, markedByName: f.markedByName }));
+  const markedFine = tight.markedFine.map((f) => ({ flagId: f.id, message: flagDisplayMessage(f), markedByName: f.markedByName }));
 
   const titleById = new Map(items.map((it) => [it.id, it.title]));
   const hops: DayHopEntry[] = resolvedPlanHops({

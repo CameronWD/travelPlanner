@@ -27,6 +27,10 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-19T22:20:00Z",
+    text: "Warnings name days, Summary and Print agree on cost, and a shared trip shows Stop names in full on a phone.",
+  },
+  {
     publishedAt: "2026-11-19T11:39:00Z",
     text: 'Reminders have Got it instead of the bin, with Undo and Bring back. Swiping between days is quicker; "more to book" opens the whole list.',
   },

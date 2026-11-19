@@ -227,6 +227,23 @@ describe("Print view — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     expect(html).toContain("GBP 500.00"); // grand total (400 + 100) still carries the hidden money
   });
 
+  it("Budget Summary: a category row shows its cost even when part of it is paid, under a Cost label", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" }),
+        stops: [stop({ id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0 })],
+        costs: [
+          cost({ id: "c-part", costMinor: 10000, paidMinor: 4000, currency: "GBP", rateToHome: 1, paidAt: new Date("2026-01-01T00:00:00Z"), ownerType: "OTHER", ownerId: null, label: "Visa", category: "Admin" }),
+        ],
+      }),
+    );
+
+    const html = await renderPrint();
+    expect(html).toMatch(/<span class="font-mono font-medium">GBP\s100\.00<\/span>/);
+    expect(html).not.toMatch(/<span class="font-mono font-medium">GBP\s40\.00<\/span>/);
+    expect(html).toContain("<p>Cost</p>");
+  });
+
   it("a hidden Accommodation's row still reaches buildBudget's byStop placement, and its name never prints", async () => {
     // The filtered (rendered) `accommodations` excludes the Accommodation
     // inside hidden Stop s1; `budgetAccommodations` — unfiltered, used ONLY

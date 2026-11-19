@@ -42,7 +42,7 @@ export function RatesStrip({
       </div>
       <ul className="mt-2.5 grid grid-cols-3 gap-2">
         {rates.map((r) => (
-          <li key={r.currency}>
+          <li key={r.currency} className="min-w-0">
             <RateCell tripId={tripId} homeCurrency={homeCurrency} entry={r} />
           </li>
         ))}

@@ -43,6 +43,12 @@ describe("ShareRouteList (SHARE.md §5)", () => {
     expect(screen.getByText("All 3")).toBeInTheDocument();
     expect(within(row("Rome")).getByText("7 nights")).toBeInTheDocument();
   });
+  it("a Stop's name wraps on a phone", () => {
+    const long = "B".repeat(40);
+    render(<ShareRouteList stage="before" stops={[{ ...stops[0], name: long }]} />);
+    expect(screen.getByText(long).classList.contains("truncate")).toBe(false);
+    expect(screen.getByText(long).className).toMatch(/break-words/);
+  });
   it("no longer lists transport or accommodation", () => {
     const { container } = render(<ShareRouteList stage="during" stops={stops} />);
     expect(container.textContent).not.toMatch(/Flight|Hotel|→/);

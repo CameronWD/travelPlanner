@@ -90,7 +90,7 @@ describe("RELEASE_NOTES", () => {
   });
 
   it("carries the 2026-11-19 notes batch", () => {
-    expect(RELEASE_NOTES[0].text.startsWith("Reminders have Got it instead of the bin")).toBe(true);
+    expect(RELEASE_NOTES.some((n) => n.text.startsWith("Reminders have Got it instead of the bin"))).toBe(true);
   });
 
   it("caps the card at three", () => {

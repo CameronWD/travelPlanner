@@ -8,6 +8,7 @@ import { tripSlugFor } from "@/lib/trip-slug-read";
 import { tripPath } from "@/lib/trip-path";
 import { currentTripTimezone } from "@/lib/tz";
 import { orderPlanStops } from "@/lib/plan-order";
+import { summaryForDisplay } from "@/lib/review/model-output";
 import { loadReviewsPage } from "@/lib/review/reviews-page-loader";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -97,7 +98,7 @@ export default async function ReviewsPage({
           </div>
           {shown.status === "DONE" ? (
             <>
-              {shown.summary ? <p className="text-sm leading-relaxed text-foreground">{shown.summary}</p> : null}
+              {shown.summary ? <p className="text-sm leading-relaxed text-foreground">{summaryForDisplay(shown.summary)}</p> : null}
               <FindingList open={shown.open} dealtWith={shown.dealtWith} actionable={shown.actionable} />
             </>
           ) : shown.status === "FAILED" ? (

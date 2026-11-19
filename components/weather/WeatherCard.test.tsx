@@ -98,6 +98,12 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     card(wx({ code: 73 }), "regular", { placeName: "Llanfairpwllgwyngyll and Holyhead Ferry Terminal" });
     expect(screen.getByText(/Sat 12 Dec · Llanfairpwllgwyngyll/)).toHaveClass("truncate");
   });
+  it("keeps the condition and its chip on one line, so a long condition cannot push the daylight label out of the card", () => {
+    card(wx({ code: 73 }), "compact");
+    const condition = article().querySelector<HTMLElement>("p.items-center > span")!;
+    expect(condition).toHaveClass("truncate", "min-w-0");
+    expect(condition.parentElement!.className).not.toMatch(/flex-wrap/);
+  });
   it("rain leans with the day's gusts", () => {
     card(wx({ code: 61, gustsKph: 60 }));
     expect(article().querySelector<HTMLElement>('[data-scene="rain"]')!.style.getPropertyValue("--wx-rain-angle")).toBe("30deg");

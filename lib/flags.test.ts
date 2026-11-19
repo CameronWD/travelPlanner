@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectFlags,
+  flagDisplayMessage,
   flagStopsWithoutAccommodation,
   flagEmptyDays,
   flagTransportDateMismatches,
@@ -116,6 +117,48 @@ const ROME: FlagStop = makeStop({
 // ---------------------------------------------------------------------------
 // Rule 1: Stop without accommodation
 // ---------------------------------------------------------------------------
+
+describe("flagDisplayMessage", () => {
+  it("writes the flag's ISO day as the app writes days, leaving the stored message alone", () => {
+    const flag = { message: "Long driving day on 2026-12-09: ~5h behind the wheel.", date: "2026-12-09" };
+    expect(flagDisplayMessage(flag)).toBe("Long driving day on Wed 9 Dec: ~5h behind the wheel.");
+    expect(flag.message).toContain("2026-12-09");
+  });
+  it("returns a message with no date as it is", () => {
+    expect(flagDisplayMessage({ message: "Add a stay." })).toBe("Add a stay.");
+  });
+  it("writes every date in a message, with or without flag.date", () => {
+    const msg = "Transport departure on 2026-07-20 is outside Rome's stay (2026-07-11 – 2026-07-15).";
+    expect(flagDisplayMessage({ message: msg })).toBe(
+      `Transport departure on ${formatDayLabel("2026-07-20")} is outside Rome's stay (${formatDayLabel("2026-07-11")} – ${formatDayLabel("2026-07-15")}).`,
+    );
+  });
+  it("writes a date that appears twice both times", () => {
+    const out = flagDisplayMessage({ message: "On 2026-07-20 and again 2026-07-20." });
+    expect(out).toBe(`On ${formatDayLabel("2026-07-20")} and again ${formatDayLabel("2026-07-20")}.`);
+  });
+  it("also rewrites a real ISO date inside a Stop name (known and accepted)", () => {
+    expect(flagDisplayMessage({ message: "Nothing planned at Camp 2026-07-20." })).toBe(
+      `Nothing planned at Camp ${formatDayLabel("2026-07-20")}.`,
+    );
+  });
+  it("leaves digits that are not a real calendar date alone", () => {
+    expect(flagDisplayMessage({ message: "Room 2026-13-45 is full." })).toBe("Room 2026-13-45 is full.");
+  });
+  it("leaves no ISO date in the three stored transport and hard end messages", () => {
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: "2026-07-11", departDate: "2026-07-15", timezone: "UTC" });
+    const dep = makeTransport({ id: "t1", fromStopId: "s1", depAt: new Date("2026-07-20T10:00:00Z") });
+    const arr = makeTransport({ id: "t2", toStopId: "s1", depAt: new Date("2026-07-12T10:00:00Z"), arrAt: new Date("2026-07-20T10:00:00Z") });
+    const hardEnd = flagReturnLegAfterHardEnd(
+      [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-13T06:00:00Z") }],
+      "2026-07-12",
+      "s2",
+    );
+    const flags = [...flagTransportDateMismatches([stop], [dep, arr]), ...hardEnd];
+    expect(flags).toHaveLength(3);
+    for (const f of flags) expect(flagDisplayMessage(f)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+});
 
 describe("flagStopsWithoutAccommodation", () => {
   it("fires a warning when a multi-night stop has no accommodation", () => {

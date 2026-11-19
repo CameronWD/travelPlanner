@@ -124,5 +124,7 @@ describe("GlobeInviteButton", () => {
 
     // No invite input visible
     expect(screen.queryByPlaceholderText(/their@email.com/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Your Globe is shared with the people below.")).toBeInTheDocument();
+    expect(screen.queryByText(/invite/i)).not.toBeInTheDocument();
   });
 });

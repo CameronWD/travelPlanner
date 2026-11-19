@@ -17,7 +17,8 @@ vi.mock("@/components/trip/rates-panel", async (orig) => ({
 }));
 
 import { RatesStrip } from "./rates-strip";
-import type { RateEntry } from "@/components/trip/rates-panel";
+import { rateFigureFontSize } from "./rate-cell";
+import { formatRate, type RateEntry } from "@/components/trip/rates-panel";
 
 const RATES: RateEntry[] = [
   { currency: "EUR", rate: 1.63, source: "fetched", stale: false },
@@ -81,10 +82,37 @@ describe("Rates strip (MONEY.md §6)", () => {
     expect(container.innerHTML).toBe("");
   });
 
+  it("a very small rate reads the other way round, home currency first", () => {
+    render(<RatesStrip {...base} rates={[{ currency: "VND", rate: 0.0000612, source: "fetched", stale: false }]} />);
+    const cell = screen.getByRole("button", { name: `1 AUD = ${formatRate(1 / 0.0000612)} VND` });
+    expect(cell.textContent).toMatch(/^1 AUD =/);
+    expect(cell.textContent).toContain("VND");
+  });
+
+  it("titles the dialog of an inverted rate with the home currency first", async () => {
+    render(<RatesStrip {...base} rates={[{ currency: "VND", rate: 0.0000612, source: "fetched", stale: false }]} />);
+    await userEvent.click(screen.getByRole("button", { name: /^1 AUD = / }));
+    expect(screen.getByRole("heading", { name: "AUD to VND" })).toBeInTheDocument();
+  });
+
+  it("sizes the figure from its tile, never truncating it", () => {
+    render(<RatesStrip {...base} rates={[{ currency: "ZWL", rate: 0.000000001, source: "fetched", stale: false }]} />);
+    const figure = screen.getByText("1000000000");
+    expect(figure.parentElement!.parentElement!.className).toContain("@container");
+    expect(figure.className).not.toContain("truncate");
+  });
+
+  it("rateFigureFontSize shrinks with the number's length", () => {
+    expect(rateFigureFontSize(4)).toBe("clamp(9px, calc(100cqw / 2.48), 17px)");
+    expect(rateFigureFontSize(6)).toBe("clamp(9px, calc(100cqw / 3.72), 17px)");
+    expect(rateFigureFontSize(10)).toBe("clamp(9px, calc(100cqw / 6.2), 17px)");
+    expect(rateFigureFontSize(14)).toBe("clamp(9px, calc(100cqw / 8.68), 17px)");
+  });
+
   it("M10: a rate that was missing pops once it is set", () => {
     const { rerender } = render(<RatesStrip {...base} />);
     rerender(<RatesStrip {...base} rates={[RATES[0], RATES[1], { currency: "IDR", rate: 0.0001, source: "manual", stale: false }]} missingLine={null} />);
-    const idr = screen.getByRole("button", { name: /IDR rate/ });
+    const idr = screen.getByRole("button", { name: "1 AUD = 10000 IDR" });
     expect(idr.className).toContain("tp-pop");
     expect(idr.className).not.toContain("border-dashed");
   });

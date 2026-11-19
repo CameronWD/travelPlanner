@@ -34,20 +34,26 @@ export interface RatesPanelProps {
 // Rate formatting — adaptive precision
 // ---------------------------------------------------------------------------
 
-/**
- * Format an exchange rate with ~4 significant figures so very small rates
- * (e.g. 0.000012) never render as "0.0000" and large rates aren't over-padded.
- *
- * Uses `Number.toPrecision(4)` and trims trailing zeros, but keeps at least the
- * digits needed to show the value clearly.
- */
 export function formatRate(rate: number): string {
   // For large rates (e.g. VND/IDR ≥ 1000) keep the integer value exact;
   // for smaller rates use 4 sig figs and strip trailing zeros.
   if (rate >= 1000) {
     return Math.round(rate).toString();
   }
+  if (rate < 1) {
+    return rate.toLocaleString("en-US", { maximumSignificantDigits: 4, useGrouping: false });
+  }
   return parseFloat(rate.toPrecision(4)).toString();
+}
+
+export function displayRate(
+  entry: { currency: string; rate: number },
+  home: string,
+): { from: string; to: string; figure: string; inverted: boolean } {
+  if (Number.isFinite(entry.rate) && entry.rate > 0 && entry.rate < 0.005) {
+    return { from: home, to: entry.currency, figure: formatRate(1 / entry.rate), inverted: true };
+  }
+  return { from: entry.currency, to: home, figure: formatRate(entry.rate), inverted: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -106,9 +112,9 @@ function RateRow({
   entry: RateEntry;
 }) {
   const [editing, setEditing] = React.useState(false);
-  const [rateInput, setRateInput] = React.useState(
-    entry.rate !== null ? String(entry.rate) : "",
-  );
+  const inverted = entry.rate !== null && displayRate({ currency: entry.currency, rate: entry.rate }, homeCurrency).inverted;
+  const initialInput = entry.rate === null ? "" : inverted ? formatRate(1 / entry.rate) : String(entry.rate);
+  const [rateInput, setRateInput] = React.useState(initialInput);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -119,10 +125,11 @@ function RateRow({
       setError("Enter a positive number.");
       return;
     }
+    const toStore = inverted ? (entry.rate !== null && rateInput === initialInput ? entry.rate : 1 / parsed) : parsed;
     setSaving(true);
     setError(null);
     try {
-      await setManualRate(tripId, entry.currency, homeCurrency, parsed);
+      await setManualRate(tripId, entry.currency, homeCurrency, toStore);
       setEditing(false);
     } catch {
       setError("Couldn't save that rate. Try again.");
@@ -140,20 +147,22 @@ function RateRow({
     }
   }
 
+  const shown = entry.rate !== null ? displayRate({ currency: entry.currency, rate: entry.rate }, homeCurrency) : null;
+
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border/60 px-3 py-2.5 bg-card">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="font-mono text-sm font-semibold">
-            {entry.currency}/{homeCurrency}
+            {shown?.inverted ? `${shown.from}/${shown.to}` : `${entry.currency}/${homeCurrency}`}
           </span>
           <SourceBadge source={entry.source} />
         </div>
 
         <div className="flex items-center gap-1.5">
-          {entry.rate !== null ? (
-            <span className="font-mono text-sm tabular-nums">
-              {formatRate(entry.rate)}
+          {shown ? (
+            <span className="min-w-0 max-w-full truncate font-mono text-sm tabular-nums">
+              {shown.figure}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground italic">—</span>
@@ -181,7 +190,7 @@ function RateRow({
               size="sm"
               className="h-7 px-2 text-xs text-muted-foreground"
               onClick={() => {
-                setRateInput(entry.rate !== null ? String(entry.rate) : "");
+                setRateInput(initialInput);
                 setError(null);
                 setEditing(true);
               }}
@@ -196,7 +205,7 @@ function RateRow({
       {editing && (
         <form onSubmit={handleSetManual} className="flex flex-col gap-2">
           <Field
-            label={`1 ${entry.currency} =`}
+            label={inverted ? `1 ${homeCurrency} =` : `1 ${entry.currency} =`}
             error={error ?? undefined}
           >
             <div className="flex items-center gap-2">
@@ -211,9 +220,9 @@ function RateRow({
                 disabled={saving}
                 invalid={Boolean(error)}
                 className="font-mono text-sm"
-                aria-label={`Exchange rate: 1 ${entry.currency} to ${homeCurrency}`}
+                aria-label={inverted ? `Exchange rate: 1 ${homeCurrency} to ${entry.currency}` : `Exchange rate: 1 ${entry.currency} to ${homeCurrency}`}
               />
-              <span className="text-sm text-muted-foreground shrink-0">{homeCurrency}</span>
+              <span className="text-sm text-muted-foreground shrink-0">{inverted ? entry.currency : homeCurrency}</span>
             </div>
           </Field>
           <div className="flex gap-2">

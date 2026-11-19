@@ -5,6 +5,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { StopSheet, pickTopDay } from "./stop-sheet";
 import { daySlots } from "@/lib/plan/day-density";
+import { stopSheetMeta } from "./stop-sheet-meta";
 
 const PARIS = { id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null };
 const ITEMS = [{ id: "a", bookingStateSet: false, title: "Check in", category: "OTHER", date: "2026-12-10", startTime: "15:00" }, { id: "b", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
@@ -120,9 +121,15 @@ it("StopSheet presets the day under the scroller's top edge, measured in viewpor
 });
 
 describe("StopSheet nights stepper (spec 2026-10-06 §N)", () => {
-  it("sits on the meta line and steps the Stop's nights", async () => {
+  it("shows the dates in full on their own line, and the stepper below steps the Stop's nights", async () => {
     const onSetNights = vi.fn();
     renderSheet({ onSetNights });
+    const meta = screen.getByText(stopSheetMeta(PARIS));
+    expect(meta.className).not.toContain("truncate");
+    const stepper = screen.getByRole("group", { name: "Nights in Paris" });
+    expect(meta.contains(stepper)).toBe(false);
+    expect(meta.parentElement!.contains(stepper)).toBe(true);
+    expect(meta.parentElement).toBe(stepper.parentElement);
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights in Paris" }));
     expect(onSetNights).toHaveBeenCalledWith(3);
   });

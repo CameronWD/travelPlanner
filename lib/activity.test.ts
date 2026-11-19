@@ -338,6 +338,24 @@ describe("headline", () => {
     expect(headline({ verb: "UPDATED", entityType: "COST", entityLabel: "Lunch" })).toBe("updated the Lunch cost");
   });
 
+  it("a Transport stored with the label 'transport' reads 'updated a transport'", () => {
+    expect(headline({ verb: "UPDATED", entityType: "TRANSPORT", entityLabel: "transport" })).toBe("updated a transport");
+  });
+  it("an Accommodation stored with the label 'Accommodation' takes 'an'", () => {
+    expect(headline({ verb: "UPDATED", entityType: "ACCOMMODATION", entityLabel: "Accommodation" })).toBe(
+      "updated an accommodation",
+    );
+  });
+  it("an Attachment with no filename reads 'updated a file'", () => {
+    expect(headline({ verb: "UPDATED", entityType: "ATTACHMENT", entityLabel: entityLabel("ATTACHMENT", {}) })).toBe(
+      "updated a file",
+    );
+  });
+  it("a Transport with a real label is unchanged", () => {
+    expect(headline({ verb: "UPDATED", entityType: "TRANSPORT", entityLabel: "BA2490" })).toBe(
+      "updated the BA2490 transport",
+    );
+  });
   it("a Cost with no description reads 'updated a cost'", () => {
     expect(headline({ verb: "UPDATED", entityType: "COST", entityLabel: entityLabel("COST", {}) })).toBe("updated a cost");
   });

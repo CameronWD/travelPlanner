@@ -13,10 +13,10 @@
  * work) and refuses with a gap rather than clicking again into an already-
  * open dialog.
  *
- * Recipes are data (source: a read of every overlay component, 2026-09-24),
- * so OVERLAYS is a plain literal array kept in table order — see
- * docs/specs/2026-09-24-layout-audit.md and the Task 6 brief for the table
- * this transcribes. Every step targets an element by accessible role via
+ * Recipes are data (last walked against the app 2026-11-19), so OVERLAYS is
+ * a plain literal array. Before adding a trigger, read the component: a
+ * button that looks like it opens a form may be the action itself (Reviews'
+ * "Standard Review" starts a Review). Every step targets an element by accessible role via
  * `getByRole`, never `getByText`/`getByLabel`: several triggers exist twice
  * in the DOM with one copy `display:none` (a mobile/desktop pair, usually),
  * and `getByRole` skips the hidden copy while `getByText` would not.
@@ -58,20 +58,38 @@ type Role = "button" | "menuitem" | "tab" | "link";
  * smallest element carrying the text — the shared `Button`'s inner label
  * `<span>`, not the `<button>` — so `button:text-is("Save as template")`
  * finds nothing (TC-08).
+ *
+ * `click.within: "dialog"` — the one exception to "never click with a
+ * dialog open": the trigger lives INSIDE the dialog an earlier step opened
+ * (on phones a Stop opens as a full-height sheet, and its actions menu, its
+ * "add a plan" and its "add a stay" are in that sheet). The click is scoped
+ * to the open dialog, so it can only reach what the recipe names.
+ *
+ * `css` — a Playwright selector, for the few triggers with no stable
+ * accessible name (a Day's plan rows are named by their own titles). The
+ * element's text is checked against SUBMIT_LABELS at run time before the
+ * click, since a selector can't be vetted by the test suite the way a name
+ * can.
  */
 export type Step =
-  | { click: { role: Role; name: string; exact?: boolean; optional?: boolean } }
+  | { click: { role: Role; name: string; exact?: boolean; optional?: boolean; within?: "dialog" } }
   | { clickInCard: { heading: string; role: Role; name: string; exact?: boolean } }
+  | { css: string }
   | { press: string }
   | { deriveStop: true };
 
 export interface OverlayRecipe extends OverlayMeta {
   /** Sub-path on the deep trip when tripScoped (e.g. "/plan"), else a full
-   * app path (e.g. "/trips", "/globe"). */
+   * app path (e.g. "/trips", "/globe"). May carry `{date}` (the day the
+   * `day` route uses) or a query string (`/day/{date}?map=1` opens the Day
+   * map with no click at all). */
   route: string;
   tripScoped: boolean;
   steps: Step[];
-  expect: { role: "dialog" | "menu"; name?: string; hasText?: string };
+  /** What must be visible afterwards. `textbox` is for forms that open in
+   * place rather than as an overlay (the Reminders card's add form): it is
+   * scrolled into view for the screenshot. */
+  expect: { role: "dialog" | "menu" | "textbox"; name?: string; hasText?: string };
 }
 
 // --------------------------------------------------------------------------
@@ -107,6 +125,19 @@ export const SUBMIT_LABELS = [
   "Invite",
   "Schedule",
   "Add note",
+  "Standard Review",
+  "Deep Review",
+  "Apply",
+  "Dismiss",
+  "Undo",
+  "Unschedule",
+  "This is fine",
+  "Mark all read",
+  "Save Reminder",
+  "Read booking",
+  "Doesn't need one",
+  "Sign out",
+  "Revoke",
 ] as const;
 
 // --------------------------------------------------------------------------
@@ -148,26 +179,60 @@ export function parseName(name: string, vars: Record<string, string>): string | 
 // --------------------------------------------------------------------------
 
 export const OVERLAYS: OverlayRecipe[] = [
+  // --- Shell (opened from trip Home: on phones the across-trips pages have
+  // only the tab bar, so the header's menus are reachable inside a trip) ---
   {
     id: "traveller-menu",
-    route: "/trips",
-    tripScoped: false,
+    route: "",
+    tripScoped: true,
     form: false,
     steps: [{ click: { role: "button", name: "Open traveller menu" } }],
-    expect: { role: "menu", name: "Open traveller menu" },
+    expect: { role: "menu" },
   },
   {
     id: "command-palette",
-    route: "/trips",
-    tripScoped: false,
+    route: "",
+    tripScoped: true,
+    only: "phone",
     form: true,
-    // The phone header's icon button is "Search" (<640px), its pill is
-    // "Search or jump…" (640–767px), the Dock's is "Search" (768–1279px).
-    // At >=1280px the sidebar's inline search field (a combobox, not a
-    // button) replaces all of them and ⌘K focuses it, so there is no
-    // trigger for the dialog there and this reports a gap by design.
-    steps: [{ click: { role: "button", name: "/^Search( or jump…)?$/" } }],
+    // The phone header's icon button. From 1280px the sidebar's inline
+    // search field (a combobox, not a dialog) replaces it.
+    steps: [{ click: { role: "button", name: "Search", exact: true } }],
     expect: { role: "dialog", name: "Search" },
+  },
+  {
+    id: "trip-switcher",
+    route: "",
+    tripScoped: true,
+    only: "desktop",
+    form: false,
+    steps: [{ click: { role: "button", name: "/^Switch trip/" } }],
+    expect: { role: "menu" },
+  },
+  {
+    id: "share-trip",
+    route: "",
+    tripScoped: true,
+    form: false,
+    steps: [{ click: { role: "button", name: "Share", exact: true } }],
+    expect: { role: "dialog", name: "Share" },
+  },
+  {
+    id: "notifications",
+    route: "",
+    tripScoped: true,
+    form: false,
+    steps: [{ click: { role: "button", name: "/^Notifications/" } }],
+    expect: { role: "menu", hasText: "Notifications" },
+  },
+  {
+    id: "mobile-more",
+    route: "",
+    tripScoped: true,
+    only: "phone",
+    form: false,
+    steps: [{ click: { role: "button", name: "/^More( trip sections.*)?$/" } }],
+    expect: { role: "dialog", name: "More navigation" },
   },
   {
     id: "feedback",
@@ -178,93 +243,130 @@ export const OVERLAYS: OverlayRecipe[] = [
     expect: { role: "dialog", name: "Feedback" },
   },
   {
-    id: "trip-actions",
-    route: "/trips",
-    tripScoped: false,
-    form: false,
-    steps: [{ click: { role: "button", name: "Trip actions" } }],
-    expect: { role: "menu" },
-  },
-  {
-    id: "fork-switcher",
-    route: "/plan",
-    tripScoped: true,
-    form: false,
-    steps: [{ click: { role: "button", name: "/Open plan switcher/" } }],
-    expect: { role: "menu" },
-  },
-  {
-    id: "new-variant",
-    route: "/plan",
+    // The Feedback panel over a long trip page, where its keyboard-up state
+    // was reported as cramped.
+    id: "feedback-reviews",
+    route: "/reviews",
     tripScoped: true,
     form: true,
-    steps: [
-      { click: { role: "button", name: "/Open plan switcher/" } },
-      { click: { role: "menuitem", name: "New what-if plan" } },
-    ],
-    // Table said hasText "Variant name" — but that text is only the name
-    // field's placeholder/aria-label, never rendered as visible text
-    // (confirmed live: the open dialog's innerText is "New what-if plan\n
-    // Cancel\nCreate\nClose"), so Locator.filter({hasText}) — which matches
-    // textContent, not placeholder attributes — never finds it. The
-    // dialog's real accessible name (from its DialogTitle) is "New what-if
-    // plan" (fork-switcher.tsx's "New variant" menuitem/title were renamed
-    // to "New what-if plan" per the Fork → "What-if plan" relabel).
-    expect: { role: "dialog", name: "New what-if plan" },
+    steps: [{ click: { role: "button", name: "Leave feedback about Teepee" } }],
+    expect: { role: "dialog", name: "Feedback" },
   },
+
+  // --- Reminders (the card is on Home on phones, on Checklists on desktop) ---
   {
-    id: "notifications",
-    route: "/plan",
-    tripScoped: true,
-    form: false,
-    steps: [{ click: { role: "button", name: "/^Notifications/" } }],
-    expect: { role: "menu", hasText: "Notifications" },
-  },
-  {
-    id: "mobile-more",
-    route: "/plan",
+    id: "reminder-add",
+    route: "",
     tripScoped: true,
     only: "phone",
-    form: false,
-    steps: [{ click: { role: "button", name: "More", exact: true } }],
-    expect: { role: "dialog", name: "More navigation" },
+    form: true,
+    // Opens in place. Its submit is also "Add Reminder", but it replaces the
+    // trigger, and this recipe clicks once.
+    steps: [{ click: { role: "button", name: "Add Reminder", exact: true } }],
+    expect: { role: "textbox", name: "Reminder title" },
   },
+  {
+    id: "reminder-edit",
+    route: "",
+    tripScoped: true,
+    only: "phone",
+    form: true,
+    steps: [{ click: { role: "button", name: "/^Edit reminder: /" } }],
+    expect: { role: "dialog", name: "Edit reminder" },
+  },
+  {
+    id: "reminder-add-desktop",
+    route: "/checklists",
+    tripScoped: true,
+    only: "desktop",
+    form: true,
+    steps: [{ click: { role: "button", name: "Add Reminder", exact: true } }],
+    expect: { role: "textbox", name: "Reminder title" },
+  },
+  {
+    id: "reminder-edit-desktop",
+    route: "/checklists",
+    tripScoped: true,
+    only: "desktop",
+    form: true,
+    steps: [{ click: { role: "button", name: "/^Edit reminder: /" } }],
+    expect: { role: "dialog", name: "Edit reminder" },
+  },
+
+  // --- Plan ---
   {
     id: "stop-add",
     route: "/plan",
     tripScoped: true,
     form: true,
-    // PlanAddStopButton (components/plan/plan-header-actions.tsx) and its
-    // dialog (components/plan/mobile/add-stop-sheet.tsx's DialogTitle) are
-    // both "Add a stop" live, not "Add Stop" (casing pass 028cb095).
     steps: [{ click: { role: "button", name: "Add a stop", exact: true } }],
     expect: { role: "dialog", name: "Add a stop" },
   },
   {
-    id: "stop-edit",
+    id: "import-booking",
     route: "/plan",
     tripScoped: true,
     form: true,
-    // There is no standalone "Edit {stop}" button live: a stop's edit dialog
-    // opens from its "More actions for {stop}" trigger (components/plan/
-    // stop-row.tsx) via the menu's "Edit name & place" item
-    // (components/plan/stop-actions.ts) — confirmed live, the dialog's own
-    // DialogTitle is still "Edit {stop}".
+    steps: [{ click: { role: "button", name: "Import a booking", exact: true } }],
+    expect: { role: "dialog", name: "Import a booking" },
+  },
+  {
+    // Phones: a Stop row ("Open {stop}", components/plan/mobile/
+    // mobile-stop-row.tsx) opens the Stop as a full-height sheet.
+    id: "stop-sheet",
+    route: "/plan",
+    tripScoped: true,
+    only: "phone",
+    form: false,
+    steps: [{ click: { role: "button", name: "/^Open (?!traveller menu)/" } }],
+    expect: { role: "dialog" },
+  },
+  {
+    id: "stop-menu-phone",
+    route: "/plan",
+    tripScoped: true,
+    only: "phone",
+    form: false,
     steps: [
-      { deriveStop: true },
-      { click: { role: "button", name: "More actions for {stop}", exact: true } },
-      { click: { role: "menuitem", name: "Edit name & place" } },
+      { click: { role: "button", name: "/^Open (?!traveller menu)/" } },
+      { click: { role: "button", name: "/^Actions for /", within: "dialog" } },
     ],
-    expect: { role: "dialog", name: "Edit {stop}" },
+    // A second sheet titled with the Stop's name, like the one under it;
+    // told apart by an action only it lists.
+    expect: { role: "dialog", hasText: "Edit name & place" },
+  },
+  {
+    id: "item-add-phone",
+    route: "/plan",
+    tripScoped: true,
+    only: "phone",
+    form: true,
+    steps: [
+      { click: { role: "button", name: "/^Open (?!traveller menu)/" } },
+      { click: { role: "button", name: "/^Add a plan to /", within: "dialog" } },
+    ],
+    expect: { role: "dialog", name: "Add Item" },
   },
   {
     id: "stop-menu",
     route: "/plan",
     tripScoped: true,
-    only: "phone",
+    only: "desktop",
     form: false,
-    steps: [{ deriveStop: true }, { click: { role: "button", name: "More actions for {stop}", exact: true } }],
+    steps: [{ click: { role: "button", name: "/^More actions for /" } }],
     expect: { role: "menu" },
+  },
+  {
+    id: "stop-edit",
+    route: "/plan",
+    tripScoped: true,
+    only: "desktop",
+    form: true,
+    steps: [
+      { click: { role: "button", name: "/^More actions for /" } },
+      { click: { role: "menuitem", name: "Edit name & place" } },
+    ],
+    expect: { role: "dialog", name: "/^Edit /" },
   },
   {
     id: "adjust-dates",
@@ -284,11 +386,9 @@ export const OVERLAYS: OverlayRecipe[] = [
     tripScoped: true,
     only: "desktop",
     form: false,
-    // Live, the menuitem's full text is "Delete {stop}owner only" (a
-    // trailing "owner only" permission hint with no separating space, from
-    // the same component) — exact:true on "Delete {stop}" alone never
-    // matches; dropping exact (a substring match, same as "Adjust dates"
-    // below) does.
+    // The menuitem's text is "Delete {stop}owner only" (a trailing
+    // permission hint), so this is a substring match. It opens a
+    // confirmation; the confirm button is never clicked.
     steps: [
       { deriveStop: true },
       { click: { role: "button", name: "More actions for {stop}", exact: true } },
@@ -297,32 +397,47 @@ export const OVERLAYS: OverlayRecipe[] = [
     expect: { role: "dialog", name: '/^Delete "/' },
   },
   {
+    id: "item-add",
+    route: "/plan",
+    tripScoped: true,
+    only: "desktop",
+    form: true,
+    // An open Stop's day rows: "Add to Fri 4" opens a menu of kinds
+    // (something to do, transport, reminder).
+    steps: [
+      { click: { role: "button", name: "/^Add to (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \\d+$/" } },
+      { click: { role: "menuitem", name: "Something to do" } },
+    ],
+    expect: { role: "dialog", name: "Add Item" },
+  },
+  {
+    id: "item-edit",
+    route: "/plan",
+    tripScoped: true,
+    only: "desktop",
+    form: true,
+    steps: [{ click: { role: "button", name: "/^Edit (?!the day title|reminder|name)/" } }],
+    expect: { role: "dialog" },
+  },
+  {
     id: "accommodation-add",
     route: "/plan",
     tripScoped: true,
+    only: "desktop",
     form: true,
-    // No "Add accommodation" button exists live. The real trigger is
-    // StayPanel's CoverageLine (components/plan/stay-panel.tsx): "+ Add a
-    // stay" when the stop has no accommodation yet, "+ Add another place"
-    // once it has one — confirmed live (EU Christmas 2026's first stop
-    // already has a stay, so it shows "+ Add another place").
-    steps: [{ click: { role: "button", name: "/^\\+ Add (a stay|another place)$/" } }],
-    expect: { role: "dialog", name: "/Add Accommodation|has no dates yet/" },
+    // StayPanel's CoverageLine (components/plan/stay-panel.tsx): "Add a
+    // stay" when the Stop has none, "Add another place" once it has one.
+    steps: [{ click: { role: "button", name: "/^(\\+ )?Add (a stay|another place)$/" } }],
+    expect: { role: "dialog" },
   },
   {
     id: "transport-add",
     route: "/plan",
     tripScoped: true,
     form: true,
-    // AddTransportButton/EditTransportButton (components/trip/
-    // transport-form-dialog.tsx, literal "Add Transport"/"Edit Transport")
-    // are dead code — unused outside their own file. The real add trigger is
-    // the missing-leg LegPill (components/trip/itinerary-manager.tsx's
-    // legNodes, lib/plan/leg-label.ts's missingLegLabel): accessibleName
-    // "Add transport from {from} to {to}", rendered only when a leg between
-    // two dated stops (or a Home base bookend) is missing — EU Christmas
-    // 2026 has every leg filled, so this is a genuine "no missing leg on
-    // this trip" gap, not a naming one (same class as make-it-fit).
+    // The missing-leg pill (lib/plan/leg-label.ts): only there when a leg
+    // between two dated Stops is missing, so a trip with every leg filled
+    // reports a gap here by design.
     steps: [{ click: { role: "button", name: "/^Add transport from /" } }],
     expect: { role: "dialog", name: "How are you getting there?" },
   },
@@ -331,44 +446,20 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
-    // Same dead-code button as transport-add. Live, a leg is edited by
-    // clicking its own LegPill — accessibleName ends ". Edit." (lib/plan/
-    // leg-label.ts's legLabel; unique suffix, confirmed against no other
-    // live accessible name). The dialog's title is dynamic too: "{Mode} to
-    // {toName}" (e.g. "Flight to Rovaniemi (Lapland)"), never the literal
-    // "Edit Transport" (components/trip/transport-form-dialog.tsx).
+    // A leg's own pill; its accessible name ends ". Edit." and its dialog is
+    // titled "{Mode} to {place}".
     steps: [{ click: { role: "button", name: "/\\. Edit\\.$/" } }],
-    expect: { role: "dialog", name: "/^(Flight|Train|Bus|Car|Ferry|Other) to /" },
+    expect: { role: "dialog", name: "/^(Flight|Train|Bus|Car|Drive|Ferry|Other) to /" },
   },
   {
     id: "cost-add",
     route: "/plan",
     tripScoped: true,
     form: true,
-    // Name confirmed still live and correct (components/trip/
-    // cost-editor.tsx's "Add Cost" button and its dialog's title): not a
-    // stale-name recipe. Left unchanged. On EU Christmas 2026, though,
-    // CostEditor is never mounted on /plan: the Item edit dialog uses a
-    // plain cost field instead (no CostEditor), every stop's StayDialog
-    // accommodation already has <=1 cost (CostEditor only mounts there past
-    // 1 — components/plan/stay-dialog.tsx), and no stop has an unplaced
-    // wishlist idea to open (components/plan/idea-sheet.tsx, the one other
-    // place CostEditor mounts) — a genuine "not reachable on this trip" gap
-    // (same class as make-it-fit), not a naming one.
+    // CostEditor only mounts where a thing has more than one cost, so most
+    // trips report a gap here.
     steps: [{ click: { role: "button", name: "Add Cost", exact: true } }],
     expect: { role: "dialog", name: "Add Cost" },
-  },
-  {
-    id: "item-add",
-    route: "/plan",
-    tripScoped: true,
-    form: true,
-    // "Add Thing to Do" renders nowhere live. Each day's own "+ Add" button
-    // (components/plan/day-section.tsx, mounted per stop by
-    // components/plan/stop-open-body.tsx) opens the Item dialog directly —
-    // confirmed live, its DialogTitle is "Add Item" already.
-    steps: [{ click: { role: "button", name: "+ Add", exact: true } }],
-    expect: { role: "dialog", name: "Add Item" },
   },
   {
     id: "chapters-menu",
@@ -394,34 +485,60 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/plan",
     tripScoped: true,
     form: true,
+    // Only offered when the plan overruns its dates.
     steps: [{ click: { role: "button", name: "Make it fit" } }],
     expect: { role: "dialog", name: "Make it fit" },
   },
   {
-    id: "notes-popover",
+    id: "stop-extras",
     route: "/plan",
     tripScoped: true,
     only: "desktop",
     form: true,
-    // The trigger isn't a static "Notes" button: the per-stop extras row
-    // (components/plan/stop-open-body.tsx) only renders a Notes link once
-    // the stop has at least one note, labelled by count — "1 note", "2
-    // notes" (its own `plural` helper) — and it now opens a Stop extras
-    // dialog (components/plan/stop-extras-dialog.tsx), not a popover.
-    // Confirmed live against EU Christmas 2026's first stop (1 existing
-    // note). A stop with zero notes has no trigger at all (same "feature
-    // not present for this data" shape as make-it-fit).
-    steps: [{ click: { role: "button", name: "/^\\d+ notes?$/" } }],
-    // Table said hasText "Add a note" — but that's only the note-body
-    // textarea's placeholder ("Add a note…"), never rendered as visible
-    // text; the submit button's visible text is "Add note" (no "a"), which
-    // collides with SUBMIT_LABELS if used as a click target but is fine
-    // here since hasText only checks presence, never clicks. Use the
-    // dialog's own "Notes" title segment instead (stop-extras-dialog.tsx's
-    // title is "Notes · {stop}") — present regardless of whether the stop
-    // has existing notes.
-    expect: { role: "dialog", hasText: "Notes" },
+    // An open Stop's extras row: "1 note" / "2 reminders", shown only when
+    // the Stop has some (components/plan/stop-extras-dialog.tsx).
+    steps: [{ click: { role: "button", name: "/^\\d+ (notes?|reminders?)$/" } }],
+    expect: { role: "dialog" },
   },
+
+  // --- Day ---
+  {
+    id: "day-map",
+    route: "/day/{date}?map=1",
+    tripScoped: true,
+    form: false,
+    steps: [],
+    expect: { role: "dialog", name: "Day map" },
+  },
+  {
+    id: "day-add-menu",
+    route: "/day/{date}",
+    tripScoped: true,
+    form: false,
+    steps: [{ click: { role: "button", name: "Add to this day", exact: true } }],
+    expect: { role: "menu" },
+  },
+  {
+    id: "day-item",
+    route: "/day/{date}",
+    tripScoped: true,
+    form: true,
+    // A plan row's title button (components/trip/timeline.tsx) is named by
+    // the thing's own title; the row's other buttons carry an aria-label or
+    // are "Unschedule".
+    steps: [{ css: '[data-timeline-row] button:not([aria-label]):not(:has-text("Unschedule"))' }],
+    expect: { role: "dialog" },
+  },
+  {
+    id: "hop-mode",
+    route: "/day/{date}",
+    tripScoped: true,
+    form: false,
+    steps: [{ click: { role: "button", name: "/^How this hop is travelled/" } }],
+    expect: { role: "menu" },
+  },
+
+  // --- Wishlist, Settings, Checklists, Money, Globe ---
   {
     id: "wishlist-add",
     route: "/wishlist",
@@ -445,26 +562,6 @@ export const OVERLAYS: OverlayRecipe[] = [
     form: true,
     steps: [{ click: { role: "button", name: "Add from Globe", exact: true } }],
     expect: { role: "dialog", name: "Add from Globe" },
-  },
-  {
-    id: "promote-fork",
-    route: "/compare",
-    tripScoped: true,
-    form: false,
-    // The real trigger's accessible name is "Make <fork name> the real plan"
-    // (see components/trip/compare-table.tsx's
-    // aria-label={`Make ${plan.name} the real plan`} on the CompareTable row
-    // button), renamed from "Promote <fork name>" per the Promote → "Make
-    // this the real plan" relabel. A plain /^Make .+ the real plan$/, though,
-    // also matches PromoteForkDialog's own confirm button — "Make this the
-    // real plan" (SUBMIT_LABELS) — since a fork can't be named "this" but
-    // the regex doesn't know that. The old lookahead excluded the two
-    // literal confirm strings by their old wording ("to real plan"/
-    // "anyway"); this one excludes the shared "this" the confirm button
-    // always uses in the fork-name position instead, so it still matches
-    // "anyway" variant too (that one fails the trailing $ regardless).
-    steps: [{ click: { role: "button", name: "/^Make (?!this\\b).+ the real plan$/" } }],
-    expect: { role: "dialog", name: "/^Make /" },
   },
   {
     id: "duplicate-trip",
@@ -512,9 +609,6 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/budget",
     tripScoped: true,
     form: true,
-    // Live trigger and dialog title are both "Add a cost" (components/
-    // money/add-cost-button.tsx, components/trip/other-cost-editor.tsx),
-    // not "Add Cost" / "Add Other Cost" (casing pass 028cb095).
     steps: [{ click: { role: "button", name: "Add a cost", exact: true } }],
     expect: { role: "dialog", name: "Add a cost" },
   },
@@ -598,6 +692,7 @@ function gapReason(err: unknown): string {
 function describeStep(step: Step): string {
   if ("deriveStop" in step) return "deriveStop";
   if ("press" in step) return `press "${step.press}"`;
+  if ("css" in step) return `click ${step.css}`;
   if ("clickInCard" in step) {
     return `click ${step.clickInCard.role} "${step.clickInCard.name}" in card "${step.clickInCard.heading}"`;
   }
@@ -609,22 +704,14 @@ function describeStep(step: Step): string {
 // (see the Step type's doc comment)
 // --------------------------------------------------------------------------
 
-/** Playwright text-selector, `exact` choosing `:text-is()` (whole,
- * normalised text) over `:text()` (substring, case-insensitive). `name` is
- * JSON-stringified into the selector so quotes/backslashes in it can never
- * break out of the pseudo-class's argument. */
-function textSelector(tag: string, name: string, exact: boolean | undefined): string {
-  const fn = exact ? "text-is" : "text";
-  return `${tag}:${fn}(${JSON.stringify(name)})`;
-}
-
 /** Selects the Card whose heading (an `h3`, two levels down per
  * `components/ui/card.tsx`'s `Card > CardHeader > CardTitle`) contains
- * `heading` as a substring — un-anchored so a trailing count badge (e.g.
+ * starts with `heading` — open-ended so a trailing count badge (e.g.
  * "Packing" + a "3" span, no space between them in the JSX) doesn't break
- * the match. */
+ * the match, anchored so the phone tabs' empty state ("No packing items
+ * yet", also an h3 two levels down) is not taken for the Card. */
 function cardHeadingSelector(heading: string): string {
-  return `div:has(> div > ${textSelector("h3", heading, false)})`;
+  return `div:has(> div > h3:text-matches(${JSON.stringify(`^${escapeRegExp(heading)}`)}))`;
 }
 
 /**
@@ -646,6 +733,22 @@ async function resolveClickInCardTarget(
     }
   }
   return { target: page.getByRole(step.role, { name, exact: step.exact }), scoped: false };
+}
+
+/** The first of `matches` that is visible and lies inside the viewport's
+ * width; null when none does. The Day view is a paged carousel (ADR 0065)
+ * that renders its neighbouring days off to each side with their own copies
+ * of every control, and DOM order puts the previous day's first. */
+async function inView(page: Page, matches: Locator): Promise<Locator | null> {
+  const width = page.viewportSize()?.width ?? Infinity;
+  const n = Math.min(await matches.count(), 60);
+  for (let i = 0; i < n; i++) {
+    const el = matches.nth(i);
+    if (!(await el.isVisible())) continue;
+    const box = await el.boundingBox();
+    if (box && box.x + box.width > 0 && box.x < width) return el;
+  }
+  return null;
 }
 
 /**
@@ -674,11 +777,23 @@ export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ 
         continue;
       }
 
-      // click/clickInCard step — refuse if a dialog is already open (an open
-      // menu is fine: that's how menu -> menuitem recipes like new-variant
-      // work).
-      if ((await page.locator(OPEN_DIALOG_SELECTOR).count()) > 0) {
+      const within = "click" in step ? step.click.within : undefined;
+      // Refuse to click with a dialog open (an open menu is fine: that's
+      // how menu -> menuitem recipes work) — unless the step says its
+      // trigger is inside that dialog.
+      if (!within && (await page.locator(OPEN_DIALOG_SELECTOR).count()) > 0) {
         return { ok: false, reason: "a dialog is already open" };
+      }
+
+      if ("css" in step) {
+        const target = await inView(page, page.locator(step.css));
+        if (!target) return { ok: false, reason: `trigger not found: ${step.css}` };
+        const label = ((await target.innerText()) ?? "").trim();
+        if ((SUBMIT_LABELS as readonly string[]).includes(label)) {
+          return { ok: false, reason: `refused: ${step.css} resolved to the submit control "${label}"` };
+        }
+        await target.click({ timeout: 5000 });
+        continue;
       }
 
       if ("clickInCard" in step) {
@@ -692,12 +807,17 @@ export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ 
       }
 
       const name = parseName(step.click.name, vars);
-      const target = page.getByRole(step.click.role, { name, exact: step.click.exact });
-      if ((await target.count()) === 0) {
+      const scope = within ? page.locator(OPEN_DIALOG_SELECTOR) : page;
+      const matches = scope.getByRole(step.click.role, { name, exact: step.click.exact });
+      // A sheet's contents arrive after the sheet does (its chunk is lazy).
+      if (within) await matches.first().waitFor({ state: "visible", timeout: 4000 }).catch(() => {});
+      const count = await matches.count();
+      if (count === 0) {
         if (step.click.optional) continue;
         return { ok: false, reason: `trigger not found: ${step.click.role} "${name}"` };
       }
-      await target.first().click({ timeout: 5000 });
+      const target = count === 1 ? matches.first() : ((await inView(page, matches)) ?? matches.first());
+      await target.click({ timeout: 5000 });
     } catch (err) {
       // A real Playwright call (count/click/getAttribute/evaluate/keyboard)
       // can throw — most commonly a click() actionability timeout when real
@@ -714,6 +834,7 @@ export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ 
 
   try {
     await expectLocator.first().waitFor({ state: "visible", timeout: 5000 });
+    if (recipe.expect.role === "textbox") await expectLocator.first().evaluate((el) => el.scrollIntoView({ block: "center" }));
   } catch {
     return {
       ok: false,
@@ -732,8 +853,18 @@ export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ 
  * with no form controls) — it never types into whatever it focuses.
  */
 export async function focusFirstInput(page: Page, recipe: OverlayRecipe): Promise<void> {
-  const overlay = page.getByRole(recipe.expect.role).first();
-  const field = overlay.locator("input, textarea").first();
+  if (recipe.expect.role === "textbox") {
+    const name = recipe.expect.name ? parseName(recipe.expect.name, {}) : undefined;
+    const field = page.getByRole("textbox", name ? { name } : {}).first();
+    await field.focus();
+    // The viewport has just lost 300px to the "keyboard"; iOS brings the
+    // focused field back into what is left.
+    await field.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    return;
+  }
+  // The last open one: a recipe can open a dialog from inside a sheet.
+  const overlay = page.getByRole(recipe.expect.role).last();
+  const field = overlay.locator("input:not([type=hidden]), textarea").first();
   if ((await field.count()) === 0) return;
   if (!(await field.isVisible())) return;
   await field.focus();

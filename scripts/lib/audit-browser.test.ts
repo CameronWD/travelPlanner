@@ -13,6 +13,7 @@ describe("deriveDayDates", () => {
   it("dedupes and sorts the /day/ hrefs found on the trip calendar", async () => {
     const page = {
       goto: vi.fn(async () => undefined),
+      waitForFunction: vi.fn(async () => undefined),
       evaluate: vi.fn(async () => ["2026-12-09", "2026-12-07", "2026-12-09"]),
     };
     const dates = await deriveDayDates(page as never, "http://localhost:3000", "t1");
@@ -41,6 +42,7 @@ describe("ensureAuthenticated: afterFirstLoad", () => {
     };
     const page = {
       goto: vi.fn(async () => void events.push("goto")),
+      waitForFunction: vi.fn(async () => undefined),
       url: () => "http://localhost:3000/",
       getByText: vi.fn(() => button),
       getByRole: vi.fn(() => signInButton),

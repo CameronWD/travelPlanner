@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { requireUser } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { WelcomeGate } from "@/components/welcome/welcome-gate";
@@ -47,7 +48,9 @@ export default async function TripsPage() {
     <TripCarousel>
       <div data-trips-shell className={FRAME}>
         <TripsHeader firstName={data.firstName} metaLine={tripsMetaLine(data.counts)} firstRun={firstRun} />
-        <WhatsNewBanner className="mr-[18px] md:mr-10" />
+        <Suspense fallback={null}>
+          <WhatsNewBanner floating />
+        </Suspense>
         <WelcomeGate />
 
         {firstRun ? (

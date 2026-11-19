@@ -6,7 +6,7 @@ export interface MarkerFilter {
   query: string;
 }
 
-const UNPINNED = "Unpinned";
+const NO_COUNTRY = "No country";
 
 /** Apply category + country + free-text filters (all optional / ANDed). */
 export function filterMarkers(markers: MarkerView[], filter: MarkerFilter): MarkerView[] {
@@ -22,21 +22,21 @@ export function filterMarkers(markers: MarkerView[], filter: MarkerFilter): Mark
   });
 }
 
-/** Group by country A→Z; markers with no country fall under "Unpinned", last. */
+/** Group by country A→Z; markers with no country fall under "No country", last. */
 export function groupMarkersByCountry(
   markers: MarkerView[],
 ): Array<{ country: string; markers: MarkerView[] }> {
   const byCountry = new Map<string, MarkerView[]>();
   for (const mk of markers) {
-    const key = mk.country ?? UNPINNED;
+    const key = mk.country ?? NO_COUNTRY;
     const arr = byCountry.get(key) ?? [];
     arr.push(mk);
     byCountry.set(key, arr);
   }
   return [...byCountry.entries()]
     .sort(([a], [b]) => {
-      if (a === UNPINNED) return 1;
-      if (b === UNPINNED) return -1;
+      if (a === NO_COUNTRY) return 1;
+      if (b === NO_COUNTRY) return -1;
       return a.localeCompare(b);
     })
     .map(([country, list]) => ({ country, markers: list }));
