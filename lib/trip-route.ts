@@ -12,7 +12,13 @@ import { RESERVED_TRIP_SLUGS } from "@/lib/trip-slug";
  *   the path and the query, on a GET/HEAD; a POST (server action) is
  *   rewritten instead, never redirected.
  *
- * Both only for a signed-in member. Anyone else passes through untouched, so
+ * - A Day page's address `/trips/<ref>/day/<date>` → the one Day page,
+ *   `/trips/<ref>/day?d=<date>` (ADR 0065, amended 2026-11-19), so a day
+ *   change is a search-param navigation that keeps the carousel mounted. This
+ *   one applies to every visitor: it keeps the ref it was given, so it
+ *   confirms nothing.
+ *
+ * The slug ones only for a signed-in member. Anyone else passes through untouched, so
  * the [tripId] layout sees the raw ref and 404s exactly as it does for an
  * unknown one (or sends a signed-out visitor to the Landing). A rewrite is not
  * invisible — Next puts `x-middleware-rewrite: /trips/<id>/…` on the response
@@ -26,10 +32,24 @@ export interface ResolvedTripRef {
 
 export type TripRouteDecision =
   | { kind: "pass" }
-  | { kind: "rewrite"; pathname: string }
+  | { kind: "rewrite"; pathname: string; search: string }
   | { kind: "redirect"; location: string };
 
 const TRIP_PATH = /^\/trips\/([^/]+)(\/.*)?$/;
+const DAY_PATH = /^(\/trips\/[^/]+\/day)\/([^/]+)$/;
+
+/** `/trips/<ref>/day/<date>` → `/trips/<ref>/day?d=<date>`, the rest of the query kept and a supplied `d` overwritten; null for any other path. */
+export function dayRewrite(pathname: string, search: string): { pathname: string; search: string } | null {
+  const m = DAY_PATH.exec(pathname);
+  if (!m) return null;
+  const query = new URLSearchParams(search);
+  query.set("d", m[2]);
+  return { pathname: m[1], search: `?${query}` };
+}
+
+function rewriteTo(pathname: string, search: string): TripRouteDecision {
+  return { kind: "rewrite", ...(dayRewrite(pathname, search) ?? { pathname, search }) };
+}
 
 export async function decideTripRoute(i: {
   pathname: string;
@@ -40,27 +60,31 @@ export async function decideTripRoute(i: {
 }): Promise<TripRouteDecision> {
   const m = TRIP_PATH.exec(i.pathname);
   if (!m) return { kind: "pass" };
+  const pass = (): TripRouteDecision => {
+    const day = dayRewrite(i.pathname, i.search);
+    return day ? { kind: "rewrite", ...day } : { kind: "pass" };
+  };
   let ref: string;
   try {
     ref = decodeURIComponent(m[1]);
   } catch {
-    return { kind: "pass" };
+    return pass();
   }
   const rest = m[2] ?? "";
   if (RESERVED_TRIP_SLUGS.has(ref)) return { kind: "pass" };
 
   const trip = await i.resolve(ref);
-  if (!trip) return { kind: "pass" };
+  if (!trip) return pass();
 
   // A Trip with no slug yet (created by the previous build mid-deploy) is
   // served on its id as before: nothing to rewrite or redirect to.
-  if (ref === trip.id && !trip.slug) return { kind: "pass" };
-  if (!(await i.isMember(trip.id))) return { kind: "pass" };
+  if (ref === trip.id && !trip.slug) return pass();
+  if (!(await i.isMember(trip.id))) return pass();
 
   const isRead = i.method === "GET" || i.method === "HEAD";
   if (trip.slug && ref !== trip.slug && isRead) {
     return { kind: "redirect", location: `${tripPath(trip.slug, rest)}${i.search}` };
   }
-  if (ref === trip.id) return { kind: "pass" };
-  return { kind: "rewrite", pathname: tripPath(trip.id, rest) };
+  if (ref === trip.id) return pass();
+  return rewriteTo(tripPath(trip.id, rest), i.search);
 }

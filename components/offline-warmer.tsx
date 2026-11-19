@@ -2,15 +2,12 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, recordFileShortfall, subscribe, takeWarmRequest } from "@/lib/offline-status";
-import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
+import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, WARM_REQUEST_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
 
 const FILE_STORED_WAITS_MS = [0, 250, 750];
 
-// A Day page asked for this way renders its three near days only (the Day
-// page reads the header), so a Trip's saved Day pages grow with its length,
-// not its length squared.
 const DAY_PAGE = /\/day\/\d{4}-\d{2}-\d{2}$/;
-const DAY_PAGE_WARM = { cache: "no-store", headers: { "x-teepee-warm": "1" } } satisfies RequestInit;
+const DAY_PAGE_WARM = { cache: "no-store", headers: { [WARM_REQUEST_HEADER]: "1" } } satisfies RequestInit;
 
 // The worker writes a file to the cache as its body arrives, a moment after
 // the page has read the same bytes (longer for a large file on a slow phone),

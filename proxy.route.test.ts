@@ -72,4 +72,22 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
       `${ORIGIN}/trips/${TRIP.id}/settings`,
     );
   });
+
+  it("a member's Day address is served by the one Day page with the date as d, the address and other query kept", async () => {
+    viewerIdFromRequest.mockResolvedValue("user_1");
+    resolveTripRef.mockResolvedValue(TRIP);
+    viewerIsTripMember.mockResolvedValue(true);
+
+    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26?map=1"));
+
+    expect(response.headers.get("x-middleware-rewrite")).toBe(`${ORIGIN}/trips/${TRIP.id}/day?map=1&d=2026-12-26`);
+  });
+
+  it("a signed-out visitor's Day address reaches the Day page on the ref it gave, with no DB call", async () => {
+    viewerIdFromRequest.mockResolvedValue(null);
+    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26"));
+
+    expect(response.headers.get("x-middleware-rewrite")).toBe(`${ORIGIN}/trips/christmas-in-europe-2026/day?d=2026-12-26`);
+    expect(resolveTripRef).not.toHaveBeenCalled();
+  });
 });

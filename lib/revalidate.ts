@@ -17,7 +17,7 @@ export type TripPage =
   | "/day" | "/journal" | "/checklists" | "/wishlist" | "/files" | "/settings" | "/reviews";
 
 /** "/day" stands for every day page: revalidated through the route pattern. */
-const DAY_ROUTE = "/trips/[tripId]/day/[date]";
+const DAY_ROUTE = "/trips/[tripId]/day";
 
 export const SCOPE_PAGES: Record<TripScope, readonly TripPage[] | "layout"> = {
   plan: ["", "/plan", "/budget", "/calendar", "/summary", "/print", "/compare", "/day", "/wishlist", "/files", "/checklists", "/settings"],

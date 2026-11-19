@@ -34,7 +34,7 @@ describe("clockTime", () => {
 });
 
 describe("SCATTER_W", () => {
-  // The widest weather cards (day/[date]/page.tsx): compact 719px wide at
+  // The widest weather cards (day/page.tsx): compact 719px wide at
   // 140px tall below md, regular 863px wide at 236px tall from md to lg. The
   // scene is drawn on the padding box, 4px narrower and 4px shorter.
   const compactUnits = ((719 - 4) * 236) / 136;

@@ -30,7 +30,7 @@ export const SCENE_H = 236;
 const CANVAS_PX: Record<CardSize, number> = { regular: 232, compact: 136 };
 
 // The widest weather card the Day view renders at each height
-// (app/(app)/trips/[tripId]/day/[date]/page.tsx):
+// (app/(app)/trips/[tripId]/day/page.tsx):
 // - compact, below md: 767px viewport less 2 x 24px page padding = 719px;
 // - regular, md to lg, full width: 1023px less the 96px dock and 2 x 32px padding = 863px.
 // The narrowest: compact on a 320px phone, 288px; regular in the lg side

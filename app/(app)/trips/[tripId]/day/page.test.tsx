@@ -118,6 +118,7 @@ vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: ({ unr
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => null }));
 
 import { setMatchMedia } from "@/test/setup";
+import { WARM_REQUEST_HEADER } from "@/lib/offline";
 import DayPage, { generateMetadata } from "./page";
 
 function fixture(over: Partial<DayViewData> = {}): DayViewData {
@@ -216,8 +217,11 @@ function dayFor(over: Partial<DayViewData> = {}, start = "2026-12-04", end = "20
 }
 const shownPanel = (container: HTMLElement) => container.querySelector('[data-day-panel][data-shown="true"]') as HTMLElement;
 
+// The address /trips/<ref>/day/<date> reaches this page as ?d=<date> (lib/trip-route.ts).
+const dayPage = (date?: string) => DayPage({ params: Promise.resolve({ tripId: "t1" }), searchParams: Promise.resolve(date === undefined ? {} : { d: date }) });
+
 async function renderPage(date = "2026-12-12") {
-  const page = await DayPage({ params: Promise.resolve({ tripId: "t1", date }) });
+  const page = await dayPage(date);
   let result!: ReturnType<typeof render>;
   // Lets the streamed slots' read land inside act.
   await act(async () => {
@@ -228,7 +232,7 @@ async function renderPage(date = "2026-12-12") {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  requestHeaders.delete("x-teepee-warm");
+  requestHeaders.delete(WARM_REQUEST_HEADER);
   registered.clear();
   requireTripAccessMock.mockResolvedValue({ user: { id: "u1" }, membership: {} });
   tripFindUniqueMock.mockResolvedValue({ name: "Christmas in Europe", members: [{ user: { id: "u1", name: "Cam", image: null } }] });
@@ -491,9 +495,18 @@ describe("Day page", () => {
   });
 
   it("titles the page with the date, and nothing for a malformed date", async () => {
-    const meta = await generateMetadata({ params: Promise.resolve({ tripId: "t1", date: "2026-12-12" }) });
+    const meta = await generateMetadata({ searchParams: Promise.resolve({ d: "2026-12-12" }) });
     expect(meta.title).toBeTruthy();
-    expect(await generateMetadata({ params: Promise.resolve({ tripId: "t1", date: "x" }) })).toEqual({});
+    expect(await generateMetadata({ searchParams: Promise.resolve({ d: "x" }) })).toEqual({});
+    expect(await generateMetadata({ searchParams: Promise.resolve({}) })).toEqual({});
+  });
+
+  it("with no date, sends the Traveller to the default day, and a date-less Trip to the Plan", async () => {
+    tripFindUniqueMock.mockResolvedValue({ slug: "xmas", name: "Christmas in Europe", startDate: "2026-12-04", endDate: "2027-01-08", stops: [], homeTimezone: null, members: [] });
+    await expect(dayPage()).rejects.toThrow("NEXT_REDIRECT /trips/xmas/day/2026-12-04");
+    expect(getDaysMock).not.toHaveBeenCalled();
+    tripFindUniqueMock.mockResolvedValue({ slug: "xmas", name: "Christmas in Europe", startDate: null, endDate: null, stops: [], homeTimezone: null, members: [] });
+    await expect(dayPage()).rejects.toThrow("NEXT_REDIRECT /trips/xmas/plan");
   });
 
   it("builds its links from the Trip's slug (ADR 0064)", async () => {
@@ -567,7 +580,7 @@ describe("Day page: a slot for every day", () => {
 
   it("the offline warmer's request gets the three near days only and no further read", async () => {
     getDayMock.mockImplementation(tenDays());
-    requestHeaders.set("x-teepee-warm", "1");
+    requestHeaders.set(WARM_REQUEST_HEADER, "1");
     const { container } = await renderPage("2026-12-05");
     expect(slots(container)).toHaveLength(10);
     expect(slots(container).map(isFilled)).toEqual([false, false, false, true, true, true, false, false, false, false]);

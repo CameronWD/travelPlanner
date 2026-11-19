@@ -2,6 +2,7 @@ import { it, expect, vi, beforeEach, afterEach, describe } from "vitest";
 import { render, act } from "@testing-library/react";
 import { OfflineWarmer } from "./offline-warmer";
 import { currentBuildId, getStatus, requestWarm, resetOfflineStatus, subscribe } from "@/lib/offline-status";
+import { WARM_REQUEST_HEADER } from "@/lib/offline";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,7 +115,7 @@ describe("OfflineWarmer", () => {
     stubNavigator({ onLine: true, hasController: true });
     render(<OfflineWarmer tripId="t1" paths={["/trips/t1/day/2026-12-12", "/trips/t1/plan"]} />);
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(fetchMock).toHaveBeenCalledWith("/trips/t1/day/2026-12-12", { cache: "no-store", headers: { "x-teepee-warm": "1" } });
+    expect(fetchMock).toHaveBeenCalledWith("/trips/t1/day/2026-12-12", { cache: "no-store", headers: { [WARM_REQUEST_HEADER]: "1" } });
     expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" });
   });
 

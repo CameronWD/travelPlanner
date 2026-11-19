@@ -23,7 +23,7 @@ describe("revalidateTrip", () => {
   });
   it("the day pages go through the route pattern", () => {
     revalidateTrip("t1", "journal");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/[tripId]/day/[date]", "page");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/[tripId]/day", "page");
   });
   it("reviews revalidates Home and the Reviews tab (spec 2026-10-17 R10)", () => {
     revalidateTrip("t1", "reviews");

@@ -9,13 +9,17 @@ import type { RecentActivity } from "@/components/trip/notification-bell";
 import { DayCarousel, DayChromeRegistryContext, type DayChromeRegistryApi, type DayPanel } from "@/components/trip/day/day-carousel";
 import { DayHeader } from "@/components/trip/day/day-header";
 
-/** `seed` is the headers the server already has, so the first paint shows the real one before any slot registers. */
+/**
+ * `seed` is the headers the server rendered with this page, so the first paint
+ * shows the real one before any slot registers. It is read on every render: a
+ * day change keeps this registry mounted and brings a new seed.
+ */
 export function DayChromeRegistry({ seed, children }: { seed: Record<string, React.ReactNode>; children: React.ReactNode }) {
-  const [chromes, setChromes] = React.useState(() => new Map(Object.entries(seed)));
+  const [chromes, setChromes] = React.useState(() => new Map<string, React.ReactNode>());
   const register = React.useCallback((iso: string, chrome: React.ReactNode) => {
     setChromes((prev) => (prev.get(iso) === chrome ? prev : new Map(prev).set(iso, chrome)));
   }, []);
-  const api = React.useMemo<DayChromeRegistryApi>(() => ({ register, chromeFor: (iso) => chromes.get(iso) }), [register, chromes]);
+  const api = React.useMemo<DayChromeRegistryApi>(() => ({ register, chromeFor: (iso) => seed[iso] ?? chromes.get(iso) }), [register, seed, chromes]);
   return <DayChromeRegistryContext.Provider value={api}>{children}</DayChromeRegistryContext.Provider>;
 }
 
