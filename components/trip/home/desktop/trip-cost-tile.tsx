@@ -95,13 +95,13 @@ export function TripCostTile({
   );
 
   return (
-    <Card tone="sun" radius="xl" shadow={3} className="relative flex h-full min-h-0 overflow-hidden text-on-accent">
+    <Card tone="sun" radius="xl" shadow={3} className="relative flex min-h-0 overflow-hidden text-on-accent">
       {link}
       {hasCover ? (
         <div className="pointer-events-none relative z-10 flex min-h-0 min-w-0 flex-1 flex-col p-[22px]">
           {totalBlock}
           <div className="mt-3.5">{progress}</div>
-          <div className="mt-auto border-t-2 border-border pt-3">
+          <div className="mt-4 border-t-2 border-border pt-3">
             <p className={EYEBROW}>Next payment</p>
             {nextPayment ? (
               <>
@@ -121,7 +121,7 @@ export function TripCostTile({
         <div className="pointer-events-none relative z-10 grid min-h-0 flex-1 grid-cols-[1.2fr_1fr] gap-6 px-6 py-[22px]">
           <div className="flex min-w-0 flex-col">
             {totalBlock}
-            <div className={cn("mt-auto", costed ? "pt-3" : "")}>{progress}</div>
+            <div className={cn("mt-4", costed ? "pt-3" : "")}>{progress}</div>
           </div>
           <div className="flex min-w-0 flex-col border-l-2 border-border pl-[22px]">
             <p className={EYEBROW}>Next payment</p>
@@ -134,7 +134,7 @@ export function TripCostTile({
                   <p className="mt-1 break-words text-xs font-semibold text-on-accent-muted">{nextAmount.original}</p>
                 ) : null}
                 <p className={cn(ROW_NAME_CLASS, "mt-1 text-sm font-semibold")}>{nextPayment.label}</p>
-                <div className="mt-auto">{due}</div>
+                <div className="mt-2">{due}</div>
               </>
             ) : (
               <p className="mt-2 text-sm font-semibold">Nothing due</p>

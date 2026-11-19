@@ -119,6 +119,12 @@ describe("TripCostTile", () => {
     expect(name).not.toHaveClass("truncate");
   });
 
+  it.each([true, false])("ends where its content ends (hasCover %s)", (hasCover) => {
+    const { container } = renderTile({ hasCover });
+    expect(container.firstElementChild).not.toHaveClass("h-full");
+    expect(container.querySelector(".mt-auto")).toBeNull();
+  });
+
   it("says 'Nothing due' when there is no upcoming payment", () => {
     renderTile({ nextPayment: null });
     expect(screen.getByText("Nothing due")).toBeInTheDocument();

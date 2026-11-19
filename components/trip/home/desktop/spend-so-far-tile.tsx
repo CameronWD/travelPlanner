@@ -38,7 +38,7 @@ export function SpendSoFarTile({
   const paid = formatMoneyAuto(paidSoFarMinor, currency);
 
   return (
-    <Card tone="sun" radius="xl" shadow={3} className="relative flex h-full min-h-0 overflow-hidden text-on-accent">
+    <Card tone="sun" radius="xl" shadow={3} className="relative flex min-h-0 overflow-hidden text-on-accent">
       <Link
         href={href}
         aria-label={`Spend so far: ${paid} paid. Open Money`}
@@ -54,14 +54,14 @@ export function SpendSoFarTile({
         {noData ? (
           <Link
             href={href}
-            className="pointer-events-auto relative z-10 mt-auto inline-flex min-h-11 items-center self-start text-sm font-bold underline underline-offset-2"
+            className="pointer-events-auto relative z-10 mt-3 inline-flex min-h-11 items-center self-start text-sm font-bold underline underline-offset-2"
           >
             Add your first cost
           </Link>
         ) : (
           <>
             <p className="mt-1 text-sm font-semibold">of {formatMoneyAuto(costTotalMinor, currency)} cost</p>
-            <div className="mt-auto flex flex-col gap-0.5 border-t-2 border-border pt-3">
+            <div className="mt-4 flex flex-col gap-0.5 border-t-2 border-border pt-3">
               {varianceMinor !== 0 ? (
                 <p className="text-[15px] font-bold">
                   {formatMoneyAuto(Math.abs(varianceMinor), currency)} {varianceMinor > 0 ? "over" : "under"}

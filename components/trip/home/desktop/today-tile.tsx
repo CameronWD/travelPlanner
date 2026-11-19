@@ -40,7 +40,7 @@ export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nex
     : null;
 
   return (
-    <Card radius="xl" shadow={3} className="flex h-full min-h-0 flex-col p-6">
+    <Card radius="xl" shadow={3} className="flex min-h-0 flex-col p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div className="flex flex-wrap items-baseline gap-x-3">
           <h2 className="font-display text-[26px] font-extrabold leading-none tracking-[-0.03em]">Today</h2>
@@ -65,7 +65,7 @@ export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nex
         </p>
       ))}
 
-      <section className="mt-4 min-h-0 flex-1">
+      <section className="mt-4 min-h-0">
         <h3 className={SECTION_HEADING}>Today&apos;s plan</h3>
         <div className="mt-2">
           {plan ?? (
