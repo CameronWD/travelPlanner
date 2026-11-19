@@ -83,8 +83,8 @@ export function JumpList({ stops, chapters, homeBase }: JumpListProps) {
   const { jumpTo, actions } = usePlanBody();
   const [activeStopId, setActiveStopId] = React.useState<string | null>(null);
 
-  // Scroll-spy: the topmost Stop card currently in view is "active". Moved
-  // verbatim from plan-stops-nav.tsx — it observes `[data-stop-id]`, which
+  // Scroll-spy: the topmost Stop card currently in view is "active". It
+  // observes `[data-stop-id]`, which
   // only desktop Stop rows carry, rendered by a sibling subtree
   // (ItineraryManager), not by this component.
   React.useEffect(() => {

@@ -17,7 +17,7 @@ import { SourceBadge, formatRate, displayRate, RatesPanel } from "./rates-panel"
 // ---------------------------------------------------------------------------
 
 describe("displayRate", () => {
-  it("turns a rate under 0.01 the other way round", () => {
+  it("turns a rate under 0.005 the other way round", () => {
     const d = displayRate({ currency: "VND", rate: 0.0000612 }, "AUD");
     expect(d).toEqual({ from: "AUD", to: "VND", figure: formatRate(1 / 0.0000612), inverted: true });
   });
