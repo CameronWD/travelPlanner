@@ -58,7 +58,9 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
           <DialogHeader>
             <DialogTitle>Share your Globe</DialogTitle>
             <DialogDescription>
-              Invite someone to view and add markers to your Globe.
+              {members.length < 2
+                ? "Invite someone to view and add markers to your Globe."
+                : "Your Globe is shared with the people below."}
             </DialogDescription>
           </DialogHeader>
 

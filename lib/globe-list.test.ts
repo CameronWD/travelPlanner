@@ -43,9 +43,9 @@ describe("filterMarkers", () => {
 });
 
 describe("groupMarkersByCountry", () => {
-  it("groups alphabetically with unresolved last as 'Unpinned'", () => {
+  it("groups alphabetically with a marker with no country last as 'No country'", () => {
     const groups = groupMarkersByCountry(markers);
-    expect(groups.map((g) => g.country)).toEqual(["France", "Japan", "Unpinned"]);
+    expect(groups.map((g) => g.country)).toEqual(["France", "Japan", "No country"]);
     expect(groups[1].markers.map((x) => x.id)).toEqual(["1", "2"]);
   });
 });
