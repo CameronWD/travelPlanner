@@ -48,6 +48,12 @@ and was built the recommended way so the work did not stop. Say which to change.
 | M2 | Each category has a usual colour and keeps it across trips; when two would clash on one trip the second takes the next free colour. Nine colours, so a trip with more than nine categories repeats. | Group the smallest categories into "Other", or add colours. |
 | D1 | The Day plan title column gets 66 to 73% of a phone card; the two 44 px buttons still share the title's line. | Move the buttons under the title. |
 
+### Things to know about wave 2
+
+- The light theme did change in one place: inactive labels on the Trips tab bar are darker (contrast about 4.0:1 before, 9.6:1 now).
+- The Day strip overlapping the side rail (from the audit) could not be reproduced by the builder, the reviewer or the final pass at any width. Nothing was changed for it.
+- Not seen by anyone in a browser: the Review card's colour band (the demo has no Reviews), the phone Globe's map (Google Maps was over quota locally; pins were measured), Account with a photo or a connected app, and the "no gap" wording (no demo trip has a zero-minute connection). Each rests on tests.
+
 ### Not built in wave 2, waiting on you
 
 - **K3, weather card in the dark theme.** Its colours are the same in both themes on purpose and its scenes are drawn with dark outlines, so a dark card is a redesign, not a fix. Keep it light, or commission a dark palette?
@@ -62,3 +68,4 @@ and was built the recommended way so the work did not stop. Say which to change.
 - Two overlapping things to do show "only 0 min", the same as back-to-back ones. Say "overlaps" instead?
 - `flagHardEndDate` keeps a stored date in its wording on purpose ("historic wording"). Wave 1 renders it as a day like the rest.
 - Inside a Review, a finding that repeats a warning still shows the stored date form (2026-12-09). Wave 1 left Reviews alone, as X4 did. Show days there too?
+- While dragging a costed thing to do to another day and back on the demo trip, a tester saw the trip's total change by one cent. Not confirmed; the suspected cause is the exchange rate being taken per date. Worth a look?
