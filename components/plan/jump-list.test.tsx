@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setMatchMedia } from "@/test/setup";
-import { JumpList, type JumpListStop } from "./jump-list";
+import { JumpList, activeStopId, type JumpListStop } from "./jump-list";
 import { PlanBody, useRegisterPlanActions } from "./plan-body";
 
 const STOPS: JumpListStop[] = [
@@ -64,108 +64,89 @@ describe("JumpList", () => {
     expect(within(nav).queryByText("Italy")).toBeNull();
   });
 
-  it("marks the topmost intersecting Stop row active via scroll-spy, with the teal wash", () => {
-    const cardS3 = document.createElement("div");
-    cardS3.setAttribute("data-stop-id", "s3");
-    document.body.appendChild(cardS3);
+  describe("scroll-spy", () => {
+    const cards: HTMLElement[] = [];
 
-    let capturedCallback: IntersectionObserverCallback | null = null;
-    class FakeIntersectionObserver {
-      constructor(cb: IntersectionObserverCallback) {
-        capturedCallback = cb;
-      }
-      observe() {}
-      disconnect() {}
-      unobserve() {}
-      takeRecords() {
-        return [];
-      }
-    }
-    vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
-
-    renderJumpList();
-    expect(capturedCallback).not.toBeNull();
-
-    act(() => {
-      capturedCallback!(
-        [
-          {
-            isIntersecting: true,
-            boundingClientRect: { top: 10 } as DOMRectReadOnly,
-            target: cardS3,
-          } as unknown as IntersectionObserverEntry,
-        ],
-        {} as IntersectionObserver,
-      );
-    });
-
-    const nav = screen.getByRole("navigation", { name: "Jump to" });
-    const roughRow = within(nav).getByText("Somewhere rough").closest("button")!;
-    expect(roughRow).toHaveAttribute("aria-current", "location");
-    expect(roughRow.className).toMatch(/bg-teal\/15/);
-
-    vi.unstubAllGlobals();
-    document.body.removeChild(cardS3);
-  });
-
-  describe("scroll-spy over several Stops", () => {
-    let callback: IntersectionObserverCallback;
-    const cards: Record<string, HTMLElement> = {};
-
-    function setup() {
-      for (const id of ["s1", "s2", "s3"]) {
+    function place(tops: number[]) {
+      ["s1", "s2", "s3"].forEach((id, i) => {
         const card = document.createElement("div");
         card.setAttribute("data-stop-id", id);
+        card.getBoundingClientRect = () => ({ top: tops[i] }) as DOMRect;
         document.body.appendChild(card);
-        cards[id] = card;
-      }
-      cards.s1.getBoundingClientRect = () => ({ top: 10 }) as DOMRect;
-      cards.s2.getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
-      class FakeIntersectionObserver {
-        constructor(cb: IntersectionObserverCallback) {
-          callback = cb;
-        }
-        observe() {}
-        disconnect() {}
-        unobserve() {}
-        takeRecords() {
-          return [];
-        }
-      }
-      vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
-      renderJumpList();
+        cards.push(card);
+      });
     }
 
-    const entry = (id: string, isIntersecting: boolean) =>
-      ({ isIntersecting, target: cards[id] }) as unknown as IntersectionObserverEntry;
-
     afterEach(() => {
-      Object.values(cards).forEach((c) => c.remove());
+      cards.splice(0).forEach((c) => c.remove());
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
     });
 
-    it("keeps the upper Stop active while a lower one is the only one reported", () => {
-      setup();
-      act(() => callback([entry("s1", true), entry("s2", true)], {} as IntersectionObserver));
-      act(() => callback([entry("s2", true)], {} as IntersectionObserver));
+    it("marks the Stop crossing the reading line active, with the teal wash", () => {
+      vi.stubGlobal("innerHeight", 800);
+      place([-500, 100, 900]);
+      renderJumpList();
       const nav = screen.getByRole("navigation", { name: "Jump to" });
-      expect(within(nav).getByText("Rome").closest("button")).toHaveAttribute("aria-current", "location");
-      expect(within(nav).getByText("Florence").closest("button")).not.toHaveAttribute("aria-current");
+      const row = within(nav).getByText("Florence").closest("button")!;
+      expect(row).toHaveAttribute("aria-current", "location");
+      expect(row.className).toMatch(/bg-teal\/15/);
+      expect(within(nav).getByText("Rome").closest("button")).not.toHaveAttribute("aria-current");
     });
 
-    it("marks the last Stop active once the page is scrolled to its end", () => {
-      setup();
-      act(() => callback([entry("s1", true)], {} as IntersectionObserver));
-      vi.spyOn(document.documentElement, "scrollHeight", "get").mockReturnValue(2000);
+    it("follows a scroll to the next Stop", () => {
       vi.stubGlobal("innerHeight", 800);
-      vi.stubGlobal("scrollY", 1200);
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+        cb(0);
+        return 1;
+      });
+      let tops = [10, 600, 1200];
+      ["s1", "s2", "s3"].forEach((id, i) => {
+        const card = document.createElement("div");
+        card.setAttribute("data-stop-id", id);
+        card.getBoundingClientRect = () => ({ top: tops[i] }) as DOMRect;
+        document.body.appendChild(card);
+        cards.push(card);
+      });
+      renderJumpList();
+      const nav = screen.getByRole("navigation", { name: "Jump to" });
+      expect(within(nav).getByText("Rome").closest("button")).toHaveAttribute("aria-current", "location");
+      tops = [-590, 0, 600];
       act(() => {
         window.dispatchEvent(new Event("scroll"));
       });
-      const nav = screen.getByRole("navigation", { name: "Jump to" });
-      expect(within(nav).getByText("Somewhere rough").closest("button")).toHaveAttribute("aria-current", "location");
-      expect(within(nav).getByText("Rome").closest("button")).not.toHaveAttribute("aria-current");
+      expect(within(nav).getByText("Florence").closest("button")).toHaveAttribute("aria-current", "location");
+    });
+  });
+
+  describe("activeStopId", () => {
+    const tops = (...t: number[]) => t.map((top, i) => ({ id: `s${i + 1}`, top }));
+
+    it("picks the Stop crossing 30% mid-page", () => {
+      expect(activeStopId(tops(-900, 200, 700), 1000, 500, 5000)).toBe("s2");
+    });
+
+    it("picks the first Stop when none has reached the line", () => {
+      expect(activeStopId(tops(400, 900), 1000, 0, 5000)).toBe("s1");
+    });
+
+    it("hands over to each later Stop in turn through the last viewport", () => {
+      const at = (scrollY: number, ...t: number[]) => activeStopId(tops(...t), 1000, scrollY, 5000);
+      expect(at(3000, -2000, 300, 800, 1300)).toBe("s2");
+      expect(at(3500, -2500, -200, 450, 800)).toBe("s3");
+      expect(at(3900, -2900, -600, 100, 400)).toBe("s4");
+    });
+
+    it("has the last Stop active at the very end", () => {
+      expect(activeStopId(tops(-3000, -2000, -1000, 900), 1000, 4000, 5000)).toBe("s4");
+    });
+
+    it("uses the 30% line when the page is shorter than the viewport", () => {
+      expect(activeStopId(tops(0, 250, 500), 1000, 0, 800)).toBe("s2");
+    });
+
+    it("returns null with no Stops", () => {
+      expect(activeStopId([], 1000, 0, 5000)).toBeNull();
     });
   });
 
