@@ -108,6 +108,10 @@ export function DayCarousel({
   const glideTo = React.useRef<number | null>(null);
   // The day last pushed, until that navigation ends.
   const target = React.useRef<string | null>(null);
+  // The backstop gave up waiting for `target`: the next settle pushes even to
+  // that same day, but `target`'s end is still watched, and parks back if it
+  // ended with the day unchanged.
+  const gaveUp = React.useRef(false);
   // A day shown that arrived mid-gesture, for the settle to apply.
   const deferred = React.useRef<string | null>(null);
   const crossfadeTo = React.useRef<string | null>(null);
@@ -138,15 +142,16 @@ export function DayCarousel({
     };
     const unfilledInView = () => scroller.current?.querySelector('[data-day-panel][data-shown="true"] [data-day-slot-skeleton]') != null;
     const navigate = (p: DayPanel) => {
-      if (target.current === p.iso) return;
+      if (target.current === p.iso && !gaveUp.current) return;
       target.current = p.iso;
+      gaveUp.current = false;
       startNavigation(() => router.push(p.href, { scroll: false }));
       // The provider's own backstop, timed from the latest push. Giving up
       // re-arms the next settle; a day in view that has filled stays, since
       // the Traveller is already reading it. Only one that never will parks back.
       clearTimeout(backstop.current);
       backstop.current = setTimeout(() => {
-        target.current = null;
+        gaveUp.current = true;
         if (shownRef.current !== viewRef.current && unfilledInView()) reconcile(shownRef.current);
       }, PENDING_NAVIGATION_TIMEOUT_MS);
     };
@@ -256,6 +261,7 @@ export function DayCarousel({
     // is in flight (Back) is followed at once, and the push is given up.
     if (target.current === shownDate) return;
     target.current = null;
+    gaveUp.current = false;
     machine.settled();
     machine.reconcile(shownDate);
   }, [shownDate, machine]);
@@ -263,6 +269,7 @@ export function DayCarousel({
   React.useEffect(() => {
     if (navigating || target.current == null) return;
     target.current = null;
+    gaveUp.current = false;
     machine.settled();
     if (shownDate !== viewRef.current) machine.reconcile(shownDate);
   }, [navigating, shownDate, machine]);
@@ -327,6 +334,18 @@ export function DayCarousel({
   // Measured inside the held box and scrolled before it is released, so a
   // page only just long enough is never clamped on the way.
   const ownHeader = chromeFor(view);
+  // The header also rewraps with no commit here (rotation, resize, a font
+  // landing). Track that as the new baseline, never as a change to correct:
+  // the Traveller already saw it move.
+  React.useLayoutEffect(() => {
+    const box = headerBox.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      headerHeight.current = (box.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
+    });
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, []);
   React.useLayoutEffect(() => {
     const box = headerBox.current;
     if (!box) return;

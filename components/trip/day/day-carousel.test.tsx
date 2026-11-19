@@ -136,6 +136,7 @@ afterEach(async () => {
   window.matchMedia = defaultMatchMedia;
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("DayCarousel", () => {
@@ -463,15 +464,46 @@ describe("DayCarousel", () => {
     expect(push).toHaveBeenLastCalledWith(href("2026-12-11"), { scroll: false });
   });
 
-  it("the pending timeout runs from the latest push: settles 10 s apart, both held, do not park at 15 s after the first", () => {
+  it("the pending timeout runs from the latest push: settles 10 s apart onto a day that never fills park 15 s after the second, not the first", () => {
     vi.useFakeTimers(FAKE_TIMERS);
-    const { scroller } = mount();
+    const unfilled = week().map((p) => (p.iso === WEEK[5] ? { ...p, content: <div data-day-slot-skeleton /> } : p));
+    const { scroller } = mount({ panels: unfilled });
     dragTo(scroller, 4);
     act(() => { vi.advanceTimersByTime(10_000); });
     dragTo(scroller, 5);
     act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS - 10_000 + 1); });
     expect(scroller.scrollLeft).toBe(5 * WIDTH);
-    expect(api!.current()).toBe("2026-12-14");
+    expect(api!.current()).toBe(WEEK[5]);
+    act(() => { vi.advanceTimersByTime(10_000); });
+    expect(scroller.scrollLeft).toBe(SHOWN * WIDTH);
+    expect(api!.current()).toBe(WEEK[SHOWN]);
+  });
+
+  it("a push the pending timeout gave up on that later lands on its day moves nothing", async () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading, rerenderWith } = mount();
+    dragTo(scroller, 4);
+    act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS + 1); });
+    await act(async () => {
+      rerenderWith({ shownDate: "2026-12-13" });
+      for (const release of releases.splice(0)) release();
+    });
+    expect(scroller.scrollLeft).toBe(4 * WIDTH);
+    expect(heading()).toBe("real 2026-12-13");
+    expect(api!.current()).toBe("2026-12-13");
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("a push the pending timeout gave up on that later ends with the day unchanged parks the scroller back on the day shown", async () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading } = mount();
+    dragTo(scroller, 4);
+    act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS + 1); });
+    expect(scroller.scrollLeft).toBe(4 * WIDTH);
+    await act(async () => { for (const release of releases.splice(0)) release(); });
+    expect(scroller.scrollLeft).toBe(SHOWN * WIDTH);
+    expect(heading()).toBe(`real ${WEEK[SHOWN]}`);
+    expect(api!.current()).toBe(WEEK[SHOWN]);
   });
 
   it("a push that never ends gives up after the pending timeout and leaves a filled day in view where it is; the next settle pushes again", () => {
@@ -554,6 +586,29 @@ describe("DayCarousel", () => {
     expect(scrollBy).not.toHaveBeenCalled();
     dragTo(scroller, 5);
     expect(scrollBy).toHaveBeenCalledWith(0, -44);
+  });
+
+  it("a header that rewraps on its own (rotation, resize) is the new baseline: a later commit does not scroll for it, and a swap corrects from it", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const observers: Array<() => void> = [];
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(cb: () => void) { observers.push(cb); }
+      observe() {}
+      disconnect() {}
+    });
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+    let rewrapped = 194;
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.textContent?.endsWith("2026-12-12") ? rewrapped : this.textContent === "fallback 2026-12-14" ? 150 : 170;
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ top: -120, bottom: 74, left: 0, right: WIDTH, width: WIDTH, height: 194, x: 0, y: -120, toJSON() {} } as DOMRect);
+    const { scroller, rerenderWith } = mount();
+    rewrapped = 230;
+    act(() => { for (const cb of observers) cb(); });
+    rerenderWith({ panels: week() });
+    expect(scrollBy).not.toHaveBeenCalled();
+    dragTo(scroller, 5);
+    expect(scrollBy.mock.calls).toEqual([[0, -80]]);
   });
 
   it("the cold-load positioning script is in the server's markup and never rendered by the client", () => {
