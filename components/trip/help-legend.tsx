@@ -130,6 +130,15 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
   },
 ];
 
+function TabIcon({ label }: { label: keyof typeof NAV_ICONS }) {
+  const Icon = NAV_ICONS[label];
+  return (
+    <span className="flex size-8 items-center justify-center text-muted-foreground">
+      <Icon className="size-5" />
+    </span>
+  );
+}
+
 function Row({
   specimen,
   meaning,
@@ -142,7 +151,7 @@ function Row({
       <span
         data-testid="legend-specimen"
         aria-hidden="true"
-        className="flex w-24 shrink-0 items-center justify-center"
+        className="flex min-w-24 shrink-0 items-center justify-center"
       >
         {specimen}
       </span>
@@ -200,35 +209,27 @@ export function HelpLegend({
         <H className={BLOCK_HEADING}>
           Colour-coded labels
         </H>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <CategoryPill category="FOOD" />
-            <span className="text-sm text-muted-foreground">
-              The kind of thing it is. Each kind has its own colour.
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <ChapterChip name="Italy" colour="rose" />
-            <span className="text-sm text-muted-foreground">
-              Which stretch of the trip it belongs to.
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="warning">Needs attention</Badge>
-            {/* Flags themselves are only ever amber or blue (never red) — but
-                red is the app's general destructive colour (delete buttons,
-                form errors, etc.), and it also marks the hard-end overrun
-                (plan-overview.tsx `over` tone, the Make it fit dialog, the
-                "Runs over" badge on Compare). Don't claim red is
-                exclusive to the hard-end case — keep this consistent with the
-                "When something looks off" section of the guide. */}
-            <span className="text-sm text-muted-foreground">
-              Amber means have a look; flags themselves are only ever amber or
-              blue, but the app does turn red when the plan runs past the day
-              you have to be home.
-            </span>
-          </div>
-        </div>
+        <ul className="flex flex-col gap-2.5">
+          <Row
+            specimen={<CategoryPill category="FOOD" />}
+            meaning="The kind of thing it is. Each kind has its own colour."
+          />
+          <Row
+            specimen={<ChapterChip name="Italy" colour="rose" />}
+            meaning="Which stretch of the trip it belongs to."
+          />
+          {/* Flags themselves are only ever amber or blue (never red) — but
+              red is the app's general destructive colour (delete buttons,
+              form errors, etc.), and it also marks the hard-end overrun
+              (plan-overview.tsx `over` tone, the Make it fit dialog, the
+              "Runs over" badge on Compare). Don't claim red is
+              exclusive to the hard-end case — keep this consistent with the
+              "When something looks off" section of the guide. */}
+          <Row
+            specimen={<Badge variant="warning">Needs attention</Badge>}
+            meaning="Amber means have a look; flags themselves are only ever amber or blue, but the app does turn red when the plan runs past the day you have to be home."
+          />
+        </ul>
       </div>
 
       {/* ── Mobile tab bar ── */}
@@ -236,21 +237,10 @@ export function HelpLegend({
         <H className={BLOCK_HEADING}>
           The bar along the bottom (on your phone)
         </H>
-        <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {(["Home", "Plan", "Days", "Money", "More"] as const).map((label) => {
-            const Icon = NAV_ICONS[label];
-            return (
-              <li key={label} className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="flex size-8 items-center justify-center text-muted-foreground"
-                >
-                  <Icon className="size-5" />
-                </span>
-                <span className="text-sm text-foreground">{label}</span>
-              </li>
-            );
-          })}
+        <ul className="flex flex-col gap-2.5">
+          {(["Home", "Plan", "Days", "Money", "More"] as const).map((label) => (
+            <Row key={label} specimen={<TabIcon label={label} />} meaning={label} />
+          ))}
         </ul>
       </div>
 
@@ -262,27 +252,16 @@ export function HelpLegend({
           <strong>Keep</strong>, then Settings and Help. Under{" "}
           <strong>Across trips</strong> are your Trips list and the Globe.
         </p>
-        <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        <ul className="flex flex-col gap-2.5">
           {(
             [
               "Home", "Plan", "Days", "Calendar", "Money", "Wishlist",
               "Journal", "Checklists", "Files", "Summary", "Reviews", "Activity",
               "Settings", "Help",
             ] as const
-          ).map((label) => {
-            const Icon = NAV_ICONS[label];
-            return (
-              <li key={label} className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="flex size-8 items-center justify-center text-muted-foreground"
-                >
-                  <Icon className="size-5" />
-                </span>
-                <span className="text-sm text-foreground">{label}</span>
-              </li>
-            );
-          })}
+          ).map((label) => (
+            <Row key={label} specimen={<TabIcon label={label} />} meaning={label} />
+          ))}
         </ul>
       </div>
     </div>
