@@ -37,7 +37,7 @@ import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
-import { StayCard, StayConfirmation } from "@/components/trip/stay-card";
+import { STAY_NAME_CLASS, StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { SlotFacts } from "@/components/trip/slot-facts";
 import { OpeningHoursLine } from "@/components/trip/opening-hours-line";
 import { TryListTicks } from "@/components/trip/try-list-ticks";
@@ -554,7 +554,7 @@ function AccomCheckinRow({
       className="block"
     >
       {large ? (
-        <span className="block break-words">{a.name}</span>
+        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
       ) : (
         <span className="block break-words text-sm font-semibold leading-7 text-foreground">Check-in: {a.name}</span>
       )}
@@ -572,7 +572,7 @@ function AccomCheckinRow({
           </p>
         ))}
       {a.bookingState === "TO_BOOK" && (
-        <p className="mt-0.5"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
+        <p className="mt-1 flex"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
       )}
       <AttachmentLinks attachments={attachments} />
       {needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}

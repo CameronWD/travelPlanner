@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
+export const STAY_NAME_CLASS = "line-clamp-2 break-words";
+
 export function StayCard({
   label,
   labelAs: Label = "span",

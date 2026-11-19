@@ -1071,6 +1071,14 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(row.querySelector("[data-testid='timeline-tile']")!.className).toContain("max-md:size-8");
     expect(row.className).toContain("max-md:gap-2");
   });
+  it("a Check-in's name wraps to two lines and its To book badge sits on its own line", () => {
+    const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
+    const name = screen.getByText("Osaka Hotel");
+    expect(name.className).toContain("line-clamp-2");
+    expect(name.className).not.toContain("truncate");
+    expect(name).toHaveAttribute("title", "Osaka Hotel");
+    expect(container.querySelector("[data-slot='stay-band']")).not.toBeNull();
+  });
   it("colours transport tiles sun and renders stays as StayCards, not lilac tiles", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
     const fills = [...container.querySelectorAll("[data-testid='timeline-tile']")].map((t) => t.className);
