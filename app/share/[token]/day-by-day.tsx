@@ -85,8 +85,17 @@ function FoldedStop({ s }: { s: DayByDayStop }) {
   return (
     <>
       <span aria-hidden className={cn("size-3.5 shrink-0 rounded-full border-2 border-border", stopDotClass(s.sortOrder))} />
-      <span className="min-w-0 flex-1 truncate font-display text-[17px] font-extrabold">
-        {`${s.name} · ${n} ${n === 1 ? "day" : "days"}`}
+      <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
+        <span className="break-words font-display text-[17px] font-extrabold sm:truncate">{s.name}</span>
+        <span className="whitespace-nowrap text-[13px] font-semibold text-muted-foreground sm:shrink-0 sm:font-display sm:text-[17px] sm:font-extrabold sm:text-foreground">
+          <span aria-hidden className="hidden sm:inline">
+            {"· "}
+          </span>
+          {`${n} ${n === 1 ? "day" : "days"}`}
+          {s.status !== "past" && (
+            <span className="sm:hidden">{` · ${formatDateRangeCompact(s.arriveDate, s.departDate)}`}</span>
+          )}
+        </span>
       </span>
       {s.status === "past" ? (
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[13px] font-bold text-teal-text">
@@ -94,7 +103,7 @@ function FoldedStop({ s }: { s: DayByDayStop }) {
           Done
         </span>
       ) : (
-        <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums">
+        <span className="hidden shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums sm:inline">
           {formatDateRangeCompact(s.arriveDate, s.departDate)}
         </span>
       )}
