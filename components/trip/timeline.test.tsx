@@ -1108,6 +1108,17 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     const timed = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />).container;
     expect(timed.querySelector("[data-timeline-row] span.tabular-nums")).not.toBeNull();
   });
+  it("a compact Check-in and Check-out title keeps normal line spacing when it wraps", () => {
+    render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
+    const inTitle = screen.getByText("Check-in: Osaka Hotel");
+    expect(inTitle.className).toContain("leading-5");
+    expect(inTitle.className).not.toContain("leading-7");
+    cleanup();
+    render(<Timeline day={dayWithCheckoutAndItems} variant="day" />);
+    const outTitle = screen.getByText(/^Check-out:/);
+    expect(outTitle.className).toContain("leading-5");
+    expect(outTitle.className).not.toContain("leading-7");
+  });
   it("the default size keeps the neutral stay tile and no StayCard", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
     expect(container.querySelector("[data-slot='stay-band']")).toBeNull();
