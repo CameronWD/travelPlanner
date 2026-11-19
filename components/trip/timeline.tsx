@@ -206,8 +206,8 @@ export function Timeline({
         <div className={cn("flex flex-col border-t-2 border-border-soft pt-2.5 first:border-t-0 first:pt-0", !large && "border-dotted")}>
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Anytime</p>
           {groupByCategory(anytime.map((e) => e.item)).map((group) => (
-            <div key={group.category} className="flex flex-col">
-              <h4 className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            <div key={group.category} className="flex flex-col pt-4 first-of-type:pt-1 [&>h4+*]:border-t-0 [&>h4+*]:pt-1.5">
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                 {group.label}
               </h4>
               {group.items.map((it) => (

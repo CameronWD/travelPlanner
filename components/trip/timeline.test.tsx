@@ -916,6 +916,13 @@ describe("Timeline — Anytime bucket grouped by Category", () => {
     const headings = screen.getAllByRole("heading", { level: 4 });
     expect(headings.map((h) => h.textContent)).toEqual(["Sightseeing", "Food & Drink"]);
   });
+  it("a group label sits with its things: space above the group, none above its first row", () => {
+    render(<Timeline day={dayPlanWithTwoUntimedCategories} variant="day" />);
+    const heading = screen.getAllByRole("heading", { level: 4 })[0];
+    expect(heading.className).not.toContain("mt-1");
+    expect(heading.parentElement!.className).toContain("pt-4");
+    expect(heading.parentElement!.className).toContain("[&>h4+*]:pt-1.5");
+  });
 });
 
 describe("Timeline — Item hidden from shares (Task 9)", () => {
