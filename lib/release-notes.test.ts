@@ -89,6 +89,10 @@ describe("RELEASE_NOTES", () => {
     expect(RELEASE_NOTES.some((n) => n.text.startsWith("Travelling: a new cost starts in the local currency"))).toBe(true);
   });
 
+  it("carries the 2026-11-19 notes batch", () => {
+    expect(RELEASE_NOTES[0].text.startsWith("Reminders have Got it instead of the bin")).toBe(true);
+  });
+
   it("caps the card at three", () => {
     expect(WHATS_NEW_CARD_LIMIT).toBe(3);
   });
