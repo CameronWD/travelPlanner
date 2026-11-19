@@ -21,6 +21,9 @@ vi.mock("@/lib/trip-ref", () => ({
   viewerIsTripMember: (...args: unknown[]) => viewerIsTripMember(...args),
 }));
 
+const reportError = vi.fn();
+vi.mock("@/lib/error-sink", () => ({ reportError: (...args: unknown[]) => reportError(...args) }));
+
 const { proxy } = await import("./proxy");
 
 const TRIP = { id: "cmtw8sgpw0001osqh3i54rx1o", slug: "christmas-in-europe-2026" };
@@ -35,6 +38,18 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
     viewerIdFromRequest.mockReset();
     resolveTripRef.mockReset();
     viewerIsTripMember.mockReset();
+    reportError.mockReset();
+  });
+
+  it("a session lookup that fails answers 503 and reports it, never taking the signed-out branch", async () => {
+    const err = new Error("db down");
+    viewerIdFromRequest.mockRejectedValue(err);
+    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26"));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(reportError).toHaveBeenCalledWith(err, { route: "proxy.ts", source: "server" });
+    expect(resolveTripRef).not.toHaveBeenCalled();
   });
 
   it("a signed-out request passes through untouched, with no DB call", async () => {

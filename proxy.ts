@@ -32,7 +32,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Signed out: nothing to rewrite or redirect for (see decideTripRoute), so
   // skip the lookups too — no DB work, and no timing difference between a real
   // slug and an unknown one.
-  const viewerId = await viewerIdFromRequest(request);
+  let viewerId: string | null;
+  try {
+    viewerId = await viewerIdFromRequest(request);
+  } catch (err) {
+    // Not "signed out": that branch skips the slug rewrite and the page would
+    // answer "Trip not found". A 5xx lets the client keep the page it has.
+    const { reportError } = await import("@/lib/error-sink");
+    await reportError(err, { route: "proxy.ts", source: "server" });
+    return new NextResponse(null, { status: 503 });
+  }
   const rewrite = (to: { pathname: string; search: string }) => {
     const url = request.nextUrl.clone();
     url.pathname = to.pathname;
