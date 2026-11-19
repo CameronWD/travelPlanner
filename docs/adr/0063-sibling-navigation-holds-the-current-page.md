@@ -82,3 +82,15 @@ file, not guidance about keeping skeletons small.
   them, so the entering section painted over the bars. And section switches fade out, then in
   (100ms, then 160ms), so the two sections are never on screen together; `npm run audit:nav`
   checks both on a phone Plan → Money switch, frame by frame (2026-09-29).
+
+## Amendment 2026-11-19: one file, two shapes
+
+`app/(app)/trips/loading.tsx` is still the only `loading.tsx` under the signed-in app, but it
+now renders one of two things, chosen with `usePathname()`. On `/trips` it is the Trips-list
+skeleton (`TripsSkeleton`). On any `/trips/<anything>` it is the Teepee mark, spinning
+(`LogoLoader`). Reason: the file sits above every trip page, so a deep link opened cold, or the
+first step from the Trips list into a trip, used to show a Trips-list skeleton in front of a
+page that is not the Trips list (Feedback `cmwmyhjrb000308ifdcft01i7`). Checked in dev: during a
+client navigation into a trip the hook reports the destination path, and moving between pages
+inside a trip never reaches this file (the progress bar handles that). Do not add a second
+`loading.tsx` to give a trip page its own shape; extend the branch here instead.

@@ -49,7 +49,6 @@ export default async function TripsPage() {
         <TripsHeader firstName={data.firstName} metaLine={tripsMetaLine(data.counts)} firstRun={firstRun} />
         <WhatsNewBanner className="mr-[18px] md:mr-10" />
         <WelcomeGate />
-        <InstallNudge className="mr-[18px] md:mr-10" />
 
         {firstRun ? (
           <>
@@ -84,6 +83,7 @@ export default async function TripsPage() {
           </>
         )}
 
+        <InstallNudge className="mr-[18px] md:mr-10" />
         {deletedTrips.length > 0 ? <RecentlyDeleted trips={deletedTrips} /> : null}
       </div>
     </TripCarousel>

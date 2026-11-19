@@ -145,7 +145,7 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
     // 500 leaks into the page root and paints over the z-50 dialog layer
     // (the Welcome dialog on /trips — spec 2026-10-01 §C).
     "relative isolate overflow-hidden border-2 border-border bg-map-fill",
-    mobile ? "h-[190px] rounded-[22px] shadow-hard-2" : "h-full min-h-0 rounded-[24px] shadow-hard-3",
+    "h-[190px] rounded-[22px] shadow-hard-2 md:h-full md:min-h-0 md:rounded-[24px] md:shadow-hard-3",
     className,
   );
   const body = (
@@ -157,14 +157,11 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
           <TravelMapLoader trips={trips} filterTripId={filter} variant={variant} onFail={() => setFailed(true)} />
         </MapBoundary>
       )}
-      <div className={cn("pointer-events-none absolute left-4 top-4 z-[500] flex items-center gap-2", mobile && "left-3.5 top-3.5")}>
+      <div className="pointer-events-none absolute left-3.5 top-3.5 z-[500] flex items-center gap-2 md:left-4 md:top-4">
         <span
           ref={titleRef}
           data-measure="chip"
-          className={cn(
-            "shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-card font-display font-extrabold text-foreground",
-            mobile ? "px-3 py-0.5 text-[16px]" : "px-3.5 py-[3px] text-[20px]",
-          )}
+          className="shrink-0 whitespace-nowrap rounded-full border-2 border-border bg-card px-3 py-0.5 font-display text-[16px] font-extrabold text-foreground md:px-3.5 md:py-[3px] md:text-[20px]"
         >
           Your travels
         </span>

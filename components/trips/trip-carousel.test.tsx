@@ -43,7 +43,8 @@ describe("TripCarousel", () => {
   it("hides arrows and dots when every card fits", () => {
     mount(600, 1000);
     expect(screen.queryByRole("button", { name: "Next trips" })).toBeNull();
-    expect(document.querySelector("[data-carousel-dots]")).toBeNull();
+    expect(document.querySelector("[data-carousel-dots]")).not.toBeNull();
+    expect(document.querySelector("[data-carousel-dot]")).toBeNull();
   });
   it("shows arrows and one dot per page when it overflows", () => {
     mount(1236, 1000);

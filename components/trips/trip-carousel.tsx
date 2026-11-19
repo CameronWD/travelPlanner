@@ -134,19 +134,20 @@ export function CarouselTrack({ children, className }: { children: React.ReactNo
   );
 }
 
-/** One dot per page; hidden with a single page. */
+/** One dot per page; hidden with a single page. The row is always there so measuring never moves what is below it. */
 export function CarouselDots({ className }: { className?: string }) {
   const { pages, page, overflows } = useCarousel();
-  if (!overflows || pages <= 1) return null;
   return (
     <div data-carousel-dots aria-hidden="true" className={cn("flex h-2 items-center gap-1.5", className)}>
-      {Array.from({ length: pages }, (_, i) => (
-        <span
-          key={i}
-          data-carousel-dot
-          className={cn("h-2 rounded-full transition-[width]", i === page ? "w-[22px] bg-primary" : "w-2 bg-border-soft")}
-        />
-      ))}
+      {overflows && pages > 1
+        ? Array.from({ length: pages }, (_, i) => (
+            <span
+              key={i}
+              data-carousel-dot
+              className={cn("h-2 rounded-full transition-[width]", i === page ? "w-[22px] bg-primary" : "w-2 bg-border-soft")}
+            />
+          ))
+        : null}
     </div>
   );
 }
