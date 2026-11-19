@@ -46,13 +46,13 @@ export const metadata: Metadata = { title: "Settings" };
  * Travellers, Sharing, Digest, Calendar feed, Driving estimates, Danger
  * zone. The two multi-card groups are `contents` below lg (so every card is
  * a direct one-column grid item) and flex columns from lg; each slot is then
- * placed explicitly. Rows are `auto auto 1fr`: the right group spans rows
- * 1–2 (both auto, so it sizes them) while Driving (rows 2–3) crosses the
- * flexible row and does not, and the Danger zone (row 3) sits in it, so it
- * starts one gap under Calendar feed instead of at the foot of a long column.
+ * placed explicitly. Rows are `auto 1fr auto`: the left group spans rows 1–2,
+ * the right group takes row 1 alone so only it sizes that row, and the Danger
+ * zone sits at the top of the flexible row 2 right under it, one gap under
+ * Calendar feed however tall the left column is. Driving estimates open row 3.
  */
 export const SETTINGS_GRID_CLASS =
-  "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2 lg:grid-rows-[auto_auto_1fr]";
+  "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto]";
 
 /** A multi-card slot: dissolves into the grid below lg, a flex column from lg. */
 const SLOT_GROUP_CLASS = "contents lg:flex lg:flex-col lg:gap-3.5";
@@ -148,7 +148,7 @@ export default async function SettingsPage({
 
       <div className={SETTINGS_GRID_CLASS}>
         {/* ── Left column (lg), top: this trip's own content ── */}
-        <div data-slot="settings-slot" className={cn(SLOT_GROUP_CLASS, "lg:col-start-1 lg:row-start-1")}>
+        <div data-slot="settings-slot" className={cn(SLOT_GROUP_CLASS, "lg:col-start-1 lg:row-span-2 lg:row-start-1")}>
           {/* ── Trip details ── */}
           <Card>
             <CardHeader className="p-5 pb-0">
@@ -238,7 +238,7 @@ export default async function SettingsPage({
         {/* ── Right column (lg): travellers/sharing and outward delivery ── */}
         <div
           data-slot="settings-slot"
-          className={cn(SLOT_GROUP_CLASS, "lg:col-start-2 lg:row-span-2 lg:row-start-1")}
+          className={cn(SLOT_GROUP_CLASS, "lg:col-start-2 lg:row-start-1")}
         >
           {/* ── Travellers ── */}
           <Card id="travellers" className="scroll-mt-20 md:scroll-mt-6">
@@ -321,7 +321,7 @@ export default async function SettingsPage({
         </div>
 
         {/* ── Left column (lg), under Details/Chapters — second to last on phones ── */}
-        <div data-slot="settings-slot" className="lg:col-start-1 lg:row-span-2 lg:row-start-2">
+        <div data-slot="settings-slot" className="lg:col-start-1 lg:row-start-3">
           {/* ── Driving estimates ── */}
           <Card>
             <CardHeader className="p-5 pb-0">
@@ -343,7 +343,7 @@ export default async function SettingsPage({
 
         {/* ── Danger zone (owner or admin) — includes Duplicate ── */}
         {canManageTrip && (
-          <div data-slot="settings-slot" className="lg:col-start-2 lg:row-start-3">
+          <div data-slot="settings-slot" className="lg:col-start-2 lg:row-start-2">
             <Card className="bg-destructive/5 border-destructive/30">
               <CardHeader className="p-5 pb-0">
                 <CardTitle className="font-display text-base font-bold tracking-tight text-destructive">Danger zone</CardTitle>

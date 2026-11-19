@@ -187,7 +187,18 @@ describe("Settings companion-column layout (LA-046)", () => {
   });
 
   it("lets the Danger zone follow the content, not the foot of the flexible row", () => {
-    expect(SETTINGS_GRID_CLASS).toContain("lg:grid-rows-[auto_auto_1fr]");
+    expect(SETTINGS_GRID_CLASS).toContain("lg:grid-rows-[auto_1fr_auto]");
+  });
+
+  it("places the Danger zone in the row right under the right column's group", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    await renderSettings();
+    const slot = (title: string) =>
+      screen.getByRole("heading", { level: 3, name: title }).closest("[data-slot='settings-slot']")!;
+    expect(slot("Travellers").className).toContain("lg:row-start-1");
+    expect(slot("Travellers").className).not.toContain("lg:row-span-2");
+    expect(slot("Danger zone").className).toContain("lg:row-start-2");
+    expect(slot("Driving estimates").className).toContain("lg:row-start-3");
   });
 
   it("puts the cover field before the form's Save button", async () => {
