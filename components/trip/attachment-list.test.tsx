@@ -71,8 +71,8 @@ describe("AttachmentList", () => {
         attachments={sampleAttachments}
       />,
     );
-    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
-    expect(screen.getByText("hotel-voucher.jpg")).toBeInTheDocument();
+    expect(screen.getByTitle("boarding-pass.pdf")).toBeInTheDocument();
+    expect(screen.getByTitle("hotel-voucher.jpg")).toBeInTheDocument();
   });
 
   it("uploads a globe-scoped attachment with globeId and no tripId", async () => {
@@ -157,7 +157,7 @@ describe("AttachmentList", () => {
       />,
     );
     expect(screen.queryByText(/tap or drop files/i)).toBeNull();
-    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
+    expect(screen.getByTitle("boarding-pass.pdf")).toBeInTheDocument();
   });
 
   it("shows '· added {date}' in non-compact mode using the createdAt field", () => {
@@ -756,9 +756,10 @@ describe("AttachmentList", () => {
     expect(classes).not.toContain("items-center");
     const actions = screen.getByRole("button", { name: "Delete boarding-pass.pdf" }).parentElement!;
     expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["basis-full", "justify-end", "sm:basis-auto", "md:absolute", "md:right-2", "md:top-2"]));
-    const name = screen.getByText("boarding-pass.pdf", { selector: "p" });
-    expect(name).toHaveAttribute("title", "boarding-pass.pdf");
-    expect(name.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-w-0", "flex-1", "md:w-full", "md:flex-none"]));
+    const name = screen.getByTitle("boarding-pass.pdf");
+    expect(name.lastElementChild).toHaveClass("shrink-0");
+    expect(name.lastElementChild).toHaveTextContent("g-pass.pdf");
+    expect(name.closest("p")!.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-w-0", "flex-1", "md:w-full", "md:flex-none"]));
   });
 
   it("each file card has a type tile (PDF / IMG) toned by what the file belongs to", () => {
@@ -826,7 +827,7 @@ describe("AttachmentList", () => {
   it("shows the title in place of the filename when set, with the filename beneath — both layouts", () => {
     const titled: AttachmentView = { ...sampleAttachments[0], id: "t1", filename: "scan-0012.pdf", title: "Hotel voucher" };
     const { unmount } = render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[titled]} showUpload={false} />);
-    expect(screen.getByText("Hotel voucher")).toBeInTheDocument();
+    expect(screen.getByTitle("Hotel voucher")).toBeInTheDocument();
     expect(screen.getByText(/scan-0012\.pdf/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View Hotel voucher" })).toBeInTheDocument();
     unmount();
@@ -837,7 +838,7 @@ describe("AttachmentList", () => {
 
   it("falls back to the filename when there is no title", () => {
     render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[{ ...sampleAttachments[0], title: null }]} showUpload={false} />);
-    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
+    expect(screen.getByTitle("boarding-pass.pdf")).toBeInTheDocument();
   });
 
   // Spec 2026-10-04 §K: the Transport, Item, Accommodation and Stop edit

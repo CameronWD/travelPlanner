@@ -28,6 +28,7 @@ import { StagedUploadTray, useStagedUploads } from "@/components/trip/staged-upl
 import { attachmentName } from "@/lib/attachment-name";
 import { formatBytes } from "@/lib/format-bytes";
 import { AttachmentLink } from "@/components/trip/attachment-link";
+import { MiddleTruncate } from "@/components/trip/middle-truncate";
 import type { AttachmentView } from "@/lib/attachment-view";
 
 export type { AttachmentView };
@@ -369,18 +370,18 @@ export function AttachmentList({
               </span>
 
               <div className="min-w-0 flex-1 md:w-full md:flex-none md:pr-24">
-                <p className="truncate text-sm font-extrabold text-foreground" title={attachmentName(att)}>
+                <p className="min-w-0 text-sm font-extrabold text-foreground">
                   {cardLink ? (
                     <AttachmentLink
                       href={att.url}
                       mime={att.mime}
                       label={`View ${attachmentName(att)}`}
-                      className="underline-offset-2 hover:underline focus-visible:underline after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-[3px] focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
+                      className="block underline-offset-2 hover:underline focus-visible:underline after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-[3px] focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
                     >
-                      {attachmentName(att)}
+                      <MiddleTruncate text={attachmentName(att)} />
                     </AttachmentLink>
                   ) : (
-                    attachmentName(att)
+                    <MiddleTruncate text={attachmentName(att)} />
                   )}
                 </p>
                 <p className="mt-0.5 break-words text-xs font-semibold text-muted-foreground">
