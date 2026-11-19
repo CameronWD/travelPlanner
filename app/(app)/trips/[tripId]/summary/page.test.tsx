@@ -576,3 +576,16 @@ describe("SummaryPage — Make it fit spacing (U1)", () => {
     expect(screen.getByTestId("make-it-fit").parentElement).toHaveClass("mb-4");
   });
 });
+
+describe("SummaryPage — phone cards keep their shadow (U2)", () => {
+  it("widens the clip box into the gutter and never cuts a stat's amount", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+
+    const { container } = render(await renderSummary());
+
+    expect(container.firstElementChild).toHaveClass("-mr-1.5", "pr-1.5", "overflow-x-clip");
+    const values = screen.getByTestId("summary-stat-grid").querySelectorAll("p.font-mono");
+    expect(values.length).toBeGreaterThan(0);
+    values.forEach((v) => expect(v.className).not.toMatch(/\btruncate\b/));
+  });
+});

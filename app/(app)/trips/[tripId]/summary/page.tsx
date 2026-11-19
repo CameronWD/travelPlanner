@@ -366,7 +366,7 @@ export default async function SummaryPage({
   const hasActual = grandTotal.paidTotalMinor > 0;
 
   return (
-    <div className="flex min-w-0 flex-col gap-8 overflow-x-clip">
+    <div className="-mr-1.5 flex min-w-0 flex-col gap-8 overflow-x-clip pr-1.5">
       <h2 className="sr-only">Trip summary</h2>
 
       {/* ── Header stat bar ── */}
@@ -720,7 +720,7 @@ function StatCard({
         <Icon className="size-3.5" aria-hidden="true" />
         {label}
       </div>
-      <p className="truncate font-mono text-xl font-semibold text-foreground">{value}</p>
+      <p className="break-words font-mono text-base font-semibold text-foreground sm:text-xl">{value}</p>
     </div>
   );
 }
