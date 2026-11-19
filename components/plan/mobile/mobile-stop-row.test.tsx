@@ -39,6 +39,13 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(screen.getByText("5n")).toBeInTheDocument();
   });
 
+  it("the date column gives up width before the name does", () => {
+    renderRow();
+    expect(screen.getByText("Paris").parentElement!.className).toContain("flex-auto");
+    expect(screen.getByText("10–15 Dec").parentElement!.className).toContain("shrink-[100]");
+    expect(screen.getByText("10–15 Dec").className).toContain("truncate");
+  });
+
   it("stay.kind === 'none': coral 'No bed yet · n plans'", () => {
     renderRow({ stay: NONE, plansCount: 4 });
     const summary = screen.getByText("No bed yet · 4 plans");
