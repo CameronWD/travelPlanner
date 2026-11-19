@@ -29,14 +29,17 @@ export interface CaptureRecord {
   trip: TripKey;
   tripId?: string;
   phase?: PhaseName | null;
+  /** DeviceProfile.id (config.ts PROFILES), and that profile's width. */
+  profile: string;
   width: number;
   theme: Theme;
   media: "screen" | "print";
   overlay?: string;
   keyboard?: boolean;
-  /** Absolute PNG paths. Pages: the slices top to bottom, then the
-   * `-end.png` viewport shot at the page end (fixed chrome shown) last.
-   * Overlays: the one viewport shot. */
+  /** Absolute PNG paths. Pages: the slices top to bottom, then the two
+   * viewport shots with fixed chrome shown — `-fold.png` (first screen) and
+   * `-end.png` (page end), last. Overlays: the one viewport shot. Loading:
+   * `-hard-150ms`, `-hard-800ms`, `-nav-150ms`, `-nav-800ms`. */
   files: string[];
   markerCount?: number;
   elementCount: number;
@@ -94,13 +97,14 @@ export function assertNextDev(baseUrl: string, devOverlayFound: boolean): void {
 // --------------------------------------------------------------------------
 
 /**
- * `<out>/shots/<set>/<routeLabel>/<trip>/<width>-<theme>[-kbd]` for page
- * captures; `<out>/shots/overlay/<overlayId>/<width>-<theme>[-kbd]` for
+ * `<out>/shots/<set>/<routeLabel>/<trip>/<profile>-<theme>[-kbd]` for page
+ * captures; `<out>/shots/overlay/<overlayId>/<profile>-<theme>[-kbd]` for
  * overlay captures. `captureSlices` appends `.png` (or `-partN.png`) per
- * slice, then `-end.png`; `captureViewport` (overlays) appends `.png`.
+ * slice, then `-fold.png` and `-end.png`; `captureViewport` (overlays)
+ * appends `.png`.
  */
 export function shotLocation(outDir: string, spec: CaptureSpec): { dir: string; baseName: string } {
-  const baseName = `${spec.width}-${spec.theme}${spec.keyboard ? "-kbd" : ""}`;
+  const baseName = `${spec.profile}-${spec.theme}${spec.keyboard ? "-kbd" : ""}`;
   const dir =
     spec.overlay !== undefined
       ? path.join(outDir, "shots", "overlay", spec.overlay)
@@ -112,10 +116,21 @@ export function shotLocation(outDir: string, spec: CaptureSpec): { dir: string; 
 // LAYOUT_AUDIT_ONLY
 // --------------------------------------------------------------------------
 
+/** True when `id` contains any comma-separated alternative of `only`
+ * (always true when the filter is unset or blank). Shared with the resize
+ * crawl and CLS, whose ids are `resize/<routeLabel>` and `cls/<routeLabel>`. */
+export function matchesOnly(id: string, only: string | undefined): boolean {
+  const needles = (only ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return needles.length === 0 || needles.some((n) => id.includes(n));
+}
+
 /** Keeps captures whose id contains the filter. A comma separates
  * alternatives ("deep/plan/,overlay/stop-add/"); ids never contain commas.
  * Unset or blank keeps everything. Ids mirror the shot folders:
- * `deep/plan/deep/390-light`, `overlay/stop-add/360-light-kbd`. */
+ * `deep/plan/deep/mbp14-light`, `overlay/stop-add/iphone17-browser-light-kbd`. */
 export function filterCaptures(specs: CaptureSpec[], only: string | undefined): CaptureSpec[] {
   const needles = (only ?? "")
     .split(",")

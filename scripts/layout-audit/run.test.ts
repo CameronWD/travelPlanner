@@ -11,6 +11,7 @@ import {
   filterCaptures,
   mergeRerun,
   rerunExitCode,
+  matchesOnly,
   shotLocation,
   summarise,
   type Manifest,
@@ -18,8 +19,8 @@ import {
 } from "./run";
 
 const cap = (o: Partial<CaptureRecord> = {}): CaptureRecord => ({
-  id: "deep/plan/deep/390-light", set: "deep", route: "/trips/x/plan", routeLabel: "plan", trip: "deep",
-  width: 390, theme: "light", media: "screen", files: ["a.png"], elementCount: 200, findings: 0, ms: 10, ...o,
+  id: "deep/plan/deep/iphone12-pwa-light", set: "deep", route: "/trips/x/plan", routeLabel: "plan", trip: "deep",
+  profile: "iphone12-pwa", width: 390, theme: "light", media: "screen", files: ["a.png"], elementCount: 200, findings: 0, ms: 10, ...o,
 });
 const man = (captures: CaptureRecord[], gaps: Manifest["gaps"] = []): Manifest => ({
   startedAt: "", finishedAt: "", baseUrl: "http://localhost:3000", outDir: "/tmp/x", trips: {}, gaps, captures,
@@ -58,17 +59,17 @@ describe("exitCodeFor: a run that skipped everything proved nothing", () => {
 });
 
 const spec = (o: Partial<CaptureSpec> = {}): CaptureSpec => ({
-  id: "deep/plan/deep/390-light", set: "deep", route: ROUTES.find((r) => r.label === "plan")!, trip: "deep",
-  width: 390, theme: "light", media: "screen", ...o,
+  id: "deep/plan/deep/iphone12-pwa-light", set: "deep", route: ROUTES.find((r) => r.label === "plan")!, trip: "deep",
+  profile: "iphone12-pwa", width: 390, theme: "light", media: "screen", ...o,
 });
 
 describe("shotLocation", () => {
   it("pages go under shots/<set>/<routeLabel>/<trip>", () =>
-    expect(shotLocation("/tmp/o", spec())).toEqual({ dir: "/tmp/o/shots/deep/plan/deep", baseName: "390-light" }));
+    expect(shotLocation("/tmp/o", spec())).toEqual({ dir: "/tmp/o/shots/deep/plan/deep", baseName: "iphone12-pwa-light" }));
   it("overlays go under shots/overlay/<overlayId>, keyboard variants get -kbd", () =>
-    expect(shotLocation("/tmp/o", spec({ set: "overlay", overlay: "stop-add", keyboard: true, width: 360 }))).toEqual({
+    expect(shotLocation("/tmp/o", spec({ set: "overlay", overlay: "stop-add", keyboard: true, profile: "iphone17-browser", width: 402 }))).toEqual({
       dir: "/tmp/o/shots/overlay/stop-add",
-      baseName: "360-light-kbd",
+      baseName: "iphone17-browser-light-kbd",
     }));
 });
 
@@ -141,22 +142,31 @@ describe("a filtered re-run that captures nothing fails, even merged into a clea
 });
 
 describe("filterCaptures", () => {
-  const specs = [spec({ id: "deep/plan/deep/390-light" }), spec({ id: "overlay/stop-add/360-light" })];
+  const specs = [spec({ id: "deep/plan/deep/mbp14-light" }), spec({ id: "overlay/stop-add/iphone17-pwa-light" })];
   it("keeps everything when unset or blank", () => {
     expect(filterCaptures(specs, undefined)).toHaveLength(2);
     expect(filterCaptures(specs, "  ")).toHaveLength(2);
   });
   it("is a substring match on the id", () =>
-    expect(filterCaptures(specs, "overlay/").map((s) => s.id)).toEqual(["overlay/stop-add/360-light"]));
+    expect(filterCaptures(specs, "overlay/").map((s) => s.id)).toEqual(["overlay/stop-add/iphone17-pwa-light"]));
   it("the documented overlay example matches the real overlay id shape", () => {
     const real = buildCaptureMatrix({ overlays: [{ id: "stop-add", form: true }, { id: "other-cost-add", form: true }], phaseTripsAvailable: [] });
     const hit = filterCaptures(real, "overlay/stop-add/").map((s) => s.id);
-    expect(hit).toHaveLength(5);
+    expect(hit).toHaveLength(7);
     expect(hit.every((id) => id.startsWith("overlay/stop-add/"))).toBe(true);
   });
   it("commas separate alternatives", () => expect(filterCaptures(specs, "deep/plan/, stop-add")).toHaveLength(2));
   it("a filter that matches nothing yields nothing (and rerunExitCode then fails the run, merged or not)", () =>
     expect(filterCaptures(specs, "typo")).toEqual([]));
+});
+
+describe("matchesOnly", () => {
+  it("everything matches an unset filter", () => expect(matchesOnly("resize/plan", undefined)).toBe(true));
+  it("a page filter does not start the resize crawl or the CLS run for the same route", () => {
+    expect(matchesOnly("resize/plan", "deep/plan/")).toBe(false);
+    expect(matchesOnly("resize/plan", "deep/plan/, resize/plan")).toBe(true);
+    expect(matchesOnly("cls/plan", "resize/")).toBe(false);
+  });
 });
 
 // Final review: a `next start` on localhost passes the host guard, and `next start` loads

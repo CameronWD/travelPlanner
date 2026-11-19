@@ -1,11 +1,10 @@
 /**
- * Full-page screenshot slicing: pure slice maths (sliceRanges) plus a
- * function that screenshots a page in <=2000-device-px slices, so reviewers
- * can read very tall pages (e.g. a 20-stop trip plan at 360px wide can
- * exceed 15,000 CSS px) without Chromium's screenshot size limits ever
- * coming into play — and then one viewport shot at the page end, the only
- * image that shows fixed chrome where a Traveller sees it (see
- * captureSlices).
+ * Page screenshots: pure slice maths (sliceRanges) plus captureSlices, which
+ * walks a page top to bottom one viewport at a time and screenshots each
+ * stretch — so a very tall page (a 20-stop plan on a phone runs past 15,000
+ * CSS px) comes back as images no taller than 2000 device px — and then
+ * takes the two viewport shots that show fixed chrome where a Traveller sees
+ * it: the first screen and the page end.
  *
  * Pure vs. Playwright split follows checks.ts / collector.ts: sliceRanges
  * has no Playwright dependency and is unit-tested directly; captureSlices
@@ -53,44 +52,43 @@ export function sliceRanges(pageHeightCss: number, deviceScaleFactor: number, ma
 // Capturing
 // --------------------------------------------------------------------------
 
-/** Zero-arg page function as a string (not a TS function reference) — see
- * the "why a string, not a function" note in collector.ts / contrast-audit.ts:
- * tsx/esbuild wraps named bindings in a `__name(...)` helper that only
- * exists in the compiled module, and page.evaluate() would throw
- * `ReferenceError: __name is not defined` in the page for anything beyond a
- * one-line arrow function with no named inner bindings. This one-liner is
- * simple enough to pass as a function reference, but the string form keeps
- * it consistent with the rest of the in-page code in this project and is
- * unaffected by whichever bundler compiles this file.
- */
+/** Plain JS strings, not TS functions — see layout-audit.ts trap 1. */
 export const SCROLL_HEIGHT_JS = "(() => document.documentElement.scrollHeight)()";
+const SCROLL_Y_JS = "(() => window.scrollY)()";
 
 /** `behavior: "instant"` so a page with `scroll-behavior: smooth` is already
  * at the target when the next screenshot is taken (same as the collector). */
-const SCROLL_TO_END_JS =
-  '(() => window.scrollTo({ top: document.documentElement.scrollHeight, left: 0, behavior: "instant" }))()';
-const SCROLL_TO_TOP_JS = '(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }))()';
+function scrollToJs(y: number | "end"): string {
+  const top = y === "end" ? "document.documentElement.scrollHeight" : String(y);
+  return `(() => window.scrollTo({ top: ${top}, left: 0, behavior: "instant" }))()`;
+}
 
 const FIXED_HIDDEN_ATTR = "data-layout-audit-fixed-hidden";
+const STICKY_ATTR = "data-layout-audit-unstuck";
 const FIXED_HIDDEN_STYLE_ID = "layout-audit-hide-fixed";
 
 /** Marks every `position: fixed` element and hides it (and its subtree —
- * `visibility: visible` on a child would otherwise re-show it) with an
- * injected style rule; returns how many it marked. Plain JS string, per the
- * `__name` rule above. Layout is untouched: fixed boxes are out of flow and
- * `visibility` keeps their boxes, so the slices show the real page. */
+ * `visibility: visible` on a child would otherwise re-show it), and pins
+ * every `position: sticky` element back to where it sits in the flow, with an
+ * injected style rule; returns how many fixed elements it marked. Layout is
+ * untouched: fixed boxes are out of flow and `visibility` keeps their boxes,
+ * and a sticky box holds the same space as a relative one. Without the
+ * sticky half a stuck header would repeat at the top of every slice and
+ * cover the content under it. */
 export const HIDE_FIXED_JS = `(() => {
   const attr = "${FIXED_HIDDEN_ATTR}";
+  const stickyAttr = "${STICKY_ATTR}";
   let n = 0;
+  let touched = 0;
   for (const el of Array.from(document.querySelectorAll("body *"))) {
-    if (getComputedStyle(el).position !== "fixed") continue;
-    el.setAttribute(attr, "");
-    n++;
+    const position = getComputedStyle(el).position;
+    if (position === "fixed") { el.setAttribute(attr, ""); n++; touched++; }
+    else if (position === "sticky") { el.setAttribute(stickyAttr, ""); touched++; }
   }
-  if (n > 0 && !document.getElementById("${FIXED_HIDDEN_STYLE_ID}")) {
+  if (touched > 0 && !document.getElementById("${FIXED_HIDDEN_STYLE_ID}")) {
     const style = document.createElement("style");
     style.id = "${FIXED_HIDDEN_STYLE_ID}";
-    style.textContent = "[" + attr + "], [" + attr + "] * { visibility: hidden !important; }";
+    style.textContent = "[" + attr + "], [" + attr + "] * { visibility: hidden !important; } [" + stickyAttr + "] { position: relative !important; inset: auto !important; }";
     document.head.appendChild(style);
   }
   return n;
@@ -100,7 +98,10 @@ export const HIDE_FIXED_JS = `(() => {
 export const RESTORE_FIXED_JS = `(() => {
   const style = document.getElementById("${FIXED_HIDDEN_STYLE_ID}");
   if (style) style.remove();
-  for (const el of Array.from(document.querySelectorAll("[${FIXED_HIDDEN_ATTR}]"))) el.removeAttribute("${FIXED_HIDDEN_ATTR}");
+  for (const el of Array.from(document.querySelectorAll("[${FIXED_HIDDEN_ATTR}], [${STICKY_ATTR}]"))) {
+    el.removeAttribute("${FIXED_HIDDEN_ATTR}");
+    el.removeAttribute("${STICKY_ATTR}");
+  }
 })()`;
 
 function fileNameFor(baseName: string, index: number, total: number): string {
@@ -111,59 +112,79 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** True when `fileName` is one of the PNGs captureSlices writes for
- * `baseName` — `${baseName}.png`, `-partN.png` or `-end.png` — and never a
- * sibling capture's (`390-light-kbd.png` is not `390-light`'s). Lets a
- * re-run clear exactly its own stale shots. */
+/** True when `fileName` is one of the PNGs a capture writes for `baseName`
+ * — `${baseName}.png`, `-partN.png`, `-fold.png`, `-end.png`, or a loading
+ * shot (`-hard-150ms.png`, `-nav-800ms.png`) — and never a sibling capture's
+ * (`1440-light-kbd.png` is not `1440-light`'s). Lets a re-run clear exactly
+ * its own stale shots. */
 export function isShotOf(baseName: string, fileName: string): boolean {
-  return new RegExp(`^${escapeRegExp(baseName)}(?:-part\\d+|-end)?\\.png$`).test(fileName);
+  return new RegExp(`^${escapeRegExp(baseName)}(?:-part\\d+|-fold|-end|-(?:hard|nav)-\\d+ms)?\\.png$`).test(fileName);
 }
 
+const SCROLL_SETTLE_MS = 120;
+
 /**
- * Screenshots `page` in slices no taller than 2000 device px, writing PNGs
- * into `dir` (created recursively). A single slice is named `${baseName}.png`;
- * multiple slices are `${baseName}-part1.png`, `-part2`, … in top-to-bottom
- * order. Returns the absolute file paths written, in that same order, with
- * the end shot (below) last.
+ * Screenshots `page` top to bottom, writing PNGs into `dir` (created
+ * recursively). A single slice is named `${baseName}.png`; several are
+ * `${baseName}-part1.png`, `-part2`, … Returns the absolute paths written:
+ * the slices in order, then `-fold.png`, then `-end.png` last.
  *
- * FIXED CHROME. A full-page capture paints `position: fixed` elements (the
- * mobile tab bar, the floating feedback button) once, where they sit in the
- * first viewport — so on every phone page they cover ~76 CSS px of real
- * content in the middle of the first slice. The slices are therefore taken
- * with every fixed element hidden (HIDE_FIXED_JS, always restored, even if a
- * slice fails). Then, with it restored, the page is scrolled to its end for
- * ONE viewport-sized `${baseName}-end.png` — fixed chrome where a Traveller
- * sees it, over the last of the content, which is the state check 6
- * ("hidden behind fixed chrome") measures — and scrolled back to the top
- * for the collector.
+ * NO VIEWPORT RESIZE. Each slice is the real viewport scrolled to that
+ * stretch of the page (a slice is at most one viewport tall, and at most
+ * 2000 device px). The earlier `fullPage: true` + `clip` approach has the
+ * browser re-lay the page out in one page-tall viewport, which is not what a
+ * Traveller sees and produced artefacts graded as bugs in the 2026-10-12
+ * audit: the Day carousel knocked off its snap point, Plan rows left
+ * unpainted, a top bar missing, and on WebKit phones a clip "outside the
+ * resulting image".
  *
- * Each slice is captured with `fullPage: true` alongside an explicit `clip`,
- * per the brief: `fullPage: true` has Playwright render/stitch the whole
- * document first and then crop to `clip`, which is what makes a clip below
- * the first viewport actually capture that region. Confirmed live against
- * /trips in the Task 4 live check (see the report): a second and third
- * slice, entirely below the first viewport, both came back with real,
- * distinct page content rather than a blank image.
+ * A first pass scrolls through the whole page before anything is measured,
+ * so reveal-on-scroll sections (Share's "Day by day") and lazy content are
+ * in, and the page height is its final one.
+ *
+ * FIXED CHROME. The slices are taken with fixed elements hidden and sticky
+ * ones un-stuck (HIDE_FIXED_JS, always restored, even if a slice fails):
+ * the tab bar would otherwise cover the foot of every slice, hiding content
+ * no slice then shows. The two viewport shots put it back: `-fold.png` is
+ * the first screen as it loads, `-end.png` the page end — the state check 6
+ * ("hidden behind fixed chrome") measures. The page is left at the top for
+ * the collector.
  */
 export async function captureSlices(
   page: Page,
-  opts: { dir: string; baseName: string; width: number; deviceScaleFactor: number },
+  opts: { dir: string; baseName: string; width: number; height: number; deviceScaleFactor: number },
 ): Promise<string[]> {
-  const { dir, baseName, width, deviceScaleFactor } = opts;
+  const { dir, baseName, width, height, deviceScaleFactor } = opts;
   await fs.mkdir(dir, { recursive: true });
+
+  for (let y = 0, guard = 0; guard < 200; guard++) {
+    await page.evaluate(scrollToJs(y));
+    await page.waitForTimeout(SCROLL_SETTLE_MS);
+    y += height;
+    if (y >= (await page.evaluate<number>(SCROLL_HEIGHT_JS))) break;
+  }
+  await page.evaluate(scrollToJs(0));
+  await page.waitForTimeout(SCROLL_SETTLE_MS);
+
+  const foldPath = path.resolve(dir, `${baseName}-fold.png`);
+  await page.screenshot({ path: foldPath, animations: "disabled" });
 
   const files: string[] = [];
   await page.evaluate(HIDE_FIXED_JS);
   try {
     const pageHeightCss = await page.evaluate<number>(SCROLL_HEIGHT_JS);
-    const slices = sliceRanges(pageHeightCss, deviceScaleFactor);
+    const maxSliceCss = Math.min(height, Math.floor(DEFAULT_MAX_DEVICE_PX / deviceScaleFactor));
+    const slices = sliceRanges(pageHeightCss, 1, maxSliceCss);
     for (let i = 0; i < slices.length; i++) {
       const slice = slices[i];
+      await page.evaluate(scrollToJs(slice.y));
+      await page.waitForTimeout(SCROLL_SETTLE_MS);
+      const scrolledTo = await page.evaluate<number>(SCROLL_Y_JS);
+      const top = Math.max(0, slice.y - scrolledTo);
       const filePath = path.resolve(dir, fileNameFor(baseName, i, slices.length));
       await page.screenshot({
         path: filePath,
-        fullPage: true,
-        clip: { x: 0, y: slice.y, width, height: slice.h },
+        clip: { x: 0, y: top, width, height: Math.max(1, Math.min(slice.h, height - top)) },
         animations: "disabled",
       });
       files.push(filePath);
@@ -173,9 +194,10 @@ export async function captureSlices(
   }
 
   const endPath = path.resolve(dir, `${baseName}-end.png`);
-  await page.evaluate(SCROLL_TO_END_JS);
+  await page.evaluate(scrollToJs("end"));
+  await page.waitForTimeout(SCROLL_SETTLE_MS);
   await page.screenshot({ path: endPath, animations: "disabled" });
-  await page.evaluate(SCROLL_TO_TOP_JS);
-  files.push(endPath);
+  await page.evaluate(scrollToJs(0));
+  files.push(foldPath, endPath);
   return files;
 }

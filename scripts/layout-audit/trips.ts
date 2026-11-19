@@ -20,7 +20,7 @@
 
 import type { Page } from "playwright";
 
-import { ensureAuthenticated } from "../lib/audit-browser";
+import { ensureAuthenticated, gotoSettled } from "../lib/audit-browser";
 import type { PhaseName, TripKey } from "./config";
 
 // --------------------------------------------------------------------------
@@ -61,20 +61,26 @@ const TRIP_HREF_RE = /^\/trips\/([^/]+)$/;
 /** Keeps only `/trips/<id>` anchors — not `/trips/new`, and not sub-routes
  * like `/trips/<id>/plan` (the regex's `[^/]+$` anchor already excludes
  * those; `/trips/new` is excluded explicitly since it would otherwise match
- * the same shape with id "new"). Dedupes by id, first occurrence wins,
- * since a trip card can link the same id more than once (cover, "Open",
- * etc.) and only the first carries the full name + phase badge text. */
+ * the same shape with id "new"). Dedupes by id, keeping the first link that
+ * has a name: a trip card links the same id more than once, and the phone
+ * carousel's first anchor for a trip is an unnamed one. */
 export function parseTripLinks(anchors: { href: string; text: string }[]): TripLink[] {
-  const seen = new Set<string>();
+  const seen = new Map<string, TripLink>();
   const links: TripLink[] = [];
   for (const { href, text } of anchors) {
     if (href === "/trips/new") continue;
     const match = TRIP_HREF_RE.exec(href);
     if (!match) continue;
     const id = match[1];
-    if (seen.has(id)) continue;
-    seen.add(id);
-    links.push({ id, name: text.trim() });
+    const name = text.trim();
+    const earlier = seen.get(id);
+    if (earlier) {
+      if (!earlier.name) earlier.name = name;
+      continue;
+    }
+    const link = { id, name };
+    seen.set(id, link);
+    links.push(link);
   }
   return links;
 }
@@ -107,11 +113,12 @@ export function parseShareToken(text: string): string | undefined {
  * Christmas 2026" that happens to also contain the substring. */
 export function matchTrips(
   links: TripLink[],
+  names: Partial<Record<Exclude<TripKey, "none">, string>> = TRIP_NAMES,
 ): { found: Partial<Record<Exclude<TripKey, "none">, string>>; missing: Exclude<TripKey, "none">[] } {
   const found: Partial<Record<Exclude<TripKey, "none">, string>> = {};
-  const keys = Object.keys(TRIP_NAMES) as Exclude<TripKey, "none">[];
+  const keys = Object.keys(names) as Exclude<TripKey, "none">[];
   for (const key of keys) {
-    const id = findTripId(links, TRIP_NAMES[key]);
+    const id = findTripId(links, names[key] ?? "");
     if (id !== undefined) found[key] = id;
   }
   const missing = keys.filter((key) => found[key] === undefined);
@@ -157,10 +164,13 @@ export function verifyPhases(checks: PhaseCheck[]): { ok: TripKey[]; gaps: { key
  * `ensureEmptyTrip`. Pure, and exported so this exact rule is unit-tested
  * directly rather than only exercised inside the live-only `resolveTrips`.
  */
-export function missingToGaps(missing: Exclude<TripKey, "none">[]): { key: TripKey; reason: string }[] {
+export function missingToGaps(
+  missing: Exclude<TripKey, "none">[],
+  names: Partial<Record<Exclude<TripKey, "none">, string>> = TRIP_NAMES,
+): { key: TripKey; reason: string }[] {
   return missing
     .filter((key) => key !== "empty")
-    .map((key) => ({ key, reason: `no trip named "${TRIP_NAMES[key]}" on /trips` }));
+    .map((key) => ({ key, reason: `no trip named "${names[key]}" on /trips` }));
 }
 
 // --------------------------------------------------------------------------
@@ -189,14 +199,14 @@ const READ_PHASE_JS = `(() => { const el = document.querySelector('[data-trip-ph
  * `[data-trip-phase]` marker (added in trips/[tripId]/page.tsx). Null if the
  * marker isn't present (a broken/errored Home page, not a valid phase). */
 export async function readPhase(page: Page, baseUrl: string, tripId: string): Promise<PhaseName | null> {
-  await page.goto(`${baseUrl}/trips/${tripId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${baseUrl}/trips/${tripId}`);
   const phase = await page.evaluate<string | null>(READ_PHASE_JS);
   return (phase as PhaseName | null) ?? null;
 }
 
 /** Reads every `/trips/<id>` link off /trips (live). */
 async function readTripLinks(page: Page, baseUrl: string): Promise<TripLink[]> {
-  await page.goto(`${baseUrl}/trips`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${baseUrl}/trips`);
   return parseTripLinks(await page.evaluate<{ href: string; text: string }[]>(TRIP_LINKS_JS));
 }
 
@@ -210,12 +220,13 @@ export async function resolveTripIdByName(page: Page, baseUrl: string, name: str
 /** Reads a trip's share token off its settings page (live); undefined when
  * the trip has no share link. */
 export async function readShareToken(page: Page, baseUrl: string, tripId: string): Promise<string | undefined> {
-  await page.goto(`${baseUrl}/trips/${tripId}/settings`, { waitUntil: "networkidle", timeout: 30_000 });
+  await gotoSettled(page, `${baseUrl}/trips/${tripId}/settings`);
   return parseShareToken(await page.evaluate<string>(SHARE_TEXT_JS));
 }
 
 /**
- * Resolves the audit's fixed cast of trips by name on /trips, then verifies
+ * Resolves the audit's cast of trips (`names`: the keys this run needs, the
+ * deep trip's name possibly overridden) by name on /trips, then verifies
  * each phase-sensitive trip's actual Phase against EXPECTED_PHASE. A trip
  * that can't be found on /trips, or whose Home page reports a different
  * Phase than expected, becomes a gap — this must never fail silently (see
@@ -225,14 +236,17 @@ export async function readShareToken(page: Page, baseUrl: string, tripId: string
 export async function resolveTrips(
   page: Page,
   baseUrl: string,
+  names: Partial<Record<Exclude<TripKey, "none">, string>> = TRIP_NAMES,
 ): Promise<{ ids: Partial<Record<Exclude<TripKey, "none">, string>>; gaps: { key: TripKey; reason: string }[] }> {
   await ensureAuthenticated(page, baseUrl);
-  const { found, missing } = matchTrips(await readTripLinks(page, baseUrl));
+  const { found, missing } = matchTrips(await readTripLinks(page, baseUrl), names);
 
-  const gaps: { key: TripKey; reason: string }[] = missingToGaps(missing);
+  const gaps: { key: TripKey; reason: string }[] = missingToGaps(missing, names);
 
   const phaseChecks: PhaseCheck[] = [];
   for (const [key, expected] of Object.entries(EXPECTED_PHASE) as [Exclude<TripKey, "none">, PhaseName][]) {
+    // A deep trip named by LAYOUT_AUDIT_DEEP_TRIP is whatever Phase it is in.
+    if (names[key] !== TRIP_NAMES[key]) continue;
     const tripId = found[key];
     if (!tripId) continue; // already reported above via `missing`
     const actual = await readPhase(page, baseUrl, tripId);
@@ -257,7 +271,7 @@ export async function ensureEmptyTrip(page: Page, baseUrl: string, existingId?: 
 
   // /trips/new is a four-step flow (2026-09-30 spec §C): name, when, from,
   // cover. Only the name is required; Continue through the rest and Create.
-  await page.goto(`${baseUrl}/trips/new`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${baseUrl}/trips/new`);
   await page.getByRole("textbox", { name: "Trip name" }).fill(TRIP_NAMES.empty);
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create trip" }).click();
