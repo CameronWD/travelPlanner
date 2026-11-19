@@ -52,6 +52,7 @@ describe("sortTheseOut", () => {
       reminders: [reminder("past", "2026-11-30"), reminder("today", "2026-12-01"), reminder("far", "2026-12-09")],
     });
     expect(rows.map((r) => r.id)).toEqual(["reminder-today"]);
+    expect(rows[0].reminderId).toBe("today");
   });
 
   it("links a reminder about a Stop to that Stop on the Plan", () => {

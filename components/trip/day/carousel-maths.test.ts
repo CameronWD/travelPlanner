@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { easeOut, panelProgress, settledPanel } from "./carousel-maths";
+import { easeOut, panelProgress, panelWidth, settledPanel } from "./carousel-maths";
 
 describe("settledPanel", () => {
   it("names the panel a scroller rests on, within a pixel", () => {
@@ -10,6 +10,16 @@ describe("settledPanel", () => {
   it("is null between two panels, or with no width", () => {
     expect(settledPanel(200, 390)).toBeNull();
     expect(settledPanel(390, 0)).toBeNull();
+  });
+  // A 411.43 px viewport: snap points are multiples of the real width, which
+  // the scroller's integer clientWidth (411) drifts from by 8.6 px at slot 20.
+  it.each([0, 3, 20, 35])("names slot %i on a fractional-width viewport, measured from the panel", (slot) => {
+    const scroller = { clientWidth: 411, firstElementChild: { getBoundingClientRect: () => ({ width: 411.43 }) } } as unknown as Element;
+    const w = panelWidth(scroller);
+    expect(w).toBe(411.43);
+    expect(settledPanel(slot * 411.43, w)).toBe(slot);
+    expect(settledPanel(Math.round(slot * 411.43), w)).toBe(slot);
+    expect(panelProgress(slot * 411.43, slot, w)).toBe(0);
   });
 });
 

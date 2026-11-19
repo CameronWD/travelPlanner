@@ -142,7 +142,8 @@ export function DayHeader({
             <span data-slot="day-heading-ghost" aria-hidden="true" className="invisible hidden h-0 select-none overflow-hidden whitespace-nowrap font-display text-[40px] font-extrabold tracking-[-0.02em] md:block">
               {WIDEST_HEADING}
             </span>
-            <ViewTransition {...DAY_TEXT_TRANSITION}>
+            {/* A day change keeps this header mounted, so the text crossfades as an update. */}
+            <ViewTransition {...DAY_TEXT_TRANSITION} update={DAY_TEXT_TRANSITION.enter}>
               <div data-slot="day-heading-text" className="flex w-full min-w-0 flex-col items-center">
                 <p className="h-4 w-0 min-w-full truncate text-[10px] font-extrabold uppercase leading-4 tracking-[0.08em] text-muted-foreground md:text-[11px]">{eyebrow}</p>
                 <div data-slot="day-title-line" className="flex h-5 w-0 min-w-full items-center justify-center text-sm font-bold leading-5 text-muted-foreground">{dayTitle}</div>

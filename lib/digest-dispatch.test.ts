@@ -1042,6 +1042,15 @@ describe("collectDigestInput", () => {
     expect(input.reminders).toEqual([{ id: "rem-tomorrow", title: "Ring the landlord" }]);
   });
 
+  it("leaves out a Reminder dismissed before dispatch", async () => {
+    dbData.reminder = [
+      { id: "rem-gone", tripId: TRIP_ID, title: "Got it already", date: TOMORROW, dismissedAt: new Date() },
+      { id: "rem-kept", tripId: TRIP_ID, title: "Ring the landlord", date: TOMORROW, dismissedAt: null },
+    ];
+    const input = await collect({ slot: "EVENING" });
+    expect(input.reminders).toEqual([{ id: "rem-kept", title: "Ring the landlord" }]);
+  });
+
   it("never reads a Reminder's notes or what it is about — the query selects id and title only (spec F8)", async () => {
     dbData.reminder = [
       { id: "rem-notes", tripId: TRIP_ID, title: "Ring the landlord", date: TOMORROW, notes: "Door code 4411", itemId: "item-1" },

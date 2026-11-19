@@ -11,7 +11,8 @@ import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
-import { addReminder, updateReminder } from "@/server/actions/reminders";
+import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
+import { addReminder, deleteReminder, updateReminder } from "@/server/actions/reminders";
 import { checkReminderInput } from "@/lib/reminder-input";
 import type { ReminderAbout } from "@/lib/reminder-about";
 
@@ -106,6 +107,17 @@ function AddReminderForm({
   const [date, setDate] = React.useState(reminder?.date ?? defaultDate ?? "");
   const [notes, setNotes] = React.useState(reminder?.notes ?? "");
 
+  const { requestDelete, isPending: isDeleting, dialog: deleteDialog } = useDeleteWithConfirm({
+    action: (...[id]: [string, string]) => deleteReminder(id),
+    buildConfirm: (_id, title) => ({
+      title: "Delete this reminder?",
+      description: `"${title}" will be removed.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    }),
+    onDeleted: onClose,
+  });
+
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: async () => {
       // Client-side gate before the round trip: an empty date is caught here
@@ -160,15 +172,27 @@ function AddReminderForm({
       <FormError>{formError(errors)}</FormError>
 
       <DialogFooter>
+        {reminder && (
+          <Button
+            variant="outline"
+            type="button"
+            className="text-destructive hover:bg-destructive/10 sm:mr-auto"
+            disabled={isPending || isDeleting}
+            onClick={() => requestDelete(reminder.id, reminder.title)}
+          >
+            Delete
+          </Button>
+        )}
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={isPending}>
             Cancel
           </Button>
         </DialogClose>
-        <Button type="submit" variant="primary" loading={isPending}>
+        <Button type="submit" variant="primary" loading={isPending} disabled={isDeleting}>
           {reminder ? "Save Reminder" : "Add Reminder"}
         </Button>
       </DialogFooter>
+      {deleteDialog}
     </form>
   );
 }

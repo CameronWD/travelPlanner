@@ -10,6 +10,7 @@ import { useDayCarousel } from "@/components/trip/day/day-carousel";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP } from "@/components/ui/use-media-query";
 import { cn } from "@/lib/cn";
+import { dayFromPathname } from "@/lib/day-path";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type StopLine } from "@/lib/day-view-model";
@@ -19,11 +20,13 @@ import { useTripHref } from "@/components/trip/use-trip-href";
 
 const WEEKDAY = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
+const noSubscription = () => () => {};
+
 /**
  * Where the Traveller left each strip, keyed `${tripId}:${size}`. The strip
- * lives inside the Day page, which remounts on every day change (ADR 0063),
- * so without this it would snap to the target on each remount instead of
- * gliding there. Module state: kept across client navigations, reset by a
+ * lives inside the Day page, which remounts when the Traveller comes back to
+ * it from another section, so without this it would snap to the day on each
+ * remount instead of gliding there. Module state: kept across client navigations, reset by a
  * full load — a first render is positioned cold, with no glide.
  */
 const lastScrollLeft = new Map<string, number>();
@@ -73,16 +76,18 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   const returnTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const memoryKey = `${tripId}:${size}`;
 
-  // The chip lights the moment it is tapped (ADR 0063): while a navigation to
-  // another day is in flight the effective pathname already names it. Any
-  // other pending target (a section switch) keeps the server's answer.
-  // aria-current="date" is the server's answer alone — the day actually shown.
-  const { effectivePathname: path, pendingPathname } = useNavState();
+  // aria-current="date" is the day in view: the carousel's, which moves the
+  // moment a swipe settles, else the server's. The chip lights the moment it
+  // is tapped (ADR 0063): while a navigation to another day is in flight it
+  // names that day. Any other pending target (a section switch) keeps the day in view.
+  const { pendingPathname } = useNavState();
   const serverCurrent = dates.find((d) => d.isCurrent)?.iso ?? null;
-  const isLit = (iso: string) => (path.includes("/day/") ? path.endsWith(`/day/${iso}`) : iso === serverCurrent);
+  const inView = React.useSyncExternalStore(carousel?.subscribeDay ?? noSubscription, () => carousel?.current() ?? serverCurrent, () => carousel?.current() ?? serverCurrent);
+  const litIso = (pendingPathname ? dayFromPathname(pendingPathname) : null) ?? inView;
+  const isLit = (iso: string) => iso === litIso;
   const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(tripHref(`/day/${iso}`));
   const litIndex = dates.findIndex((d) => isLit(d.iso));
-  const centreIndex = litIndex >= 0 ? litIndex : dates.findIndex((d) => d.isCurrent);
+  const centreIndex = litIndex >= 0 ? litIndex : dates.findIndex((d) => d.iso === inView);
 
   // Centre the lit chip. Below lg it is measured against the strip's
   // viewport (ADR 0065; the md–lg band shows the desktop strip and centres
@@ -166,8 +171,8 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   };
 
   // Phone: the strip moves with the body. Progress is in panels from the day
-  // shown (aria-current, not the lit chip: a glide lights its target at once
-  // while progress still counts from the day shown).
+  // in view (aria-current, not the lit chip: a glide lights its target at once
+  // while progress still counts from the day it left).
   React.useEffect(() => {
     if (!phone || !carousel) return;
     const nav = scroller.current;
@@ -211,7 +216,9 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   // 0.5rem gap. From lg the highlight is the fixed centre frame instead.
   const strideRem = phone ? 3.5 : 4;
 
-  const step = (by: -1 | 1) => router.push(tripHref(`/day/${dates[centreIndex + by].iso}`), { scroll: false, transitionTypes: [by < 0 ? DAY_BACK : DAY_FORWARD] });
+  const step = (by: -1 | 1) => {
+    if (!carousel?.step(by)) router.push(tripHref(`/day/${dates[centreIndex + by].iso}`), { scroll: false, transitionTypes: [by < 0 ? DAY_BACK : DAY_FORWARD] });
+  };
 
   const n = dates.length;
   const strip = (
@@ -248,13 +255,12 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
               key={d.iso}
               href={href}
               scroll={false}
-              aria-current={d.isCurrent ? "date" : undefined}
+              aria-current={d.iso === inView ? "date" : undefined}
               data-pending={isPendingChip(d.iso) ? "true" : undefined}
               data-lit={isLit(d.iso) ? "true" : undefined}
               aria-label={label}
-              transitionTypes={[serverCurrent ? dayTransitionType(serverCurrent, d.iso) : DAY_FORWARD]}
-              // Below lg a neighbour glides in the carousel and a far day is a
-              // page-turn (ADR 0065); from lg goTo declines and every day crossfades.
+              transitionTypes={[inView ? dayTransitionType(inView, d.iso) : DAY_FORWARD]}
+              // The carousel brings any day into view: a glide below lg, a crossfade from lg.
               onNavigate={(e) => {
                 if (carousel?.goTo(href)) e.preventDefault();
               }}

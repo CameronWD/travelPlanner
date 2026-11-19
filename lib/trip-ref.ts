@@ -43,9 +43,10 @@ async function verifiedSessionToken(value: string, secret: string): Promise<stri
 }
 
 /**
- * The signed-in Traveller's id (ADR 0071). Null when signed out,
- * unreadable, or on any error; the page's own requireUser/requireTripAccess
- * stay the real gate.
+ * The signed-in Traveller's id (ADR 0071). Null when signed out, expired or
+ * unreadable; the page's own requireUser/requireTripAccess stay the real
+ * gate. A session lookup that throws is the caller's: a database failure
+ * read as signed out skips the slug rewrite, and the page 404s.
  *
  * First Better Auth's cookie cache (no DB). The cache lives 5 minutes and is
  * only rewritten on session reads outside server components, so a member
@@ -58,20 +59,21 @@ async function verifiedSessionToken(value: string, secret: string): Promise<stri
  * then `AUTH_SECRET` (today's Vercel var keeps working).
  */
 export async function viewerIdFromRequest(req: NextRequest): Promise<string | null> {
+  let token: string | null;
   try {
     const secret = authSecret();
     const cached = await getCookieCache(req, { secret });
     if (typeof cached?.user?.id === "string") return cached.user.id;
     const cookie = getSessionCookie(req);
     if (!cookie || !secret) return null;
-    const token = await verifiedSessionToken(cookie, secret);
-    if (!token) return null;
-    const session = await db.authSession.findUnique({ where: { token }, select: { userId: true, expiresAt: true } });
-    if (!session || session.expiresAt.getTime() <= Date.now()) return null;
-    return session.userId;
+    token = await verifiedSessionToken(cookie, secret);
   } catch {
     return null;
   }
+  if (!token) return null;
+  const session = await db.authSession.findUnique({ where: { token }, select: { userId: true, expiresAt: true } });
+  if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+  return session.userId;
 }
 
 export async function viewerIsTripMember(tripId: string, userId: string | null): Promise<boolean> {

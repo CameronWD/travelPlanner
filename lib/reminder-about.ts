@@ -29,6 +29,7 @@ export interface ReminderItem {
   itemTitle: string | null;
   transportId: string | null;
   transportLabel: string | null;
+  dismissed: boolean;
   /** Set only on a Reminder dated before the viewer's today, where a read was asked for those. */
   past?: true;
 }
@@ -74,6 +75,7 @@ export const REMINDER_ITEM_SELECT = {
   item: { select: { title: true } },
   transportId: true,
   transport: { select: REMINDER_TRANSPORT_SELECT },
+  dismissedAt: true,
 } as const;
 
 export interface ReminderReadRow {
@@ -87,6 +89,7 @@ export interface ReminderReadRow {
   item: { title: string } | null;
   transportId: string | null;
   transport: ReminderTransportRow | null;
+  dismissedAt: Date | null;
 }
 
 /** How many of the three about ids are set. reminderSchema refuses more than one. */
@@ -163,6 +166,7 @@ export function toReminderItem(r: ReminderReadRow): ReminderItem {
     itemTitle: r.item?.title ?? null,
     transportId: r.transportId,
     transportLabel: r.transport ? reminderTransportLabel(r.transport) : null,
+    dismissed: r.dismissedAt != null,
   };
 }
 

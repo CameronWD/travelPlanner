@@ -138,10 +138,15 @@ describe("viewerIdFromRequest", () => {
       expect(findSession).not.toHaveBeenCalled();
     });
 
-    it("returns null when the lookup throws", async () => {
+    it("rethrows when the session lookup throws: a database failure is not signed out", async () => {
       findSession.mockRejectedValue(new Error("db down"));
       const cookie = `better-auth.session_token=${await signed("tok_abc")}`;
-      expect(await viewerIdFromRequest(request("https://app.example.com/trips/foo", cookie))).toBeNull();
+      await expect(viewerIdFromRequest(request("https://app.example.com/trips/foo", cookie))).rejects.toThrow("db down");
+    });
+
+    it("with no session cookie, returns null without a lookup", async () => {
+      expect(await viewerIdFromRequest(request("https://app.example.com/trips/foo"))).toBeNull();
+      expect(findSession).not.toHaveBeenCalled();
     });
   });
 });

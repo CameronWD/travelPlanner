@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clockTime, rainAngleDeg, SCATTER_W, sceneClip, sunArcPosition, textZones, wordsReach } from "@/lib/weather/scene-math";
+import { clockTime, rainAngleDeg, SCATTER_W, sceneClip, sceneFade, sunArcPosition, textZones } from "@/lib/weather/scene-math";
 
 describe("rainAngleDeg", () => {
   it("falls straight when calm or unknown", () => {
@@ -34,7 +34,7 @@ describe("clockTime", () => {
 });
 
 describe("SCATTER_W", () => {
-  // The widest weather cards (day/[date]/page.tsx): compact 719px wide at
+  // The widest weather cards (day/page.tsx): compact 719px wide at
   // 140px tall below md, regular 863px wide at 236px tall from md to lg. The
   // scene is drawn on the padding box, 4px narrower and 4px shorter.
   const compactUnits = ((719 - 4) * 236) / 136;
@@ -49,17 +49,39 @@ describe("SCATTER_W", () => {
 });
 
 describe("sceneClip", () => {
-  it("leaves the label line out across the whole regular card and the daylight strip out at both sizes", () => {
-    const regular = sceneClip("snow", "regular");
-    expect(regular).toMatch(/^polygon\(100% 0%, 100% 70\.34%, /);
-    expect(regular).toContain(", 100% 18.22%, ");
-    expect(regular).toMatch(/, 100% 0\.00%\)$/);
-    expect(sceneClip("snow", "compact")).toMatch(/^polygon\(100% 0%, 100% 70\.34%, /);
+  const SCENES = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night"] as const;
+  const SIZES = ["regular", "compact"] as const;
+  const PX = { regular: 232 / 236, compact: 136 / 236 };
+
+  it.each(SIZES)("%s: one block right of the widest words, with no open band above or below the text", (size) => {
+    for (const scene of SCENES) {
+      const zones = textZones(scene, size);
+      const widest = Math.max(...zones.filter((z) => Number.isFinite(z.right)).map((z) => z.right)) * PX[size];
+      const points = sceneClip(scene, size).replace(/^polygon\(|\)$/g, "").split(", ");
+      expect(points).toHaveLength(4);
+      const lefts = points.map((p) => p.split(" ")[0]).filter((v) => v !== "100%").map((v) => parseFloat(v));
+      expect(lefts).toHaveLength(2);
+      for (const left of lefts) expect(left).toBeGreaterThanOrEqual(Number(widest.toFixed(1)));
+      const tops = points.map((p) => parseFloat(p.split(" ")[1]));
+      const label = zones.find((z) => z.top === 0 && z.right === Number.POSITIVE_INFINITY);
+      expect(Math.min(...tops)).toBeCloseTo(label ? (label.bottom / 236) * 100 : 0, 1);
+      expect(Math.max(...tops)).toBeCloseTo((166 / 236) * 100, 1);
+    }
   });
-  it("steps out past the widest words of each row, in pixels of the canvas", () => {
-    const zones = textZones("partly", "compact");
-    const reach = wordsReach(zones, 120, 130);
-    expect(reach).toBe(448 + 8);
-    expect(sceneClip("partly", "compact")).toContain(`${(reach * (136 / 236)).toFixed(1)}px`);
+});
+
+describe("sceneFade", () => {
+  const SCENES = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night"] as const;
+  const SIZES = ["regular", "compact"] as const;
+  const PX = { regular: 232 / 236, compact: 136 / 236 };
+
+  it.each(SIZES)("%s: moving pieces fade in over 16 to 24 units from the clip's edge, never before it", (size) => {
+    for (const scene of SCENES) {
+      const edge = parseFloat(sceneClip(scene, size).replace(/^polygon\(|\)$/g, "").split(", ")[2]);
+      const [, clear, solid] = sceneFade(scene, size).match(/^linear-gradient\(to right, transparent ([\d.]+)px, #000 ([\d.]+)px\)$/)!.map(Number);
+      expect(clear).toBeGreaterThanOrEqual(edge);
+      expect((solid - clear) / PX[size]).toBeGreaterThanOrEqual(16);
+      expect((solid - clear) / PX[size]).toBeLessThanOrEqual(24);
+    }
   });
 });

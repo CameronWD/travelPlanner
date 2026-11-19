@@ -11,8 +11,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: ()
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, scroll, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} data-scroll={String(scroll)} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
 
-function carousel(goTo: (href: string) => boolean): DayCarouselApi {
-  return { goTo, subscribe: () => () => {}, isMoving: () => false };
+function carousel(goTo: (href: string) => boolean, step: (by: -1 | 1) => boolean = () => false): DayCarouselApi {
+  return { goTo, step, current: () => "2026-12-04", subscribeDay: () => () => {}, subscribe: () => () => {}, isMoving: () => false };
 }
 
 describe("DayKeyboardNav", () => {
@@ -23,15 +23,13 @@ describe("DayKeyboardNav", () => {
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(push.mock.calls).toEqual([["/n", { scroll: false, transitionTypes: ["day-forward"] }], ["/p", { scroll: false, transitionTypes: ["day-back"] }]]);
   });
-  it("← and → glide the carousel when it has the neighbour, and fall back to a push when it does not", () => {
-    const goTo = vi.fn((href: string) => href === "/n");
-    render(<DayCarouselContext.Provider value={carousel(goTo)}><DayKeyboardNav prevHref={"/p" as Route} nextHref={"/n" as Route} /></DayCarouselContext.Provider>);
+  it("← and → step the carousel from the day in view, which the day shown may not have caught up with", () => {
+    const step = vi.fn(() => false);
+    render(<DayCarouselContext.Provider value={carousel(() => false, step)}><DayKeyboardNav prevHref={"/p" as Route} nextHref={null} /></DayCarouselContext.Provider>);
     fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(goTo).toHaveBeenCalledWith("/n");
-    expect(push).not.toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "ArrowLeft" });
-    expect(goTo).toHaveBeenCalledWith("/p");
-    expect(push).toHaveBeenCalledWith("/p", { scroll: false, transitionTypes: ["day-back"] });
+    expect(step.mock.calls).toEqual([[1], [-1]]);
+    expect(push).not.toHaveBeenCalled();
   });
   it("does nothing while typing or at the boundary", () => {
     render(<><DayKeyboardNav prevHref={null} nextHref={"/n" as Route} /><textarea aria-label="j" /></>);

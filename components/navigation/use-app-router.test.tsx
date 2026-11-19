@@ -24,7 +24,7 @@ describe("useAppRouter", () => {
     let finish!: () => void;
     const gate = new Promise<void>((r) => { finish = r; });
     push.mockImplementationOnce(() => gate);
-    act(() => result.current.router.push("/trips/t1/day/2026-12-05", { transitionTypes: ["day-forward"] }));
+    act(() => result.current.router.push("/trips/t1/day/2026-12-05" as Route, { transitionTypes: ["day-forward"] }));
     expect(push).toHaveBeenCalledWith("/trips/t1/day/2026-12-05", { transitionTypes: ["day-forward"] });
     expect(result.current.pending?.href).toBe("/trips/t1/day/2026-12-05");
     await act(async () => {

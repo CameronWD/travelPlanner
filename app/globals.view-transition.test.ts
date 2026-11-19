@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { decls, findRules, mentions, reducedMotion, rule, utility } from "@/test/helpers/css";
 
 describe("globals.css view-transition rules (ADR 0063)", () => {
-  it.each(["::view-transition-old(.day-forward)", "::view-transition-new(.day-forward)", "::view-transition-old(.day-back)", "::view-transition-new(.day-back)", "::view-transition-old(.day-text)", "::view-transition-new(.day-text)"])("defines %s", (selector) => {
+  it.each(["::view-transition-old(.day-fade)", "::view-transition-new(.day-fade)", "::view-transition-old(.day-text)", "::view-transition-new(.day-text)"])("defines %s", (selector) => {
     expect(findRules(selector)).not.toHaveLength(0);
   });
   it("switches off the browser's default root crossfade, so only the named boundaries animate", () => {
@@ -25,20 +25,12 @@ describe("globals.css view-transition rules (ADR 0063)", () => {
   it("defines the navigation progress utility", () => {
     expect(utility("tp-nav-progress").nodes?.length).toBeGreaterThan(0);
   });
-  it("day heading text crossfades in 150ms, in step with the body slide (spec 2026-09-29 D4)", () => {
+  it("day heading text crossfades in 150ms, in step with the body (spec 2026-09-29 D4)", () => {
     expect(decls(rule("::view-transition-old(.day-text)")).animation).toMatch(/^150ms/);
     expect(decls(rule("::view-transition-new(.day-text)")).animation).toMatch(/^150ms/);
   });
-  it("day page-turn: a far jump slides full-width with no fade, clipped to the body (ADR 0065)", () => {
-    for (const cls of ["day-forward", "day-back"]) {
-      for (const side of ["old", "new"]) {
-        const block = Object.values(decls(rule(`::view-transition-${side}(.${cls})`))).join("; ");
-        expect(block).not.toContain("tp-vt-fade");
-        expect(block).toContain("100%");
-        expect(block).toContain("300ms");
-      }
-    }
-    expect(decls(rule(["::view-transition-image-pair(.day-forward)", "::view-transition-image-pair(.day-back)"]))).toEqual({ overflow: "clip" });
+  it("no day page-turn: below lg the carousel scrolls the body itself (ADR 0065, amended 2026-11-19)", () => {
+    expect(mentions("tp-vt-page")).toBe(false);
     expect(mentions("tp-vt-slide")).toBe(false);
   });
   it("wide-screen day change: the body crossfades in place in 150ms, no slide (spec 2026-11-18 D2)", () => {

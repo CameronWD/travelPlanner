@@ -227,6 +227,7 @@ type ReminderRow = {
   stop: { name: string } | null;
   item: { title: string } | null;
   transport: ReminderTransportRow | null;
+  dismissedAt: Date | null;
 };
 type ChecklistItemRow = {
   id: string;
@@ -278,6 +279,7 @@ const ROW_SELECT = {
     stop: { select: { name: true } },
     item: { select: { title: true } },
     transport: { select: REMINDER_TRANSPORT_SELECT },
+    dismissedAt: true,
   },
   checklistItem: CHECKLIST_ITEM_ACTIVITY_SELECT,
 } as const;

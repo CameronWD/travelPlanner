@@ -78,9 +78,17 @@ describe("FitTile (PLAN.md §6.2)", () => {
 describe("FitStrip (PLAN.md §7.1)", () => {
   it("same colour states, number, words, a 14px bar and Map ⤢", async () => {
     const onOpenMap = vi.fn();
-    const { container } = render(<FitStrip summary={S()} onOpenMap={onOpenMap} />);
+    const { container } = render(<FitStrip summary={S()} showSummary onOpenMap={onOpenMap} />);
     expect(container.firstElementChild!.className).toContain("bg-teal");
     expect(screen.getByText("2").className).toContain("text-[30px]");
+    await userEvent.click(screen.getByRole("button", { name: /Map/ }));
+    expect(onOpenMap).toHaveBeenCalled();
+  });
+  it("when there is nothing to fit, it keeps the Map button and says nothing else", async () => {
+    const onOpenMap = vi.fn();
+    const { container } = render(<FitStrip summary={S({ roughCount: 0, hardEndSlackNights: 2 })} showSummary={false} onOpenMap={onOpenMap} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(container.textContent?.replace(/\s/g, "")).toBe("Map");
     await userEvent.click(screen.getByRole("button", { name: /Map/ }));
     expect(onOpenMap).toHaveBeenCalled();
   });

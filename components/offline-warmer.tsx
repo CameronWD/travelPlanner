@@ -2,9 +2,12 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, recordFileShortfall, subscribe, takeWarmRequest } from "@/lib/offline-status";
-import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
+import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, WARM_REQUEST_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
 
 const FILE_STORED_WAITS_MS = [0, 250, 750];
+
+const DAY_PAGE = /\/day\/\d{4}-\d{2}-\d{2}$/;
+const DAY_PAGE_WARM = { cache: "no-store", headers: { [WARM_REQUEST_HEADER]: "1" } } satisfies RequestInit;
 
 // The worker writes a file to the cache as its body arrives, a moment after
 // the page has read the same bytes (longer for a large file on a slow phone),
@@ -126,7 +129,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
         try {
           // Files ask for their bytes (never a storage redirect); the worker
           // keeps them under the plain path, which is what caches.match checks.
-          const response = await fetch(warmUrlFor(path), { cache: "no-store" });
+          const response = await fetch(warmUrlFor(path), DAY_PAGE.test(path) ? DAY_PAGE_WARM : { cache: "no-store" });
           if (!response.ok || (isFile && response.redirected)) {
             if (!isFile) pagesFailed++;
             continue;

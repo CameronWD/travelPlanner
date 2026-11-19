@@ -13,8 +13,8 @@ const ARROW_OFF = "inline-grid size-11 shrink-0 place-items-center rounded-[12px
 /**
  * 44px prev/next day arrow — a real link (works without JS); 40% and inert at
  * the trip's ends. With the carousel mounted it glides the body to the
- * neighbour and navigates on arrival (ADR 0065); otherwise the link runs the
- * page-turn. Either way the vertical position is kept.
+ * neighbour and navigates on arrival (ADR 0065); otherwise it is a plain link.
+ * Either way the vertical position is kept.
  */
 export function DayArrow({ href, label, dir }: { href: Route | null; label: string | null; dir: "prev" | "next" }) {
   const carousel = useDayCarousel();

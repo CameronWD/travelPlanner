@@ -156,7 +156,7 @@ export function registerListWriteTools(server: McpServer): void {
     {
       title: "Update reminder",
       description:
-        "Changes only the fields you pass; fields you omit keep their current value. notes: null clears them. Passing an id for one of stopId, itemId or transportId makes the Reminder about that thing instead (the other two are cleared). null clears only the key it names: null on the one it holds makes it about the Trip as a whole; null on the others changes nothing. Never pass more than one id.",
+        "Changes only the fields you pass; fields you omit keep their current value. notes: null clears them. Passing an id for one of stopId, itemId or transportId makes the Reminder about that thing instead (the other two are cleared). null clears only the key it names: null on the one it holds makes it about the Trip as a whole; null on the others changes nothing. Never pass more than one id. dismissed: true says \"Got it\": the Reminder leaves Home and is not read out in the Digest, for both Travellers, but stays on the thing it is about; dismissed: false brings it back (find a dismissed Reminder with get_reminders and includeDismissed: true).",
       inputSchema: {
         reminderId: z.string(),
         title: z.string().trim().min(1).optional(),
@@ -165,6 +165,7 @@ export function registerListWriteTools(server: McpServer): void {
         stopId: z.string().nullable().optional(),
         itemId: z.string().nullable().optional(),
         transportId: z.string().nullable().optional(),
+        dismissed: z.boolean().optional(),
       },
     },
     ({ reminderId, ...patch }) =>

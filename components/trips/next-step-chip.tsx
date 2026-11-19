@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { AppLink } from "@/components/navigation/app-link";
 import type { SortRow } from "@/lib/sort-these-out";
-import { ICONS, TONES } from "@/components/trip/home/desktop/sort-these-out-tile";
+import { ICONS, TONES } from "@/components/trip/home/desktop/sort-row-style";
 import { cn } from "@/lib/cn";
 
 /**

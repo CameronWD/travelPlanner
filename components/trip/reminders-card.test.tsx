@@ -11,7 +11,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * `new Date()` in the component would fail them.
  */
 
-const { addReminderMock, deleteReminderMock } = vi.hoisted(() => ({
+const { addReminderMock, deleteReminderMock, updateReminderMock } = vi.hoisted(() => ({
+  updateReminderMock: vi.fn().mockResolvedValue({ success: true }),
   addReminderMock: vi.fn().mockResolvedValue({ success: true, id: "r-new" }),
   deleteReminderMock: vi.fn().mockResolvedValue({ success: true }),
 }));
@@ -19,7 +20,7 @@ const { addReminderMock, deleteReminderMock } = vi.hoisted(() => ({
 vi.mock("@/server/actions/reminders", () => ({
   addReminder: addReminderMock,
   deleteReminder: deleteReminderMock,
-  updateReminder: vi.fn().mockResolvedValue({ success: true }),
+  updateReminder: updateReminderMock,
 }));
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
@@ -237,7 +238,7 @@ describe("RemindersCard kit shape", () => {
     expect(title.parentElement!.className).toMatch(/\bmin-w-0\b/);
   });
 
-  it("gives the delete button a 44px touch target", () => {
+  it("gives Got it a 44px touch target", () => {
     render(
       <RemindersCard
         tripId="trip-1"
@@ -245,8 +246,7 @@ describe("RemindersCard kit shape", () => {
         reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null })]}
       />,
     );
-    const del = screen.getByRole("button", { name: "Delete reminder: Pack" });
-    expect(del.className).toMatch(/\bsize-11\b/);
+    expect(screen.getByRole("button", { name: /^Got it/ }).className).toMatch(/\bmin-h-11\b/);
   });
 });
 
@@ -402,22 +402,86 @@ describe("RemindersCard Digest opt-in", () => {
   });
 });
 
-describe("RemindersCard delete failures (spec 2026-10-06 §E)", () => {
-  it("toasts the server's reason when deleteReminder refuses", async () => {
-    deleteReminderMock.mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that reminder."] } });
-    render(
-      <RemindersCard tripId="trip-1" today={TODAY}
-        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: null, stopName: null })]} />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Delete reminder: Pack" }));
+describe("RemindersCard Got it", () => {
+  it("has Got it and Edit on each row and no Delete", () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
+    expect(screen.getByRole("button", { name: /^Got it/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit reminder: Pack" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Delete/ })).not.toBeInTheDocument();
+  });
+
+  it("dismisses through updateReminder and the row leaves at once", async () => {
+    updateReminderMock.mockReturnValueOnce(new Promise(() => {}));
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it/ }));
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("r1", { dismissed: true }));
+    await waitFor(() => expect(screen.queryByText("Pack")).not.toBeInTheDocument());
+  });
+
+  it("toasts the server's reason when dismissing is refused", async () => {
+    updateReminderMock.mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that reminder."] } });
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it/ }));
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't find that reminder." }),
     );
   });
 });
 
+describe("RemindersCard Undo and Dismissed", () => {
+  const undoOf = (title: string) => {
+    const call = vi.mocked(toast).mock.calls.find(([t]) => t.title === "Dismissed" && t.description === title);
+    return (call![0].action as React.ReactElement<{ onClick: () => void }>).props.onClick;
+  };
+
+  it("Got it toasts Dismissed with an Undo, which brings the Reminder back even after the row has left", async () => {
+    const pack = reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" });
+    const { rerender } = render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[pack]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it/ }));
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("r1", { dismissed: true }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Dismissed", description: "Pack" })));
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} />);
+    expect(screen.queryByText("Pack")).not.toBeInTheDocument();
+    undoOf("Pack")();
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("r1", { dismissed: false }));
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[pack]} />);
+    expect(await screen.findByText("Pack")).toBeInTheDocument();
+  });
+
+  it("lists the Trip's dismissed Reminders folded under Dismissed (n), each with Bring back", async () => {
+    updateReminderMock.mockReturnValueOnce(new Promise(() => {}));
+    const visa = reminderItem({ id: "d1", title: "Visa photos", date: "2026-12-02", dismissed: true });
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} dismissed={[visa]} />);
+    const fold = screen.getByText("Dismissed (1)").closest("details")!;
+    expect(fold).not.toHaveAttribute("open");
+    const list = within(fold).getByRole("list", { name: "Dismissed reminders", hidden: true });
+    expect(within(list).getByText("Visa photos", { exact: false })).toBeInTheDocument();
+    await userEvent.setup().click(within(list).getByRole("button", { name: "Bring back reminder: Visa photos", hidden: true }));
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("d1", { dismissed: false }));
+    await waitFor(() => expect(screen.queryByText("Visa photos")).not.toBeInTheDocument());
+  });
+
+  it("shows no Dismissed fold when nothing is dismissed", () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} dismissed={[]} />);
+    expect(screen.queryByText(/^Dismissed/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RemindersCard Delete inside Edit", () => {
+  it("asks first, then deletes", async () => {
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
+    await user.click(screen.getByRole("button", { name: "Edit reminder: Pack" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("Delete this reminder?")).toBeInTheDocument();
+    expect(deleteReminderMock).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteReminderMock).toHaveBeenCalledWith("r1"));
+  });
+});
+
 describe("RemindersCard Earlier", () => {
-  it("lists past Reminders under Earlier, newest first, each deletable and editable", async () => {
+  it("lists past Reminders under Earlier, newest first, each dismissable and editable", async () => {
     render(
       <RemindersCard
         tripId="trip-1"
@@ -436,8 +500,8 @@ describe("RemindersCard Earlier", () => {
       expect.stringContaining("Older one"),
     ]);
     expect(within(screen.getByRole("list", { name: "Upcoming reminders" })).queryByText("Older one")).not.toBeInTheDocument();
-    await userEvent.setup().click(within(earlier).getByRole("button", { name: "Delete reminder: Newer one" }));
-    await waitFor(() => expect(deleteReminderMock).toHaveBeenCalledWith("p2"));
+    await userEvent.setup().click(within(earlier).getByRole("button", { name: /^Got it.*Newer one/ }));
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("p2", { dismissed: true }));
     await userEvent.setup().click(within(earlier).getByRole("button", { name: "Edit reminder: Older one" }));
     expect(await screen.findByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
   });

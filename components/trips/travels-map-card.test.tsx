@@ -90,3 +90,12 @@ describe("TravelsMapCard", () => {
     expect(mobileCard.className).toMatch(/(^|\s)isolate(\s|$)/);
   });
 });
+
+describe("TravelsMapCard first paint", () => {
+  it("takes its phone height from CSS breakpoints, so the server's desktop variant does not paint 150px on a phone", () => {
+    render(<TravelsMapCard trips={trips} variant="desktop" />);
+    const card = document.querySelector(".isolate") as HTMLElement;
+    expect(card.className).toMatch(/(^|\s)h-\[190px\](\s|$)/);
+    expect(card.className).toMatch(/md:h-full/);
+  });
+});

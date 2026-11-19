@@ -281,11 +281,12 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get reminders",
       description:
-        "Reads this trip's Reminders dated on or after a date (today by default), soonest first. Each carries its notes and what it is about: stopId/stopName, itemId/itemTitle or transportId/transportLabel (all null when it is about the Trip as a whole).",
-      inputSchema: { tripId: z.string(), fromDate: isoDate.optional() },
+        "Reads this trip's Reminders dated on or after a date (today by default), soonest first. Each carries its notes and what it is about: stopId/stopName, itemId/itemTitle or transportId/transportLabel (all null when it is about the Trip as a whole). A dismissed Reminder (Got it) is off Home and out of the Digest, so it is left out unless you pass includeDismissed: true, which also returns dismissed ones with dismissed: true.",
+      inputSchema: { tripId: z.string(), fromDate: isoDate.optional(), includeDismissed: z.boolean().optional() },
       annotations: { readOnlyHint: true },
     },
-    ({ tripId, fromDate }) => runTool("get_reminders", () => listRemindersForTrip(tripId, fromDate ?? todayISO())),
+    ({ tripId, fromDate, includeDismissed }) =>
+      runTool("get_reminders", () => listRemindersForTrip(tripId, fromDate ?? todayISO(), { includeDismissed })),
   );
 
   server.registerTool(

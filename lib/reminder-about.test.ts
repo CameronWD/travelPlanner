@@ -64,10 +64,10 @@ describe("reminderTransportLabel", () => {
 });
 
 describe("toReminderItem / reminderAboutLabel", () => {
-  const base = { id: "r1", title: "T", date: "2027-01-01", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null };
+  const base = { id: "r1", title: "T", date: "2027-01-01", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, dismissedAt: null };
   it("a Reminder about the Trip as a whole has every about field null and no label", () => {
     const r = toReminderItem(base);
-    expect(r).toEqual({ id: "r1", title: "T", date: "2027-01-01", notes: null, stopId: null, stopName: null, itemId: null, itemTitle: null, transportId: null, transportLabel: null });
+    expect(r).toEqual({ id: "r1", title: "T", date: "2027-01-01", notes: null, stopId: null, stopName: null, itemId: null, itemTitle: null, transportId: null, transportLabel: null, dismissed: false });
     expect(reminderAboutLabel(r)).toBeNull();
   });
   it("maps a Stop, an Item and a leg to their names", () => {

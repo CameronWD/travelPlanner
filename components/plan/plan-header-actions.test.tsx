@@ -149,14 +149,14 @@ describe("PlanFitStrip", () => {
   const mapStop = (id: string, sortOrder: number) => ({ id, name: id, lat: 1, lng: sortOrder, arriveDate: "2026-12-10", departDate: "2026-12-13", sortOrder });
 
   it("the Map button opens the full route map with two or more stops", async () => {
-    setup(<PlanFitStrip summary={summary} stops={[mapStop("a", 0), mapStop("b", 1)]} home={null} />);
+    setup(<PlanFitStrip summary={summary} showSummary stops={[mapStop("a", 0), mapStop("b", 1)]} home={null} />);
     expect(screen.queryByTestId("map-dialog")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /map/i }));
     expect(screen.getByTestId("map-dialog")).toBeInTheDocument();
   });
 
   it("offers no Map button with fewer than two stops", () => {
-    setup(<PlanFitStrip summary={summary} stops={[mapStop("a", 0)]} home={null} />);
+    setup(<PlanFitStrip summary={summary} showSummary stops={[mapStop("a", 0)]} home={null} />);
     expect(screen.queryByRole("button", { name: /map/i })).toBeNull();
   });
 });

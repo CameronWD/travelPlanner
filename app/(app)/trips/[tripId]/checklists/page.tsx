@@ -15,7 +15,7 @@ import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enum-values";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { tripTodayISO } from "@/lib/trip-today";
-import { listRemindersForTrip, readReminderAboutOptions } from "@/lib/reminder-reads";
+import { listDismissedReminders, listRemindersForTrip, readReminderAboutOptions } from "@/lib/reminder-reads";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { tripEyebrow } from "@/lib/plan/plan-model";
 import { tripSlugFor } from "@/lib/trip-slug-read";
@@ -65,7 +65,7 @@ export default async function ChecklistsPage({
     where: { id: tripId },
     select: { name: true, startDate: true, packingListsOpen: true, homeTimezone: true },
   });
-  const [trip, slug, rawItems, members, templates, stopsRaw, reminders, aboutOptions] = await Promise.all([
+  const [trip, slug, rawItems, members, templates, stopsRaw, reminders, dismissedReminders, aboutOptions] = await Promise.all([
     tripPromise,
     tripSlugFor(tripId),
     // All checklist items for this trip
@@ -92,6 +92,8 @@ export default async function ChecklistsPage({
     listTemplates(),
     stopsPromise,
     Promise.all([stopsPromise, tripPromise]).then(([rows, t]) => listRemindersForTrip(tripId, tripTodayISO(rows, t?.homeTimezone), { includePast: true })),
+    // The only place a dismissed Reminder about the Trip as a whole can come back.
+    listDismissedReminders(tripId),
     readReminderAboutOptions(tripId),
   ]);
 
@@ -137,6 +139,7 @@ export default async function ChecklistsPage({
       <RemindersCard
         tripId={tripId}
         reminders={reminders}
+        dismissed={dismissedReminders}
         today={today}
         about={aboutOptions}
       />

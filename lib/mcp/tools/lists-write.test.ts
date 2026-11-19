@@ -206,6 +206,15 @@ describe("reminder and checklist write tools", () => {
       expect(reminderFindUnique).not.toHaveBeenCalled();
     });
 
+    it("forwards dismissed: true and false", async () => {
+      updateReminder.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, dismissed: true } });
+      expect(updateReminder).toHaveBeenLastCalledWith(REMINDER_ID, { dismissed: true });
+      await c.callTool({ name: "update_reminder", arguments: { reminderId: REMINDER_ID, dismissed: false } });
+      expect(updateReminder).toHaveBeenLastCalledWith(REMINDER_ID, { dismissed: false });
+    });
+
     it("a made-up reminderId reads as NOT_FOUND_TEXT, same as a non-member's", async () => {
       updateReminder.mockRejectedValue(notFoundErr());
       const c = await connectTestClient();

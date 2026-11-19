@@ -23,15 +23,16 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
-const { listRemindersForTrip, readReminderAboutOptions } = vi.hoisted(() => ({
+const { listRemindersForTrip, listDismissedReminders, readReminderAboutOptions } = vi.hoisted(() => ({
   listRemindersForTrip: vi.fn(async () => [reminderItem({ id: "r1", title: "Print insurance", date: "2099-01-01" })]),
+  listDismissedReminders: vi.fn(async () => [reminderItem({ id: "r2", title: "Visa photos", date: "2099-01-02", dismissed: true })]),
   readReminderAboutOptions: vi.fn(async () => ({ stops: [{ id: "s1", name: "Lisbon" }], items: [], transports: [] })),
 }));
 vi.mock("@/server/actions/reminders", () => ({}));
-vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip, readReminderAboutOptions }));
+vi.mock("@/lib/reminder-reads", () => ({ listRemindersForTrip, listDismissedReminders, readReminderAboutOptions }));
 vi.mock("@/components/trip/reminders-card", () => ({
-  RemindersCard: (p: { tripId: string; reminders: { title: string }[]; today: string; about?: { stops: { name: string }[] } }) => (
-    <div data-testid="reminders-card" data-today={p.today}>
+  RemindersCard: (p: { tripId: string; reminders: { title: string }[]; dismissed?: { title: string }[]; today: string; about?: { stops: { name: string }[] } }) => (
+    <div data-testid="reminders-card" data-today={p.today} data-dismissed={(p.dismissed ?? []).map((r) => r.title).join(",")}>
       {p.reminders.map((r) => r.title).join(",")}|{(p.about?.stops ?? []).map((s) => s.name).join(",")}
     </div>
   ),
@@ -100,6 +101,8 @@ describe("ChecklistsPage Reminders (Task 16 fix — the desktop Home has no Remi
     const today = todayISOInZone("Europe/Paris");
     expect(card).toHaveAttribute("data-today", today);
     expect(listRemindersForTrip).toHaveBeenCalledWith("trip-1", today, { includePast: true });
+    expect(listDismissedReminders).toHaveBeenCalledWith("trip-1");
+    expect(card).toHaveAttribute("data-dismissed", "Visa photos");
   });
 });
 

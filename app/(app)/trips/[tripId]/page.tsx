@@ -486,7 +486,7 @@ async function renderDesktopHome({
         sort={<SortTheseOutTile rows={sort.rows} total={sort.total} seeAllHref={tripPath(slug, "/summary")} />}
         stillToBook={
           planning.stillToBook.length > 0 ? (
-            <StillToBookCard rows={planning.stillToBook} limit={STILL_TO_BOOK_LIMIT_DESKTOP} planHref={tripPath(slug, "/plan")} />
+            <StillToBookCard rows={planning.stillToBook} limit={STILL_TO_BOOK_LIMIT_DESKTOP} />
           ) : null
         }
       />

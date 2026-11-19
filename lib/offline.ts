@@ -438,6 +438,10 @@ export function isServableCacheHit(mode: string, cached: { redirected: boolean }
 // for the network, then is answered from the saved copy. Mirrored in sw.js.
 export const NAVIGATION_TIMEOUT_MS = 4000;
 export const SAVED_COPY_HEADER = 'X-Teepee-Saved-Copy';
+// The offline save's request header: a Day page asked for with it renders its
+// near days only, so a Trip's saved Day pages grow with its length, not its
+// length squared (spec 2026-11-19 §1).
+export const WARM_REQUEST_HEADER = 'x-teepee-warm';
 export const SAVED_COPY_MESSAGE = 'SAVED_COPY';
 
 // A 4xx is the app's real answer (a deleted Trip's 404), so only a 5xx gives way to the saved copy.

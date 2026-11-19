@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { decideTripRoute, type ResolvedTripRef } from "./trip-route";
+import { dayRewrite, decideTripRoute, type ResolvedTripRef } from "./trip-route";
 
 const TRIP: ResolvedTripRef = { id: "cmtw8sgpw0001osqh3i54rx1o", slug: "christmas-in-europe-2026" };
 const byRef: Record<string, ResolvedTripRef> = {
@@ -16,8 +16,8 @@ function run(pathname: string, o: { search?: string; method?: string; member?: b
 
 describe("decideTripRoute (ADR 0064)", () => {
   it("the current slug rewrites to the id route, keeping the rest of the path", async () => {
-    expect(await run("/trips/christmas-in-europe-2026/day/2026-12-26").result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/day/2026-12-26" });
-    expect(await run("/trips/christmas-in-europe-2026").result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o" });
+    expect(await run("/trips/christmas-in-europe-2026/plan", { search: "?plan=f1" }).result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/plan", search: "?plan=f1" });
+    expect(await run("/trips/christmas-in-europe-2026").result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o", search: "" });
   });
   it("a bare cuid redirects a member to the current slug, preserving path and query", async () => {
     expect(await run("/trips/cmtw8sgpw0001osqh3i54rx1o/plan", { search: "?plan=f1" }).result).toEqual({ kind: "redirect", location: "/trips/christmas-in-europe-2026/plan?plan=f1" });
@@ -37,8 +37,8 @@ describe("decideTripRoute (ADR 0064)", () => {
   });
   it("a server action POST on an old address is rewritten, never redirected (review focus 2)", async () => {
     const r = run("/trips/xmas-2026/settings", { method: "POST" });
-    expect(await r.result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/settings" });
-    expect(await run("/trips/christmas-in-europe-2026/settings", { method: "POST" }).result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/settings" });
+    expect(await r.result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/settings", search: "" });
+    expect(await run("/trips/christmas-in-europe-2026/settings", { method: "POST" }).result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/settings", search: "" });
   });
   it("the common case costs one lookup and one membership check", async () => {
     const r = run("/trips/christmas-in-europe-2026/plan");
@@ -62,5 +62,29 @@ describe("decideTripRoute (ADR 0064)", () => {
   });
   it("a malformed percent-encoding passes through (the route 404s as today)", async () => {
     expect(await run("/trips/%E0%A4%A/plan").result).toEqual({ kind: "pass" });
+  });
+
+  it("a Day page's address becomes the one Day page with the date as d, the rest of the query kept and a supplied d overwritten", async () => {
+    expect(await run("/trips/christmas-in-europe-2026/day/2026-12-26", { search: "?map=1&d=2027-01-01" }).result).toEqual({
+      kind: "rewrite",
+      pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/day",
+      search: "?map=1&d=2026-12-26",
+    });
+    expect(await run("/trips/christmas-in-europe-2026/day/2026-12-26", { method: "POST" }).result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/day", search: "?d=2026-12-26" });
+  });
+  it("a Day address that keeps its ref (no slug yet, non-member, unknown ref) is still rewritten to the Day page, and names no id it was not given", async () => {
+    expect(await run("/trips/cmnoslug000000000000000000/day/2026-12-26").result).toEqual({ kind: "rewrite", pathname: "/trips/cmnoslug000000000000000000/day", search: "?d=2026-12-26" });
+    expect(await run("/trips/christmas-in-europe-2026/day/2026-12-26", { member: false }).result).toEqual({ kind: "rewrite", pathname: "/trips/christmas-in-europe-2026/day", search: "?d=2026-12-26" });
+    expect(await run("/trips/nope/day/2026-12-26").result).toEqual({ kind: "rewrite", pathname: "/trips/nope/day", search: "?d=2026-12-26" });
+  });
+  it("the old slug's Day address still redirects with the date in the path", async () => {
+    expect(await run("/trips/xmas-2026/day/2026-12-26", { search: "?map=1" }).result).toEqual({ kind: "redirect", location: "/trips/christmas-in-europe-2026/day/2026-12-26?map=1" });
+  });
+  it("the bare Day address and other paths are left as they are", async () => {
+    expect(await run("/trips/christmas-in-europe-2026/day").result).toEqual({ kind: "rewrite", pathname: "/trips/cmtw8sgpw0001osqh3i54rx1o/day", search: "" });
+    expect(await run("/trips/nope/day").result).toEqual({ kind: "pass" });
+    expect(dayRewrite("/trips/x/day/2026-12-26/extra", "")).toBeNull();
+    expect(dayRewrite("/trips/x/plan", "?d=1")).toBeNull();
+    expect(dayRewrite("/globe", "")).toBeNull();
   });
 });

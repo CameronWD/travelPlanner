@@ -9,7 +9,8 @@ import { REQUEST_PATH_HEADER } from "@/lib/auth/sign-in-href";
  *   (spec 2026-10-01 §E). Set before any other decision and overwriting
  *   whatever the client sent.
  * - /trips/<ref>/*: resolve a Trip's slug to its id once, at the route boundary
- *   (ADR 0064; lib/trip-route.ts has the decision table). The DB modules are
+ *   (ADR 0064), and serve a Day address from the one Day page (ADR 0065,
+ *   amended 2026-11-19); lib/trip-route.ts has the decision table. The DB modules are
  *   imported lazily so the auth guard's path — and its tests — never load Prisma.
  *
  * The Auth.js callback-url cookie guard that used to run on `/api/auth/*`
@@ -24,15 +25,39 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const forward = { request: { headers } };
   if (!pathname.startsWith("/trips/")) return NextResponse.next(forward);
 
-  const [{ decideTripRoute }, { resolveTripRef, viewerIdFromRequest, viewerIsTripMember }] = await Promise.all([
+  const [{ decideTripRoute, dayRewrite }, { resolveTripRef, viewerIdFromRequest, viewerIsTripMember }] = await Promise.all([
     import("@/lib/trip-route"),
     import("@/lib/trip-ref"),
   ]);
   // Signed out: nothing to rewrite or redirect for (see decideTripRoute), so
   // skip the lookups too — no DB work, and no timing difference between a real
   // slug and an unknown one.
-  const viewerId = await viewerIdFromRequest(request);
-  if (!viewerId) return NextResponse.next(forward);
+  let viewerId: string | null;
+  try {
+    viewerId = await viewerIdFromRequest(request);
+  } catch (err) {
+    // Not "signed out": that branch skips the slug rewrite and the page would
+    // answer "Trip not found". A non-OK answer makes the client reload this URL; the
+    // service worker answers from the saved copy when it has one, otherwise this page is what shows.
+    const { reportError } = await import("@/lib/error-sink");
+    await reportError(err, { route: "proxy.ts", source: "server" });
+    const { unavailablePage } = await import("@/lib/proxy-unavailable");
+    return new NextResponse(unavailablePage(pathname, search), {
+      status: 503,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "5" },
+    });
+  }
+  const rewrite = (to: { pathname: string; search: string }) => {
+    const url = request.nextUrl.clone();
+    url.pathname = to.pathname;
+    url.search = to.search;
+    return NextResponse.rewrite(url, forward);
+  };
+  if (!viewerId) {
+    // The Day page lives at one segment for everyone; the [tripId] layout then sends the visitor to the Landing.
+    const day = dayRewrite(pathname, search);
+    return day ? rewrite(day) : NextResponse.next(forward);
+  }
   const decision = await decideTripRoute({
     pathname,
     search,
@@ -41,11 +66,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     isMember: (tripId) => viewerIsTripMember(tripId, viewerId),
   });
   if (decision.kind === "redirect") return NextResponse.redirect(new URL(decision.location, request.url), 308);
-  if (decision.kind === "rewrite") {
-    const url = request.nextUrl.clone();
-    url.pathname = decision.pathname;
-    return NextResponse.rewrite(url, forward);
-  }
+  if (decision.kind === "rewrite") return rewrite(decision);
   return NextResponse.next(forward);
 }
 

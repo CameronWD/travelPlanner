@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // getDays() runs the Day view's reads (lib/day-reads.ts + its own Costs and
 // Journal window) against per-model db mocks (mirrors
-// app/(app)/trips/[tripId]/day/[date]/page.test.tsx). The itinerary, the
+// app/(app)/trips/[tripId]/day/page.test.tsx). The itinerary, the
 // Day view helpers, nearby and date arithmetic stay real — the assertions
 // are about what the loader assembles from them.
 

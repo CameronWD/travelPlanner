@@ -388,7 +388,7 @@ export default async function TripPlanPage({
         </PlanRiseIn>
         {stops.length > 0 && (
           <div className="lg:hidden">
-            <PlanFitStrip summary={planSummary} stops={mapStops} home={home} legPaths={legPaths} />
+            <PlanFitStrip summary={planSummary} showSummary={showFitTile(planSummary)} stops={mapStops} home={home} legPaths={legPaths} />
           </div>
         )}
         <div className={stops.length > 0 ? PLAN_GRID_CLASS : "flex flex-col"}>

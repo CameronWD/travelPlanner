@@ -1073,6 +1073,8 @@ model Reminder {
   title       String
   notes       String?
   date        String // "YYYY-MM-DD"
+  // Set when a Traveller says "Got it": off Home and out of the Digest, for both Travellers.
+  dismissedAt DateTime?
 
   trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
   stop      Stop?      @relation(fields: [stopId], references: [id], onDelete: SetNull)

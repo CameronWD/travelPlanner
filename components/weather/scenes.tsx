@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { skyBands, type SceneKey } from "@/lib/weather/theme";
-import { rainAngleDeg, sceneClip, SCATTER_W, SCENE_H as H, STRIP_TOP, type CardSize } from "@/lib/weather/scene-math";
+import { rainAngleDeg, sceneClip, sceneFade, SCATTER_W, SCENE_H as H, STRIP_TOP, type CardSize } from "@/lib/weather/scene-math";
 
 // Every scene is drawn on a 236-unit-tall canvas and scales with the card, so
 // the compact card shows the same picture. Two canvases: the subject, anchored
@@ -125,7 +125,7 @@ function Layer({ name, world = false, moving = false, children }: { name: string
       {children}
     </svg>
   );
-  return moving ? <div data-clip className="absolute inset-0" style={{ clipPath: "var(--wx-clip)" }}>{svg}</div> : svg;
+  return moving ? <div data-clip className="absolute inset-0" style={{ clipPath: "var(--wx-clip)", maskImage: "var(--wx-fade)", WebkitMaskImage: "var(--wx-fade)" }}>{svg}</div> : svg;
 }
 
 // The last band starts at the daylight strip, so the strip is one flat colour.
@@ -568,7 +568,7 @@ export function Scene({ scene, isDay, gustsKph, size }: { scene: SceneKey; isDay
       aria-hidden="true"
       data-scene={scene}
       className="pointer-events-none absolute inset-0 overflow-hidden"
-      style={vars({ "--wx-rain-angle": `${lean}deg`, "--wx-clip": sceneClip(scene, size) })}
+      style={vars({ "--wx-rain-angle": `${lean}deg`, "--wx-clip": sceneClip(scene, size), "--wx-fade": sceneFade(scene, size) })}
     >
       <Sky bands={skyBands(scene, isDay)} />
       {draw(scene, lean)}

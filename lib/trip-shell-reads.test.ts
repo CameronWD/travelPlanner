@@ -60,7 +60,6 @@ describe("the trip layout, Home and Day pages share the cached reads", () => {
   it.each([
     ["layout.tsx", path.join(root, "layout.tsx")],
     ["page.tsx (Home)", path.join(root, "page.tsx")],
-    ["day/[date]/page.tsx", path.join(root, "day", "[date]", "page.tsx")],
     ["day/page.tsx", path.join(root, "day", "page.tsx")],
     ["components/trip/trip-header-trailing.tsx", path.resolve(__dirname, "..", "components", "trip", "trip-header-trailing.tsx")],
   ])("%s", (_label, file) => {
@@ -71,7 +70,6 @@ describe("the trip layout, Home and Day pages share the cached reads", () => {
 
   it.each([
     ["layout.tsx", path.join(root, "layout.tsx")],
-    ["day/[date]/page.tsx", path.join(root, "day", "[date]", "page.tsx")],
     ["day/page.tsx", path.join(root, "day", "page.tsx")],
     ["components/trip/trip-header-trailing.tsx", path.resolve(__dirname, "..", "components", "trip", "trip-header-trailing.tsx")],
   ])("%s reads the trip only through readTripShell", (_label, file) => {

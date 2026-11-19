@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Bell, Pencil, Plus, Trash2 } from "lucide-react";
+import { startTransition, useOptimistic, useState, useTransition } from "react";
+import { Bell, ChevronRight, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { daysBetween, formatDayLabel } from "@/lib/dates";
 import {
   addReminder,
-  deleteReminder,
+  updateReminder,
   type ReminderItem,
 } from "@/server/actions/reminders";
 import { aboutFromPick, aboutPickValue, reminderAboutLabel, type ReminderAboutOptions } from "@/lib/reminder-about";
@@ -17,6 +17,7 @@ import { AddReminderDialog } from "@/components/trip/add-reminder-dialog";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { failureMessage } from "@/components/ui/failure-message";
+import { useUndoableAction } from "@/components/ui/use-undoable-action";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +40,8 @@ interface RemindersCardProps {
    * as a whole (Home's card).
    */
   about?: ReminderAboutOptions;
+  /** The Trip's dismissed Reminders, each with Bring back (the Checklists card only); omitted shows none. */
+  dismissed?: ReminderItem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -237,25 +240,15 @@ function AddReminderForm({
 function ReminderRow({
   reminder,
   today,
+  onGotIt,
 }: {
   reminder: ReminderItem;
   today: string;
+  onGotIt: (reminder: ReminderItem) => void;
 }) {
-  const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const { relative, absolute } = formatWhen(reminder.date, today);
   const about = reminderAboutLabel(reminder);
-
-  function handleDelete() {
-    startTransition(async () => {
-      try {
-        const r = await deleteReminder(reminder.id);
-        if (!r.success) toastRefused(r.errors, "Couldn't delete that reminder.");
-      } catch {
-        toastRejected("Couldn't delete that reminder.");
-      }
-    });
-  }
 
   return (
     <li className={reminder.past ? "flex items-start justify-between gap-3 py-2 opacity-60" : "flex items-start justify-between gap-3 py-2"}>
@@ -292,14 +285,13 @@ function ReminderRow({
       </Button>
       {editing && <AddReminderDialog reminder={reminder} open onOpenChange={setEditing} />}
       <Button
-        variant="ghost"
-        size="icon"
-        className="shrink-0 text-destructive hover:bg-destructive/10"
-        aria-label={`Delete reminder: ${reminder.title}`}
-        onClick={handleDelete}
-        loading={isPending}
+        variant="outline"
+        size="sm"
+        className="min-h-11 shrink-0 px-4"
+        onClick={() => onGotIt(reminder)}
       >
-        <Trash2 className="size-4" aria-hidden="true" />
+        Got it
+        <span className="sr-only">: {reminder.title}</span>
       </Button>
     </li>
   );
@@ -310,16 +302,48 @@ function ReminderRow({
 // ---------------------------------------------------------------------------
 
 /**
- * RemindersCard — a Trip's dated notes, with add/edit/delete. Rendered on the trip
+ * RemindersCard — a Trip's dated notes, with add/edit/Got it (delete is inside Edit). Rendered on the trip
  * Home in *every* Phase (it used to sit behind the Travelling gate, which is
  * why nobody could write one on a trip that had not started yet).
  *
  * The Digest opt-in is not here — that lives on the Trip's Settings page.
  * Server data (including `today`) is passed in via props from the page.
  */
-export function RemindersCard({ tripId, reminders, today, about }: RemindersCardProps) {
-  const upcoming = reminders.filter((r) => !r.past).sort((a, b) => a.date.localeCompare(b.date));
-  const earlier = reminders.filter((r) => r.past).sort((a, b) => b.date.localeCompare(a.date));
+export function RemindersCard({ tripId, reminders, today, about, dismissed }: RemindersCardProps) {
+  // Held here, not in the row: the row leaves at once, and its Undo comes
+  // from the toast after the server's list no longer has it.
+  const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
+  const hideId = (id: string) => setGone((prev) => new Set(prev).add(id));
+  const showId = (id: string) => setGone((prev) => new Set([...prev].filter((x) => x !== id)));
+  const gotIt = useUndoableAction<ReminderItem>({
+    apply: (r) => hideId(r.id),
+    persist: (r) => updateReminder(r.id, { dismissed: true }),
+    revert: (r) => showId(r.id),
+    undo: (r) => updateReminder(r.id, { dismissed: false }),
+    applyUndo: (r) => showId(r.id),
+    revertUndo: (r) => hideId(r.id),
+    done: (r) => ({ title: "Dismissed", description: r.title }),
+    failure: "Couldn't dismiss that reminder.",
+  });
+  const [stillDismissed, bringBack] = useOptimistic(dismissed ?? [], (state, id: string) => state.filter((r) => r.id !== id));
+
+  function onBringBack(id: string) {
+    startTransition(async () => {
+      bringBack(id);
+      showId(id);
+      try {
+        const r = await updateReminder(id, { dismissed: false });
+        if (!r.success) toastRefused(r.errors, "Couldn't bring that reminder back.");
+      } catch {
+        toastRejected("Couldn't bring that reminder back.");
+      }
+    });
+  }
+
+  const shown = reminders.filter((r) => !gone.has(r.id));
+
+  const upcoming = shown.filter((r) => !r.past).sort((a, b) => a.date.localeCompare(b.date));
+  const earlier = shown.filter((r) => r.past).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <Card radius="2xl" shadow={3} className="flex flex-col gap-3 p-4">
@@ -335,7 +359,7 @@ export function RemindersCard({ tripId, reminders, today, about }: RemindersCard
       {upcoming.length > 0 ? (
         <ul className="divide-y-2 divide-muted" aria-label="Upcoming reminders">
           {upcoming.map((r) => (
-            <ReminderRow key={r.id} reminder={r} today={today} />
+            <ReminderRow key={r.id} reminder={r} today={today} onGotIt={(x) => void gotIt.run(x)} />
           ))}
         </ul>
       ) : (
@@ -349,10 +373,39 @@ export function RemindersCard({ tripId, reminders, today, about }: RemindersCard
           <h3 className="text-xs font-extrabold text-muted-foreground">Earlier</h3>
           <ul className="divide-y-2 divide-muted" aria-label="Earlier reminders">
             {earlier.map((r) => (
-              <ReminderRow key={r.id} reminder={r} today={today} />
+              <ReminderRow key={r.id} reminder={r} today={today} onGotIt={(x) => void gotIt.run(x)} />
             ))}
           </ul>
         </div>
+      )}
+
+      {stillDismissed.length > 0 && (
+        <details className="group">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 text-xs font-extrabold text-muted-foreground hover:text-foreground">
+            <ChevronRight className="size-3 shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
+            Dismissed ({stillDismissed.length})
+          </summary>
+          <ul className="divide-y-2 divide-muted" aria-label="Dismissed reminders">
+            {stillDismissed.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 py-2">
+                <p className="min-w-0 flex-1 break-words text-sm text-muted-foreground">
+                  {r.title}
+                  <span className="mx-1 opacity-50">·</span>
+                  <span className="text-xs">{formatWhen(r.date, today).absolute}</span>
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="min-h-11 shrink-0 px-4"
+                  aria-label={`Bring back reminder: ${r.title}`}
+                  onClick={() => onBringBack(r.id)}
+                >
+                  Bring back
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* Add form */}
