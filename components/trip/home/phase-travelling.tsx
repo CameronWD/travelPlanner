@@ -248,7 +248,7 @@ export async function PhaseTravelling({
 
       {stillToBook.length > 0 && (
         <div data-testid="still-to-book">
-          <StillToBookCard rows={stillToBook} limit={STILL_TO_BOOK_LIMIT_PHONE} planHref={tripPath(slug, "/plan")} />
+          <StillToBookCard rows={stillToBook} limit={STILL_TO_BOOK_LIMIT_PHONE} />
         </div>
       )}
 

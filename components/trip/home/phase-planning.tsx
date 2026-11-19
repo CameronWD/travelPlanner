@@ -266,7 +266,7 @@ export async function PhasePlanning({
         {/* Spec 2026-10-17 R2: what is still To book; no tile when nothing is. */}
         {stillToBook.length > 0 ? (
           <AnimatedItem key="still-to-book" index={2}>
-            <StillToBookCard rows={stillToBook} limit={STILL_TO_BOOK_LIMIT_PHONE} planHref={tripPath(slug, "/plan")} />
+            <StillToBookCard rows={stillToBook} limit={STILL_TO_BOOK_LIMIT_PHONE} />
           </AnimatedItem>
         ) : null}
         {/* This tile is lg:hidden itself (spec E1's desktop stat tiles take
