@@ -178,7 +178,7 @@ describe("AccountPage", () => {
     const { container } = render(jsx);
     const grid = container.querySelector("[data-account-grid]") as HTMLElement;
     expect(grid.className.split(/\s+/)).toEqual(
-      expect.arrayContaining(["grid", "grid-cols-1", "lg:grid-cols-[minmax(0,22rem)_1fr]", "lg:items-start"]),
+      expect.arrayContaining(["grid", "grid-cols-1", "lg:grid-cols-[minmax(0,22rem)_minmax(0,40rem)]", "lg:items-start"]),
     );
     const you = container.querySelector('[aria-labelledby="account-you"]')!;
     const right = container.querySelector("[data-account-right]")!;
