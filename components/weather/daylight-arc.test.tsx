@@ -24,6 +24,12 @@ describe("DaylightArc", () => {
     expect(screen.getByText("16:33 ↓")).toBeInTheDocument();
     expect(screen.getByText("8h 21m daylight")).toBeInTheDocument();
   });
+  it("puts the day length below the arc, in flow", () => {
+    render(<DaylightArc {...day} size="regular" />);
+    const label = screen.getByText("8h 21m daylight");
+    expect(label.className).not.toMatch(/absolute/);
+    expect(screen.getByRole("img").contains(label)).toBe(false);
+  });
   it("compact shortens the day length", () => {
     render(<DaylightArc {...day} size="compact" />);
     expect(screen.getByText("8h 21m")).toBeInTheDocument();
