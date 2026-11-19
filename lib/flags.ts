@@ -72,7 +72,9 @@ export interface Flag {
 
 /** Writes every ISO day in a message as the app writes days; the stored message stays ISO for MCP and Reviews. */
 export function flagDisplayMessage(flag: { message: string }): string {
-  return flag.message.replace(/\b\d{4}-\d{2}-\d{2}\b/g, (iso) => (formatISODate(parseISODate(iso)) === iso ? formatDayLabel(iso) : iso));
+  return flag.message
+    .replace(/\b\d{4}-\d{2}-\d{2}\b/g, (iso) => (formatISODate(parseISODate(iso)) === iso ? formatDayLabel(iso) : iso))
+    .replace(/\bonly 0 min\b/g, "no gap");
 }
 
 // ---------------------------------------------------------------------------
