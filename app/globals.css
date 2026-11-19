@@ -48,7 +48,7 @@
   color: hsl(var(--foreground));
 }
 .tp-map .gm-style .gm-style-iw-tc {
-  filter: drop-shadow(3px 3px 0 hsl(var(--shadow-ink)));
+  filter: drop-shadow(3px 3px 0 hsl(var(--border)));
 }
 .tp-map .gm-style .gm-style-iw-tc::after {
   background: hsl(var(--card));

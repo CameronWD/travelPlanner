@@ -55,7 +55,7 @@ export function DayIdeasRows({ date, dateLabel, rows, limit = 3, eyebrow, size }
                 aria-label={`Add ${row.title} to ${dateLabel}`}
                 disabled={pending === row.id}
                 onClick={() => add(row)}
-                className={cn("pressable inline-flex shrink-0 items-center justify-center rounded-full border-2 border-border bg-card font-extrabold text-foreground shadow-[2px_2px_0_hsl(var(--shadow-ink))] disabled:opacity-50", phone ? "size-11 rounded-[12px]" : "h-[34px] px-3 text-[13px]")}
+                className={cn("pressable inline-flex shrink-0 items-center justify-center rounded-full border-2 border-border bg-card font-extrabold text-foreground shadow-[2px_2px_0_hsl(var(--border))] disabled:opacity-50", phone ? "size-11 rounded-[12px]" : "h-[34px] px-3 text-[13px]")}
               >
                 {phone ? <Plus className="size-5" aria-hidden="true" /> : "+ Add"}
               </button>

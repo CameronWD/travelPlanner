@@ -142,7 +142,7 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
   }
 
   const kindMeta = NEARBY_KINDS.find((k) => k.key === kind)!;
-  const actionClass = "pressable inline-flex h-[34px] shrink-0 items-center justify-center rounded-full border-2 border-border bg-card px-3 text-[13px] font-extrabold text-foreground shadow-[2px_2px_0_hsl(var(--shadow-ink))] disabled:opacity-50";
+  const actionClass = "pressable inline-flex h-[34px] shrink-0 items-center justify-center rounded-full border-2 border-border bg-card px-3 text-[13px] font-extrabold text-foreground shadow-[2px_2px_0_hsl(var(--border))] disabled:opacity-50";
 
   return (
     <Sheet open={open} onOpenChange={changeOpen}>
