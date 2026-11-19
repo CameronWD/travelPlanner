@@ -64,9 +64,10 @@ export const metadata: Metadata = { title: "Summary" };
 export const SUMMARY_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
+/** Exported for className assertion in tests — must match the JSX below. */
+export const SUMMARY_STOP_LIST_CLASS = "grid grid-cols-1 gap-3 min-[1400px]:grid-cols-2";
 /** Exported for className assertion in tests — must match the JSX below.
  *  2×2 up to lg (LA-149): four equal columns at 768 truncate the money figure. */
-export const SUMMARY_STOP_LIST_CLASS = "grid grid-cols-1 gap-3 min-[1400px]:grid-cols-2";
 export const SUMMARY_STAT_GRID_CLASS = "grid grid-cols-2 gap-3 lg:grid-cols-4";
 
 // ---------------------------------------------------------------------------

@@ -30,7 +30,7 @@ export interface DockItem {
 }
 
 /**
- * Client Component. md+ left rail (96px, sun). `search` renders directly
+ * Client Component. md+ left rail (96px). `search` renders directly
  * under the mark; `children` are pinned to the bottom (the Traveller's avatar
  * menu, or member avatars).
  */

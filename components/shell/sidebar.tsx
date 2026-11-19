@@ -36,7 +36,7 @@ export interface SidebarProps {
 
 /**
  * The full app sidebar at ≥1280px (docs/specs/2026-09-27-desktop-home.md §1
- * as amended by beta-feedback §A): 248px, sun, sticky at full height — the
+ * as amended by beta-feedback §A): 248px, sticky at full height — the
  * only chrome there, since the top bar is gone from 768px up and the Dock
  * hands over at xl. Lockup → /trips, search, trip switcher, trip nav
  * (inside a Trip), ALL TRIPS, and the Traveller's footer.
