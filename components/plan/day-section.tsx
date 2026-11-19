@@ -255,13 +255,13 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
           onClick={() => onEditItem(item)}
           className="tap-target flex min-w-0 items-baseline gap-2 text-left"
         >
-          <span title={item.title} className="min-w-0 truncate text-sm font-bold">{item.title}</span>
+          <span title={item.title} className="max-w-full shrink-0 truncate text-sm font-bold">{item.title}</span>
           {owner && (
             <span data-owner className="shrink-0 text-xs text-muted-foreground">
               · {owner}
             </span>
           )}
-          <span className="min-w-0 truncate text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 basis-0 truncate text-xs text-muted-foreground">
             {[slotLabel(item), item.address ?? item.notes?.split("\n")[0]].filter(Boolean).join(" · ")}
           </span>
         </button>

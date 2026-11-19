@@ -103,8 +103,9 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     const title = screen.getByText(long);
     expect(title).toHaveAttribute("title", long);
     expect(title.className).toContain("truncate");
-    expect(title.className).toContain("min-w-0");
-    expect(title.className).not.toContain("shrink-0");
+    expect(title.className).toContain("shrink-0");
+    expect(title.className).toContain("max-w-full");
+    expect(title.nextElementSibling?.className ?? "").toContain("flex-1");
     const trailing = screen.getByText(/Booked/).parentElement!;
     expect(trailing.className).toContain("shrink-0");
     expect(screen.getByText(money(2200, "EUR")).className).toContain("shrink-0");
