@@ -96,10 +96,21 @@ export function wordsReach(zones: Zone[], y0: number, y1: number): number {
 // strip. A single edge, so no open band is left above or below the text.
 export function sceneClip(scene: SceneKey, size: CardSize): string {
   const zones = textZones(scene, size);
-  const px = CANVAS_PX[size] / SCENE_H;
-  const left = Math.max(...zones.filter((z) => z.right !== FULL).map((z) => z.right));
   const top = Math.max(0, ...zones.filter((z) => z.right === FULL && z.top === 0).map((z) => z.bottom));
   const y = (units: number) => `${((units / SCENE_H) * 100).toFixed(2)}%`;
-  const x = `${(left * px).toFixed(1)}px`;
+  const x = clipLeftPx(scene, size, 0);
   return `polygon(100% ${y(top)}, 100% ${y(STRIP_TOP)}, ${x} ${y(STRIP_TOP)}, ${x} ${y(top)})`;
+}
+
+// Moving pieces fade in over this many units right of the clip's edge, so a
+// cloud drifting towards the words thins out instead of being sliced.
+const FADE_UNITS = 20;
+
+export function sceneFade(scene: SceneKey, size: CardSize): string {
+  return `linear-gradient(to right, transparent ${clipLeftPx(scene, size, 0)}, #000 ${clipLeftPx(scene, size, FADE_UNITS)})`;
+}
+
+function clipLeftPx(scene: SceneKey, size: CardSize, plusUnits: number): string {
+  const left = Math.max(...textZones(scene, size).filter((z) => z.right !== FULL).map((z) => z.right));
+  return `${((left + plusUnits) * (CANVAS_PX[size] / SCENE_H)).toFixed(1)}px`;
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { Scene } from "@/components/weather/scenes";
 import type { SceneKey } from "@/lib/weather/theme";
-import { CARD_WIDTHS, canvasUnits, sceneClip, STRIP_TOP, TEXT_MARGIN, textZones, wordsReach, type CardSize } from "@/lib/weather/scene-math";
+import { CARD_WIDTHS, canvasUnits, sceneClip, sceneFade, STRIP_TOP, TEXT_MARGIN, textZones, wordsReach, type CardSize } from "@/lib/weather/scene-math";
 
 const SCENES: SceneKey[] = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night"];
 const SIZES: CardSize[] = ["regular", "compact"];
@@ -46,8 +46,9 @@ describe("weather scenes never reach the words", () => {
         it("clips every moving layer to the part of the card the words leave free", () => {
           const root = scene(key, size);
           expect(root.style.getPropertyValue("--wx-clip")).toBe(sceneClip(key, size));
+          expect(root.style.getPropertyValue("--wx-fade")).toBe(sceneFade(key, size));
           const clips = [...root.querySelectorAll<HTMLElement>("[data-clip]")];
-          for (const clip of clips) expect(clip.style.clipPath).toBe("var(--wx-clip)");
+          for (const clip of clips) expect(clip.getAttribute("style")).toMatch(/clip-path: var\(--wx-clip\);.*mask-image: var\(--wx-fade\)/);
           for (const el of root.querySelectorAll(ANIMATED)) {
             expect(el.closest("[data-clip], [data-box]"), `${el.getAttribute("class")} is neither clipped nor placed`).not.toBeNull();
           }

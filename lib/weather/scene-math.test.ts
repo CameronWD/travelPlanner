@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clockTime, rainAngleDeg, SCATTER_W, sceneClip, sunArcPosition, textZones } from "@/lib/weather/scene-math";
+import { clockTime, rainAngleDeg, SCATTER_W, sceneClip, sceneFade, sunArcPosition, textZones } from "@/lib/weather/scene-math";
 
 describe("rainAngleDeg", () => {
   it("falls straight when calm or unknown", () => {
@@ -66,6 +66,22 @@ describe("sceneClip", () => {
       const label = zones.find((z) => z.top === 0 && z.right === Number.POSITIVE_INFINITY);
       expect(Math.min(...tops)).toBeCloseTo(label ? (label.bottom / 236) * 100 : 0, 1);
       expect(Math.max(...tops)).toBeCloseTo((166 / 236) * 100, 1);
+    }
+  });
+});
+
+describe("sceneFade", () => {
+  const SCENES = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night"] as const;
+  const SIZES = ["regular", "compact"] as const;
+  const PX = { regular: 232 / 236, compact: 136 / 236 };
+
+  it.each(SIZES)("%s: moving pieces fade in over 16 to 24 units from the clip's edge, never before it", (size) => {
+    for (const scene of SCENES) {
+      const edge = parseFloat(sceneClip(scene, size).replace(/^polygon\(|\)$/g, "").split(", ")[2]);
+      const [, clear, solid] = sceneFade(scene, size).match(/^linear-gradient\(to right, transparent ([\d.]+)px, #000 ([\d.]+)px\)$/)!.map(Number);
+      expect(clear).toBeGreaterThanOrEqual(edge);
+      expect((solid - clear) / PX[size]).toBeGreaterThanOrEqual(16);
+      expect((solid - clear) / PX[size]).toBeLessThanOrEqual(24);
     }
   });
 });
