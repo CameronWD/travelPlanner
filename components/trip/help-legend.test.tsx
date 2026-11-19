@@ -110,7 +110,7 @@ describe("HelpLegend — Playground kit shape", () => {
     const { container } = render(<HelpLegend />);
     for (const s of Array.from(container.querySelectorAll("[data-testid='legend-specimen']"))) {
       expect(s.className).not.toMatch(/(^|\s)w-11(\s|$)/);
-      expect(s.className).toMatch(/\bw-24\b/);
+      expect(s.className).toMatch(/\bw-32\b/);
     }
   });
 });

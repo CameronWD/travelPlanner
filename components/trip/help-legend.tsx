@@ -151,7 +151,7 @@ function Row({
       <span
         data-testid="legend-specimen"
         aria-hidden="true"
-        className="flex min-w-24 shrink-0 items-center justify-center"
+        className="flex w-32 shrink-0 items-center justify-center"
       >
         {specimen}
       </span>
