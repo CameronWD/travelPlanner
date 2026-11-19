@@ -112,7 +112,7 @@ export function StopFormDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={stop ? `Edit ${stop.name}` : "Add stop"}
+      title={stop ? `Edit ${stop.name}` : "Add Stop"}
       recordId={stop?.id ?? null}
       size="lg"
     >
@@ -331,6 +331,7 @@ function StopForm({
             if (v) setMode(v as Mode);
           }}
           aria-label="Stop type"
+          tone="ink"
           disabled={isPending}
         >
           <SegmentedItem value="scheduled">Exact dates</SegmentedItem>

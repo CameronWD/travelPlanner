@@ -2344,7 +2344,7 @@ export function ItineraryManager({
       {assigningStop && (
         <Dialog open onOpenChange={(o) => !o && setAssigningStop(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Assign &quot;{assigningStop.name}&quot; to a chapter</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Assign &quot;{assigningStop.name}&quot; to a Chapter</DialogTitle></DialogHeader>
             <div className="flex flex-col gap-2">
               {planChapters.map((c) => (
                 <Button key={c.id} variant="ghost" className="justify-start"
@@ -2409,7 +2409,7 @@ function AdjustDatesDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Adjust dates for {stop.name}</DialogTitle>
+          <DialogTitle>Adjust Dates for {stop.name}</DialogTitle>
         </DialogHeader>
         <form
           className="flex flex-col gap-4"
@@ -2436,7 +2436,7 @@ function AdjustDatesDialog({
           />
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="ghost">
+              <Button type="button" variant="outline">
                 Cancel
               </Button>
             </DialogClose>

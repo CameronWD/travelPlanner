@@ -41,17 +41,22 @@ const base = { open: true, onOpenChange: vi.fn(), tripId: "t1", forkId: null, st
 beforeEach(() => vi.clearAllMocks());
 
 describe("AddStopSheet (PLAN.md §7.4)", () => {
-  it("a dialog titled Add a stop; the CTA waits for a place; free text works", async () => {
+  it("a dialog titled Add a Stop; the CTA waits for a place; free text works", async () => {
     render(<AddStopSheet {...base} defaultRange={{ arriveDate: "2026-12-22", departDate: "2026-12-24" }} />);
-    expect(screen.getByRole("dialog", { name: "Add a stop" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Add a Stop" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Add / })).toBeDisabled();
     await userEvent.type(screen.getByRole("textbox", { name: "Place" }), "Lucca");
     expect(screen.getByRole("button", { name: "Add Lucca" })).toBeEnabled();
   });
 
+  it("its Add button sits in the dialog footer so it stays pinned", () => {
+    render(<AddStopSheet {...base} />);
+    expect(screen.getByRole("button", { name: /^Add / }).closest('[data-slot="dialog-footer"]')).not.toBeNull();
+  });
+
   it("is a full-height-minus-118px sheet on phones and a 560px dialog from sm", () => {
     render(<AddStopSheet {...base} />);
-    const cls = screen.getByRole("dialog", { name: "Add a stop" }).className;
+    const cls = screen.getByRole("dialog", { name: "Add a Stop" }).className;
     expect(cls).toContain("sm:max-w-[560px]");
     expect(cls).toContain("max-sm:h-[calc(100dvh-118px)]");
   });
