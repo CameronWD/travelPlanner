@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   budgetCategoryStyle,
+  categoryHues,
   breakdownOptions,
   parseBy,
   rowsFor,
@@ -72,11 +73,26 @@ describe("breakdownOptions and parseBy", () => {
   });
 });
 
+describe("categoryHues", () => {
+  const LABELS = ["Transport", "Accommodation", "Sightseeing", "Activity", "Nightlife", "Food & Drink", "Other", "Made-up category"];
+  it("gives eight categories eight different hues, Transport sun and the first activity coral", () => {
+    const hues = categoryHues(LABELS);
+    expect(new Set(hues.values()).size).toBe(8);
+    expect(hues.get("Transport")).toBe("sun");
+    expect(hues.get("Sightseeing")).toBe("coral");
+  });
+  it("rowsFor never repeats a hue for that list", () => {
+    const byCategory = LABELS.map((category) => ({ category, ...zero, costTotalMinor: 1000 }));
+    const rows = rowsFor({ ...BUDGET, byCategory }, "category");
+    expect(new Set(rows.map((r) => r.hue)).size).toBe(rows.length);
+  });
+});
+
 describe("rowsFor", () => {
   it("category: hue, icon, percent and the missing-rate flag", () => {
     const rows = rowsFor(BUDGET, "category", { missingRateCategories: new Set(["Insurance"]) });
     expect(rows.map((r) => r.label)).toEqual(["Transport", "Accommodation", "Sightseeing", "Food & Drink", "Insurance", "Visas & Docs"]);
-    expect(rows.map((r) => r.hue)).toEqual(["sun", "teal", "coral", "leaf", "lilac", "lilac"]);
+    expect(rows.map((r) => r.hue)).toEqual(["sun", "teal", "coral", "leaf", "lilac", "sky"]);
     expect(rows[0]).toMatchObject({ icon: "transport", pct: 42, costMinor: 42000, paidMinor: 10000, muted: false, missingRate: false });
     expect(rows[4].missingRate).toBe(true);
   });

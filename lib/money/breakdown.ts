@@ -24,6 +24,29 @@ export function budgetCategoryStyle(label: string): { hue: Hue; icon: MoneyCateg
   return FIXED[label] ?? (ACTIVITY_LABELS.has(label) ? { hue: "coral", icon: "activity" } : { hue: "lilac", icon: "other" });
 }
 
+const FALLBACK_HUES: readonly Hue[] = ["coral", "lilac", "sky", "pink", "indigo", "stone"];
+
+export function categoryHues(labels: readonly string[]): Map<string, Hue> {
+  const hues = new Map<string, Hue>();
+  const used = new Set<Hue>();
+  for (const label of labels) {
+    const fixed = FIXED[label];
+    if (fixed) {
+      hues.set(label, fixed.hue);
+      used.add(fixed.hue);
+    }
+  }
+  let cycled = 0;
+  for (const label of labels) {
+    if (hues.has(label)) continue;
+    const preferred = budgetCategoryStyle(label).hue;
+    const hue = !used.has(preferred) ? preferred : (FALLBACK_HUES.find((h) => !used.has(h)) ?? FALLBACK_HUES[cycled++ % FALLBACK_HUES.length]);
+    hues.set(label, hue);
+    used.add(hue);
+  }
+  return hues;
+}
+
 export function breakdownOptions({ chapters, days }: { chapters: boolean; days: boolean }): { value: BreakdownBy; label: string }[] {
   return [
     { value: "category", label: "Category" },
@@ -65,14 +88,15 @@ export function rowsFor(
   const base = { muted: false, missingRate: false, icon: null };
 
   switch (by) {
-    case "category":
+    case "category": {
+      const hues = categoryHues(budget.byCategory.map((c) => c.category));
       return budget.byCategory.map((c) => {
         const style = budgetCategoryStyle(c.category);
         return {
           ...base,
           key: `cat:${c.category}`,
           label: c.category,
-          hue: style.hue,
+          hue: hues.get(c.category)!,
           icon: style.icon,
           pct: pct(c.costTotalMinor),
           costMinor: c.costTotalMinor,
@@ -80,6 +104,7 @@ export function rowsFor(
           missingRate: opts.missingRateCategories?.has(c.category) ?? false,
         };
       });
+    }
     case "place":
       return budget.byStop.map((s, i) => {
         const chapterColour = s.stopId ? opts.stopChapterColour?.get(s.stopId) : undefined;
