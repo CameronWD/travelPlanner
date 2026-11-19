@@ -24,10 +24,12 @@ export function WhatsNewCard({
   notes,
   totalUnread,
   className,
+  floating,
 }: {
   notes: ReleaseNote[];
   totalUnread: number;
   className?: string;
+  floating?: boolean;
 }) {
   const [dismissed, setDismissed] = React.useState(false);
 
@@ -48,7 +50,15 @@ export function WhatsNewCard({
   }
 
   return (
-    <div className={cn("relative rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5", className)}>
+    <div
+      className={cn(
+        "rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5",
+        floating
+          ? "fixed inset-x-3 bottom-[calc(var(--tp-tab-bar-h)+5rem+env(safe-area-inset-bottom))] z-30 md:inset-x-auto md:bottom-[calc(4.75rem+env(safe-area-inset-bottom))] md:right-4 md:w-[380px] print:hidden"
+          : "relative",
+        className,
+      )}
+    >
       <button
         type="button"
         onClick={handleDismiss}

@@ -17,7 +17,7 @@ import { WhatsNewCard } from "./whats-new-card";
  * gone missing, where saying nothing is plainly better than failing a page
  * over release news.
  */
-export async function WhatsNewBanner({ className }: { className?: string } = {}) {
+export async function WhatsNewBanner({ className, floating }: { className?: string; floating?: boolean } = {}) {
   const user = await requireUser();
 
   const row = await readWhatsNewSeen(user.id);
@@ -35,6 +35,7 @@ export async function WhatsNewBanner({ className }: { className?: string } = {})
       notes={unread.slice(0, WHATS_NEW_CARD_LIMIT)}
       totalUnread={unread.length}
       className={className}
+      floating={floating}
     />
   );
 }

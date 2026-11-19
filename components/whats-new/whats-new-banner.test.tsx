@@ -41,6 +41,15 @@ describe("WhatsNewBanner", () => {
     expect(el!.props.totalUnread).toBe(4);
   });
 
+  it("passes floating through to the card, and leaves it off by default", async () => {
+    mockFindUnique.mockResolvedValue({
+      whatsNewSeenAt: null,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+    });
+    expect((await WhatsNewBanner({ floating: true }))!.props.floating).toBe(true);
+    expect((await WhatsNewBanner())!.props.floating).toBeUndefined();
+  });
+
   it("renders nothing when the Traveller is caught up", async () => {
     mockFindUnique.mockResolvedValue({
       whatsNewSeenAt: new Date("2026-09-22T00:00:00Z"),

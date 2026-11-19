@@ -29,6 +29,20 @@ describe("WhatsNewCard", () => {
     expect(screen.getByText("Charlie")).toBeTruthy();
   });
 
+  it("floating pins the card above the tab bar; without it the card stays in flow", () => {
+    const { container, rerender } = render(<WhatsNewCard notes={NOTES} totalUnread={3} floating />);
+    expect((container.firstElementChild as HTMLElement).className).toMatch(/\bfixed\b/);
+    rerender(<WhatsNewCard notes={NOTES} totalUnread={3} />);
+    expect((container.firstElementChild as HTMLElement).className).not.toMatch(/\bfixed\b/);
+    expect((container.firstElementChild as HTMLElement).className).toMatch(/\brelative\b/);
+  });
+
+  it("a floating card can still be dismissed", () => {
+    const { container } = render(<WhatsNewCard notes={NOTES} totalUnread={3} floating />);
+    fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("points at the full list when more went unshown than fitted", () => {
     render(<WhatsNewCard notes={NOTES} totalUnread={7} />);
     const link = screen.getByRole("link", { name: /4 more/i });
