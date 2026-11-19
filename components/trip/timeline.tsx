@@ -286,11 +286,13 @@ function DayRow({
   time,
   tile,
   large,
+  gutter = true,
   children,
 }: {
   time?: string | null;
   tile: React.ReactNode;
   large?: boolean;
+  gutter?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -303,7 +305,7 @@ function DayRow({
         large ? "items-center gap-3 py-3" : "items-start gap-2.5 border-dotted py-2.5",
       )}
     >
-      <TimeGutter time={time} large={large} />
+      {gutter && <TimeGutter time={time} large={large} />}
       {tile}
       {/* min-w-0 lets the body shrink in its flex track so titles truncate instead of overflowing at narrow widths. */}
       <div className="min-w-0 flex-1">{children}</div>
@@ -585,7 +587,7 @@ function AccomCheckinRow({
     </>
   );
   return (
-    <DayRow large={large} time={a.checkInTime ?? null} tile={large ? null : <Tile icon={LogIn} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={a.checkInTime ?? null} gutter={!large || !!a.checkInTime} tile={large ? null : <Tile icon={LogIn} className={NEUTRAL_TILE} />}>
       {content}
     </DayRow>
   );
@@ -629,7 +631,7 @@ function AccomCheckoutRow({
     </>
   );
   return (
-    <DayRow large={large} time={a.checkOutTime ?? null} tile={large ? null : <Tile icon={LogOut} className={NEUTRAL_TILE} />}>
+    <DayRow large={large} time={a.checkOutTime ?? null} gutter={!large || !!a.checkOutTime} tile={large ? null : <Tile icon={LogOut} className={NEUTRAL_TILE} />}>
       {content}
     </DayRow>
   );

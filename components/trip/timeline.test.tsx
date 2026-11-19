@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, cleanup } from "@testing-library/react";
 import { Timeline, dayHasEntries } from "./timeline";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayHasEntries as itineraryDayHasEntries } from "@/lib/itinerary";
@@ -1072,6 +1072,19 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
   it("a check-out is a StayCard labelled Check-out", () => {
     const { container } = render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />);
     expect(container.querySelector("[data-slot='stay-band']")!.textContent).toBe("Check-out");
+  });
+  it("an untimed check-in and check-out reserve no time gutter, a timed Item row still does", () => {
+    const inRow = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />).container;
+    const stayRow = inRow.querySelector("[data-slot='stay-band']")!.closest("[data-timeline-row]")!;
+    expect(stayRow.querySelector("span.tabular-nums")).toBeNull();
+    expect(stayRow.firstElementChild!.querySelector("[data-slot='stay-band']")).not.toBeNull();
+    cleanup();
+    const outRow = render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />).container;
+    const outStay = outRow.querySelector("[data-slot='stay-band']")!.closest("[data-timeline-row]")!;
+    expect(outStay.querySelector("span.tabular-nums")).toBeNull();
+    cleanup();
+    const timed = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />).container;
+    expect(timed.querySelector("[data-timeline-row] span.tabular-nums")).not.toBeNull();
   });
   it("the default size keeps the neutral stay tile and no StayCard", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
