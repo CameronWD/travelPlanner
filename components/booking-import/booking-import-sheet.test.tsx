@@ -52,6 +52,17 @@ beforeEach(() => {
 });
 
 describe("BookingImportSheet", () => {
+  it("keeps Read booking in the dialog footer beside a Cancel, and it still submits", async () => {
+    open();
+    expect(screen.getByRole("heading", { name: "Import a Booking" })).toBeInTheDocument();
+    const read = screen.getByRole("button", { name: "Read booking" });
+    const footer = read.closest('[data-slot="dialog-footer"]') as HTMLElement;
+    expect(footer).not.toBeNull();
+    expect(within(footer).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    await pasteAndRead("Flight SK101");
+    expect(m.importBooking).toHaveBeenCalledTimes(1);
+  });
+
   it("sends pasted text with the trip and the plan being viewed, then groups the Proposals under a New stop", async () => {
     open();
     await pasteAndRead();

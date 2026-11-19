@@ -4,7 +4,7 @@ import * as React from "react";
 import { FileUp, Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
 import { groupProposals } from "@/lib/booking-import/group";
@@ -437,7 +437,12 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
       >
         <label htmlFor="booking-import-text" className="text-sm font-bold">Or paste the booking text</label>
         <Textarea id="booking-import-text" value={text} maxLength={MAX_BOOKING_TEXT_CHARS} onChange={(e) => setText(e.target.value)} className="min-h-[100px]" />
-        <Button type="submit" variant="primary" size="md" className="self-start" disabled={!text.trim()}>Read booking</Button>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Cancel</Button>
+          </DialogClose>
+          <Button type="submit" variant="primary" disabled={!text.trim()}>Read booking</Button>
+        </DialogFooter>
       </form>
     </div>
   );
