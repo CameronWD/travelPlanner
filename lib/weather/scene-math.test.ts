@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clockTime, rainAngleDeg, SCATTER_W, sceneClip, sunArcPosition, textZones, wordsReach } from "@/lib/weather/scene-math";
+import { clockTime, rainAngleDeg, SCATTER_W, sceneClip, sunArcPosition, textZones } from "@/lib/weather/scene-math";
 
 describe("rainAngleDeg", () => {
   it("falls straight when calm or unknown", () => {
