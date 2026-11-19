@@ -98,7 +98,7 @@ export default async function ReviewsPage({
           </div>
           {shown.status === "DONE" ? (
             <>
-              {shown.summary ? <p className="text-sm leading-relaxed text-foreground">{summaryForDisplay(shown.summary)}</p> : null}
+              {shown.summary ? <p className="max-w-reading text-sm leading-relaxed text-foreground">{summaryForDisplay(shown.summary)}</p> : null}
               <FindingList open={shown.open} dealtWith={shown.dealtWith} actionable={shown.actionable} />
             </>
           ) : shown.status === "FAILED" ? (
