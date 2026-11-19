@@ -13,6 +13,11 @@ describe("BudgetGlance", () => {
     expect(link.textContent).toMatch(/312k\s*cost/);
   });
 
+  it("writes amounts under 1,000 with their cents, as the desktop tiles do", () => {
+    render(<BudgetGlance costTotalMinor={51120} paidTotalMinor={0} homeCurrency="AUD" href={"/b" as Route} />);
+    expect(screen.getByRole("link").textContent).toContain("$511.20");
+  });
+
   it("renders a zero-width bar when nothing is spent", () => {
     const { container } = render(<BudgetGlance costTotalMinor={312000} paidTotalMinor={0} homeCurrency="JPY" href={"/b" as Route} />);
     expect(container.querySelector('[style*="width: 0%"]')).toBeTruthy();

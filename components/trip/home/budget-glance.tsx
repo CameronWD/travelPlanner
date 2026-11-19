@@ -1,6 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { formatMoneyCompact } from "@/lib/money/money";
+import { formatMoneyAuto } from "@/lib/money/money";
 import { paidPct } from "@/lib/money/summary-lines";
 import { StatCard } from "@/components/ui/stat-card";
 
@@ -22,11 +22,11 @@ export function BudgetGlance({ costTotalMinor, paidTotalMinor, homeCurrency, hre
       <StatCard
         tone="sun"
         label="Paid so far"
-        value={formatMoneyCompact(paidTotalMinor, homeCurrency)}
+        value={formatMoneyAuto(paidTotalMinor, homeCurrency)}
         progress={pct}
         sub={
           <>
-            of {formatMoneyCompact(costTotalMinor, homeCurrency)} cost
+            of {formatMoneyAuto(costTotalMinor, homeCurrency)} cost
           </>
         }
         className="pressable hover:shadow-hard-3"
