@@ -4,8 +4,7 @@ import * as React from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea, submitOnEnter } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import { DIALOG_DESTRUCTIVE_CLASS, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
@@ -143,9 +142,12 @@ function AddReminderForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <Field label="Reminder title" required error={errors.title?.[0]}>
-        <Input
+        <Textarea
+          autoGrow
+          rows={1}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={submitOnEnter}
           placeholder="e.g. Reconfirm the tour"
           autoFocus
           disabled={isPending}

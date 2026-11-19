@@ -137,3 +137,18 @@ describe("AddReminderDialog: footer buttons", () => {
     expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
   });
 });
+
+describe("AddReminderDialog: title field", () => {
+  it("is a growing text area; Enter submits and Shift+Enter does not", async () => {
+    const user = userEvent.setup();
+    render(<AddReminderDialog {...baseProps} />);
+    const title = screen.getByLabelText(/reminder title/i);
+    expect(title.tagName).toBe("TEXTAREA");
+    const submit = vi.spyOn(HTMLFormElement.prototype, "requestSubmit").mockImplementation(() => {});
+    await user.type(title, "Reconfirm{Shift>}{Enter}{/Shift}");
+    expect(submit).not.toHaveBeenCalled();
+    await user.type(title, "{Enter}");
+    expect(submit).toHaveBeenCalledTimes(1);
+    submit.mockRestore();
+  });
+});
