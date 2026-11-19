@@ -127,6 +127,32 @@ describe("flagDisplayMessage", () => {
   it("returns a message with no date as it is", () => {
     expect(flagDisplayMessage({ message: "Add a stay." })).toBe("Add a stay.");
   });
+  it("writes every date in a message, with or without flag.date", () => {
+    const msg = "Transport departure on 2026-07-20 is outside Rome's stay (2026-07-11 – 2026-07-15).";
+    expect(flagDisplayMessage({ message: msg })).toBe(
+      `Transport departure on ${formatDayLabel("2026-07-20")} is outside Rome's stay (${formatDayLabel("2026-07-11")} – ${formatDayLabel("2026-07-15")}).`,
+    );
+  });
+  it("writes a date that appears twice both times", () => {
+    const out = flagDisplayMessage({ message: "On 2026-07-20 and again 2026-07-20.", date: "2026-07-20" });
+    expect(out).toBe(`On ${formatDayLabel("2026-07-20")} and again ${formatDayLabel("2026-07-20")}.`);
+  });
+  it("leaves digits that are not a real calendar date alone", () => {
+    expect(flagDisplayMessage({ message: "Room 2026-13-45 is full." })).toBe("Room 2026-13-45 is full.");
+  });
+  it("leaves no ISO date in the three stored transport and hard end messages", () => {
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: "2026-07-11", departDate: "2026-07-15", timezone: "UTC" });
+    const dep = makeTransport({ id: "t1", fromStopId: "s1", depAt: new Date("2026-07-20T10:00:00Z") });
+    const arr = makeTransport({ id: "t2", toStopId: "s1", depAt: new Date("2026-07-12T10:00:00Z"), arrAt: new Date("2026-07-20T10:00:00Z") });
+    const hardEnd = flagReturnLegAfterHardEnd(
+      [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-13T06:00:00Z") }],
+      "2026-07-12",
+      "s2",
+    );
+    const flags = [...flagTransportDateMismatches([stop], [dep, arr]), ...hardEnd];
+    expect(flags).toHaveLength(3);
+    for (const f of flags) expect(flagDisplayMessage(f)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
 });
 
 describe("flagStopsWithoutAccommodation", () => {

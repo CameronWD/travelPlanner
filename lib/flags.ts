@@ -72,7 +72,7 @@ export interface Flag {
 
 /** A Flag's message as a Traveller reads it: its ISO day written as the app writes days. The stored message keeps the ISO day (MCP, Reviews). */
 export function flagDisplayMessage(flag: { message: string; date?: string }): string {
-  return flag.date ? flag.message.replace(flag.date, formatDayLabel(flag.date)) : flag.message;
+  return flag.message.replace(/\b\d{4}-\d{2}-\d{2}\b/g, (iso) => (formatISODate(parseISODate(iso)) === iso ? formatDayLabel(iso) : iso));
 }
 
 // ---------------------------------------------------------------------------
