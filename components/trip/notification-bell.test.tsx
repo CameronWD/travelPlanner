@@ -152,7 +152,17 @@ describe("NotificationBell", () => {
     expect(list.className).toContain("scroll-pb-3");
   });
 
-  // LA-010 / M-3: the list is its own 320px scroll box; where the fold lands
+  it("keeps a 16px gutter on a phone and never lets the list run under the tab bar", async () => {
+    const user = userEvent.setup();
+    render(<NotificationBell tripId="t1" unreadCount={1} recent={[baseActivity]} />);
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    const list = await screen.findByRole("list");
+    const content = list.closest("[role='menu']")!;
+    expect(content.className.split(/\s+/)).toContain("w-[calc(100vw-2rem)]");
+    expect(list.className).toContain("--radix-dropdown-menu-content-available-height");
+  });
+
+  // LA-010 / M-3: the list is its own scroll box (up to 320px); where the fold lands
   // mid-row the bottom 1.5rem fades to read as "more below". The fade is
   // only on while there IS more below — a list that fits, or one scrolled to
   // its end, shows its last row's date unfaded.

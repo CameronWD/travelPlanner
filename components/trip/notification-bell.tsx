@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { markAllRead } from "@/server/actions/activity";
 import { activityLine, viaLabel } from "@/lib/activity";
@@ -90,7 +91,8 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
       <DropdownMenuContent
         align="end"
         sideOffset={10}
-        className="w-[calc(100vw-1rem)] overflow-hidden rounded-xl border-2 border-border bg-background p-0 shadow-hard-4 sm:w-[22rem]"
+        collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}
+        className="w-[calc(100vw-2rem)] overflow-hidden rounded-xl border-2 border-border bg-background p-0 shadow-hard-4 sm:w-[22rem]"
       >
         <div className="flex items-center justify-between gap-3 px-4 pb-2.5 pt-4">
           <p className="font-display text-xl font-extrabold tracking-[-0.03em]">Notifications</p>
@@ -112,7 +114,8 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
             </p>
           </div>
         ) : (
-          // LA-010: the list is its own 320px scroll box ("See all activity"
+          // LA-010: the list is its own scroll box, at most 320px and never
+          // taller than the room above the tab bar ("See all activity"
           // sits below it, never over it); the fold lands mid-row, so fade the
           // bottom 1.5rem of the window to read as "more below" rather than a
           // date sliced in half. M-3: only while there is more below — a list
@@ -121,7 +124,7 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
             ref={measureList}
             onScroll={(e) => setMoreBelow(hasMoreBelow(e.currentTarget))}
             data-more-below={moreBelow}
-            className="max-h-80 overflow-y-auto pb-3 scroll-pb-3 data-[more-below=true]:[mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]"
+            className="max-h-[min(20rem,calc(var(--radix-dropdown-menu-content-available-height)-4.5rem))] overflow-y-auto pb-3 scroll-pb-3 data-[more-below=true]:[mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]"
           >
             {recent.map((item, i) => {
               // The repo passes only unreadCount, not per-item read state, so the
