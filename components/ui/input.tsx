@@ -23,6 +23,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, inval
       {...fieldProps}
       {...props}
       aria-invalid={ariaInvalid}
+      data-empty={type === "date" && props.value === "" ? "" : undefined}
       className={cn(
         "flex w-full px-4",
         INPUT_FRAME_CLASS,
@@ -38,6 +39,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, inval
         "disabled:cursor-not-allowed disabled:opacity-45",
         "aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:outline-destructive motion-safe:aria-[invalid=true]:tp-wiggle",
         "file:border-0 file:bg-transparent file:text-sm file:font-bold",
+        type === "date" &&
+          "appearance-none text-left [&::-webkit-date-and-time-value]:min-h-[1.5em] [&::-webkit-date-and-time-value]:text-left data-[empty]:font-medium data-[empty]:text-muted-foreground",
         className,
       )}
     />
