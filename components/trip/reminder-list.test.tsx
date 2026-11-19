@@ -83,4 +83,19 @@ describe("ReminderList", () => {
     expect(within(earlier).getByRole("button", { name: "Delete reminder: Gone by" })).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "Reminders" })).queryByText("Gone by")).not.toBeInTheDocument();
   });
+
+  it("shows a dismissed Reminder muted with Dismissed and Bring back, which un-dismisses", async () => {
+    const user = userEvent.setup();
+    render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Print docs", date: "2026-11-20", dismissed: true })]} />);
+    expect(screen.getByText("Dismissed")).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveClass("opacity-60");
+    await user.click(screen.getByRole("button", { name: "Bring back reminder: Print docs" }));
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledWith("r1", { dismissed: false }));
+  });
+
+  it("offers no Bring back on a live Reminder", () => {
+    render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Print docs", date: "2026-11-20" })]} />);
+    expect(screen.queryByText("Dismissed")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Bring back/ })).not.toBeInTheDocument();
+  });
 });

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Bell, Pencil, Plus, Trash2 } from "lucide-react";
+import { startTransition, useOptimistic, useState, useTransition } from "react";
+import { Bell, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { daysBetween, formatDayLabel } from "@/lib/dates";
 import {
   addReminder,
-  deleteReminder,
+  updateReminder,
   type ReminderItem,
 } from "@/server/actions/reminders";
 import { aboutFromPick, aboutPickValue, reminderAboutLabel, type ReminderAboutOptions } from "@/lib/reminder-about";
@@ -237,25 +237,15 @@ function AddReminderForm({
 function ReminderRow({
   reminder,
   today,
+  onGotIt,
 }: {
   reminder: ReminderItem;
   today: string;
+  onGotIt: (id: string) => void;
 }) {
-  const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const { relative, absolute } = formatWhen(reminder.date, today);
   const about = reminderAboutLabel(reminder);
-
-  function handleDelete() {
-    startTransition(async () => {
-      try {
-        const r = await deleteReminder(reminder.id);
-        if (!r.success) toastRefused(r.errors, "Couldn't delete that reminder.");
-      } catch {
-        toastRejected("Couldn't delete that reminder.");
-      }
-    });
-  }
 
   return (
     <li className={reminder.past ? "flex items-start justify-between gap-3 py-2 opacity-60" : "flex items-start justify-between gap-3 py-2"}>
@@ -292,14 +282,13 @@ function ReminderRow({
       </Button>
       {editing && <AddReminderDialog reminder={reminder} open onOpenChange={setEditing} />}
       <Button
-        variant="ghost"
-        size="icon"
-        className="shrink-0 text-destructive hover:bg-destructive/10"
-        aria-label={`Delete reminder: ${reminder.title}`}
-        onClick={handleDelete}
-        loading={isPending}
+        variant="outline"
+        size="sm"
+        className="min-h-11 shrink-0 px-4"
+        onClick={() => onGotIt(reminder.id)}
       >
-        <Trash2 className="size-4" aria-hidden="true" />
+        Got it
+        <span className="sr-only">: {reminder.title}</span>
       </Button>
     </li>
   );
@@ -310,7 +299,7 @@ function ReminderRow({
 // ---------------------------------------------------------------------------
 
 /**
- * RemindersCard — a Trip's dated notes, with add/edit/delete. Rendered on the trip
+ * RemindersCard — a Trip's dated notes, with add/edit/Got it (delete is inside Edit). Rendered on the trip
  * Home in *every* Phase (it used to sit behind the Travelling gate, which is
  * why nobody could write one on a trip that had not started yet).
  *
@@ -318,8 +307,22 @@ function ReminderRow({
  * Server data (including `today`) is passed in via props from the page.
  */
 export function RemindersCard({ tripId, reminders, today, about }: RemindersCardProps) {
-  const upcoming = reminders.filter((r) => !r.past).sort((a, b) => a.date.localeCompare(b.date));
-  const earlier = reminders.filter((r) => r.past).sort((a, b) => b.date.localeCompare(a.date));
+  const [shown, hide] = useOptimistic(reminders, (state, id: string) => state.filter((r) => r.id !== id));
+
+  function gotIt(id: string) {
+    startTransition(async () => {
+      hide(id);
+      try {
+        const r = await updateReminder(id, { dismissed: true });
+        if (!r.success) toastRefused(r.errors, "Couldn't dismiss that reminder.");
+      } catch {
+        toastRejected("Couldn't dismiss that reminder.");
+      }
+    });
+  }
+
+  const upcoming = shown.filter((r) => !r.past).sort((a, b) => a.date.localeCompare(b.date));
+  const earlier = shown.filter((r) => r.past).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <Card radius="2xl" shadow={3} className="flex flex-col gap-3 p-4">
@@ -335,7 +338,7 @@ export function RemindersCard({ tripId, reminders, today, about }: RemindersCard
       {upcoming.length > 0 ? (
         <ul className="divide-y-2 divide-muted" aria-label="Upcoming reminders">
           {upcoming.map((r) => (
-            <ReminderRow key={r.id} reminder={r} today={today} />
+            <ReminderRow key={r.id} reminder={r} today={today} onGotIt={gotIt} />
           ))}
         </ul>
       ) : (
@@ -349,7 +352,7 @@ export function RemindersCard({ tripId, reminders, today, about }: RemindersCard
           <h3 className="text-xs font-extrabold text-muted-foreground">Earlier</h3>
           <ul className="divide-y-2 divide-muted" aria-label="Earlier reminders">
             {earlier.map((r) => (
-              <ReminderRow key={r.id} reminder={r} today={today} />
+              <ReminderRow key={r.id} reminder={r} today={today} onGotIt={gotIt} />
             ))}
           </ul>
         </div>

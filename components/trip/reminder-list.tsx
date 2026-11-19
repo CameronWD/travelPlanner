@@ -5,8 +5,10 @@ import { Bell, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddReminderDialog } from "@/components/trip/add-reminder-dialog";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
+import { toastRefused } from "@/components/ui/action-failure";
+import { useServerAction } from "@/components/ui/use-server-action";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
-import { deleteReminder } from "@/server/actions/reminders";
+import { deleteReminder, updateReminder } from "@/server/actions/reminders";
 import { formatDayLabel } from "@/lib/dates";
 import type { ReminderItem } from "@/lib/reminder-about";
 
@@ -29,15 +31,36 @@ export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; 
     }),
   });
 
+  const dismissal = useServerAction(
+    (...[id, dismissed]: [string, boolean]) => updateReminder(id, { dismissed }),
+    { onError: (errors) => toastRefused(errors, "Couldn't bring that reminder back.") },
+  );
+
   const upcoming = reminders.filter((r) => !r.past);
   const earlier = reminders.filter((r) => r.past);
 
   const row = (r: ReminderItem) => (
-    <li key={r.id} className={r.past ? "flex flex-col text-sm opacity-60" : "flex flex-col text-sm"}>
+    <li key={r.id} className={r.past || r.dismissed ? "flex flex-col text-sm opacity-60" : "flex flex-col text-sm"}>
       <div className="flex items-center gap-2">
         <Bell className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="min-w-0 flex-1 break-words text-foreground">{r.title}</span>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDayLabel(r.date)}</span>
+        {r.dismissed && (
+          <>
+            <span className="shrink-0 text-xs font-bold text-muted-foreground">Dismissed</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 px-2"
+              disabled={dismissal.isPending}
+              aria-label={`Bring back reminder: ${r.title}`}
+              onClick={() => dismissal.run(r.id, false)}
+            >
+              Bring back
+            </Button>
+          </>
+        )}
         <Button
           type="button"
           variant="ghost"
