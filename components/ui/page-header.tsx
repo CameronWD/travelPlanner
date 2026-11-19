@@ -27,6 +27,9 @@ export function PageHeader({ eyebrow, title, meta, metaOnMobile, actions, mobile
   // eyebrow (trip name) shares row 1 with the layout cluster (fork pill, share,
   // bell) in column 2; the h1 takes row 2, the meta line the row after. With no
   // eyebrow and no cluster the h1 takes row 1 so nothing reserves an empty row.
+  // The h1 and the round action both span the two columns (a spanning item
+  // never sizes the auto column), so column 2 is only as wide as the cluster
+  // and the h1 keeps the row's width less the action's.
   // From md: one flex row that wraps — the side cluster (trailing + actions)
   // becomes a single flex unit (`contents` → `md:flex`) and drops under the
   // title as a group, right-aligned, when it does not fit (and wraps within
@@ -48,8 +51,9 @@ export function PageHeader({ eyebrow, title, meta, metaOnMobile, actions, mobile
         ) : null}
         <h1
           className={cn(
-            "col-start-1 mt-0.5 font-display text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] text-foreground [overflow-wrap:normal] md:text-[40px]",
+            "col-span-2 col-start-1 mt-0.5 font-display text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] text-foreground [overflow-wrap:normal] md:text-[40px]",
             h1Row,
+            mobileAction && "max-md:pr-14",
           )}
         >
           {title}
@@ -71,7 +75,7 @@ export function PageHeader({ eyebrow, title, meta, metaOnMobile, actions, mobile
             </div>
           ) : null}
           {mobileAction ? (
-            <div data-slot="page-header-mobile-action" className={cn("col-start-2 self-center", h1Row, "md:hidden")}>
+            <div data-slot="page-header-mobile-action" className={cn("col-span-2 col-start-1 justify-self-end self-center", h1Row, "md:hidden")}>
               {mobileAction}
             </div>
           ) : null}

@@ -1331,7 +1331,7 @@ describe("FeedbackLauncher", () => {
       expect(screen.getByRole("switch", { name: "Show resolved (2)" })).toBeInTheDocument();
     });
 
-    it("reveals hidden notes in their normal date order and and a second tap hides them again", async () => {
+    it("reveals hidden notes in their normal date order, and a second tap hides them again", async () => {
       listMock.mockResolvedValue({
         success: true,
         notes: [existingNote, oldDone, recentDone, oldWontFix],

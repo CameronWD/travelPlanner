@@ -80,8 +80,8 @@ describe("PageHeader (AUDIT.md §1)", () => {
     expect(trailingClasses).not.toContain("col-span-2");
     expect(title.className.split(/\s+/)).toEqual(expect.arrayContaining(["max-md:contents", "min-w-0", "md:flex-1", "md:min-w-[14rem]"]));
     expect(screen.getByText("EU Christmas 2026").className.split(/\s+/)).toEqual(expect.arrayContaining(["col-start-1", "row-start-1"]));
-    expect(h1.className.split(/\s+/)).toEqual(expect.arrayContaining(["col-start-1", "row-start-2"]));
-    expect(mobile.className.split(/\s+/)).toEqual(expect.arrayContaining(["row-start-2", "col-start-2", "md:hidden"]));
+    expect(h1.className.split(/\s+/)).toEqual(expect.arrayContaining(["col-start-1", "col-span-2", "row-start-2", "max-md:pr-14"]));
+    expect(mobile.className.split(/\s+/)).toEqual(expect.arrayContaining(["row-start-2", "col-span-2", "justify-self-end", "md:hidden"]));
     expect(trailing.compareDocumentPosition(mobile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const side = container.querySelector("[data-slot='page-header-side']")!;
     expect(side.className.split(/\s+/)).toEqual(expect.arrayContaining(["contents", "md:flex", "md:flex-wrap", "md:ml-auto", "md:justify-end"]));
