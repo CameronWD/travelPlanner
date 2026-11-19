@@ -199,6 +199,7 @@ export function ShoppingList({ tripId, entries }: { tripId: string; entries: Sho
         <EmptyState
           icon={ShoppingBasket}
           tone="teal"
+          className="border-0 px-0 py-4"
           title="No shopping items yet"
           description={'Add something to buy, or flag a Packing item with "Need to buy".'}
         />

@@ -46,6 +46,7 @@ describe("ChecklistsLayout (LA-017)", () => {
     const grid = container.firstElementChild as HTMLElement;
     expect(grid.className).toContain("lg:grid-cols-2");
     expect(grid.className).not.toContain("2xl:grid-cols-3");
+    expect(grid.className).toContain("[&>*:last-child:nth-child(odd)]:lg:col-span-2");
   });
 });
 

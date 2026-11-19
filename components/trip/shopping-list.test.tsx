@@ -85,6 +85,7 @@ describe("ShoppingList", () => {
   it("empty entries shows an empty state and the add box", () => {
     render(<ShoppingList tripId="trip-1" entries={[]} />);
     expect(screen.getByRole("textbox", { name: /add a shopping item/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No shopping items yet" }).closest("[class*='border-0']")).not.toBeNull();
   });
 
   it("a personal entry shows its owner's avatar; a Shared one shows none", () => {

@@ -94,7 +94,7 @@ export function ChecklistsLayout({ panels }: { panels: ChecklistsPanel[] }) {
 
   if (isDesktop) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 [&>*:last-child:nth-child(odd)]:lg:col-span-2">
         {panels.map((panel) => (
           <Card key={panel.value}>
             <CardHeader className="p-5 pb-0">
