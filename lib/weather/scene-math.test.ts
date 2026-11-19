@@ -49,17 +49,23 @@ describe("SCATTER_W", () => {
 });
 
 describe("sceneClip", () => {
-  it("leaves the label line out across the whole regular card and the daylight strip out at both sizes", () => {
-    const regular = sceneClip("snow", "regular");
-    expect(regular).toMatch(/^polygon\(100% 0%, 100% 70\.34%, /);
-    expect(regular).toContain(", 100% 18.22%, ");
-    expect(regular).toMatch(/, 100% 0\.00%\)$/);
-    expect(sceneClip("snow", "compact")).toMatch(/^polygon\(100% 0%, 100% 70\.34%, /);
-  });
-  it("steps out past the widest words of each row, in pixels of the canvas", () => {
-    const zones = textZones("partly", "compact");
-    const reach = wordsReach(zones, 120, 130);
-    expect(reach).toBe(448 + 8);
-    expect(sceneClip("partly", "compact")).toContain(`${(reach * (136 / 236)).toFixed(1)}px`);
+  const SCENES = ["sunny", "partly", "overcast", "fog", "rain", "snow", "storm", "wind", "heat", "night"] as const;
+  const SIZES = ["regular", "compact"] as const;
+  const PX = { regular: 232 / 236, compact: 136 / 236 };
+
+  it.each(SIZES)("%s: one block right of the widest words, with no open band above or below the text", (size) => {
+    for (const scene of SCENES) {
+      const zones = textZones(scene, size);
+      const widest = Math.max(...zones.filter((z) => Number.isFinite(z.right)).map((z) => z.right)) * PX[size];
+      const points = sceneClip(scene, size).replace(/^polygon\(|\)$/g, "").split(", ");
+      expect(points).toHaveLength(4);
+      const lefts = points.map((p) => p.split(" ")[0]).filter((v) => v !== "100%").map((v) => parseFloat(v));
+      expect(lefts).toHaveLength(2);
+      for (const left of lefts) expect(left).toBeGreaterThanOrEqual(Number(widest.toFixed(1)));
+      const tops = points.map((p) => parseFloat(p.split(" ")[1]));
+      const label = zones.find((z) => z.top === 0 && z.right === Number.POSITIVE_INFINITY);
+      expect(Math.min(...tops)).toBeCloseTo(label ? (label.bottom / 236) * 100 : 0, 1);
+      expect(Math.max(...tops)).toBeCloseTo((166 / 236) * 100, 1);
+    }
   });
 });

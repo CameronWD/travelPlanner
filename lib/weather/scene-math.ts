@@ -91,18 +91,15 @@ export function wordsReach(zones: Zone[], y0: number, y1: number): number {
   return Math.max(0, ...zones.filter((z) => z.top < y1 && z.bottom > y0).map((z) => z.right));
 }
 
-// The part of the card where moving pieces may show: everything right of the
-// words, between the top and the daylight strip. A staircase, so one polygon.
+// The part of the card where moving pieces may show: one block to the right of
+// the widest words, from below the label line (regular only) to the daylight
+// strip. A single edge, so no open band is left above or below the text.
 export function sceneClip(scene: SceneKey, size: CardSize): string {
   const zones = textZones(scene, size);
   const px = CANVAS_PX[size] / SCENE_H;
-  const cuts = [...new Set([0, STRIP_TOP, ...zones.flatMap((z) => [z.top, z.bottom])])].filter((y) => y >= 0 && y <= STRIP_TOP).sort((a, b) => b - a);
-  const x = (units: number) => (units === FULL ? "100%" : `${(units * px).toFixed(1)}px`);
+  const left = Math.max(...zones.filter((z) => z.right !== FULL).map((z) => z.right));
+  const top = Math.max(0, ...zones.filter((z) => z.right === FULL && z.top === 0).map((z) => z.bottom));
   const y = (units: number) => `${((units / SCENE_H) * 100).toFixed(2)}%`;
-  const points = [`100% 0%`, `100% ${y(STRIP_TOP)}`];
-  for (let i = 0; i < cuts.length - 1; i++) {
-    const reach = wordsReach(zones, cuts[i + 1], cuts[i]);
-    points.push(`${x(reach)} ${y(cuts[i])}`, `${x(reach)} ${y(cuts[i + 1])}`);
-  }
-  return `polygon(${points.join(", ")})`;
+  const x = `${(left * px).toFixed(1)}px`;
+  return `polygon(100% ${y(top)}, 100% ${y(STRIP_TOP)}, ${x} ${y(STRIP_TOP)}, ${x} ${y(top)})`;
 }
