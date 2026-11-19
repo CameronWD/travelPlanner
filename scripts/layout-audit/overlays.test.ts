@@ -23,6 +23,13 @@ function clickLike(s: Step): { role: string; name: string } | undefined {
 }
 
 describe("OVERLAYS", () => {
+  it("matches a dialog's title whatever its capitalisation", () => {
+    for (const o of OVERLAYS) {
+      const name = o.expect.name && parseName(o.expect.name, {});
+      if (name instanceof RegExp && /[a-z]/i.test(name.source)) expect(name.flags).toContain("i");
+    }
+  });
+
   it("has unique ids", () => expect(new Set(OVERLAYS.map((o) => o.id)).size).toBe(OVERLAYS.length));
   // A changed count is a prompt to re-read the list, not a contract.
   it("covers the 45 recipes last walked against the app", () => expect(OVERLAYS).toHaveLength(45));

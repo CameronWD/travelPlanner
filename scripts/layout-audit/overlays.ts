@@ -366,7 +366,7 @@ export const OVERLAYS: OverlayRecipe[] = [
       { click: { role: "button", name: "/^More actions for /" } },
       { click: { role: "menuitem", name: "Edit name & place" } },
     ],
-    expect: { role: "dialog", name: "/^Edit /" },
+    expect: { role: "dialog", name: "/^Edit /i" },
   },
   {
     id: "adjust-dates",
@@ -378,7 +378,7 @@ export const OVERLAYS: OverlayRecipe[] = [
       { click: { role: "button", name: "/^More actions for /" } },
       { click: { role: "menuitem", name: "Adjust dates" } },
     ],
-    expect: { role: "dialog", name: "/^Adjust dates/" },
+    expect: { role: "dialog", name: "/^Adjust dates/i" },
   },
   {
     id: "delete-stop",
@@ -394,7 +394,7 @@ export const OVERLAYS: OverlayRecipe[] = [
       { click: { role: "button", name: "More actions for {stop}", exact: true } },
       { click: { role: "menuitem", name: "Delete {stop}" } },
     ],
-    expect: { role: "dialog", name: '/^Delete "/' },
+    expect: { role: "dialog", name: '/^Delete "/i' },
   },
   {
     id: "item-add",
@@ -449,7 +449,7 @@ export const OVERLAYS: OverlayRecipe[] = [
     // A leg's own pill; its accessible name ends ". Edit." and its dialog is
     // titled "{Mode} to {place}".
     steps: [{ click: { role: "button", name: "/\\. Edit\\.$/" } }],
-    expect: { role: "dialog", name: "/^(Flight|Train|Bus|Car|Drive|Ferry|Other) to /" },
+    expect: { role: "dialog", name: "/^(Flight|Train|Bus|Car|Drive|Ferry|Other) to /i" },
   },
   {
     id: "cost-add",
