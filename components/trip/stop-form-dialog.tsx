@@ -332,6 +332,7 @@ function StopForm({
           }}
           aria-label="Stop type"
           tone="ink"
+          className="grid grid-cols-2"
           disabled={isPending}
         >
           <SegmentedItem value="scheduled">Exact dates</SegmentedItem>

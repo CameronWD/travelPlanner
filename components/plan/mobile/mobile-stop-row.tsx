@@ -48,7 +48,7 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
         {number}
       </span>
 
-      <span className="min-w-0 flex-auto">
+      <span className="min-w-0 flex-1">
         <span className="block truncate font-display text-[19px] font-extrabold">{stop.name}</span>
         <span
           className={cn(
@@ -61,7 +61,7 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
         {stop.surprise && <SurpriseBadge view={stop.surprise} size="sm" className="mt-1 max-w-full truncate" />}
       </span>
 
-      <span className="flex min-w-0 shrink-[100] flex-col items-end gap-1">
+      <span className="flex min-w-[4.5rem] max-w-[40%] shrink-0 flex-col items-end gap-1">
         <span className="max-w-full truncate text-sm font-extrabold tabular-nums">
           {rough ? "Rough" : nights === 0 ? "Same day" : formatDateRangeCompact(stop.arriveDate as string, stop.departDate as string)}
         </span>

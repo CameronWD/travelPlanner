@@ -39,10 +39,13 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(screen.getByText("5n")).toBeInTheDocument();
   });
 
-  it("the date column gives up width before the name does", () => {
+  it("the date column keeps a floor and a cap, so the stay line truncates first and the nights pill never leaves its column", () => {
     renderRow();
-    expect(screen.getByText("Paris").parentElement!.className).toContain("flex-auto");
-    expect(screen.getByText("10–15 Dec").parentElement!.className).toContain("shrink-[100]");
+    expect(screen.getByText("Paris").parentElement!.className).toContain("flex-1");
+    const column = screen.getByText("10–15 Dec").parentElement!;
+    expect(column.className).toContain("min-w-[4.5rem]");
+    expect(column.className).toContain("max-w-[40%]");
+    expect(column.className).not.toContain("shrink-[100]");
     expect(screen.getByText("10–15 Dec").className).toContain("truncate");
   });
 
