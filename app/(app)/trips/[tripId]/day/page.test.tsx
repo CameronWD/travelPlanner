@@ -593,6 +593,20 @@ describe("Day page: a slot for every day", () => {
     expect(h.getByRole("button", { name: "Add a title" })).toBeInTheDocument();
   });
 
+  it("a day two away keeps its own state when a navigation lands on it and it becomes a near day", async () => {
+    getDayMock.mockImplementation(tenDays({ journal: { open: true, mine: { body: "", updatedAt: null, photo: null, extraPhotos: [], hiddenFromShares: false }, others: [] } }));
+    const { container, rerender } = await renderPage("2026-12-05");
+    const slot = () => container.querySelector('[data-day-panel="2026-12-07"]') as HTMLElement;
+    fireEvent.click(within(slot()).getByRole("button", { name: "Write an entry", hidden: true }));
+    expect(within(slot()).getByTestId("journal-editor")).toBeInTheDocument();
+    const landed = await dayPage("2026-12-07");
+    await act(async () => {
+      rerender(landed);
+    });
+    expect(shownPanel(container)).toBe(slot());
+    expect(within(slot()).getByTestId("journal-editor")).toBeInTheDocument();
+  });
+
   it("the offline warmer's request gets the three near days only and no further read", async () => {
     getDayMock.mockImplementation(tenDays());
     requestHeaders.set(WARM_REQUEST_HEADER, "1");

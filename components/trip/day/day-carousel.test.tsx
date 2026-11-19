@@ -506,6 +506,26 @@ describe("DayCarousel", () => {
     expect(api!.current()).toBe(WEEK[SHOWN]);
   });
 
+  it("a push the pending timeout gave up on, which parked back off a day that never filled, then lands on that day: the carousel moves to it and everything agrees", async () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const unfilled = week().map((p) => (p.iso === WEEK[5] ? { ...p, content: <div data-day-slot-skeleton /> } : p));
+    const { scroller, heading, panel, rerenderWith } = mount({ panels: unfilled });
+    dragTo(scroller, 5);
+    act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS + 1); });
+    expect(scroller.scrollLeft).toBe(SHOWN * WIDTH);
+    expect(api!.current()).toBe(WEEK[SHOWN]);
+    await act(async () => {
+      rerenderWith({ shownDate: WEEK[5], panels: week([...WEEK]) });
+      for (const release of releases.splice(0)) release();
+    });
+    expect(scroller.scrollLeft).toBe(5 * WIDTH);
+    expect(scroller.dataset.shownDay).toBe(WEEK[5]);
+    expect(api!.current()).toBe(WEEK[5]);
+    expect(panel(WEEK[5]).dataset.shown).toBe("true");
+    expect(heading()).toBe(`real ${WEEK[5]}`);
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
   it("a push that never ends gives up after the pending timeout and leaves a filled day in view where it is; the next settle pushes again", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     const { scroller, heading } = mount();

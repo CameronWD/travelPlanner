@@ -92,11 +92,16 @@ export default async function DayPage({ params, searchParams }: { params: Promis
   const shared: DaySlotShared = { tripId, slug, tripName, shownDate: d.date, unreadCount, recent, members };
   const seed = Object.fromEntries([...filled.values()].map((day) => [day.date, dayChrome(day, shared)]));
 
+  // Every filled slot has the same shape, so a day that moves between the near
+  // read and the further one as the window re-centres keeps its state. A near
+  // day's read is already in hand: its boundary never shows the fallback.
   const panels: DayPanel[] = dates.map((iso) => ({
     iso,
     href: tripPath(slug, `/day/${iso}`),
     content: filled.has(iso) ? (
-      <DaySlot iso={iso} read={near} shared={shared} chrome={seed[iso]} />
+      <Suspense fallback={<DaySlotSkeleton />}>
+        <DaySlot iso={iso} read={near} shared={shared} chrome={seed[iso]} />
+      </Suspense>
     ) : ring && ringDates.includes(iso) ? (
       <Suspense fallback={<DaySlotSkeleton />}>
         <DaySlot iso={iso} read={ring} shared={shared} />

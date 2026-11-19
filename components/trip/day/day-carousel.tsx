@@ -283,6 +283,11 @@ export function DayCarousel({
     if (p) machine.navigate(p);
   }, [view, machine]);
 
+  // These rely on the order each commit runs them in: the insertion effect
+  // holds the heights before anything measures; this fit effect releases the
+  // day in view's hold; the header effect measures inside its held box,
+  // scrolls, then releases. Both ResizeObservers only measure, never scroll.
+  //
   // The others clip to the day in view's height (they start at h-0), so a
   // short day beside a long one leaves no dead space below; `items-start`
   // keeps the day in view at its own height rather than stretched to theirs.
