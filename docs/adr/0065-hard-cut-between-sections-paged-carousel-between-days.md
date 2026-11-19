@@ -113,7 +113,9 @@ strip waited for it, and a second swipe met the end of a three-panel scroller.
 - **The date arrives by rewrite.** The address stays `/trips/<ref>/day/<date>`; the proxy
   rewrites it to the one Day page as `?d=<date>`. A day change is then a search-param
   navigation: nothing above the page remounts, so the carousel, its scroller and the panels
-  of days present in both windows survive it. Slots entering the window fill and slots
+  of days present in both windows survive it, with what is in them: every filled slot has
+  the same shape (its own Suspense), so a day moving between the near read and the further
+  one as the window re-centres keeps its state. Slots entering the window fill and slots
   leaving it become skeletons by ordinary reconciliation, each panel keyed by its date.
 - **The day in view is the carousel's.** A settle (drag, arrow, key or chip) shows that day's
   own header, or a date-only header until its slot fills, and lights the strip at once. It
@@ -128,8 +130,8 @@ strip waited for it, and a second swipe met the end of a three-panel scroller.
   filled parks back.
 - **Not `history.pushState`.** A URL the router did not navigate to leaves it inconsistent: a
   refresh then resets the scroll position and Back breaks.
-- **What runs off screen.** Days further than one slot from the day in view are `inert` and
-  their animations pause; the Day map mounts only for the day in view. Opened before that
+- **What runs off screen.** Every panel but the day in view is `inert`, and days further
+  than one slot from it also pause their animations; the Day map mounts only for the day in view. Opened before that
   day's navigation lands, it waits for the landing to write `?map=1`: Next folds a
   `replaceState` into its router, and writing to the previous day's address undid the
   navigation in flight.

@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * TRIPS_PAGE.md §9: header at once; skeleton cards at real sizes; flat canvas
- * map; tally title + 4 cells. Carries the page's own FRAME padding (via
+ * map; the tally as a 3-cell strip below md, a title + 4 cells from md. Carries the page's own FRAME padding (via
  * `data-trips-shell`, which drops <main>'s padding — see page.tsx) so the
  * skeleton doesn't double-pad under <main>'s while the real page streams in.
  */

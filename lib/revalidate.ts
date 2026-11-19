@@ -16,7 +16,11 @@ export type TripPage =
   | "" | "/plan" | "/budget" | "/calendar" | "/summary" | "/print" | "/compare"
   | "/day" | "/journal" | "/checklists" | "/wishlist" | "/files" | "/settings" | "/reviews";
 
-/** "/day" stands for every day page: revalidated through the route pattern. */
+/**
+ * "/day" stands for every day page. The route pattern matches no cached
+ * entry; what refreshes an open Day page is that any revalidatePath call in a
+ * server action makes the client drop its caches and refresh the current route.
+ */
 const DAY_ROUTE = "/trips/[tripId]/day";
 
 export const SCOPE_PAGES: Record<TripScope, readonly TripPage[] | "layout"> = {

@@ -579,9 +579,10 @@ export function FeedbackLauncher() {
         the scroll lock off the overlay (it wraps the content in RemoveScroll)
         and renders no overlay at all unless the dialog is modal. So below md
         the overlay is what stops the page scrolling underneath a panel that
-        covers it. With the keyboard open the panel fills the visible area
-        above the keyboard, so the overlay shows only as the dim around it. From md up there is no overlay and no lock, which
-        is the whole point of the docked shape. `docked` (and so `modal`) can
+        covers it. With the keyboard open the panel fills the whole visible
+        area above the keyboard, so the overlay is never seen; it is there for
+        the scroll lock. From md up there is no overlay and no lock, which is
+        the whole point of the docked shape. `docked` (and so `modal`) can
         flip live from the moment the panel first opens onward — see
         useDockedViewport, and note it tracks `hasOpened` rather than `open`
         itself, deliberately including the ~200ms exit animation after a

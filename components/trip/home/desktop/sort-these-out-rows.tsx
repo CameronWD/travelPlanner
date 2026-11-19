@@ -69,7 +69,7 @@ export function SortTheseOutRows({ rows, total }: { rows: SortRow[]; total: numb
         ) : null}
       </div>
       <ul className="flex min-h-0 flex-col overflow-y-auto">
-{shown.map((row) => (
+        {shown.map((row) => (
           <li key={row.id} className="border-t-2 border-border-soft">
             <div className="flex items-center gap-2">
               {row.href ? (
