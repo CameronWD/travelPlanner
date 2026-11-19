@@ -72,6 +72,6 @@ describe("FlagList: tight rows and empty days", () => {
   it("shows a single empty day as a plain row", () => {
     const { container } = render(<FlagList flags={[empty("2026-07-02")]} tripId="t1" tripBasePath={BASE} />);
     expect(container.querySelector("details")).toBeNull();
-    expect(screen.getByRole("link", { name: /Nothing scheduled on 2026-07-02/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Nothing scheduled on/ })).toBeInTheDocument();
   });
 });

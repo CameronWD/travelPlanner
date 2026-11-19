@@ -43,7 +43,7 @@ export function SidebarFooter({
       {/* The whole name-over-"Account" block is the link, so it clears the 44px floor. */}
       <Link href="/account" className="group flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-md">
         <span className="truncate text-sm font-bold text-foreground">{travellerName(user)}</span>
-        <span className="text-xs text-on-accent-muted underline-offset-2 group-hover:underline">Account</span>
+        <span className="text-xs text-muted-foreground underline-offset-2 group-hover:underline">Account</span>
       </Link>
     </div>
   );

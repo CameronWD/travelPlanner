@@ -43,7 +43,7 @@ function rowClass(active: boolean) {
   return cn(
     "relative flex h-[42px] items-center justify-between gap-2 rounded-[12px] border-2 px-3 text-[15px] font-bold text-foreground",
     "before:absolute before:inset-x-0 before:-inset-y-px before:content-['']",
-    active ? "border-border bg-coral shadow-hard-1" : "border-transparent hover:border-border",
+    active ? "border-border bg-coral text-on-accent shadow-hard-1" : "border-transparent hover:border-border",
   );
 }
 
@@ -77,7 +77,7 @@ function Row({ href, label, match, nav, count, icon: Icon }: { href: Route; labe
  * switcher (mt-0); later ones (including "Across trips") get the usual
  * mt-4 gap.
  */
-const EYEBROW = "mx-3 mb-1 mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-on-accent-muted";
+const EYEBROW = "mx-3 mb-1 mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground";
 
 /**
  * The sidebar's navigation (≥1280px): thirteen trip rows in three groups

@@ -45,6 +45,8 @@ describe("SidebarNav", () => {
     const plan = screen.getByRole("link", { name: "Plan" });
     expect(plan).toHaveAttribute("href", "/trips/christmas-in-europe-2026/plan");
     expect(plan).toHaveAttribute("aria-current", "page");
+    expect(plan.className.split(/\s+/)).toContain("text-on-accent");
+    expect(screen.getByRole("link", { name: "Money" }).className.split(/\s+/)).not.toContain("text-on-accent");
   });
 
   it("shows the Money count beside Money", () => {

@@ -36,10 +36,10 @@ export function AppTabBar() {
       match: isYou,
       icon: UserRound,
       // On the 16px icon: a 10px dot at its top-right corner, kept inside the link's overflow, ringed in the
-      // bar's own sun so it reads on the active coral pill and off it alike.
-      indicator: lit ? <AdminQueueDot className="-right-1.5 -top-1 size-2.5 border-sun" /> : undefined,
+      // bar's own rail colour so it reads on the active coral pill and off it alike.
+      indicator: lit ? <AdminQueueDot className="-right-1.5 -top-1 size-2.5 border-rail" /> : undefined,
       "aria-label": lit ? withAdminQueueName("You", isAdmin, queue) : undefined,
     },
   ];
-  return <TabBar items={items} aria-label="Teepee" className="bg-sun" />;
+  return <TabBar items={items} aria-label="Teepee" className="rail bg-rail" />;
 }

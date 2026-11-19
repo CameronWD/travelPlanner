@@ -50,7 +50,7 @@ export function Sidebar({ user, isAdmin, adminQueue, trip, switcher, counts, tri
   return (
     <aside
       data-testid="sidebar"
-      className="island sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-1 self-start overflow-y-auto border-r-2 border-border bg-sun px-4 py-[22px] xl:flex print:hidden"
+      className="rail sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-1 self-start overflow-y-auto border-r-2 border-border bg-rail px-4 py-[22px] xl:flex print:hidden"
     >
       <Link
         href="/trips"

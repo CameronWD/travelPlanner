@@ -79,7 +79,7 @@ describe("Sidebar", () => {
   it("is the ≥1280px chrome: hidden below xl, sticky at full height, 248px sun", () => {
     renderSidebar();
     const aside = screen.getByTestId("sidebar");
-    for (const c of ["hidden", "xl:flex", "sticky", "top-0", "h-dvh", "w-[248px]", "bg-sun", "border-r-2", "border-border", "py-[22px]", "px-4"]) {
+    for (const c of ["hidden", "xl:flex", "sticky", "top-0", "h-dvh", "w-[248px]", "rail", "bg-rail", "border-r-2", "border-border", "py-[22px]", "px-4"]) {
       expect(aside.className.split(/\s+/)).toContain(c);
     }
   });
@@ -87,6 +87,7 @@ describe("Sidebar", () => {
   it("scrolls on its own when it is taller than the window", () => {
     renderSidebar();
     const classes = screen.getByTestId("sidebar").className.split(/\s+/);
+    expect(classes).not.toContain("bg-sun");
     expect(classes).toContain("h-dvh");
     expect(classes).toContain("overflow-y-auto");
   });

@@ -32,6 +32,15 @@ const items = [
 ];
 
 describe("Dock", () => {
+  it("is the rail surface, and its lit item carries dark ink (K2)", () => {
+    render(<NavigationPendingProvider><Dock items={items} aria-label="Sections" /></NavigationPendingProvider>);
+    const classes = screen.getByRole("navigation").className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["rail", "bg-rail"]));
+    expect(classes).not.toContain("bg-sun");
+    expect(screen.getByRole("link", { name: "Home" }).className.split(/\s+/)).toContain("text-on-accent");
+    expect(screen.getByRole("link", { name: "Plan" }).className.split(/\s+/)).not.toContain("text-on-accent");
+  });
+
   it("lights the tapped item before the URL changes (ADR 0063)", () => {
     render(<NavigationPendingProvider><Dock items={items} /></NavigationPendingProvider>);
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");

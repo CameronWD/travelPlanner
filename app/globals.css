@@ -107,6 +107,7 @@
   --over-foreground: 0 0% 100%; /* #FFFFFF */
   --coral: 11 100% 65%; /* #FF6B4A */
   --sun: 42 100% 70%; /* #FFD166 */
+  --rail: 42 100% 70%; /* = sun */
   --teal: 179 44% 55%; /* #5BC0BE */
   --lilac: 264 100% 82%; /* #C7A2FF */
   --coral-text: 11 73% 42%; /* #B8391D */
@@ -229,6 +230,7 @@
   --over-foreground: 36 10% 10%; /* #1C1A17 */
   --coral: 13 73% 67%; /* #E8866C */
   --sun: 42 68% 69%; /* #E6C57A */
+  --rail: 38 10% 16%; /* = card */
   --teal: 177 34% 58%; /* #6FB8B4 */
   --lilac: 259 53% 76%; /* #B5A0E2 */
   --coral-text: 13 73% 67%; /* #E8866C */
@@ -391,6 +393,7 @@
   --color-over-foreground: hsl(var(--over-foreground));
   --color-coral: hsl(var(--coral));
   --color-sun: hsl(var(--sun));
+  --color-rail: hsl(var(--rail));
   --color-teal: hsl(var(--teal));
   --color-lilac: hsl(var(--lilac));
   --color-coral-text: hsl(var(--coral-text));
@@ -515,6 +518,34 @@
   --card: 40 100% 99% / 0.38;
   --background: 40 100% 99% / 0.38;
   color: hsl(var(--on-accent));
+}
+
+/* The rail is a sun island in light and the dark card in dark (K2): in dark it re-scopes nothing. */
+@utility rail {
+  --foreground: var(--on-accent);
+  --card-foreground: var(--on-accent);
+  --muted-foreground: var(--on-accent-muted);
+  --border: var(--on-accent);
+  --input: var(--on-accent);
+  --ring: var(--on-accent);
+  --primary: var(--on-accent);
+  --primary-foreground: 40 100% 98%;
+  --card: 40 100% 99% / 0.38;
+  --background: 40 100% 99% / 0.38;
+  color: hsl(var(--on-accent));
+  &:where(.dark *) {
+    --foreground: inherit;
+    --card-foreground: inherit;
+    --muted-foreground: inherit;
+    --border: inherit;
+    --input: inherit;
+    --ring: inherit;
+    --primary: inherit;
+    --primary-foreground: inherit;
+    --card: inherit;
+    --background: inherit;
+    color: hsl(var(--foreground));
+  }
 }
 
 /* Press / hover physics for anything with a hard shadow */

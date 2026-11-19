@@ -33,4 +33,16 @@ describe("layout primitives in globals.css", () => {
   it("locks native controls to the light scheme on light-locked surfaces ([data-theme=\"light\"])", () => {
     expect(decls(lightTheme())["color-scheme"]).toBe("light");
   });
+
+  it("gives the side rail its own surface: sun in light, the dark card in dark (K2)", () => {
+    expect(decls(lightTheme())["--rail"]).toBe("42 100% 70%");
+    expect(decls(rule(".dark"))["--rail"]).toBe("38 10% 16%");
+    expect(decls(atRule("theme", "inline"))["--color-rail"]).toBe("hsl(var(--rail))");
+    const rail = utility("rail");
+    expect(decls(rail).color).toBe("hsl(var(--on-accent))");
+    const inDark = decls(rule("&:where(.dark *)", rail));
+    expect(inDark["--foreground"]).toBe("inherit");
+    expect(inDark["--muted-foreground"]).toBe("inherit");
+    expect(inDark.color).toBe("hsl(var(--foreground))");
+  });
 });
