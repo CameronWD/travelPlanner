@@ -6,7 +6,7 @@
  * ("Next steps") and ADR 0010. PURE — no Prisma/React.
  */
 import type { Route } from "next";
-import type { Flag } from "@/lib/flags";
+import { flagDisplayMessage, type Flag } from "@/lib/flags";
 import { tripSubPath } from "@/lib/trip-path";
 import type { TripPhase } from "@/lib/trip-phase";
 
@@ -121,7 +121,7 @@ export function buildNextSteps({
   for (const flag of flags) {
     candidates.push({
       id: flag.id,
-      title: flag.message,
+      title: flagDisplayMessage(flag),
       href: flagHref(flag, tripBasePath),
       severity: flag.severity,
       source: "flag",

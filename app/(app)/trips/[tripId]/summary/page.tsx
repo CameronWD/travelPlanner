@@ -13,7 +13,7 @@ import { tripPath } from "@/lib/trip-path";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enum-values";
 import { formatMoney } from "@/lib/money/money";
-import { formatDateRange, nightsBetween } from "@/lib/dates";
+import { formatDateRange, formatDayRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
@@ -572,7 +572,7 @@ export default async function SummaryPage({
                                 <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
                                   <span className="min-w-0 break-words">{accom.name}</span>
                                   <span className="shrink-0 text-xs opacity-60">
-                                    {accom.checkIn} – {accom.checkOut}
+                                    {formatDayRange(accom.checkIn, accom.checkOut)}
                                   </span>
                                 </div>
                               </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectFlags,
+  flagDisplayMessage,
   flagStopsWithoutAccommodation,
   flagEmptyDays,
   flagTransportDateMismatches,
@@ -116,6 +117,17 @@ const ROME: FlagStop = makeStop({
 // ---------------------------------------------------------------------------
 // Rule 1: Stop without accommodation
 // ---------------------------------------------------------------------------
+
+describe("flagDisplayMessage", () => {
+  it("writes the flag's ISO day as the app writes days, leaving the stored message alone", () => {
+    const flag = { message: "Long driving day on 2026-12-09: ~5h behind the wheel.", date: "2026-12-09" };
+    expect(flagDisplayMessage(flag)).toBe("Long driving day on Wed 9 Dec: ~5h behind the wheel.");
+    expect(flag.message).toContain("2026-12-09");
+  });
+  it("returns a message with no date as it is", () => {
+    expect(flagDisplayMessage({ message: "Add a stay." })).toBe("Add a stay.");
+  });
+});
 
 describe("flagStopsWithoutAccommodation", () => {
   it("fires a warning when a multi-night stop has no accommodation", () => {

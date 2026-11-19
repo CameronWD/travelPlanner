@@ -14,7 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { isTightFlag, type Flag } from "@/lib/flags";
+import { flagDisplayMessage, isTightFlag, type Flag } from "@/lib/flags";
 import { flagHref } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
 import { MarkFineButton } from "@/components/trip/marked-fine";
@@ -104,7 +104,7 @@ function FlagRow({ flag, tripId, tripBasePath }: { flag: Flag; tripId: string; t
         aria-hidden="true"
       />
       <span className={cn("leading-snug", config.labelClass)}>
-        {flag.message}
+        {flagDisplayMessage(flag)}
       </span>
     </div>
   );

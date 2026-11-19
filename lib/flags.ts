@@ -70,6 +70,11 @@ export interface Flag {
   between?: { from: string; to: string };
 }
 
+/** A Flag's message as a Traveller reads it: its ISO day written as the app writes days. The stored message keeps the ISO day (MCP, Reviews). */
+export function flagDisplayMessage(flag: { message: string; date?: string }): string {
+  return flag.date ? flag.message.replace(flag.date, formatDayLabel(flag.date)) : flag.message;
+}
+
 // ---------------------------------------------------------------------------
 // Minimal input shapes (mirror Prisma; no Prisma import)
 // ---------------------------------------------------------------------------
