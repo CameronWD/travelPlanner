@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/checklists", () => ({
@@ -444,5 +444,18 @@ describe("Checklist offline (trip-proofing B4)", () => {
 
     expect(await screen.findByText(OFFLINE_MESSAGE)).toBeInTheDocument();
     expect(input).toHaveValue("Book a later taxi");
+  });
+
+  it("the edit dialog's text field is a growing textarea, and Enter in it saves", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateChecklistItem).mockResolvedValueOnce({ success: true } as never);
+    render(<Checklist tripId="trip-1" kind="PRETRIP" items={[seedItems[0]]} showDueDate={false} showAssignee={false} />);
+    await user.click(screen.getByRole("button", { name: "Edit Item" }));
+    expect(screen.getByRole("heading", { name: "Edit Item" })).toBeInTheDocument();
+    const input = screen.getByRole("textbox", { name: /^text/i });
+    expect(input.tagName).toBe("TEXTAREA");
+    await user.clear(input);
+    await user.type(input, "Book a later taxi{Enter}");
+    await waitFor(() => expect(updateChecklistItem).toHaveBeenCalledWith(seedItems[0].id, expect.objectContaining({ text: "Book a later taxi" })));
   });
 });

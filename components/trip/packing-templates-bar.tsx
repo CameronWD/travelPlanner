@@ -118,7 +118,7 @@ function SaveTemplateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Save as template</DialogTitle>
+          <DialogTitle>Save as Template</DialogTitle>
         </DialogHeader>
         {/* key forces remount when opened → always fresh state */}
         <SaveTemplateForm

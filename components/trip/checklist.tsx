@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { todayISO, todayLocalISO } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea, submitOnEnter } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import {
   Select,
@@ -372,9 +373,12 @@ function EditItemForm({
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4">
       <Field label="Text" required error={error}>
-        <Input
+        <Textarea
+          autoGrow
+          rows={1}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={submitOnEnter}
           disabled={pending}
           autoFocus
         />
