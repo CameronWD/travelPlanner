@@ -284,9 +284,10 @@ export function FeedbackLauncher() {
     const id = window.setTimeout(() => setAttention(false), ATTENTION_MS);
     return () => window.clearTimeout(id);
   }, [attention]);
-  // Which shape the panel is in right now. Below md it fills the screen, so
-  // "the page stays usable behind it" is meaningless and the panel has to
-  // behave like a proper dialog: scroll-locked, with everything behind it
+  // Which shape the panel is in right now. Below md it is a bottom sheet that
+  // grows to fill the screen (and, with the keyboard open, the space above
+  // it), so "the page stays usable behind it" is meaningless and the panel
+  // has to behave like a proper dialog: scroll-locked, with everything behind it
   // hidden from screen readers. From md up the page beside it really is
   // usable, so the panel stays non-modal. Tracked live from the first open
   // onward — see useDockedViewport — so rotating a phone or narrowing a
@@ -578,8 +579,8 @@ export function FeedbackLauncher() {
         the scroll lock off the overlay (it wraps the content in RemoveScroll)
         and renders no overlay at all unless the dialog is modal. So below md
         the overlay is what stops the page scrolling underneath a panel that
-        covers it — and it is invisible there anyway, sitting behind an opaque
-        full-screen surface. From md up there is no overlay and no lock, which
+        covers it. With the keyboard open the panel fills the visible area
+        above the keyboard, so the overlay shows only as the dim around it. From md up there is no overlay and no lock, which
         is the whole point of the docked shape. `docked` (and so `modal`) can
         flip live from the moment the panel first opens onward — see
         useDockedViewport, and note it tracks `hasOpened` rather than `open`

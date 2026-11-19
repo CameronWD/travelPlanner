@@ -111,6 +111,8 @@ const SheetFrame = React.forwardRef<
    * the keyboard is open the phone sheets sit on it instead — inline
    * `bottom` = the keyboard's inset, `max-height` = the visible area — and
    * `data-keyboard="open"` drives the compact classes through `group/sheet`.
+   * The docked sheet also takes `height` = the visible area, so it fills the
+   * space above the keyboard instead of sitting on it as a short strip.
    * Only `bottom` (phone-only UI, no desktop variant) and `docked` below md
    * subscribe; `right`/`left` and the md+ docked card never do, so their
    * classes and style are untouched. Keyboard closed (or no visualViewport)
@@ -121,7 +123,12 @@ const SheetFrame = React.forwardRef<
   const kb = useKeyboardViewport(keyboardAware);
   const keyboard = keyboardAware && kb.keyboardOpen;
   const contentStyle: React.CSSProperties | undefined = keyboard
-    ? { ...style, bottom: kb.bottomInset, maxHeight: kb.visibleHeight }
+    ? {
+        ...style,
+        bottom: kb.bottomInset,
+        maxHeight: kb.visibleHeight,
+        ...(side === "docked" ? { height: kb.visibleHeight } : null),
+      }
     : style;
 
   return (

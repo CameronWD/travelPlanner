@@ -258,6 +258,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
   function expectNoKeyboardStyle(panel: HTMLElement) {
     expect(panel.style.bottom).toBe("");
     expect(panel.style.maxHeight).toBe("");
+    expect(panel.style.height).toBe("");
   }
   const bodyOf = (panel: HTMLElement) => panel.querySelector<HTMLElement>('[class*="overflow-y-auto"]');
 
@@ -267,6 +268,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expect(panel).toHaveAttribute("data-keyboard", "open");
     expect(panel.style.bottom).toBe("344px");
     expect(panel.style.maxHeight).toBe("500px");
+    expect(panel.style.height).toBe("");
     expect(panel.className).toContain("group/sheet");
     expect(handleOf(panel)!.className).toContain("group-data-[keyboard=open]/sheet:hidden");
     expect(bodyOf(panel)!.className).toContain("group-data-[keyboard=open]/sheet:pb-6");
@@ -307,6 +309,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expect(panel).toHaveAttribute("data-keyboard", "open");
     expect(panel.style.bottom).toBe("344px");
     expect(panel.style.maxHeight).toBe("500px");
+    expect(panel.style.height).toBe("500px");
     expect(panel.className.split(/\s+/)).toContain("pb-6");
     expect(panel.className).not.toContain("safe-area-inset-bottom");
   });
