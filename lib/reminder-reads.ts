@@ -56,6 +56,23 @@ export async function listRemindersForTrip(
 }
 
 /**
+ * Every dismissed Reminder of a Trip, whatever its date or what it is about,
+ * soonest first: the Checklists card's "Dismissed" list, the one place a
+ * Reminder about the Trip as a whole can be brought back. Behind the same
+ * Surprise fragment as every other Reminder read.
+ */
+export async function listDismissedReminders(tripId: string): Promise<ReminderItem[]> {
+  const { user } = await requireTripAccess(tripId);
+  const v = await loadSurpriseVisibility(tripId, user.id);
+  const rows = await db.reminder.findMany({
+    where: { tripId, dismissedAt: { not: null }, ...v.where.reminder },
+    orderBy: { date: "asc" },
+    select: REMINDER_ITEM_SELECT,
+  });
+  return rows.map(toReminderItem);
+}
+
+/**
  * One Reminder in get_reminders' shape: add_reminder / update_reminder's
  * read-back (spec 2026-10-16 F6). The Reminder guard checks access and the
  * Surprise around the row; the Surprise fragment then filters a Reminder

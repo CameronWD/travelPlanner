@@ -428,6 +428,45 @@ describe("RemindersCard Got it", () => {
   });
 });
 
+describe("RemindersCard Undo and Dismissed", () => {
+  const undoOf = (title: string) => {
+    const call = vi.mocked(toast).mock.calls.find(([t]) => t.title === "Dismissed" && t.description === title);
+    return (call![0].action as React.ReactElement<{ onClick: () => void }>).props.onClick;
+  };
+
+  it("Got it toasts Dismissed with an Undo, which brings the Reminder back even after the row has left", async () => {
+    const pack = reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" });
+    const { rerender } = render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[pack]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it/ }));
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("r1", { dismissed: true }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Dismissed", description: "Pack" })));
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} />);
+    expect(screen.queryByText("Pack")).not.toBeInTheDocument();
+    undoOf("Pack")();
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("r1", { dismissed: false }));
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[pack]} />);
+    expect(await screen.findByText("Pack")).toBeInTheDocument();
+  });
+
+  it("lists the Trip's dismissed Reminders folded under Dismissed (n), each with Bring back", async () => {
+    updateReminderMock.mockReturnValueOnce(new Promise(() => {}));
+    const visa = reminderItem({ id: "d1", title: "Visa photos", date: "2026-12-02", dismissed: true });
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} dismissed={[visa]} />);
+    const fold = screen.getByText("Dismissed (1)").closest("details")!;
+    expect(fold).not.toHaveAttribute("open");
+    const list = within(fold).getByRole("list", { name: "Dismissed reminders", hidden: true });
+    expect(within(list).getByText("Visa photos", { exact: false })).toBeInTheDocument();
+    await userEvent.setup().click(within(list).getByRole("button", { name: "Bring back reminder: Visa photos", hidden: true }));
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("d1", { dismissed: false }));
+    await waitFor(() => expect(screen.queryByText("Visa photos")).not.toBeInTheDocument());
+  });
+
+  it("shows no Dismissed fold when nothing is dismissed", () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} dismissed={[]} />);
+    expect(screen.queryByText(/^Dismissed/)).not.toBeInTheDocument();
+  });
+});
+
 describe("RemindersCard Delete inside Edit", () => {
   it("asks first, then deletes", async () => {
     const user = userEvent.setup();

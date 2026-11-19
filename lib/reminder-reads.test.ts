@@ -32,7 +32,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   return { ...actual, loadSurpriseVisibility: loadSurpriseVisibilityMock };
 });
 
-import { listRemindersForTrip, readReminderAboutOptions, readReminderItem, readRemindersAbout } from "./reminder-reads";
+import { listDismissedReminders, listRemindersForTrip, readReminderAboutOptions, readReminderItem, readRemindersAbout } from "./reminder-reads";
 
 const TRIP_ID = "trip-1";
 beforeEach(() => vi.clearAllMocks());
@@ -125,6 +125,23 @@ describe("listRemindersForTrip includeDismissed", () => {
     const out = await listRemindersForTrip(TRIP_ID, "2026-07-01", { includeDismissed: true });
     expect(reminderFindManyMock.mock.calls[0][0].where).not.toHaveProperty("dismissedAt");
     expect(out.map((r) => r.dismissed)).toEqual([true]);
+  });
+});
+
+describe("listDismissedReminders", () => {
+  it("reads every dismissed Reminder of the Trip, whatever its date or what it is about, behind the viewer's Surprise filter", async () => {
+    loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ viewerId: "user-1", hiddenStopIds: ["s1"] }));
+    reminderFindManyMock.mockResolvedValue([
+      { id: "d", title: "Print the insurance", date: "2026-06-02", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, dismissedAt: new Date("2026-06-01") },
+    ]);
+    const out = await listDismissedReminders(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, loadSurpriseVisibilityMock);
+    expect(reminderFindManyMock.mock.calls[0][0]).toEqual({
+      where: { tripId: TRIP_ID, dismissedAt: { not: null }, ...MARKER_WHERE.reminder },
+      orderBy: { date: "asc" },
+      select: REMINDER_ITEM_SELECT,
+    });
+    expect(out).toEqual([reminderItem({ id: "d", title: "Print the insurance", date: "2026-06-02", dismissed: true })]);
   });
 });
 

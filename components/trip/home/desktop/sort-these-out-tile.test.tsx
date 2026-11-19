@@ -1,10 +1,12 @@
 import type { Route } from "next";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 const { updateReminder } = vi.hoisted(() => ({ updateReminder: vi.fn().mockResolvedValue({ success: true }) }));
 vi.mock("@/server/actions/reminders", () => ({ updateReminder }));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
 
 import { SortTheseOutTile } from "./sort-these-out-tile";
 import { ALL_SORTED_ROW, type SortRow } from "@/lib/sort-these-out";
@@ -71,5 +73,17 @@ describe("SortTheseOutTile", () => {
     expect(updateReminder).toHaveBeenCalledWith("r1", { dismissed: true });
     expect(screen.queryByRole("link", { name: /Print insurance/ })).toBeNull();
     expect(screen.getByLabelText("1 thing to sort out")).toBeInTheDocument();
+  });
+
+  it("Got it toasts Dismissed with an Undo, which brings the Reminder row back even after it has left", async () => {
+    const { rerender } = render(<SortTheseOutTile rows={ROWS} total={2} seeAllHref={"/s" as Route} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it/ }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Dismissed", description: "Print insurance" })));
+    rerender(<SortTheseOutTile rows={ROWS.slice(1)} total={1} seeAllHref={"/s" as Route} />);
+    const undo = (vi.mocked(toast).mock.calls.at(-1)![0].action as React.ReactElement<{ onClick: () => void }>).props.onClick;
+    undo();
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledWith("r1", { dismissed: false }));
+    rerender(<SortTheseOutTile rows={ROWS} total={2} seeAllHref={"/s" as Route} />);
+    expect(await screen.findByRole("link", { name: /Print insurance/ })).toBeInTheDocument();
   });
 });

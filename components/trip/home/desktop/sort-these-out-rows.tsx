@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useOptimistic } from "react";
+import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { SortRow } from "@/lib/sort-these-out";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
 import { Button } from "@/components/ui/button";
-import { toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { updateReminder } from "@/server/actions/reminders";
 import { ICONS, TONES } from "@/components/trip/home/desktop/sort-row-style";
 
@@ -37,20 +37,23 @@ function RowBody({ row }: { row: SortRow }) {
 }
 
 export function SortTheseOutRows({ rows, total }: { rows: SortRow[]; total: number }) {
-  const [shown, hide] = useOptimistic(rows, (state, reminderId: string) => state.filter((r) => r.reminderId !== reminderId));
+  // Held here, not in the row: the row leaves at once, and its Undo comes
+  // from the toast after the server's rows no longer have it.
+  const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
+  const hideId = (id: string) => setGone((prev) => new Set(prev).add(id));
+  const showId = (id: string) => setGone((prev) => new Set([...prev].filter((x) => x !== id)));
+  const gotIt = useUndoableAction<{ reminderId: string; title: string }>({
+    apply: (r) => hideId(r.reminderId),
+    persist: (r) => updateReminder(r.reminderId, { dismissed: true }),
+    revert: (r) => showId(r.reminderId),
+    undo: (r) => updateReminder(r.reminderId, { dismissed: false }),
+    applyUndo: (r) => showId(r.reminderId),
+    revertUndo: (r) => hideId(r.reminderId),
+    done: (r) => ({ title: "Dismissed", description: r.title }),
+    failure: "Couldn't dismiss that reminder.",
+  });
+  const shown = rows.filter((r) => !r.reminderId || !gone.has(r.reminderId));
   const shownTotal = total - (rows.length - shown.length);
-
-  function gotIt(reminderId: string) {
-    startTransition(async () => {
-      hide(reminderId);
-      try {
-        const r = await updateReminder(reminderId, { dismissed: true });
-        if (!r.success) toastRefused(r.errors, "Couldn't dismiss that reminder.");
-      } catch {
-        toastRejected("Couldn't dismiss that reminder.");
-      }
-    });
-  }
 
   return (
     <>
@@ -86,7 +89,7 @@ export function SortTheseOutRows({ rows, total }: { rows: SortRow[]; total: numb
                   variant="outline"
                   size="sm"
                   className="shrink-0"
-                  onClick={() => gotIt(row.reminderId!)}
+                  onClick={() => void gotIt.run({ reminderId: row.reminderId!, title: row.title })}
                 >
                   Got it
                   <span className="sr-only">: {row.title}</span>
