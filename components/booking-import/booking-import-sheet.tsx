@@ -437,7 +437,7 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
       >
         <label htmlFor="booking-import-text" className="text-sm font-bold">Or paste the booking text</label>
         <Textarea id="booking-import-text" value={text} maxLength={MAX_BOOKING_TEXT_CHARS} onChange={(e) => setText(e.target.value)} className="min-h-[100px]" />
-        <DialogFooter>
+        <DialogFooter className="mt-4">
           <DialogClose asChild>
             <Button type="button" variant="outline">Cancel</Button>
           </DialogClose>

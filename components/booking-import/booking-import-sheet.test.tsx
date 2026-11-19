@@ -59,6 +59,7 @@ describe("BookingImportSheet", () => {
     const footer = read.closest('[data-slot="dialog-footer"]') as HTMLElement;
     expect(footer).not.toBeNull();
     expect(within(footer).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(footer.className).toContain("mt-4");
     await pasteAndRead("Flight SK101");
     expect(m.importBooking).toHaveBeenCalledTimes(1);
   });
