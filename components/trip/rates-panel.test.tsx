@@ -22,6 +22,14 @@ describe("displayRate", () => {
     expect(d).toEqual({ from: "AUD", to: "VND", figure: formatRate(1 / 0.0000612), inverted: true });
   });
 
+  it("turns 0.0011 the other way round", () => {
+    expect(displayRate({ currency: "JPY", rate: 0.0011 }, "AUD").inverted).toBe(true);
+  });
+
+  it("leaves 0.0098 as stored", () => {
+    expect(displayRate({ currency: "JPY", rate: 0.0098 }, "AUD")).toEqual({ from: "JPY", to: "AUD", figure: "0.0098", inverted: false });
+  });
+
   it("leaves a rate of 0.65 as it is", () => {
     expect(displayRate({ currency: "EUR", rate: 0.65 }, "AUD")).toEqual({ from: "EUR", to: "AUD", figure: "0.65", inverted: false });
   });

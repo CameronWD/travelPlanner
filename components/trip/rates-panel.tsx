@@ -50,7 +50,7 @@ export function displayRate(
   entry: { currency: string; rate: number },
   home: string,
 ): { from: string; to: string; figure: string; inverted: boolean } {
-  if (Number.isFinite(entry.rate) && entry.rate > 0 && entry.rate < 0.01) {
+  if (Number.isFinite(entry.rate) && entry.rate > 0 && entry.rate < 0.005) {
     return { from: home, to: entry.currency, figure: formatRate(1 / entry.rate), inverted: true };
   }
   return { from: entry.currency, to: home, figure: formatRate(entry.rate), inverted: false };
