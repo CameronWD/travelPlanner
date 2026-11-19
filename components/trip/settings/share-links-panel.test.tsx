@@ -266,6 +266,13 @@ describe("ShareLinksPanel", () => {
     expect(row).toContainElement(screen.getByRole("button", { name: /^edit$/i }));
   });
 
+  it("lays every row out as a column: the label block, then the actions", () => {
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    const header = screen.getByRole("button", { name: /^edit$/i }).closest("li")!.firstElementChild!;
+    expect(header.className.split(/\s+/)).toEqual(expect.arrayContaining(["flex", "flex-col"]));
+    expect(header.className).not.toContain("flex-wrap");
+  });
+
   it("saves dial edits through updateShareLink", async () => {
     updateShareLink.mockResolvedValue({ success: true, link: link({ includeDailyPlans: false }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
@@ -291,6 +298,7 @@ describe("ShareLinksPanel", () => {
     render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
     expect(screen.getByText(/One link per audience/).className).toContain("max-w-reading");
     expect(screen.getByText(/No share links yet/).className).toContain("max-w-reading");
+    expect(screen.getByText(/No share links yet/).className).toContain("text-xs");
   });
 });
 

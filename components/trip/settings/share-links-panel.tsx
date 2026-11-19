@@ -292,7 +292,7 @@ function LinkRow({
 
   return (
     <li className="rounded-2xl border border-border p-4 space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-2">
         <div className="min-w-0">
           <p className="truncate font-medium text-foreground">{link.label}</p>
           <p className="text-xs text-muted-foreground">
@@ -300,8 +300,8 @@ function LinkRow({
           </p>
         </div>
         {/* LA-140: pairs, not loose buttons — the row wraps between [Edit] and
-            [Regenerate Revoke], so Revoke is never a lone orphan. Left-aligned
-            when it drops under the label (the parent's justify-between). */}
+            [Regenerate Revoke], so Revoke is never a lone orphan. Always under
+            the label, so every row has one layout. */}
         <div className="flex flex-wrap gap-2">
           <div className="flex gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setEditing((v) => !v)} disabled={isPending}>
@@ -476,7 +476,7 @@ export function ShareLinksPanel({
       )}
 
       {links.length === 0 && !creating ? (
-        <p className="max-w-reading text-sm text-muted-foreground">
+        <p className="max-w-reading text-xs text-muted-foreground">
           No share links yet. Create one to give family or friends a read-only
           view of the itinerary.
         </p>
