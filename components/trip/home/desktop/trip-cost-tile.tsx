@@ -133,7 +133,7 @@ export function TripCostTile({
                 {nextAmount?.original ? (
                   <p className="mt-1 break-words text-xs font-semibold text-on-accent-muted">{nextAmount.original}</p>
                 ) : null}
-                <p className={cn(ROW_NAME_CLASS, "mt-1 text-sm font-semibold")}>{nextPayment.label}</p>
+                <p className={cn(ROW_NAME_CLASS, "flex-none mt-1 text-sm font-semibold")}>{nextPayment.label}</p>
                 <div className="mt-2">{due}</div>
               </>
             ) : (

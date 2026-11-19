@@ -119,6 +119,11 @@ describe("TripCostTile", () => {
     expect(name).not.toHaveClass("truncate");
   });
 
+  it("keeps the payment name from growing in the stacked no-photo column (class-level)", () => {
+    renderTile({ hasCover: false });
+    expect(screen.getByText("Kuta pool villa")).toHaveClass("flex-none");
+  });
+
   it.each([true, false])("ends where its content ends (hasCover %s)", (hasCover) => {
     const { container } = renderTile({ hasCover });
     expect(container.firstElementChild).not.toHaveClass("h-full");
