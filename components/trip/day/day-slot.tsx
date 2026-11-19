@@ -14,7 +14,7 @@ import { TonightCard } from "@/components/trip/day/tonight-card";
 import { JournalCard } from "@/components/trip/day/journal-card";
 import { DayWeather } from "@/components/trip/day/day-weather";
 
-export type DayReads = Awaited<ReturnType<typeof getDays>>;
+type DayReads = Awaited<ReturnType<typeof getDays>>;
 
 /** What every day's slot shares, read once by the page. */
 export interface DaySlotShared {
