@@ -158,12 +158,20 @@ export function FitTile({ tripId, summary, startDate, fitStops, isOwner }: FitTi
 
 interface FitStripProps {
   summary: PlanSummary;
+  showSummary: boolean;
   onOpenMap?: () => void;
 }
 
 /** PLAN.md §7.1 mobile Fit strip. */
-export function FitStrip({ summary, onOpenMap }: FitStripProps) {
+export function FitStrip({ summary, showSummary, onOpenMap }: FitStripProps) {
   const m = fitTileModel(summary);
+  if (!showSummary) {
+    return onOpenMap ? (
+      <div className="flex justify-end">
+        <MapButton onOpenMap={onOpenMap} />
+      </div>
+    ) : null;
+  }
   return (
     <div className={cn("flex items-center gap-2.5 rounded-2xl border-2 border-border px-3.5 py-2.5", TONE[m.tone])}>
       {m.big !== null && (
@@ -173,12 +181,16 @@ export function FitStrip({ summary, onOpenMap }: FitStripProps) {
         {m.words}
       </span>
       <div className="flex-1">{m.bar && <FitStripBar bar={m.bar} />}</div>
-      {onOpenMap && (
-        <button type="button" className="tap-target inline-flex shrink-0 items-center gap-1 text-sm font-extrabold" onClick={onOpenMap}>
-          Map <Maximize2 className="size-3.5" aria-hidden />
-        </button>
-      )}
+      {onOpenMap && <MapButton onOpenMap={onOpenMap} />}
     </div>
+  );
+}
+
+function MapButton({ onOpenMap }: { onOpenMap: () => void }) {
+  return (
+    <button type="button" className="tap-target inline-flex shrink-0 items-center gap-1 text-sm font-extrabold" onClick={onOpenMap}>
+      Map <Maximize2 className="size-3.5" aria-hidden />
+    </button>
   );
 }
 

@@ -92,11 +92,13 @@ export function PlanMobileExtras({ tripId, forkId, chaptersEnabled, aiConfigured
 /** PLAN.md §7.1 mobile Fit strip, with its Map button opening the full route map. */
 export function PlanFitStrip({
   summary,
+  showSummary,
   stops,
   home,
   legPaths,
 }: {
   summary: PlanSummary;
+  showSummary: boolean;
   stops: RouteMapStop[];
   home: HomeMapPoint | null;
   legPaths?: Record<string, string>;
@@ -104,7 +106,7 @@ export function PlanFitStrip({
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <FitStrip summary={summary} onOpenMap={stops.length >= 2 ? () => setOpen(true) : undefined} />
+      <FitStrip summary={summary} showSummary={showSummary} onOpenMap={stops.length >= 2 ? () => setOpen(true) : undefined} />
       <PlanMapDialog open={open} onOpenChange={setOpen} stops={stops} home={home} legPaths={legPaths} />
     </>
   );
