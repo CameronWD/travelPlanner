@@ -30,17 +30,17 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
           type="button"
           aria-label={label}
           className={cn(
-            "pressable flex min-h-11 w-full min-w-0 flex-col items-start rounded-[12px] border-2 border-border px-2.5 py-2 text-left text-card-foreground",
+            "pressable flex min-h-11 w-full flex-col items-start rounded-[12px] border-2 border-border px-2.5 py-2 text-left text-card-foreground",
             missing ? "border-dashed bg-background" : "bg-card",
             justSet && "tp-pop",
           )}
         >
           <span className="text-[13px] font-extrabold">{entry.currency}</span>
-          <span className="inline-flex max-w-full items-center gap-1">
-            <span className={cn("min-w-0 font-display text-[17px] font-extrabold tabular-nums [overflow-wrap:anywhere]", stale && "text-sun-text")}>
+          <span className="inline-flex items-center gap-1">
+            <span className={cn("font-display text-[17px] font-extrabold tabular-nums", stale && "text-sun-text")}>
               {missing ? "Set rate" : formatRate(entry.rate!)}
             </span>
-            {stale ? <RefreshCw className="size-3.5 shrink-0 text-sun-text" aria-hidden="true" /> : null}
+            {stale ? <RefreshCw className="size-3.5 text-sun-text" aria-hidden="true" /> : null}
           </span>
         </button>
       </DialogTrigger>
