@@ -171,6 +171,15 @@ describe("RemindersCard malformed stored date", () => {
 });
 
 describe("RemindersCard add form", () => {
+  it("the closed control reads as a link, not as disabled, and opens the form", () => {
+    render(<RemindersCard tripId="trip-7" today={TODAY} reminders={[]} />);
+    const add = screen.getByRole("button", { name: "Add Reminder" });
+    expect(add).toHaveClass("text-foreground");
+    expect(add).not.toHaveClass("text-muted-foreground");
+    fireEvent.click(add);
+    expect(screen.getByLabelText("Reminder title")).toBeInTheDocument();
+  });
+
   it("submits { title, date } — a date field, never a datetime", async () => {
     render(<RemindersCard tripId="trip-7" today={TODAY} reminders={[]} />);
 
