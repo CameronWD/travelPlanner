@@ -7,6 +7,7 @@ import { GoogleMapFrame } from "@/components/map/google-map-frame";
 import { HtmlPin } from "@/components/map/html-pin";
 import { MapUnavailable } from "@/components/map/map-unavailable";
 import { useFitBounds } from "@/components/map/use-fit-bounds";
+import { useMediaQuery } from "@/components/ui/use-media-query";
 import { useTheme } from "@/components/ui/theme-provider";
 import { pinHex, pinHtml } from "@/lib/map/pins";
 import { hueHex } from "@/lib/map/palette";
@@ -27,9 +28,9 @@ export interface GlobeMapProps {
 
 type LocatedMarker = MarkerView & { lat: number; lng: number };
 
-function FitInitial({ points }: { points: google.maps.LatLngLiteral[] }) {
+function FitInitial({ points, padding }: { points: google.maps.LatLngLiteral[]; padding: number }) {
   const [initial] = useState(points);
-  useFitBounds(initial, { padding: 40, maxZoom: 8 });
+  useFitBounds(initial, { padding, maxZoom: 8 });
   return null;
 }
 
@@ -55,6 +56,7 @@ function PanToSelected({ selectedId, located }: { selectedId: string | null; loc
 export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMapClick, attachmentsByMarkerId, arrivalPins }: GlobeMapProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const wide = useMediaQuery("(min-width: 768px)");
   const [openId, setOpenId] = useState<string | null>(selectedId);
   const [seenSelectedId, setSeenSelectedId] = useState(selectedId);
   if (seenSelectedId !== selectedId) {
@@ -75,7 +77,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       mapProps={{
         defaultCenter: { lat: 20, lng: 0 },
         defaultZoom: 2,
-        minZoom: 2,
+        minZoom: wide === false ? 1 : 2,
         restriction: WORLD_RESTRICTION,
         onClick: (e: MapMouseEvent) => {
           const at = e.detail.latLng;
@@ -83,7 +85,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
         },
       }}
     >
-      <FitInitial points={located} />
+      <FitInitial points={located} padding={wide === false ? 16 : 40} />
       <FitArrival pins={arrival} />
       <PanToSelected selectedId={selectedId} located={located} />
       {located.map((mk) => {

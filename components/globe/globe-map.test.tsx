@@ -187,12 +187,39 @@ describe("GlobeMap map clicks and world view", () => {
     expect(onMapClick).not.toHaveBeenCalled();
   });
 
+  function stubWide(matches: boolean) {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  }
+
+  it("on a phone lets the map zoom out to 1 and fits its markers with a 16px padding", () => {
+    stubWide(false);
+    render(globeElement());
+    expect(lastMapProps()).toMatchObject({ minZoom: 1 });
+    expect(mock.map.fitBounds.mock.calls[0][1]).toBe(16);
+    vi.unstubAllGlobals();
+  });
+
+  it("from 768px keeps the minimum zoom at 2 and the 40px fit padding", () => {
+    stubWide(true);
+    render(globeElement());
+    expect(lastMapProps()).toMatchObject({ minZoom: 2 });
+    expect(mock.map.fitBounds.mock.calls[0][1]).toBe(40);
+    vi.unstubAllGlobals();
+  });
+
   it("restricts the map to one world with a minimum zoom of 2", () => {
+    stubWide(true);
     render(globeElement());
     expect(lastMapProps()).toMatchObject({
       minZoom: 2,
       restriction: { latLngBounds: { north: 85, south: -85, west: -180, east: 180 }, strictBounds: false },
     });
+    vi.unstubAllGlobals();
   });
 
   it("fits the located markers once, and shows the whole world when there are none", () => {
