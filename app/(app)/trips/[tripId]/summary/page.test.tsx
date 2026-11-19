@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { PlanRows } from "@/lib/plan-reads";
 import type { item, cost } from "@/test/builders";
 
@@ -382,6 +382,41 @@ describe("SummaryPage — phone stop cards (LA-144, LA-148)", () => {
     // The name row wraps the country under the name rather than squeezing the h3.
     const nameRow = screen.getByRole("heading", { level: 3, name: "Rome" }).parentElement!;
     expect(nameRow.className).toMatch(/\bflex-wrap\b/);
+  });
+
+  it("shows a part-paid Stop's cost with a per-night figure worked from it, and paid as a second figure", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    vi.mocked(buildBudget).mockReturnValueOnce({
+      grandTotal: { costTotalMinor: 1500, paidTotalMinor: 600 },
+      byCategory: [],
+      byStop: [{ stopId: "s1", costTotalMinor: 1500, paidTotalMinor: 600 }],
+      byChapter: [],
+      hasMissingRates: false,
+      missingRates: [],
+    } as unknown as ReturnType<typeof buildBudget>);
+
+    render(await renderSummary());
+
+    expect(screen.getAllByText("1500GBP").length).toBeGreaterThan(0);
+    expect(screen.getByText("cost · 500GBP/night")).toBeInTheDocument();
+    expect(screen.getByText("paid 600GBP")).toBeInTheDocument();
+  });
+
+  it("labels the By category column Cost", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    vi.mocked(buildBudget).mockReturnValueOnce({
+      grandTotal: { costTotalMinor: 1500, paidTotalMinor: 600 },
+      byCategory: [{ category: "Admin", costTotalMinor: 1500, paidTotalMinor: 600 }],
+      byStop: [],
+      byChapter: [],
+      hasMissingRates: false,
+      missingRates: [],
+    } as unknown as ReturnType<typeof buildBudget>);
+
+    render(await renderSummary());
+
+    const heading = screen.getByText("By category");
+    expect(within(heading.parentElement!).getByText("Cost")).toBeInTheDocument();
   });
 
   it("wraps the accommodation name and puts the date range on its own line below sm", async () => {

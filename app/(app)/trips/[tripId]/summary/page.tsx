@@ -13,6 +13,7 @@ import { tripPath } from "@/lib/trip-path";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enum-values";
 import { formatMoney } from "@/lib/money/money";
+import { perNightMinor } from "@/lib/money/summary-lines";
 import { formatDateRange, formatDayRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
@@ -544,22 +545,22 @@ export default async function SummaryPage({
                               {stopBudget && (
                                 <div className="sm:shrink-0 sm:text-right">
                                   <p className="font-mono text-sm font-semibold text-foreground">
-                                    {formatMoney(
-                                      stopBudget.paidTotalMinor > 0
-                                        ? stopBudget.paidTotalMinor
-                                        : stopBudget.costTotalMinor,
-                                      homeCurrency,
-                                    )}
+                                    {formatMoney(stopBudget.costTotalMinor, homeCurrency)}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {stopBudget.paidTotalMinor > 0 ? "paid" : "cost"}
-                                    {nights > 0 &&
+                                    cost
+                                    {perNightMinor(stopBudget.costTotalMinor, nights) !== null &&
                                       stopBudget.costTotalMinor > 0 &&
                                       ` · ${formatMoney(
-                                        Math.round(stopBudget.costTotalMinor / nights),
+                                        perNightMinor(stopBudget.costTotalMinor, nights)!,
                                         homeCurrency,
                                       )}/night`}
                                   </p>
+                                  {stopBudget.paidTotalMinor > 0 && (
+                                    <p className="text-xs text-muted-foreground/80">
+                                      paid {formatMoney(stopBudget.paidTotalMinor, homeCurrency)}
+                                    </p>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -653,9 +654,10 @@ export default async function SummaryPage({
                 {/* Category breakdown */}
                 {budget.byCategory.length > 0 && (
                   <div className="w-full">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      By category
-                    </p>
+                    <div className="mb-2 flex items-baseline justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <p>By category</p>
+                      <p>Cost</p>
+                    </div>
                     <div className="flex flex-col gap-1">
                       {budget.byCategory.map((bc) => (
                         <div
