@@ -45,4 +45,12 @@ describe("layout primitives in globals.css", () => {
     expect(inDark["--muted-foreground"]).toBe("inherit");
     expect(inDark.color).toBe("hsl(var(--foreground))");
   });
+
+  it("draws the hard shadows in the border colour in dark, and keeps the soft edge ink dark (K3)", () => {
+    const dark = decls(rule(".dark"));
+    expect(dark["--shadow-2"]).toBe("4px 4px 0 hsl(var(--border))");
+    expect(dark["--shadow-pressed"]).toBe("1px 1px 0 hsl(var(--border))");
+    expect(dark["--shadow-ink"]).toBe("40 13% 5%");
+    expect(dark["--shadow-cta"]).toBeUndefined();
+  });
 });

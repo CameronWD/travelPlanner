@@ -290,6 +290,12 @@
   --wx-night-track: 34 8% 17%; /* #302D29 */
   --wx-night-text: 40 100% 98%; /* #FFFBF3 paper, same in dark */
   --shadow-ink: 40 13% 5%; /* #0D0C0A */
+  --shadow-1: 3px 3px 0 hsl(var(--border));
+  --shadow-2: 4px 4px 0 hsl(var(--border));
+  --shadow-3: 5px 5px 0 hsl(var(--border));
+  --shadow-4: 6px 6px 0 hsl(var(--border));
+  --shadow-5: 8px 8px 0 hsl(var(--border));
+  --shadow-pressed: 1px 1px 0 hsl(var(--border));
 }
 
 /*
