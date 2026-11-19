@@ -125,13 +125,12 @@ beforeEach(() => {
   // A phone unless a test says otherwise: happy-dom's own matchMedia answers for a 1024px window.
   setMatchMedia(false);
   // jsdom has no layout: give every element the phone's width so panel maths works.
-  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => WIDTH });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 0, left: 0, right: WIDTH, width: WIDTH, height: 0, x: 0, y: 0, toJSON() {} } as DOMRect);
 });
 afterEach(async () => {
   await act(async () => {
     for (const release of releases.splice(0)) release();
   });
-  delete (HTMLElement.prototype as unknown as { clientWidth?: number }).clientWidth;
   delete (HTMLElement.prototype as unknown as { onscrollend?: null }).onscrollend;
   window.matchMedia = defaultMatchMedia;
   vi.useRealTimers();

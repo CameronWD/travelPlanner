@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { PENDING_NAVIGATION_TIMEOUT_MS, useBeginNavigation, useSettleNavigation } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
 import { DAY_BODY_TRANSITION_WIDE, dayTransitionType } from "@/components/trip/day/day-transition";
-import { isFar, panelProgress, settledPanel } from "@/components/trip/day/carousel-maths";
+import { isFar, panelProgress, panelWidth, settledPanel } from "@/components/trip/day/carousel-maths";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
 import { cn } from "@/lib/cn";
@@ -162,7 +162,7 @@ export function DayCarousel({
       showDay(iso);
       if (!el || desktop) return;
       el.style.scrollSnapType = "";
-      el.scrollLeft = indexOf(iso) * el.clientWidth;
+      el.scrollLeft = indexOf(iso) * panelWidth(el);
     };
     // A day shown that is not the day in view: Back/Forward, or a push that
     // ended without landing. Never under a gesture: the settle decides.
@@ -176,7 +176,7 @@ export function DayCarousel({
       const el = scroller.current;
       if (moving.current && el) {
         moving.current = false;
-        const progress = panelProgress(el.scrollLeft, indexOf(viewRef.current), el.clientWidth);
+        const progress = panelProgress(el.scrollLeft, indexOf(viewRef.current), panelWidth(el));
         for (const cb of listeners.current) cb(progress, true);
       }
       settleBegun(p.href);
@@ -211,7 +211,7 @@ export function DayCarousel({
       begin(href);
       cancelGlide.current();
       el.style.scrollSnapType = "none";
-      cancelGlide.current = tweenScrollLeft(el, idx * el.clientWidth, {
+      cancelGlide.current = tweenScrollLeft(el, idx * panelWidth(el), {
         reduced: prefersReducedMotion(),
         onDone: () => {
           el.style.scrollSnapType = "";
@@ -248,7 +248,7 @@ export function DayCarousel({
   // On the day in view before first paint, and again when the phone tree comes back.
   React.useLayoutEffect(() => {
     const el = scroller.current;
-    if (el && !desktop) el.scrollLeft = machine.indexOf(viewRef.current) * el.clientWidth;
+    if (el && !desktop) el.scrollLeft = machine.indexOf(viewRef.current) * panelWidth(el);
   }, [machine, desktop]);
 
   React.useLayoutEffect(() => {
@@ -393,13 +393,13 @@ export function DayCarousel({
     if (!el || desktop) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const settle = () => {
-      const idx = settledPanel(el.scrollLeft, el.clientWidth);
+      const idx = settledPanel(el.scrollLeft, panelWidth(el));
       if (idx == null || (glideTo.current != null && idx !== glideTo.current)) return;
       if (timer) clearTimeout(timer);
       machine.land(idx);
     };
     const onScroll = () => {
-      const p = panelProgress(el.scrollLeft, machine.indexOf(viewRef.current), el.clientWidth);
+      const p = panelProgress(el.scrollLeft, machine.indexOf(viewRef.current), panelWidth(el));
       // Positioning the scroller on the day in view fires a scroll at rest; that is not a gesture.
       if (!moving.current && Math.abs(p) < 0.001) return;
       moving.current = true;
@@ -476,7 +476,7 @@ export function DayCarousel({
             {/* Cold load: the server HTML paints before hydration, and a scroller
                 starts at 0 — the Trip's first day. Position it while the HTML
                 parses. It usually parses inside React's hidden streaming
-                container (behind the trips loading boundary), where clientWidth
+                container (behind the trips loading boundary), where a panel's width
                 is 0, so wait for a width: a ResizeObserver fires after layout and
                 before paint in the frame the content is revealed. Rendered only
                 for the server and hydration: a script React creates on the
@@ -485,7 +485,7 @@ export function DayCarousel({
             {hydrating ? (
               <script
                 dangerouslySetInnerHTML={{
-                  __html: `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;var i=${shownIndex};function p(){s.scrollLeft=i*s.clientWidth}if(s.clientWidth){p();return}new ResizeObserver(function(_,o){if(s.clientWidth){p();o.disconnect()}}).observe(s)})()`,
+                  __html: `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;var i=${shownIndex};function w(){var f=s.firstElementChild;return f?f.getBoundingClientRect().width:0}function p(){s.scrollLeft=i*w()}if(w()){p();return}new ResizeObserver(function(_,o){if(w()){p();o.disconnect()}}).observe(s)})()`,
                 }}
               />
             ) : null}

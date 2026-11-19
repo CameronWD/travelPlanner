@@ -1,4 +1,4 @@
-/** Pure carousel arithmetic (ADR 0065), testable without layout. */
+/** Carousel arithmetic and the one width it is done in (ADR 0065), testable without layout. */
 
 export const DAY_GLIDE_MS = 220;
 
@@ -6,6 +6,15 @@ export const DAY_GLIDE_MS = 220;
 export function easeOut(t: number): number {
   const c = Math.min(1, Math.max(0, t));
   return 1 - Math.pow(1 - c, 3);
+}
+
+/**
+ * One panel's width, as the snap points are spaced: fractional on a viewport
+ * that is (411.43 px), where the scroller's clientWidth is rounded to an
+ * integer and drifts a pixel further from the real snap point with every slot.
+ */
+export function panelWidth(scroller: Element): number {
+  return scroller.firstElementChild?.getBoundingClientRect().width ?? 0;
 }
 
 /** The panel index a scroller is resting on, or null while it sits between two. */
