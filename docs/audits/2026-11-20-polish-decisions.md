@@ -14,7 +14,7 @@ and was built the recommended way so the work did not stop. Say which to change.
 | B7 | New Review summaries end on a word with an ellipsis. Old ones cut at the cap get an ellipsis when shown; stored text is not rewritten. | Rewrite old ones, or leave them. |
 | B8 | Daylight length sits below the sun arc. | Keep it inside the arc with a knocked-out background. |
 | B9 | What's new floats above the tab bar on the Trips list. Trip home keeps it in the page. | Reserve its space in the skeleton, or accept the shift. |
-| M1, M4 | A rate under 0.01 reads the other way round ("1 home = n foreign"); long figures step down a size. | Always one direction, with a smaller figure. |
+| M1, M4 | A rate under 0.005 reads the other way round ("1 home = n foreign"), and its editor with it; the figure sizes itself to its tile. The cut-off is 0.005, not 0.01, so the yen does not flip direction between refreshes. | Always one direction, with a smaller figure. |
 | P2 | Phone Stop sheet: dates on their own line, nights stepper on the row below. | Smaller stepper beside the dates. |
 | B9 | The floating What's new card may sit over the last Trips card until dismissed. | Add space under the list while it shows. |
 | L1 | Shared trip on a phone: Stop name on its own line, days and dates under it. | Keep one line, truncate the dates instead. |
