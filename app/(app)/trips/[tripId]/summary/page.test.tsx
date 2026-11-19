@@ -398,7 +398,7 @@ describe("SummaryPage — phone stop cards (LA-144, LA-148)", () => {
     const name = screen.getByText("Arctic Glass Igloos & Lodge");
     expect(name.className).toMatch(/\bbreak-words\b/);
     expect(name.className).not.toMatch(/\btruncate\b/);
-    const range = screen.getByText("2026-01-02 – 2026-01-05");
+    const range = screen.getByText("Fri 2 Jan – Mon 5 Jan");
     const line = range.parentElement!;
     expect(line).toBe(name.parentElement);
     expect(line.className).toMatch(/\bflex-col\b/);
