@@ -381,7 +381,7 @@ export interface HistoryRow {
 function historyLine(r: ReviewForView): string {
   switch (r.status) {
     case "DONE":
-      return r.summary?.trim() ? summaryForDisplay(r.summary.trim()) : "No summary";
+      return r.summary?.trim() ? summaryForDisplay(r.summary).trim() : "No summary";
     case "RUNNING":
       return "Still running";
     case "FAILED":

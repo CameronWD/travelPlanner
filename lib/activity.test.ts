@@ -346,6 +346,11 @@ describe("headline", () => {
       "updated an accommodation",
     );
   });
+  it("an Attachment with no filename reads 'updated a file'", () => {
+    expect(headline({ verb: "UPDATED", entityType: "ATTACHMENT", entityLabel: entityLabel("ATTACHMENT", {}) })).toBe(
+      "updated a file",
+    );
+  });
   it("a Transport with a real label is unchanged", () => {
     expect(headline({ verb: "UPDATED", entityType: "TRANSPORT", entityLabel: "BA2490" })).toBe(
       "updated the BA2490 transport",

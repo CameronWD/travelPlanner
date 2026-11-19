@@ -498,7 +498,7 @@ export function headline(a: {
 
   const verbWord = VERB_WORD[a.verb];
   const noun = ENTITY_NOUN[a.entityType];
-  const label = a.entityLabel.trim().toLowerCase();
+  const label = a.entityLabel.trim().toLowerCase().replace(/^(an?|the)\s+/, "");
   if (label === "" || label === noun) {
     return `${verbWord} ${/^[aeiou]/.test(noun) ? "an" : "a"} ${noun}`;
   }

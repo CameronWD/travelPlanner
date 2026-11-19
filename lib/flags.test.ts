@@ -134,8 +134,13 @@ describe("flagDisplayMessage", () => {
     );
   });
   it("writes a date that appears twice both times", () => {
-    const out = flagDisplayMessage({ message: "On 2026-07-20 and again 2026-07-20.", date: "2026-07-20" });
+    const out = flagDisplayMessage({ message: "On 2026-07-20 and again 2026-07-20." });
     expect(out).toBe(`On ${formatDayLabel("2026-07-20")} and again ${formatDayLabel("2026-07-20")}.`);
+  });
+  it("also rewrites a real ISO date inside a Stop name (known and accepted)", () => {
+    expect(flagDisplayMessage({ message: "Nothing planned at Camp 2026-07-20." })).toBe(
+      `Nothing planned at Camp ${formatDayLabel("2026-07-20")}.`,
+    );
   });
   it("leaves digits that are not a real calendar date alone", () => {
     expect(flagDisplayMessage({ message: "Room 2026-13-45 is full." })).toBe("Room 2026-13-45 is full.");

@@ -237,15 +237,14 @@ export function mergeDrafts(...groups: readonly FindingDraft[][]): FindingDraft[
 
 const SUMMARY_MAX = 200;
 
-/** Cuts at a word and ends on an ellipsis; text within `max` is returned as it is. */
 export function clipSummary(text: string, max = SUMMARY_MAX): string {
   if (text.length <= max) return text;
   const space = text.lastIndexOf(" ", max - 1);
-  const cut = space > 0 ? text.slice(0, space) : text.slice(0, max - 1);
+  let cut = space > 0 ? text.slice(0, space) : text.slice(0, max - 1);
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
   return `${cut.replace(/[\s.,;:!?\-–—]+$/, "")}…`;
 }
 
-/** Summaries stored before clipSummary were cut at exactly 200 characters, mid-word; mark them as cut. */
 export function summaryForDisplay(stored: string): string {
   if (stored.length !== SUMMARY_MAX || /[.!?…]$/.test(stored)) return stored;
   return `${stored}…`;

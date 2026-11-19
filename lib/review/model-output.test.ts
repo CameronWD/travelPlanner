@@ -266,6 +266,10 @@ describe("clipSummary", () => {
     const out = clipSummary("x".repeat(250) + " tail");
     expect(out).toBe("x".repeat(199) + "…");
   });
+  it("does not split a surrogate pair at a hard cut", () => {
+    const out = clipSummary("x".repeat(198) + "😀".repeat(5));
+    expect(out).toBe("x".repeat(198) + "…");
+  });
   it("trims trailing punctuation before the ellipsis", () => {
     expect(clipSummary("One, two, three, four, five.", 12)).toBe("One, two…");
   });
