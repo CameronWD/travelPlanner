@@ -41,6 +41,7 @@ vi.mock("motion/react", () => ({
 
 import {
   Dialog,
+  DIALOG_DESTRUCTIVE_CLASS,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -992,5 +993,11 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
       vv.dispatchEvent(new Event("scroll"));
     });
     expect(scrollBy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DIALOG_DESTRUCTIVE_CLASS", () => {
+  it("is the one look for a delete in a dialog footer", () => {
+    expect(DIALOG_DESTRUCTIVE_CLASS).toBe("border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto");
   });
 });

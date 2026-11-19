@@ -335,6 +335,8 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 }
 DialogHeader.displayName = "DialogHeader";
 
+export const DIALOG_DESTRUCTIVE_CLASS = "border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto";
+
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   // The first shadow covers the gap the negative bottom margin opens below
   // the sticky footer during elastic/rubber-band overscroll on iOS Safari (it
