@@ -125,15 +125,11 @@ function RateRow({
       setError("Enter a positive number.");
       return;
     }
-    if (inverted && rateInput === initialInput) {
-      setError(null);
-      setEditing(false);
-      return;
-    }
+    const toStore = inverted ? (entry.rate !== null && rateInput === initialInput ? entry.rate : 1 / parsed) : parsed;
     setSaving(true);
     setError(null);
     try {
-      await setManualRate(tripId, entry.currency, homeCurrency, inverted ? 1 / parsed : parsed);
+      await setManualRate(tripId, entry.currency, homeCurrency, toStore);
       setEditing(false);
     } catch {
       setError("Couldn't save that rate. Try again.");

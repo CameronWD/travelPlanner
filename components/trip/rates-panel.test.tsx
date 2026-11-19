@@ -132,10 +132,10 @@ describe("RatesPanel editor for an inverted rate", () => {
     expect(setManualRate).toHaveBeenCalledWith("t1", "VND", "AUD", 1 / 16000);
   });
 
-  it("stores nothing when submitted unchanged", async () => {
+  it("locks the exact stored rate when submitted unchanged", async () => {
     vi.mocked(setManualRate).mockClear();
     const user = await open();
     await user.click(screen.getByRole("button", { name: "Lock rate" }));
-    expect(setManualRate).not.toHaveBeenCalled();
+    expect(setManualRate).toHaveBeenCalledWith("t1", "VND", "AUD", 0.0000612);
   });
 });
