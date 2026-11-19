@@ -40,8 +40,13 @@ export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency
   const picked = React.useRef(false);
   const wide = useMediaQuery("(min-width: 768px)");
   const defaults = dayTransportDefaults(date, stop, HOME_ENDPOINT, stopOptions);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const closeForm = () => {
+    setWhich(null);
+    if (wide === false) setTimeout(() => triggerRef.current?.focus(), 50);
+  };
   const trigger = (
-    <Button variant={variant} size={size} className={className}>
+    <Button ref={triggerRef} variant={variant} size={size} className={className}>
       <Plus className="size-4" aria-hidden="true" />
       {label}
     </Button>
@@ -99,7 +104,7 @@ export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency
         defaultStopId={stop?.id ?? null}
         open={which === "item"}
         onOpenChange={(o) => {
-          if (!o) setWhich(null);
+          if (!o) closeForm();
         }}
         homeCurrency={homeCurrency}
       />
@@ -114,7 +119,7 @@ export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency
           defaultDate={date}
           open
           onOpenChange={(o) => {
-            if (!o) setWhich(null);
+            if (!o) closeForm();
           }}
           homeCurrency={homeCurrency}
           homeBaseName={homeBaseName}
