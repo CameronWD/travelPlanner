@@ -4,7 +4,7 @@ import * as React from "react";
 import { RefreshCw } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { RatesPanel, formatRate, type RateEntry } from "@/components/trip/rates-panel";
+import { RatesPanel, displayRate, type RateEntry } from "@/components/trip/rates-panel";
 import { cn } from "@/lib/cn";
 
 /** One rate cell in the Rates strip: fetched, stale, or missing (MONEY.md §6). */
@@ -19,9 +19,12 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
     setWasMissing(missing);
     setJustSet(!missing);
   }
-  const label = missing
-    ? `Set a rate for ${entry.currency}`
-    : `${entry.currency} rate ${formatRate(entry.rate!)}${stale ? ", may be out of date" : ""}`;
+  const shown = missing ? null : displayRate({ currency: entry.currency, rate: entry.rate! }, homeCurrency);
+  const label = shown
+    ? shown.inverted
+      ? `1 ${shown.from} = ${shown.figure} ${shown.to}${stale ? ", may be out of date" : ""}`
+      : `${entry.currency} rate ${shown.figure}${stale ? ", may be out of date" : ""}`
+    : `Set a rate for ${entry.currency}`;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -30,15 +33,21 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
           type="button"
           aria-label={label}
           className={cn(
-            "pressable flex min-h-11 w-full flex-col items-start rounded-[12px] border-2 border-border px-2.5 py-2 text-left text-card-foreground",
+            "pressable flex min-h-11 w-full min-w-0 flex-col items-start rounded-[12px] border-2 border-border px-2.5 py-2 text-left text-card-foreground",
             missing ? "border-dashed bg-background" : "bg-card",
             justSet && "tp-pop",
           )}
         >
-          <span className="text-[13px] font-extrabold">{entry.currency}</span>
-          <span className="inline-flex items-center gap-1">
-            <span className={cn("font-display text-[17px] font-extrabold tabular-nums", stale && "text-sun-text")}>
-              {missing ? "Set rate" : formatRate(entry.rate!)}
+          <span className="text-[13px] font-extrabold">{shown?.inverted ? `1 ${shown.from} =` : entry.currency}</span>
+          <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+            <span
+              className={cn(
+                "min-w-0 max-w-full truncate font-display font-extrabold tabular-nums",
+                shown && shown.figure.length > 7 ? "text-[14px]" : "text-[17px]",
+                stale && "text-sun-text",
+              )}
+            >
+              {shown ? (shown.inverted ? `${shown.figure} ${shown.to}` : shown.figure) : "Set rate"}
             </span>
             {stale ? <RefreshCw className="size-3.5 text-sun-text" aria-hidden="true" /> : null}
           </span>

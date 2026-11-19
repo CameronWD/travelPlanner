@@ -47,7 +47,20 @@ export function formatRate(rate: number): string {
   if (rate >= 1000) {
     return Math.round(rate).toString();
   }
+  if (rate < 1) {
+    return rate.toLocaleString("en-US", { maximumSignificantDigits: 4, useGrouping: false });
+  }
   return parseFloat(rate.toPrecision(4)).toString();
+}
+
+export function displayRate(
+  entry: { currency: string; rate: number },
+  home: string,
+): { from: string; to: string; figure: string; inverted: boolean } {
+  if (entry.rate < 0.01) {
+    return { from: home, to: entry.currency, figure: formatRate(1 / entry.rate), inverted: true };
+  }
+  return { from: entry.currency, to: home, figure: formatRate(entry.rate), inverted: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -140,20 +153,22 @@ function RateRow({
     }
   }
 
+  const shown = entry.rate !== null ? displayRate({ currency: entry.currency, rate: entry.rate }, homeCurrency) : null;
+
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border/60 px-3 py-2.5 bg-card">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="font-mono text-sm font-semibold">
-            {entry.currency}/{homeCurrency}
+            {shown?.inverted ? `${shown.from}/${shown.to}` : `${entry.currency}/${homeCurrency}`}
           </span>
           <SourceBadge source={entry.source} />
         </div>
 
         <div className="flex items-center gap-1.5">
-          {entry.rate !== null ? (
-            <span className="font-mono text-sm tabular-nums">
-              {formatRate(entry.rate)}
+          {shown ? (
+            <span className="min-w-0 max-w-full truncate font-mono text-sm tabular-nums">
+              {shown.figure}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground italic">—</span>

@@ -8,13 +8,30 @@ vi.mock("@/server/actions/rates", () => ({
   refreshRates: vi.fn(),
 }));
 
-import { SourceBadge, formatRate } from "./rates-panel";
+import { SourceBadge, formatRate, displayRate } from "./rates-panel";
 
 // ---------------------------------------------------------------------------
 // formatRate — adaptive precision
 // ---------------------------------------------------------------------------
 
+describe("displayRate", () => {
+  it("turns a rate under 0.01 the other way round", () => {
+    const d = displayRate({ currency: "VND", rate: 0.0000612 }, "AUD");
+    expect(d).toEqual({ from: "AUD", to: "VND", figure: formatRate(1 / 0.0000612), inverted: true });
+  });
+
+  it("leaves a rate of 0.65 as it is", () => {
+    expect(displayRate({ currency: "EUR", rate: 0.65 }, "AUD")).toEqual({ from: "EUR", to: "AUD", figure: "0.65", inverted: false });
+  });
+});
+
 describe("formatRate", () => {
+  it("never uses exponent form for a very small rate", () => {
+    expect(formatRate(0.0000612)).toBe("0.0000612");
+    expect(formatRate(1e-7)).toBe("0.0000001");
+  });
+
+
   it("shows 4 significant figures for a normal rate (e.g. 1.2345)", () => {
     expect(formatRate(1.2345678)).toBe("1.235");
   });
@@ -22,8 +39,8 @@ describe("formatRate", () => {
   it("does NOT render as '0.0000' for a very small rate", () => {
     const result = formatRate(0.000012345);
     expect(result).not.toBe("0.0000");
-    // Should show meaningful digits (4 sig figs — toPrecision(4) behavior)
-    expect(result).toBe("0.00001234");
+    // Should show meaningful digits (4 sig figs)
+    expect(result).toBe("0.00001235");
   });
 
   it("handles a small rate like JPY→USD (e.g. 0.0067)", () => {

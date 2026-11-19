@@ -17,7 +17,7 @@ vi.mock("@/components/trip/rates-panel", async (orig) => ({
 }));
 
 import { RatesStrip } from "./rates-strip";
-import type { RateEntry } from "@/components/trip/rates-panel";
+import { formatRate, type RateEntry } from "@/components/trip/rates-panel";
 
 const RATES: RateEntry[] = [
   { currency: "EUR", rate: 1.63, source: "fetched", stale: false },
@@ -81,10 +81,17 @@ describe("Rates strip (MONEY.md §6)", () => {
     expect(container.innerHTML).toBe("");
   });
 
+  it("a very small rate reads the other way round, home currency first", () => {
+    render(<RatesStrip {...base} rates={[{ currency: "VND", rate: 0.0000612, source: "fetched", stale: false }]} />);
+    const cell = screen.getByRole("button", { name: `1 AUD = ${formatRate(1 / 0.0000612)} VND` });
+    expect(cell.textContent).toMatch(/^1 AUD =/);
+    expect(cell.textContent).toContain("VND");
+  });
+
   it("M10: a rate that was missing pops once it is set", () => {
     const { rerender } = render(<RatesStrip {...base} />);
     rerender(<RatesStrip {...base} rates={[RATES[0], RATES[1], { currency: "IDR", rate: 0.0001, source: "manual", stale: false }]} missingLine={null} />);
-    const idr = screen.getByRole("button", { name: /IDR rate/ });
+    const idr = screen.getByRole("button", { name: "1 AUD = 10000 IDR" });
     expect(idr.className).toContain("tp-pop");
     expect(idr.className).not.toContain("border-dashed");
   });
