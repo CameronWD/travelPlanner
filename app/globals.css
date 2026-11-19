@@ -636,6 +636,9 @@
 .tp-marquee { animation: tp-marquee var(--tp-marquee-dur, 22s) linear infinite; }
 .tp-marquee:active { animation-play-state: paused; } /* press to read */
 @media (prefers-reduced-motion: reduce) { .tp-marquee { animation: none; } }
+/* Day carousel: a day further than one slot from the day in view is off
+   screen until a swipe reaches it, so its weather scene holds still. */
+[data-day-panel][data-far] * { animation-play-state: paused; }
 /* Share page (MOTION.md S1–S10). Nothing here loops except the live ring (S2).
    Entrances fill `backwards` only, so the element's own rest state (an inline
    scaleX, a rotate-[4deg]) is where each one lands. */

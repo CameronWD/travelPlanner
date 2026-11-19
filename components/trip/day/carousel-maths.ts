@@ -20,3 +20,8 @@ export function panelProgress(scrollLeft: number, shownIndex: number, panelWidth
   if (panelWidth <= 0) return 0;
   return (scrollLeft - shownIndex * panelWidth) / panelWidth;
 }
+
+/** Further than one slot from the day in view: its animations pause and nothing in it is reachable. */
+export function isFar(index: number, viewIndex: number): boolean {
+  return Math.abs(index - viewIndex) > 1;
+}

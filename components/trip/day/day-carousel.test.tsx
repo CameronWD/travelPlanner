@@ -3,11 +3,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import * as React from "react";
 import { renderToString } from "react-dom/server";
-import { NavigationPendingProvider, useNavigationPending } from "@/components/navigation/navigation-pending";
+import { NavigationPendingProvider, PENDING_NAVIGATION_TIMEOUT_MS, useNavigationPending } from "@/components/navigation/navigation-pending";
 import { setMatchMedia } from "@/test/setup";
 import { LG_UP } from "@/components/ui/use-media-query";
-import { DayCarousel, DayChromeRegistryContext, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi } from "@/components/trip/day/day-carousel";
-import { DAY_GLIDE_MS } from "@/components/trip/day/carousel-maths";
+import { DayCarousel, DayChromeRegistryContext, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi, type DayPanel } from "@/components/trip/day/day-carousel";
 import { DAY_BODY_TRANSITION, DAY_BODY_TRANSITION_WIDE } from "@/components/trip/day/day-transition";
 
 const push = vi.fn();
@@ -31,36 +30,78 @@ vi.mock("@/components/ui/view-transition", () => ({
 }));
 
 const WIDTH = 390;
-const hrefs = ["2026-12-11", "2026-12-12", "2026-12-13"].map((iso) => `/trips/t1/day/${iso}` as Route);
-const panels = ["2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, href: hrefs[i], content: <p>{`day ${iso}`}</p> }));
+const WEEK = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14", "2026-12-15"];
+const SHOWN = 3;
+const href = (iso: string) => `/trips/t1/day/${iso}` as Route;
+
+function RegisterChrome({ iso }: { iso: string }) {
+  const { register } = React.useContext(DayChromeRegistryContext);
+  React.useEffect(() => register(iso, <h1>{`real ${iso}`}</h1>), [register, iso]);
+  return null;
+}
+
+/** Days in `filled` register their own header, as a filled slot does. */
+function week(filled: string[] = ["2026-12-11", "2026-12-12", "2026-12-13"]): DayPanel[] {
+  return WEEK.map((iso) => ({
+    iso,
+    href: href(iso),
+    content: (
+      <>
+        {filled.includes(iso) ? <RegisterChrome iso={iso} /> : null}
+        <p>{`day ${iso}`}</p>
+      </>
+    ),
+  }));
+}
+
+function TestRegistry({ children }: { children: React.ReactNode }) {
+  const [chromes, setChromes] = React.useState(() => new Map<string, React.ReactNode>());
+  const register = React.useCallback((iso: string, chrome: React.ReactNode) => setChromes((prev) => (prev.has(iso) ? prev : new Map(prev).set(iso, chrome))), []);
+  const value = React.useMemo(() => ({ register, chromeFor: (iso: string) => chromes.get(iso) }), [register, chromes]);
+  return <DayChromeRegistryContext.Provider value={value}>{children}</DayChromeRegistryContext.Provider>;
+}
+
 const fallback = (iso: string) => <h1>{`fallback ${iso}`}</h1>;
 const FAKE_TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
 
 let api: DayCarouselApi | null = null;
 let pendingPath: string | null = null;
-let pendingStartedAt: number | null = null;
 function Probe() {
   const a = useDayCarousel();
-  const pending = useNavigationPending();
-  const p = pending?.pathname ?? null;
-  const startedAt = pending?.startedAt ?? null;
+  const p = useNavigationPending()?.pathname ?? null;
   // Captured for assertions, not for rendering: react-hooks/globals forbids
   // writing an outer variable during render, so do it in an effect instead.
   React.useEffect(() => {
     api = a;
     pendingPath = p;
-    pendingStartedAt = startedAt;
   });
   return null;
 }
 
-function mount(over: Partial<React.ComponentProps<typeof DayCarousel>> = {}) {
-  const r = render(
+type Props = Partial<React.ComponentProps<typeof DayCarousel>>;
+function tree(over: Props = {}) {
+  return (
     <NavigationPendingProvider>
-      <DayCarousel panels={panels} shownDate="2026-12-12" chrome={<Probe />} chromeFallback={fallback} {...over} />
-    </NavigationPendingProvider>,
+      <TestRegistry>
+        <DayCarousel panels={week()} shownDate={WEEK[SHOWN]} chrome={<Probe />} chromeFallback={fallback} {...over} />
+      </TestRegistry>
+    </NavigationPendingProvider>
   );
-  return { ...r, scroller: r.container.querySelector("[data-day-carousel]") as HTMLElement };
+}
+
+function mount(over: Props = {}) {
+  const r = render(tree(over));
+  const scroller = r.container.querySelector("[data-day-carousel]") as HTMLElement;
+  const heading = () => r.container.querySelector("h1")?.textContent;
+  const panel = (iso: string) => r.container.querySelector(`[data-day-panel="${iso}"]`) as HTMLElement;
+  return { ...r, scroller, heading, panel, rerenderWith: (next: Props) => r.rerender(tree(next)) };
+}
+
+/** A drag that comes to rest on panel `idx`, where the browser has no scrollend. */
+function dragTo(scroller: HTMLElement, idx: number) {
+  scroller.scrollLeft = idx * WIDTH;
+  fireEvent.scroll(scroller);
+  act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
 }
 
 // React 19 entangles every startTransition backed by a thenable into one
@@ -76,11 +117,11 @@ function held(): Promise<void> {
 const defaultMatchMedia = window.matchMedia;
 
 beforeEach(() => {
-  push.mockClear();
+  push.mockReset();
+  push.mockImplementation(held);
   prefetch.mockClear();
   api = null;
   pendingPath = null;
-  pendingStartedAt = null;
   // A phone unless a test says otherwise: happy-dom's own matchMedia answers for a 1024px window.
   setMatchMedia(false);
   // jsdom has no layout: give every element the phone's width so panel maths works.
@@ -94,11 +135,12 @@ afterEach(async () => {
   delete (HTMLElement.prototype as unknown as { onscrollend?: null }).onscrollend;
   window.matchMedia = defaultMatchMedia;
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("DayCarousel", () => {
   it("positions each panel so absolutely placed hidden inputs stay clipped inside it", () => {
-    const withInput = panels.map((p) => ({ ...p, content: <input type="file" className="sr-only" aria-label={`photo ${p.iso}`} /> }));
+    const withInput = week().map((p) => ({ ...p, content: <input type="file" className="sr-only" aria-label={`photo ${p.iso}`} /> }));
     const { container } = mount({ panels: withInput });
     for (const input of container.querySelectorAll("input.sr-only")) {
       const panel = input.closest("[data-day-panel]") as HTMLElement;
@@ -111,50 +153,90 @@ describe("DayCarousel", () => {
     }
   });
 
-  it("renders the days in order, the neighbours inert and hidden, and rests on the day shown", () => {
+  it("renders every day in order and rests on the day shown; neighbours are inert, and days further than one slot away are far too", () => {
     const { container, scroller } = mount();
     const items = Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));
-    expect(items.map((p) => p.dataset.dayPanel)).toEqual(["2026-12-11", "2026-12-12", "2026-12-13"]);
-    expect(items[1]).toHaveAttribute("data-shown", "true");
-    expect(items[1]).not.toHaveAttribute("inert");
-    for (const n of [items[0], items[2]]) {
+    expect(items.map((p) => p.dataset.dayPanel)).toEqual(WEEK);
+    expect(items[SHOWN]).toHaveAttribute("data-shown", "true");
+    expect(items[SHOWN]).not.toHaveAttribute("inert");
+    expect(items[SHOWN]).not.toHaveAttribute("data-far");
+    for (const n of [items[2], items[4]]) {
       expect(n).toHaveAttribute("inert");
       expect(n).toHaveAttribute("aria-hidden", "true");
+      expect(n).not.toHaveAttribute("data-far");
       expect(n.className).toContain("h-0");
     }
-    expect(scroller).toHaveAttribute("data-shown-day", "2026-12-12");
-    expect(scroller.scrollLeft).toBe(WIDTH);
+    for (const f of [items[0], items[1], items[5], items[6]]) {
+      expect(f).toHaveAttribute("data-far");
+      expect(f).toHaveAttribute("inert");
+    }
+    expect(scroller).toHaveAttribute("data-shown-day", WEEK[SHOWN]);
+    expect(scroller.scrollLeft).toBe(SHOWN * WIDTH);
     expect(scroller.className).toContain("snap-mandatory");
     expect(scroller.className).toContain("overscroll-x-contain");
+    // Not stretched to the neighbours' clipped heights, or a short day could never shrink back.
+    expect(scroller.className).toContain("items-start");
   });
 
-  it("prefetches both neighbours' routes", () => {
+  it("never prefetches: every day is already on the page", () => {
     mount();
-    expect(prefetch.mock.calls.map((c) => c[0]).sort()).toEqual([hrefs[0], hrefs[2]]);
+    expect(prefetch).not.toHaveBeenCalled();
   });
 
-  it("a drag that settles on the next day navigates typed day-settle with the vertical position kept", () => {
+  it("settling on another day shows its header at once and pushes it once, keeping the vertical position, without pushState", () => {
     vi.useFakeTimers(FAKE_TIMERS);
+    const pushState = vi.spyOn(window.history, "pushState");
+    const days: string[] = [];
     const heard = vi.fn();
-    const { scroller } = mount();
+    const { scroller, heading, container } = mount();
+    expect(heading()).toBe(`real ${WEEK[SHOWN]}`);
+    api!.subscribeDay((iso) => days.push(iso));
     api!.subscribe(heard);
-    scroller.scrollLeft = 2 * WIDTH;
-    fireEvent.scroll(scroller);
-    expect(push).not.toHaveBeenCalled();
-    act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
-    expect(push).toHaveBeenCalledTimes(1);
-    expect(push).toHaveBeenCalledWith(hrefs[2], { scroll: false, transitionTypes: ["day-settle"] });
+    dragTo(scroller, 4);
+    expect(heading()).toBe("real 2026-12-13");
+    expect(api!.current()).toBe("2026-12-13");
+    expect(days).toEqual(["2026-12-13"]);
     expect(heard).toHaveBeenLastCalledWith(1, true);
+    expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }]]);
+    expect(container.querySelector('[data-day-panel][data-shown="true"]')).toHaveAttribute("data-day-panel", "2026-12-13");
+    expect(pushState).not.toHaveBeenCalled();
   });
 
-  it("a scroll that rests on the day shown — the mount's own positioning — does nothing (review focus 5)", () => {
+  it("a day whose slot has not filled shows the fallback header, then its own once it registers", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading, rerenderWith } = mount();
+    dragTo(scroller, 4);
+    dragTo(scroller, 5);
+    expect(heading()).toBe("fallback 2026-12-14");
+    rerenderWith({ panels: week(["2026-12-13", "2026-12-14"]) });
+    expect(heading()).toBe("real 2026-12-14");
+  });
+
+  it("a second settle before the first navigation lands pushes the newer day; the older one is superseded, never queued", async () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller } = mount();
+    dragTo(scroller, 4);
+    dragTo(scroller, 5);
+    expect(push.mock.calls.map((c) => c[0])).toEqual([href("2026-12-13"), href("2026-12-14")]);
+    await act(async () => { for (const release of releases.splice(0)) release(); });
+    expect(push).toHaveBeenCalledTimes(2);
+  });
+
+  it("swiping back to the day shown before the push lands pushes the day shown again", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller } = mount();
+    dragTo(scroller, 4);
+    dragTo(scroller, SHOWN);
+    expect(push.mock.calls.map((c) => c[0])).toEqual([href("2026-12-13"), href(WEEK[SHOWN])]);
+    expect(api!.current()).toBe(WEEK[SHOWN]);
+  });
+
+  it("a scroll that rests on the day in view — the mount's own positioning — does nothing (review focus 5)", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     const heard = vi.fn();
     const { scroller } = mount();
     api!.subscribe(heard);
-    scroller.scrollLeft = WIDTH;
-    fireEvent.scroll(scroller);
-    act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
+    dragTo(scroller, SHOWN);
     expect(push).not.toHaveBeenCalled();
     expect(heard).not.toHaveBeenCalled();
   });
@@ -169,96 +251,166 @@ describe("DayCarousel", () => {
     expect(heard).not.toHaveBeenCalled();
   });
 
-  it("subscribers hear the body's progress in panels", () => {
+  it("subscribers hear the body's progress in panels from the day in view", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
     const heard = vi.fn();
     const { scroller } = mount();
+    dragTo(scroller, 4);
     const off = api!.subscribe(heard);
-    scroller.scrollLeft = 1.5 * WIDTH;
+    scroller.scrollLeft = 4.5 * WIDTH;
     fireEvent.scroll(scroller);
     expect(heard).toHaveBeenLastCalledWith(0.5, false);
     expect(api!.isMoving()).toBe(true);
     off();
-    scroller.scrollLeft = WIDTH;
+    scroller.scrollLeft = 4 * WIDTH;
     fireEvent.scroll(scroller);
     expect(heard).toHaveBeenCalledTimes(1);
   });
 
-  it("goTo a neighbour lights the target at once, glides the body, then navigates once", () => {
+  it("the settle of a drag survives the navigation landing under it", async () => {
     vi.useFakeTimers(FAKE_TIMERS);
-    const { scroller } = mount();
+    const { scroller, rerenderWith } = mount();
+    dragTo(scroller, 4);
+    scroller.scrollLeft = 4.6 * WIDTH;
+    fireEvent.scroll(scroller);
+    await act(async () => {
+      rerenderWith({ panels: week(["2026-12-12", "2026-12-13", "2026-12-14"]), shownDate: "2026-12-13" });
+      for (const release of releases.splice(0)) release();
+    });
+    expect(scroller.scrollLeft).toBe(4.6 * WIDTH);
+    dragTo(scroller, 5);
+    expect(push.mock.calls.map((c) => c[0])).toEqual([href("2026-12-13"), href("2026-12-14")]);
+  });
+
+  it("the day shown arriving from the server for the day in view moves nothing", async () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading, rerenderWith } = mount();
+    dragTo(scroller, 4);
+    await act(async () => {
+      rerenderWith({ shownDate: "2026-12-13" });
+      for (const release of releases.splice(0)) release();
+    });
+    expect(scroller.scrollLeft).toBe(4 * WIDTH);
+    expect(heading()).toBe("real 2026-12-13");
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("a day shown that differs from the day in view (Back) moves the scroller there and shows its header", () => {
+    const days: string[] = [];
+    const { scroller, heading, rerenderWith } = mount();
+    api!.subscribeDay((iso) => days.push(iso));
+    rerenderWith({ shownDate: "2026-12-10" });
+    expect(scroller.scrollLeft).toBe(1 * WIDTH);
+    expect(heading()).toBe("fallback 2026-12-10");
+    expect(api!.current()).toBe("2026-12-10");
+    expect(days).toEqual(["2026-12-10"]);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("a day shown that arrives mid-drag waits for the drag to settle, and is applied if it settled where it began", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading, rerenderWith } = mount();
+    scroller.scrollLeft = 3.4 * WIDTH;
+    fireEvent.scroll(scroller);
+    rerenderWith({ shownDate: "2026-12-10" });
+    expect(scroller.scrollLeft).toBe(3.4 * WIDTH);
+    expect(heading()).toBe(`real ${WEEK[SHOWN]}`);
+    dragTo(scroller, SHOWN);
+    expect(scroller.scrollLeft).toBe(1 * WIDTH);
+    expect(heading()).toBe("fallback 2026-12-10");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("a day shown that arrives mid-drag is dropped when the drag settles on another day", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading, rerenderWith } = mount();
+    scroller.scrollLeft = 3.6 * WIDTH;
+    fireEvent.scroll(scroller);
+    rerenderWith({ shownDate: "2026-12-10" });
+    dragTo(scroller, 4);
+    expect(scroller.scrollLeft).toBe(4 * WIDTH);
+    expect(heading()).toBe("real 2026-12-13");
+    expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }]]);
+  });
+
+  it("settling past the first or last slot goes nowhere", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller } = mount({ shownDate: WEEK[6] });
+    expect(scroller.scrollLeft).toBe(6 * WIDTH);
+    dragTo(scroller, 7);
+    dragTo(scroller, -1);
+    expect(push).not.toHaveBeenCalled();
+    expect(api!.current()).toBe(WEEK[6]);
+  });
+
+  it("goTo any Trip day, filled or not, lights it at once, glides there and pushes it once on arrival without the progress bar's pending state", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading } = mount();
     let handled = false;
-    // Held in flight, as the real router's transition is while the server
-    // responds — a push that lands unmounts this page (its own re-arm
-    // effect, tested separately, only fires for one that doesn't).
-    push.mockImplementationOnce(held);
-    act(() => { handled = api!.goTo(hrefs[2]); });
+    act(() => { handled = api!.goTo(href(WEEK[6])); });
     expect(handled).toBe(true);
-    expect(pendingPath).toBe(hrefs[2]);
+    expect(pendingPath).toBe(href(WEEK[6]));
     expect(push).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(120); });
-    expect(scroller.scrollLeft).toBeGreaterThan(WIDTH);
-    expect(scroller.scrollLeft).toBeLessThan(2 * WIDTH);
+    expect(scroller.scrollLeft).toBeGreaterThan(SHOWN * WIDTH);
+    expect(scroller.scrollLeft).toBeLessThan(6 * WIDTH);
     act(() => { vi.advanceTimersByTime(400); });
-    expect(scroller.scrollLeft).toBe(2 * WIDTH);
-    expect(push).toHaveBeenCalledTimes(1);
-    expect(push).toHaveBeenCalledWith(hrefs[2], { scroll: false, transitionTypes: ["day-settle"] });
+    expect(scroller.scrollLeft).toBe(6 * WIDTH);
+    expect(heading()).toBe(`fallback ${WEEK[6]}`);
+    expect(push.mock.calls).toEqual([[href(WEEK[6]), { scroll: false }]]);
+    expect(pendingPath).toBeNull();
   });
 
-  it("goTo's pending navigation starts its clock when the push does, not at the tap — the progress bar's 300ms is the network's", () => {
-    vi.useFakeTimers(FAKE_TIMERS);
+  it("goTo a day that is not a Trip day is false", () => {
     mount();
-    push.mockImplementationOnce(held);
-    act(() => { api!.goTo(hrefs[2]); });
-    expect(pendingPath).toBe(hrefs[2]);
-    act(() => { vi.advanceTimersByTime(DAY_GLIDE_MS - 20); });
-    expect(push).not.toHaveBeenCalled();
-    const glideEnding = Date.now();
-    act(() => { vi.advanceTimersByTime(500 - (DAY_GLIDE_MS - 20)); });
-    expect(push).toHaveBeenCalledTimes(1);
-    expect(pendingPath).toBe(hrefs[2]);
-    expect(pendingStartedAt).toBeGreaterThanOrEqual(glideEnding);
+    expect(api!.goTo("/trips/t1/day/2026-12-20" as Route)).toBe(false);
+    expect(api!.goTo(href(WEEK[SHOWN]))).toBe(true);
   });
 
-  it("a glide whose scrollend arrives before the tween's last frame still pushes with a fresh clock and stays lit", () => {
+  it("step goes to the day either side of the day in view, and is false past the Trip's ends", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller } = mount({ shownDate: WEEK[5] });
+    act(() => { expect(api!.step(1)).toBe(true); });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(scroller.scrollLeft).toBe(6 * WIDTH);
+    expect(api!.step(1)).toBe(false);
+    act(() => { expect(api!.step(-1)).toBe(true); });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(push.mock.calls.map((c) => c[0])).toEqual([href(WEEK[6]), href(WEEK[5])]);
+  });
+
+  it("a glide whose scrollend arrives before the tween's last frame pushes once", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     // Chrome fires scrollend on the glide's second-to-last frame, so the
-    // scroll-settle path pushes before the tween's onDone runs.
+    // scroll-settle path lands before the tween's onDone runs.
     Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
     const { scroller } = mount();
-    push.mockImplementationOnce(held);
-    act(() => { api!.goTo(hrefs[2]); });
-    act(() => { vi.advanceTimersByTime(DAY_GLIDE_MS - 20); });
-    const glideEnding = Date.now();
-    scroller.scrollLeft = 2 * WIDTH;
+    act(() => { api!.goTo(href("2026-12-13")); });
+    act(() => { vi.advanceTimersByTime(200); });
+    scroller.scrollLeft = 4 * WIDTH;
     act(() => { fireEvent(scroller, new Event("scrollend")); });
     expect(push).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(500 - (DAY_GLIDE_MS - 20)); });
+    act(() => { vi.advanceTimersByTime(300); });
     expect(push).toHaveBeenCalledTimes(1);
-    expect(pendingPath).toBe(hrefs[2]);
-    expect(pendingStartedAt).toBeGreaterThanOrEqual(glideEnding);
   });
 
-  it("a second goTo while a navigation is still in flight is swallowed: true, and no second push", () => {
+  it("a scrollend on a day the glide only passes over does not land there", () => {
     vi.useFakeTimers(FAKE_TIMERS);
-    mount();
-    push.mockImplementationOnce(held);
-    act(() => { api!.goTo(hrefs[2]); });
+    Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
+    const { scroller } = mount();
+    act(() => { api!.goTo(href(WEEK[6])); });
+    act(() => { vi.advanceTimersByTime(60); });
+    scroller.scrollLeft = 4 * WIDTH;
+    act(() => { fireEvent(scroller, new Event("scrollend")); });
+    expect(push).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(500); });
-    expect(push).toHaveBeenCalledTimes(1);
-    let again = false;
-    act(() => { again = api!.goTo(hrefs[0]); });
-    expect(again).toBe(true);
-    act(() => { vi.advanceTimersByTime(500); });
-    expect(push).toHaveBeenCalledTimes(1);
+    expect(push.mock.calls).toEqual([[href(WEEK[6]), { scroll: false }]]);
   });
 
   it("goTo turns scroll-snap off for the glide and restores it on arrival", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     const { scroller } = mount();
-    // Held in flight: the re-arm effect also restores scrollSnapType to "" on
-    // settle, which would mask onDone's own restore going missing.
-    push.mockImplementationOnce(held);
-    act(() => { api!.goTo(hrefs[2]); });
+    act(() => { api!.goTo(href("2026-12-13")); });
     expect(scroller.style.scrollSnapType).toBe("none");
     act(() => { vi.advanceTimersByTime(500); });
     expect(scroller.style.scrollSnapType).toBe("");
@@ -266,116 +418,101 @@ describe("DayCarousel", () => {
 
   it("a glide survives a re-render that changes panels' identity mid-glide", () => {
     vi.useFakeTimers(FAKE_TIMERS);
-    const { scroller, rerender } = mount();
-    push.mockImplementationOnce(held);
-    act(() => { api!.goTo(hrefs[2]); });
+    const { scroller, rerenderWith } = mount();
+    act(() => { api!.goTo(href("2026-12-13")); });
     act(() => { vi.advanceTimersByTime(100); });
-    const freshPanels = panels.map((p) => ({ ...p }));
-    rerender(
-      <NavigationPendingProvider>
-        <DayCarousel panels={freshPanels} shownDate="2026-12-12" chrome={<Probe />} chromeFallback={fallback} />
-      </NavigationPendingProvider>,
-    );
+    rerenderWith({ panels: week() });
     act(() => { vi.advanceTimersByTime(400); });
-    expect(scroller.scrollLeft).toBe(2 * WIDTH);
-    expect(push).toHaveBeenCalledTimes(1);
-    expect(push).toHaveBeenCalledWith(hrefs[2], { scroll: false, transitionTypes: ["day-settle"] });
+    expect(scroller.scrollLeft).toBe(4 * WIDTH);
+    expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }]]);
   });
 
-  it("goTo a day that is not a panel is false; scrollend and the quiet timer together fire one push", () => {
+  it("scrollend and the quiet timer together fire one push", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
     const { scroller } = mount();
-    expect(api!.goTo("/trips/t1/day/2026-12-20" as Route)).toBe(false);
-    scroller.scrollLeft = 2 * WIDTH;
+    scroller.scrollLeft = 4 * WIDTH;
     fireEvent.scroll(scroller);
     fireEvent(scroller, new Event("scrollend"));
     act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
     expect(push).toHaveBeenCalledTimes(1);
   });
 
-  it("a navigation that ends without landing re-arms the carousel", () => {
+  it("a navigation that ends with the day unchanged parks the scroller back on the day shown", async () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const { scroller, heading } = mount();
+    dragTo(scroller, 4);
+    expect(scroller.scrollLeft).toBe(4 * WIDTH);
+    await act(async () => { for (const release of releases.splice(0)) release(); });
+    expect(scroller.scrollLeft).toBe(SHOWN * WIDTH);
+    expect(heading()).toBe(`real ${WEEK[SHOWN]}`);
+    expect(api!.current()).toBe(WEEK[SHOWN]);
+    dragTo(scroller, 2);
+    expect(push).toHaveBeenLastCalledWith(href("2026-12-11"), { scroll: false });
+  });
+
+  it("a navigation that never ends parks the scroller back after the pending timeout", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     const { scroller } = mount();
-    // Left to settle normally: the mocked push never unmounts the page, so
-    // this one lands the same way a redirect back to the page shown would —
-    // which is exactly the case this test is for.
-    act(() => { api!.goTo(hrefs[2]); });
-    act(() => { vi.advanceTimersByTime(500); });
-    expect(push).toHaveBeenCalledTimes(1);
-    expect(scroller.scrollLeft).toBe(WIDTH);
-    let again = false;
-    // This second one we leave in flight, purely to read where it lands —
-    // the re-arm above it is already the point of this test.
-    push.mockImplementationOnce(held);
-    act(() => { again = api!.goTo(hrefs[0]); });
-    expect(again).toBe(true);
-    act(() => { vi.advanceTimersByTime(500); });
-    expect(push).toHaveBeenCalledTimes(2);
-    expect(push).toHaveBeenLastCalledWith(hrefs[0], { scroll: false, transitionTypes: ["day-settle"] });
-    expect(scroller.scrollLeft).toBe(0);
+    dragTo(scroller, 4);
+    act(() => { vi.advanceTimersByTime(PENDING_NAVIGATION_TIMEOUT_MS + 1); });
+    expect(scroller.scrollLeft).toBe(SHOWN * WIDTH);
+    expect(api!.current()).toBe(WEEK[SHOWN]);
   });
 
   it("under reduced motion goTo navigates without a glide (review focus 3)", () => {
     setMatchMedia((q) => q.includes("prefers-reduced-motion"));
     const { scroller } = mount();
-    push.mockImplementationOnce(held);
-    act(() => { api!.goTo(hrefs[0]); });
+    act(() => { api!.goTo(href(WEEK[0])); });
     expect(scroller.scrollLeft).toBe(0);
-    expect(push).toHaveBeenCalledWith(hrefs[0], { scroll: false, transitionTypes: ["day-settle"] });
+    expect(push).toHaveBeenCalledWith(href(WEEK[0]), { scroll: false });
   });
 
-  it("first day: only two panels, shown at index 0, no prefetch of a missing neighbour", () => {
-    const { container, scroller } = mount({ panels: panels.slice(1), shownDate: "2026-12-12" });
-    expect(container.querySelectorAll("[data-day-panel]")).toHaveLength(2);
-    expect(scroller.scrollLeft).toBe(0);
-    expect(prefetch).toHaveBeenCalledTimes(1);
-    expect(prefetch).toHaveBeenCalledWith(hrefs[2]);
+  it("the day coming into view drops the height it was clipped to as a neighbour, and the others clip to it", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.dataset.dayPanel === "2026-12-13" ? 300 : 500;
+    });
+    const { scroller, panel } = mount();
+    expect(panel("2026-12-13").style.height).toBe("500px");
+    dragTo(scroller, 4);
+    expect(panel("2026-12-13").style.height).toBe("");
+    expect(panel(WEEK[SHOWN]).style.height).toBe("300px");
+    expect(panel(WEEK[0]).style.height).toBe("300px");
   });
 
-  it("with a panel for every day, rests on the shown date and reaches only the day either side", () => {
-    const week = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14", "2026-12-15"];
-    const all = week.map((iso) => ({ iso, href: `/trips/t1/day/${iso}` as Route, content: <p>{`day ${iso}`}</p> }));
-    const { container, scroller } = mount({ panels: all });
-    expect(container.querySelectorAll("[data-day-panel]")).toHaveLength(7);
-    expect(container.querySelector('[data-day-panel][data-shown="true"]')).toHaveAttribute("data-day-panel", "2026-12-12");
-    expect(scroller.scrollLeft).toBe(3 * WIDTH);
-    expect(prefetch.mock.calls.map((c) => c[0]).sort()).toEqual([all[2].href, all[4].href]);
-    expect(api!.goTo(all[0].href)).toBe(false);
-    expect(api!.goTo(all[6].href)).toBe(false);
+  it("a day that has not filled holds the height of the day it replaced until it fills", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(500);
+    const skeleton = <div data-day-slot-skeleton />;
+    const unfilled = week().map((p) => (p.iso === WEEK[6] ? { ...p, content: skeleton } : p));
+    const { scroller, panel, rerenderWith } = mount({ panels: unfilled });
+    dragTo(scroller, 6);
+    expect(panel(WEEK[6]).style.minHeight).toBe("500px");
+    rerenderWith({ panels: week() });
+    expect(panel(WEEK[6]).style.minHeight).toBe("");
+    dragTo(scroller, 5);
+    expect(panel(WEEK[6]).style.minHeight).toBe("");
   });
 
-  it("shows the shown day's registered header, and the fallback until one registers", () => {
-    const { getByRole, unmount } = mount();
-    expect(getByRole("heading", { level: 1 })).toHaveTextContent("fallback 2026-12-12");
-    unmount();
-    const seeded = render(
-      <NavigationPendingProvider>
-        <DayChromeRegistryContext.Provider value={{ register: () => {}, chromeFor: (iso) => (iso === "2026-12-12" ? <h1>Sat 12 Dec</h1> : undefined) }}>
-          <DayCarousel panels={panels} shownDate="2026-12-12" chrome={null} chromeFallback={fallback} />
-        </DayChromeRegistryContext.Provider>
-      </NavigationPendingProvider>,
-    );
-    expect(seeded.getByRole("heading", { level: 1 })).toHaveTextContent("Sat 12 Dec");
-  });
-
-  it("a phone keeps the three-panel snap carousel", () => {
-    setMatchMedia(false);
-    const { container, scroller } = mount();
-    expect(container.querySelectorAll("[data-day-panel]")).toHaveLength(3);
-    expect(scroller.className).toContain("overflow-x-auto");
-    expect(scroller.className).toContain("snap-mandatory");
+  it("the cold-load positioning script is in the server's markup and never rendered by the client", () => {
+    const html = renderToString(tree());
+    expect(html).toContain("<script>");
+    const error = vi.spyOn(console, "error");
+    const { container } = mount();
+    expect(container.querySelector("script")).toBeNull();
+    expect(error).not.toHaveBeenCalled();
   });
 });
 
 describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
   const desktop = (q: string) => q === LG_UP;
 
-  it("renders only the day shown, in a plain block with no horizontal scroller", () => {
+  it("renders only the day in view, in a plain block with no horizontal scroller", () => {
     setMatchMedia(desktop);
     const { container, scroller } = mount();
     const items = Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));
-    expect(items.map((p) => p.dataset.dayPanel)).toEqual(["2026-12-12"]);
+    expect(items.map((p) => p.dataset.dayPanel)).toEqual([WEEK[SHOWN]]);
     expect(items[0]).not.toHaveAttribute("inert");
     expect(container.querySelector(".overflow-x-auto")).toBeNull();
     expect(scroller.className).not.toMatch(/snap/);
@@ -386,7 +523,7 @@ describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
     Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
     setMatchMedia(desktop);
     const { scroller } = mount();
-    scroller.scrollLeft = 2 * WIDTH;
+    scroller.scrollLeft = 4 * WIDTH;
     fireEvent.wheel(scroller, { deltaX: 400 });
     fireEvent.scroll(scroller);
     fireEvent(scroller, new Event("scrollend"));
@@ -394,31 +531,33 @@ describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("arrows and keys take their own typed navigation: goTo declines, and both neighbours are still prefetched", () => {
+  it("goTo shows the new day and its header at once, then pushes it", () => {
     setMatchMedia(desktop);
-    mount();
-    expect(api!.goTo(hrefs[2])).toBe(false);
-    expect(push).not.toHaveBeenCalled();
-    expect(prefetch.mock.calls.map((c) => c[0]).sort()).toEqual([hrefs[0], hrefs[2]]);
+    const days: string[] = [];
+    const { container, heading } = mount();
+    api!.subscribeDay((iso) => days.push(iso));
+    let handled = false;
+    act(() => { handled = api!.goTo(href("2026-12-13")); });
+    expect(handled).toBe(true);
+    expect(Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]")).map((p) => p.dataset.dayPanel)).toEqual(["2026-12-13"]);
+    expect(heading()).toBe("real 2026-12-13");
+    expect(days).toEqual(["2026-12-13"]);
+    expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }]]);
   });
 
   it("the server's markup already shows one day at lg, before any script runs", () => {
     const host = document.createElement("div");
-    host.innerHTML = renderToString(
-      <NavigationPendingProvider>
-        <DayCarousel panels={panels} shownDate="2026-12-12" chrome={null} chromeFallback={fallback} />
-      </NavigationPendingProvider>,
-    );
+    host.innerHTML = renderToString(tree());
     const scroller = host.querySelector("[data-day-carousel]") as HTMLElement;
     expect(scroller.className).toContain("lg:block");
     expect(scroller.className).toContain("lg:overflow-visible");
     const items = Array.from(host.querySelectorAll<HTMLElement>("[data-day-panel]"));
-    expect(items).toHaveLength(3);
-    expect(items[1].className).not.toContain("lg:hidden");
-    for (const n of [items[0], items[2]]) expect(n.className).toContain("lg:hidden");
+    expect(items).toHaveLength(WEEK.length);
+    expect(items[SHOWN].className).not.toContain("lg:hidden");
+    for (const n of items.filter((_, i) => i !== SHOWN)) expect(n.className).toContain("lg:hidden");
   });
 
-  it("every typed day change crossfades the body; below lg it keeps the page-turn (spec 2026-11-18 D2)", () => {
+  it("every day change crossfades the body; below lg it does not (spec 2026-11-18 D2)", () => {
     setMatchMedia(desktop);
     viewTransition.props.length = 0;
     const { unmount } = mount();
@@ -431,17 +570,13 @@ describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
 
   it("marks the shown day's side column tall when it does not fit the viewport, so it stops sticking", () => {
     setMatchMedia(desktop);
-    const withSide = panels.map((p) => ({ ...p, content: <div data-day-side /> }));
+    const withSide = week().map((p) => ({ ...p, content: <div data-day-side /> }));
     const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(window.innerHeight + 100);
-    try {
-      const { container, unmount } = mount({ panels: withSide });
-      expect(container.querySelector("[data-day-side]")).toHaveAttribute("data-tall");
-      unmount();
-      height.mockReturnValue(window.innerHeight - 200);
-      const again = mount({ panels: withSide });
-      expect(again.container.querySelector("[data-day-side]")).not.toHaveAttribute("data-tall");
-    } finally {
-      height.mockRestore();
-    }
+    const { container, unmount } = mount({ panels: withSide });
+    expect(container.querySelector("[data-day-side]")).toHaveAttribute("data-tall");
+    unmount();
+    height.mockReturnValue(window.innerHeight - 200);
+    const again = mount({ panels: withSide });
+    expect(again.container.querySelector("[data-day-side]")).not.toHaveAttribute("data-tall");
   });
 });

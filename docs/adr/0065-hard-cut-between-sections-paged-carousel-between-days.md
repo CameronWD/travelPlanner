@@ -97,3 +97,42 @@ What was built from `lg` up (spec 2026-11-18 D1, D2):
 - A day change made inside the app crossfades in about 150 ms; browser back and forward cut.
 - A neighbour panel never opens its own Day map: only the day shown mounts the dialog, so
   the phone carousel's three panels do not stack three dialogs.
+
+## Amended 2026-11-19: every day has a slot, and a swipe rebuilds nothing
+
+Feedback `cmwmyah6t000008ifgca9vw8m`: "The carousel is too slow? It should feel like it's all
+loaded and very smoothly slide between them. It's so jarring currently." Each settle was a
+cold server render under the `[date]` segment, so the page remounted, the header and the Day
+strip waited for it, and a second swipe met the end of a three-panel scroller.
+
+- **A slot for every day.** The scroller has one fixed-width slot per Trip date from first
+  paint, so filling a slot never moves the scroll position. Seven days are filled around the
+  day shown: it and its neighbours paint first from one `getDays` read, the days two and
+  three away stream in behind per-slot Suspense, and every other slot is a skeleton. The
+  offline warmer's copies stay three-day.
+- **The date arrives by rewrite.** The address stays `/trips/<ref>/day/<date>`; the proxy
+  rewrites it to the one Day page as `?d=<date>`. A day change is then a search-param
+  navigation: nothing above the page remounts, so the carousel, its scroller and the panels
+  of days present in both windows survive it. Slots entering the window fill and slots
+  leaving it become skeletons by ordinary reconciliation, each panel keyed by its date.
+- **The day in view is the carousel's.** A settle (drag, arrow, key or chip) shows that day's
+  own header, or a date-only header until its slot fills, and lights the strip at once. It
+  then pushes the day's address straight away with `router.push(href, { scroll: false })`,
+  with no progress bar: the day is already on screen. A second settle before the first lands
+  pushes the newer day and the router drops the older one. The page's own date catches up
+  when the navigation lands; a landing for the day in view moves nothing, so it cannot
+  disturb a gesture in progress. A date that differs (Back, Forward) moves the scroller there,
+  never mid-gesture. A navigation that ends with the day unchanged parks the scroller back
+  on the day shown, as before.
+- **Not `history.pushState`.** A URL the router did not navigate to leaves it inconsistent: a
+  refresh then resets the scroll position and Back breaks.
+- **What runs off screen.** Days further than one slot from the day in view are `inert` and
+  their animations pause; the Day map mounts only for the day the page shows. A slot that
+  has not filled keeps the height of the day it replaced, so landing on one does not shrink
+  the page under the Traveller.
+- **From lg** only the day in view renders. A day change shows it and its header at once,
+  crossfading the body (keyed by the day, since nothing remounts any more), then makes the
+  same push. Browser Back and Forward still cut.
+
+The reserve option above, moving the Day chrome into a layout, is no longer needed: the
+rewrite keeps the whole page mounted instead.

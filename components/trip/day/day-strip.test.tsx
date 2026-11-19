@@ -24,6 +24,10 @@ const segments: StopLine = {
   ],
 };
 
+function fakeCarousel(over: Partial<DayCarouselApi> = {}): DayCarouselApi {
+  return { goTo: () => false, step: () => false, current: () => "2026-12-12", subscribeDay: () => () => {}, subscribe: () => () => {}, isMoving: () => false, ...over };
+}
+
 describe("DayStrip", () => {
   it("is a nav of day links with aria-current=date on the current chip", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -157,7 +161,7 @@ describe("DayStrip", () => {
   it("phone: follows the body's progress through the carousel, and a far chip stays a link (review focus 4)", () => {
     let emit: (p: number, settled: boolean) => void = () => {};
     const goTo = vi.fn(() => false);
-    const api: DayCarouselApi = { goTo, subscribe: (cb) => { emit = cb; return () => {}; }, isMoving: () => false };
+    const api = fakeCarousel({ goTo, subscribe: (cb) => { emit = cb; return () => {}; } });
     render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
     const scroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
     scroller.scrollLeft = 0;
@@ -172,9 +176,24 @@ describe("DayStrip", () => {
     expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-09");
     expect(links[0]).toHaveAttribute("data-pending", "true");
   });
+  it("the lit chip and aria-current follow the carousel's day in view as it changes, before the day shown catches up", () => {
+    let inView = "2026-12-12";
+    let tell: (iso: string) => void = () => {};
+    const api = fakeCarousel({ current: () => inView, subscribeDay: (cb) => { tell = cb; return () => {}; } });
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    act(() => {
+      inView = "2026-12-13";
+      tell(inView);
+    });
+    expect(links[4]).toHaveAttribute("data-lit", "true");
+    expect(links[4]).toHaveAttribute("aria-current", "date");
+    expect(links[3]).not.toHaveAttribute("data-lit");
+    expect(links[3]).not.toHaveAttribute("aria-current");
+  });
   it("an adjacent chip hands the tap to the carousel, so AppLink's own report never runs", () => {
     const goTo = vi.fn(() => true);
-    const api: DayCarouselApi = { goTo, subscribe: () => () => {}, isMoving: () => false };
+    const api = fakeCarousel({ goTo });
     render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
     fireEvent.click(links[4]);
@@ -275,6 +294,16 @@ describe("DayStrip", () => {
         await act(async () => { for (const r of releases) r(); });
         push.mockReset();
       }
+    });
+    it("with the carousel, Previous day and Next day step it rather than navigate", () => {
+      push.mockClear();
+      const step = vi.fn(() => true);
+      render(<NavigationPendingProvider><DayCarouselContext.Provider value={fakeCarousel({ step })}><DayStrip tripId="t1" dates={dates} line={segments} size="desktop" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+      const group = screen.getByRole("group", { name: "Day strip" });
+      fireEvent.click(within(group).getByRole("button", { name: "Next day" }));
+      fireEvent.click(within(group).getByRole("button", { name: "Previous day" }));
+      expect(step.mock.calls).toEqual([[1], [-1]]);
+      expect(push).not.toHaveBeenCalled();
     });
     it("Previous day is disabled on the first day and Next day on the last", () => {
       const { unmount } = render(<DayStrip tripId="t1" dates={dayOne} line={segments} size="desktop" />);
