@@ -89,6 +89,12 @@ describe("Rates strip (MONEY.md §6)", () => {
     expect(cell.textContent).toContain("VND");
   });
 
+  it("titles the dialog of an inverted rate with the home currency first", async () => {
+    render(<RatesStrip {...base} rates={[{ currency: "VND", rate: 0.0000612, source: "fetched", stale: false }]} />);
+    await userEvent.click(screen.getByRole("button", { name: /^1 AUD = / }));
+    expect(screen.getByRole("heading", { name: "AUD to VND" })).toBeInTheDocument();
+  });
+
   it("sizes the figure from its tile, never truncating it", () => {
     render(<RatesStrip {...base} rates={[{ currency: "ZWL", rate: 0.000000001, source: "fetched", stale: false }]} />);
     const figure = screen.getByText("1000000000");

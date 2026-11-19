@@ -60,7 +60,7 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {entry.currency} to {homeCurrency}
+            {shown?.inverted ? `${homeCurrency} to ${entry.currency}` : `${entry.currency} to ${homeCurrency}`}
           </DialogTitle>
         </DialogHeader>
         <RatesPanel tripId={tripId} homeCurrency={homeCurrency} rates={[entry]} />
