@@ -743,21 +743,22 @@ describe("AttachmentList", () => {
     // The dashed upload tile is the grid's first cell.
     expect(grid!.firstElementChild!.querySelector('input[type="file"]')).not.toBeNull();
     expect(grid!.firstElementChild!.querySelector("label")).toHaveClass("border-dashed");
+    expect(grid!.firstElementChild).toHaveClass("md:col-span-2", "lg:col-span-3");
   });
 
-  it("phone cards stack like desktop — tile and actions on top, name and meta full-width with a title (W12, LA-123)", () => {
+  it("phone cards are compact — thumbnail beside the text, actions on a short row under it, desktop unchanged", () => {
     const { container } = render(
       <AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} showUpload={false} />,
     );
     const card = container.querySelector('[data-slot="file-card"]') as HTMLElement;
     const classes = card.className.split(/\s+/);
-    expect(classes).toEqual(expect.arrayContaining(["flex-col", "items-start", "sm:flex-row", "sm:items-center", "md:flex-col", "md:items-start"]));
+    expect(classes).toEqual(expect.arrayContaining(["flex-row", "flex-wrap", "items-start", "sm:flex-nowrap", "sm:items-center", "md:flex-col", "md:items-start"]));
     expect(classes).not.toContain("items-center");
     const actions = screen.getByRole("button", { name: "Delete boarding-pass.pdf" }).parentElement!;
-    expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["absolute", "right-2", "top-2", "sm:static", "md:absolute", "md:right-2", "md:top-2"]));
+    expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["basis-full", "justify-end", "sm:basis-auto", "md:absolute", "md:right-2", "md:top-2"]));
     const name = screen.getByText("boarding-pass.pdf", { selector: "p" });
     expect(name).toHaveAttribute("title", "boarding-pass.pdf");
-    expect(name.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["w-full", "min-w-0", "sm:w-auto", "sm:flex-1", "md:w-full"]));
+    expect(name.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-w-0", "flex-1", "md:w-full", "md:flex-none"]));
   });
 
   it("each file card has a type tile (PDF / IMG) toned by what the file belongs to", () => {

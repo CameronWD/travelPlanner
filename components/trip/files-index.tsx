@@ -8,8 +8,12 @@ import { FileMoveDialog } from "@/components/trip/file-move-dialog";
 import type { MoveTargetGroup } from "@/lib/attachment-move";
 import type { ConfirmationKind } from "@/lib/booking-confirmation";
 import Link from "next/link";
+import { Paperclip } from "lucide-react";
+import { ListRow } from "@/components/ui/list-row";
 import type { FileOwner } from "@/lib/attachment-view";
 import { FILES_SECTION_HEADER_CLASS } from "@/components/trip/files-section-class";
+
+const CONFIRMATION_KIND_LABEL: Record<ConfirmationKind, string> = { TRANSPORT: "Transport", ACCOMMODATION: "Stay", ITEM: "Thing to do" };
 
 export interface ConfirmationToAddRow {
   kind: ConfirmationKind;
@@ -54,12 +58,17 @@ export function FilesIndex({
             <span className="text-xs font-semibold tabular-nums text-muted-foreground">{toAdd.length}</span>
             <span aria-hidden="true" className="h-px flex-1 bg-border-soft" />
           </div>
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col divide-y-2 divide-border-soft rounded-xl border-2 border-border bg-card px-3">
             {toAdd.map((row) => (
-              <li key={`${row.kind}:${row.id}`} className="text-sm font-semibold">
-                <Link href={row.href} className="text-foreground underline-offset-2 hover:underline">
-                  {row.label}
-                </Link>
+              <li key={`${row.kind}:${row.id}`}>
+                <ListRow
+                  as={Link}
+                  href={row.href}
+                  tile={<Paperclip className="size-4" strokeWidth={2.5} />}
+                  tileTone="sun"
+                  title={<span className="line-clamp-2 break-words text-sm font-bold">{row.label}</span>}
+                  sub={CONFIRMATION_KIND_LABEL[row.kind]}
+                />
               </li>
             ))}
           </ul>

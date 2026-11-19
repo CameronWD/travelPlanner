@@ -110,8 +110,11 @@ describe("FilesIndex", () => {
   it("lists Booking confirmations to add above the other groups, one link each", () => {
     renderIndex({ toAdd });
     const heading = screen.getByRole("heading", { name: "Booking confirmations to add" });
-    expect(screen.getByRole("link", { name: "Rome → Paris" })).toHaveAttribute("href", "/trips/t1/plan#open=s1");
-    expect(screen.getByRole("link", { name: "Louvre" })).toHaveAttribute("href", "/trips/t1/day/2026-12-06");
+    expect(screen.getByRole("link", { name: /Rome → Paris/ })).toHaveAttribute("href", "/trips/t1/plan#open=s1");
+    expect(screen.getByRole("link", { name: /Louvre/ })).toHaveAttribute("href", "/trips/t1/day/2026-12-06");
+    for (const link of [screen.getByRole("link", { name: /Rome → Paris/ }), screen.getByRole("link", { name: /Louvre/ })]) {
+      expect(link).toHaveAttribute("data-slot", "list-row");
+    }
     const stopsHeading = screen.getByRole("heading", { name: "Stops" });
     expect(heading.compareDocumentPosition(stopsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
