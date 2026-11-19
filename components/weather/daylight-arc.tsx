@@ -27,7 +27,7 @@ export function DaylightArc({ now, size, ...daylight }: DaylightView & { now?: s
   const t = risesAndSets && now ? sunArcPosition(clockTime(sunrise), clockTime(sunset), clockTime(now)) : null;
   const line = { fill: "none", stroke: "currentColor", vectorEffect: "non-scaling-stroke", strokeLinecap: "round" } as const;
   return (
-    <div data-daylight-arc className={cn("flex flex-col gap-1 font-bold leading-none", compact ? "text-[11px]" : "text-xs")}>
+    <div data-daylight-arc className={cn("flex flex-col font-bold leading-none", compact ? "gap-0.5 text-[11px]" : "gap-1 text-xs")}>
       <div className="flex items-end gap-2">
         {risesAndSets ? <span className="shrink-0">{`↑ ${sunrise}`}</span> : null}
         <div role="img" aria-label={daylightLabel(daylight)} className={cn("relative min-w-0 flex-1", compact ? "h-[18px]" : "h-7")}>

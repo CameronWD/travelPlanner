@@ -54,7 +54,7 @@ export function WhatsNewCard({
       className={cn(
         "rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5",
         floating
-          ? "fixed inset-x-3 bottom-[calc(var(--tp-tab-bar-h)+5rem+env(safe-area-inset-bottom))] z-30 md:inset-x-auto md:bottom-[calc(4.75rem+env(safe-area-inset-bottom))] md:right-4 md:w-[380px] print:hidden"
+          ? "fixed inset-x-3 bottom-[calc(var(--tp-tab-bar-h)+5rem+env(safe-area-inset-bottom))] z-30 max-h-[40dvh] overflow-y-auto overscroll-contain sm:inset-x-auto sm:right-4 sm:w-[380px] md:bottom-[calc(4.75rem+env(safe-area-inset-bottom))] print:hidden"
           : "relative",
         className,
       )}

@@ -35,12 +35,13 @@ describe("DayByDay (SHARE.md §7)", () => {
 
   it("a folded Stop's name wraps on a phone and keeps its day count", () => {
     const long = "A".repeat(40);
-    const { container } = render(<DayByDay stops={[{ ...stops[0], name: long }, stops[1]]} initialOpenId="par" />);
+    const { container } = render(<DayByDay stops={[{ ...stops[0], name: long, status: "future" }, stops[1]]} initialOpenId="par" />);
     const folded = container.querySelector("[data-stop-folded='lon']") as HTMLElement;
     const name = within(folded).getByText(long);
     expect(name.classList.contains("truncate")).toBe(false);
     expect(name.className).toMatch(/break-words/);
     expect(within(folded).getByText("1 day")).toBeInTheDocument();
+    expect(within(folded).getAllByText(/5–10 Dec/).some((e) => /sm:hidden/.test(e.className))).toBe(true);
   });
 
   it("marks today with aria-current, a TODAY pill and a sun tint", () => {
