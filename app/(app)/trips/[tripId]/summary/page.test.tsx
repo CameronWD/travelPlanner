@@ -83,7 +83,7 @@ vi.mock("@/components/trip/flag-list", () => ({
 }));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-testid="make-it-fit" /> }));
 
-const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, default: SummaryPage } = await import("./page");
+const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, SUMMARY_STOP_LIST_CLASS, default: SummaryPage } = await import("./page");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { buildBudget } = await import("@/lib/money/budget");
 const { hiddenVisibility, placeholderItem } = await import("@/test/helpers/surprise-visibility");
@@ -587,5 +587,21 @@ describe("SummaryPage — phone cards keep their shadow (U2)", () => {
     const values = screen.getByTestId("summary-stat-grid").querySelectorAll("p.font-mono");
     expect(values.length).toBeGreaterThan(0);
     values.forEach((v) => expect(v.className).not.toMatch(/\btruncate\b/));
+  });
+});
+
+describe("SummaryPage — desktop rows (U3)", () => {
+  it("puts two stop cards to a row from 1400 px", () => {
+    expect(SUMMARY_STOP_LIST_CLASS).toBe("grid grid-cols-1 gap-3 min-[1400px]:grid-cols-2");
+  });
+
+  it("uses it for the rough list and the itinerary, and caps the flags' width", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP] }));
+
+    render(await renderSummary());
+
+    const lists = document.querySelectorAll(".min-\\[1400px\\]\\:grid-cols-2");
+    expect(lists.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByTestId("flag-list").parentElement).toHaveClass("max-w-3xl");
   });
 });

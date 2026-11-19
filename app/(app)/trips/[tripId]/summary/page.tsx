@@ -64,6 +64,7 @@ export const SUMMARY_DESKTOP_GRID_CLASS =
 
 /** Exported for className assertion in tests — must match the JSX below.
  *  2×2 up to lg (LA-149): four equal columns at 768 truncate the money figure. */
+export const SUMMARY_STOP_LIST_CLASS = "grid grid-cols-1 gap-3 min-[1400px]:grid-cols-2";
 export const SUMMARY_STAT_GRID_CLASS = "grid grid-cols-2 gap-3 lg:grid-cols-4";
 
 // ---------------------------------------------------------------------------
@@ -118,7 +119,7 @@ export default async function SummaryPage({
                 Stops added so far
               </h2>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className={SUMMARY_STOP_LIST_CLASS}>
               {roughStopsForDateless.map((stop) => {
                 const nights = stop.nights ?? 1;
                 const chapter = stop.chapterId
@@ -409,7 +410,7 @@ export default async function SummaryPage({
           {roughStops.length > 0 && (
             <section aria-labelledby="rough-heading">
           <SectionHeading id="rough-heading" icon={MapPin} title="Not yet scheduled" />
-          <div className="flex flex-col gap-3">
+          <div className={SUMMARY_STOP_LIST_CLASS}>
             {roughStops.map((stop) => {
               const nights = stop.nights ?? 1;
               const chapter = stop.chapterId
@@ -493,7 +494,7 @@ export default async function SummaryPage({
                     ) : null}
 
                     {/* Per-stop cards */}
-                    <div className="flex flex-col gap-3">
+                    <div className={SUMMARY_STOP_LIST_CLASS}>
                       {group.stops.map((stop) => {
                         const stopNum = ++globalIdx;
                         const nights = nightsBetween(stop.arriveDate, stop.departDate);
@@ -619,7 +620,9 @@ export default async function SummaryPage({
                 />
               </div>
             )}
-            <FlagList flags={flags} tripId={tripId} tripBasePath={tripBasePath} />
+            <div className="max-w-3xl">
+              <FlagList flags={flags} tripId={tripId} tripBasePath={tripBasePath} />
+            </div>
           </section>
         </div>
 
