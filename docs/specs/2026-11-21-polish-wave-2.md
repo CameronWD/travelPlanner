@@ -26,9 +26,9 @@ the rule is applied everywhere the pattern appears, not only where the audit saw
 
 ## 2. Trip home
 
-- **H1.** A zero gap in a warning reads "no gap" (not "only 0 min"). A status tag is shown as
-  a pill beside the sentence, not as capitals inside it. Stored text is unchanged; this is
-  display only, through the same function that formats warning dates.
+- **H1.** A zero gap in a warning reads "no gap" (not "only 0 min"). Stored text is
+  unchanged; this is display only, through the same function that formats warning dates.
+  (The capitals the audit saw are in titles a Traveller typed, so they are left alone.)
 - **H2.** One rule for list rows that pair a name with an amount or date (Upcoming payments,
   Still to book, Next payment, Sort these out, Next steps): the name may wrap to two lines
   and then truncates; the amount or date keeps its width and never wraps.
@@ -121,7 +121,7 @@ the rule is applied everywhere the pattern appears, not only where the audit saw
 - **O1.** A field's label never touches or sits under its input's border, in the shared
   field component.
 - **O2.** One footer for every dialog and sheet: Cancel is the outlined pill, the primary
-  button is pinned and always visible, titles are sentence case. Import a booking uses it.
+  button is pinned and always visible, titles are Title Case (as `COMPONENTS.md` says). Import a booking uses it.
   Add and Edit stop colour their segmented control the same. "Delete leg" is aligned and
   framed like other destructive actions. From/To pickers show their label once.
 - **O3.** With the keyboard up in a phone browser tab, the focused field and the Save button
@@ -137,8 +137,10 @@ the rule is applied everywhere the pattern appears, not only where the audit saw
 
 - **K2.** The tab bar and the side rail are dark in the dark theme on every page, with
   labels at 4.5:1.
-- **K3.** In the dark theme the weather card and stay cards have dark surfaces, hard offset
-  shadows stay visible against the page, and muted text on the lilac stay cards meets 4.5:1.
+- **K3.** In the dark theme stay cards have dark surfaces, hard offset shadows stay visible
+  against the page, and muted text on the lilac stay cards meets 4.5:1. The weather card
+  stays as it is: its colours are the same in both themes on purpose, and a dark one is a
+  redesign for Cam to decide.
 
 ## Not in this wave
 
