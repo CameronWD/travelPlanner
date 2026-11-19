@@ -562,3 +562,17 @@ describe("SummaryPage — Marked fine (spec 2026-11-18 T5)", () => {
     expect(list).toHaveAttribute("data-trip-id", "trip-1");
   });
 });
+
+describe("SummaryPage — Make it fit spacing (U1)", () => {
+  it("leaves room between Make it fit and the flag list", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    const { detectFlags } = await import("@/lib/flags");
+    vi.mocked(detectFlags).mockReturnValueOnce([
+      { id: "hard-end-over", severity: "warning", message: "Over.", targetType: "TRIP" },
+    ]);
+
+    render(await renderSummary());
+
+    expect(screen.getByTestId("make-it-fit").parentElement).toHaveClass("mb-4");
+  });
+});

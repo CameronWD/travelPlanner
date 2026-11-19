@@ -48,3 +48,30 @@ describe("FlagList: Marked fine (spec 2026-11-18 T5)", () => {
     expect(markFlagFine).toHaveBeenCalledWith("t1", "tight-a-b", "fp-1");
   });
 });
+
+describe("FlagList: tight rows and empty days", () => {
+  const tight: Flag = {
+    id: "tight-a-b", severity: "warning", message: "Tight between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02",
+    fingerprint: "fp-1", between: { from: "Louvre", to: "Lunch" }, hop: { fromItemId: "a", toItemId: "b", mode: "WALK", modeSetByHand: false },
+  };
+  const empty = (d: string): Flag => ({ id: `empty-day-${d}`, severity: "info", message: `Nothing scheduled on ${d}.`, targetType: "DAY", date: d });
+
+  it("keeps This is fine inside the same card as its message", () => {
+    render(<FlagList flags={[tight]} tripId="t1" tripBasePath={BASE} />);
+    const card = screen.getByRole("link", { name: /Louvre and Lunch/ }).parentElement?.parentElement;
+    expect(card).toContainElement(screen.getByRole("button", { name: /^This is fine/ }));
+  });
+
+  it("folds three empty days into one line that opens to the days", () => {
+    const { container } = render(<FlagList flags={[empty("2026-07-02"), empty("2026-07-03"), empty("2026-07-04")]} tripId="t1" tripBasePath={BASE} />);
+    expect(screen.getByText("Nothing scheduled on 3 days")).toBeInTheDocument();
+    expect(container.querySelectorAll("details li")).toHaveLength(3);
+    expect(screen.getByRole("heading", { name: /Notes \(3\)/ })).toBeInTheDocument();
+  });
+
+  it("shows a single empty day as a plain row", () => {
+    const { container } = render(<FlagList flags={[empty("2026-07-02")]} tripId="t1" tripBasePath={BASE} />);
+    expect(container.querySelector("details")).toBeNull();
+    expect(screen.getByRole("link", { name: /Nothing scheduled on 2026-07-02/ })).toBeInTheDocument();
+  });
+});

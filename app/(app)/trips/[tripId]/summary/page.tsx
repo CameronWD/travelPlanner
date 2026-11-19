@@ -609,13 +609,15 @@ export default async function SummaryPage({
           <section aria-labelledby="flags-heading">
             <SectionHeading id="flags-heading" icon={FlagIcon} title="Trip health" />
             {isOverHardEnd && (
-              <MakeItFit
-                tripId={tripId}
-                stops={fitStops}
-                anchor={trip.startDate ?? null}
-                deadline={projection.deadline ?? null}
-                isOwner={isOwner}
-              />
+              <div className="mb-4">
+                <MakeItFit
+                  tripId={tripId}
+                  stops={fitStops}
+                  anchor={trip.startDate ?? null}
+                  deadline={projection.deadline ?? null}
+                  isOwner={isOwner}
+                />
+              </div>
             )}
             <FlagList flags={flags} tripId={tripId} tripBasePath={tripBasePath} />
           </section>
