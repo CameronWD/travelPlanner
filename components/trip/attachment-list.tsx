@@ -204,7 +204,7 @@ export function AttachmentList({
               <AnimatedItem key={att.id} as="li" className="flex items-center gap-3 px-4 py-2">
                 <MimeIcon mime={att.mime} className="size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-xs text-foreground">{attachmentName(att)}</p>
+                  <p className="min-w-0 font-medium text-xs text-foreground" title={attachmentName(att)}><MiddleTruncate text={attachmentName(att)} /></p>
                   {att.title ? (
                     <p className="truncate text-[11px] text-muted-foreground">{att.filename}</p>
                   ) : null}
@@ -370,7 +370,7 @@ export function AttachmentList({
               </span>
 
               <div className="min-w-0 flex-1 md:w-full md:flex-none md:pr-24">
-                <p className="min-w-0 text-sm font-extrabold text-foreground">
+                <p className="min-w-0 text-sm font-extrabold text-foreground" title={attachmentName(att)}>
                   {cardLink ? (
                     <AttachmentLink
                       href={att.url}

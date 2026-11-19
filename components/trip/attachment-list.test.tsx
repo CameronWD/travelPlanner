@@ -757,9 +757,14 @@ describe("AttachmentList", () => {
     const actions = screen.getByRole("button", { name: "Delete boarding-pass.pdf" }).parentElement!;
     expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["basis-full", "justify-end", "sm:basis-auto", "md:absolute", "md:right-2", "md:top-2"]));
     const name = screen.getByTitle("boarding-pass.pdf");
-    expect(name.lastElementChild).toHaveClass("shrink-0");
-    expect(name.lastElementChild).toHaveTextContent("g-pass.pdf");
+    const tail = name.querySelector(".shrink-0");
+    expect(tail).toHaveTextContent("g-pass.pdf");
     expect(name.closest("p")!.parentElement!.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-w-0", "flex-1", "md:w-full", "md:flex-none"]));
+  });
+
+  it("a whole-card link keeps the full name as a tooltip on an ancestor of the link", () => {
+    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} showUpload={false} cardLink />);
+    expect(screen.getByTitle("boarding-pass.pdf")).toContainElement(screen.getByRole("link", { name: "View boarding-pass.pdf" }));
   });
 
   it("each file card has a type tile (PDF / IMG) toned by what the file belongs to", () => {
@@ -832,7 +837,7 @@ describe("AttachmentList", () => {
     expect(screen.getByRole("link", { name: "View Hotel voucher" })).toBeInTheDocument();
     unmount();
     render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[titled]} showUpload={false} compact />);
-    expect(screen.getByText("Hotel voucher")).toBeInTheDocument();
+    expect(screen.getByTitle("Hotel voucher")).toBeInTheDocument();
     expect(screen.getByText("scan-0012.pdf")).toBeInTheDocument();
   });
 
