@@ -47,6 +47,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlagList } from "@/components/trip/flag-list";
 import { MakeItFit } from "@/components/trip/make-it-fit";
@@ -102,6 +104,7 @@ export default async function SummaryPage({
   // docs/archive/architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
   const [rows, hopModes, markedFine] = await Promise.all([readPlan(tripId, user.id, null), loadHopModes(tripId), loadMarkedFineRows(tripId)]);
   const { trip } = rows;
+  const slug = trip.slug ?? tripId;
 
   // For a date-less trip: still show rough Stops (if any), then the date-less notice.
   if (!trip.startDate || !trip.endDate) {
@@ -111,6 +114,7 @@ export default async function SummaryPage({
 
     return (
       <div className="flex flex-col gap-6">
+        <PageHeader eyebrow={trip.name} title="Summary" trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />} />
         {roughStopsForDateless.length > 0 && (
           <section aria-labelledby="rough-heading-dateless">
             <div className="mb-4 flex items-center gap-2">
@@ -176,8 +180,6 @@ export default async function SummaryPage({
   // Unfiltered: Summary shows no Cost lines, only buildBudget's totals.
   const costs = rows.costs;
   const exchangeRates = rows.exchangeRates;
-  const slug = trip.slug ?? tripId;
-
   // Rough (date-less) stops are excluded from the dated summary and surface
   // as "not yet scheduled".
   const stops = allStops.filter((s) => s.arriveDate !== null);
@@ -368,7 +370,7 @@ export default async function SummaryPage({
 
   return (
     <div className="-mr-1.5 flex min-w-0 flex-col gap-8 overflow-x-clip pr-1.5">
-      <h2 className="sr-only">Trip summary</h2>
+      <PageHeader eyebrow={trip.name} title="Summary" trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />} />
 
       {/* ── Header stat bar ── */}
       <div className={SUMMARY_STAT_GRID_CLASS} data-testid="summary-stat-grid">

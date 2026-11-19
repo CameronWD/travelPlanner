@@ -81,6 +81,7 @@ vi.mock("@/components/trip/flag-list", () => ({
     </div>
   ),
 }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => <div data-testid="make-it-fit" /> }));
 
 const { SUMMARY_DESKTOP_GRID_CLASS, SUMMARY_STAT_GRID_CLASS, SUMMARY_STOP_LIST_CLASS, default: SummaryPage } = await import("./page");
@@ -603,5 +604,21 @@ describe("SummaryPage — desktop rows (U3)", () => {
     const lists = document.querySelectorAll(".min-\\[1400px\\]\\:grid-cols-2");
     expect(lists.length).toBeGreaterThanOrEqual(2);
     expect(screen.getByTestId("flag-list").parentElement).toHaveClass("max-w-3xl");
+  });
+});
+
+describe("SummaryPage — page header (S3)", () => {
+  it("has one h1, Summary, on a dated trip", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    render(await renderSummary());
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Summary" })).toBeInTheDocument();
+  });
+
+  it("has one h1, Summary, on a date-less trip", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip({ ...BASE_TRIP, startDate: null, endDate: null }), stops: [] }));
+    render(await renderSummary());
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Summary" })).toBeInTheDocument();
   });
 });
