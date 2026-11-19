@@ -176,7 +176,7 @@ function DayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
       aria-label="Add a title"
       className="tap-target inline-flex min-w-0 items-center gap-1.5 font-display text-[22px] font-extrabold"
     >
-      <span className="text-foreground/45">Add a title</span>
+      <span className="text-on-accent/70">Add a title</span>
       <Pencil className="size-4" aria-hidden />
     </button>
   );

@@ -126,6 +126,7 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
   it("untitled: Add a title", () => {
     renderDay({ dayTitle: undefined });
     expect(screen.getByRole("button", { name: /Add a title/ })).toBeInTheDocument();
+    expect(screen.getByText("Add a title").className).toContain("text-on-accent/70");
   });
 
   it("empty day: Nothing planned yet and + Add to Fri 11", async () => {
