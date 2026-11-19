@@ -157,7 +157,7 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
           <TravelMapLoader trips={trips} filterTripId={filter} variant={variant} onFail={() => setFailed(true)} />
         </MapBoundary>
       )}
-      <div className="pointer-events-none absolute left-3.5 top-3.5 z-[500] flex items-center gap-2 md:left-4 md:top-4">
+      <div className="pointer-events-none absolute left-3.5 right-3.5 top-3.5 z-[500] flex items-center gap-2 md:left-4 md:right-4 md:top-4">
         <span
           ref={titleRef}
           data-measure="chip"
@@ -166,7 +166,7 @@ export function TravelsMapCard({ trips, variant, empty = false, className }: Tra
           Your travels
         </span>
         {!mobile && !empty && list.length > 0 ? (
-          <div className="pointer-events-auto flex items-center gap-2">
+          <div className="pointer-events-auto flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none]">
             <button
               type="button"
               ref={allRef}
