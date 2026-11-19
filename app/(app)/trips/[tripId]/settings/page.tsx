@@ -46,13 +46,13 @@ export const metadata: Metadata = { title: "Settings" };
  * Travellers, Sharing, Digest, Calendar feed, Driving estimates, Danger
  * zone. The two multi-card groups are `contents` below lg (so every card is
  * a direct one-column grid item) and flex columns from lg; each slot is then
- * placed explicitly. Rows are `auto 1fr auto`: the right group spans rows
- * 1–2 and Driving spans rows 2–3, so both cross the `1fr` row and neither
- * column's height forces a gap under the other's cards (a spanning item
- * never grows the `auto` rows it crosses when one of its tracks is flexible).
+ * placed explicitly. Rows are `auto auto 1fr`: the right group spans rows
+ * 1–2 (both auto, so it sizes them) while Driving (rows 2–3) crosses the
+ * flexible row and does not, and the Danger zone (row 3) sits in it, so it
+ * starts one gap under Calendar feed instead of at the foot of a long column.
  */
 export const SETTINGS_GRID_CLASS =
-  "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto]";
+  "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2 lg:grid-rows-[auto_auto_1fr]";
 
 /** A multi-card slot: dissolves into the grid below lg, a flex column from lg. */
 const SLOT_GROUP_CLASS = "contents lg:flex lg:flex-col lg:gap-3.5";
@@ -155,6 +155,15 @@ export default async function SettingsPage({
               <CardTitle className="font-display text-base font-bold tracking-tight">Trip details</CardTitle>
             </CardHeader>
             <CardContent className="p-5 pt-3">
+              <div className="mb-6">
+                <CoverImageField
+                  tripId={tripId}
+                  hasCover={trip.coverImageKey != null}
+                  coverVersion={trip.coverImageKey}
+                  focalX={trip.coverFocalX}
+                  focalY={trip.coverFocalY}
+                />
+              </div>
               <TripDetailsForm
                 tripId={tripId}
                 defaultValues={{
@@ -170,15 +179,6 @@ export default async function SettingsPage({
                   forksEnabled: trip.forksEnabled,
                 }}
               />
-              <div className="mt-6">
-                <CoverImageField
-                  tripId={tripId}
-                  hasCover={trip.coverImageKey != null}
-                  coverVersion={trip.coverImageKey}
-                  focalX={trip.coverFocalX}
-                  focalY={trip.coverFocalY}
-                />
-              </div>
             </CardContent>
           </Card>
 

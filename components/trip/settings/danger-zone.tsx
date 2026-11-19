@@ -96,7 +96,7 @@ export function DangerZone({ tripId, tripName }: DangerZoneProps) {
 
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost" disabled={isPending}>
+              <Button variant="outline" disabled={isPending}>
                 Cancel
               </Button>
             </DialogClose>

@@ -40,8 +40,12 @@ vi.mock("@/server/actions/calendar-feed", () => ({ getCalendarFeed: vi.fn(async 
 vi.mock("@/server/actions/digest", () => ({
   getDigestSettings: vi.fn(async () => ({ enabled: true, deviceCount: 0 })),
 }));
-vi.mock("@/components/trip/settings/trip-details-form", () => ({ TripDetailsForm: () => null }));
-vi.mock("@/components/trip/settings/cover-image-field", () => ({ CoverImageField: () => null }));
+vi.mock("@/components/trip/settings/trip-details-form", () => ({
+  TripDetailsForm: () => <button type="submit">Save changes</button>,
+}));
+vi.mock("@/components/trip/settings/cover-image-field", () => ({
+  CoverImageField: () => <div data-testid="cover-field" />,
+}));
 vi.mock("@/components/trip/settings/invite-panel", () => ({ InvitePanel: () => null }));
 vi.mock("@/components/trip/settings/traveller-details-list", () => ({
   TravellerDetailsList: ({ rows }: { rows: Array<{ userId: string }> }) => (
@@ -180,6 +184,18 @@ describe("Settings companion-column layout (LA-046)", () => {
   it("settings cards sit in two columns from lg", () => {
     expect(SETTINGS_GRID_CLASS).toContain("lg:grid-cols-2");
     expect(SETTINGS_GRID_CLASS).not.toContain("max-w-2xl");
+  });
+
+  it("lets the Danger zone follow the content, not the foot of the flexible row", () => {
+    expect(SETTINGS_GRID_CLASS).toContain("lg:grid-rows-[auto_auto_1fr]");
+  });
+
+  it("puts the cover field before the form's Save button", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    await renderSettings();
+    const cover = screen.getByTestId("cover-field");
+    const save = screen.getByRole("button", { name: "Save changes" });
+    expect(cover.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // Spec §3: "Below 1024px: one column, as today". The phone stack follows
