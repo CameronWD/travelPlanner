@@ -7,6 +7,7 @@ import type { RecentActivity } from "@/components/trip/notification-bell";
 import { DayAddMenu } from "@/components/day/day-add-menu";
 import { WeatherCardSkeleton } from "@/components/weather/WeatherCardSkeleton";
 import { RegisterDayChrome } from "@/components/trip/day/day-chrome-registry";
+import { DaySlotSkeleton } from "@/components/trip/day/day-slot-skeleton";
 import { DayHeader } from "@/components/trip/day/day-header";
 import { DayTitleInline } from "@/components/trip/day/day-title-inline";
 import { DayPlanCard } from "@/components/trip/day/day-plan-card";
@@ -151,7 +152,7 @@ function DayBody({ day, shared }: { day: DayViewData; shared: DaySlotShared }) {
 export function DaySlot({ iso, read, shared, chrome }: { iso: string; read: DayReads | Promise<DayReads>; shared: DaySlotShared; chrome?: React.ReactNode }) {
   const days = read instanceof Promise ? use(read) : read;
   const day = days.find((r): r is DayViewData => typeof r !== "string" && r.date === iso);
-  if (!day) return null;
+  if (!day) return <DaySlotSkeleton />;
   return (
     <>
       <RegisterDayChrome iso={iso} chrome={chrome ?? dayChrome(day, shared)} />

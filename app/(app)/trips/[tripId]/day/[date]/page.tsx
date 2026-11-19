@@ -65,7 +65,14 @@ export default async function DayPage({ params }: { params: Promise<{ tripId: st
   const shownAt = dates.indexOf(d.date);
   const filled = new Map(near.filter((r): r is DayViewData => typeof r !== "string").map((r) => [r.date, r]));
   const ringDates = warm ? [] : dates.filter((iso, i) => Math.abs(i - shownAt) <= FILLED_REACH && !filled.has(iso));
-  const ring = ringDates.length > 0 ? getDays(tripId, ringDates, user.id) : null;
+  // A fill that fails leaves its slots skeletons; the day shown has already loaded and must stay.
+  const ring =
+    ringDates.length > 0
+      ? getDays(tripId, ringDates, user.id).catch((err: unknown) => {
+          console.error("[DayPage] failed to read the days around the day shown:", err);
+          return [];
+        })
+      : null;
 
   const members = (shell?.members ?? []).map((m) => m.user);
   const tripName = shell?.name ?? d.trip.name;

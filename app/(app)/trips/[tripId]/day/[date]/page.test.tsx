@@ -528,6 +528,21 @@ describe("Day page: a slot for every day", () => {
     expect(getDaysMock).toHaveBeenCalledTimes(2);
   });
 
+  it("a further read that fails leaves its slots skeletons and the day shown on screen", async () => {
+    getDayMock.mockImplementation(tenDays());
+    getDaysMock.mockImplementationOnce((t: string, dates: string[], v: string) => Promise.all(dates.map((d) => getDayMock(t, d, v))));
+    getDaysMock.mockImplementationOnce(() => Promise.reject(new Error("pool timeout")));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { container } = await renderPage("2026-12-05");
+      expect(slots(container).map(isFilled)).toEqual([false, false, false, true, true, true, false, false, false, false]);
+      expect(slots(container).map(isSkeleton)).toEqual([true, true, true, false, false, false, true, true, true, true]);
+      expect(screen.getByRole("heading", { level: 1, name: "Sat 12 Dec" })).toBeInTheDocument();
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it("a one-day Trip has one slot and makes no further read", async () => {
     getDayMock.mockImplementation(dayFor({}, "2026-12-01", "2026-12-01"));
     const { container } = await renderPage("2026-12-01");
