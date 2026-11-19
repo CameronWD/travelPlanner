@@ -30,6 +30,8 @@ const requireTripAccessMock = vi.hoisted(() =>
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
+vi.mock("@/lib/trip-slug-read", () => ({ tripSlugFor: async () => "test-trip" }));
+vi.mock("@/components/trip/trip-header-trailing", () => ({ TripHeaderTrailing: () => null }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
 }));
@@ -98,6 +100,17 @@ async function renderSettings() {
   const jsx = await SettingsPage({ params: Promise.resolve({ tripId: "trip-1" }) });
   render(jsx);
 }
+
+describe("SettingsPage header", () => {
+  it("has one h1, Settings, with the trip name above it", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+    await renderSettings();
+    const h1s = screen.getAllByRole("heading", { level: 1 });
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]).toHaveTextContent("Settings");
+    expect(screen.getByText("Test Trip")).toBeInTheDocument();
+  });
+});
 
 describe("SettingsPage chapter gating (Task 13)", () => {
   it("hides the Chapters manager and skips the chapters query when chaptersEnabled is false", async () => {

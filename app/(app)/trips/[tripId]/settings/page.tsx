@@ -30,6 +30,9 @@ import { WhatsAroundSwitch } from "@/components/trip/settings/whats-around-switc
 import { ChaptersSwitch } from "@/components/trip/settings/chapters-switch";
 import { SavedForOffline } from "@/components/trip/settings/saved-for-offline";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
+import { tripSlugFor } from "@/lib/trip-slug-read";
+import { PageHeader } from "@/components/ui/page-header";
+import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -117,7 +120,8 @@ export default async function SettingsPage({
 
   if (!trip) notFound();
 
-  const [shareLinks, calendarFeed, digestSettings, chapters] = await Promise.all([
+  const [slug, shareLinks, calendarFeed, digestSettings, chapters] = await Promise.all([
+    tripSlugFor(tripId),
     listShareLinks(tripId),
     getCalendarFeed(tripId),
     getDigestSettings(tripId),
@@ -139,8 +143,8 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <div className="mx-auto flex flex-col gap-3.5">
-      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Settings</h2>
+    <div className="flex flex-col gap-6">
+      <PageHeader eyebrow={trip.name} title="Settings" trailing={<TripHeaderTrailing tripId={tripId} slug={slug} />} />
 
       <div className={SETTINGS_GRID_CLASS}>
         {/* ── Left column (lg), top: this trip's own content ── */}
