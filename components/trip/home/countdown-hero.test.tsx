@@ -33,6 +33,14 @@ describe("CountdownHero", () => {
     expect(screen.getByLabelText("26 days to go")).toBeInTheDocument();
   });
 
+  it("reads the unit on one line and leaves the chips room", () => {
+    render(<CountdownHero description={planning} startDate="2026-07-20" endDate="2026-07-30" nights={11} stopCount={3} homeCurrency="JPY" />);
+    const unit = screen.getByText("days to go");
+    expect(unit).toHaveClass("whitespace-nowrap");
+    expect(unit).not.toHaveClass("whitespace-pre-line");
+    expect(screen.getByText("11 nights").parentElement).toHaveClass("mt-5");
+  });
+
   it("escalates the eyebrow to the warning colour when urgent (final-prep)", () => {
     render(
       <CountdownHero

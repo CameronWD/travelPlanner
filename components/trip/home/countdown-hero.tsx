@@ -53,18 +53,18 @@ export function CountdownHero({
         {range && <span className="text-label">{range}</span>}
       </div>
 
-      <div role="img" aria-label={ariaCountdown} className="mt-3.5 flex items-baseline gap-2.5 lg:mt-auto lg:pt-6">
+      <div role="img" aria-label={ariaCountdown} className="mt-3.5 flex flex-wrap items-baseline gap-x-2.5 lg:mt-auto lg:pt-6">
         <span className="font-display text-[88px] font-extrabold leading-[0.9] tracking-[-0.06em] lg:text-[120px]">
           {description.countdownValue}
         </span>
         {description.countdownUnit && (
-          <span className="whitespace-pre-line font-display text-[22px] font-extrabold leading-[1.05] tracking-[-0.03em] lg:text-[28px]">
-            {description.countdownUnit.toLowerCase().replace(" ", "\n")}
+          <span className="whitespace-nowrap font-display text-[22px] font-extrabold leading-[1.05] tracking-[-0.03em] lg:text-[28px]">
+            {description.countdownUnit.toLowerCase()}
           </span>
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-5 flex flex-wrap gap-1.5">
         <Badge>
           {nights} {nights === 1 ? "night" : "nights"}
         </Badge>

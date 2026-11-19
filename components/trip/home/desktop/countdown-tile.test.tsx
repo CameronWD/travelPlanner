@@ -50,6 +50,17 @@ describe("CountdownTile", () => {
     expect(unit.className).toContain("leading-[1.02]");
   });
 
+  it("renders the unit as one element and keeps the number clear of what is above it", () => {
+    const { container } = renderTile();
+    const row = screen.getByRole("img", { name: "68 sleeps to go" });
+    const numberLine = row.querySelector(".items-baseline") as HTMLElement;
+    expect(numberLine).toHaveClass("flex-wrap");
+    expect(numberLine.children).toHaveLength(2);
+    expect(numberLine.children[1]).toHaveTextContent("sleeps to go");
+    expect(numberLine.children[1]).toHaveClass("whitespace-nowrap");
+    expect(container.querySelector(".mt-auto.pt-4")).not.toBeNull();
+  });
+
   it("links the whole tile to the Plan", () => {
     renderTile();
     const link = screen.getByRole("link", { name: /68 sleeps to go/ });
