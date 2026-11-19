@@ -99,7 +99,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
               className="border-t border-border-soft py-[5px] first:border-t-0"
             >
               <ListRow
-                className="gap-3 text-sm font-medium text-foreground"
+                className="gap-3 text-sm font-medium text-foreground [overflow-wrap:anywhere]"
                 leading={<TravellerAvatar traveller={activity.actor} size={32} />}
                 title={
                   <>
