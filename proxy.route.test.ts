@@ -47,6 +47,8 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
     const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26"));
 
     expect(response.status).toBe(503);
+    expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await response.text()).toContain("Try again");
     expect(response.headers.get("x-middleware-rewrite")).toBeNull();
     expect(reportError).toHaveBeenCalledWith(err, { route: "proxy.ts", source: "server" });
     expect(resolveTripRef).not.toHaveBeenCalled();

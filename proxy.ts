@@ -37,10 +37,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     viewerId = await viewerIdFromRequest(request);
   } catch (err) {
     // Not "signed out": that branch skips the slug rewrite and the page would
-    // answer "Trip not found". A 5xx lets the client keep the page it has.
+    // answer "Trip not found". A non-OK answer makes the client reload this URL; the
+    // service worker answers from the saved copy when it has one, otherwise this page is what shows.
     const { reportError } = await import("@/lib/error-sink");
     await reportError(err, { route: "proxy.ts", source: "server" });
-    return new NextResponse(null, { status: 503 });
+    const { unavailablePage } = await import("@/lib/proxy-unavailable");
+    return new NextResponse(unavailablePage(pathname, search), {
+      status: 503,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "5" },
+    });
   }
   const rewrite = (to: { pathname: string; search: string }) => {
     const url = request.nextUrl.clone();
