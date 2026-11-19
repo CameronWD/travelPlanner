@@ -156,7 +156,7 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(pill.className).toContain("min-w-0");
     expect(pill.className).not.toContain("shrink-0");
     expect(screen.getByText("Drive Devonport → Launceston").className).toContain("truncate");
-    expect(screen.getByText("Tue 22 Sep 08:00").className).toContain("shrink-0");
+    expect(screen.getByText("Tue 22 Sep 08:00").className).toContain("shrink-[100]");
   });
 });
 
