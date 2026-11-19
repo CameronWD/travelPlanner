@@ -430,7 +430,7 @@ export function DaySection({
           if (!(e.target as HTMLElement).closest("button, a, input")) onCollapsedChange(!collapsed);
         }}
         className={cn(
-          "flex cursor-pointer flex-wrap items-center gap-2.5 bg-sun px-3.5 py-2.5 text-on-accent",
+          "flex cursor-pointer flex-wrap items-center gap-2.5 bg-sun px-3.5 py-2.5 text-on-accent md:flex-nowrap",
           !collapsed && "border-b-2 border-border",
         )}
       >
@@ -449,9 +449,9 @@ export function DaySection({
           {formatDayLabel(dateISO).toUpperCase()}
         </button>
         <DayTitle stopId={stopId} dateISO={dateISO} dayTitle={dayTitle} />
-        <span className="text-xs font-semibold text-on-accent-muted">{summary}</span>
+        <span className="min-w-0 truncate text-xs font-semibold text-on-accent-muted">{summary}</span>
         {!collapsed && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap">
             <Link
               href={tripHref(`/day/${dateISO}`)}
               className="tap-target pressable inline-flex h-9 items-center gap-1 rounded-full border-2 border-border bg-card px-3 text-[13px] font-extrabold"

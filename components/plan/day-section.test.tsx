@@ -112,6 +112,15 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     expect(screen.getByText(money(2200, "EUR")).className).toContain("shrink-0");
   });
 
+  it("the header keeps Open day and + Add on its line from md up: the title gives way, the buttons do not", () => {
+    renderDay();
+    const actions = screen.getByRole("button", { name: "+ Add" }).parentElement!;
+    expect(actions.className).toContain("shrink-0");
+    expect(actions.className).toContain("whitespace-nowrap");
+    expect(actions.parentElement!.className).toContain("md:flex-nowrap");
+    expect(screen.getByRole("button", { name: /Edit the day title/ }).className).toContain("min-w-0");
+  });
+
   it("edits the day title inline: Enter saves via setDayTitle", async () => {
     renderDay();
     const editTitle = screen.getByRole("button", { name: /Edit the day title/ });
