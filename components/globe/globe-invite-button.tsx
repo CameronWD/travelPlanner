@@ -71,7 +71,7 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
                     key={m.userId}
                     className="flex min-h-11 items-center justify-between gap-3 rounded-md border-2 border-border bg-card px-3 py-2 text-sm"
                   >
-                    <span className="flex flex-col">
+                    <span className="flex min-w-0 flex-col [overflow-wrap:anywhere]">
                       {m.name && (
                         <span className="font-extrabold">{m.name}</span>
                       )}
@@ -79,7 +79,7 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
                         <span className="text-xs font-medium text-muted-foreground">{m.email}</span>
                       )}
                     </span>
-                    <Badge className="capitalize">{m.role.toLowerCase()}</Badge>
+                    <Badge className="shrink-0 capitalize">{m.role.toLowerCase()}</Badge>
                   </li>
                 ))}
               </ul>
