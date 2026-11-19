@@ -18,7 +18,7 @@ export interface DayPanel {
 }
 
 export interface DayCarouselApi {
-  /** Glides the body to that day's panel and navigates on arrival. True when handled (or swallowed while a navigation lands); false when the day is not a panel. */
+  /** Glides the body to that day's panel and navigates on arrival. True when handled (or swallowed while a navigation lands); false when the day is not the day before or after. */
   goTo: (href: Route) => boolean;
   /** The body's offset from the day shown, in panels (−1…1); `settled` is true once only, on arrival. */
   subscribe: (cb: (progress: number, settled: boolean) => void) => () => void;
@@ -34,17 +34,27 @@ const SIDE_STICKY_TOP_PX = 24;
 
 export const DayCarouselContext = React.createContext<DayCarouselApi | null>(null);
 
+/** Each filled day's own header, by date; provided by `DayChromeRegistry` (day-chrome-registry.tsx). */
+export interface DayChromeRegistryApi {
+  register: (iso: string, chrome: React.ReactNode) => void;
+  chromeFor: (iso: string) => React.ReactNode | undefined;
+}
+
+export const DayChromeRegistryContext = React.createContext<DayChromeRegistryApi>({ register: () => {}, chromeFor: () => undefined });
+
 export function useDayCarousel(): DayCarouselApi | null {
   return React.useContext(DayCarouselContext);
 }
 
 /**
- * The Day view's paged carousel (ADR 0065), phone and tablet: the day before,
- * the day shown and the day after as full-width panels in one snap-mandatory
- * scroller. A drag tracks the finger and snaps to a whole day; settling on a
- * neighbour navigates there, and the next page paints with that day already
- * in view. `chrome` (header, strip, keyboard nav) renders inside the context
- * so its controls can glide the body instead of navigating cold.
+ * The Day view's paged carousel (ADR 0065), phone and tablet: a full-width
+ * panel for every day of the Trip in one snap-mandatory scroller. A drag
+ * tracks the finger and snaps to a whole day; settling on another day
+ * navigates there, and the next page paints with that day already in view.
+ * The header is the shown day's own, as its slot registered it, or
+ * `chromeFallback` until it has; `chrome` (strip, keyboard nav) is shared by
+ * every day. Both render inside the context so their controls can glide the
+ * body instead of navigating cold.
  *
  * From lg (ADR 0065, amended 2026-11-18) only the day shown renders, in a
  * plain block that scrolls with the page; `goTo` declines, so arrows, keys
@@ -52,7 +62,17 @@ export function useDayCarousel(): DayCarouselApi | null {
  * tree with lg: classes hiding the neighbours, so the first paint is already
  * one day before the viewport is known.
  */
-export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]; shownIndex: number; chrome: React.ReactNode }) {
+export function DayCarousel({
+  panels,
+  shownDate,
+  chrome,
+  chromeFallback,
+}: {
+  panels: DayPanel[];
+  shownDate: string;
+  chrome: React.ReactNode;
+  chromeFallback: (iso: string) => React.ReactNode;
+}) {
   const router = useAppRouter();
   const begin = useBeginNavigation();
   const settle = useSettleNavigation();
@@ -63,14 +83,15 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
   const navigating = React.useRef(false);
   const cancelGlide = React.useRef<() => void>(() => {});
   const desktop = useMediaQuery(LG_UP) === true;
+  const { chromeFor } = React.useContext(DayChromeRegistryContext);
 
-  const shownIso = panels[shownIndex]?.iso;
+  const shownIndex = panels.findIndex((p) => p.iso === shownDate);
 
   // On the day shown before first paint: no animation, no flash of a neighbour.
   React.useLayoutEffect(() => {
     const el = scroller.current;
     if (el && !desktop) el.scrollLeft = shownIndex * el.clientWidth;
-  }, [shownIso, shownIndex, desktop]);
+  }, [shownDate, shownIndex, desktop]);
 
   // Neighbours clip to the shown panel's height (they start at h-0), so a
   // short day beside a long one leaves no dead space below. Kept in step as
@@ -91,7 +112,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
     const ro = new ResizeObserver(fit);
     ro.observe(shown);
     return () => ro.disconnect();
-  }, [shownIso, shownIndex, desktop]);
+  }, [shownDate, shownIndex, desktop]);
 
   // A sticky side column taller than the viewport would pin its foot (the
   // Journal) out of reach until the plan ends; CSS cannot compare the two,
@@ -109,10 +130,10 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       window.removeEventListener("resize", fit);
       ro?.disconnect();
     };
-  }, [shownIso, desktop]);
+  }, [shownDate, desktop]);
 
   React.useEffect(() => {
-    for (const p of panels) if (p.iso !== panels[shownIndex]?.iso) router.prefetch(p.href);
+    for (const p of [panels[shownIndex - 1], panels[shownIndex + 1]]) if (p) router.prefetch(p.href);
   }, [panels, shownIndex, router]);
 
   const navigateTo = React.useCallback(
@@ -162,7 +183,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       if (hasScrollEnd) el.removeEventListener("scrollend", settle);
       if (timer) clearTimeout(timer);
     };
-  }, [shownIso, shownIndex, navigateTo, desktop]);
+  }, [shownDate, shownIndex, navigateTo, desktop]);
 
   React.useEffect(() => () => cancelGlide.current(), []);
 
@@ -185,7 +206,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
       goTo: (href) => {
         const idx = panels.findIndex((p) => p.href === href);
         const el = scroller.current;
-        if (desktop || idx < 0 || idx === shownIndex || !el) return false;
+        if (desktop || idx < 0 || Math.abs(idx - shownIndex) !== 1 || !el) return false;
         if (navigating.current) return true;
         moving.current = true;
         begin(href);
@@ -213,6 +234,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
 
   return (
     <DayCarouselContext.Provider value={api}>
+      {chromeFor(shownDate) ?? chromeFallback(shownDate)}
       {chrome}
       {/* Only the body runs a view transition; header and strip stay put. Below
           lg only a far jump does (ADR 0065); from lg every day change crossfades. */}
@@ -221,7 +243,7 @@ export function DayCarousel({ panels, shownIndex, chrome }: { panels: DayPanel[]
           <div
             ref={scroller}
             data-day-carousel
-            data-shown-day={shownIso}
+            data-shown-day={shownDate}
             className={
               desktop
                 ? undefined

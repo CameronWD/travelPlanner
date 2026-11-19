@@ -110,6 +110,14 @@ describe("OfflineWarmer", () => {
     expect(fetchMock).toHaveBeenCalledWith("/b", { cache: "no-store" });
   });
 
+  it("asks a Day page for its warm copy and every other page as it is", async () => {
+    stubNavigator({ onLine: true, hasController: true });
+    render(<OfflineWarmer tripId="t1" paths={["/trips/t1/day/2026-12-12", "/trips/t1/plan"]} />);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock).toHaveBeenCalledWith("/trips/t1/day/2026-12-12", { cache: "no-store", headers: { "x-teepee-warm": "1" } });
+    expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" });
+  });
+
   it("does NOT fetch when navigator.onLine is false", async () => {
     stubNavigator({ onLine: false, hasController: true });
     render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);

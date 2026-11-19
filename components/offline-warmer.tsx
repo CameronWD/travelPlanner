@@ -6,6 +6,12 @@ import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnecti
 
 const FILE_STORED_WAITS_MS = [0, 250, 750];
 
+// A Day page asked for this way renders its three near days only (the Day
+// page reads the header), so a Trip's saved Day pages grow with its length,
+// not its length squared.
+const DAY_PAGE = /\/day\/\d{4}-\d{2}-\d{2}$/;
+const DAY_PAGE_WARM = { cache: "no-store", headers: { "x-teepee-warm": "1" } } satisfies RequestInit;
+
 // The worker writes a file to the cache as its body arrives, a moment after
 // the page has read the same bytes (longer for a large file on a slow phone),
 // so a miss gets two more looks, 250 ms and 1 s after the first.
@@ -126,7 +132,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
         try {
           // Files ask for their bytes (never a storage redirect); the worker
           // keeps them under the plain path, which is what caches.match checks.
-          const response = await fetch(warmUrlFor(path), { cache: "no-store" });
+          const response = await fetch(warmUrlFor(path), DAY_PAGE.test(path) ? DAY_PAGE_WARM : { cache: "no-store" });
           if (!response.ok || (isFile && response.redirected)) {
             if (!isFile) pagesFailed++;
             continue;

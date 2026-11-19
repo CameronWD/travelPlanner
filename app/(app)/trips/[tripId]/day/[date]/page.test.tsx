@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import type { DayViewData } from "@/lib/day-view-loader";
-import { addDays } from "@/lib/dates";
+import { act } from "react";
+import { addDays, formatDayLabel } from "@/lib/dates";
 
 // The page is a thin Server Component over `getDays` (lib/day-view-loader.ts,
 // tested on its own), which it asks once for the day shown and both
@@ -10,7 +11,7 @@ import { addDays } from "@/lib/dates";
 // still says what one day looks like. Both the phone and the desktop trees are
 // rendered (one hidden by CSS), so most texts appear twice.
 
-const { getDayMock, getDaysMock, requireTripAccessMock, tripFindUniqueMock, notFoundMock, redirectMock, dayWeatherMock } = vi.hoisted(() => {
+const { getDayMock, getDaysMock, requireTripAccessMock, tripFindUniqueMock, notFoundMock, redirectMock, dayWeatherMock, requestHeaders, registered } = vi.hoisted(() => {
   const getDayMock = vi.fn();
   return {
     getDayMock,
@@ -24,6 +25,8 @@ const { getDayMock, getDaysMock, requireTripAccessMock, tripFindUniqueMock, notF
       throw new Error(`NEXT_REDIRECT ${to}`);
     }),
     dayWeatherMock: vi.fn(),
+    requestHeaders: new Headers(),
+    registered: new Map<string, React.ReactNode>(),
   };
 });
 
@@ -35,29 +38,49 @@ vi.mock("@/lib/activity-reads", () => ({
 }));
 vi.mock("@/server/actions/activity", () => ({}));
 vi.mock("@/lib/db", () => ({ db: { trip: { findUnique: tripFindUniqueMock } } }));
+vi.mock("next/headers", () => ({ headers: async () => requestHeaders }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock, redirect: redirectMock, useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
 
 vi.mock("@/components/trip/day/day-strip", () => ({ DayStrip: () => <nav aria-label="Days" /> }));
 vi.mock("@/components/trip/day/day-keyboard-nav", () => ({ DayKeyboardNav: () => null }));
-vi.mock("@/components/trip/day/day-carousel", () => ({
-  DayCarousel: ({ panels, shownIndex, chrome }: { panels: Array<{ iso: string; content: React.ReactNode }>; shownIndex: number; chrome: React.ReactNode }) => (
-    <>
-      {chrome}
-      <div data-day-carousel>
-        {panels.map((p, i) => (
-          <div key={p.iso} data-day-panel={p.iso} data-shown={i === shownIndex ? "true" : undefined} aria-hidden={i === shownIndex ? undefined : "true"}>
-            {p.content}
+vi.mock("@/components/trip/day/day-carousel", async () => {
+  const React = await import("react");
+  const DayChromeRegistryContext = React.createContext<{ register: (iso: string, c: React.ReactNode) => void; chromeFor: (iso: string) => React.ReactNode }>({ register: () => {}, chromeFor: () => undefined });
+  return {
+    DayChromeRegistryContext,
+    DayCarousel: ({ panels, shownDate, chrome, chromeFallback }: { panels: Array<{ iso: string; content: React.ReactNode }>; shownDate: string; chrome: React.ReactNode; chromeFallback: (iso: string) => React.ReactNode }) => {
+      const { chromeFor } = React.useContext(DayChromeRegistryContext);
+      return (
+        <>
+          {chromeFor(shownDate) ?? chromeFallback(shownDate)}
+          {chrome}
+          <div data-day-carousel>
+            {panels.map((p) => (
+              <div key={p.iso} data-day-panel={p.iso} data-shown={p.iso === shownDate ? "true" : undefined} aria-hidden={p.iso === shownDate ? undefined : "true"}>
+                {p.content}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-    </>
-  ),
-  // DayHeader (real, unmocked) renders DayArrow, which imports `useDayCarousel`
-  // from this same module path — mocking the module without this export
-  // leaves it undefined and DayArrow crashes calling it.
-  useDayCarousel: () => null,
-}));
+        </>
+      );
+    },
+    // DayHeader (real, unmocked) renders DayArrow, which imports `useDayCarousel`
+    // from this same module path — mocking the module without this export
+    // leaves it undefined and DayArrow crashes calling it.
+    useDayCarousel: () => null,
+  };
+});
+vi.mock("@/components/trip/day/day-chrome-registry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/trip/day/day-chrome-registry")>();
+  return {
+    ...actual,
+    RegisterDayChrome: (p: { iso: string; chrome: React.ReactNode }) => {
+      registered.set(p.iso, p.chrome);
+      return <actual.RegisterDayChrome {...p} />;
+    },
+  };
+});
 vi.mock("@/components/trip/day/day-ideas-rows", () => ({
   DayIdeasRows: ({ rows }: { rows: unknown[] }) => <ul data-testid="ideas">{rows.map((_, i) => <li key={i} />)}</ul>,
 }));
@@ -170,22 +193,43 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
   };
 }
 
-// getDaysMock answers the day before, the day shown and the day after (ADR
-// 0065). Same content, dated; a date outside the fixture Trip is out of range.
-function dayFor(over: Partial<DayViewData> = {}) {
+// getDaysMock answers each date asked for with the same content, dated; a
+// date outside the fixture Trip is out of range. The strip carries every day
+// of the Trip, which is where the page takes its slots from.
+function dayFor(over: Partial<DayViewData> = {}, start = "2026-12-04", end = "2027-01-08") {
+  const dates: string[] = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) dates.push(d);
   return (_tripId: string, date: string) => {
-    if (date < "2026-12-04" || date > "2027-01-08") return Promise.resolve("out-of-range" as const);
-    return Promise.resolve(fixture({ date, prevDate: date === "2026-12-04" ? null : addDays(date, -1), nextDate: date === "2027-01-08" ? null : addDays(date, 1), isFirst: date === "2026-12-04", isLast: date === "2027-01-08", ...over }));
+    if (date < start || date > end) return Promise.resolve("out-of-range" as const);
+    return Promise.resolve(
+      fixture({
+        date,
+        prevDate: date === start ? null : addDays(date, -1),
+        nextDate: date === end ? null : addDays(date, 1),
+        isFirst: date === start,
+        isLast: date === end,
+        strip: { dates: dates.map((iso) => ({ iso, count: 0, isCurrent: iso === date, isToday: false, holiday: false })), line: { homeStart: null, homeEnd: null, segments: [] } },
+        ...over,
+      }),
+    );
   };
 }
 const shownPanel = (container: HTMLElement) => container.querySelector('[data-day-panel][data-shown="true"]') as HTMLElement;
 
 async function renderPage(date = "2026-12-12") {
-  return render(await DayPage({ params: Promise.resolve({ tripId: "t1", date }) }));
+  const page = await DayPage({ params: Promise.resolve({ tripId: "t1", date }) });
+  let result!: ReturnType<typeof render>;
+  // Lets the streamed slots' read land inside act.
+  await act(async () => {
+    result = render(page);
+  });
+  return result;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requestHeaders.delete("x-teepee-warm");
+  registered.clear();
   requireTripAccessMock.mockResolvedValue({ user: { id: "u1" }, membership: {} });
   tripFindUniqueMock.mockResolvedValue({ name: "Christmas in Europe", members: [{ user: { id: "u1", name: "Cam", image: null } }] });
   getDayMock.mockImplementation(dayFor());
@@ -225,7 +269,6 @@ describe("Day page", () => {
 
   it("renders the h1 date, the strip, the plan card empty state with three idea rows, tonight and the future journal", async () => {
     const { container } = await renderPage();
-    expect(getDayMock.mock.calls.map((c) => c[1]).sort()).toEqual(["2026-12-11", "2026-12-12", "2026-12-13"]);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Sat 12 Dec" })).toBeInTheDocument();
     expect(screen.getByText("DAY 9 OF 36 · EUROPE")).toBeInTheDocument();
@@ -405,34 +448,30 @@ describe("Day page", () => {
     expect(screen.getByLabelText("Next day")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("renders the day before and after as hidden panels around the day shown (ADR 0065)", async () => {
-    const { container } = await renderPage();
-    const items = Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));
-    expect(items.map((p) => p.dataset.dayPanel)).toEqual(["2026-12-11", "2026-12-12", "2026-12-13"]);
-    expect(items[1]).toHaveAttribute("data-shown", "true");
-    for (const p of items) expect(p.querySelector("[data-day-body]")).not.toBeNull();
-    // The heading belongs to the page, not a panel.
-    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  it("asks for the day shown and both neighbours in one getDays call, then the days two and three away in one more (NAV-05)", async () => {
+    await renderPage();
+    expect(getDaysMock).toHaveBeenCalledTimes(2);
+    expect(getDaysMock).toHaveBeenNthCalledWith(1, "t1", ["2026-12-12", "2026-12-11", "2026-12-13"], "u1");
+    expect(getDaysMock).toHaveBeenNthCalledWith(2, "t1", ["2026-12-09", "2026-12-10", "2026-12-14", "2026-12-15"], "u1");
   });
 
-  it("first day: two panels, shown at index 0 (review focus 1)", async () => {
+  it("first day: every day has a slot, the first is shown, and nothing is read before it", async () => {
     const { container } = await renderPage("2026-12-04");
     const items = Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));
-    expect(items.map((p) => p.dataset.dayPanel)).toEqual(["2026-12-04", "2026-12-05"]);
+    expect(items).toHaveLength(36);
+    expect(items[0]).toHaveAttribute("data-day-panel", "2026-12-04");
     expect(items[0]).toHaveAttribute("data-shown", "true");
+    expect(getDaysMock).toHaveBeenNthCalledWith(2, "t1", ["2026-12-06", "2026-12-07"], "u1");
     expect(screen.getByLabelText("Previous day")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("a neighbour the loader clamped back onto the day shown is not a panel", async () => {
-    getDayMock.mockImplementation((_t: string, date: string) => Promise.resolve(fixture({ date: date > "2026-12-12" ? "2026-12-12" : date, prevDate: "2026-12-11", nextDate: null })));
-    const { container } = await renderPage();
-    expect(Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]")).map((p) => p.dataset.dayPanel)).toEqual(["2026-12-11", "2026-12-12"]);
-  });
-
-  it("asks for the day shown and both neighbours in one getDays call (NAV-05)", async () => {
-    await renderPage();
-    expect(getDaysMock).toHaveBeenCalledTimes(1);
-    expect(getDaysMock).toHaveBeenCalledWith("t1", ["2026-12-12", "2026-12-11", "2026-12-13"], "u1");
+  it("a date the loader clamped onto the Trip's last day: that day is shown, and the day before it comes from the further read", async () => {
+    getDayMock.mockImplementation((t: string, date: string) => dayFor({}, "2026-12-04", "2026-12-12")(t, date > "2026-12-12" ? "2026-12-12" : date));
+    const { container } = await renderPage("2026-12-13");
+    const items = Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));
+    expect(items.at(-1)).toHaveAttribute("data-shown", "true");
+    expect(items.at(-1)).toHaveAttribute("data-day-panel", "2026-12-12");
+    expect(getDaysMock).toHaveBeenNthCalledWith(2, "t1", ["2026-12-09", "2026-12-10", "2026-12-11"], "u1");
   });
 
   it("a malformed date asks for that date alone", async () => {
@@ -461,5 +500,62 @@ describe("Day page", () => {
     tripFindUniqueMock.mockResolvedValue({ slug: "christmas-in-europe-2026", name: "Christmas in Europe", members: [] });
     await renderPage();
     expect(screen.getByRole("link", { name: "Previous day: Fri 11 Dec" })).toHaveAttribute("href", "/trips/christmas-in-europe-2026/day/2026-12-11");
+  });
+});
+
+describe("Day page: a slot for every day", () => {
+  const tenDays = (over: Partial<DayViewData> = {}) => dayFor(over, "2026-12-01", "2026-12-10");
+  const slots = (container: HTMLElement) => Array.from(container.querySelectorAll<HTMLElement>("[data-day-panel]"));
+  const isFilled = (slot: HTMLElement) => slot.querySelector("[data-day-body]") != null;
+  const isSkeleton = (slot: HTMLElement) => slot.querySelector("[data-day-slot-skeleton]") != null;
+
+  it("a ten-day Trip on day 5: ten slots; 4 to 6 paint first, 2, 3, 7 and 8 stream in from one more read, the rest stay skeletons", async () => {
+    getDayMock.mockImplementation(tenDays());
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    getDaysMock.mockImplementationOnce((t: string, dates: string[], v: string) => Promise.all(dates.map((d) => getDayMock(t, d, v))));
+    getDaysMock.mockImplementationOnce((t: string, dates: string[], v: string) => held.then(() => Promise.all(dates.map((d) => getDayMock(t, d, v)))));
+    const { container } = await renderPage("2026-12-05");
+    const all = slots(container);
+    expect(all.map((s) => s.dataset.dayPanel)).toEqual(["2026-12-01", "2026-12-02", "2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06", "2026-12-07", "2026-12-08", "2026-12-09", "2026-12-10"]);
+    expect(all.map(isFilled)).toEqual([false, false, false, true, true, true, false, false, false, false]);
+    expect(all.map(isSkeleton)).toEqual([true, true, true, false, false, false, true, true, true, true]);
+    expect(getDaysMock).toHaveBeenCalledTimes(2);
+    expect(getDaysMock).toHaveBeenNthCalledWith(2, "t1", ["2026-12-02", "2026-12-03", "2026-12-07", "2026-12-08"], "u1");
+    await act(async () => release());
+    expect(slots(container).map(isFilled)).toEqual([false, true, true, true, true, true, true, true, false, false]);
+    expect(slots(container).map(isSkeleton)).toEqual([true, false, false, false, false, false, false, false, true, true]);
+    expect(getDaysMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a one-day Trip has one slot and makes no further read", async () => {
+    getDayMock.mockImplementation(dayFor({}, "2026-12-01", "2026-12-01"));
+    const { container } = await renderPage("2026-12-01");
+    expect(slots(container).map((s) => s.dataset.dayPanel)).toEqual(["2026-12-01"]);
+    expect(getDaysMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("each filled slot registers its own header", async () => {
+    getDayMock.mockImplementation((t: string, date: string) =>
+      tenDays({ eyebrow: `EYEBROW ${date}`, heading: formatDayLabel(date), subLine: `Sub ${date}`, subLineCompact: `Sub ${date}`, dayTitle: `Title ${date}`, holidays: [`Holiday ${date}`] })(t, date),
+    );
+    await renderPage("2026-12-05");
+    expect([...registered.keys()].sort()).toEqual(["2026-12-02", "2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06", "2026-12-07", "2026-12-08"]);
+    const header = render(<>{registered.get("2026-12-07")}</>);
+    const h = within(header.container);
+    expect(h.getByRole("heading", { level: 1, name: "Mon 7 Dec" })).toBeInTheDocument();
+    expect(h.getByText("EYEBROW 2026-12-07")).toBeInTheDocument();
+    expect(h.getAllByText("Sub 2026-12-07").length).toBeGreaterThan(0);
+    expect(h.getByText("Title 2026-12-07")).toBeInTheDocument();
+    expect(h.getByText("Holiday 2026-12-07")).toBeInTheDocument();
+  });
+
+  it("the offline warmer's request gets the three near days only and no further read", async () => {
+    getDayMock.mockImplementation(tenDays());
+    requestHeaders.set("x-teepee-warm", "1");
+    const { container } = await renderPage("2026-12-05");
+    expect(slots(container)).toHaveLength(10);
+    expect(slots(container).map(isFilled)).toEqual([false, false, false, true, true, true, false, false, false, false]);
+    expect(getDaysMock).toHaveBeenCalledTimes(1);
   });
 });

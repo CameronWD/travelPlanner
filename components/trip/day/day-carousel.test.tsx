@@ -6,7 +6,7 @@ import { renderToString } from "react-dom/server";
 import { NavigationPendingProvider, useNavigationPending } from "@/components/navigation/navigation-pending";
 import { setMatchMedia } from "@/test/setup";
 import { LG_UP } from "@/components/ui/use-media-query";
-import { DayCarousel, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi } from "@/components/trip/day/day-carousel";
+import { DayCarousel, DayChromeRegistryContext, SETTLE_QUIET_MS, useDayCarousel, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import { DAY_GLIDE_MS } from "@/components/trip/day/carousel-maths";
 import { DAY_BODY_TRANSITION, DAY_BODY_TRANSITION_WIDE } from "@/components/trip/day/day-transition";
 
@@ -33,6 +33,7 @@ vi.mock("@/components/ui/view-transition", () => ({
 const WIDTH = 390;
 const hrefs = ["2026-12-11", "2026-12-12", "2026-12-13"].map((iso) => `/trips/t1/day/${iso}` as Route);
 const panels = ["2026-12-11", "2026-12-12", "2026-12-13"].map((iso, i) => ({ iso, href: hrefs[i], content: <p>{`day ${iso}`}</p> }));
+const fallback = (iso: string) => <h1>{`fallback ${iso}`}</h1>;
 const FAKE_TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
 
 let api: DayCarouselApi | null = null;
@@ -56,7 +57,7 @@ function Probe() {
 function mount(over: Partial<React.ComponentProps<typeof DayCarousel>> = {}) {
   const r = render(
     <NavigationPendingProvider>
-      <DayCarousel panels={panels} shownIndex={1} chrome={<Probe />} {...over} />
+      <DayCarousel panels={panels} shownDate="2026-12-12" chrome={<Probe />} chromeFallback={fallback} {...over} />
     </NavigationPendingProvider>,
   );
   return { ...r, scroller: r.container.querySelector("[data-day-carousel]") as HTMLElement };
@@ -272,7 +273,7 @@ describe("DayCarousel", () => {
     const freshPanels = panels.map((p) => ({ ...p }));
     rerender(
       <NavigationPendingProvider>
-        <DayCarousel panels={freshPanels} shownIndex={1} chrome={<Probe />} />
+        <DayCarousel panels={freshPanels} shownDate="2026-12-12" chrome={<Probe />} chromeFallback={fallback} />
       </NavigationPendingProvider>,
     );
     act(() => { vi.advanceTimersByTime(400); });
@@ -325,11 +326,37 @@ describe("DayCarousel", () => {
   });
 
   it("first day: only two panels, shown at index 0, no prefetch of a missing neighbour", () => {
-    const { container, scroller } = mount({ panels: panels.slice(1), shownIndex: 0 });
+    const { container, scroller } = mount({ panels: panels.slice(1), shownDate: "2026-12-12" });
     expect(container.querySelectorAll("[data-day-panel]")).toHaveLength(2);
     expect(scroller.scrollLeft).toBe(0);
     expect(prefetch).toHaveBeenCalledTimes(1);
     expect(prefetch).toHaveBeenCalledWith(hrefs[2]);
+  });
+
+  it("with a panel for every day, rests on the shown date and reaches only the day either side", () => {
+    const week = ["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14", "2026-12-15"];
+    const all = week.map((iso) => ({ iso, href: `/trips/t1/day/${iso}` as Route, content: <p>{`day ${iso}`}</p> }));
+    const { container, scroller } = mount({ panels: all });
+    expect(container.querySelectorAll("[data-day-panel]")).toHaveLength(7);
+    expect(container.querySelector('[data-day-panel][data-shown="true"]')).toHaveAttribute("data-day-panel", "2026-12-12");
+    expect(scroller.scrollLeft).toBe(3 * WIDTH);
+    expect(prefetch.mock.calls.map((c) => c[0]).sort()).toEqual([all[2].href, all[4].href]);
+    expect(api!.goTo(all[0].href)).toBe(false);
+    expect(api!.goTo(all[6].href)).toBe(false);
+  });
+
+  it("shows the shown day's registered header, and the fallback until one registers", () => {
+    const { getByRole, unmount } = mount();
+    expect(getByRole("heading", { level: 1 })).toHaveTextContent("fallback 2026-12-12");
+    unmount();
+    const seeded = render(
+      <NavigationPendingProvider>
+        <DayChromeRegistryContext.Provider value={{ register: () => {}, chromeFor: (iso) => (iso === "2026-12-12" ? <h1>Sat 12 Dec</h1> : undefined) }}>
+          <DayCarousel panels={panels} shownDate="2026-12-12" chrome={null} chromeFallback={fallback} />
+        </DayChromeRegistryContext.Provider>
+      </NavigationPendingProvider>,
+    );
+    expect(seeded.getByRole("heading", { level: 1 })).toHaveTextContent("Sat 12 Dec");
   });
 
   it("a phone keeps the three-panel snap carousel", () => {
@@ -379,7 +406,7 @@ describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
     const host = document.createElement("div");
     host.innerHTML = renderToString(
       <NavigationPendingProvider>
-        <DayCarousel panels={panels} shownIndex={1} chrome={null} />
+        <DayCarousel panels={panels} shownDate="2026-12-12" chrome={null} chromeFallback={fallback} />
       </NavigationPendingProvider>,
     );
     const scroller = host.querySelector("[data-day-carousel]") as HTMLElement;
