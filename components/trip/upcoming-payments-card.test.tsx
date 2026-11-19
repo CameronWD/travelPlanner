@@ -49,6 +49,16 @@ describe("UpcomingPaymentsCard", () => {
     expect(original).not.toHaveClass("truncate");
   });
 
+  it("wraps a long name to two lines and keeps the amount and timing on one line", () => {
+    render(<UpcomingPaymentsCard payments={[payment({ costId: "a" })]} tripId="trip-1" tripSlug="trip-1" />);
+    const name = screen.getByText("Hotel Lutetia");
+    expect(name).toHaveClass("line-clamp-2");
+    expect(name).not.toHaveClass("truncate");
+    const amount = screen.getByText(formatMoney(45000, "AUD")).parentElement!;
+    expect(amount).toHaveClass("whitespace-nowrap", "shrink-0");
+    expect(screen.getByText("comes out in 3 days")).toHaveClass("whitespace-nowrap", "shrink-0");
+  });
+
   it("shows 'comes out tomorrow' for daysUntil === 1", () => {
     render(<UpcomingPaymentsCard payments={[payment({ costId: "a", daysUntil: 1 })]} tripId="trip-1" tripSlug="trip-1" />);
     expect(screen.getByText("comes out tomorrow")).toBeInTheDocument();

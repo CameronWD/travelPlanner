@@ -19,6 +19,12 @@ describe("StillToBookCard (Home, spec R2)", () => {
     expect(screen.getByRole("link", { name: /thing 1/i })).toHaveAccessibleName(/Thing 1\s*Book by Sat 1 May/);
     expect(screen.getByRole("heading", { name: /^Still to book\s*, 2$/ })).toBeInTheDocument();
   });
+  it("wraps a long title to two lines instead of truncating it", () => {
+    render(<StillToBookCard rows={[row("1")]} limit={5} />);
+    const title = screen.getByText("Thing 1");
+    expect(title).toHaveClass("line-clamp-2");
+    expect(title).not.toHaveClass("truncate");
+  });
   it("caps the rows and opens the whole list in a sheet from the more button", async () => {
     render(<StillToBookCard rows={["1", "2", "3"].map((i) => row(i))} limit={2} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
