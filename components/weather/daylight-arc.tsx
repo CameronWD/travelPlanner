@@ -46,7 +46,7 @@ export function DaylightArc({ now, size, ...daylight }: DaylightView & { now?: s
         </div>
         {risesAndSets ? <span className="shrink-0">{`${sunset} ↓`}</span> : null}
       </div>
-      <span className="text-center leading-none">{compact ? formatDayLength(dayLengthMin) : `${formatDayLength(dayLengthMin)} daylight`}</span>
+      <span aria-hidden="true" className="text-center leading-none">{compact ? formatDayLength(dayLengthMin) : `${formatDayLength(dayLengthMin)} daylight`}</span>
     </div>
   );
 }

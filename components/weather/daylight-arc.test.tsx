@@ -24,6 +24,10 @@ describe("DaylightArc", () => {
     expect(screen.getByText("16:33 ↓")).toBeInTheDocument();
     expect(screen.getByText("8h 21m daylight")).toBeInTheDocument();
   });
+  it("hides the visible day length from assistive tech, as the image already names it", () => {
+    render(<DaylightArc {...day} size="regular" />);
+    expect(screen.getByText("8h 21m daylight").getAttribute("aria-hidden")).toBe("true");
+  });
   it("puts the day length below the arc, in flow", () => {
     render(<DaylightArc {...day} size="regular" />);
     const label = screen.getByText("8h 21m daylight");
