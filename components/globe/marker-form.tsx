@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import {
   createMarker,
@@ -28,6 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DIALOG_DESTRUCTIVE_CLASS,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -275,7 +277,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
             {isEdit && (
               <Button
                 type="button"
-                variant="destructive"
+                variant="outline"
                 onClick={async () => {
                   const ok = await confirm({
                     title: `Delete "${title}"?`,
@@ -287,13 +289,14 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
                 }}
                 loading={del.isPending}
                 disabled={busy}
-                className="sm:mr-auto"
+                className={DIALOG_DESTRUCTIVE_CLASS}
               >
+                <Trash2 aria-hidden="true" />
                 Delete
               </Button>
             )}
             <DialogClose asChild>
-              <Button type="button" variant="secondary" disabled={busy}>
+              <Button type="button" variant="outline" disabled={busy}>
                 Cancel
               </Button>
             </DialogClose>
