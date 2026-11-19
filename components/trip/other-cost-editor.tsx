@@ -293,7 +293,7 @@ function OtherCostDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="md"
               disabled={submitting}
               onClick={onCancel}

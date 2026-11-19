@@ -343,3 +343,10 @@ describe("OtherCostFormDialog offline (trip-proofing B4)", () => {
     expect(screen.getByLabelText(/cost amount/i)).toHaveValue("99.00");
   });
 });
+
+describe("OtherCostFormDialog: Cancel", () => {
+  it("is an outline button", () => {
+    renderForm();
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+  });
+});

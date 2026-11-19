@@ -2084,3 +2084,22 @@ describe("TransportFormDialog: Nothing to attach switch", () => {
     expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
   });
 });
+
+describe("TransportFormDialog: footer buttons", () => {
+  it("Delete leg is the destructive outline button", () => {
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} onDelete={vi.fn()} />);
+    const btn = screen.getByRole("button", { name: "Delete leg" });
+    expect(btn.className).toContain("border-destructive");
+  });
+
+  it("edit shows an outline Cancel that closes without saving", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} onOpenChange={onOpenChange} />);
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    expect(cancel.className).not.toContain("border-transparent");
+    await user.click(cancel);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(updateTransport).not.toHaveBeenCalled();
+  });
+});

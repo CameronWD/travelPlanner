@@ -103,7 +103,7 @@ export function DuplicateTripDialog({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost" disabled={isPending}>
+            <Button variant="outline" disabled={isPending}>
               Cancel
             </Button>
           </DialogClose>

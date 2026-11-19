@@ -510,3 +510,12 @@ describe("PromoteForkDialog", () => {
     expect(cancelBtn.compareDocumentPosition(promoteBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe("PromoteForkDialog: Cancel", () => {
+  it("is an outline button", async () => {
+    (getPromotionPreview as ReturnType<typeof vi.fn>).mockResolvedValue(PREVIEW_WITH_LOSSES);
+    render(<PromoteForkDialog {...DEFAULT_PROPS} />);
+    const cancel = await screen.findByRole("button", { name: /^cancel$/i });
+    expect(cancel.className).not.toContain("border-transparent");
+  });
+});

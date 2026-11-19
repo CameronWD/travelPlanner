@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
-import { DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { DIALOG_DESTRUCTIVE_CLASS, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { FormDialog } from "@/components/ui/form-dialog";
@@ -176,10 +177,11 @@ function AddReminderForm({
           <Button
             variant="outline"
             type="button"
-            className="text-destructive hover:bg-destructive/10 sm:mr-auto"
+            className={DIALOG_DESTRUCTIVE_CLASS}
             disabled={isPending || isDeleting}
             onClick={() => requestDelete(reminder.id, reminder.title)}
           >
+            <Trash2 aria-hidden="true" />
             Delete
           </Button>
         )}

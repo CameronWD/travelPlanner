@@ -452,3 +452,12 @@ describe("CostEditor offline (trip-proofing B4)", () => {
     expect(screen.getByLabelText("Cost amount")).toHaveValue("60.00");
   });
 });
+
+describe("CostEditor: Cancel", () => {
+  it("is an outline button", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+  });
+});

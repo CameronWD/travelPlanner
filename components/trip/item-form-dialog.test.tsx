@@ -1976,3 +1976,11 @@ describe("ItemFormDialog: Nothing to attach switch", () => {
     expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
   });
 });
+
+describe("ItemFormDialog: footer buttons", () => {
+  it("Delete is the destructive outline button and Cancel is outline", () => {
+    render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    expect(screen.getByRole("button", { name: "Delete" }).className).toContain("border-destructive");
+    expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
+  });
+});

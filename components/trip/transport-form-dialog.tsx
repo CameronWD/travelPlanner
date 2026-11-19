@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { Route } from "next";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
 import { AppLink } from "@/components/navigation/app-link";
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DIALOG_DESTRUCTIVE_CLASS, DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { TRANSPORT_MODE_TILES, TRANSPORT_MODE_META, formatDuration } from "@/lib/transport";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
@@ -969,15 +969,21 @@ function TransportForm({
         {isEdit && onDelete && (
           <Button
             type="button"
-            variant="ghost"
-            className="text-coral-text"
+            variant="outline"
+            className={DIALOG_DESTRUCTIVE_CLASS}
             onClick={onDelete}
             disabled={isPending}
           >
+            <Trash2 aria-hidden="true" />
             Delete leg
           </Button>
         )}
-        <Button type="submit" form={formId} variant="primary" size="lg" className="flex-1" loading={isPending}>
+        <DialogClose asChild>
+          <Button type="button" variant="outline" disabled={isPending}>
+            Cancel
+          </Button>
+        </DialogClose>
+        <Button type="submit" form={formId} variant="primary" loading={isPending}>
           {onSubmitOverride ? "Confirm" : isEdit ? "Save" : `Add ${TRANSPORT_MODE_META[mode as TransportMode].label.toLowerCase()}`}
         </Button>
       </DialogFooter>
