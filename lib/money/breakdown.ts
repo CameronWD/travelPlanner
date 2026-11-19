@@ -53,8 +53,33 @@ export function categoryHue(label: string): Hue {
   return HUES[hash % HUES.length];
 }
 
+const KNOWN_ORDER = Object.keys(CATEGORY_HUE);
+
 export function categoryHues(labels: readonly string[]): Map<string, Hue> {
-  return new Map(labels.map((l) => [l, categoryHue(l)]));
+  const unique = [...new Set(labels)];
+  const ordered = [
+    ...KNOWN_ORDER.filter((l) => unique.includes(l)),
+    ...unique.filter((l) => !(l in CATEGORY_HUE)).sort(),
+  ];
+  const taken = new Set<Hue>();
+  const hues = new Map<string, Hue>();
+  for (const label of ordered) {
+    const preferred = categoryHue(label);
+    let hue = preferred;
+    if (taken.size < HUES.length) {
+      const start = HUES.indexOf(preferred);
+      for (let i = 0; i < HUES.length; i++) {
+        const candidate = HUES[(start + i) % HUES.length];
+        if (!taken.has(candidate)) {
+          hue = candidate;
+          break;
+        }
+      }
+    }
+    taken.add(hue);
+    hues.set(label, hue);
+  }
+  return hues;
 }
 
 export function breakdownOptions({ chapters, days }: { chapters: boolean; days: boolean }): { value: BreakdownBy; label: string }[] {

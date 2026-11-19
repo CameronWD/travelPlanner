@@ -76,20 +76,33 @@ describe("breakdownOptions and parseBy", () => {
 
 describe("categoryHues", () => {
   const NINE = ["Transport", "Sightseeing", "Food & Drink", "Activity", "Nightlife", "Shopping", "Getting around", "Place", "Other"];
+  const distinct = (m: Map<string, unknown>) => new Set(m.values()).size;
   it("the Item categories and Transport are pairwise distinct", () => {
-    expect(new Set(NINE.map(categoryHue)).size).toBe(9);
+    expect(distinct(categoryHues(NINE))).toBe(9);
   });
-  it("a category keeps its hue on trips with different category sets", () => {
-    const a = categoryHues(["Sightseeing", "Insurance"]);
-    const b = categoryHues(["Transport", "Nightlife", "Sightseeing", "Made-up"]);
-    expect(a.get("Sightseeing")).toBe(b.get("Sightseeing"));
+  it("Activity and Insurance on one trip differ, Activity keeping its preferred hue", () => {
+    const hues = categoryHues(["Insurance", "Activity"]);
+    expect(hues.get("Activity")).toBe(categoryHue("Activity"));
+    expect(hues.get("Insurance")).not.toBe(hues.get("Activity"));
   });
-  it("adding a category changes no other's hue, and an unknown one is stable", () => {
-    const before = categoryHues(["Transport", "Activity"]);
-    const after = categoryHues(["Transport", "Activity", "Made-up"]);
-    expect(after.get("Transport")).toBe(before.get("Transport"));
-    expect(after.get("Activity")).toBe(before.get("Activity"));
-    expect(categoryHue("Made-up")).toBe(categoryHue("Made-up"));
+  it("two unknown labels that hash alike still get different hues", () => {
+    const labels = ["Zz", "Ab", "Mn", "Qr", "Xy", "Cd", "Ef", "Gh", "Ij", "Kl", "Op", "St", "Uv", "Wx"];
+    const [one, two] = labels.flatMap((a, i) => labels.slice(i + 1).map((b) => [a, b] as const)).find(([a, b]) => categoryHue(a) === categoryHue(b))!;
+    const hues = categoryHues([one, two]);
+    expect(hues.get(one)).not.toBe(hues.get(two));
+  });
+  it("nine or fewer categories never share a hue, and ten repeat exactly one", () => {
+    const nine = categoryHues([...NINE.slice(0, 8), "Insurance"]);
+    expect(distinct(nine)).toBe(9);
+    const ten = categoryHues([...NINE, "Insurance"]);
+    expect(ten.size).toBe(10);
+    expect(distinct(ten)).toBe(9);
+  });
+  it("the same categories give the same hues in any order", () => {
+    const labels = ["Insurance", "Made-up", "Activity", "Transport", "Other-made-up", "Gifts"];
+    const forward = categoryHues(labels);
+    const backward = categoryHues([...labels].reverse());
+    for (const l of labels) expect(backward.get(l)).toBe(forward.get(l));
   });
 });
 
