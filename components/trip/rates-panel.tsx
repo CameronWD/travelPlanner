@@ -34,13 +34,6 @@ export interface RatesPanelProps {
 // Rate formatting — adaptive precision
 // ---------------------------------------------------------------------------
 
-/**
- * Format an exchange rate with ~4 significant figures so very small rates
- * (e.g. 0.000012) never render as "0.0000" and large rates aren't over-padded.
- *
- * Uses `Number.toPrecision(4)` and trims trailing zeros, but keeps at least the
- * digits needed to show the value clearly.
- */
 export function formatRate(rate: number): string {
   // For large rates (e.g. VND/IDR ≥ 1000) keep the integer value exact;
   // for smaller rates use 4 sig figs and strip trailing zeros.
@@ -57,7 +50,7 @@ export function displayRate(
   entry: { currency: string; rate: number },
   home: string,
 ): { from: string; to: string; figure: string; inverted: boolean } {
-  if (entry.rate < 0.01) {
+  if (Number.isFinite(entry.rate) && entry.rate > 0 && entry.rate < 0.01) {
     return { from: home, to: entry.currency, figure: formatRate(1 / entry.rate), inverted: true };
   }
   return { from: entry.currency, to: home, figure: formatRate(entry.rate), inverted: false };
@@ -119,9 +112,9 @@ function RateRow({
   entry: RateEntry;
 }) {
   const [editing, setEditing] = React.useState(false);
-  const [rateInput, setRateInput] = React.useState(
-    entry.rate !== null ? String(entry.rate) : "",
-  );
+  const inverted = entry.rate !== null && displayRate({ currency: entry.currency, rate: entry.rate }, homeCurrency).inverted;
+  const initialInput = entry.rate === null ? "" : inverted ? formatRate(1 / entry.rate) : String(entry.rate);
+  const [rateInput, setRateInput] = React.useState(initialInput);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -132,10 +125,15 @@ function RateRow({
       setError("Enter a positive number.");
       return;
     }
+    if (inverted && rateInput === initialInput) {
+      setError(null);
+      setEditing(false);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await setManualRate(tripId, entry.currency, homeCurrency, parsed);
+      await setManualRate(tripId, entry.currency, homeCurrency, inverted ? 1 / parsed : parsed);
       setEditing(false);
     } catch {
       setError("Couldn't save that rate. Try again.");
@@ -196,7 +194,7 @@ function RateRow({
               size="sm"
               className="h-7 px-2 text-xs text-muted-foreground"
               onClick={() => {
-                setRateInput(entry.rate !== null ? String(entry.rate) : "");
+                setRateInput(initialInput);
                 setError(null);
                 setEditing(true);
               }}
@@ -211,7 +209,7 @@ function RateRow({
       {editing && (
         <form onSubmit={handleSetManual} className="flex flex-col gap-2">
           <Field
-            label={`1 ${entry.currency} =`}
+            label={inverted ? `1 ${homeCurrency} =` : `1 ${entry.currency} =`}
             error={error ?? undefined}
           >
             <div className="flex items-center gap-2">
@@ -226,9 +224,9 @@ function RateRow({
                 disabled={saving}
                 invalid={Boolean(error)}
                 className="font-mono text-sm"
-                aria-label={`Exchange rate: 1 ${entry.currency} to ${homeCurrency}`}
+                aria-label={inverted ? `Exchange rate: 1 ${homeCurrency} to ${entry.currency}` : `Exchange rate: 1 ${entry.currency} to ${homeCurrency}`}
               />
-              <span className="text-sm text-muted-foreground shrink-0">{homeCurrency}</span>
+              <span className="text-sm text-muted-foreground shrink-0">{inverted ? entry.currency : homeCurrency}</span>
             </div>
           </Field>
           <div className="flex gap-2">

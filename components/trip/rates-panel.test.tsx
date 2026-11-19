@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 // Mock server actions so the client component can be imported in vitest
 vi.mock("@/server/actions/rates", () => ({
@@ -8,7 +9,8 @@ vi.mock("@/server/actions/rates", () => ({
   refreshRates: vi.fn(),
 }));
 
-import { SourceBadge, formatRate, displayRate } from "./rates-panel";
+import { setManualRate } from "@/server/actions/rates";
+import { SourceBadge, formatRate, displayRate, RatesPanel } from "./rates-panel";
 
 // ---------------------------------------------------------------------------
 // formatRate — adaptive precision
@@ -102,5 +104,39 @@ describe("SourceBadge", () => {
   it("shows 'No rate' when source is 'none'", () => {
     render(<SourceBadge source="none" stale={false} />);
     expect(screen.getByText("No rate")).toBeInTheDocument();
+  });
+});
+
+describe("RatesPanel editor for an inverted rate", () => {
+  const rates = [{ currency: "VND", rate: 0.0000612, source: "fetched" as const, stale: false }];
+
+  async function open() {
+    const user = userEvent.setup();
+    render(<RatesPanel tripId="t1" homeCurrency="AUD" rates={rates} />);
+    await user.click(screen.getByRole("button", { name: "Set rate" }));
+    return user;
+  }
+
+  it("opens with the home currency first and the inverted figure", async () => {
+    await open();
+    expect(screen.getByText("1 AUD =")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton")).toHaveValue(1 / 0.0000612 > 1000 ? Math.round(1 / 0.0000612) : 0);
+  });
+
+  it("stores the reciprocal of what was entered", async () => {
+    vi.mocked(setManualRate).mockResolvedValue(undefined as never);
+    const user = await open();
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "16000");
+    await user.click(screen.getByRole("button", { name: "Lock rate" }));
+    expect(setManualRate).toHaveBeenCalledWith("t1", "VND", "AUD", 1 / 16000);
+  });
+
+  it("stores nothing when submitted unchanged", async () => {
+    vi.mocked(setManualRate).mockClear();
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Lock rate" }));
+    expect(setManualRate).not.toHaveBeenCalled();
   });
 });

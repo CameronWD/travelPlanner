@@ -39,16 +39,17 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
           )}
         >
           <span className="text-[13px] font-extrabold">{shown?.inverted ? `1 ${shown.from} =` : entry.currency}</span>
-          <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+          <span className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1">
             <span
               className={cn(
-                "min-w-0 max-w-full truncate font-display font-extrabold tabular-nums",
-                shown && shown.figure.length > 7 ? "text-[14px]" : "text-[17px]",
+                "whitespace-nowrap font-display font-extrabold tabular-nums",
+                shown ? (shown.figure.length >= 10 ? "text-[12px]" : shown.figure.length >= 7 ? "text-[14px]" : "text-[17px]") : "text-[17px]",
                 stale && "text-sun-text",
               )}
             >
-              {shown ? (shown.inverted ? `${shown.figure} ${shown.to}` : shown.figure) : "Set rate"}
+              {shown ? shown.figure : "Set rate"}
             </span>
+            {shown?.inverted ? <span className="text-[12px] font-bold text-muted-foreground">{shown.to}</span> : null}
             {stale ? <RefreshCw className="size-3.5 text-sun-text" aria-hidden="true" /> : null}
           </span>
         </button>

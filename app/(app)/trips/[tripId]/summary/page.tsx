@@ -509,6 +509,7 @@ export default async function SummaryPage({
                             }).dep?.dateISO ?? null)
                           : null;
                         const stopBudget = budgetByStopId.get(stop.id);
+                        const perNight = stopBudget ? perNightMinor(stopBudget.costTotalMinor, nights) : null;
                         const isLast = globalIdx === totalGroupedStops;
 
                         return (
@@ -549,12 +550,9 @@ export default async function SummaryPage({
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     cost
-                                    {perNightMinor(stopBudget.costTotalMinor, nights) !== null &&
+                                    {perNight !== null &&
                                       stopBudget.costTotalMinor > 0 &&
-                                      ` · ${formatMoney(
-                                        perNightMinor(stopBudget.costTotalMinor, nights)!,
-                                        homeCurrency,
-                                      )}/night`}
+                                      ` · ${formatMoney(perNight, homeCurrency)}/night`}
                                   </p>
                                   {stopBudget.paidTotalMinor > 0 && (
                                     <p className="text-xs text-muted-foreground/80">
