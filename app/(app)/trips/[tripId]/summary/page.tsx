@@ -555,7 +555,7 @@ export default async function SummaryPage({
                                       ` · ${formatMoney(perNight, homeCurrency)}/night`}
                                   </p>
                                   {stopBudget.paidTotalMinor > 0 && (
-                                    <p className="text-xs text-muted-foreground/80">
+                                    <p className="text-xs text-muted-foreground">
                                       paid {formatMoney(stopBudget.paidTotalMinor, homeCurrency)}
                                     </p>
                                   )}
