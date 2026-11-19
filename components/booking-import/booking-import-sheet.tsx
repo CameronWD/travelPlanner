@@ -61,7 +61,7 @@ export function BookingImportSheet({ tripId, forkId, open, onOpenChange }: { tri
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle>Import a booking</DialogTitle>
+          <DialogTitle>Import a Booking</DialogTitle>
           <DialogDescription>Drop a ticket, confirmation or booking email, or paste its text. Nothing is added until you confirm it.</DialogDescription>
         </DialogHeader>
         {/* Mounted per open: closing the sheet drops everything, nothing is stored. */}

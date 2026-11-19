@@ -350,3 +350,13 @@ describe("OtherCostFormDialog: Cancel", () => {
     expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
   });
 });
+
+describe("OtherCostFormDialog: titles", () => {
+  it("titles add and edit in Title Case", () => {
+    const { unmount } = renderForm();
+    expect(screen.getByRole("heading", { name: "Add a Cost" })).toBeInTheDocument();
+    unmount();
+    renderForm(sampleCost);
+    expect(screen.getByRole("heading", { name: "Edit Cost" })).toBeInTheDocument();
+  });
+});

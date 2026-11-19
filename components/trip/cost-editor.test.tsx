@@ -461,3 +461,12 @@ describe("CostEditor: Cancel", () => {
     expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
   });
 });
+
+describe("CostEditor: titles", () => {
+  it("titles the dialogs in Title Case", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[sampleCost]} />);
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    expect(screen.getByRole("heading", { name: "Edit Cost" })).toBeInTheDocument();
+  });
+});

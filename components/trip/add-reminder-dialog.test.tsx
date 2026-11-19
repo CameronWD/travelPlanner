@@ -99,7 +99,7 @@ describe("AddReminderDialog", () => {
     );
   });
 
-  it("with a reminder it reads 'Edit reminder', is prefilled, and saves through updateReminder", async () => {
+  it("with a reminder it reads 'Edit Reminder', is prefilled, and saves through updateReminder", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
@@ -109,7 +109,7 @@ describe("AddReminderDialog", () => {
         onOpenChange={onOpenChange}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Edit reminder" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edit Reminder" })).toBeInTheDocument();
     expect(screen.getByLabelText(/reminder title/i)).toHaveValue("Reconfirm");
     expect(screen.getByLabelText(/^notes/i)).toHaveValue("Ask Wayan");
 
