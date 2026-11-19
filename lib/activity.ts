@@ -310,6 +310,7 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "date", label: "Date", format: (v) => dateFormat(v) },
     { key: "notes", label: "Notes" },
     { key: "about", label: "About" },
+    { key: "dismissed", label: "On Home", format: (v) => (v === true ? "Dismissed" : "Showing") },
   ],
   // VOTE is always a { summary } line — nothing to diff
   VOTE: [],

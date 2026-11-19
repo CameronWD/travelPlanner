@@ -235,7 +235,7 @@ export async function collectDigestInput(opts: {
     // reminders anyway (lib/digest.ts collectLines).
     needEveningContent
       ? db.reminder.findMany({
-          where: { tripId, date: targetDate, ...v.where.reminder },
+          where: { tripId, date: targetDate, dismissedAt: null, ...v.where.reminder },
           orderBy: { createdAt: "asc" },
           select: { id: true, title: true },
         })

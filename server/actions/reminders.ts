@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess, requireRowAccess } from "@/lib/guards";
-import { reminderSchema, type ReminderInput } from "@/lib/validations/reminder";
+import { reminderSchema, type ReminderInput, type ReminderPatch } from "@/lib/validations/reminder";
 import {
   type ActionResult,
   type FieldErrors,
@@ -14,7 +14,7 @@ import { recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { revalidateTrip, revalidateTripsList } from "@/lib/revalidate";
-import { applyPatch, type Patch } from "@/lib/patch";
+import { applyPatch } from "@/lib/patch";
 import {
   ABOUT_KEYS,
   replaceAbout,
@@ -43,6 +43,7 @@ type AboutRow = {
   stop: { name: string } | null;
   item: { title: string } | null;
   transport: ReminderTransportRow | null;
+  dismissedAt: Date | null;
 };
 
 /** The select for an update's `after` row: what Activity diffs. */
@@ -53,6 +54,7 @@ const ACTIVITY_SELECT = {
   stop: { select: { name: true } },
   item: { select: { title: true } },
   transport: { select: REMINDER_TRANSPORT_SELECT },
+  dismissedAt: true,
 } as const;
 
 /**
@@ -73,6 +75,7 @@ function activityRow(r: AboutRow) {
     date: r.date,
     notes: r.notes ?? null,
     about: r.stop?.name ?? r.item?.title ?? (r.transport ? reminderTransportLabel(r.transport) : null),
+    dismissed: r.dismissedAt != null,
   };
 }
 
@@ -185,17 +188,18 @@ export async function addReminder(
  */
 export async function updateReminder(
   id: string,
-  patch: Patch<ReminderInput>,
+  patch: ReminderPatch,
 ): Promise<ReminderActionResult> {
+  const { dismissed, ...fields } = patch;
   const reminder = await requireReminderAccess(id);
   // Only a named id moves the Reminder; nulls alone clear what they name and
   // the row keeps the rest (replaceAbout), so nothing new needs checking.
-  const aboutSet = ABOUT_KEYS.some((k) => patch[k] != null && patch[k] !== "");
+  const aboutSet = ABOUT_KEYS.some((k) => fields[k] != null && fields[k] !== "");
 
   const parsed = reminderSchema.safeParse(
     applyPatch<ReminderInput>(
       { title: reminder.title, date: reminder.date, notes: reminder.notes },
-      replaceAbout(patch),
+      replaceAbout(fields),
     ),
   );
   if (!parsed.success) {
@@ -217,11 +221,12 @@ export async function updateReminder(
     data: {
       title,
       date,
-      ...(patch.notes !== undefined ? { notes: notes ? notes : null } : {}),
+      ...(fields.notes !== undefined ? { notes: notes ? notes : null } : {}),
       // An id names the whole about; nulls alone write only the keys they name.
       ...(aboutSet
         ? { stopId: stopId ?? null, itemId: itemId ?? null, transportId: transportId ?? null }
-        : Object.fromEntries(ABOUT_KEYS.filter((k) => patch[k] !== undefined).map((k) => [k, null]))),
+        : Object.fromEntries(ABOUT_KEYS.filter((k) => fields[k] !== undefined).map((k) => [k, null]))),
+      ...(dismissed !== undefined ? { dismissedAt: dismissed ? new Date() : null } : {}),
     },
     select: ACTIVITY_SELECT,
   });

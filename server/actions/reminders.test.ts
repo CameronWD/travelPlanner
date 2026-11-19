@@ -392,6 +392,43 @@ describe("updateReminder", () => {
 
 describe("updateReminder (PATCH, ADR 0075)", () => {
   const ROW = { id: "r1", tripId: "trip-1", title: "Reconfirm the tour", date: "2026-07-02", stopId: null, stop: null };
+
+  it("dismissed: true stamps dismissedAt, false clears it, a patch without the key leaves it", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ title: ROW.title, date: ROW.date, stop: null });
+
+    await updateReminder("r1", { dismissed: true });
+    expect(reminderUpdateMock.mock.calls[0][0].data.dismissedAt).toBeInstanceOf(Date);
+
+    await updateReminder("r1", { dismissed: false });
+    expect(reminderUpdateMock.mock.calls[1][0].data.dismissedAt).toBeNull();
+
+    await updateReminder("r1", { title: "Other" });
+    expect(reminderUpdateMock.mock.calls[2][0].data).not.toHaveProperty("dismissedAt");
+  });
+
+  it("records dismissing and bringing back as changes to the Reminder", async () => {
+    reminderFindUniqueMock.mockResolvedValue(ROW);
+    reminderUpdateMock.mockResolvedValue({ title: ROW.title, date: ROW.date, stop: null, dismissedAt: new Date() });
+    await updateReminder("r1", { dismissed: true });
+    expect(recordActivityMock.mock.calls[0][0].changes).toEqual([
+      { field: "dismissed", label: "On Home", from: "Showing", to: "Dismissed" },
+    ]);
+
+    reminderFindUniqueMock.mockResolvedValue({ ...ROW, dismissedAt: new Date() });
+    reminderUpdateMock.mockResolvedValue({ title: ROW.title, date: ROW.date, stop: null, dismissedAt: null });
+    await updateReminder("r1", { dismissed: false });
+    expect(recordActivityMock.mock.calls[1][0].changes).toEqual([
+      { field: "dismissed", label: "On Home", from: "Dismissed", to: "Showing" },
+    ]);
+  });
+
+  it("a surprised Traveller cannot dismiss a Reminder about a Surprise", async () => {
+    reminderFindUniqueMock.mockResolvedValue({ ...ROW, stopId: "stop-1" });
+    requireOutsideSurpriseMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(updateReminder("r1", { dismissed: true })).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(reminderUpdateMock).not.toHaveBeenCalled();
+  });
   // Brief literal was "new-stop" — not a valid cuid, and this now goes through
   // the real reminderSchema (stopId: z.string().cuid()), so a valid-looking
   // cuid stands in for it, same substitution already made above for "stop-1".
@@ -750,6 +787,7 @@ describe("notes and about (F8)", () => {
       stop: { select: { name: true } },
       item: { select: { title: true } },
       transport: { select: expect.objectContaining({ mode: true }) },
+      dismissedAt: true,
     });
     expect(recordActivityMock.mock.calls[0][0].changes).toEqual([
       { field: "notes", label: "Notes", from: "", to: "8pm" },

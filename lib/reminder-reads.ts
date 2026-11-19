@@ -35,7 +35,7 @@ export async function listRemindersForTrip(
   const v = await loadSurpriseVisibility(tripId, user.id);
 
   const upcoming = await db.reminder.findMany({
-    where: { tripId, date: { gte: fromDate }, ...v.where.reminder },
+    where: { tripId, date: { gte: fromDate }, dismissedAt: null, ...v.where.reminder },
     orderBy: { date: "asc" },
     take: 20,
     select: REMINDER_ITEM_SELECT,
@@ -43,7 +43,7 @@ export async function listRemindersForTrip(
   if (!opts.includePast) return upcoming.map(toReminderItem);
 
   const earlier = await db.reminder.findMany({
-    where: { tripId, date: { lt: fromDate }, ...v.where.reminder },
+    where: { tripId, date: { lt: fromDate }, dismissedAt: null, ...v.where.reminder },
     orderBy: { date: "desc" },
     take: 20,
     select: REMINDER_ITEM_SELECT,

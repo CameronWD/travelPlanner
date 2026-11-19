@@ -50,13 +50,13 @@ describe("listRemindersForTrip", () => {
 
   it("returns reminders dated on or after fromDate, soonest first, capped at 20", async () => {
     reminderFindManyMock.mockResolvedValue([
-      { id: "r1", title: "Print docs", date: "2026-07-02", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null },
+      { id: "r1", title: "Print docs", date: "2026-07-02", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, dismissedAt: null },
     ]);
 
     const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
 
     expect(reminderFindManyMock).toHaveBeenCalledWith({
-      where: { tripId: TRIP_ID, date: { gte: "2026-07-01" } },
+      where: { tripId: TRIP_ID, date: { gte: "2026-07-01" }, dismissedAt: null },
       orderBy: { date: "asc" },
       take: 20,
       select: REMINDER_ITEM_SELECT,
@@ -91,7 +91,7 @@ describe("listRemindersForTrip", () => {
 
   it("returns notes and what the Reminder is about — an Item or a leg — by name (F8)", async () => {
     reminderFindManyMock.mockResolvedValue([
-      { id: "r2", title: "Book table", date: "2026-07-03", notes: "window seat", stopId: null, stop: null, itemId: "i1", item: { title: "Bouchon" }, transportId: null, transport: null },
+      { id: "r2", title: "Book table", date: "2026-07-03", notes: "window seat", stopId: null, stop: null, itemId: "i1", item: { title: "Bouchon" }, transportId: null, transport: null, dismissedAt: null },
       { id: "r3", title: "Seats", date: "2026-07-04", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: "t1",
         transport: { mode: "TRAIN", depPlace: "Paris", arrPlace: "Lyon", depIsHome: false, arrIsHome: false, fromStop: null, toStop: null, trip: { homeName: null } } },
     ]);
@@ -110,14 +110,14 @@ describe("listRemindersForTrip", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, loadSurpriseVisibilityMock);
     expect(reminderFindManyMock.mock.calls[0][0].where).toEqual({
       tripId: TRIP_ID,
-      date: { gte: "2026-07-01" },
+      date: { gte: "2026-07-01" }, dismissedAt: null,
       ...MARKER_WHERE.reminder,
     });
   });
 });
 
 describe("listRemindersForTrip includePast", () => {
-  const raw = (id: string, date: string) => ({ id, title: id, date, notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null });
+  const raw = (id: string, date: string) => ({ id, title: id, date, notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, dismissedAt: null });
 
   it("adds the 20 most recent earlier Reminders, newest first, flagged past, behind the same Surprise filter", async () => {
     loadSurpriseVisibilityMock.mockResolvedValueOnce(hiddenVisibility({ viewerId: "user-1", hiddenStopIds: ["s1"] }));
@@ -126,7 +126,7 @@ describe("listRemindersForTrip includePast", () => {
     const result = await listRemindersForTrip(TRIP_ID, "2026-07-01", { includePast: true });
 
     expect(reminderFindManyMock.mock.calls[1][0]).toEqual({
-      where: { tripId: TRIP_ID, date: { lt: "2026-07-01" }, ...MARKER_WHERE.reminder },
+      where: { tripId: TRIP_ID, date: { lt: "2026-07-01" }, dismissedAt: null, ...MARKER_WHERE.reminder },
       orderBy: { date: "desc" },
       take: 20,
       select: REMINDER_ITEM_SELECT,
@@ -143,14 +143,22 @@ describe("listRemindersForTrip includePast", () => {
 
 describe("readRemindersAbout", () => {
   it("flags a Reminder dated before `today` as past", async () => {
-    const row = (id: string, date: string) => ({ id, title: id, date, notes: null, stopId: "s1", stop: { name: "Lyon" }, itemId: null, item: null, transportId: null, transport: null });
+    const row = (id: string, date: string) => ({ id, title: id, date, notes: null, stopId: "s1", stop: { name: "Lyon" }, itemId: null, item: null, transportId: null, transport: null, dismissedAt: null });
     reminderFindManyMock.mockResolvedValue([row("old", "2026-06-01"), row("new", "2026-08-01")]);
     const out = await readRemindersAbout(TRIP_ID, hiddenVisibility({}), "2026-07-01");
     expect(out.byStopId.get("s1")?.map((r) => r.past)).toEqual([true, undefined]);
   });
 
+  it("keeps a dismissed Reminder on the thing it is about, flagged dismissed", async () => {
+    reminderFindManyMock.mockResolvedValue([
+      { id: "d", title: "d", date: "2026-07-01", notes: null, stopId: "s1", stop: { name: "Lyon" }, itemId: null, item: null, transportId: null, transport: null, dismissedAt: new Date("2026-06-30") },
+    ]);
+    const out = await readRemindersAbout(TRIP_ID, hiddenVisibility({}));
+    expect(out.byStopId.get("s1")?.map((r) => r.dismissed)).toEqual([true]);
+  });
+
   it("reads every Reminder about a thing, whatever its date, behind the viewer's Surprise filter, grouped by the thing", async () => {
-    const row = (id: string, o: object) => ({ id, title: id, date: "2026-07-01", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, ...o });
+    const row = (id: string, o: object) => ({ id, title: id, date: "2026-07-01", notes: null, stopId: null, stop: null, itemId: null, item: null, transportId: null, transport: null, dismissedAt: null, ...o });
     reminderFindManyMock.mockResolvedValue([
       row("a", { stopId: "s1", stop: { name: "Lyon" } }),
       row("b", { itemId: "i1", item: { title: "Bouchon" } }),

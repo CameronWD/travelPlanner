@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Patch } from "@/lib/patch";
 import { isoDateWith } from "@/lib/validations/primitives";
 
 export const REMINDER_ONE_THING = "A Reminder is about one thing at most: a Stop, a thing to do or a Transport leg.";
@@ -48,3 +49,6 @@ export const reminderSchema = reminderFieldsSchema.refine(
 );
 
 export type ReminderInput = z.infer<typeof reminderSchema>;
+
+/** An update's patch: `dismissed` is not a field of the form, so it rides beside the schema's. */
+export type ReminderPatch = Patch<ReminderInput> & { dismissed?: boolean };
