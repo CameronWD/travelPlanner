@@ -108,6 +108,66 @@ describe("JumpList", () => {
     document.body.removeChild(cardS3);
   });
 
+  describe("scroll-spy over several Stops", () => {
+    let callback: IntersectionObserverCallback;
+    const cards: Record<string, HTMLElement> = {};
+
+    function setup() {
+      for (const id of ["s1", "s2", "s3"]) {
+        const card = document.createElement("div");
+        card.setAttribute("data-stop-id", id);
+        document.body.appendChild(card);
+        cards[id] = card;
+      }
+      cards.s1.getBoundingClientRect = () => ({ top: 10 }) as DOMRect;
+      cards.s2.getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+      class FakeIntersectionObserver {
+        constructor(cb: IntersectionObserverCallback) {
+          callback = cb;
+        }
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+        takeRecords() {
+          return [];
+        }
+      }
+      vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
+      renderJumpList();
+    }
+
+    const entry = (id: string, isIntersecting: boolean) =>
+      ({ isIntersecting, target: cards[id] }) as unknown as IntersectionObserverEntry;
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    it("keeps the upper Stop active while a lower one is the only one reported", () => {
+      setup();
+      act(() => callback([entry("s1", true), entry("s2", true)], {} as IntersectionObserver));
+      act(() => callback([entry("s2", true)], {} as IntersectionObserver));
+      const nav = screen.getByRole("navigation", { name: "Jump to" });
+      expect(within(nav).getByText("Rome").closest("button")).toHaveAttribute("aria-current", "location");
+      expect(within(nav).getByText("Florence").closest("button")).not.toHaveAttribute("aria-current");
+    });
+
+    it("marks the last Stop active once the page is scrolled to its end", () => {
+      setup();
+      act(() => callback([entry("s1", true)], {} as IntersectionObserver));
+      vi.spyOn(document.documentElement, "scrollHeight", "get").mockReturnValue(2000);
+      vi.stubGlobal("innerHeight", 800);
+      vi.stubGlobal("scrollY", 1200);
+      act(() => {
+        window.dispatchEvent(new Event("scroll"));
+      });
+      const nav = screen.getByRole("navigation", { name: "Jump to" });
+      expect(within(nav).getByText("Somewhere rough").closest("button")).toHaveAttribute("aria-current", "location");
+      expect(within(nav).getByText("Rome").closest("button")).not.toHaveAttribute("aria-current");
+    });
+  });
+
   it("clicking a Stop row jumps to and rings its card (desktop, reduced motion settles synchronously)", async () => {
     setMatchMedia(() => true);
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;

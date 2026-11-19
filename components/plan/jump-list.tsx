@@ -92,20 +92,40 @@ export function JumpList({ stops, chapters, homeBase }: JumpListProps) {
     const elements = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-id]"));
     if (elements.length === 0) return;
 
+    const visible = new Set<HTMLElement>();
+    const atEnd = () => {
+      const { scrollHeight } = document.documentElement;
+      return scrollHeight > window.innerHeight && window.innerHeight + window.scrollY >= scrollHeight - 2;
+    };
+    const activate = () => {
+      let id: string | null | undefined;
+      if (atEnd()) {
+        id = elements[elements.length - 1].getAttribute("data-stop-id");
+      } else if (visible.size > 0) {
+        const topmost = [...visible].reduce((a, b) =>
+          a.getBoundingClientRect().top <= b.getBoundingClientRect().top ? a : b,
+        );
+        id = topmost.getAttribute("data-stop-id");
+      }
+      if (id) setActiveStopId(id);
+    };
+
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting);
-        if (visible.length === 0) return;
-        const topmost = visible.reduce((a, b) =>
-          a.boundingClientRect.top <= b.boundingClientRect.top ? a : b,
-        );
-        const id = topmost.target.getAttribute("data-stop-id");
-        if (id) setActiveStopId(id);
+        for (const e of entries) {
+          if (e.isIntersecting) visible.add(e.target as HTMLElement);
+          else visible.delete(e.target as HTMLElement);
+        }
+        activate();
       },
       { rootMargin: "0px 0px -70% 0px", threshold: 0 },
     );
     elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    window.addEventListener("scroll", activate, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", activate);
+    };
   }, [stops]);
 
   const rows = buildRows(stops, chapters);
