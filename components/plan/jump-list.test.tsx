@@ -140,6 +140,7 @@ describe("JumpList", () => {
       ({ isIntersecting, target: cards[id] }) as unknown as IntersectionObserverEntry;
 
     afterEach(() => {
+      Object.values(cards).forEach((c) => c.remove());
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
     });

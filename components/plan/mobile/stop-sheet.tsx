@@ -163,7 +163,7 @@ export function StopSheet({
                   max={366}
                   unit="n"
                   label={`Nights in ${stop.name}`}
-                  className="mt-2"
+                  className="mt-2 flex w-fit"
                 />
               )}
             </div>
