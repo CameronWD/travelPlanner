@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
 import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { RangeCalendar } from "@/components/ui/range-calendar";
@@ -217,6 +217,11 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
       <FormError>{Object.values(errors).flat()[0]}</FormError>
 
       <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline" className="max-sm:hidden">
+            Cancel
+          </Button>
+        </DialogClose>
         <Button type="submit" variant="primary" size="lg" disabled={!canSubmit} loading={pending}>
           Add {name || "a stop"}
         </Button>

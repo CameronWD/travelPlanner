@@ -102,6 +102,18 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(createStop).not.toHaveBeenCalled();
   });
 
+  it("has a Cancel before the submit button that is hidden on a phone, and it closes without creating", async () => {
+    const onOpenChange = vi.fn();
+    render(<AddStopSheet {...base} onOpenChange={onOpenChange} />);
+    const cancel = screen.getByRole("button", { name: "Cancel", hidden: true });
+    expect(cancel).toHaveClass("max-sm:hidden");
+    const submit = screen.getByRole("button", { name: /^Add a stop$/ });
+    expect(cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(cancel);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(createStop).not.toHaveBeenCalled();
+  });
+
   it("ranks results near the route's centre", () => {
     render(<AddStopSheet {...base} />);
     expect(comboCapture.props!.rankNear).toEqual({ lat: (48.85 + 41.9) / 2, lng: (2.35 + 12.5) / 2 });
