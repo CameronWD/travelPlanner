@@ -227,7 +227,7 @@ describe("flushing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/usage");
-    expect(init).toMatchObject({ method: "POST", keepalive: true, headers: { "content-type": "application/json" } });
+    expect(init).toMatchObject({ method: "POST", keepalive: true, referrerPolicy: "no-referrer", headers: { "content-type": "application/json" } });
     expect(sentBatch()).toHaveLength(100);
     expect(stored()!.r).toHaveLength(50);
   });
@@ -645,7 +645,7 @@ describe("sendUsageOnce", () => {
     setUsageTrip(TRIP);
     sendUsageOnce("share-link-opened");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", keepalive: true });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", keepalive: true, referrerPolicy: "no-referrer" });
     expect(sentBatch()).toEqual([{ action: "share-link-opened", at: NOW.getTime(), mode: "desktop" }]);
     expect(stored()!.r).toEqual([]);
   });

@@ -251,6 +251,9 @@ function flush(): void {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ records: batch }),
         keepalive: true,
+        // The Referer would carry the page's address (a Trip's slug and day, a
+        // share token) into request logs; Usage never sends a URL.
+        referrerPolicy: "no-referrer",
         signal: controller?.signal,
       });
     } catch (err) {
@@ -423,6 +426,7 @@ export function sendUsageOnce(action: "share-link-opened"): void {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ records: [record] }),
       keepalive: true,
+      referrerPolicy: "no-referrer",
     }).catch(() => {});
   } catch {}
 }
