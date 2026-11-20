@@ -53,6 +53,13 @@ describe("DayMapButton", () => {
     expect(names).toEqual(["1Castle", "2Pastel de nata", "Hotel"]);
   });
 
+  it("pads the places list so the first row's focus ring is not clipped", async () => {
+    setMatchMedia(wide);
+    render(<DayMapButton tripId="t1" model={model} size="desktop" />);
+    await userEvent.click(screen.getByRole("button", { name: "Day map" }));
+    expect(await screen.findByRole("list", { name: "Today's places" })).toHaveClass("p-1.5");
+  });
+
   it("clicking a place in the list highlights its pin", async () => {
     setMatchMedia(wide);
     render(<DayMapButton tripId="t1" model={model} size="desktop" />);

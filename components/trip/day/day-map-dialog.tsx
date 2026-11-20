@@ -63,7 +63,7 @@ export function DayMapDialog({
           <div className="flex min-h-0 flex-1 flex-col">
             <DayMapLoader tripId={tripId} model={model} highlightId={highlightId} fill />
           </div>
-          <ol aria-label="Today's places" className="hidden w-72 shrink-0 flex-col gap-1.5 overflow-y-auto lg:flex">
+          <ol aria-label="Today's places" className="hidden w-72 shrink-0 flex-col gap-1.5 overflow-y-auto p-1.5 lg:flex">
             {model.points.map((point) => (
               <li key={`${point.kind}:${point.id}`}>
                 <button
