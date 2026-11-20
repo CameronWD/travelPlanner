@@ -241,7 +241,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
               transitionTypes={[inView ? dayTransitionType(inView, d.iso) : DAY_FORWARD]}
               // The carousel brings any day into view: a glide below lg, a crossfade from lg.
               onNavigate={(e) => {
-                if (d.iso !== inView) recordUsageDayChange("chip", d.iso);
+                if (d.iso !== inView && !carousel?.isMoving()) recordUsageDayChange("chip", d.iso);
                 if (carousel?.goTo(href)) e.preventDefault();
               }}
               className={cn(

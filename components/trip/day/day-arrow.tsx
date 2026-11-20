@@ -39,7 +39,7 @@ export function DayArrow({ href, label, dir }: { href: Route | null; label: stri
       // Lit the moment it is tapped: the page holds until the next day is ready (ADR 0063).
       pendingClassName="translate-y-px bg-coral shadow-none"
       onNavigate={(e) => {
-        recordUsageDayChange("arrow", dayFromPathname(href));
+        if (!carousel?.isMoving()) recordUsageDayChange("arrow", dayFromPathname(href));
         if (carousel?.goTo(href)) e.preventDefault();
       }}
     >
