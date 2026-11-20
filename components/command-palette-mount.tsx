@@ -38,7 +38,7 @@ export function CommandPaletteMount() {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        recordUsageAction("search-opened");
+        if (!e.repeat) recordUsageAction("search-opened");
         if (!focusSearchField()) setOpen(true);
       }
     }

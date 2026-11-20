@@ -147,3 +147,21 @@ describe("CommandPaletteMount records search", () => {
     expect(recordUsageAction).not.toHaveBeenCalled();
   });
 });
+
+describe("CommandPaletteMount held shortcut", () => {
+  it("records search-opened once for a held Ctrl+K, and still opens", () => {
+    vi.mocked(recordUsageAction).mockClear();
+    render(
+      <ShellUserProvider value={shell}>
+        <CommandPaletteMount />
+      </ShellUserProvider>,
+    );
+    act(() => {
+      for (const repeat of [false, true, true]) {
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, repeat, cancelable: true }));
+      }
+    });
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox", { name: /command search/i })).toBeInTheDocument();
+  });
+});
