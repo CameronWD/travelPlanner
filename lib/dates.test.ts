@@ -326,6 +326,14 @@ describe("tzAbbrev", () => {
     // Brisbane has no DST → AEST year-round.
     expect(tzAbbrev("Australia/Brisbane", "2026-07-01")).toBe("AEST");
   });
+  it("names a zero-offset zone GMT however the runtime spells it", () => {
+    expect(tzAbbrev("Europe/Lisbon", "2026-01-10")).toBe("GMT");
+    expect(tzAbbrev("Europe/London", "2026-01-10")).toBe("GMT");
+  });
+  it("leaves a non-zero zone as the runtime spells it", () => {
+    expect(tzAbbrev("Europe/Paris", "2026-01-10")).toBe("GMT+1");
+    expect(tzAbbrev("Australia/Brisbane", "2026-01-10")).toBe("AEST");
+  });
   it("returns null for a missing or invalid zone", () => {
     expect(tzAbbrev(null, "2026-07-01")).toBeNull();
     expect(tzAbbrev("Not/AZone", "2026-07-01")).toBeNull();
