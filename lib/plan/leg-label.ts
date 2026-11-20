@@ -41,6 +41,30 @@ export function placeCode(place: string): string {
   return /\b([A-Z]{3})\b/.exec(place)?.[1] ?? place;
 }
 
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const withoutRegion = (place: string, region: string) => {
+  const m = /^(.*\S)\s*\(([^()]+)\)$/.exec(place.trim());
+  return m && same(m[2], region) ? m[1] : place;
+};
+
+function sameRegion(a: string, b: string): [string, string] | string {
+  if (same(a, b)) return a.trim();
+  const [x, y] = [withoutRegion(a, b), withoutRegion(b, a)];
+  if (same(x, y)) return x.trim();
+  if (x !== a || y !== b) return [x, y];
+  const [pa, pb] = [a.split(",").map((p) => p.trim()), b.split(",").map((p) => p.trim())];
+  let shared = 0;
+  while (
+    shared < Math.min(pa.length, pb.length) - 1 &&
+    same(pa[pa.length - 1 - shared], pb[pb.length - 1 - shared])
+  ) {
+    shared++;
+  }
+  if (shared === 0) return [a, b];
+  const [ta, tb] = [pa.slice(0, pa.length - shared).join(", "), pb.slice(0, pb.length - shared).join(", ")];
+  return same(ta, tb) ? ta : [ta, tb];
+}
+
 export function legLabel(
   t: LegTransport,
   stops: readonly LegStop[],
@@ -62,7 +86,10 @@ export function legLabel(
   let sub = "";
   let spoken = "";
   if (t.depAt) {
-    if (fromShort && toShort) label = `${word} ${fromShort} → ${toShort}`;
+    if (fromShort && toShort) {
+      const ends = sameRegion(fromShort, toShort);
+      label = typeof ends === "string" ? `${word} in ${ends}` : `${word} ${ends[0]} → ${ends[1]}`;
+    }
     const { dep } = transportTimeDisplay({
       depAt: t.depAt,
       arrAt: t.arrAt ?? null,
@@ -87,7 +114,11 @@ export function legLabel(
     }
   }
 
-  const route = fromName && toName ? ` from ${fromName} to ${toName}` : "";
+  let route = "";
+  if (fromName && toName) {
+    const ends = sameRegion(fromName, toName);
+    route = typeof ends === "string" ? ` in ${ends}` : ` from ${ends[0]} to ${ends[1]}`;
+  }
   return {
     icon: meta.icon,
     label,
