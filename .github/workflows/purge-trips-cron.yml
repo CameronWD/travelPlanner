@@ -2,7 +2,8 @@ name: Purge trips cron
 
 # Hard-deletes Trips that have sat in Recently deleted past their 30-day
 # Restore window (ADR 0067), scheduling their cover and Attachment blobs for
-# the retention sweep first (lib/trip-purge.ts). Auth, skip-when-unconfigured
+# the retention sweep first (lib/trip-purge.ts). The same run deletes Usage
+# records older than 180 days (lib/usage/purge.ts). Auth, skip-when-unconfigured
 # and failing loudly on any non-2xx all mirror digest-cron.yml — see docs/DEPLOY.md §5.
 # A cold start is retried twice (curl --retry 2, 20 s apart) before the job fails.
 
