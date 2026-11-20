@@ -38,7 +38,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
 
   return (
     <Card data-slot="activity-card" className="p-3.5 sm:p-[22px]">
-      <ul className="flex max-w-3xl flex-col">
+      <ul className="flex flex-col">
         {activities.map((activity) => {
           const actorName = travellerName(activity.actor);
 
@@ -74,6 +74,10 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
 
           const when = relativeTime(activity.createdAt);
           const via = viaLabel(activity.source);
+          const timeProps = {
+            dateTime: activity.createdAt.toISOString(),
+            title: activity.createdAt.toLocaleString(),
+          };
 
           const sub =
             changes.length > 0 || noteExcerpt ? (
@@ -110,16 +114,15 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                         <span className="text-muted-foreground">{via}</span>
                       </>
                     )}
+                    <time {...timeProps} className="ml-2 hidden whitespace-nowrap text-xs font-semibold text-muted-foreground md:inline">
+                      {when}
+                    </time>
                     <span className="sr-only">, {when}</span>
                   </>
                 }
                 sub={sub}
                 trailing={
-                  <time
-                    dateTime={activity.createdAt.toISOString()}
-                    title={activity.createdAt.toLocaleString()}
-                    className="text-xs font-semibold"
-                  >
+                  <time {...timeProps} className="text-xs font-semibold md:hidden">
                     {when}
                   </time>
                 }

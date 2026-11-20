@@ -223,8 +223,15 @@ describe("ActivityFeed — Playground kit shape (Task 13)", () => {
     expect(card.className).not.toMatch(/\bmax-w-/);
   });
 
-  it("caps the list at a comfortable reading width on desktop (A1)", () => {
+  it("on desktop the time sits inline after the sentence, not in a far-right column (A1)", () => {
     const { container } = render(<ActivityFeed activities={[CREATED_ACTIVITY]} />);
-    expect(container.querySelector("ul")!.className).toMatch(/\bmax-w-3xl\b/);
+    expect(container.querySelector("ul")!.className).not.toMatch(/\bmax-w-/);
+    const [inline, trailing] = Array.from(container.querySelectorAll("time"));
+    expect(inline.className).toMatch(/\bhidden\b/);
+    expect(inline.className).toMatch(/\bmd:inline\b/);
+    expect(inline.className).toMatch(/\bwhitespace-nowrap\b/);
+    expect(inline.closest("[data-slot='list-row']")).toBeTruthy();
+    expect(inline.parentElement!.textContent).toContain("added the Rome stop");
+    expect(trailing.className).toMatch(/\bmd:hidden\b/);
   });
 });
