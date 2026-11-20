@@ -41,6 +41,7 @@ import { shareTraveller } from "@/lib/share/share-traveller";
 import { shareHrefs, shareRefParam } from "@/lib/share/ref";
 import { stopDotClass } from "@/lib/stop-colours";
 import type { SketchStop } from "@/lib/trips/route-sketch";
+import { UsageShareOpened } from "@/components/usage/usage-share-opened";
 import { ShareTopBar } from "./share-top-bar";
 import { ShareHero } from "./share-hero";
 import { RightNowCard, NextRow, type RightNowPlace } from "./right-now-card";
@@ -649,6 +650,7 @@ export default async function SharePage({
         <style>{".tp-reveal{opacity:1}"}</style>
       </noscript>
       <ShareTopBar requestAccessHref={hrefs.requestAccess} />
+      <UsageShareOpened />
       <main className="mx-auto w-full max-w-page-wide overflow-x-clip px-4 pb-5 pt-2 sm:px-6 lg:px-12 lg:pt-8">
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-6">
           {sections.map((key, i) => (
