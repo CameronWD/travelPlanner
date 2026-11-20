@@ -9,6 +9,8 @@ import { LG_UP } from "@/components/ui/use-media-query";
 import { DayCarousel, DayChromeRegistryContext, SETTLE_QUIET_MS, useDayCarousel, useIsDayInView, type DayCarouselApi, type DayPanel } from "@/components/trip/day/day-carousel";
 import { DAY_BODY_TRANSITION_WIDE } from "@/components/trip/day/day-transition";
 
+const usage = vi.hoisted(() => ({ recordUsageSwipe: vi.fn() }));
+vi.mock("@/lib/usage/client", () => usage);
 const push = vi.fn();
 const prefetch = vi.fn();
 // One router object, as Next's useRouter() returns across renders (use-app-router.test.tsx).
@@ -371,6 +373,37 @@ describe("DayCarousel", () => {
     expect(heading()).toBe(`fallback ${WEEK[6]}`);
     expect(push.mock.calls).toEqual([[href(WEEK[6]), { scroll: false }]]);
     expect(pendingPath).toBeNull();
+  });
+
+  it("a settled drag onto another day records one swipe with the day it settled on and the day it left", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    usage.recordUsageSwipe.mockClear();
+    const { scroller } = mount();
+    dragTo(scroller, 4);
+    expect(usage.recordUsageSwipe.mock.calls).toEqual([["2026-12-13", WEEK[SHOWN]]]);
+  });
+
+  it("a glide settling under goTo hands the recorder no day, so nothing is recorded as a swipe", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
+    usage.recordUsageSwipe.mockClear();
+    const { scroller } = mount();
+    act(() => { api!.goTo(href("2026-12-13")); });
+    act(() => { vi.advanceTimersByTime(200); });
+    scroller.scrollLeft = 4 * WIDTH;
+    act(() => { fireEvent(scroller, new Event("scrollend")); });
+    expect(usage.recordUsageSwipe).toHaveBeenCalled();
+    expect(usage.recordUsageSwipe.mock.calls.every(([settled]) => settled === null)).toBe(true);
+  });
+
+  it("a drag that settles back on the day in view is handed to the recorder as no change", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    usage.recordUsageSwipe.mockClear();
+    const { scroller } = mount();
+    scroller.scrollLeft = SHOWN * WIDTH + WIDTH * 0.4;
+    fireEvent.scroll(scroller);
+    dragTo(scroller, SHOWN);
+    expect(usage.recordUsageSwipe.mock.calls).toEqual([[WEEK[SHOWN], WEEK[SHOWN]]]);
   });
 
   it("goTo a day that is not a Trip day is false", () => {

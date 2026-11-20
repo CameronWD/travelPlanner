@@ -36,6 +36,9 @@ export const metadata: Metadata = {
  *     step (Anthropic — env-gated on ANTHROPIC_API_KEY, off unless the Admin
  *     sets it, flippable without a code change — so this page describes the
  *     mechanism, not a snapshot of whether it happens to be on today)
+ *   - lib/usage/lists.ts, lib/usage/validate.ts, lib/usage/rows.ts,
+ *     app/api/usage/route.ts, lib/usage/purge.ts (Usage: what a record can
+ *     hold, who reads it, 180 days)
  *   - vercel.json (the migration only runs when VERCEL_ENV=production)
  *   - lib/admin-notify.ts, lib/admin.ts (Admin push needs ADMIN_EMAILS set
  *     and only fires on a new error signature, never a repeat)
@@ -152,6 +155,14 @@ export default function PrivacyPage() {
             device, if they have one registered. A repeat of the same
             failure only bumps a count and is never pushed again. A failure
             reported by a browser is never pushed this way at all.
+          </li>
+          <li>
+            <span className="font-bold">
+              Usage.
+            </span>{" "}
+            Which screens you open and a short list of things you do, tied to
+            your account. What it holds, and what it never holds, is under
+            “Analytics, advertising and trackers” below.
           </li>
           <li>
             <span className="font-bold">
@@ -280,8 +291,8 @@ export default function PrivacyPage() {
             backup (see “How long it is kept” below) is uploaded to
             GitHub as a GitHub Actions build artifact and stored there for
             up to 30 days. It is a complete copy of the database, with every
-            trip, note, email address, access request and error report in
-            it. Who can download a GitHub Actions artifact is exactly who
+            trip, note, email address, access request, error report and Usage
+            record in it. Who can download a GitHub Actions artifact is exactly who
             can read the repository it belongs to. That setting lives on
             GitHub, not in Teepee, and I can tell you what it is today.
           </li>
@@ -322,10 +333,42 @@ export default function PrivacyPage() {
         </p>
         <p>
           A trip’s id in an address like <code>/trips/…</code> is left
-          in the analytics on purpose, so usage can be broken down per
+          in the analytics on purpose, so page views can be broken down per
           trip. A trip id is useless to anyone without an account on that
-          trip. Beyond those page views and page timings, there is no other
-          analytics.
+          trip. Beyond those page views and page timings, and Teepee’s own
+          Usage record below, there is no other analytics.
+        </p>
+        <p>
+          Teepee also keeps its own record of how it is used, which I call{" "}
+          <span className="font-bold">Usage</span>. While you are signed in,
+          it notes each time you open one of its screens (your trips, a
+          trip’s Plan, the Day view and so on) and a short, fixed list of
+          things you do there, such as changing day, opening the Day map,
+          tapping Directions or opening a ticket. Each record is tied to
+          your account and, when the screen belongs to a trip, to that trip
+          and the stage it was at (sketching, planning, final prep,
+          travelling or past). It also says when it happened, whether it
+          came from the main Teepee site or the beta, whether you were in
+          the installed app, a phone browser or on a computer, how quickly the screen appeared and whether it came from
+          the copy saved on your device. On the Day view it also says how
+          many days from today the day you opened was, unless a surprise on
+          that trip is being kept from you. It never holds anything you
+          typed, the name of anything in a trip, a place, an amount, a file
+          name or a page address. Nothing is recorded while you are signed
+          out, and on a public page nothing at all, except that opening a
+          trip’s share link while you are signed in is noted, with no trip
+          attached. Inside Teepee, only an Admin can see Usage, and only as
+          counts, never record by record. I, as the person who runs Teepee,
+          can read the records in the database like everything else there,
+          and I have a script that sums them up. Usage is stored with the
+          same database host as your trips and is included in the same
+          nightly backups (see “How long it is kept” below). It is not sent
+          to any analytics or advertising company, and it is not used for
+          anything but seeing how Teepee is used. It uses no cookies beyond
+          the one that keeps you signed in. Until they are sent, records wait
+          in your browser’s local storage with your account’s id: they are
+          sent within about half a minute when you are online and later if
+          you were offline, at most 500 are kept, and signing out clears them.
         </p>
       </LegalSection>
 
@@ -358,6 +401,18 @@ export default function PrivacyPage() {
             once it is understood, and approve or dismiss an access request.
             Until then, both sit in the database (and so in the nightly
             backups above) like everything else.
+          </li>
+          <li>
+            <span className="font-bold">
+              Usage records
+            </span>{" "}
+            are deleted 180 days after Teepee received them, by a job that
+            runs every night. A record made while your device had no
+            connection is counted from when it arrived. A deleted record can
+            remain in a backup taken before it was deleted, until that backup
+            itself expires. Deleting a trip or your account does not remove
+            its Usage records straight away: they stay, pointing at a trip or
+            an account that no longer exists, until their 180 days are up.
           </li>
         </ul>
       </LegalSection>

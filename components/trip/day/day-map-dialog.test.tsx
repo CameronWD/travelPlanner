@@ -10,6 +10,9 @@ vi.mock("@/components/trip/day-map", () => ({
   ),
 }));
 
+const usage = vi.hoisted(() => ({ recordUsageAction: vi.fn() }));
+vi.mock("@/lib/usage/client", () => usage);
+
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 
@@ -51,6 +54,20 @@ describe("DayMapButton", () => {
     expect(await screen.findByTestId("day-map")).toHaveAttribute("data-fill", "true");
     const names = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(names).toEqual(["1Castle", "2Pastel de nata", "Hotel"]);
+  });
+
+  it("records one Day map opening per tap, and none when ?map=1 opens it", async () => {
+    setMatchMedia(wide);
+    usage.recordUsageAction.mockClear();
+    window.history.replaceState(null, "", "/?map=1");
+    const { unmount } = render(<DayMapButton tripId="t1" model={model} size="desktop" />);
+    expect(await screen.findByRole("dialog", { name: "Day map" })).toBeInTheDocument();
+    expect(usage.recordUsageAction).not.toHaveBeenCalled();
+    unmount();
+    window.history.replaceState(null, "", "/");
+    render(<DayMapButton tripId="t1" model={model} size="desktop" />);
+    await userEvent.click(screen.getByRole("button", { name: "Day map" }));
+    expect(usage.recordUsageAction.mock.calls).toEqual([["day-map-opened"]]);
   });
 
   it("pads the places list so the first row's focus ring is not clipped", async () => {

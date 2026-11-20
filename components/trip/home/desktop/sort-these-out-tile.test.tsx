@@ -7,6 +7,8 @@ const { updateReminder } = vi.hoisted(() => ({ updateReminder: vi.fn().mockResol
 vi.mock("@/server/actions/reminders", () => ({ updateReminder }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 import { SortTheseOutTile } from "./sort-these-out-tile";
 import { ALL_SORTED_ROW, type SortRow } from "@/lib/sort-these-out";
@@ -85,5 +87,21 @@ describe("SortTheseOutTile", () => {
     await waitFor(() => expect(updateReminder).toHaveBeenCalledWith("r1", { dismissed: false }));
     rerender(<SortTheseOutTile rows={ROWS} total={2} seeAllHref={"/s" as Route} />);
     expect(await screen.findByRole("link", { name: /Print insurance/ })).toBeInTheDocument();
+  });
+});
+
+describe("SortTheseOutTile records Got it", () => {
+  it("records reminder-got-it once on Got it, and nothing more on Undo", async () => {
+    vi.mocked(recordUsageAction).mockClear();
+    vi.mocked(toast).mockClear();
+    render(<SortTheseOutTile rows={ROWS} total={2} seeAllHref={"/s" as Route} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it/ }));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("reminder-got-it");
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    const undo = (vi.mocked(toast).mock.calls.at(-1)![0].action as React.ReactElement<{ onClick: () => void }>).props.onClick;
+    undo();
+    await waitFor(() => expect(updateReminder).toHaveBeenCalledWith("r1", { dismissed: false }));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
   });
 });

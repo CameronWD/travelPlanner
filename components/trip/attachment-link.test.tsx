@@ -4,6 +4,8 @@ import { render, screen } from "@testing-library/react";
 vi.mock("@/lib/standalone", () => ({ isStandalone: vi.fn() }));
 
 import { isStandalone } from "@/lib/standalone";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 import { AttachmentLink } from "./attachment-link";
 
 const mockIsStandalone = isStandalone as unknown as ReturnType<typeof vi.fn>;
@@ -152,5 +154,40 @@ describe("AttachmentLink", () => {
     expect(window.open).toHaveBeenCalledWith("/api/attachments/a1", "_blank");
     expect(window.location.href).toBe("/api/attachments/a1");
     expect(prevented).toBe(true);
+  });
+});
+
+describe("AttachmentLink records the open", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("open", vi.fn().mockReturnValue({} as Window));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("a plain click records attachment-opened once", () => {
+    mockIsStandalone.mockReturnValue(false);
+    render(
+      <AttachmentLink href="/api/attachments/a1" mime="application/pdf" label="View ticket.pdf">
+        ticket.pdf
+      </AttachmentLink>,
+    );
+    clickAndCapture(screen.getByRole("link", { name: "View ticket.pdf" }));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("attachment-opened");
+  });
+
+  it("a command-click records it too", () => {
+    mockIsStandalone.mockReturnValue(false);
+    render(
+      <AttachmentLink href="/api/attachments/a1" mime="application/pdf" label="View ticket.pdf">
+        ticket.pdf
+      </AttachmentLink>,
+    );
+    clickAndCapture(screen.getByRole("link", { name: "View ticket.pdf" }), { metaKey: true });
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("attachment-opened");
   });
 });

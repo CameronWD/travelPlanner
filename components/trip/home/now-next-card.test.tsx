@@ -1,8 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { Route } from "next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NowNextCard } from "./now-next-card";
 import type { NowNext } from "@/lib/now-next";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 const props = { tripId: "t1", dayMapHref: "/trips/x/day/2026-12-19?map=1" as Route };
 
@@ -171,5 +173,27 @@ describe("NowNextCard", () => {
     };
     render(<NowNextCard nowNext={nowNext} {...props} />);
     expect(screen.getByText(/· Paris to London$/)).toBeInTheDocument();
+  });
+});
+
+describe("NowNextCard Directions is recorded", () => {
+  it("tapping Directions records directions-tapped and keeps its link attributes", () => {
+    vi.mocked(recordUsageAction).mockClear();
+    const nowNext: NowNext = {
+      kind: "next-thing",
+      target: { type: "item", id: "i1" },
+      title: "Louvre",
+      startsAt: "2026-12-19T09:00:00.000Z",
+      zone: "Europe/Paris",
+      place: { lat: 48.86, lng: 2.34 },
+      address: null,
+    };
+    render(<NowNextCard nowNext={nowNext} {...props} />);
+    const directions = screen.getByRole("link", { name: /Directions/ });
+    expect(directions).toHaveAttribute("target", "_blank");
+    expect(directions).toHaveAttribute("rel", "noopener noreferrer");
+    fireEvent.click(directions);
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("directions-tapped");
   });
 });

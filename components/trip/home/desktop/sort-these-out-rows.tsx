@@ -10,6 +10,7 @@ import { ROW_NAME_CLASS } from "@/components/ui/row-text";
 import { Button } from "@/components/ui/button";
 import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { updateReminder } from "@/server/actions/reminders";
+import { recordUsageAction } from "@/lib/usage/client";
 import { ICONS, TONES } from "@/components/trip/home/desktop/sort-row-style";
 
 function RowBody({ row }: { row: SortRow }) {
@@ -90,7 +91,10 @@ export function SortTheseOutRows({ rows, total }: { rows: SortRow[]; total: numb
                   variant="outline"
                   size="sm"
                   className="shrink-0"
-                  onClick={() => void gotIt.run({ reminderId: row.reminderId!, title: row.title })}
+                  onClick={() => {
+                    recordUsageAction("reminder-got-it");
+                    void gotIt.run({ reminderId: row.reminderId!, title: row.title });
+                  }}
                 >
                   Got it
                   <span className="sr-only">: {row.title}</span>

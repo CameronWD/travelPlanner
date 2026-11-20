@@ -27,6 +27,7 @@ import { OfflineWarmer } from "@/components/offline-warmer";
 import { SavedCopyLine } from "@/components/trip/saved-copy-line";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
+import { UsageTrip } from "@/components/usage/usage-trip";
 import { readTripShell, readUnreadActivityCount, readRecentActivity, readForks } from "@/lib/trip-shell-reads";
 import { computeTripPhase, showForkSwitcher } from "@/lib/trip-phase";
 import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
@@ -237,6 +238,7 @@ export default async function TripLayout({
               <ShareChooserMount tripId={tripId} />
               <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
               <RememberLastTrip tripId={tripId} />
+              <UsageTrip tripId={tripId} startDate={trip.startDate} endDate={trip.endDate} zone={tripZone} />
               <SectionTransition>{children}</SectionTransition>
             </div>
           </div>

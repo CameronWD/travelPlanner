@@ -32,7 +32,7 @@ describe("OVERLAYS", () => {
 
   it("has unique ids", () => expect(new Set(OVERLAYS.map((o) => o.id)).size).toBe(OVERLAYS.length));
   // A changed count is a prompt to re-read the list, not a contract.
-  it("covers the 45 recipes last walked against the app", () => expect(OVERLAYS).toHaveLength(45));
+  it("covers the 46 recipes last walked against the app", () => expect(OVERLAYS).toHaveLength(46));
   it("drops the recipes whose surface is gone: What-if plans (hidden) and the trips list's Trip actions", () => {
     const ids = OVERLAYS.map((o) => o.id);
     for (const gone of ["fork-switcher", "new-variant", "promote-fork", "trip-actions"]) expect(ids).not.toContain(gone);
@@ -101,6 +101,14 @@ describe("command-palette recipe", () => {
   });
   it("is phone-only: from 1280px the sidebar's inline search field replaces the dialog", () =>
     expect(recipe().only).toBe("phone"));
+});
+
+describe("day add recipes", () => {
+  const byId = (id: string) => OVERLAYS.find((o) => o.id === id)!;
+  it("expects a menu on desktop and a sheet (dialog) on phones", () => {
+    expect(byId("day-add-menu")).toMatchObject({ only: "desktop", expect: { role: "menu" } });
+    expect(byId("day-add-sheet-phone")).toMatchObject({ only: "phone", expect: { role: "dialog" } });
+  });
 });
 
 describe("openOverlay", () => {

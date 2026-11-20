@@ -2,6 +2,7 @@ import { signInRedirect } from "@/lib/auth/sign-in-redirect";
 import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { reconcilePendingInvites } from "@/lib/reconcile-invites";
+import { UsageRecorder } from "@/components/usage/usage-recorder";
 
 /**
  * Focus shell (spec C6, NEW_TRIP.md §1): signed-in pages with no rail, tab
@@ -19,6 +20,7 @@ export default async function FocusLayout({ children }: { children: React.ReactN
 
   return (
     <div data-focus-shell className="min-h-dvh bg-background">
+      <UsageRecorder userId={session.user.id} />
       {children}
     </div>
   );

@@ -9,6 +9,8 @@ import { centredScrollLeft, STRIP_CHIP_GAP_PX } from "@/components/trip/day/stri
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate, transitionTypes, scroll, ...rest }: any) => <a href={href} data-transition={Array.isArray(transitionTypes) ? transitionTypes.join(" ") : undefined} data-scroll={String(scroll)} onClick={(e) => { e.preventDefault(); onNavigate?.({ preventDefault() {} }); }} {...rest}>{children}</a> }));
+const usage = vi.hoisted(() => ({ recordUsageDayChange: vi.fn() }));
+vi.mock("@/lib/usage/client", () => usage);
 const push = vi.fn();
 const router = { push, prefetch: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn() };
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => null, useSearchParams: () => new URLSearchParams() }));
@@ -199,6 +201,25 @@ describe("DayStrip", () => {
     fireEvent.click(links[4]);
     expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-13");
     expect(links[4]).not.toHaveAttribute("data-pending");
+  });
+  it("a chip tap records a chip day change for that day, and tapping the day in view records nothing", () => {
+    usage.recordUsageDayChange.mockClear();
+    const api = fakeCarousel({ goTo: () => true });
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[4]);
+    fireEvent.click(links[3]);
+    expect(usage.recordUsageDayChange.mock.calls).toEqual([["chip", "2026-12-13"]]);
+  });
+  it("a second chip tap during the glide records nothing", () => {
+    usage.recordUsageDayChange.mockClear();
+    let moving = false;
+    const api = fakeCarousel({ goTo: () => { moving = true; return true; }, isMoving: () => moving });
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[4]);
+    fireEvent.click(links[4]);
+    expect(usage.recordUsageDayChange.mock.calls).toEqual([["chip", "2026-12-13"]]);
   });
   it("a later mount glides from where the strip was, with snapping off until it arrives", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] });

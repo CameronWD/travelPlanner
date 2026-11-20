@@ -776,6 +776,35 @@ until production has migrated.
 `migrate deploy`), and only then push `beta`.** Do not push `main` and `beta`
 together, and do not let a preview of this branch run before `main` has deployed.
 
+## 4l. 2026-11-20 Usage (`feat/usage`) — deploy order
+
+This branch carries one migration:
+
+- `prisma/migrations/20261124120000_usage` — adds two new tables, `UsageRecord` and
+  `UsageSwitch`, with CHECK constraints that hold every name to the lists in
+  `lib/usage/lists.ts`.
+
+Applying it under the old build is safe: the tables are new, so the code already
+running never touches them. The reverse is the risk. Beta and previews share the
+production database (§4d) and do not run migrations, so new code on either before
+production has migrated gets a 503 from `/api/usage` (browsers back off from it and
+Travellers see nothing), and the Admin page's Usage section says it couldn’t be read.
+
+**Deploy `main` first, confirm the production build log shows `migrate deploy` applying
+`20261124120000_usage`, confirm the site is live, and only then push `beta`.** Never push
+`feat/usage` itself first: its preview runs against the shared database.
+
+Then check on the live site:
+
+1. `/admin` shows Usage with Recording on.
+2. After a minute of browsing a Trip, the total has grown.
+3. Turn recording off from the Usage section on `/admin`, wait a minute (servers catch up
+   within 30 seconds), note the total, browse for a minute, and the total does not move. Turn it back on; each device picks that up at its next page
+   load. Nothing needs a deploy to switch it either way.
+
+Usage records older than 180 days are deleted by the nightly `purge-trips` job (§5); a
+failure in that step is reported but does not fail the job.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:

@@ -166,6 +166,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "setWhatsAroundEnabled",
     "updateTrip",
   ],
+  "usage.ts": ["listUsageOverview", "readUsageTrip", "setUsageRecording"],
   "venue-details.ts": ["venueDetailsForPick"],
   "votes.ts": ["clearVote", "setVote"],
   "welcome.ts": ["markWelcomeSeen"],

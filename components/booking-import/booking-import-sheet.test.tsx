@@ -23,6 +23,8 @@ vi.mock("@/server/actions/item-photo", () => ({ setItemPhoto: vi.fn(), removeIte
 vi.mock("@/server/actions/stops", () => ({ createStop: vi.fn(), updateStop: vi.fn() }));
 
 import { BookingImportSheet } from "./booking-import-sheet";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 const BASE: Omit<ProposalBase, "clientId"> = { confidence: "high", doubleCheck: [], warnings: [], highlight: [], missing: [], duplicateOf: null, blocked: null };
 const RESULT: BookingImportResult = {
@@ -345,5 +347,23 @@ describe("BookingImportSheet", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(within(screen.getByTestId("proposal-p2")).getByText("Casa do Rio Lisboa")).toBeInTheDocument());
     expect(within(screen.getByTestId("proposal-p2")).queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("BookingImportSheet records the start", () => {
+  it("records booking-import-started once when Read booking sends the text", async () => {
+    open();
+    expect(recordUsageAction).not.toHaveBeenCalled();
+    await pasteAndRead();
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("booking-import-started");
+    expect(m.importBooking).toHaveBeenCalledTimes(1);
+  });
+
+  it("a file refused before it is sent is not counted", async () => {
+    open();
+    await userEvent.upload(screen.getByLabelText("Booking file"), new File(["x"], "IMG.HEIC", { type: "image/heic" }), { applyAccept: false });
+    await screen.findByRole("alert");
+    expect(recordUsageAction).not.toHaveBeenCalled();
   });
 });

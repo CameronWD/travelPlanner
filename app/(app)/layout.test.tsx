@@ -100,6 +100,9 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuItem: ({ children, asChild: _asChild, onSelect: _onSelect, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; asChild?: boolean; onSelect?: unknown }) => <div {...props}>{children}</div>,
 }));
 
+vi.mock("@/components/usage/usage-recorder", () => ({
+  UsageRecorder: ({ userId }: { userId: string }) => <div data-testid="usage-recorder" data-user-id={userId} />,
+}));
 vi.mock("@/components/command-palette-mount", () => ({ CommandPaletteMount: () => null }));
 vi.mock("@/components/command-palette-trigger", () => ({ CommandPaletteTrigger: () => null }));
 vi.mock("@/components/shell/search-field", () => ({ SearchField: () => null }));
@@ -195,6 +198,12 @@ describe("AppLayout", () => {
     }
     expect(redirect).toHaveBeenCalledWith("/?callbackUrl=%2Fglobe%3Ftab%3D2");
     expect(redirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("mounts the Usage recorder once, for the signed-in Traveller", async () => {
+    render(await AppLayout({ children: <div>page</div> }));
+    expect(screen.getAllByTestId("usage-recorder")).toHaveLength(1);
+    expect(screen.getByTestId("usage-recorder")).toHaveAttribute("data-user-id", "user-1");
   });
 
   it("renders the Teepee wordmark link when authenticated", async () => {

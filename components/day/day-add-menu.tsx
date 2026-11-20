@@ -12,6 +12,7 @@ import { TransportFormDialog } from "@/components/trip/transport-form-dialog";
 import { HOME_ENDPOINT } from "@/components/trip/transport-endpoints";
 import { dayTransportDefaults } from "@/lib/day-transport-defaults";
 import { tripPath } from "@/lib/trip-path";
+import { recordUsageAction } from "@/lib/usage/client";
 
 export type DayAddMenuProps = {
   tripId: string;
@@ -63,7 +64,10 @@ export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency
         <Sheet
           open={sheetOpen}
           onOpenChange={(o) => {
-            if (o) picked.current = false;
+            if (o) {
+              picked.current = false;
+              recordUsageAction("add-to-day-opened");
+            }
             setSheetOpen(o);
           }}
         >
@@ -87,7 +91,11 @@ export function DayAddMenu({ tripId, slug, date, stop, stopOptions, homeCurrency
           </DragSheetContent>
         </Sheet>
       ) : (
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={(o) => {
+            if (o) recordUsageAction("add-to-day-opened");
+          }}
+        >
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuItem onSelect={() => setWhich("item")}>Something to do</DropdownMenuItem>

@@ -109,6 +109,11 @@ vi.mock("@/components/offline-warmer", () => ({
 vi.mock("@/components/feedback/feedback-trip-marker", () => ({
   FeedbackTripMarker: () => null,
 }));
+vi.mock("@/components/usage/usage-trip", () => ({
+  UsageTrip: (p: { tripId: string; startDate: string | null; endDate: string | null; zone: string }) => (
+    <div data-testid="usage-trip" data-trip-id={p.tripId} data-start={p.startDate} data-end={p.endDate} data-zone={p.zone} />
+  ),
+}));
 vi.mock("@/components/trips/cover-photo-image", () => ({
   CoverPhotoImage: (p: { url: string; alt: string }) => (
     // eslint-disable-next-line @next/next/no-img-element
@@ -246,6 +251,16 @@ describe("TripLayout", () => {
     expect(sidebar).toHaveAttribute("data-slug", "trip-1");
     expect(sidebar).toHaveAttribute("data-days-href", "/trips/trip-1/day/2026-01-01");
     expect(sidebar).toHaveTextContent("Test Trip");
+  });
+
+  it("mounts the Usage marker once, with the Trip's id, both dates and its zone", async () => {
+    await renderLayout();
+    const marker = screen.getByTestId("usage-trip");
+    expect(screen.getAllByTestId("usage-trip")).toHaveLength(1);
+    expect(marker).toHaveAttribute("data-trip-id", "trip-1");
+    expect(marker).toHaveAttribute("data-start", "2026-01-01");
+    expect(marker).toHaveAttribute("data-end", "2026-01-10");
+    expect(marker.getAttribute("data-zone")).toMatch(/^[A-Za-z_]+(\/[A-Za-z_+\-0-9]+)*$/);
   });
 
   it("mounts no rail of its own (AppShellRail in the app layout is the only one)", async () => {

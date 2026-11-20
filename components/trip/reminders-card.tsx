@@ -19,6 +19,7 @@ import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { failureMessage } from "@/components/ui/failure-message";
 import { useMediaQuery } from "@/components/ui/use-media-query";
 import { useUndoableAction } from "@/components/ui/use-undoable-action";
+import { recordUsageAction } from "@/lib/usage/client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -281,7 +282,10 @@ function ReminderRow({
         variant="outline"
         size="sm"
         className="min-h-11 shrink-0 px-4"
-        onClick={() => onGotIt(reminder)}
+        onClick={() => {
+          recordUsageAction("reminder-got-it");
+          onGotIt(reminder);
+        }}
       >
         Got it
         <span className="sr-only">: {reminder.title}</span>

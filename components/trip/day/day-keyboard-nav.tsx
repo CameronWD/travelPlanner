@@ -4,6 +4,9 @@ import * as React from "react";
 import { useAppRouter } from "@/components/navigation/use-app-router";
 import { useDayCarousel } from "@/components/trip/day/day-carousel";
 import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
+import { addDays } from "@/lib/dates";
+import { dayFromPathname } from "@/lib/day-path";
+import { recordUsageDayChange } from "@/lib/usage/client";
 
 const TYPING = /^(INPUT|TEXTAREA|SELECT)$/;
 
@@ -15,8 +18,14 @@ export function DayKeyboardNav({ prevHref, nextHref }: { prevHref: Route | null;
   const carousel = useDayCarousel();
   React.useEffect(() => {
     const go = (by: -1 | 1, href: Route | null) => {
-      if (carousel) carousel.step(by);
-      else if (href) router.push(href, { scroll: false, transitionTypes: [by < 0 ? DAY_BACK : DAY_FORWARD] });
+      if (carousel) {
+        const from = carousel.current();
+        const gliding = carousel.isMoving();
+        if (carousel.step(by) && !gliding) recordUsageDayChange("keyboard", addDays(from, by));
+      } else if (href) {
+        recordUsageDayChange("keyboard", dayFromPathname(href));
+        router.push(href, { scroll: false, transitionTypes: [by < 0 ? DAY_BACK : DAY_FORWARD] });
+      }
     };
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;

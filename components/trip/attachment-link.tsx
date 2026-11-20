@@ -3,6 +3,7 @@
 import * as React from "react";
 import { rendersInline } from "@/lib/attachment-display";
 import { isStandalone } from "@/lib/standalone";
+import { recordUsageAction } from "@/lib/usage/client";
 
 /**
  * The one way an **Attachment** is linked to, everywhere.
@@ -39,6 +40,7 @@ export function AttachmentLink({
   children: React.ReactNode;
 }) {
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    recordUsageAction("attachment-opened");
     // A modified click (⌘-click, Ctrl-click, Shift-click, Alt-click) or a
     // non-primary mouse button is the Traveller telling the browser how to
     // open the link — background tab, new window, whatever their setup does.

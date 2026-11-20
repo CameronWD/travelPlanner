@@ -10,6 +10,7 @@ import { isFar, panelProgress, panelWidth, settledPanel } from "@/components/tri
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
 import { cn } from "@/lib/cn";
+import { recordUsageSwipe } from "@/lib/usage/client";
 
 export interface DayPanel {
   iso: string;
@@ -396,6 +397,7 @@ export function DayCarousel({
       const idx = settledPanel(el.scrollLeft, panelWidth(el));
       if (idx == null || (glideTo.current != null && idx !== glideTo.current)) return;
       if (timer) clearTimeout(timer);
+      recordUsageSwipe(glideTo.current == null ? panelsRef.current[idx]?.iso ?? null : null, viewRef.current);
       machine.land(idx);
     };
     const onScroll = () => {

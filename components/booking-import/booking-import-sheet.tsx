@@ -27,6 +27,7 @@ import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { attachImportedBooking, confirmProposal, importBooking } from "@/server/actions/booking-import";
 import { ProposalCard, type ProposalStatus } from "./proposal-card";
 import { ProposalEditor } from "./proposal-editor";
+import { recordUsageAction } from "@/lib/usage/client";
 
 const TARGET_TYPE = { transport: "TRANSPORT", accommodation: "ACCOMMODATION", item: "ITEM" } as const;
 
@@ -116,6 +117,7 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
       if (tooBig) return setPhase({ kind: "failed", message: tooBig, retry: false });
     }
     keptFile.current = toSend;
+    recordUsageAction("booking-import-started");
     setPhase({ kind: "reading" });
     const fd = new FormData();
     fd.set("tripId", tripId);

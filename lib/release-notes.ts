@@ -27,6 +27,10 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-20T05:50:00Z",
+    text: "Teepee now notes which screens get opened, to see what is worth keeping. Privacy says exactly what it records.",
+  },
+  {
     publishedAt: "2026-11-20T01:52:00Z",
     text: "Deep Review asks before it starts. Trip pages hold still while they load, and small things are tidier all over.",
   },

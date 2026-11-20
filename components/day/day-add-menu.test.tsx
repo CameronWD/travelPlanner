@@ -13,6 +13,9 @@ vi.mock("@/components/trip/transport-form-dialog", () => ({
     p.open ? <div data-testid="transport-dialog">{p.defaultFromStopId}|{p.defaultToStopId}|{p.defaultDate}|{p.settingsHref}</div> : null,
 }));
 
+const usage = vi.hoisted(() => ({ recordUsageAction: vi.fn() }));
+vi.mock("@/lib/usage/client", () => usage);
+
 const base = {
   tripId: "t", slug: "cairns-work", date: "2026-11-04",
   stop: { id: "s1", arriveDate: "2026-11-04", departDate: "2026-11-05" },
@@ -21,7 +24,17 @@ const base = {
 };
 
 describe("DayAddMenu (spec 2026-10-13 D5)", () => {
-  beforeEach(() => setMatchMedia(true));
+  beforeEach(() => {
+    setMatchMedia(true);
+    usage.recordUsageAction.mockClear();
+  });
+  it("records opening the menu once, and not picking a row", async () => {
+    render(<DayAddMenu {...base} />);
+    await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+    expect(usage.recordUsageAction.mock.calls).toEqual([["add-to-day-opened"]]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Something to do" }));
+    expect(usage.recordUsageAction).toHaveBeenCalledTimes(1);
+  });
   it("offers Something to do and A flight, train or drive", async () => {
     render(<DayAddMenu {...base} />);
     await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
@@ -72,6 +85,13 @@ describe("DayAddMenu (spec 2026-10-13 D5)", () => {
   });
   describe("on a phone", () => {
     beforeEach(() => setMatchMedia(false));
+    it("records opening the sheet once, and not picking a row", async () => {
+      render(<DayAddMenu {...base} />);
+      await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));
+      expect(usage.recordUsageAction.mock.calls).toEqual([["add-to-day-opened"]]);
+      await userEvent.click(screen.getByRole("button", { name: "Something to do" }));
+      expect(usage.recordUsageAction).toHaveBeenCalledTimes(1);
+    });
     it("opens a sheet titled with the label, holding both rows, instead of a menu", async () => {
       render(<DayAddMenu {...base} />);
       await userEvent.click(screen.getByRole("button", { name: "Add to this day" }));

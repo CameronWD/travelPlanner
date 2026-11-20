@@ -267,4 +267,40 @@ describe("PrivacyPage", () => {
     expect(document.body.textContent).not.toMatch(/not a legal document|just an accurate account|not a public product/i);
     expect(document.body.textContent).not.toMatch(/\bwe\b/i);
   });
+
+  it("says what Usage records, what it never holds and who reads it", async () => {
+    render(await PrivacyPage());
+    const text = document.body.textContent!.replace(/\s+/g, " ");
+    expect(text).toContain("which I call Usage");
+    expect(text).toContain("when the screen belongs to a trip, to that trip and the stage it was at (sketching, planning, final prep, travelling or past)");
+    expect(text).toContain("whether it came from the main Teepee site or the beta");
+    expect(text).toContain("never holds anything you typed");
+    expect(text).toContain("opening a trip’s share link while you are signed in is noted, with no trip attached");
+    expect(text).toContain("Inside Teepee, only an Admin can see Usage, and only as counts, never record by record");
+    expect(text).toContain("I, as the person who runs Teepee, can read the records in the database like everything else there");
+    expect(text).toContain("stored with the same database host as your trips and is included in the same nightly backups");
+    expect(text).toContain("not sent to any analytics or advertising company");
+    expect(text).not.toContain("not shared with or sent to anyone else");
+    expect(text).toContain("no cookies beyond the one that keeps you signed in");
+    expect(text).toContain("records wait in your browser’s local storage with your account’s id");
+    expect(text).toContain("sent within about half a minute when you are online and later if you were offline");
+    expect(text).not.toContain("sent straight away when you are online");
+    expect(text).toContain("at most 500 are kept, and signing out clears them");
+  });
+
+  it("no longer claims there is no other analytics without naming Usage", async () => {
+    render(await PrivacyPage());
+    const text = document.body.textContent!.replace(/\s+/g, " ");
+    expect(text).toContain("and Teepee’s own Usage record below, there is no other analytics");
+    expect(text).not.toContain("page timings, there is no other analytics");
+  });
+
+  it("says how long Usage is kept", async () => {
+    render(await PrivacyPage());
+    const text = document.body.textContent!.replace(/\s+/g, " ");
+    expect(text).toContain("180 days after Teepee received them");
+    expect(text).toContain("counted from when it arrived");
+    expect(text).toContain("until that backup itself expires");
+    expect(text).toContain("pointing at a trip or an account that no longer exists");
+  });
 });

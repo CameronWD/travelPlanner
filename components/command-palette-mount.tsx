@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { CommandPalette } from "@/components/command-palette";
 import { focusSearchField } from "@/components/shell/search-focus";
 import { useTripIdFromRef } from "@/components/trip/use-trip-href";
+import { recordUsageAction } from "@/lib/usage/client";
 
 /**
  * Global mount for the command palette.
@@ -37,11 +38,13 @@ export function CommandPaletteMount() {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        if (!e.repeat) recordUsageAction("search-opened");
         if (!focusSearchField()) setOpen(true);
       }
     }
 
     function handleCustomEvent() {
+      recordUsageAction("search-opened");
       setOpen(true);
     }
 

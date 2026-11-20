@@ -79,6 +79,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
   loadSurpriseVisibility: loadSurpriseVisibilityMock,
 }));
 
+vi.mock("@/components/usage/usage-share-opened", () => ({ UsageShareOpened: () => <i data-testid="usage-share-opened" /> }));
 import SharePage, { dynamic, metadata } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
 import { TRAVELLER_SELECT } from "@/lib/traveller";
@@ -876,5 +877,18 @@ describe("Share page car legs (Travel times)", () => {
     expect(args.where.key.in).toEqual([key]);
     const props = JSON.parse(screen.getByTestId("route-map").getAttribute("data-props")!);
     expect(props.legPaths).toEqual({ "s1>s2": "_p~iF~ps|U" });
+  });
+});
+
+describe("SharePage — Usage", () => {
+  it("mounts the one Usage marker on a valid link", async () => {
+    await renderPage();
+    expect(screen.getAllByTestId("usage-share-opened")).toHaveLength(1);
+  });
+
+  it("renders nothing, so no marker, for a missing link", async () => {
+    shareFindFirstMock.mockResolvedValue(null);
+    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(screen.queryByTestId("usage-share-opened")).toBeNull();
   });
 });

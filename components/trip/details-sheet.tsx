@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import type { DetailsView } from "@/lib/details-view";
 import { directionsFromHereUrl, mapsUrl } from "@/lib/map/maps";
 import type { LocalMode } from "@/lib/travel-times/hops";
+import { recordUsageAction } from "@/lib/usage/client";
 
 const LABEL = "text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground";
 
@@ -28,6 +29,7 @@ function DirectionsLink({ href }: { href: string }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() => recordUsageAction("directions-tapped")}
       className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-bold underline underline-offset-2"
     >
       <Navigation className="size-4 shrink-0" aria-hidden="true" />
