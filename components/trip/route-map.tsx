@@ -203,8 +203,10 @@ function Leg({ from, to, color, weight, opacity, dashed, draw = false }: { from:
   return <MapPolyline path={path} color={color} weight={weight} opacity={opacity} dashed={dashed} geodesic />;
 }
 
+export const ROUTE_FIT_PADDING = { top: 40, right: 72, bottom: 40, left: 40 };
+
 function FitRoute({ points }: { points: Point[] }) {
-  useFitBounds(points, { padding: 40 });
+  useFitBounds(points, { padding: ROUTE_FIT_PADDING });
   return null;
 }
 
