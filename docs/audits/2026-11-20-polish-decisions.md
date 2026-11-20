@@ -61,6 +61,45 @@ and was built the recommended way so the work did not stop. Say which to change.
 - **K1, empty date field on an iPhone.** A desktop WebKit browser paints today's date, pale, in an empty date field. Whether your iPhone does needs a look (Settings, Hard end date, when empty). If it does, the fix is a drawn placeholder, which is a custom control, so it waits for you.
 - **S9.** Not measured yet.
 
+## Wave 3 (`chore/polish-wave-3`)
+
+| Id | Built as | The other way |
+|---|---|---|
+| N1 | A trip page's loading logo sits in the full-bleed trip frame, so nothing moves when the page arrives (the logo is 16 px further left and 32 px higher than before). | Give trip pages `<main>`'s padding instead. |
+| N2 | The Trips skeleton reserves the New trip button's 44 px, even for a Traveller with no trips yet. | Reserve nothing and let a first-run header move. |
+| N3 | A zero-offset zone reads "GMT" everywhere. | "GMT+0", or "UTC". |
+| N4 | The Day strip and day arrows never prefetch (zero times); the days are already on the page. | Prefetch each neighbour once. |
+| N6 | On a Changeover day shared with a hidden Stop, no title control unless the visible Stop already has a title. | Offer the control on the visible Stop. |
+| N8 | The header correction skips only the commit where the layout crosses 1024 px. | Correct only when the header swaps. |
+| N10 | "Start a Deep Review?" / "A Deep Review takes longer than a Standard Review and thinks harder about the plan." / Start Deep Review. | Other wording. |
+| S5 | Avatars overlap by 6 px with a 2 px ring in the page colour everywhere. | Keep 8 to 10 px overlap with a ring only. |
+| S6 | The trip name in the phone header is hidden visually only on a Sketching trip's home. | Hide it on every phone trip home. |
+| S7 | The Trips list's foot clears the Feedback button; the Day view at 320 px is unchanged. | Shrink or hide the button while scrolling. |
+| S8 | What's new shows its unread count in a coral badge beside the heading; the list has no bullets. | A "New" badge on each line. |
+| H6 | The route map fits its pins with 72 px on the right for the zoom buttons. | Move the zoom buttons to the top. |
+| H7 | A past trip's phone cover carries the trip name on a card chip at the bottom left; sketching route nights sit in a right-hand column; a desktop warning tile is yellow like the phone's. | Name above "That's a wrap"; leave the colours. |
+| T2 | Continue sits 40 px under the field on desktop. | Beside the field. |
+| P6 | A rough phone card has no subtitle; Plan ranges use an en dash with a narrow no-break space before it and a thin space after; Book by is 12 px; "Drive in X" for one region, "Town (X)" loses "(X)" beside X, and a shared ", Region" tail is dropped. | Show the nights as the subtitle; leave ranges as they were. |
+| D7 | An empty Day plan has no count in its header; the Journal card takes the Day plan card's padding at each width. | Keep the count and drop the body line. |
+| U4 | The phone print preview drops its extra 16 px a side; a Transport's places wrap as one sentence. | Keep the inset. |
+| M3 | Spare height on desktop Money goes under Where it goes, not into the Trip cost card. | Even card bottoms. |
+| A1 | Desktop Activity rows stop at 48 rem. | Two columns. |
+| L3 | Legal footer links: "Teepee home" and the other document. The phone landing centres hero and cards together on one screen. | A landing that scrolls. |
+| O7 | Dialog headers are at least 48 px (were 72); footers pad 12 px under the buttons (were 22). | Keep 72 px for a description line. |
+| O8 | The More sheet has a visible "More" title with Close beside it; Reminder text stops at a readable measure; the add form is at most 28 rem. | Keep the hidden title. |
+| Leftover | Add a stop's Cancel shows from 640 px only; the phone sheet keeps one button. | Cancel on the phone too. |
+| G4 | `app/` and `components/` copy only; `lib/` copy keeps straight quotes. | Convert `lib/` copy too. |
+| N7 | Not built: 124 KB gzip, 46 KB brotli on 19 Nov's production capture. | Trim the page. |
+
+### Not built in wave 3, waiting on you
+
+- **N4, repeated prefetching on an idle Day page.** Not changed. Prefetching is part of what makes swiping fast, and the fix on offer was to stop the Day strip and arrows prefetching at all. Too close to the trip to touch without a measurement on the live site.
+- **N8, a stray scroll correction when a desktop window is dragged across 1024 px on the Day view.** Not changed. The fix is inside the carousel that was rebuilt on 19 Nov, and a desktop-resize edge case is not worth the risk to it before the trip.
+- **S7 at 320 px.** The Feedback button still covers the weather card's sunset time on a 320 px wide phone (neither of yours). Padding cannot fix it. Options: a smaller button, tuck it away while scrolling, or move it on the Day view.
+- **N7.** No build needed: the Day page for the 36-day trip was 124 KB gzipped (46 KB with brotli) on 19 Nov, well under the 300 KB line.
+- **N12.** The install nudge stays at the foot of the phone Trips list.
+- **G4.** Copy that lives under `lib/` keeps straight apostrophes for now (some of it is stored or compared). Convert it later?
+
 ## Open questions that are not builds
 
 - Account's Digest service status is shown to every Traveller, not only Admins. Hide it from non-Admins?
