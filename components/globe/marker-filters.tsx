@@ -20,7 +20,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
     <div className="flex flex-col gap-2.5">
       <div className="relative">
         <Search
-          className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-foreground"
+          className="pointer-events-none absolute left-4 top-1/2 z-10 size-[18px] -translate-y-1/2 text-foreground"
           strokeWidth={2.5}
           aria-hidden="true"
         />
