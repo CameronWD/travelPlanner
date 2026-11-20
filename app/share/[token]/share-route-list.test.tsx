@@ -77,4 +77,9 @@ describe("ShareTally (SHARE.md §6)", () => {
     }
     expect(container.textContent).not.toMatch(/[$€£]|km|spent/);
   });
+
+  it("applies a passed className to its section", () => {
+    const { container } = render(<ShareRouteList stage="before" stops={stops} className="lg:h-full" />);
+    expect(container.querySelector("[data-slot='share-route']")!.className).toContain("lg:h-full");
+  });
 });

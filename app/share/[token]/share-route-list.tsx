@@ -15,13 +15,14 @@ function datesLine(stop: RouteListStop) {
 export interface ShareRouteListProps {
   stage: ShareStage;
   stops: RouteListStop[];
+  className?: string;
 }
 
 /**
  * SHARE.md §5 — the route list. Outbound transport and accommodation no
  * longer show here; they live in Day by day. Money never appears.
  */
-export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
+export function ShareRouteList({ stage, stops, className }: ShareRouteListProps) {
   const doneCount = stops.filter((s) => s.status === "past").length;
   const datedCount = stops.filter((s) => s.arriveDate !== null).length;
 
@@ -29,7 +30,7 @@ export function ShareRouteList({ stage, stops }: ShareRouteListProps) {
     <section
       data-slot="share-route"
       aria-labelledby="route-heading"
-      className="min-w-0 rounded-3xl border-2 border-border bg-card p-5 shadow-hard-4"
+      className={cn("min-w-0 rounded-3xl border-2 border-border bg-card p-5 shadow-hard-4", className)}
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2
