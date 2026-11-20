@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
 import { CommandPaletteMount } from "./command-palette-mount";
 import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 const mockUsePathname = vi.fn(() => "/trips/t1");
 vi.mock("next/navigation", () => ({
@@ -107,5 +109,41 @@ describe("CommandPaletteMount", () => {
     await screen.findByRole("textbox", { name: /command search/i });
     expect(screen.queryByText("Add Item")).toBeNull();
     await closePalette(user);
+  });
+});
+
+describe("CommandPaletteMount records search", () => {
+  it("records search-opened for the open-palette event and for Ctrl+K, once each", async () => {
+    vi.mocked(recordUsageAction).mockClear();
+    mockUsePathname.mockReturnValue("/trips/t1");
+    const user = userEvent.setup();
+    render(
+      <ShellUserProvider value={shell}>
+        <CommandPaletteMount />
+      </ShellUserProvider>,
+    );
+    openPalette();
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenLastCalledWith("search-opened");
+    await closePalette(user);
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, cancelable: true }));
+    });
+    expect(recordUsageAction).toHaveBeenCalledTimes(2);
+    expect(recordUsageAction).toHaveBeenLastCalledWith("search-opened");
+    await closePalette(user);
+  });
+
+  it("records nothing for other keys", () => {
+    vi.mocked(recordUsageAction).mockClear();
+    render(
+      <ShellUserProvider value={shell}>
+        <CommandPaletteMount />
+      </ShellUserProvider>,
+    );
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "j", ctrlKey: true }));
+    });
+    expect(recordUsageAction).not.toHaveBeenCalled();
   });
 });

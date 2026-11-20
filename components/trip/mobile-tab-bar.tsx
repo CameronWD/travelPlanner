@@ -21,6 +21,7 @@ import { tripPath } from "@/lib/trip-path";
 import type { TripPhase } from "@/lib/trip-phase";
 import { OPEN_SHARE_EVENT } from "@/components/trip/share-events";
 import { cn } from "@/lib/cn";
+import { recordUsageAction, recordUsageMoreRow } from "@/lib/usage/client";
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPhase }) {
@@ -64,7 +65,10 @@ export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPh
       render: (active) => (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            recordUsageAction("more-opened");
+            setOpen(true);
+          }}
           aria-haspopup="dialog"
           aria-expanded={open}
           // Not aria-current="page" — this opens a sheet, it isn't a page,
@@ -103,7 +107,10 @@ export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPh
               <AppLink
                 key={item.label}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  recordUsageMoreRow(item.label);
+                  setOpen(false);
+                }}
                 aria-current={isNavActive(item.href, realPathname, base) ? "page" : undefined}
                 data-pending={pendingPathname != null && isNavActive(item.href, pendingPathname, base) ? "true" : undefined}
                 className="flex min-h-12 w-full items-center px-3.5 text-left text-sm font-bold aria-[current=page]:bg-muted"
@@ -115,6 +122,7 @@ export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPh
               <button
                 type="button"
                 onClick={() => {
+                  recordUsageAction("more-row-chosen", "share");
                   setOpen(false);
                   window.dispatchEvent(new Event(OPEN_SHARE_EVENT));
                 }}

@@ -12,6 +12,8 @@ vi.mock("@/lib/tz", async (orig) => ({ ...(await orig<typeof import("@/lib/tz")>
 
 import { ReviewRunPanel, START_FAILED } from "./review-run-panel";
 import { takeWatchedReview } from "./watched-reviews";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -121,5 +123,30 @@ describe("ReviewRunPanel (R12)", () => {
     renderPanel({ kind: "capped", nextAvailableAt: "2026-10-22T01:00:00.000Z" });
     expect(screen.getByRole("button", { name: "Next Review available Thursday" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Standard Review" })).toBeNull();
+  });
+});
+
+describe("ReviewRunPanel records the start", () => {
+  it("Standard Review records review-started standard", async () => {
+    startReview.mockResolvedValue({ success: true, reviewId: "r9" });
+    renderPanel({ kind: "ready" });
+    await userEvent.click(screen.getByRole("button", { name: "Standard Review" }));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("review-started", "standard");
+    await waitFor(() => expect(router.refresh).toHaveBeenCalled());
+  });
+
+  it("Deep Review records nothing at the first tap, nothing on Cancel, and deep only once confirmed", async () => {
+    startReview.mockResolvedValue({ success: true, reviewId: "r9" });
+    renderPanel({ kind: "ready" });
+    await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(recordUsageAction).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start Deep Review" }));
+    await waitFor(() => expect(startReview).toHaveBeenCalledWith("t1", "DEEP"));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("review-started", "deep");
   });
 });

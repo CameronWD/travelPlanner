@@ -33,6 +33,8 @@ vi.mock("@/components/ui/use-media-query", async (orig) => {
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
 import { addReminder } from "@/server/actions/reminders";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 import { RemindersCard } from "./reminders-card";
 import { reminderItem } from "@/test/helpers/reminder-item";
@@ -671,5 +673,19 @@ describe("RemindersCard Add Reminder on a phone", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
     expect(screen.getByLabelText("Reminder date")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("RemindersCard Got it is recorded", () => {
+  it("records reminder-got-it once, and Undo records nothing more", async () => {
+    vi.mocked(recordUsageAction).mockClear();
+    updateReminderMock.mockResolvedValue({ success: true });
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it/ }));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("reminder-got-it");
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("r1", { dismissed: true }));
+    await waitFor(() => expect(screen.queryByText("Pack")).not.toBeInTheDocument());
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
   });
 });

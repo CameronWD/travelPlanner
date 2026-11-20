@@ -11,6 +11,7 @@ import { deviceTimeZone } from "@/lib/tz";
 import { nextReviewLabel, type RunPanelState } from "@/lib/review/run-panel";
 import type { ReviewKind } from "@/lib/review/types";
 import { watchReview } from "./watched-reviews";
+import { recordUsageAction } from "@/lib/usage/client";
 
 export const START_FAILED = "Couldn’t start the Review. Try again.";
 
@@ -46,6 +47,7 @@ export function ReviewRunPanel({ tripId, state, fallbackTimeZone }: ReviewRunPan
   if (state.kind === "hidden") return null;
 
   function start(kind: ReviewKind) {
+    recordUsageAction("review-started", kind === "DEEP" ? "deep" : "standard");
     setPending(kind);
     // The whole call, router.refresh() included, runs inside the transition
     // (React 19 async transitions keep isPending true across the awaits), so

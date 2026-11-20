@@ -7,6 +7,8 @@ import { MobileTabBar } from "./mobile-tab-bar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
 import { ShellUserProvider, type ShellUser } from "@/components/shell/shell-user";
 import { EMPTY_ADMIN_QUEUE } from "@/lib/admin-queue";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn(), recordUsageMoreRow: vi.fn() }));
+import { recordUsageAction, recordUsageMoreRow } from "@/lib/usage/client";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
@@ -195,5 +197,37 @@ describe("MobileTabBar", () => {
     expect(screen.getByRole("link", { name: "Days" })).toBeTruthy();
     expect(spy.mock.calls.flat().join(" ")).not.toContain("same key");
     spy.mockRestore();
+  });
+});
+
+describe("MobileTabBar records the More sheet", () => {
+  beforeEach(() => {
+    vi.mocked(recordUsageAction).mockClear();
+    vi.mocked(recordUsageMoreRow).mockClear();
+  });
+
+  it("opening More records more-opened, then choosing Wishlist records its row by label", async () => {
+    const user = userEvent.setup();
+    render(<MobileTabBar tripId="t1" />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("more-opened");
+    await user.click(within(screen.getByRole("dialog")).getByRole("link", { name: "Wishlist" }));
+    expect(recordUsageMoreRow).toHaveBeenCalledTimes(1);
+    expect(recordUsageMoreRow).toHaveBeenCalledWith("Wishlist");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Share records more-row-chosen share and still opens the chooser", async () => {
+    const user = userEvent.setup();
+    const opened = vi.fn();
+    window.addEventListener(OPEN_SHARE_EVENT, opened);
+    render(<MobileTabBar tripId="t1" phase="travelling" />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    window.removeEventListener(OPEN_SHARE_EVENT, opened);
+    expect(recordUsageAction).toHaveBeenCalledWith("more-row-chosen", "share");
+    expect(recordUsageMoreRow).not.toHaveBeenCalled();
+    expect(opened).toHaveBeenCalledTimes(1);
   });
 });
