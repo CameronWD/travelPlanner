@@ -68,9 +68,7 @@ and was built the recommended way so the work did not stop. Say which to change.
 | N1 | A trip page's loading logo sits in the full-bleed trip frame, so nothing moves when the page arrives (the logo is 16 px further left and 32 px higher than before). | Give trip pages `<main>`'s padding instead. |
 | N2 | The Trips skeleton reserves the New trip button's 44 px, even for a Traveller with no trips yet. | Reserve nothing and let a first-run header move. |
 | N3 | A zero-offset zone reads "GMT" everywhere. | "GMT+0", or "UTC". |
-| N4 | The Day strip and day arrows never prefetch (zero times); the days are already on the page. | Prefetch each neighbour once. |
 | N6 | On a Changeover day shared with a hidden Stop, no title control unless the visible Stop already has a title. | Offer the control on the visible Stop. |
-| N8 | The header correction skips only the commit where the layout crosses 1024 px. | Correct only when the header swaps. |
 | N10 | "Start a Deep Review?" / "A Deep Review takes longer than a Standard Review and thinks harder about the plan." / Start Deep Review. | Other wording. |
 | S5 | Avatars overlap by 6 px with a 2 px ring in the page colour everywhere. | Keep 8 to 10 px overlap with a ring only. |
 | S6 | The trip name in the phone header is hidden visually only on a Sketching trip's home. | Hide it on every phone trip home. |
@@ -83,13 +81,12 @@ and was built the recommended way so the work did not stop. Say which to change.
 | D7 | An empty Day plan has no count in its header; the Journal card takes the Day plan card's padding at each width. | Keep the count and drop the body line. |
 | U4 | The phone print preview drops its extra 16 px a side; a Transport's places wrap as one sentence. | Keep the inset. |
 | M3 | Spare height on desktop Money goes under Where it goes, not into the Trip cost card. | Even card bottoms. |
-| A1 | Desktop Activity rows stop at 48 rem. | Two columns. |
-| L3 | Legal footer links: "Teepee home" and the other document. The phone landing centres hero and cards together on one screen. | A landing that scrolls. |
+| A1 | On desktop Activity the time sits right after its sentence; rows still fill the card. | Cap the card or the list at a reading width. |
+| L3 | Legal footer links: "Back to Teepee home" and the other document. The phone landing centres hero and cards together on one screen. | A landing that scrolls. |
 | O7 | Dialog headers are at least 48 px (were 72); footers pad 12 px under the buttons (were 22). | Keep 72 px for a description line. |
 | O8 | The More sheet has a visible "More" title with Close beside it; Reminder text stops at a readable measure; the add form is at most 28 rem. | Keep the hidden title. |
 | Leftover | Add a stop's Cancel shows from 640 px only; the phone sheet keeps one button. | Cancel on the phone too. |
-| G4 | `app/` and `components/` copy only; `lib/` copy keeps straight quotes. | Convert `lib/` copy too. |
-| N7 | Not built: 124 KB gzip, 46 KB brotli on 19 Nov's production capture. | Trim the page. |
+| G4 | Curly apostrophes and quotes in `app/` and `components/` copy. A few strings that are also stored or compared in shared code stay straight. | Convert those too, with the code that compares them. |
 
 ### Not built in wave 3, waiting on you
 
@@ -98,7 +95,8 @@ and was built the recommended way so the work did not stop. Say which to change.
 - **S7 at 320 px.** The Feedback button still covers the weather card's sunset time on a 320 px wide phone (neither of yours). Padding cannot fix it. Options: a smaller button, tuck it away while scrolling, or move it on the Day view.
 - **N7.** No build needed: the Day page for the 36-day trip was 124 KB gzipped (46 KB with brotli) on 19 Nov, well under the 300 KB line.
 - **N12.** The install nudge stays at the foot of the phone Trips list.
-- **G4.** Copy that lives under `lib/` keeps straight apostrophes for now (some of it is stored or compared). Convert it later?
+- **G4.** Copy that is also stored or compared in shared code keeps straight apostrophes for now. Convert it later?
+- **N9.** The proxy now answers a failed session lookup at once and reports the error afterwards, with a plain log line first. Whether the deferred report reaches the error sink on Vercel is not proven; it needs a deploy and a forced failure to see. The page a Traveller gets is unchanged either way.
 
 ## Open questions that are not builds
 
@@ -108,3 +106,4 @@ and was built the recommended way so the work did not stop. Say which to change.
 - `flagHardEndDate` keeps a stored date in its wording on purpose ("historic wording"). Wave 1 renders it as a day like the rest.
 - Inside a Review, a finding that repeats a warning still shows the stored date form (2026-12-09). Wave 1 left Reviews alone, as X4 did. Show days there too?
 - While dragging a costed thing to do to another day and back on the demo trip, a tester saw the trip's total change by one cent. Not confirmed; the suspected cause is the exchange rate being taken per date. Worth a look?
+- Going from trip home to Plan on a phone measures a layout shift of 0.133 (the page swap itself, not the loading logo). Was it there before, and does it show on your phone?
