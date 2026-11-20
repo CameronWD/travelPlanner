@@ -222,4 +222,9 @@ describe("ActivityFeed — Playground kit shape (Task 13)", () => {
     const card = container.querySelector("[data-slot='activity-card']")!;
     expect(card.className).not.toMatch(/\bmax-w-/);
   });
+
+  it("caps the list at a comfortable reading width on desktop (A1)", () => {
+    const { container } = render(<ActivityFeed activities={[CREATED_ACTIVITY]} />);
+    expect(container.querySelector("ul")!.className).toMatch(/\bmax-w-3xl\b/);
+  });
 });
