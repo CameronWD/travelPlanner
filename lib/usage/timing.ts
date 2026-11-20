@@ -3,8 +3,15 @@ import { WAS_SAVED_COPY_MESSAGE } from "@/lib/offline";
 import { savedCopyAnswer } from "@/lib/saved-copy";
 
 export function afterNextPaint(cb: () => void): void {
-  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => setTimeout(cb, 0));
-  else setTimeout(cb, 16);
+  const run = () => {
+    try {
+      cb();
+    } catch {}
+  };
+  try {
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => setTimeout(run, 0));
+    else setTimeout(run, 16);
+  } catch {}
 }
 
 export function appearMs(startedAt: number | null, firstOfDocument: boolean): number | null {

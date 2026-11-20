@@ -86,6 +86,24 @@ describe("afterNextPaint", () => {
   });
 });
 
+describe("afterNextPaint never throws", () => {
+  it("swallows a callback that throws", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", undefined);
+    afterNextPaint(() => {
+      throw new Error("boom");
+    });
+    expect(() => vi.advanceTimersByTime(16)).not.toThrow();
+  });
+
+  it("swallows a scheduler that throws", () => {
+    vi.stubGlobal("requestAnimationFrame", () => {
+      throw new Error("no frames");
+    });
+    expect(() => afterNextPaint(() => {})).not.toThrow();
+  });
+});
+
 describe("probeSavedCopy", () => {
   function stubController(answer: unknown | null) {
     const postMessage = vi.fn((_message: unknown, ports?: MessagePort[]) => {
