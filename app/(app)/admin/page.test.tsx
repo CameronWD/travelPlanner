@@ -108,7 +108,7 @@ describe("AdminPage", () => {
   // call is the total count: 1 direct + 1 inside listAccessRequests + 1
   // inside listFeedbackNeedingReview + 1 inside listPeople + 1 inside
   // listErrorReports + 1 inside listReviewPermissions + 1 inside listUsageOverview = 7. Remove the page's
-  // own `await requireAdmin()` and this drops to 5.
+  // own `await requireAdmin()` and this drops to 6.
   it("calls requireAdmin() itself, not just relying on its data calls", async () => {
     await AdminPage();
     expect(requireAdminMock).toHaveBeenCalledTimes(7);
