@@ -34,6 +34,7 @@ describe("ReviewRunPanel (R12)", () => {
     renderPanel({ kind: "ready" });
     await userEvent.click(screen.getByRole("button", { name: "Standard Review" }));
     expect(startReview).toHaveBeenCalledWith("t1", "STANDARD");
+    expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     // Watched, so a run that fails before the poller sees it still gets its toast (final wave I2).
     expect(takeWatchedReview("r9")).toBe(true);
@@ -55,11 +56,26 @@ describe("ReviewRunPanel (R12)", () => {
     await waitFor(() => expect(btn).not.toBeDisabled());
   });
 
-  it("ready: Deep Review starts a Deep run", async () => {
+  it("ready: Deep Review asks first and starts a Deep run only on confirm", async () => {
     startReview.mockResolvedValue({ success: true, reviewId: "r9" });
     renderPanel({ kind: "ready" });
     await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
-    expect(startReview).toHaveBeenCalledWith("t1", "DEEP");
+    expect(await screen.findByRole("dialog", { name: "Start a Deep Review?" })).toBeInTheDocument();
+    expect(startReview).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Start Deep Review" }));
+    await waitFor(() => expect(startReview).toHaveBeenCalledWith("t1", "DEEP"));
+  });
+
+  it("Cancel and Escape close the Deep Review dialog and start nothing", async () => {
+    renderPanel({ kind: "ready" });
+    await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
+    await screen.findByRole("dialog");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(startReview).not.toHaveBeenCalled();
   });
 
   it("a refusal says the server's reason and does not refresh", async () => {
@@ -74,6 +90,7 @@ describe("ReviewRunPanel (R12)", () => {
     startReview.mockRejectedValue(new Error("network"));
     renderPanel({ kind: "ready" });
     await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start Deep Review" }));
     await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: START_FAILED })));
   });
 
