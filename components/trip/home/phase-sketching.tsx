@@ -94,11 +94,15 @@ export async function PhaseSketching({
           {stops.map((s) => {
             const chapter = s.chapterId ? chapterById.get(s.chapterId) : undefined;
             return (
-              <li key={s.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="font-display text-[15px] font-extrabold tracking-[-0.02em] text-foreground">{s.name}</span>
-                <span className="text-xs font-semibold text-muted-foreground">~{s.nights ?? 0}n</span>
-                {s.country && <span className="text-xs font-semibold text-muted-foreground">{s.country}</span>}
-                {chapter && <ChapterChip name={chapter.name} colour={chapter.colour} />}
+              <li key={s.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5">
+                <span className="min-w-0 break-words font-display text-[15px] font-extrabold tracking-[-0.02em] text-foreground">{s.name}</span>
+                <span className="text-right text-xs font-semibold tabular-nums text-muted-foreground">~{s.nights ?? 0}n</span>
+                {(s.country || chapter) && (
+                  <div className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {s.country && <span className="text-xs font-semibold text-muted-foreground">{s.country}</span>}
+                    {chapter && <ChapterChip name={chapter.name} colour={chapter.colour} />}
+                  </div>
+                )}
               </li>
             );
           })}

@@ -41,7 +41,21 @@ describe("sortTheseOut", () => {
     expect(rows[0]).toMatchObject({ tone: "coral", icon: "bell", title: "Reminder r1", subtitle: "Due Tue 8 Dec" });
     expect(rows[1]).toMatchObject({ tone: "sun", icon: "plane" });
     expect(rows[2]).toMatchObject({ tone: "teal", icon: "list-checks", subtitle: "Nothing added yet." });
-    expect(rows[3]).toMatchObject({ tone: "stone", icon: "circle-alert" });
+    expect(rows[3]).toMatchObject({ tone: "sun", icon: "circle-alert" });
+  });
+
+  it("tones a fallback step by severity: warning is sun, info is stone", () => {
+    const { rows } = sortTheseOut({
+      basePath: BASE,
+      today,
+      steps: [
+        step("a-warning", "Check this", { severity: "warning", source: "flag" }),
+        step("b-info", "Look at this", { severity: "info", source: "flag" }),
+      ],
+      reminders: [],
+    });
+    expect(rows[0]).toMatchObject({ tone: "sun" });
+    expect(rows[1]).toMatchObject({ tone: "stone" });
   });
 
   it("skips reminders more than 7 days out (and any in the past)", () => {

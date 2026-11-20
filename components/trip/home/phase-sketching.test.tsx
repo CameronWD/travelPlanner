@@ -108,6 +108,9 @@ describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
     expect(route.className).toMatch(/\bshadow-hard-\d\b/);
     expect(route.textContent).toContain("Rome");
     expect(route.textContent).toContain("~3n");
+    const row = route.querySelector("li")!;
+    expect(row.className).toContain("grid");
+    expect(row.querySelector("span.text-right")!.textContent).toBe("~3n");
     expect(div.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft/);
     expect(div.textContent).not.toMatch(/per person|each owes|split/i);
   });

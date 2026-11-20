@@ -93,7 +93,7 @@ function stepRow(step: NextStep): SortRow {
       icon: "calendar",
     };
   }
-  return { ...base, tone: "stone", icon: "circle-alert" };
+  return { ...base, tone: step.severity === "warning" ? "sun" : "stone", icon: "circle-alert" };
 }
 
 export function sortTheseOut({
