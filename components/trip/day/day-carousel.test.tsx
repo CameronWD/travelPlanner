@@ -375,16 +375,35 @@ describe("DayCarousel", () => {
     expect(pendingPath).toBeNull();
   });
 
-  it("a settled drag onto another day records one swipe with the day it settled on and the day it left; a glide records none", () => {
+  it("a settled drag onto another day records one swipe with the day it settled on and the day it left", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     usage.recordUsageSwipe.mockClear();
     const { scroller } = mount();
     dragTo(scroller, 4);
     expect(usage.recordUsageSwipe.mock.calls).toEqual([["2026-12-13", WEEK[SHOWN]]]);
+  });
+
+  it("a glide settling under goTo hands the recorder no day, so nothing is recorded as a swipe", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
     usage.recordUsageSwipe.mockClear();
-    act(() => { api!.goTo(href(WEEK[6])); });
-    act(() => { vi.advanceTimersByTime(600); });
+    const { scroller } = mount();
+    act(() => { api!.goTo(href("2026-12-13")); });
+    act(() => { vi.advanceTimersByTime(200); });
+    scroller.scrollLeft = 4 * WIDTH;
+    act(() => { fireEvent(scroller, new Event("scrollend")); });
+    expect(usage.recordUsageSwipe).toHaveBeenCalled();
     expect(usage.recordUsageSwipe.mock.calls.every(([settled]) => settled === null)).toBe(true);
+  });
+
+  it("a drag that settles back on the day in view is handed to the recorder as no change", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    usage.recordUsageSwipe.mockClear();
+    const { scroller } = mount();
+    scroller.scrollLeft = SHOWN * WIDTH + WIDTH * 0.4;
+    fireEvent.scroll(scroller);
+    dragTo(scroller, SHOWN);
+    expect(usage.recordUsageSwipe.mock.calls).toEqual([[WEEK[SHOWN], WEEK[SHOWN]]]);
   });
 
   it("goTo a day that is not a Trip day is false", () => {
