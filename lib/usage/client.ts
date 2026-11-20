@@ -21,7 +21,10 @@ import {
 
 export type UsageTripContext = { tripId: string; startDate: string | null; endDate: string | null; zone: string };
 
-type Stored = { u: string; r: UsageWireRecord[] };
+// out: the endpoint answered as if signed out; off: recording is switched off.
+// Either pauses every send from this browser until the signed-in recorder next
+// starts for the owner, so a public Share page never repeats a doomed request.
+type Stored = { u: string; r: UsageWireRecord[]; out?: true; off?: true };
 
 const STORAGE_KEY = "teepee.usage.v1";
 const ENDPOINT = "/api/usage";
@@ -60,12 +63,12 @@ function parseStored(raw: string | null): Stored | null {
   try {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return null;
-    const { u, r } = value as Record<string, unknown>;
+    const { u, r, out, off } = value as Record<string, unknown>;
     if (typeof u !== "string" || u === "") return null;
     const records = Array.isArray(r)
       ? r.filter((x): x is UsageWireRecord => typeof x === "object" && x !== null && !Array.isArray(x))
       : [];
-    return { u, r: records.slice(-MAX_QUEUE) };
+    return { u, r: records.slice(-MAX_QUEUE), ...(out === true && { out }), ...(off === true && { off }) };
   } catch {
     return null;
   }
@@ -83,7 +86,7 @@ function load(): Stored | null {
 }
 
 function save(next: Stored | null): void {
-  memory = next && { u: next.u, r: next.r.slice(-MAX_QUEUE) };
+  memory = next && { ...next, r: next.r.slice(-MAX_QUEUE) };
   if (memoryOnly) return;
   try {
     if (memory) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
@@ -153,7 +156,17 @@ function ownedQueue(): Stored | null {
 // refused them by the owner rule) and send nothing more until the next load.
 function holdUntilReload(): void {
   persist();
+  if (userId !== null) pause(userId, "out");
   stop();
+}
+
+function isPaused(stored: Stored): boolean {
+  return stored.out === true || stored.off === true;
+}
+
+function pause(owner: string, flag: "out" | "off"): void {
+  const stored = load();
+  if (ownedBy(stored, owner)) save({ ...stored, [flag]: true });
 }
 
 function persist(): void {
@@ -161,7 +174,7 @@ function persist(): void {
   if (stopped || userId === null || unsaved.length === 0) return;
   const stored = ownedQueue();
   if (!stored) return;
-  save({ u: stored.u, r: [...stored.r, ...unsaved] });
+  save({ ...stored, r: [...stored.r, ...unsaved] });
   unsaved = [];
 }
 
@@ -197,7 +210,7 @@ function removeSent(batch: readonly UsageWireRecord[]): void {
     sent.set(key, left - 1);
     return false;
   });
-  save({ u: stored.u, r: rest });
+  save({ ...stored, r: rest });
 }
 
 function backOff(startedAt: number): void {
@@ -224,7 +237,8 @@ function settle(res: Response, batch: readonly UsageWireRecord[], startedAt: num
         waitUntil = 0;
         removeSent(batch);
         if (!recording) {
-          if (load()?.u === userId) save({ u: userId, r: [] });
+          const stored = load();
+          if (ownedBy(stored, userId)) save({ ...stored, r: [], off: true });
           stop();
         }
       },
@@ -250,6 +264,10 @@ function flush(): void {
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     const stored = ownedQueue();
     if (!stored || stored.r.length === 0) return;
+    if (isPaused(stored)) {
+      stop();
+      return;
+    }
 
     const batch = stored.r.slice(0, MAX_BATCH_RECORDS);
     const startedAt = Date.now();
@@ -431,7 +449,9 @@ export function recordUsageMoreRow(label: string): void {
 export function sendUsageOnce(action: "share-link-opened"): void {
   try {
     if (!inBrowser() || stopped) return;
-    if (!load()) return;
+    const stored = load();
+    if (!stored || isPaused(stored)) return;
+    const owner = stored.u;
     const record: ActionWire = { action, at: Date.now(), mode: openMode() };
     fetch(ENDPOINT, {
       method: "POST",
@@ -439,7 +459,18 @@ export function sendUsageOnce(action: "share-link-opened"): void {
       body: JSON.stringify({ records: [record] }),
       keepalive: true,
       referrerPolicy: "no-referrer",
-    }).catch(() => {});
+    })
+      .then((res) => {
+        if (res.status === 401 || res.status === 403 || res.redirected) return pause(owner, "out");
+        if (!res.ok) return;
+        return res.json().then(
+          (body: unknown) => {
+            if (typeof body === "object" && body !== null && (body as { recording?: unknown }).recording === false) pause(owner, "off");
+          },
+          () => {},
+        );
+      })
+      .catch(() => {});
   } catch {}
 }
 

@@ -673,6 +673,62 @@ describe("sendUsageOnce", () => {
   });
 });
 
+describe("pausing every send from this browser", () => {
+  it.each([
+    ["a 401", () => status(401), "out"],
+    ["recording off", () => ok({ recording: false }), "off"],
+  ])("after %s, the Share page sends nothing until the signed-in recorder starts again", async (_, answer, flag) => {
+    fetchMock.mockImplementationOnce(async () => answer());
+    startUsage("it-usage-a");
+    search();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(raw()).toMatchObject({ u: "it-usage-a", [flag]: true });
+
+    resetUsageForTests();
+    for (let i = 0; i < 10; i++) sendUsageOnce("share-link-opened");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    resetUsageForTests();
+    startUsage("it-usage-a");
+    expect(raw()).not.toHaveProperty(flag);
+    resetUsageForTests();
+    sendUsageOnce("share-link-opened");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["a 401", () => status(401), "out"],
+    ["recording off", () => ok({ recording: false }), "off"],
+  ])("the Share page's own %s pauses it too", async (_, answer, flag) => {
+    window.localStorage.setItem(KEY, JSON.stringify({ u: "it-usage-a", r: [] }));
+    fetchMock.mockImplementationOnce(async () => answer());
+    sendUsageOnce("share-link-opened");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(raw()).toMatchObject({ [flag]: true });
+    for (let i = 0; i < 10; i++) sendUsageOnce("share-link-opened");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a running document sends nothing once another tab has paused the queue", async () => {
+    startUsage("it-usage-a");
+    search(2);
+    vi.advanceTimersByTime(2_000);
+    window.localStorage.setItem(KEY, JSON.stringify({ ...raw(), out: true }));
+    await vi.advanceTimersByTimeAsync(120_000);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(raw()!.r).toHaveLength(2);
+  });
+
+  it("a pause survives another tab writing the queue", async () => {
+    startUsage("it-usage-a");
+    window.localStorage.setItem(KEY, JSON.stringify({ u: "it-usage-a", r: [], off: true }));
+    search();
+    vi.advanceTimersByTime(2_000);
+    expect(raw()).toMatchObject({ off: true, r: [expect.objectContaining({ action: "search-opened" })] });
+  });
+});
+
 describe("Usage can never break a page", () => {
   async function exercise() {
     startUsage("it-usage-a");
