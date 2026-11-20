@@ -66,6 +66,16 @@ describe("ReviewRunPanel (R12)", () => {
     await waitFor(() => expect(startReview).toHaveBeenCalledWith("t1", "DEEP"));
   });
 
+  it("a double tap on the confirm starts exactly one Deep run", async () => {
+    startReview.mockResolvedValue({ success: true, reviewId: "r9" });
+    renderPanel({ kind: "ready" });
+    await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
+    const confirm = await screen.findByRole("button", { name: "Start Deep Review" });
+    await userEvent.dblClick(confirm);
+    await waitFor(() => expect(startReview).toHaveBeenCalledTimes(1));
+    expect(startReview).toHaveBeenCalledWith("t1", "DEEP");
+  });
+
   it("Cancel and Escape close the Deep Review dialog and start nothing", async () => {
     renderPanel({ kind: "ready" });
     await userEvent.click(screen.getByRole("button", { name: "Deep Review" }));
