@@ -4,6 +4,12 @@ import { decls, rule, mentions, allSelectors } from "@/test/helpers/css";
 const S = ".tp-map .gm-style";
 const CLOSE = `${S} .gm-style-iw-chr button.gm-ui-hover-effect`;
 
+describe("Google attribution row", () => {
+  it("is inset from the map's right edge so a card's rounded corner does not cut it", () => {
+    expect(decls(rule(`${S} div:has(> .gm-style-cc)`))["margin-right"]).toBe("0.75rem");
+  });
+});
+
 describe("Google InfoWindow shell", () => {
   it("takes the card surface, ink outline, radius and hard shadow from tokens", () => {
     const d = decls(rule(`${S} .gm-style-iw-c`));
