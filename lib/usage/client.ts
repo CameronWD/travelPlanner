@@ -1,7 +1,6 @@
 import { daysBetween } from "@/lib/dates";
 import { isStandalone } from "@/lib/standalone";
 import { computeTripPhase } from "@/lib/trip-phase";
-import { todayISOInZone } from "@/lib/tz";
 import {
   ACTION_DETAILS,
   MAX_APPEAR_MS,
@@ -47,6 +46,10 @@ let inFlight = false;
 let failures = 0;
 let waitUntil = 0;
 let detach: (() => void) | null = null;
+let mode: OpenMode | null = null;
+// Record calls run first in day-change handlers, so a zone's formatter is
+// built once, never per record.
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
 
 function inBrowser(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
@@ -291,12 +294,21 @@ function install(): void {
   };
 }
 
-function todayIn(zone: string): string {
-  try {
-    return todayISOInZone(zone);
-  } catch {
-    return todayISOInZone("UTC");
+function zoneFormat(zone: string): Intl.DateTimeFormat {
+  let format = zoneFormats.get(zone);
+  if (!format) {
+    try {
+      format = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" });
+    } catch {
+      format = zoneFormat("UTC");
+    }
+    zoneFormats.set(zone, format);
   }
+  return format;
+}
+
+function todayIn(zone: string): string {
+  return zoneFormat(zone).format(Date.now());
 }
 
 function withTrip<T extends ScreenWire | ActionWire>(record: T, trip: UsageTripContext | null): T {
@@ -327,6 +339,7 @@ export function startUsage(id: string): void {
       pending = [];
     }
     userId = id;
+    openMode();
     const stored = load();
     const queued = stored && stored.u === id ? stored.r : [];
     save({ u: id, r: [...queued, ...unsaved, ...pending] });
@@ -339,6 +352,7 @@ export function startUsage(id: string): void {
 export function setUsageTrip(trip: UsageTripContext | null): void {
   try {
     currentTrip = trip;
+    if (trip) zoneFormat(trip.zone);
   } catch {}
 }
 
@@ -421,11 +435,23 @@ export function forgetUsage(): void {
   } catch {}
 }
 
+function detectMode(): OpenMode {
+  if (typeof window.matchMedia !== "function") return "desktop";
+  if (!window.matchMedia("(pointer: coarse)").matches) return "desktop";
+  return isStandalone() ? "phone-app" : "phone-browser";
+}
+
+// How it was opened cannot change without a reload, so it is read once per document.
 export function openMode(): OpenMode {
   try {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "desktop";
-    if (!window.matchMedia("(pointer: coarse)").matches) return "desktop";
-    return isStandalone() ? "phone-app" : "phone-browser";
+    if (mode) return mode;
+    if (typeof window === "undefined") return "desktop";
+    try {
+      mode = detectMode();
+    } catch {
+      mode = "desktop";
+    }
+    return mode;
   } catch {
     return "desktop";
   }
@@ -452,6 +478,8 @@ export function resetUsageForTests(): void {
   detach?.();
   detach = null;
   cancelPersist();
+  mode = null;
+  zoneFormats.clear();
   userId = null;
   stopped = false;
   pending = [];

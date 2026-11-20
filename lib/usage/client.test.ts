@@ -575,17 +575,53 @@ describe("what a record holds", () => {
     expect(parseUsageBatch(JSON.parse(JSON.stringify({ records })), Date.now())!.records).toHaveLength(12);
   });
 
-  it("openMode reads a coarse pointer and the installed app", () => {
+  it("openMode reads a coarse pointer and the installed app, once per document", () => {
     expect(openMode()).toBe("desktop");
     const matchMedia = vi.fn((q: string) => ({ matches: q === "(pointer: coarse)" }));
     vi.stubGlobal("matchMedia", matchMedia);
+    resetUsageForTests();
     expect(openMode()).toBe("phone-browser");
     matchMedia.mockImplementation(() => ({ matches: true }));
+    expect(openMode()).toBe("phone-browser");
+    resetUsageForTests();
     expect(openMode()).toBe("phone-app");
-    vi.stubGlobal("matchMedia", () => {
+    const broken = vi.fn(() => {
       throw new Error("no");
     });
+    vi.stubGlobal("matchMedia", broken);
+    resetUsageForTests();
     expect(openMode()).toBe("desktop");
+    expect(openMode()).toBe("desktop");
+    expect(broken).toHaveBeenCalledTimes(1);
+  });
+
+  it("after the first call for a zone, a record call reads no media query, builds no formatter and touches no storage", () => {
+    const matchMedia = vi.fn(() => ({ matches: true }));
+    vi.stubGlobal("matchMedia", matchMedia);
+    startUsage("it-usage-a");
+    setUsageTrip(TRIP);
+    recordUsageDayChange("chip", "2026-12-03");
+    vi.advanceTimersByTime(2_000);
+    matchMedia.mockClear();
+    const formats = vi.spyOn(Intl, "DateTimeFormat");
+    const storage = [vi.spyOn(Storage.prototype, "getItem"), vi.spyOn(Storage.prototype, "setItem"), vi.spyOn(Storage.prototype, "removeItem")];
+
+    vi.setSystemTime(NOW.getTime() + 5);
+    recordUsageDayChange("arrow", "2026-12-04");
+    recordUsageSwipe("2026-12-05", "2026-12-04");
+    recordUsageAction("day-map-opened");
+    recordUsageScreen({ screen: "day", ms: 20, saved: false, dayOffset: 3, trip: TRIP });
+
+    expect(matchMedia).not.toHaveBeenCalled();
+    expect(formats).not.toHaveBeenCalled();
+    for (const spy of storage) expect(spy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2_000);
+    expect(raw()!.r.slice(1)).toEqual([
+      expect.objectContaining({ action: "day-changed", detail: "arrow", dayOffset: 3, at: NOW.getTime() + 5, mode: "phone-app" }),
+      expect.objectContaining({ action: "day-changed", detail: "swipe", dayOffset: 4 }),
+      expect.objectContaining({ action: "day-map-opened", tripId: "it-usage-trip", phase: "travelling" }),
+      expect.objectContaining({ screen: "day", dayOffset: 3 }),
+    ]);
   });
 
   it("phaseNow and dayOffsetFrom read the device's clock", () => {
