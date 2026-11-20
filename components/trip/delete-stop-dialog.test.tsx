@@ -70,6 +70,34 @@ describe("DeleteStopDialog", () => {
     expect(screen.getByRole("button", { name: "Cancel" }).className).not.toContain("border-transparent");
   });
 
+  it("shows every loss line in full, none truncated", async () => {
+    (previewStopDeletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      preview: {
+        ...PREVIEW_WITH_LOSSES,
+        unpaidCosts: [{ id: "cost-1", label: "A very long cost label for a guided tour of the old town and its museums", costMinor: 4200, currency: "EUR" }],
+      },
+    });
+    render(<DeleteStopDialog {...DEFAULT_PROPS} />);
+    const label = await screen.findByText(/A very long cost label/);
+    expect(label.className).not.toContain("truncate");
+    expect(screen.getByText("2 files").className).not.toContain("truncate");
+    expect(screen.getByText("1 note").className).not.toContain("truncate");
+  });
+
+  it("keeps focus on the same Cancel button when the preview arrives", async () => {
+    let resolvePreview!: (v: unknown) => void;
+    (previewStopDeletion as ReturnType<typeof vi.fn>).mockReturnValue(new Promise((r) => (resolvePreview = r)));
+    render(<DeleteStopDialog {...DEFAULT_PROPS} />);
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    await waitFor(() => expect(document.activeElement).toBe(cancel));
+
+    resolvePreview({ success: true, preview: PREVIEW_WITH_LOSSES });
+    await screen.findByText(/Hotel Bristol/);
+    expect(document.contains(cancel)).toBe(true);
+    expect(document.activeElement).toBe(cancel);
+  });
+
   it("renders a dialog title containing the stop name", async () => {
     (previewStopDeletion as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,

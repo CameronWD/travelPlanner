@@ -59,11 +59,11 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
   if (!preview && !fetchError) {
     return (
       <>
-        <DialogHeader>
+        <DialogHeader key="header">
           <DialogTitle>Delete &quot;{stopName}&quot;?</DialogTitle>
           <DialogDescription>Loading preview…</DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter key="footer">
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
@@ -77,12 +77,12 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
   if (fetchError) {
     return (
       <>
-        <DialogHeader>
+        <DialogHeader key="header">
           <DialogTitle>Delete &quot;{stopName}&quot;?</DialogTitle>
           <DialogDescription>This can&rsquo;t be undone.</DialogDescription>
         </DialogHeader>
         <p className="text-sm text-destructive">{fetchError}</p>
-        <DialogFooter>
+        <DialogFooter key="footer">
           <DialogClose asChild>
             <Button variant="outline" disabled={isPending}>
               Cancel
@@ -98,7 +98,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
 
   return (
     <>
-      <DialogHeader>
+      <DialogHeader key="header">
         <DialogTitle>Delete &quot;{stopName}&quot;?</DialogTitle>
         <DialogDescription>This can&rsquo;t be undone.</DialogDescription>
       </DialogHeader>
@@ -108,7 +108,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
         <StopDeletionLossList preview={preview} heading="Deleting this stop will also destroy:" />
       )}
 
-      <DialogFooter>
+      <DialogFooter key="footer">
         <DialogClose asChild>
           <Button variant="outline" disabled={isPending}>
             Cancel
