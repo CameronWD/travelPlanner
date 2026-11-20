@@ -70,16 +70,18 @@ export function Landing({
           <div className="pt-3.5">
             <Logo size={26} />
           </div>
-          <h1 className="pt-7 font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em] text-balance">
-            Your whole trip, in one place<span className="text-coral" aria-hidden="true">.</span>
-          </h1>
-          <p className="mt-3.5 max-w-[310px] text-[15px] font-semibold leading-[1.4] text-balance">
-            Stops, trains, beds and budget. On your own or together.
-          </p>
-          <div className="mt-5 self-stretch">
-            <LandingActions size="md" align="center" />
+          <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center">
+            <h1 className="pt-7 font-display text-[50px] font-extrabold leading-[0.95] tracking-[-0.05em] text-balance">
+              Your whole trip, in one place<span className="text-coral" aria-hidden="true">.</span>
+            </h1>
+            <p className="mt-3.5 max-w-[310px] text-[15px] font-semibold leading-[1.4] text-balance">
+              Stops, trains, beds and budget. On your own or together.
+            </p>
+            <div className="mt-5 self-stretch">
+              <LandingActions size="md" align="center" />
+            </div>
+            <PhoneSampleCards />
           </div>
-          <PhoneSampleCards />
         </div>
       </SignInPanelProvider>
     </main>

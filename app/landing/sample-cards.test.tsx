@@ -102,9 +102,10 @@ describe("PhoneSampleCards (handoff LANDING.md §2.2–2.3)", () => {
     const { getByTestId } = render(<PhoneSampleCards />);
     const root = getByTestId("sample-cards-phone");
     expect(root).not.toHaveAttribute("aria-hidden");
-    for (const c of ["overflow-hidden", "flex-1", "min-h-0", "items-center", "justify-center", "-mx-6", "self-stretch", "text-left"]) {
+    for (const c of ["overflow-hidden", "flex-[0_1_auto]", "mt-8", "min-h-0", "items-center", "justify-center", "-mx-6", "self-stretch", "text-left"]) {
       expect(root.className).toContain(c);
     }
+    expect(root.className).not.toMatch(/(^| )flex-1( |$)/);
     const stage = root.firstElementChild as HTMLElement;
     expect(stage.className).toContain("h-[268px]");
     expect(stage.className).toContain("max-w-[393px]");

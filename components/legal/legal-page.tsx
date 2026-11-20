@@ -52,7 +52,7 @@ export function LegalPage({
           ) : null}
         </div>
       </header>
-      <main className="mx-auto max-w-page-wide px-5 pb-20 pt-10 md:pt-14 lg:grid lg:grid-cols-[minmax(0,38rem)_16rem] lg:justify-center lg:gap-16">
+      <main className="mx-auto max-w-page-wide px-5 pb-12 pt-10 md:pt-14 lg:grid lg:grid-cols-[minmax(0,38rem)_16rem] lg:justify-center lg:gap-16">
         <div>
           <div className="flex flex-col gap-3 pb-8">
             {updated ? (
@@ -75,6 +75,12 @@ export function LegalPage({
         </div>
         <OnThisPage groups={[{ entries: toc }]} />
       </main>
+      <footer className="border-t-2 border-border">
+        <nav aria-label="More from Teepee" className="mx-auto flex max-w-page-wide flex-wrap items-center gap-x-6 gap-y-2 px-5 py-6 text-[13px] font-extrabold">
+          <Link href="/" className="inline-flex min-h-11 items-center">Back to Teepee home</Link>
+          {other ? <Link href={other.href} className="inline-flex min-h-11 items-center">{other.label}</Link> : null}
+        </nav>
+      </footer>
     </div>
   );
 }

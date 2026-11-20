@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { LegalPage, LegalSection, legalToc } from "./legal-page";
 
 describe("legalToc", () => {
@@ -40,6 +40,17 @@ describe("legalToc", () => {
 });
 
 describe("LegalPage", () => {
+  it("ends with links onward to Teepee home and the other document", () => {
+    render(
+      <LegalPage title="Privacy" other={{ href: "/terms", label: "Terms" }}>
+        <LegalSection title="Your rights">y</LegalSection>
+      </LegalPage>,
+    );
+    const nav = screen.getByRole("navigation", { name: "More from Teepee" });
+    expect(within(nav).getByRole("link", { name: "Back to Teepee home" })).toHaveAttribute("href", "/");
+    expect(within(nav).getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
+  });
+
   it("renders a sticky contents column beside the text on desktop", () => {
     render(
       <LegalPage title="Privacy">
@@ -76,7 +87,7 @@ describe("LegalPage", () => {
         <LegalSection title="Your rights">y</LegalSection>
       </LegalPage>,
     );
-    const link = screen.getByRole("link", { name: "Terms" });
+    const link = within(screen.getByRole("banner")).getByRole("link", { name: "Terms" });
     expect(link.className).toContain("min-h-11");
     expect(link.className).toContain("min-w-11");
     expect(link.className).toContain("justify-center");
