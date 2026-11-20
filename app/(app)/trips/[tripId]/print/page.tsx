@@ -345,7 +345,7 @@ export default async function PrintPage({
                         {(transport.depPlace || transport.arrPlace) && (
                           <span className="min-w-0 break-words">
                             {transport.depPlace && `from ${transport.depPlace}`}
-                            {transport.depPlace && transport.arrPlace && (
+                            {transport.arrPlace && (
                               <ArrowRight className="mx-1 inline size-3.5 align-[-2px]" aria-hidden="true" />
                             )}
                             {transport.arrPlace}
