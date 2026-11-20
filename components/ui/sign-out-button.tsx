@@ -6,9 +6,11 @@ import { LogOut } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { forgetOfflineSaves } from "@/lib/offline-status";
+import { forgetUsage } from "@/lib/usage/client";
 
 async function clearOfflineCache() {
   forgetOfflineSaves();
+  forgetUsage();
   if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
   try {
     // Not `ready`: it never settles when no worker is registered.

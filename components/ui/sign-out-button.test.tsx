@@ -4,6 +4,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 const signOutMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth/client", () => ({ authClient: { signOut: signOutMock } }));
 
+const forgetUsageMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/usage/client", () => ({ forgetUsage: forgetUsageMock }));
+
 import { SignOutButton, SignOutMenuItem } from "./sign-out-button";
 
 const assignMock = vi.fn();
@@ -13,6 +16,7 @@ const setOnline = (online: boolean) =>
 
 beforeEach(() => {
   signOutMock.mockReset();
+  forgetUsageMock.mockReset();
   signOutMock.mockResolvedValue(undefined);
   assignMock.mockReset();
   postMessageMock.mockReset();
@@ -71,6 +75,13 @@ describe("SignOutButton", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
     expect(savedKeys()).toEqual([]);
+  });
+
+  it("forgets the queued Usage beside the saved copy", async () => {
+    render(<SignOutButton />);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
+    expect(forgetUsageMock).toHaveBeenCalledTimes(1);
   });
 
   const OFFLINE_COPY =

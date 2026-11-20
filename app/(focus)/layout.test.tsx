@@ -16,6 +16,10 @@ vi.mock("next/headers", () => ({ headers: async () => ({ get: headersGet }) }));
 vi.mock("@/lib/db", () => ({ db: { user: { findUnique: userFind } } }));
 vi.mock("@/lib/reconcile-invites", () => ({ reconcilePendingInvites: reconcile }));
 
+vi.mock("@/components/usage/usage-recorder", () => ({
+  UsageRecorder: ({ userId }: { userId: string }) => <div data-testid="usage-recorder" data-user-id={userId} />,
+}));
+
 import FocusLayout from "./layout";
 
 describe("(focus) layout (spec C6)", () => {
@@ -46,6 +50,14 @@ describe("(focus) layout (spec C6)", () => {
     auth.mockResolvedValue({ user: { id: "u1" } });
     await FocusLayout({ children: null });
     expect(reconcile).toHaveBeenCalledWith("u1", "alice@example.com");
+  });
+  it("mounts the Usage recorder once inside the focus shell", async () => {
+    auth.mockResolvedValue({ user: { id: "u1" } });
+    const { container } = render(await FocusLayout({ children: <p>flow</p> }));
+    const recorders = screen.getAllByTestId("usage-recorder");
+    expect(recorders).toHaveLength(1);
+    expect(recorders[0]).toHaveAttribute("data-user-id", "u1");
+    expect(container.querySelector("[data-focus-shell]")).toContainElement(recorders[0]);
   });
   it("renders the page with none of the app chrome", async () => {
     auth.mockResolvedValue({ user: { id: "u1" } });
