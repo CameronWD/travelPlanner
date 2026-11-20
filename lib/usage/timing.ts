@@ -24,23 +24,40 @@ export function appearMs(startedAt: number | null, firstOfDocument: boolean): nu
   }
 }
 
-export function watchHidden(): { wasHidden: () => boolean; stop: () => void } {
-  let hidden = false;
-  const onChange = () => {
-    if (document.visibilityState === "hidden") hidden = true;
-  };
+let lastHiddenAt: number | null = null;
+let hiddenAtInstall = false;
+let tracking = false;
+
+function onVisibility() {
+  if (document.visibilityState === "hidden") lastHiddenAt = Date.now();
+}
+
+export function trackHidden(): void {
   try {
-    onChange();
-    document.addEventListener("visibilitychange", onChange);
+    if (tracking) return;
+    tracking = true;
+    if (document.visibilityState === "hidden") {
+      lastHiddenAt = Date.now();
+      hiddenAtInstall = true;
+    } else if (performance.getEntriesByType?.("visibility-state").some((entry) => entry.name === "hidden")) {
+      hiddenAtInstall = true;
+    }
+    document.addEventListener("visibilitychange", onVisibility);
   } catch {}
-  return {
-    wasHidden: () => hidden,
-    stop: () => {
-      try {
-        document.removeEventListener("visibilitychange", onChange);
-      } catch {}
-    },
-  };
+}
+
+export function wasHiddenSince(startedAt: number | null): boolean {
+  if (startedAt === null) return hiddenAtInstall || lastHiddenAt !== null;
+  return lastHiddenAt !== null && lastHiddenAt >= startedAt;
+}
+
+export function resetHiddenForTests(): void {
+  try {
+    document.removeEventListener("visibilitychange", onVisibility);
+  } catch {}
+  lastHiddenAt = null;
+  hiddenAtInstall = false;
+  tracking = false;
 }
 
 export function probeSavedCopy(path: string, timeoutMs = 1000): Promise<boolean> {

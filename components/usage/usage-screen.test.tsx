@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { StrictMode } from "react";
 import { act, render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 
@@ -46,7 +47,13 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
 });
+
+function setVisibility(state: "visible" | "hidden") {
+  Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
 
 describe("the recorder renders nothing", () => {
   it("is an empty string on the server, for both components", () => {
@@ -247,5 +254,145 @@ describe("it cannot break a page", () => {
     process.off("unhandledRejection", unhandled);
     expect(container.innerHTML).toBe("");
     expect(unhandled).not.toHaveBeenCalled();
+  });
+});
+
+describe("the exact record", () => {
+  it("passes a screen, ms, saved, dayOffset and the Trip, and nothing path-derived", async () => {
+    pathnameMock.mockReturnValue("/trips/northvale-loop/day/2026-12-03");
+    render(<UsageTrip {...TRIP} />);
+    await settle();
+    const arg = client.recordUsageScreen.mock.calls[0][0];
+    expect(arg).toEqual({ screen: "day", ms: arg.ms, saved: false, dayOffset: 2, trip: TRIP });
+    expect(JSON.stringify(arg)).not.toContain("northvale");
+  });
+
+  it("passes the same five keys for an app screen", async () => {
+    render(<UsageRecorder userId="u" />);
+    await settle();
+    const arg = client.recordUsageScreen.mock.calls[0][0];
+    expect(arg).toEqual({ screen: "trips", ms: arg.ms, saved: false, dayOffset: null, trip: null });
+  });
+});
+
+describe("React Strict Mode", () => {
+  it("records one screen when effects run twice", async () => {
+    render(
+      <StrictMode>
+        <UsageRecorder userId="u" />
+      </StrictMode>,
+    );
+    await settle();
+    expect(client.recordUsageScreen).toHaveBeenCalledTimes(1);
+  });
+
+  it("records one trip screen when effects run twice", async () => {
+    pathnameMock.mockReturnValue("/trips/northvale-loop/plan");
+    render(
+      <StrictMode>
+        <UsageRecorder userId="u" />
+        <UsageTrip {...TRIP} />
+      </StrictMode>,
+    );
+    await settle();
+    expect(client.recordUsageScreen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a Trip marker that mounts a commit after the recorder", () => {
+  it("still records once, with the Trip's id and the time the navigation took", async () => {
+    const view = render(<UsageRecorder userId="u" />);
+    await settle();
+    client.recordUsageScreen.mockClear();
+    const startedAt = Date.now() - 400;
+    pendingMock.mockReturnValue({ href: "/trips/northvale-loop/plan", pathname: "/trips/northvale-loop/plan", startedAt });
+    view.rerender(<UsageRecorder userId="u" />);
+    pendingMock.mockReturnValue(null);
+    pathnameMock.mockReturnValue("/trips/northvale-loop/plan");
+    view.rerender(<UsageRecorder userId="u" />);
+    await settle();
+    expect(client.recordUsageScreen).not.toHaveBeenCalled();
+    view.rerender(
+      <>
+        <UsageRecorder userId="u" />
+        <UsageTrip {...TRIP} />
+      </>,
+    );
+    await settle();
+    expect(client.recordUsageScreen).toHaveBeenCalledTimes(1);
+    const arg = client.recordUsageScreen.mock.calls[0][0];
+    expect(arg.screen).toBe("plan");
+    expect(arg.trip.tripId).toBe("it-usage-trip");
+    expect(arg.ms).toBeGreaterThanOrEqual(400);
+    expect(arg.ms).toBeLessThan(500);
+  });
+});
+
+describe("time spent hidden", () => {
+  it("is not time to appear: hidden and back between the tap and the arrival gives null", async () => {
+    const view = render(<UsageRecorder userId="u" />);
+    await settle();
+    client.recordUsageScreen.mockClear();
+    pendingMock.mockReturnValue({ href: "/globe", pathname: "/globe", startedAt: Date.now() });
+    view.rerender(<UsageRecorder userId="u" />);
+    pendingMock.mockReturnValue(null);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    setVisibility("hidden");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    setVisibility("visible");
+    pathnameMock.mockReturnValue("/globe");
+    view.rerender(<UsageRecorder userId="u" />);
+    await settle();
+    expect(client.recordUsageScreen).toHaveBeenCalledWith(expect.objectContaining({ screen: "globe", ms: null }));
+  });
+
+  it("is null for a first screen of a document that started hidden", async () => {
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    render(<UsageRecorder userId="u" />);
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await settle();
+    expect(client.recordUsageScreen).toHaveBeenCalledWith(expect.objectContaining({ screen: "trips", ms: null }));
+  });
+});
+
+describe("pending entries that never landed", () => {
+  it("are cleared when an arrival is processed, so a later arrival does not borrow their start", async () => {
+    pathnameMock.mockReturnValue("/trips/northvale-loop/day/2026-12-02");
+    const view = render(<UsageTrip {...TRIP} />);
+    await settle();
+    const stale = "/trips/northvale-loop/day/2026-12-03";
+    pendingMock.mockReturnValue({ href: stale, pathname: stale, startedAt: Date.now() - 100 });
+    view.rerender(<UsageTrip {...TRIP} />);
+    pendingMock.mockReturnValue(null);
+    pathnameMock.mockReturnValue(stale);
+    view.rerender(<UsageTrip {...TRIP} />);
+    await settle();
+    pathnameMock.mockReturnValue("/trips/northvale-loop/budget");
+    view.rerender(<UsageTrip {...TRIP} />);
+    await settle();
+    client.recordUsageScreen.mockClear();
+    pathnameMock.mockReturnValue(stale);
+    view.rerender(<UsageTrip {...TRIP} />);
+    await settle();
+    expect(client.recordUsageScreen).toHaveBeenCalledWith(expect.objectContaining({ screen: "day", ms: null }));
+  });
+});
+
+describe("coming back from a page that is not a screen", () => {
+  it("counts the return as an arrival", async () => {
+    pathnameMock.mockReturnValue("/account");
+    const view = render(<UsageRecorder userId="u" />);
+    await settle();
+    pathnameMock.mockReturnValue("/privacy");
+    view.rerender(<UsageRecorder userId="u" />);
+    await settle();
+    pathnameMock.mockReturnValue("/account");
+    view.rerender(<UsageRecorder userId="u" />);
+    await settle();
+    expect(client.recordUsageScreen.mock.calls.map((c) => c[0].screen)).toEqual(["account", "account"]);
   });
 });

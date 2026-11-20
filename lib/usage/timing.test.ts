@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { appearMs, probeSavedCopy, watchHidden, afterNextPaint } from "./timing";
+import { appearMs, probeSavedCopy, trackHidden, wasHiddenSince, resetHiddenForTests, afterNextPaint } from "./timing";
 
 function setVisibility(state: "visible" | "hidden") {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -43,23 +43,34 @@ describe("appearMs", () => {
   });
 });
 
-describe("watchHidden", () => {
-  it("remembers a hide that came and went", () => {
-    const watch = watchHidden();
-    expect(watch.wasHidden()).toBe(false);
-    setVisibility("hidden");
-    document.dispatchEvent(new Event("visibilitychange"));
-    setVisibility("visible");
-    document.dispatchEvent(new Event("visibilitychange"));
-    expect(watch.wasHidden()).toBe(true);
-    watch.stop();
+describe("wasHiddenSince", () => {
+  afterEach(() => resetHiddenForTests());
+
+  it("is false when the tab was never hidden", () => {
+    trackHidden();
+    expect(wasHiddenSince(Date.now() - 1000)).toBe(false);
+    expect(wasHiddenSince(null)).toBe(false);
   });
 
-  it("starts hidden when the document is", () => {
+  it("remembers a hide that came and went after the navigation began", () => {
+    vi.useFakeTimers();
+    trackHidden();
+    const startedAt = Date.now();
+    vi.advanceTimersByTime(500);
     setVisibility("hidden");
-    const watch = watchHidden();
-    expect(watch.wasHidden()).toBe(true);
-    watch.stop();
+    document.dispatchEvent(new Event("visibilitychange"));
+    vi.advanceTimersByTime(500);
+    setVisibility("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(wasHiddenSince(startedAt)).toBe(true);
+    expect(wasHiddenSince(Date.now())).toBe(false);
+    expect(wasHiddenSince(null)).toBe(true);
+  });
+
+  it("counts a document that was hidden when tracking began", () => {
+    setVisibility("hidden");
+    trackHidden();
+    expect(wasHiddenSince(null)).toBe(true);
   });
 });
 
