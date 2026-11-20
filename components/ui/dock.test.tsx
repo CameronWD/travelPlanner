@@ -56,4 +56,14 @@ describe("Dock", () => {
     expect(home).not.toHaveAttribute("data-pending");
     expect(home.className).not.toContain("bg-coral");
   });
+
+  it("renders two items that share a page without a duplicate-key warning", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const same = [{ href: "/trips/t1/plan" as Route, label: "Plan" }, { href: "/trips/t1/plan" as Route, label: "Days" }];
+    render(<NavigationPendingProvider><Dock items={same} aria-label="Sections" /></NavigationPendingProvider>);
+    expect(screen.getByRole("link", { name: "Plan" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Days" })).toBeTruthy();
+    expect(spy.mock.calls.flat().join(" ")).not.toContain("same key");
+    spy.mockRestore();
+  });
 });

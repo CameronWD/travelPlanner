@@ -101,7 +101,7 @@ export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPh
           <div role="group" aria-label="Trip sections" className="flex flex-col divide-y-2 divide-muted overflow-hidden rounded-[14px] border-2 border-border bg-card">
             {sheetItems.map((item) => (
               <AppLink
-                key={item.href}
+                key={item.label}
                 href={item.href}
                 onClick={() => setOpen(false)}
                 aria-current={isNavActive(item.href, realPathname, base) ? "page" : undefined}

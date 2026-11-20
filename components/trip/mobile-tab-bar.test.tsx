@@ -187,4 +187,13 @@ describe("MobileTabBar", () => {
       expect(screen.getByRole("link", { name: label }).getAttribute("href")).toBe(href);
     }
   });
+
+  it("renders Plan and Days on one page (a trip with no dates) without a duplicate-key warning", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<DaysHrefProvider href={"/trips/t1/plan" as Route}><MobileTabBar tripId="t1" /></DaysHrefProvider>);
+    expect(screen.getByRole("link", { name: "Plan" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Days" })).toBeTruthy();
+    expect(spy.mock.calls.flat().join(" ")).not.toContain("same key");
+    spy.mockRestore();
+  });
 });
