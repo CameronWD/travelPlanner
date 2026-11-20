@@ -71,6 +71,7 @@
    item. Its wrapper is a classless div whose only stable hook is the .gm-style-cc items inside it. */
 .tp-map .gm-style div:has(> .gm-style-cc) {
   margin-right: 0.75rem;
+  margin-bottom: 2px;
 }
 
 /* ---------------------------------------------------------------------------

@@ -8,6 +8,10 @@ describe("Google attribution row", () => {
   it("is inset from the map's right edge so a card's rounded corner does not cut it", () => {
     expect(decls(rule(`${S} div:has(> .gm-style-cc)`))["margin-right"]).toBe("0.75rem");
   });
+
+  it("clears the card's bottom edge", () => {
+    expect(decls(rule(`${S} div:has(> .gm-style-cc)`))["margin-bottom"]).toBe("2px");
+  });
 });
 
 describe("Google InfoWindow shell", () => {
