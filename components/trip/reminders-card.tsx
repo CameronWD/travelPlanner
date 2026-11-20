@@ -159,7 +159,7 @@ function AddReminderForm({
           ref={addRef}
           type="button"
           aria-label="Add Reminder"
-          onClick={() => (phone ? setDialogOpen(true) : setOpen(true))}
+          onClick={() => ((phone ?? window.matchMedia(PHONE).matches) ? setDialogOpen(true) : setOpen(true))}
           className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-extrabold text-foreground underline-offset-2 hover:underline"
         >
           <Plus className="size-4" aria-hidden="true" />
