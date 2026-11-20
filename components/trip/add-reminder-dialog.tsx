@@ -83,12 +83,16 @@ export type AddReminderDialogProps = DialogBase &
         tripId: string;
         /**
          * What this Reminder is about — the Stop, thing to do or Transport leg whose
-         * card opened the dialog (spec F8). Fixed and hidden, never a picker: the
-         * Reminders card's add form is where a Traveller picks.
+         * card opened the dialog (spec F8). Fixed and hidden, never a picker.
          */
-        about?: ReminderAbout;
-        /** Set instead of `about` when opened from the Reminders card: the dialog shows the About picker. */
-        aboutChoices?: ReminderAboutOptions;
+        about: ReminderAbout;
+        aboutChoices?: undefined;
+        reminder?: undefined;
+      }
+    | {
+        tripId: string;
+        about?: undefined;
+        aboutChoices: ReminderAboutOptions | undefined;
         reminder?: undefined;
       }
     | {
