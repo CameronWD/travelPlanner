@@ -73,21 +73,21 @@ export function WhatsNewCard({
         <h2 className="font-display text-base font-semibold tracking-tight">
           What&apos;s new
         </h2>
+        <span
+          aria-hidden="true"
+          className="grid h-5 min-w-5 place-items-center rounded-full border-2 border-border bg-coral px-1 text-[11px] font-extrabold leading-none text-on-accent"
+        >
+          {totalUnread}
+        </span>
       </div>
 
-      <ul className="mt-3 space-y-1.5">
+      <ul className="mt-3 space-y-2">
         {notes.map((note, index) => (
           // ReleaseNote has no id, and nothing guarantees publishedAt is
           // unique across notes — the index disambiguates a same-timestamp
           // pair so two notes never collide on one React key.
-          <li
-            key={`${note.publishedAt}-${index}`}
-            className="flex gap-2 text-sm text-muted-foreground"
-          >
-            <span aria-hidden="true" className="select-none text-primary">
-              ·
-            </span>
-            <span className="text-foreground">{note.text}</span>
+          <li key={`${note.publishedAt}-${index}`} className="text-sm text-foreground">
+            {note.text}
           </li>
         ))}
       </ul>

@@ -29,6 +29,13 @@ describe("WhatsNewCard", () => {
     expect(screen.getByText("Charlie")).toBeTruthy();
   });
 
+  it("counts the unread news in a coral badge instead of a bullet beside each note", () => {
+    const { container } = render(<WhatsNewCard notes={NOTES.slice(0, 2)} totalUnread={7} />);
+    const badge = screen.getByText("7");
+    expect(badge).toHaveClass("bg-coral");
+    expect(container.textContent).not.toContain("·");
+  });
+
   it("floating pins the card above the tab bar; without it the card stays in flow", () => {
     const { container, rerender } = render(<WhatsNewCard notes={NOTES} totalUnread={3} floating />);
     expect((container.firstElementChild as HTMLElement).className).toMatch(/\bfixed\b/);
