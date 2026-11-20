@@ -274,8 +274,11 @@ describe("PrivacyPage", () => {
     expect(text).toContain("which I call Usage");
     expect(text).toContain("never holds anything you typed");
     expect(text).toContain("opening a trip’s share link while you are signed in is noted, with no trip attached");
-    expect(text).toContain("Only an Admin can read it");
-    expect(text).toContain("not shared with or sent to anyone else");
+    expect(text).toContain("Inside Teepee, only an Admin can see Usage, and only as counts, never record by record");
+    expect(text).toContain("I, as the person who runs Teepee, can read the records in the database like everything else there");
+    expect(text).toContain("stored with the same database host as your trips and is included in the same nightly backups");
+    expect(text).toContain("not sent to any analytics or advertising company");
+    expect(text).not.toContain("not shared with or sent to anyone else");
     expect(text).toContain("no cookies beyond the one that keeps you signed in");
   });
 

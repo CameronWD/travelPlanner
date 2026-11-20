@@ -355,10 +355,15 @@ export default function PrivacyPage() {
           name or a page address. Nothing is recorded while you are signed
           out, and on a public page nothing at all, except that opening a
           trip’s share link while you are signed in is noted, with no trip
-          attached. Only an Admin can read it, and only as counts, never
-          record by record. It stays in Teepee’s own database, like your
-          trips. It is not shared with or sent to anyone else, and it uses
-          no cookies beyond the one that keeps you signed in.
+          attached. Inside Teepee, only an Admin can see Usage, and only as
+          counts, never record by record. I, as the person who runs Teepee,
+          can read the records in the database like everything else there,
+          and I have a script that sums them up. Usage is stored with the
+          same database host as your trips and is included in the same
+          nightly backups (see “How long it is kept” below). It is not sent
+          to any analytics or advertising company, and it is not used for
+          anything but seeing how Teepee is used. It uses no cookies beyond
+          the one that keeps you signed in.
         </p>
       </LegalSection>
 
