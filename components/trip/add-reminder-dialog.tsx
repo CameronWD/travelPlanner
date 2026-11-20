@@ -14,7 +14,8 @@ import { useEntityForm } from "@/components/ui/use-entity-form";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 import { addReminder, deleteReminder, updateReminder } from "@/server/actions/reminders";
 import { checkReminderInput } from "@/lib/reminder-input";
-import type { ReminderAbout } from "@/lib/reminder-about";
+import { aboutFromPick, aboutPickValue, type ReminderAbout, type ReminderAboutOptions } from "@/lib/reminder-about";
+import { useFieldControl } from "@/components/ui/field";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,6 +27,51 @@ interface DialogBase {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
+}
+
+export function hasAbout(a: ReminderAboutOptions | undefined): a is ReminderAboutOptions {
+  return !!a && a.stops.length + a.items.length + a.transports.length > 0;
+}
+
+export function AboutSelect({
+  about,
+  value,
+  onChange,
+  disabled,
+}: {
+  about: ReminderAboutOptions;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const control = useFieldControl();
+  return (
+    <select
+      {...control}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      aria-label="About"
+      className="flex h-12 w-full rounded-md border-2 border-input bg-card px-4 text-base font-semibold text-foreground sm:text-[15px]"
+    >
+      <option value="">The whole trip</option>
+      {about.stops.length > 0 && (
+        <optgroup label="Stops">
+          {about.stops.map((s) => <option key={s.id} value={aboutPickValue({ stopId: s.id })}>{s.name}</option>)}
+        </optgroup>
+      )}
+      {about.items.length > 0 && (
+        <optgroup label="Things to do">
+          {about.items.map((i) => <option key={i.id} value={aboutPickValue({ itemId: i.id })}>{i.title}</option>)}
+        </optgroup>
+      )}
+      {about.transports.length > 0 && (
+        <optgroup label="Transport">
+          {about.transports.map((t) => <option key={t.id} value={aboutPickValue({ transportId: t.id })}>{t.label}</option>)}
+        </optgroup>
+      )}
+    </select>
+  );
 }
 
 export type EditableReminder = { id: string; title: string; date: string; notes: string | null };
@@ -40,7 +86,9 @@ export type AddReminderDialogProps = DialogBase &
          * card opened the dialog (spec F8). Fixed and hidden, never a picker: the
          * Reminders card's add form is where a Traveller picks.
          */
-        about: ReminderAbout;
+        about?: ReminderAbout;
+        /** Set instead of `about` when opened from the Reminders card: the dialog shows the About picker. */
+        aboutChoices?: ReminderAboutOptions;
         reminder?: undefined;
       }
     | {
@@ -48,6 +96,7 @@ export type AddReminderDialogProps = DialogBase &
         reminder: EditableReminder;
         tripId?: undefined;
         about?: undefined;
+        aboutChoices?: undefined;
       }
   );
 
@@ -64,6 +113,7 @@ export type AddReminderDialogProps = DialogBase &
 export function AddReminderDialog({
   tripId,
   about,
+  aboutChoices,
   reminder,
   defaultDate,
   open,
@@ -71,10 +121,11 @@ export function AddReminderDialog({
   onSaved,
 }: AddReminderDialogProps) {
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title={reminder ? "Edit Reminder" : "Add a Reminder"}>
+    <FormDialog open={open} onOpenChange={onOpenChange} title={reminder ? "Edit Reminder" : about ? "Add a Reminder" : "Add Reminder"}>
       <AddReminderForm
         tripId={tripId}
         about={about}
+        aboutChoices={aboutChoices}
         reminder={reminder}
         defaultDate={defaultDate}
         onClose={() => onOpenChange(false)}
@@ -91,6 +142,7 @@ export function AddReminderDialog({
 function AddReminderForm({
   tripId,
   about,
+  aboutChoices,
   reminder,
   defaultDate,
   onClose,
@@ -98,6 +150,7 @@ function AddReminderForm({
 }: {
   tripId?: string;
   about?: ReminderAbout;
+  aboutChoices?: ReminderAboutOptions;
   reminder?: EditableReminder;
   defaultDate?: string;
   onClose: () => void;
@@ -106,6 +159,7 @@ function AddReminderForm({
   const [title, setTitle] = React.useState(reminder?.title ?? "");
   const [date, setDate] = React.useState(reminder?.date ?? defaultDate ?? "");
   const [notes, setNotes] = React.useState(reminder?.notes ?? "");
+  const [pick, setPick] = React.useState("");
 
   const { requestDelete, isPending: isDeleting, dialog: deleteDialog } = useDeleteWithConfirm({
     action: (...[id]: [string, string]) => deleteReminder(id),
@@ -133,7 +187,7 @@ function AddReminderForm({
       const checked = checkReminderInput({ title, date, ...(notes.trim() ? { notes } : {}) });
       if (!checked.success) return checked;
       if (reminder) return updateReminder(reminder.id, { ...checked.data, notes: checked.data.notes ?? null });
-      return addReminder(tripId!, { ...checked.data, ...about! });
+      return addReminder(tripId!, { ...checked.data, ...(about ?? aboutFromPick(pick)) });
     },
     onClose,
     onSaved,
@@ -171,6 +225,12 @@ function AddReminderForm({
           disabled={isPending}
         />
       </Field>
+
+      {hasAbout(aboutChoices) && (
+        <Field label="About">
+          <AboutSelect about={aboutChoices} value={pick} onChange={setPick} disabled={isPending} />
+        </Field>
+      )}
 
       <FormError>{formError(errors)}</FormError>
 

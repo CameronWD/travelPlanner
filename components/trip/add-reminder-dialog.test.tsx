@@ -124,6 +124,19 @@ describe("AddReminderDialog", () => {
   });
 });
 
+describe("AddReminderDialog: About choice", () => {
+  const choices = { stops: [{ id: "s1", name: "Stop One" }], items: [], transports: [] };
+
+  it("shows the About select only when given choices", () => {
+    const { unmount } = render(<AddReminderDialog tripId="trip-1" aboutChoices={choices} open onOpenChange={vi.fn()} />);
+    expect(screen.getByLabelText("About")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add Reminder" })).toBeInTheDocument();
+    unmount();
+    render(<AddReminderDialog {...baseProps} />);
+    expect(screen.queryByLabelText("About")).not.toBeInTheDocument();
+  });
+});
+
 describe("AddReminderDialog: footer buttons", () => {
   it("Delete uses the destructive look and Cancel is outline", () => {
     render(

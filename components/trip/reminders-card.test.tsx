@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setMatchMedia } from "@/test/setup";
 
 /**
  * RemindersCard — a Trip's dated notes.
@@ -560,5 +561,67 @@ describe("RemindersCard Earlier", () => {
   it("shows no Earlier heading when nothing is past", () => {
     render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "n", title: "Next up", date: "2026-12-01" })]} />);
     expect(screen.queryByRole("heading", { name: "Earlier" })).not.toBeInTheDocument();
+  });
+});
+
+describe("RemindersCard Add Reminder on a phone", () => {
+  const ABOUT = {
+    stops: [{ id: "s1", name: "Stop One" }],
+    items: [],
+    transports: [],
+  };
+  const onPhone = () => setMatchMedia((q) => q === "(max-width: 767px)");
+  const fill = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.type(screen.getByLabelText(/^Reminder title/), "Pack");
+    fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: "2026-12-01" } });
+  };
+
+  afterEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+
+  it("opens the Add Reminder dialog and no inline form", async () => {
+    onPhone();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.getByRole("dialog", { name: "Add Reminder" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reminder date")).not.toBeInTheDocument();
+  });
+
+  it("saves about the Stop picked", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await fill(user);
+    await user.selectOptions(screen.getByLabelText("About"), "Stop One");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add Reminder" }));
+    await waitFor(() => expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Pack", date: "2026-12-01", stopId: "s1" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("sends no about for the whole trip", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await fill(user);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add Reminder" }));
+    await waitFor(() => expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Pack", date: "2026-12-01" }));
+  });
+
+  it("Cancel closes it without a call", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(addReminder).not.toHaveBeenCalled();
+  });
+
+  it("on a desktop it unfolds the inline form and opens no dialog", async () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.getByLabelText("Reminder date")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

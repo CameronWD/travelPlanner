@@ -12,11 +12,12 @@ import {
   updateReminder,
   type ReminderItem,
 } from "@/server/actions/reminders";
-import { aboutFromPick, aboutPickValue, reminderAboutLabel, type ReminderAboutOptions } from "@/lib/reminder-about";
-import { AddReminderDialog } from "@/components/trip/add-reminder-dialog";
+import { aboutFromPick, reminderAboutLabel, type ReminderAboutOptions } from "@/lib/reminder-about";
+import { AboutSelect, AddReminderDialog, hasAbout } from "@/components/trip/add-reminder-dialog";
 import { ReminderNotes } from "@/components/trip/reminder-notes";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { failureMessage } from "@/components/ui/failure-message";
+import { useMediaQuery } from "@/components/ui/use-media-query";
 import { useUndoableAction } from "@/components/ui/use-undoable-action";
 
 // ---------------------------------------------------------------------------
@@ -95,9 +96,7 @@ function formatWhen(
 // Add form (inline)
 // ---------------------------------------------------------------------------
 
-function hasAbout(a: ReminderAboutOptions | undefined): a is ReminderAboutOptions {
-  return !!a && a.stops.length + a.items.length + a.transports.length > 0;
-}
+const PHONE = "(max-width: 767px)";
 
 function AddReminderForm({
   tripId,
@@ -109,6 +108,9 @@ function AddReminderForm({
   onAdded: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const phone = useMediaQuery(PHONE);
+  const addRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -152,15 +154,31 @@ function AddReminderForm({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        aria-label="Add Reminder"
-        onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-extrabold text-foreground underline-offset-2 hover:underline"
-      >
-        <Plus className="size-4" aria-hidden="true" />
-        Add Reminder
-      </button>
+      <>
+        <button
+          ref={addRef}
+          type="button"
+          aria-label="Add Reminder"
+          onClick={() => (phone ? setDialogOpen(true) : setOpen(true))}
+          className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-extrabold text-foreground underline-offset-2 hover:underline"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          Add Reminder
+        </button>
+        {dialogOpen && (
+          <AddReminderDialog
+            tripId={tripId}
+            aboutChoices={about}
+            open
+            onOpenChange={(o) => {
+              if (o) return;
+              setDialogOpen(false);
+              setTimeout(() => addRef.current?.focus(), 50);
+            }}
+            onSaved={onAdded}
+          />
+        )}
+      </>
     );
   }
 
@@ -188,31 +206,7 @@ function AddReminderForm({
         aria-label="Reminder notes"
         rows={2}
       />
-      {hasAbout(about) && (
-        <select
-          value={pick}
-          onChange={(e) => setPick(e.target.value)}
-          aria-label="About"
-          className="flex h-12 w-full rounded-md border-2 border-input bg-card px-4 text-base font-semibold text-foreground sm:text-[15px]"
-        >
-          <option value="">The whole trip</option>
-          {about.stops.length > 0 && (
-            <optgroup label="Stops">
-              {about.stops.map((s) => <option key={s.id} value={aboutPickValue({ stopId: s.id })}>{s.name}</option>)}
-            </optgroup>
-          )}
-          {about.items.length > 0 && (
-            <optgroup label="Things to do">
-              {about.items.map((i) => <option key={i.id} value={aboutPickValue({ itemId: i.id })}>{i.title}</option>)}
-            </optgroup>
-          )}
-          {about.transports.length > 0 && (
-            <optgroup label="Transport">
-              {about.transports.map((t) => <option key={t.id} value={aboutPickValue({ transportId: t.id })}>{t.label}</option>)}
-            </optgroup>
-          )}
-        </select>
-      )}
+      {hasAbout(about) && <AboutSelect about={about} value={pick} onChange={setPick} />}
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" loading={isPending}>
