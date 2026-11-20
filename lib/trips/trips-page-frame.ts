@@ -14,7 +14,7 @@ import { cn } from "@/lib/cn";
  * viewport is shorter than 820px.
  */
 export const FRAME = cn(
-  "flex flex-col gap-3.5 pl-[18px] pr-0 pt-1 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))]",
+  "flex flex-col gap-3.5 pl-[18px] pr-0 pt-1 pb-[calc(var(--tp-tab-bar-h)+1rem+var(--tp-fab-clearance)+env(safe-area-inset-bottom))]",
   "md:gap-[18px] md:px-6 md:py-8",
   "xl:min-h-0 xl:pl-10 xl:pr-0 xl:py-8 xl:h-dvh xl:overflow-hidden",
   "xl:[@media(max-height:819px)]:h-auto xl:[@media(max-height:819px)]:overflow-visible",

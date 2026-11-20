@@ -29,6 +29,10 @@ describe("TripsLoading", () => {
     expect(header.querySelector(".size-11")).not.toBeNull();
   });
 
+  it("FRAME clears the Feedback button at its foot", () => {
+    expect(FRAME).toContain("var(--tp-fab-clearance)");
+  });
+
   it("phone skeleton: cards fill the 256px track, a dots row and the tally strip are reserved", () => {
     const { container } = render(<TripsLoading />);
     expect(container.querySelector(".h-\\[256px\\]")).not.toBeNull();
