@@ -95,7 +95,7 @@ function JournalDial({
         <Switch id={id} checked={checked} onCheckedChange={onChange} />
       </div>
       <p className="text-xs text-muted-foreground">
-        Each day&apos;s notes and photos, by first name
+        Each day’s notes and photos, by first name
       </p>
     </div>
   );
@@ -128,7 +128,7 @@ function ContactsDial({
         <Switch id={id} checked={checked && enabled} onCheckedChange={onChange} disabled={!enabled} aria-label="Contact details" />
       </div>
       <p className="text-xs text-muted-foreground">
-        Each traveller&apos;s phone numbers under their name, only with &quot;Show who&apos;s going&quot; on.
+        Each traveller’s phone numbers under their name, only with “Show who’s going” on.
       </p>
     </div>
   );
@@ -153,7 +153,7 @@ function TravellersDial({
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
         <label htmlFor={id} className="text-sm text-foreground">
-          Show who&apos;s going
+          Show who’s going
         </label>
         <Switch id={id} checked={checked} onCheckedChange={onChange} />
       </div>
@@ -183,7 +183,7 @@ function CopyUrlBar({ token }: { token: string }) {
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             })
-            .catch(() => toastRejected("Couldn't copy the link."));
+            .catch(() => toastRejected("Couldn’t copy the link."));
         }}
       >
         {copied ? (
@@ -237,7 +237,7 @@ function LinkRow({
           setEditing(false);
           setError(null);
         } else {
-          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Couldn't save this share link. Try again.");
+          setError(result.errors.label?.[0] ?? result.errors.form?.[0] ?? "Couldn’t save this share link. Try again.");
         }
       } catch {
         // A rejected action (network, thrown server error) must behave like a
@@ -259,7 +259,7 @@ function LinkRow({
           onChanged(result.link);
           setError(null);
         } else {
-          setError(result.errors.form?.[0] ?? "Couldn't rotate this share link. Try again.");
+          setError(result.errors.form?.[0] ?? "Couldn’t rotate this share link. Try again.");
         }
       } catch {
         // Nothing is applied before the action answers, so there's nothing to
@@ -279,7 +279,7 @@ function LinkRow({
         if (result.success) {
           onRevoked(link.id);
         } else {
-          setError(result.errors.form?.[0] ?? "Couldn't revoke this share link. Try again.");
+          setError(result.errors.form?.[0] ?? "Couldn’t revoke this share link. Try again.");
         }
       } catch {
         // The row is only removed on success, so a rejected revoke keeps it.
@@ -404,7 +404,7 @@ export function ShareLinksPanel({
           setNewScope(FULL_SCOPE);
           setCreateError(null);
         } else {
-          setCreateError(result.errors.label?.[0] ?? "Couldn't create a share link. Try again.");
+          setCreateError(result.errors.label?.[0] ?? "Couldn’t create a share link. Try again.");
         }
       } catch {
         // A rejected action (network, thrown server error) must behave like a

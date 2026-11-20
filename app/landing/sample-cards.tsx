@@ -230,7 +230,7 @@ export function PhoneSampleCards() {
   return (
     <div
       data-testid="sample-cards-phone"
-      className="relative -mx-6 flex min-h-0 flex-1 items-center justify-center self-stretch overflow-hidden text-left"
+      className="relative -mx-6 mt-8 flex min-h-0 flex-[0_1_auto] items-center justify-center self-stretch overflow-hidden text-left"
     >
       <div className="relative h-[268px] w-full max-w-[393px] shrink-0">
         <div ref={pieceRef("lilac")} data-piece="lilac" aria-hidden="true" className="absolute left-3.5 top-[34px] w-[116px] max-[379px]:w-[104px]">

@@ -20,7 +20,7 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
 
 import { WhatsAroundSwitch } from "./whats-around-switch";
 
-const NAME = "Show What's around";
+const NAME = "Show What’s around";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -65,7 +65,7 @@ describe("WhatsAroundSwitch", () => {
     await user.click(toggle);
 
     await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
-    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update What's around. Try again." });
+    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t update What’s around. Try again." });
   });
 
   it("rolls back and toasts when the action throws", async () => {
@@ -77,6 +77,6 @@ describe("WhatsAroundSwitch", () => {
     await user.click(toggle);
 
     await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
-    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update What's around. Try again." });
+    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t update What’s around. Try again." });
   });
 });

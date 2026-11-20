@@ -67,6 +67,13 @@
   outline-offset: -3px;
 }
 
+/* The attribution row is flush to the map's bottom right, so a card's rounded corner cuts its last
+   item. Its wrapper is a classless div whose only stable hook is the .gm-style-cc items inside it. */
+.tp-map .gm-style div:has(> .gm-style-cc) {
+  margin-right: 0.75rem;
+  margin-bottom: 2px;
+}
+
 /* ---------------------------------------------------------------------------
    Design tokens. HSL channels (same convention as before) so bg-coral/20 etc. work.
    Names kept from shadcn so existing components re-skin with no API change.

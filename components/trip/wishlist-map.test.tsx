@@ -75,7 +75,7 @@ describe("WishlistMap frame", () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
     const { container } = render(<WishlistMap items={ITEMS} onSelect={vi.fn()} />);
-    expect(screen.getByText("The map isn't available right now.")).toBeInTheDocument();
+    expect(screen.getByText("The map isn’t available right now.")).toBeInTheDocument();
     expect(container.querySelector("[data-map-fallback]")).not.toBeNull();
     expect(screen.queryByTestId("marker")).not.toBeInTheDocument();
   });

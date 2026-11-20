@@ -149,7 +149,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
         // never accepted — and say so here rather than let the rejection reach
         // the error boundary and take the whole Settings page down with it.
         setEnabled(previous);
-        setSaveError("Couldn't save that. Check your connection and try again.");
+        setSaveError("Couldn’t save that. Check your connection and try again.");
       }
     });
   };
@@ -317,8 +317,8 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
           // it stays a clean success message, and add the honest caveat
           // alongside it rather than folding it in.
           const headline = testResult.placeholder
-            ? `Sent a test to ${devices}. There's nothing to report today, so your real digest would stay silent.`
-            : `Sent today's digest to ${devices}.`;
+            ? `Sent a test to ${devices}. There’s nothing to report today, so your real digest would stay silent.`
+            : `Sent today’s digest to ${devices}.`;
           return (
             <p className="text-xs text-foreground">
               <span>{headline}</span>{" "}

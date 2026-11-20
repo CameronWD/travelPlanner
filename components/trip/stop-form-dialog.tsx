@@ -322,7 +322,7 @@ function StopForm({
       {/* Mode toggle — a dated Trip's only Stop has no rough mode (ADR 0073);
           nor has a proposed Stop (Booking import), which needs no explanation. */}
       {onSubmitOverride ? null : lockedScheduled ? (
-        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip&apos;s dates. Add a second Stop to split them.</p>
+        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip’s dates. Add a second Stop to split them.</p>
       ) : (
         <Segmented
           type="single"

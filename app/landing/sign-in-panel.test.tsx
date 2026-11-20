@@ -13,7 +13,7 @@ function setup() {
   );
 }
 
-const DENIED = "You don't have a spot yet. I've noted your request, and if a spot opens up for you I'll email you. Not everyone gets one.";
+const DENIED = "You don’t have a spot yet. I’ve noted your request, and if a spot opens up for you I’ll email you. Not everyone gets one.";
 
 describe("Sign in panel (spec collage §1.1)", () => {
   afterEach(() => {
@@ -50,7 +50,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Join the waiting list" }));
     const dialog = screen.getByRole("dialog", { name: "Teepee is full" });
-    expect(within(dialog).getByText("There's no room for new people right now. Sign in below to ask for a spot. There's nothing else to fill in.")).toBeInTheDocument();
+    expect(within(dialog).getByText("There’s no room for new people right now. Sign in below to ask for a spot. There’s nothing else to fill in.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -134,7 +134,7 @@ describe("Sign in panel (spec collage §1.1)", () => {
         <LandingActions size="lg" />
       </SignInPanelProvider>,
     );
-    const dialog = screen.getByRole("dialog", { name: "That link didn't work" });
+    const dialog = screen.getByRole("dialog", { name: "That link didn’t work" });
     expect(within(dialog).getByText("Sign-in links work once and expire after a day. Ask for a new one below.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
   });

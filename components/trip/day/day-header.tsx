@@ -87,12 +87,12 @@ export function DayHeader({
           aria-label={`Travellers (${members.length})`}
           className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <span className="flex -space-x-2.5">
+          <span className="flex -space-x-1.5">
             {shown.map((m) => (
-              <TravellerAvatar key={m.id} traveller={m} size={40} className="border-2 border-border" />
+              <TravellerAvatar key={m.id} traveller={m} size={40} ring className="border-2 border-border" />
             ))}
             {extra > 0 ? (
-              <span className="relative grid size-10 place-items-center rounded-full border-2 border-border bg-card text-xs font-extrabold text-foreground">
+              <span className="relative grid size-10 place-items-center rounded-full border-2 border-border bg-card ring-2 ring-background text-xs font-extrabold text-foreground">
                 +{extra}
               </span>
             ) : null}

@@ -93,4 +93,14 @@ describe("TabBar", () => {
     render(<NavigationPendingProvider><TabBar items={items} /></NavigationPendingProvider>);
     expect(screen.getByRole("navigation", { name: "Main" }).className.split(/\s+/)).toContain("tp-vt-tab-bar");
   });
+
+  it("renders two tabs that share a page without a duplicate-key warning", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const same = [{ href: "/trips/t1/plan" as Route, label: "Plan" }, { href: "/trips/t1/plan" as Route, label: "Days" }];
+    render(<NavigationPendingProvider><TabBar items={same} /></NavigationPendingProvider>);
+    expect(screen.getByRole("link", { name: "Plan" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Days" })).toBeTruthy();
+    expect(spy.mock.calls.flat().join(" ")).not.toContain("same key");
+    spy.mockRestore();
+  });
 });

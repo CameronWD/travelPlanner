@@ -31,8 +31,8 @@ const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
         </span>
       ) : null}
       <div className="mt-1.5 flex flex-col gap-1">
-        <h3 className="font-display text-2xl font-extrabold tracking-[-0.03em]">{title}</h3>
-        {description ? <p className="max-w-[260px] text-[13px] font-medium text-muted-foreground">{description}</p> : null}
+        <h3 className="text-balance font-display text-2xl font-extrabold tracking-[-0.03em]">{title}</h3>
+        {description ? <p className="max-w-[260px] text-balance text-[13px] font-medium text-muted-foreground">{description}</p> : null}
       </div>
       {action ? <div className="mt-1">{action}</div> : null}
     </div>

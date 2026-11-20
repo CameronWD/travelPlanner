@@ -4,7 +4,7 @@
  * See PLAN.md §1.1, §3/§4.1, §6.2, §7.4.
  */
 import { uncoveredNightDates, uncoveredNights } from "@/lib/accommodation-coverage";
-import { addDays, daysBetween, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
+import { addDays, daysBetween, formatDateRangeCompact, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
 import { flowDates, type FlowStop, type ProjectionStop } from "@/lib/firm-up";
 import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -154,11 +154,17 @@ export function stayCostLabel(
   return currencies.map((cur) => formatMoney(sumIn(cur), cur)).join(" + ");
 }
 
+export const PLAN_RANGE_DASH = "\u202F–\u2009";
+
+export function planDateRange(start: string, end: string): string {
+  return formatDateRangeCompact(start, end).replace(/ ?– ?/, PLAN_RANGE_DASH);
+}
+
 /** "Tue 15 – Tue 22 Dec" / "Sun 27 Dec – Sun 3 Jan": the stop row and header range (PLAN.md §1.1, §3). */
 export function formatStayRange(arrive: string, depart: string): string {
   const [a, d] = [arrive, depart].map(formatDayLabel);
   const sameMonth = parseISODate(arrive).getUTCMonth() === parseISODate(depart).getUTCMonth();
-  return sameMonth ? `${a.replace(/ [A-Z][a-z]{2}$/, "")} – ${d}` : `${a} – ${d}`;
+  return sameMonth ? `${a.replace(/ [A-Z][a-z]{2}$/, "")}${PLAN_RANGE_DASH}${d}` : `${a}${PLAN_RANGE_DASH}${d}`;
 }
 
 /** PLAN.md §1.1 eyebrow: the trip name with its start year, unless the name already ends with it. */

@@ -13,9 +13,12 @@ export function TripsSkeleton() {
   return (
     <div data-trips-shell className={FRAME}>
       <span role="status" className="sr-only">Loading trips</span>
-      <header className="pr-[18px] md:pr-10">
-        <h1 className="mt-1 font-display text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[40px]">Your trips</h1>
-        <Skeleton className="mt-2 hidden h-3.5 w-36 md:block" />
+      <header className="flex items-end gap-4 pr-[18px] md:pr-10">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] md:text-[40px]">Your trips</h1>
+          <div className="mt-1.5 hidden h-[1lh] items-center text-[15px] font-semibold md:flex"><Skeleton className="h-3.5 w-36" /></div>
+        </div>
+        <div aria-hidden="true" className="size-11 shrink-0" />
       </header>
       <div aria-hidden="true" className={cn("flex gap-3 overflow-hidden pb-1.5 md:gap-[18px]", CAROUSEL_TRACK_HEIGHT_CLASS)}>
         <div className="h-[250px] w-[300px] shrink-0 rounded-[22px] border-2 border-border-soft md:h-[280px] md:w-[600px] md:rounded-[24px]" />

@@ -12,7 +12,7 @@ const transport: NextStep = { id: "d", title: "Book transport", subtitle: "No ti
 describe("NextStepsCard", () => {
   it("celebrates the empty state", () => {
     render(<NextStepsCard steps={[]} />);
-    expect(screen.getByText(/you're all set/i)).toBeInTheDocument();
+    expect(screen.getByText(/you’re all set/i)).toBeInTheDocument();
   });
 
   it("renders steps as links to their hrefs", () => {

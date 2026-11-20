@@ -132,6 +132,19 @@ describe("MobileTabBar", () => {
     ]);
   });
 
+  it("is a dialog named More with Close in its header row and 48px rows", async () => {
+    const user = userEvent.setup();
+    render(<MobileTabBar tripId="t1" phase="travelling" />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const dialog = screen.getByRole("dialog", { name: "More" });
+    const close = within(dialog).getByRole("button", { name: "Close" });
+    expect(close.parentElement).toContainElement(within(dialog).getByText("More"));
+    const group = within(dialog).getByRole("group", { name: "Trip sections" });
+    for (const row of [...within(group).getAllByRole("link"), within(group).getByRole("button", { name: "Share" })]) {
+      expect(row.className).toContain("min-h-12");
+    }
+  });
+
   it("Share opens the Trip's share chooser and closes the sheet", async () => {
     const user = userEvent.setup();
     const opened = vi.fn();
@@ -173,5 +186,14 @@ describe("MobileTabBar", () => {
     for (const [label, href] of expected) {
       expect(screen.getByRole("link", { name: label }).getAttribute("href")).toBe(href);
     }
+  });
+
+  it("renders Plan and Days on one page (a trip with no dates) without a duplicate-key warning", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<DaysHrefProvider href={"/trips/t1/plan" as Route}><MobileTabBar tripId="t1" /></DaysHrefProvider>);
+    expect(screen.getByRole("link", { name: "Plan" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Days" })).toBeTruthy();
+    expect(spy.mock.calls.flat().join(" ")).not.toContain("same key");
+    spy.mockRestore();
   });
 });

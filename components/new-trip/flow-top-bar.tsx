@@ -83,7 +83,7 @@ export function LeaveDialog({ open, onOpenChange, onLeave }: { open: boolean; on
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Leave without saving?</DialogTitle>
-          <DialogDescription>Your answers so far won&apos;t be kept.</DialogDescription>
+          <DialogDescription>Your answers so far won’t be kept.</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={onLeave}>Leave</Button>

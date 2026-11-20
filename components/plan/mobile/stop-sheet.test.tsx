@@ -6,6 +6,7 @@ vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi
 import { StopSheet, pickTopDay } from "./stop-sheet";
 import { daySlots } from "@/lib/plan/day-density";
 import { stopSheetMeta } from "./stop-sheet-meta";
+import { PLAN_RANGE_DASH } from "@/lib/plan/plan-model";
 
 const PARIS = { id: "par", name: "Paris", country: "France", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", nights: null, pinned: false, chapterId: null, sortOrder: 1, notes: null, lat: null, lng: null };
 const ITEMS = [{ id: "a", bookingStateSet: false, title: "Check in", category: "OTHER", date: "2026-12-10", startTime: "15:00" }, { id: "b", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00" }];
@@ -22,7 +23,7 @@ describe("StopSheet (PLAN.md §7.2)", () => {
     const { props } = renderSheet();
     const dialog = screen.getByRole("dialog", { name: "Paris" });
     expect(dialog.className).toMatch(/inset-0/);
-    expect(screen.getByText("Thu 10 – Sat 12 Dec · 2 nights", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(`Thu 10${PLAN_RANGE_DASH}Sat 12 Dec · 2 nights`, { exact: false, normalizer: (t) => t })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Back to the plan" }));
     expect(props.onClose).toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Actions for Paris" }));
@@ -124,7 +125,7 @@ describe("StopSheet nights stepper (spec 2026-10-06 §N)", () => {
   it("shows the dates in full on their own line, and the stepper below steps the Stop's nights", async () => {
     const onSetNights = vi.fn();
     renderSheet({ onSetNights });
-    const meta = screen.getByText(stopSheetMeta(PARIS));
+    const meta = screen.getByText(stopSheetMeta(PARIS), { normalizer: (t) => t });
     expect(meta.className).not.toContain("truncate");
     const stepper = screen.getByRole("group", { name: "Nights in Paris" });
     expect(meta.contains(stepper)).toBe(false);

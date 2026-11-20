@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
 import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { RangeCalendar } from "@/components/ui/range-calendar";
@@ -13,10 +13,9 @@ import { useServerAction } from "@/components/ui/use-server-action";
 import { createStop } from "@/server/actions/stops";
 import { chapterForStop, type ChapterLike } from "@/lib/chapters";
 import { cn } from "@/lib/cn";
-import { formatDateRangeCompact } from "@/lib/dates";
 import { HUE_CLASSES } from "@/lib/hues";
 import { exactStopPlacement, storedAnchorFor } from "@/lib/plan/exact-stop-placement";
-import { addStopConsequence, routeCentroid } from "@/lib/plan/plan-model";
+import { addStopConsequence, planDateRange, routeCentroid } from "@/lib/plan/plan-model";
 import { stopHue } from "@/lib/stop-colours";
 import { UNCHOSEN_TIMEZONE } from "@/lib/tz";
 import type { StopInput } from "@/lib/validations/stop";
@@ -165,7 +164,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
 
       <p className={LABEL}>HOW LONG</p>
       {loneOnDatedTrip ? (
-        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip&apos;s dates. Add a second Stop to split them.</p>
+        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip’s dates. Add a second Stop to split them.</p>
       ) : (
         <Segmented type="single" tone="ink" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="How long" className="grid grid-cols-2">
           <SegmentedItem value="exact">Exact dates</SegmentedItem>
@@ -201,7 +200,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
                   <span className="flex items-center gap-2">
                     <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full border-2 border-border", HUE_CLASSES[stopHue(s.sortOrder)].fill)} />
                     {s.name}
-                    <span className="whitespace-nowrap text-muted-foreground">{s.arriveDate && s.departDate ? formatDateRangeCompact(s.arriveDate, s.departDate) : "rough"}</span>
+                    <span className="whitespace-nowrap text-muted-foreground">{s.arriveDate && s.departDate ? planDateRange(s.arriveDate, s.departDate) : "rough"}</span>
                   </span>
                 </SelectItem>
               ))}
@@ -218,6 +217,11 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
       <FormError>{Object.values(errors).flat()[0]}</FormError>
 
       <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline" className="max-sm:hidden">
+            Cancel
+          </Button>
+        </DialogClose>
         <Button type="submit" variant="primary" size="lg" disabled={!canSubmit} loading={pending}>
           Add {name || "a stop"}
         </Button>

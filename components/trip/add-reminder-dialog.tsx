@@ -111,7 +111,7 @@ function AddReminderForm({
     action: (...[id]: [string, string]) => deleteReminder(id),
     buildConfirm: (_id, title) => ({
       title: "Delete this reminder?",
-      description: `"${title}" will be removed.`,
+      description: `“${title}” will be removed.`,
       confirmLabel: "Delete",
       destructive: true,
     }),

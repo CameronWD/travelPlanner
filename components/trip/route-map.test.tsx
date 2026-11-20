@@ -13,7 +13,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }),
 }));
 
-import { RouteMap, routeFitPoints, travelledLegCount } from "./route-map";
+import { RouteMap, ROUTE_FIT_PADDING, routeFitPoints, travelledLegCount } from "./route-map";
 
 const STOPS = [
   { id: "s1", name: "Tokyo", lat: 35.68, lng: 139.76, arriveDate: "2026-01-01", departDate: "2026-01-04", sortOrder: 0 },
@@ -68,7 +68,7 @@ describe("RouteMap on Google", () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
     const { container } = render(<RouteMap stops={STOPS} />);
-    expect(screen.getByText("The map isn't available right now.")).toBeInTheDocument();
+    expect(screen.getByText("The map isn’t available right now.")).toBeInTheDocument();
     expect(container.querySelector("[data-map-fallback]")).not.toBeNull();
     expect(screen.getByText("Tokyo")).toBeInTheDocument();
     expect(screen.getByText("Kyoto")).toBeInTheDocument();
@@ -158,6 +158,11 @@ describe("RouteMap on Google", () => {
       { lat: 35.68, lng: 139.76 },
       { lat: 35.01, lng: 135.77 },
     ]);
+  });
+
+  it("pads the fit on the right so a pin stays clear of the zoom buttons", () => {
+    render(<RouteMap stops={STOPS} home={HOME} />);
+    expect(mock.map.fitBounds.mock.calls[0][1]).toEqual(ROUTE_FIT_PADDING);
   });
 });
 

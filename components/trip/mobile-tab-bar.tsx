@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { X } from "lucide-react";
 import { AppLink } from "@/components/navigation/app-link";
 import { useNavState } from "@/components/navigation/navigation-pending";
 import {
@@ -10,6 +11,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { DialogClose } from "@/components/ui/dialog";
 import { TabBar, type TabItem } from "@/components/ui/tab-bar";
 import { primaryNav, moreNav, isNavActive, isDaysActive } from "@/components/trip/trip-nav";
 import { NAV_ICONS } from "@/components/trip/nav-icons";
@@ -87,36 +89,39 @@ export function MobileTabBar({ tripId, phase }: { tripId: string; phase?: TripPh
       <TabBar items={items} aria-label="Trip sections" />
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom">
-          {/* Visually-hidden title and description for a11y */}
-          <SheetTitle className="sr-only">More navigation</SheetTitle>
+        <SheetContent side="bottom" hideClose>
+          <div className="flex items-center gap-3">
+            <SheetTitle className="min-w-0 flex-1 font-display text-[28px] leading-none">More</SheetTitle>
+            <DialogClose className="grid size-11 shrink-0 place-items-center rounded-sm border-2 border-border bg-card text-foreground">
+              <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
+              <span className="sr-only">Close</span>
+            </DialogClose>
+          </div>
           <SheetDescription className="sr-only">Jump to a trip section</SheetDescription>
-          <div className="flex flex-col gap-1 p-2">
+          <div role="group" aria-label="Trip sections" className="flex flex-col divide-y-2 divide-muted overflow-hidden rounded-[14px] border-2 border-border bg-card">
             {sheetItems.map((item) => (
               <AppLink
-                key={item.href}
+                key={item.label}
                 href={item.href}
                 onClick={() => setOpen(false)}
                 aria-current={isNavActive(item.href, realPathname, base) ? "page" : undefined}
                 data-pending={pendingPathname != null && isNavActive(item.href, pendingPathname, base) ? "true" : undefined}
-                className="rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
+                className="flex min-h-12 w-full items-center px-3.5 text-left text-sm font-bold aria-[current=page]:bg-muted"
               >
                 {item.label}
               </AppLink>
             ))}
             {travelling && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    window.dispatchEvent(new Event(OPEN_SHARE_EVENT));
-                  }}
-                  className="rounded-xl px-4 py-3 text-left text-sm font-medium text-foreground hover:bg-muted/50"
-                >
-                  Share
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new Event(OPEN_SHARE_EVENT));
+                }}
+                className="flex min-h-12 w-full items-center px-3.5 text-left text-sm font-bold aria-[current=page]:bg-muted"
+              >
+                Share
+              </button>
             )}
           </div>
         </SheetContent>

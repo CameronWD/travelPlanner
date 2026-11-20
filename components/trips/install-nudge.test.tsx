@@ -39,7 +39,7 @@ describe("InstallNudge", () => {
     isIosWithoutInstallMock.mockReturnValue(true);
     const { unmount } = render(<InstallNudge />);
     expect(await screen.findByRole("heading", { name: "Put Teepee on your Home Screen" })).toBeInTheDocument();
-    expect(screen.getByText('Tap Share, then "Add to Home Screen", then open Teepee from there.')).toBeInTheDocument();
+    expect(screen.getByText('Tap Share, then “Add to Home Screen”, then open Teepee from there.')).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Got it" }));
     expect(screen.queryByTestId("install-nudge")).toBeNull();

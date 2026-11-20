@@ -126,7 +126,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       const result = await setForksEnabled(tripId, next);
       if (!result.success) {
         setForksEnabledState(!next);
-        setForksError(result.errors._?.[0] ?? "Couldn't change what-if plans. Try again.");
+        setForksError(result.errors._?.[0] ?? "Couldn’t change what-if plans. Try again.");
       }
     });
   }
@@ -175,7 +175,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         label="Home currency"
         required
         error={fieldError("homeCurrency")}
-        description="Trip totals will be shown in this currency. Changing this won't convert existing cost entries."
+        description="Trip totals will be shown in this currency. Changing this won’t convert existing cost entries."
       >
         <Select name="homeCurrency" defaultValue={defaultValues.homeCurrency}>
           <SelectTrigger disabled={isPending}>
@@ -194,7 +194,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       <Field
         label="Home base"
         error={fieldError("homeName")}
-        description="Where this trip departs from and returns to. Leave blank if you'd rather not set one."
+        description="Where this trip departs from and returns to. Leave blank if you’d rather not set one."
       >
         <PlaceCombobox
           kind="area"

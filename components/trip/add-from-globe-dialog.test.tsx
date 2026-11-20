@@ -95,8 +95,8 @@ describe("AddFromGlobeDialog", () => {
     await vi.waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: expect.stringMatching(/couldn't add/i),
-          description: "Couldn't do that. Check your connection and try again.",
+          title: expect.stringMatching(/couldn’t add/i),
+          description: "Couldn’t do that. Check your connection and try again.",
         }),
       ),
     );

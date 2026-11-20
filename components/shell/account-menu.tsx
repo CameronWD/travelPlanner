@@ -49,7 +49,7 @@ export function AccountMenuContent({
       </DropdownMenuItem>
 
       <DropdownMenuItem asChild>
-        <Link href="/whats-new">What&apos;s new</Link>
+        <Link href="/whats-new">What’s new</Link>
       </DropdownMenuItem>
 
       {showAccount && (

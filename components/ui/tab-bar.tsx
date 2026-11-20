@@ -71,10 +71,10 @@ function TabBar({ items, className, "aria-label": ariaLabel = "Main" }: { items:
         {items.map((it) => {
           const active = matches(it, path);
           if (it.render) {
-            return <React.Fragment key={it.href}>{it.render(active)}</React.Fragment>;
+            return <React.Fragment key={it.label}>{it.render(active)}</React.Fragment>;
           }
           return (
-            <AppLink key={it.href} href={it.href} aria-current={matches(it, pathname) ? "page" : undefined}
+            <AppLink key={it.label} href={it.href} aria-current={matches(it, pathname) ? "page" : undefined}
               aria-label={it["aria-label"]}
               data-pending={pendingPathname != null && matches(it, pendingPathname) ? "true" : undefined}
               className={cn("relative flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 truncate rounded-md text-xs transition-colors duration-[var(--dur-fast)]", active ? "font-extrabold text-on-accent" : "font-semibold text-muted-foreground")}>

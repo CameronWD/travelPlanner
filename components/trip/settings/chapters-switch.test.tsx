@@ -92,7 +92,7 @@ describe("ChaptersSwitch", () => {
     });
     expect(toastMock).toHaveBeenCalledWith({
       variant: "destructive",
-      title: "Couldn't update chapters. Try again.",
+      title: "Couldn’t update chapters. Try again.",
     });
   });
 
@@ -109,7 +109,7 @@ describe("ChaptersSwitch", () => {
     });
     expect(toastMock).toHaveBeenCalledWith({
       variant: "destructive",
-      title: "Couldn't update chapters. Try again.",
+      title: "Couldn’t update chapters. Try again.",
     });
   });
 

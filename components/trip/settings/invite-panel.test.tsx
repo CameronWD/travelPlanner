@@ -79,7 +79,7 @@ describe("InvitePanel", () => {
       />,
     );
     expect(
-      screen.getAllByText("If they don't have a spot yet, they'll wait on the waiting list until they're let in."),
+      screen.getAllByText("If they don’t have a spot yet, they’ll wait on the waiting list until they’re let in."),
     ).toHaveLength(2);
     expect(screen.getAllByText("Pending")).toHaveLength(2);
     expect(screen.getByText(/once they have a spot\./)).toBeInTheDocument();

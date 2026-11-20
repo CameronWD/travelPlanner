@@ -82,6 +82,12 @@ describe("Print view — tokens only (Task 15)", () => {
     expect(page).toMatch(/data-print-root[^>]*\bprint:max-w-none\b/);
   });
 
+  it("takes the trip layout's gutter on a phone and its full width on desktop (U4)", () => {
+    expect(page).toMatch(/data-print-root[^>]*\bw-full\b/);
+    expect(page).toMatch(/data-print-root[^>]*\bpx-0\b/);
+    expect(page).not.toMatch(/data-print-root[^>]*(^|\s)px-4\b/);
+  });
+
   it("labels the on-screen preview, hidden from the print output itself (LA-055)", () => {
     expect(page).toMatch(/Print preview/);
     // Scoped: the label's own className carries print:hidden, not just any
@@ -313,6 +319,45 @@ describe("Print view — phone-width route rows (LA-150)", () => {
     expect(ref.className).toMatch(/\bsm:basis-auto\b/);
     expect(ref.className).toMatch(/\bsm:ml-auto\b/);
     expect(ref.className).not.toMatch(/(^|\s)ml-auto(\s|$)/);
+
+    const from = screen.getByText(/from Rome \(FCO\)/);
+    expect(from).toHaveTextContent("from Rome (FCO)Florence (FLR)");
+    expect(from.className).toMatch(/\bmin-w-0\b/);
+  });
+});
+
+describe("Print view — Transport line arrow (U4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function line(depPlace: string | null, arrPlace: string | null) {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip({ id: "trip-1", name: "Europe", startDate: "2026-01-01", endDate: "2026-01-05", homeCurrency: "GBP" }),
+        stops: [
+          stop({ id: "s1", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 0 }),
+          stop({ id: "s2", name: "Florence", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-01-03", departDate: "2026-01-05", sortOrder: 1 }),
+        ],
+        transports: [transport({ id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace, arrPlace, depAt: null, arrAt: null, reference: null, sortOrder: 0 })],
+      }),
+    );
+    const { default: PrintPage } = await import("./page");
+    const { container } = render(await PrintPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+    return container.querySelector<HTMLElement>("span.min-w-0.break-words")!;
+  }
+
+  it("keeps the arrow when only the arrival place is known", async () => {
+    const el = await line(null, "Florence (FLR)");
+    expect(el.textContent).toBe("Florence (FLR)");
+    expect(el.querySelector("svg")).toBeTruthy();
+    expect(el.firstElementChild!.tagName.toLowerCase()).toBe("svg");
+  });
+
+  it("shows no arrow for a departure-only line", async () => {
+    const el = await line("Rome (FCO)", null);
+    expect(el.textContent).toBe("from Rome (FCO)");
+    expect(el.querySelector("svg")).toBeNull();
   });
 });
 

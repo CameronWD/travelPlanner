@@ -51,10 +51,10 @@ describe("NewTripFlow — shell and step 1", () => {
   });
 
   it.each<[Partial<FlowProps>, string]>([
-    [{ firstTrip: true, displayName: "Cameron" }, "Welcome, Cameron. Let's start your first trip."],
-    [{ firstTrip: true, displayName: "Cameron Williams" }, "Welcome, Cameron. Let's start your first trip."],
-    [{ firstTrip: true, displayName: null }, "Let's start your first trip."],
-    [{ firstTrip: true, displayName: "  " }, "Let's start your first trip."],
+    [{ firstTrip: true, displayName: "Cameron" }, "Welcome, Cameron. Let’s start your first trip."],
+    [{ firstTrip: true, displayName: "Cameron Williams" }, "Welcome, Cameron. Let’s start your first trip."],
+    [{ firstTrip: true, displayName: null }, "Let’s start your first trip."],
+    [{ firstTrip: true, displayName: "  " }, "Let’s start your first trip."],
     [{ past: true }, "Log a past trip"],
   ])("eyebrow for %o", async (props, text) => {
     flow(props);
@@ -338,7 +338,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await toCover();
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Couldn't create your trip. Nothing was saved. Try again.");
+    expect(alert).toHaveTextContent("Couldn’t create your trip. Nothing was saved. Try again.");
     expect(await heading("Got a photo for it?")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: /Create trip/ })).toBeEnabled());
     expect(push).not.toHaveBeenCalled();
@@ -347,7 +347,7 @@ describe("NewTripFlow — create (NEW_TRIP.md §9)", () => {
     await userEvent.click(screen.getByRole("button", { name: /Create trip/ }));
     await waitFor(() => expect(createTrip).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByRole("alert")).not.toBe(alert));
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't create your trip. Nothing was saved. Try again.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn’t create your trip. Nothing was saved. Try again.");
   });
 
   it("a first trip toasts once it's created", async () => {

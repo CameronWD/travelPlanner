@@ -3,7 +3,7 @@ import { useMap } from "@vis.gl/react-google-maps";
 
 export const FIT_SINGLE_ZOOM = 12;
 
-export function useFitBounds(points: google.maps.LatLngLiteral[], opts: { padding?: number; maxZoom?: number } = {}): void {
+export function useFitBounds(points: google.maps.LatLngLiteral[], opts: { padding?: number | google.maps.Padding; maxZoom?: number } = {}): void {
   const map = useMap();
   const signature = points.map((p) => `${p.lat},${p.lng}`).join(";");
 

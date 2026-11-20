@@ -303,7 +303,7 @@ describe("Sidebar", () => {
       expect(screen.getByRole("button", { name: "Open traveller menu" })).toBeInTheDocument();
       const menu = screen.getByTestId("account-menu");
       expect(within(menu).getByRole("link", { name: /how to use teepee/i }).getAttribute("href")).toBe("/help");
-      expect(within(menu).getByRole("link", { name: /what's new/i }).getAttribute("href")).toBe("/whats-new");
+      expect(within(menu).getByRole("link", { name: /what’s new/i }).getAttribute("href")).toBe("/whats-new");
       expect(within(menu).getByText("Sign out")).toBeInTheDocument();
       expect(within(menu).queryByRole("link", { name: /^account$/i })).toBeNull();
       expect(within(menu).queryByRole("link", { name: /^admin/i })).toBeNull();

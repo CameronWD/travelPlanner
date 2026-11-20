@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { HUE_CLASSES } from "@/lib/hues";
 import { stopHue } from "@/lib/stop-colours";
 import { StopRow, type StopRowProps } from "./stop-row";
+import { PLAN_RANGE_DASH } from "@/lib/plan/plan-model";
 
 const DATED = {
   id: "r", name: "Rome", country: "Italy", timezone: "Europe/Rome", arriveDate: "2026-12-15", departDate: "2026-12-22",
@@ -41,7 +42,7 @@ describe("StopRow (PLAN.md §3)", () => {
 
   it("dates, nights pill and chips", () => {
     renderRow();
-    expect(screen.getByText("Tue 15 – Tue 22 Dec")).toBeInTheDocument();
+    expect(screen.getByText(`Tue 15${PLAN_RANGE_DASH}Tue 22 Dec`, { normalizer: (t) => t })).toBeInTheDocument();
     expect(screen.getByText("7 nights")).toBeInTheDocument();
     expect(screen.getByText("Hotel Artemide")).toBeInTheDocument();
     expect(screen.getByText("4 plans")).toBeInTheDocument();
@@ -159,7 +160,7 @@ describe("StopRow header click (spec 2026-10-05 §G)", () => {
     const { props } = renderRow();
     await userEvent.click(screen.getByRole("heading", { name: "Rome" }));
     expect(props.onToggle).toHaveBeenCalledTimes(1);
-    await userEvent.click(screen.getByText("Tue 15 – Tue 22 Dec"));
+    await userEvent.click(screen.getByText(`Tue 15${PLAN_RANGE_DASH}Tue 22 Dec`, { normalizer: (t) => t }));
     expect(props.onToggle).toHaveBeenCalledTimes(2);
     await userEvent.click(screen.getByText("4 plans"));
     expect(props.onToggle).toHaveBeenCalledTimes(3);

@@ -254,6 +254,21 @@ describe("Trip Home, composed with its layout", () => {
     expect(screen.getByTestId("cover-art")).toBeInTheDocument();
   });
 
+  it("names a past trip on its phone cover card, and no other phase", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: "2020-01-01", endDate: "2020-01-10" });
+    await renderTripHome();
+    const card = screen.getByTestId("cover-card");
+    expect(within(card).getByText("Test Trip")).toHaveClass("absolute", "bottom-3", "left-3");
+  });
+
+  it("does not print the trip name on a planning trip's cover card", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: "2099-01-01", endDate: "2099-01-10" });
+    await renderTripHome();
+    for (const card of screen.queryAllByTestId("cover-card")) {
+      expect(within(card).queryByText("Test Trip")).toBeNull();
+    }
+  });
+
   it("spaces the What's new banner below itself", async () => {
     await renderTripHome();
     expect(screen.getByTestId("whats-new")).toHaveClass("mb-6");

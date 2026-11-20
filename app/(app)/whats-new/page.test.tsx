@@ -40,7 +40,7 @@ describe("/whats-new", () => {
   it("titles the page with the kit display h1", async () => {
     render(await WhatsNewPage());
     const h1 = screen.getByRole("heading", { level: 1 });
-    expect(h1.textContent).toBe("What's new");
+    expect(h1.textContent).toBe("What’s new");
     expect(h1.className).toMatch(/\bfont-extrabold\b/);
   });
 

@@ -81,7 +81,7 @@ describe("PrivacyPage", () => {
       screen.queryByText(/download your data|export your data/i),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Ask me and I'll send you a copy/i),
+      screen.getByText(/Ask me and I’ll send you a copy/i),
     ).toBeInTheDocument();
   });
 

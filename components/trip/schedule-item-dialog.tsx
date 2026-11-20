@@ -158,7 +158,7 @@ function ScheduleForm({
         onClose();
         return;
       }
-      setAddError(Object.values(result.errors)[0]?.[0] ?? "Couldn't add it. Try again.");
+      setAddError(Object.values(result.errors)[0]?.[0] ?? "Couldn’t add it. Try again.");
     });
   }
 

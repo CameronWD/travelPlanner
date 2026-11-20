@@ -126,7 +126,7 @@ describe("StopFormDialog", () => {
     const { updateStop: updateStopMock } = await import("@/server/actions/stops");
     (updateStopMock as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { _: ["A dated Trip's only Stop keeps the Trip's dates."] },
+      errors: { _: ["A dated Trip’s only Stop keeps the Trip’s dates."] },
     });
 
     const LONDON = {
@@ -139,7 +139,7 @@ describe("StopFormDialog", () => {
 
     await user.click(screen.getByRole("button", { name: /save changes/i }));
 
-    expect(await screen.findByText("A dated Trip's only Stop keeps the Trip's dates.")).toBeInTheDocument();
+    expect(await screen.findByText("A dated Trip’s only Stop keeps the Trip’s dates.")).toBeInTheDocument();
   });
 
   it("is the wide dialog with Place name beside Country, and Nights beside Chapter (spec 2026-10-05 §D)", () => {
@@ -356,13 +356,13 @@ describe("StopFormDialog", () => {
       render(<StopFormDialog {...baseProps} stop={LONDON} loneOnDatedTrip tripStartDate="2026-07-01" tripEndDate="2026-07-05" />);
       expect(screen.queryByRole("radio", { name: "Roughly" })).not.toBeInTheDocument();
       expect(screen.queryByRole("radio", { name: "Exact dates" })).not.toBeInTheDocument();
-      expect(screen.getByText("Your only Stop takes the Trip's dates. Add a second Stop to split them.")).toBeInTheDocument();
+      expect(screen.getByText("Your only Stop takes the Trip’s dates. Add a second Stop to split them.")).toBeInTheDocument();
     });
 
     it("editing a Stop without the flag keeps the Exact dates / Roughly toggle", () => {
       render(<StopFormDialog {...baseProps} stop={LONDON} tripStartDate="2026-07-01" tripEndDate="2026-07-05" />);
       expect(screen.getByRole("radio", { name: "Roughly" })).toBeInTheDocument();
-      expect(screen.queryByText(/Your only Stop takes the Trip's dates/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Your only Stop takes the Trip’s dates/)).not.toBeInTheDocument();
     });
   });
 

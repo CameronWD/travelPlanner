@@ -128,7 +128,7 @@ const props = (over: Partial<JournalPolaroidsProps> = {}): JournalPolaroidsProps
 describe("JournalPolaroids (SHARE.md §8)", () => {
   it("heads How it's going during and How it went after", () => {
     const { rerender } = render(<JournalPolaroids {...props()} />);
-    expect(screen.getByRole("heading", { name: "How it's going" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "How it’s going" })).toBeInTheDocument();
     rerender(<JournalPolaroids {...props({ stage: "after" })} />);
     expect(screen.getByRole("heading", { name: "How it went" })).toBeInTheDocument();
   });

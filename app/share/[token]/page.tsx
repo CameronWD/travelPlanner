@@ -87,11 +87,10 @@ export const viewport: Viewport = { themeColor: MAP_INK.light.paper };
 
 const STICK = "lg:sticky lg:top-6";
 const STICKY_SECTION: Record<ShareStage, ShareSection> = { before: "hero", during: "map", after: "map" };
-const ROUTE_FILL = "lg:[&>div]:h-full lg:[&>div>div]:h-full lg:[&>div>div>section]:h-full";
 const PLACEMENT: Record<ShareStage, Partial<Record<ShareSection, string>>> = {
-  before: { hero: "lg:order-1", route: `lg:order-2 lg:row-span-2 ${ROUTE_FILL}`, map: "lg:order-3", days: "lg:order-4 lg:col-span-2", cta: "lg:order-5 lg:col-span-2" },
-  during: { hero: "lg:order-1", "right-now": "lg:order-2", next: "lg:hidden", map: "lg:order-3", route: `lg:order-4 ${ROUTE_FILL}`, days: "lg:order-5 lg:col-span-2", journal: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
-  after: { hero: "lg:order-1", tally: "lg:order-2 lg:self-start", journal: "lg:order-3 lg:col-span-2", map: "hidden lg:order-4 lg:block", route: `lg:order-5 ${ROUTE_FILL}`, days: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
+  before: { hero: "lg:order-1", route: "lg:order-2 lg:row-span-2", map: "lg:order-3", days: "lg:order-4 lg:col-span-2", cta: "lg:order-5 lg:col-span-2" },
+  during: { hero: "lg:order-1", "right-now": "lg:order-2", next: "lg:hidden", map: "lg:order-3", route: "lg:order-4", days: "lg:order-5 lg:col-span-2", journal: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
+  after: { hero: "lg:order-1", tally: "lg:order-2 lg:self-start", journal: "lg:order-3 lg:col-span-2", map: "hidden lg:order-4 lg:block", route: "lg:order-5", days: "lg:order-6 lg:col-span-2", cta: "lg:order-7 lg:col-span-2" },
 };
 
 // ---------------------------------------------------------------------------
@@ -628,6 +627,7 @@ export default async function SharePage({
           <ShareRouteList
             stage={stage}
             stops={buildRouteListStops(stops, statuses)}
+            className="lg:h-full"
           />
         );
       case "days":
@@ -653,11 +653,15 @@ export default async function SharePage({
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-6">
           {sections.map((key, i) => (
             <div key={key} data-share-section={key} className={cn("min-w-0", PLACEMENT[stage][key])}>
-              <div className={STICKY_SECTION[stage] === key ? STICK : undefined}>
+              <div className={cn(STICKY_SECTION[stage] === key ? STICK : undefined, key === "route" && "lg:h-full")}>
                 {/* MOTION.md S1: the hero drops in on its own; every section below
                     rises in as it scrolls into view, the two columns of a desktop
                     row 60ms apart. */}
-                {key === "hero" ? section(key) : <ShareReveal index={i % 2}>{section(key)}</ShareReveal>}
+                {key === "hero" ? section(key) : (
+                  <ShareReveal index={i % 2} className={key === "route" ? "lg:h-full" : undefined}>
+                    {section(key)}
+                  </ShareReveal>
+                )}
               </div>
             </div>
           ))}

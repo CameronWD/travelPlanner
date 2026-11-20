@@ -32,7 +32,7 @@ export function BookingConfirmationMarker({ kind, id }: { kind: ConfirmationKind
         onClick={doesntNeedOne}
         className="rounded-full border border-border px-2 py-0.5 font-semibold hover:bg-muted hover:text-foreground disabled:opacity-60"
       >
-        Doesn&apos;t need one
+        Doesn’t need one
       </button>
     </p>
   );

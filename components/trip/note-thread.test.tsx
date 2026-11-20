@@ -49,7 +49,7 @@ describe("NoteThread — delete confirm flow", () => {
     await user.click(screen.getByRole("button", { name: /delete note/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /Delete "Remember to book tickets in advance/i }),
+      await screen.findByRole("heading", { name: /Delete “Remember to book tickets in advance/i }),
     ).toBeInTheDocument();
     expect(deleteNote).not.toHaveBeenCalled();
   });

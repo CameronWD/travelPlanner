@@ -27,7 +27,7 @@ import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION, type ItemDrop } from "@/components/plan/plan-dnd";
 import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
-import { stayStatus } from "@/lib/plan/plan-model";
+import { planDateRange, stayStatus } from "@/lib/plan/plan-model";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
 import { PlanRiseIn, RISE_IN_WINDOW_MS } from "@/components/plan/plan-rise-in";
 import { ringId, scrollToId, whenScrollSettles } from "@/lib/scroll-to";
@@ -59,7 +59,7 @@ import { scheduleItem } from "@/server/actions/items";
 import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { usePlanEditor } from "@/components/plan/use-plan-editor";
 import { suggestResultToast } from "@/lib/suggest-toast";
-import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
+import { suggestNextStopDates, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { effectiveLocalMode } from "@/lib/travel-times/hops";
 import { deleteAccommodation } from "@/server/actions/accommodation";
@@ -792,7 +792,7 @@ export function ItineraryManager({
   const setSurpriseAction = useUndoableAction({
     persist: ({ stopId, forIds }: { stopId: string; forIds: string[] | undefined }) =>
       setSurprise({ kind: "STOP", id: stopId, forIds }),
-    failure: "Couldn't make that a surprise.",
+    failure: "Couldn’t make that a surprise.",
   });
   async function handleConfirmSurprise(stopId: string, forIds: string[] | undefined) {
     setSurpriseStopId(null);
@@ -801,14 +801,14 @@ export function ItineraryManager({
 
   const revealSurpriseAction = useUndoableAction({
     persist: (stopId: string) => revealSurprise({ kind: "STOP", id: stopId }),
-    failure: "Couldn't reveal that surprise.",
+    failure: "Couldn’t reveal that surprise.",
   });
 
   async function handleRevealSurprise(stopId: string) {
     const stop = stops.find((s) => s.id === stopId);
     const confirmed = await confirm({
       title: `Reveal the surprise in ${stop?.name ?? "this stop"}?`,
-      description: "Everyone on the trip will see what's inside, and the history of how it was planned.",
+      description: "Everyone on the trip will see what’s inside, and the history of how it was planned.",
       confirmLabel: "Reveal the surprise",
     });
     if (!confirmed) return;
@@ -819,7 +819,7 @@ export function ItineraryManager({
   async function handleMakeRough(stopId: string) {
     const stop = stops.find((s) => s.id === stopId);
     const confirmed = await confirm({
-      title: `Make "${stop?.name ?? "this stop"}" rough again?`,
+      title: `Make “${stop?.name ?? "this stop"}” rough again?`,
       description: "Its dates will be cleared and later stops will re-flow.",
       confirmLabel: "Make rough",
       destructive: false,
@@ -941,7 +941,7 @@ export function ItineraryManager({
     const stopWord = roughCount === 1 ? "stop" : "stops";
     if (!options?.skipConfirm) {
       const confirmed = await confirm({
-        title: "Firm up this chapter's stops?",
+        title: "Firm up this chapter’s stops?",
         description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
         confirmLabel: "Firm up",
         destructive: false,
@@ -972,12 +972,12 @@ export function ItineraryManager({
   // ── Chapter handlers ──
   const deleteChapterAction = useUndoableAction({
     persist: (chapterId: string) => deleteChapter(chapterId),
-    failure: "Couldn't remove that chapter.",
+    failure: "Couldn’t remove that chapter.",
   });
   async function handleDeleteChapter(chapterId: string) {
     const chapter = planChapters.find((c) => c.id === chapterId);
     const confirmed = await confirm({
-      title: `Remove "${chapter?.name ?? "this chapter"}"?`,
+      title: `Remove “${chapter?.name ?? "this chapter"}”?`,
       description: "The chapter will be removed. Any stops it contains will become ungrouped.",
       confirmLabel: "Remove",
       destructive: true,
@@ -997,7 +997,7 @@ export function ItineraryManager({
         next.delete(transportId);
         return next;
       }),
-    failure: "Couldn't delete that transport.",
+    failure: "Couldn’t delete that transport.",
   });
   async function handleDeleteTransport(transportId: string) {
     const t = transports.find((tr) => tr.id === transportId);
@@ -1013,8 +1013,8 @@ export function ItineraryManager({
             : modeLabel)
       : modeLabel;
     const confirmed = await confirm({
-      title: `Delete "${routeLabel}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${routeLabel}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });
@@ -1025,13 +1025,13 @@ export function ItineraryManager({
   // ── Accommodation handlers ──
   const deleteAccommodationAction = useUndoableAction({
     persist: (accId: string) => deleteAccommodation(accId),
-    failure: "Couldn't delete that stay.",
+    failure: "Couldn’t delete that stay.",
   });
   async function handleDeleteAccommodation(accId: string) {
     const acc = stops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
     const confirmed = await confirm({
-      title: `Delete "${acc?.name ?? "this accommodation"}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${acc?.name ?? "this accommodation"}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });
@@ -1100,7 +1100,7 @@ export function ItineraryManager({
         ...(thing.startTime ? { startTime: thing.startTime } : {}),
         ...(thing.endTime ? { endTime: thing.endTime } : {}),
       }),
-    failure: "Couldn't schedule it.",
+    failure: "Couldn’t schedule it.",
   });
   async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
     if (!(await scheduleThingAction.run({ thing, dateISO }))) return;
@@ -1114,7 +1114,7 @@ export function ItineraryManager({
     persist: (drop: ItemDrop) => scheduleItem(drop.itemId, scheduleInputFor(drop.to, drop.from)),
     undo: (drop) => scheduleItem(drop.itemId, scheduleInputFor(drop.from.date, drop.from)),
     done: (drop) => ({ title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}` }),
-    failure: "Couldn't move it.",
+    failure: "Couldn’t move it.",
   });
   async function handleMoveItem(drop: ItemDrop) {
     if (await moveItemAction.run(drop)) flashSlot(drop.stopId, drop.to);
@@ -1588,7 +1588,7 @@ export function ItineraryManager({
   function chapterSummary(n: number, chapter: ItineraryChapter | null) {
     const count = `${n} stop${n === 1 ? "" : "s"}`;
     if (!chapter) return count;
-    return `${count} · ${chapter.startDate && chapter.endDate ? formatDateRangeCompact(chapter.startDate, chapter.endDate) : "rough"}`;
+    return `${count} · ${chapter.startDate && chapter.endDate ? planDateRange(chapter.startDate, chapter.endDate) : "rough"}`;
   }
 
   function firmUpChapterButton(chapterId: string) {
@@ -1699,9 +1699,9 @@ export function ItineraryManager({
           onDragEnd={handleDragEnd}
         >
           {hasRoughStops && (
-            <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">
+            <div className="mb-3 flex min-h-14 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5 py-2">
               <CalendarClock className="size-4" aria-hidden />
-              <p className="flex-1 text-[13px] font-semibold">Some stops don&apos;t have dates yet.</p>
+              <p className="flex-1 text-[13px] font-semibold">Some stops don’t have dates yet.</p>
               <Button
                 variant="primary"
                 size="sm"
@@ -1839,9 +1839,9 @@ export function ItineraryManager({
                 </DragOverlay>
                 {/* Firm up survives the redesign as a slim row whenever rough stops exist. */}
                 {hasRoughStops && (
-                  <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">
+                  <div className="mb-3 flex min-h-14 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5 py-2">
                     <CalendarClock className="size-4" aria-hidden />
-                    <p className="flex-1 text-[13px] font-semibold">Some stops don&apos;t have dates yet.</p>
+                    <p className="flex-1 text-[13px] font-semibold">Some stops don’t have dates yet.</p>
                     <Button
                       variant="primary"
                       size="sm"
@@ -1991,7 +1991,7 @@ export function ItineraryManager({
           icon={MapPin}
           tone="coral"
           title="No stops yet"
-          description="Add the first place you're going. You can keep it rough and sort dates later."
+          description="Add the first place you’re going. You can keep it rough and sort dates later."
           action={
             <Button variant="primary" size="md" onClick={() => setAddStopOpen(true)}>
               <Plus aria-hidden="true" />
@@ -2344,7 +2344,7 @@ export function ItineraryManager({
       {assigningStop && (
         <Dialog open onOpenChange={(o) => !o && setAssigningStop(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Assign &quot;{assigningStop.name}&quot; to a Chapter</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Assign “{assigningStop.name}” to a Chapter</DialogTitle></DialogHeader>
             <div className="flex flex-col gap-2">
               {planChapters.map((c) => (
                 <Button key={c.id} variant="ghost" className="justify-start"

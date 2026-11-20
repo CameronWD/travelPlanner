@@ -50,10 +50,10 @@ function AddShoppingItemForm({ tripId }: { tripId: string }) {
           setText("");
         } else {
           const firstError = Object.values(result.errors)[0]?.[0];
-          setError(firstError ?? "Couldn't add that item. Try again.");
+          setError(firstError ?? "Couldn’t add that item. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't add that item. Try again."));
+        setError(failureMessage("Couldn’t add that item. Try again."));
       }
     });
   }
@@ -92,7 +92,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
   const { requestDelete, isPending: deleteIsPending, dialog: confirmDialog } = useDeleteWithConfirm({
     action: deleteChecklistItem,
     buildConfirm: () => ({
-      title: `Delete "${entry.text}"?`,
+      title: `Delete “${entry.text}”?`,
       description: "This item will be permanently removed from the checklist.",
       confirmLabel: "Delete",
       destructive: true,
@@ -108,7 +108,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
           await toggleChecklistItem(entry.id, !entry.bought);
         }
       } catch {
-        toastRejected("Couldn't update that item.");
+        toastRejected("Couldn’t update that item.");
       }
     });
   }
@@ -118,7 +118,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
       try {
         await setBuyState(entry.id, null);
       } catch {
-        toastRejected("Couldn't update that item.");
+        toastRejected("Couldn’t update that item.");
       }
     });
   }

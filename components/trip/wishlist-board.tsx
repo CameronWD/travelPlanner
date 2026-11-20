@@ -134,8 +134,8 @@ export function WishlistBoard({
   async function handleDelete(itemId: string) {
     const item = items.find((i) => i.id === itemId);
     const confirmed = await confirm({
-      title: `Delete "${item?.title ?? "this item"}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${item?.title ?? "this item"}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });
@@ -143,9 +143,9 @@ export function WishlistBoard({
     setPendingId(itemId);
     try {
       const r = await deleteItem(itemId);
-      if (!r.success) toastRefused(r.errors, "Couldn't delete that idea.");
+      if (!r.success) toastRefused(r.errors, "Couldn’t delete that idea.");
     } catch {
-      toastRejected("Couldn't delete that idea.");
+      toastRejected("Couldn’t delete that idea.");
     } finally {
       setPendingId(null);
     }

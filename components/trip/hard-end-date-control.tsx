@@ -37,7 +37,7 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate, label }: Ha
     startTransition(async () => {
       const r = await setTripHardEndDate(tripId, next);
       if (!r.success) {
-        toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't update the home-by date.") });
+        toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn’t update the home-by date.") });
       } else {
         setEditing(false);
       }

@@ -119,7 +119,7 @@ export default function PrivacyPage() {
             When someone creates, changes or deletes a stop, item,
             transport, accommodation, chapter or cost, or leaves a note, it
             is logged as an activity: who did it, when, and for a change,
-            which fields went from what to what. This is the trip&apos;s
+            which fields went from what to what. This is the trip’s
             shared history. The travellers on that trip can see it.
           </li>
           <li>
@@ -133,10 +133,10 @@ export default function PrivacyPage() {
               Push subscriptions.
             </span>{" "}
             If you turn on the Digest on a device, Teepee stores what that
-            device&apos;s browser gives it to deliver a push notification.
-            It also stores a rough device type (&quot;iPhone&quot;,
-            &quot;Mac&quot; and so on, worked out once from the
-            browser&apos;s user agent and never anything more specific), the
+            device’s browser gives it to deliver a push notification.
+            It also stores a rough device type (“iPhone”,
+            “Mac” and so on, worked out once from the
+            browser’s user agent and never anything more specific), the
             timezone that device last reported, and when it was last seen.
           </li>
           <li>
@@ -146,9 +146,9 @@ export default function PrivacyPage() {
             When something in Teepee breaks, including a failure caught in
             your browser, it records the error message, a stack trace, the
             route it happened on, and your account id if you were signed in
-            at the time. The error is also written to Vercel&apos;s own
+            at the time. The error is also written to Vercel’s own
             runtime logs. The first time a given server-side failure is
-            seen, its raw error message is pushed to each Admin&apos;s
+            seen, its raw error message is pushed to each Admin’s
             device, if they have one registered. A repeat of the same
             failure only bumps a count and is never pushed again. A failure
             reported by a browser is never pushed this way at all.
@@ -162,7 +162,7 @@ export default function PrivacyPage() {
             asking for a sign-in link, and your address does not have a
             spot, sign-in is refused and no link is sent. The
             refusal itself is recorded: your email, how many times
-            you&apos;ve tried, and, from Google, your name and avatar. That
+            you’ve tried, and, from Google, your name and avatar. That
             way I can see who has asked and decide whether to give them a spot.
             So Teepee can hold a record about you even if you are never
             granted an account. I can approve a request, which grants
@@ -177,9 +177,9 @@ export default function PrivacyPage() {
             A note you write to me about Teepee itself (a bug, an
             annoyance, a suggestion) carries the note text and where it was
             written: the route, a page label, the trip you were viewing (if
-            any), your browser&apos;s viewport size and user agent, and your
+            any), your browser’s viewport size and user agent, and your
             name. In the app you see only your own notes. Only an Admin sees
-            everyone&apos;s.
+            everyone’s.
           </li>
         </ul>
       </LegalSection>
@@ -187,12 +187,12 @@ export default function PrivacyPage() {
       <LegalSection title="Who it is shared with">
         <p>
           Nothing in Teepee is sold, and nothing is shared for marketing.
-          These are the services Teepee&apos;s code contacts:
+          These are the services Teepee’s code contacts:
         </p>
         <ul>
           <li>
             <span className="font-bold">Google</span>: sign-in. Your avatar
-            image is also loaded straight from Google by whoever&apos;s
+            image is also loaded straight from Google by whoever’s
             browser is showing it, so Google sees that request too, apart
             from sign-in.
           </li>
@@ -225,7 +225,7 @@ export default function PrivacyPage() {
             <span className="font-bold">
               Open-Meteo
             </span>
-            : a stop&apos;s coordinates and a day&apos;s date, sent to get a
+            : a stop’s coordinates and a day’s date, sent to get a
             weather forecast. For a date too far out to forecast, it gives a
             typical reading from the same calendar date last year.
           </li>
@@ -233,7 +233,7 @@ export default function PrivacyPage() {
             <span className="font-bold">
               Frankfurter
             </span>
-            : currency codes (for example &quot;AUD&quot; → &quot;EUR&quot;),
+            : currency codes (for example “AUD” → “EUR”),
             sent to get an exchange rate. Only the currency pair is sent,
             with no trip content.
           </li>
@@ -251,8 +251,8 @@ export default function PrivacyPage() {
             Booking import). It only runs if I
             have set an API key for it. That is a deployment setting, so it
             can be switched on or off without any change to this page. When
-            it is on, Teepee sends: a stop&apos;s name and country, plus the
-            titles of the items already on that stop (so it doesn&apos;t
+            it is on, Teepee sends: a stop’s name and country, plus the
+            titles of the items already on that stop (so it doesn’t
             repeat them), for a suggestion; or, for a Booking import, the file you
             choose to import or the entire text you paste in, to be read.
             That can include names, addresses and booking or confirmation
@@ -277,7 +277,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <span className="font-bold">GitHub</span>: the nightly database
-            backup (see &quot;How long it is kept&quot; below) is uploaded to
+            backup (see “How long it is kept” below) is uploaded to
             GitHub as a GitHub Actions build artifact and stored there for
             up to 30 days. It is a complete copy of the database, with every
             trip, note, email address, access request and error report in
@@ -301,7 +301,7 @@ export default function PrivacyPage() {
           </span>{" "}
           (part of the Vercel hosting above) to count page views in
           aggregate: which pages get opened, on what kind of device, plus
-          the referrer and a rough country. Vercel&apos;s own
+          the referrer and a rough country. Vercel’s own
           infrastructure adds those details. None of it is read from your
           account. It uses no cookies and builds no personal profile.
         </p>
@@ -314,14 +314,14 @@ export default function PrivacyPage() {
           content.
         </p>
         <p>
-          A share link&apos;s address carries a secret token, so that token
+          A share link’s address carries a secret token, so that token
           is stripped before the page view is sent to analytics, and before
           a page timing is sent to Speed Insights. It still appears,
           unredacted, in an error report if that page happens to throw
-          (see &quot;What Teepee collects&quot; above).
+          (see “What Teepee collects” above).
         </p>
         <p>
-          A trip&apos;s id in an address like <code>/trips/…</code> is left
+          A trip’s id in an address like <code>/trips/…</code> is left
           in the analytics on purpose, so usage can be broken down per
           trip. A trip id is useless to anyone without an account on that
           trip. Beyond those page views and page timings, there is no other
@@ -364,7 +364,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="Getting your data">
         <p>
-          There is no self-serve export yet. Ask me and I&apos;ll send you a
+          There is no self-serve export yet. Ask me and I’ll send you a
           copy.
         </p>
       </LegalSection>

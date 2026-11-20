@@ -74,7 +74,7 @@ describe("SignOutButton", () => {
   });
 
   const OFFLINE_COPY =
-    "You're offline. Signing out removes the saved copy of your trips from this phone.";
+    "You’re offline. Signing out removes the saved copy of your trips from this phone.";
 
   async function cancelConfirm() {
     expect(await screen.findByText(OFFLINE_COPY)).toBeInTheDocument();

@@ -73,7 +73,7 @@ describe("ErrorReportsPanel", () => {
     const button = screen.getByRole("button", { name: /clear connect ETIMEDOUT/i });
     await userEvent.click(button);
 
-    expect(await screen.findByText(/couldn't clear that error/i)).toBeInTheDocument();
+    expect(await screen.findByText(/couldn’t clear that error/i)).toBeInTheDocument();
     await waitFor(() => expect(button).not.toHaveAttribute("aria-busy", "true"));
     // The row is still there — nothing was optimistically removed.
     expect(screen.getByText("connect ETIMEDOUT")).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("ErrorReportsPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: /clear all/i }));
     await userEvent.click(await screen.findByRole("button", { name: "Clear all" }));
 
-    expect(await screen.findByText(/couldn't clear all errors/i)).toBeInTheDocument();
+    expect(await screen.findByText(/couldn’t clear all errors/i)).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /clear all/i })).not.toHaveAttribute(
         "aria-busy",

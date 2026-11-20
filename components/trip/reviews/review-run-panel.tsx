@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SearchCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirm, type ConfirmOptions } from "@/components/ui/confirm-dialog";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { startReview } from "@/server/actions/reviews";
 import { deviceTimeZone } from "@/lib/tz";
@@ -11,7 +12,13 @@ import { nextReviewLabel, type RunPanelState } from "@/lib/review/run-panel";
 import type { ReviewKind } from "@/lib/review/types";
 import { watchReview } from "./watched-reviews";
 
-export const START_FAILED = "Couldn't start the Review. Try again.";
+export const START_FAILED = "Couldn’t start the Review. Try again.";
+
+export const DEEP_REVIEW_CONFIRM: ConfirmOptions = {
+  title: "Start a Deep Review?",
+  description: "A Deep Review takes longer than a Standard Review and thinks harder about the plan.",
+  confirmLabel: "Start Deep Review",
+};
 
 const noopSubscribe = () => () => {};
 
@@ -32,6 +39,7 @@ export function ReviewRunPanel({ tripId, state, fallbackTimeZone }: ReviewRunPan
   const router = useRouter();
   const [pending, setPending] = React.useState<ReviewKind | null>(null);
   const [isRefreshing, startTransition] = React.useTransition();
+  const { confirm, dialog } = useConfirm();
   // The viewer's zone decides the cap's day (decision 5); null on the server.
   const deviceZone = React.useSyncExternalStore(noopSubscribe, deviceTimeZone, () => null);
 
@@ -88,12 +96,16 @@ export function ReviewRunPanel({ tripId, state, fallbackTimeZone }: ReviewRunPan
           <SearchCheck aria-hidden="true" />
           Standard Review
         </Button>
-        <Button variant="secondary" size="sm" disabled={disabled} loading={pending === "DEEP"} onClick={() => start("DEEP")}>
+        <Button variant="secondary" size="sm" disabled={disabled} loading={pending === "DEEP"} onClick={async () => {
+            if (await confirm(DEEP_REVIEW_CONFIRM)) start("DEEP");
+          }}
+        >
           <Sparkles aria-hidden="true" />
           Deep Review
         </Button>
       </div>
       <p className="text-[13px] font-medium text-muted-foreground">{hint}</p>
+      {dialog}
     </section>
   );
 }

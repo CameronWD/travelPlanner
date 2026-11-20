@@ -145,7 +145,7 @@ export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: s
   const routeLinks =
     googleRouteUrl || appleRouteUrl ? (
       <div className="flex items-center gap-3 text-sm">
-        <span className="text-muted-foreground font-medium">Open today&apos;s route:</span>
+        <span className="text-muted-foreground font-medium">Open today’s route:</span>
         {googleRouteUrl && (
           <a href={googleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
             Google Maps

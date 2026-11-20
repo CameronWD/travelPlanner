@@ -77,7 +77,7 @@ describe("StepWhen", () => {
   it("not sure yet: one reassuring line", async () => {
     render(<StepHarness Step={StepWhen} />);
     await userEvent.click(screen.getByRole("radio", { name: "Not sure yet" }));
-    expect(await screen.findByText("No problem. Add dates when you've picked your stops.")).toBeInTheDocument();
+    expect(await screen.findByText("No problem. Add dates when you’ve picked your stops.")).toBeInTheDocument();
     expect(currentDraft().dateMode).toBe("none");
   });
 

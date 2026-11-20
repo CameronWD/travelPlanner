@@ -158,7 +158,7 @@ export default async function SummaryPage({
         <EmptyState
           icon={Calendar}
           title="No dates yet"
-          description="Set your trip's start and end dates to see a summary of your itinerary, budget, and flags."
+          description="Set your trip’s start and end dates to see a summary of your itinerary, budget, and flags."
         />
       </div>
     );

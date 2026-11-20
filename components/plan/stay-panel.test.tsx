@@ -5,6 +5,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { StayPanel, type StayPanelAccommodation } from "./stay-panel";
 import { formatMoney } from "@/lib/money/money";
+import { PLAN_RANGE_DASH } from "@/lib/plan/plan-model";
 
 const PARIS = { arriveDate: "2026-12-10", departDate: "2026-12-14" }; // 4 nights: 10–13 Dec
 
@@ -112,7 +113,7 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
         })}
       />,
     );
-    expect(screen.getByTestId("stay-coverage")).toHaveTextContent("2 of 5 nights, no bed Fri 11 Dec, Sun 13 – Mon 14 Dec");
+    expect(screen.getByTestId("stay-coverage").textContent).toContain(`2 of 5 nights, no bed Fri 11 Dec, Sun 13${PLAN_RANGE_DASH}Mon 14 Dec`);
   });
 
   it("covered: All N nights covered · + Add another place", () => {

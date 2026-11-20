@@ -34,7 +34,7 @@ const COPY: Record<Mode, { title: string; line: string }> = {
   },
   request: {
     title: "Teepee is full",
-    line: "There's no room for new people right now. Sign in below to ask for a spot. There's nothing else to fill in.",
+    line: "There’s no room for new people right now. Sign in below to ask for a spot. There’s nothing else to fill in.",
   },
   // One neutral message for everyone Auth.js refuses — a brand-new stranger,
   // someone waiting, dismissed or revoked. Telling a reader which bucket they
@@ -43,13 +43,13 @@ const COPY: Record<Mode, { title: string; line: string }> = {
   // waiting list (ADR 0057).
   denied: {
     title: "Teepee is full right now.",
-    line: "You don't have a spot yet. I've noted your request, and if a spot opens up for you I'll email you. Not everyone gets one.",
+    line: "You don’t have a spot yet. I’ve noted your request, and if a spot opens up for you I’ll email you. Not everyone gets one.",
   },
   // A spent or expired Sign-in link (`/?error=Verification`). Says nothing
   // about whether the address is on the list — the same controls let them
   // ask again (spec 2026-10-01 §B3).
   "link-expired": {
-    title: "That link didn't work",
+    title: "That link didn’t work",
     line: "Sign-in links work once and expire after a day. Ask for a new one below.",
   },
 };

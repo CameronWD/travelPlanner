@@ -106,7 +106,7 @@ function eyebrowFor(past: boolean, firstTrip: boolean, displayName?: string | nu
   if (past) return "Log a past trip";
   if (!firstTrip) return "New trip";
   const first = displayName?.trim().split(/\s+/)[0];
-  return first ? `Welcome, ${first}. Let's start your first trip.` : "Let's start your first trip.";
+  return first ? `Welcome, ${first}. Let’s start your first trip.` : "Let’s start your first trip.";
 }
 
 function FlowBody({ past, firstTrip, displayName, initialName, initialStep, fromShareToken }: NewTripFlowProps) {
@@ -227,7 +227,7 @@ function FlowBody({ past, firstTrip, displayName, initialName, initialStep, from
         result = await createTrip(toCreateInput(draft, { fromShareToken }), file, small);
       } catch {
         // A thrown create (network, platform limit) stays inline on step 4; the draft stays.
-        setErrors({ form: "Couldn't create your trip. Nothing was saved. Try again." });
+        setErrors({ form: "Couldn’t create your trip. Nothing was saved. Try again." });
         setAttempt((a) => a + 1);
         return;
       }

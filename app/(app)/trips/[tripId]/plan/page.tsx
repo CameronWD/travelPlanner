@@ -6,7 +6,7 @@ import { readPlan, resolvePlanParam } from "@/lib/plan-reads";
 import { orderPlanStops } from "@/lib/plan-order";
 import { chapterForStop } from "@/lib/chapters";
 import { stopHue } from "@/lib/stop-colours";
-import { formatDateRangeCompact, formatNights } from "@/lib/dates";
+import { formatNights } from "@/lib/dates";
 import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enum-values";
@@ -26,7 +26,7 @@ import { TRAVELLER_SELECT } from "@/lib/traveller";
 import { isAiConfigured } from "@/lib/ai";
 import { tripTodayISO } from "@/lib/trip-today";
 import { homeMapPoint } from "@/lib/route-map";
-import { planHeaderMeta, tripEyebrow } from "@/lib/plan/plan-model";
+import { planDateRange, planHeaderMeta, tripEyebrow } from "@/lib/plan/plan-model";
 import { defaultOpenStops } from "@/lib/plan/plan-hash";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
@@ -317,7 +317,7 @@ export default async function TripPlanPage({
     colourHue: stopHue(stop.sortOrder),
     dateLabel:
       stop.arriveDate && stop.departDate
-        ? formatDateRangeCompact(stop.arriveDate, stop.departDate)
+        ? planDateRange(stop.arriveDate, stop.departDate)
         : formatNights(stop.nights ?? 1, { rough: true }),
     chapterId: trip?.chaptersEnabled ? (chapterForStop(stop, chaptersForNav)?.id ?? null) : null,
     rough: !(stop.arriveDate && stop.departDate),

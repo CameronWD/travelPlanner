@@ -274,7 +274,7 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
           </span>
         )}
         {refundLabel(item.refundable) && <span className="shrink-0 whitespace-nowrap text-xs font-bold">{refundLabel(item.refundable)}</span>}
-        <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} compact />
+        <BookingStateBadge state={item.bookingState} bookBy={item.bookBy} compact className="text-xs" />
         {rowCost && <span className="shrink-0 whitespace-nowrap text-xs font-bold tabular-nums">{rowCost}</span>}
         {item.photoUrl && <ItemPhotoThumb src={item.photoUrl} alt={item.title} />}
         {item.hiddenFromShares && (

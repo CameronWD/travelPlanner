@@ -42,10 +42,10 @@ export function useStopDeletionPreview(stopId: string): {
         if (result.success) {
           setPreview(result.preview);
         } else {
-          setError(firstErrorMessage(result.errors, "Couldn't load preview."));
+          setError(firstErrorMessage(result.errors, "Couldn’t load preview."));
         }
       } catch {
-        setError("Couldn't load preview. Try again.");
+        setError("Couldn’t load preview. Try again.");
       }
     })();
   }, [stopId]);
@@ -104,7 +104,7 @@ export function StopDeletionLossList({ preview, heading }: StopDeletionLossListP
             <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
               Unpaid cost
             </span>
-            <span className="min-w-0 truncate text-foreground">
+            <span className="min-w-0 break-words text-foreground">
               {cost.label ?? "Cost"} ({formatMoney(cost.costMinor, cost.currency)})
             </span>
           </li>
@@ -114,7 +114,7 @@ export function StopDeletionLossList({ preview, heading }: StopDeletionLossListP
             <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
               Attachment{preview.attachmentCount === 1 ? "" : "s"}
             </span>
-            <span className="min-w-0 truncate text-foreground">
+            <span className="min-w-0 break-words text-foreground">
               {preview.attachmentCount} {preview.attachmentCount === 1 ? "file" : "files"}
             </span>
           </li>
@@ -124,7 +124,7 @@ export function StopDeletionLossList({ preview, heading }: StopDeletionLossListP
             <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
               Note{preview.noteCount === 1 ? "" : "s"}
             </span>
-            <span className="min-w-0 truncate text-foreground">
+            <span className="min-w-0 break-words text-foreground">
               {preview.noteCount} {preview.noteCount === 1 ? "note" : "notes"}
             </span>
           </li>

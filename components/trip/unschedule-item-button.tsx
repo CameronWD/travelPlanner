@@ -57,7 +57,7 @@ export function UnscheduleItemButton({
       result.mode === "placement-removed"
         ? { title: "Removed from this plan", description: `${itemTitle} is still on the Wishlist` }
         : { title: hadStop ? "Moved to things to do" : "Moved to Wishlist" },
-    failure: "Couldn't unschedule.",
+    failure: "Couldn’t unschedule.",
   });
 
   return (

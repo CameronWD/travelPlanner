@@ -134,6 +134,8 @@ describe("Dialog", () => {
     // Tailwind emits variant rules after plain utilities, so it overrode pr-16 from 640px up).
     const classes = header.className.split(/\s+/);
     expect(classes).toContain("pr-18");
+    expect(classes).toContain("min-h-12");
+    expect(classes).not.toContain("min-h-[72px]");
     expect(classes.filter((c) => /^sm:(px|pr)-/.test(c))).toEqual([]);
   });
 
@@ -487,6 +489,7 @@ describe("DialogFooter", () => {
     expect(footer.className).toContain("bg-background");
     // Cancels the scroll body's own bottom padding so the stuck footer sits flush.
     expect(footer.className).toContain("-mb-[calc(1.375rem+env(safe-area-inset-bottom))]");
+    expect(footer.className).toContain("pb-[calc(0.75rem+env(safe-area-inset-bottom))]");
   });
 
   it("covers the footer's negative-margin gap during iOS elastic overscroll", () => {
@@ -942,7 +945,6 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
     const handle = content.querySelector('[aria-hidden="true"].rounded-full') as HTMLElement;
 
     expect(handle.className).toContain("group-data-[keyboard=open]/dialog:hidden");
-    expect(header.className).toContain("group-data-[keyboard=open]/dialog:min-h-12");
     expect(screen.getByText("Day 3 of the trip.").className).toContain("max-sm:group-data-[keyboard=open]/dialog:hidden");
     // The keyboard covers the home indicator: footer and body drop the safe-area inset in step.
     expect(body.className).toContain("group-data-[keyboard=open]/dialog:pb-[1.375rem]");

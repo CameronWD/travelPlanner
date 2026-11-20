@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { REQUEST_PATH_HEADER } from "@/lib/auth/sign-in-href";
 
 /**
@@ -17,7 +17,7 @@ import { REQUEST_PATH_HEADER } from "@/lib/auth/sign-in-href";
  * here is gone (ADR 0071): Better Auth doesn't have that cookie or its
  * `assertConfig()` failure mode, so there's nothing to guard against.
  */
-export async function proxy(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest, event: NextFetchEvent): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
 
   const headers = new Headers(request.headers);
@@ -39,8 +39,14 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // Not "signed out": that branch skips the slug rewrite and the page would
     // answer "Trip not found". A non-OK answer makes the client reload this URL; the
     // service worker answers from the saved copy when it has one, otherwise this page is what shows.
-    const { reportError } = await import("@/lib/error-sink");
-    await reportError(err, { route: "proxy.ts", source: "server" });
+    // Synchronous so the platform log has a trace even if the deferred report below never completes.
+    console.error("proxy: session lookup failed", err);
+    // The report writes to the database that just failed, so it runs after the answer is sent; its own failure is swallowed.
+    event.waitUntil(
+      import("@/lib/error-sink")
+        .then(({ reportError }) => reportError(err, { route: "proxy.ts", source: "server" }))
+        .catch(() => {}),
+    );
     const { unavailablePage } = await import("@/lib/proxy-unavailable");
     return new NextResponse(unavailablePage(pathname, search), {
       status: 503,

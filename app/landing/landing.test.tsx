@@ -39,8 +39,8 @@ describe("Landing (spec 2026-09-29 collage)", () => {
     const body = "Stops, trains, beds and budget. On your own or together.";
     expect(within(desktop()).getByText(body)).toBeInTheDocument();
     expect(within(phone()).getByText(body)).toBeInTheDocument();
-    expect(within(desktop()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
-    expect(within(phone()).queryByText(/Fork the plan|Count sleeps|whoever's coming/)).toBeNull();
+    expect(within(desktop()).queryByText(/Fork the plan|Count sleeps|whoever’s coming/)).toBeNull();
+    expect(within(phone()).queryByText(/Fork the plan|Count sleeps|whoever’s coming/)).toBeNull();
     expect(document.body.textContent).not.toMatch(/Plan it with your people|shared pot/i);
   });
   it("the coral full stop is decorative punctuation: aria-hidden in both trees, so the contrast audit can exempt it by name (W17)", () => {
@@ -152,7 +152,7 @@ describe("Landing (spec 2026-09-29 collage)", () => {
   });
   it("linkExpired opens the panel in link-expired mode; accessDenied still wins when both are set (Review Focus 4)", () => {
     const { unmount } = render(<Landing linkExpired />);
-    expect(screen.getByRole("dialog", { name: "That link didn't work" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "That link didn’t work" })).toBeInTheDocument();
     unmount();
     render(<Landing linkExpired accessDenied />);
     expect(screen.getByRole("dialog", { name: "Teepee is full right now." })).toBeInTheDocument();

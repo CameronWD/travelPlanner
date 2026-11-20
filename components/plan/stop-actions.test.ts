@@ -100,7 +100,7 @@ describe("buildStopActions (PLAN.md §7.6)", () => {
     it("no Surprise: Make it a surprise, after the pin entry", () => {
       const h = handlers();
       const item = buildStopActions(DATED, FLAGS, h)[0].find((i) => i.key === "surprise")!;
-      expect(item).toMatchObject({ label: "Make it a surprise", hint: "hide what's inside from someone" });
+      expect(item).toMatchObject({ label: "Make it a surprise", hint: "hide what’s inside from someone" });
       item.onSelect();
       expect(h.onMakeSurprise).toHaveBeenCalledTimes(1);
     });

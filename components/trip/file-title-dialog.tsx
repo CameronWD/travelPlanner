@@ -31,10 +31,10 @@ function Body({ file, onOpenChange, onSaved }: Omit<FileTitleDialogProps, "file"
           onOpenChange(false);
           onSaved?.();
         } else {
-          setError(firstErrorMessage(result, "Couldn't rename that file."));
+          setError(firstErrorMessage(result, "Couldn’t rename that file."));
         }
       } catch {
-        setError(failureMessage("Couldn't rename that file."));
+        setError(failureMessage("Couldn’t rename that file."));
       }
     });
   }

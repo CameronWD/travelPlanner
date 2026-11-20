@@ -45,6 +45,13 @@ describe("DayHeader", () => {
     expect(screen.getAllByRole("link", { name: "Travellers (1)" })[0]).toHaveAttribute("href", "/trips/t1/settings#travellers");
     expect(screen.getAllByRole("button", { name: "+ Add to this day" })).toHaveLength(2);
   });
+  it("overlaps the Travellers' avatars with a background ring so both initials stay readable", () => {
+    const members = [{ id: "u1", name: "Cam", email: "c@x", image: null }, { id: "u2", name: "Bea", email: "b@x", image: null }];
+    render(<DayHeader tripId="t1" tripSlug="t1" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={members} addButton={<button>+</button>} />);
+    const row = screen.getAllByRole("link", { name: "Travellers (2)" })[0].firstElementChild as HTMLElement;
+    expect(row.className).toContain("-space-x-1.5");
+    for (const a of Array.from(row.children)) expect(a.className).toContain("ring-2 ring-background");
+  });
   it("tags the arrows' navigations as day-back / day-forward for the body's View Transition (ADR 0063)", () => {
     hoisted.links.length = 0;
     render(<DayHeader tripId="t1" tripSlug="t1" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={"/trips/t1/day/2026-12-11" as Route} nextHref={"/trips/t1/day/2026-12-13" as Route} prevLabel="Previous day: Fri 11 Dec" nextLabel="Next day: Sun 13 Dec" unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);

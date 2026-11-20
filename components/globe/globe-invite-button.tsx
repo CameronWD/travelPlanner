@@ -33,7 +33,7 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
         setDone(true);
         setEmail("");
       } else {
-        setError(res.errors["_"]?.join(", ") ?? "Couldn't send invite. Try again.");
+        setError(res.errors["_"]?.join(", ") ?? "Couldn’t send invite. Try again.");
       }
     });
   };
@@ -93,7 +93,7 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
               <p className="text-[11px] font-extrabold uppercase tracking-[0.08em]">Invite someone</p>
               {done ? (
                 <p className="text-sm text-muted-foreground">
-                  Invited. They&apos;ll join when they next sign in.
+                  Invited. They’ll join when they next sign in.
                 </p>
               ) : (
                 <>

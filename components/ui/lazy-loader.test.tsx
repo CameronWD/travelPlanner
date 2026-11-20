@@ -89,7 +89,7 @@ describe("createLazyDialog", () => {
   it("says it could not open when the module fails with a connection", async () => {
     const LazySheet = createLazyDialog<SheetProps>(() => Promise.reject(new Error("ChunkLoadError")), (props) => props.onOpenChange(false));
     render(<LazySheet label="Paris" onOpenChange={vi.fn()} />);
-    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't open that. Try again." }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t open that. Try again." }));
   });
 
   it("asks for the module again the next time the dialog opens", async () => {

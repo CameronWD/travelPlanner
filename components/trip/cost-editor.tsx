@@ -244,7 +244,7 @@ export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormD
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
     } catch {
-      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
+      setErrors({ _: [failureMessage("Couldn’t save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }
@@ -318,7 +318,7 @@ export function CostEditor({
         setErrors(result.errors);
       }
     } catch {
-      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
+      setErrors({ _: [failureMessage("Couldn’t save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }
@@ -341,7 +341,7 @@ export function CostEditor({
         setErrors(result.errors);
       }
     } catch {
-      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
+      setErrors({ _: [failureMessage("Couldn’t save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }
@@ -350,8 +350,8 @@ export function CostEditor({
   async function handleDelete(costId: string) {
     const cost = costs.find((c) => c.id === costId);
     const confirmed = await confirm({
-      title: `Delete "${cost?.label ?? "this cost"}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${cost?.label ?? "this cost"}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });
@@ -359,9 +359,9 @@ export function CostEditor({
     setPendingDeleteId(costId);
     try {
       const r = await deleteCost(costId);
-      if (!r.success) toastRefused(r.errors, "Couldn't delete that cost.");
+      if (!r.success) toastRefused(r.errors, "Couldn’t delete that cost.");
     } catch {
-      toastRejected("Couldn't delete that cost.");
+      toastRejected("Couldn’t delete that cost.");
     } finally {
       setPendingDeleteId(null);
     }

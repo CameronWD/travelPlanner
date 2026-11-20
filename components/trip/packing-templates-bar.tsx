@@ -64,10 +64,10 @@ function SaveTemplateForm({
           onClose();
         } else {
           const firstError = Object.values(result.errors)[0]?.[0];
-          setError(firstError ?? "Couldn't save that template. Try again.");
+          setError(firstError ?? "Couldn’t save that template. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't save that template. Try again."));
+        setError(failureMessage("Couldn’t save that template. Try again."));
       }
     });
   }
@@ -153,7 +153,7 @@ function DeleteTemplateDialog({
         await deleteTemplate(template.id);
         onOpenChange(false);
       } catch {
-        toastRejected("Couldn't delete that template.");
+        toastRejected("Couldn’t delete that template.");
       }
     });
   }

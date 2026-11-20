@@ -48,10 +48,10 @@ function Dock({ items, children, search, className, "aria-label": ariaLabel = "T
       {items.map(it => {
         const on = matches(it, effectivePathname);
         if (it.render) {
-          return <React.Fragment key={it.href}>{it.render(on)}</React.Fragment>;
+          return <React.Fragment key={it.label}>{it.render(on)}</React.Fragment>;
         }
         return (
-          <AppLink key={it.href} href={it.href} aria-current={matches(it, pathname) ? "page" : undefined}
+          <AppLink key={it.label} href={it.href} aria-current={matches(it, pathname) ? "page" : undefined}
             data-pending={pendingPathname != null && matches(it, pendingPathname) ? "true" : undefined}
             className={cn("grid h-11 w-16 place-items-center rounded-md border-2 text-[11px] font-bold", on ? "border-border bg-coral font-extrabold text-on-accent shadow-hard-1" : "border-transparent", it.muted && !on && "text-muted-foreground")}>
             {it.label}

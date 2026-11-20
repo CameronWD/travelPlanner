@@ -824,7 +824,7 @@ function TransportForm({
             <span>
               {transport?.driveEstimate
                 ? `${transport.driveEstimate.estimated ? "~" : ""}${formatDuration(transport.driveEstimate.minutes)} · ${transport.driveEstimate.roadKm} km${transport.driveEstimate.estimated ? " (estimated)" : ""}`
-                : "The drive estimate will show once it's saved."}
+                : "The drive estimate will show once it’s saved."}
             </span>
             <button
               type="button"

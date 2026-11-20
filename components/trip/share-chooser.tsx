@@ -66,7 +66,7 @@ export function ShareChooserMount({ tripId }: { tripId: string }) {
         .then(setLinks)
         .catch(() => {
           setLinks([]);
-          toastRejected("Couldn't load your share links.");
+          toastRejected("Couldn’t load your share links.");
         });
     }
     window.addEventListener(OPEN_SHARE_EVENT, onOpen);
@@ -76,7 +76,7 @@ export function ShareChooserMount({ tripId }: { tripId: string }) {
   async function pick(link: ShareLinkView) {
     const outcome = await shareOrCopy(shareUrl(link.token), link.label);
     if (outcome === "copied") toast({ title: "Link copied" });
-    if (outcome === "failed") toastRejected("Couldn't copy the link.");
+    if (outcome === "failed") toastRejected("Couldn’t copy the link.");
     if (outcome !== "cancelled") setOpen(false);
   }
 

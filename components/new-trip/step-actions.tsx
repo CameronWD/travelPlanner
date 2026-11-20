@@ -22,7 +22,7 @@ export function StepActions({ showBack, onBack, secondary, primary, hint, after 
   after?: ReactNode;
 }) {
   return (
-    <div className="sticky bottom-0 -mx-5 mt-auto flex flex-wrap items-center gap-3 bg-background px-5 pb-[calc(34px+env(safe-area-inset-bottom))] pt-3.5 md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:pt-10">
+    <div className="sticky bottom-0 -mx-5 mt-auto md:mt-0 flex flex-wrap items-center gap-3 bg-background px-5 pb-[calc(34px+env(safe-area-inset-bottom))] pt-3.5 md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:pt-10">
       {showBack ? (
         <Button type="button" variant="outline" onClick={onBack} className="pressable hidden h-14 px-6 text-[17px] md:inline-flex">
           <ArrowLeft aria-hidden="true" />

@@ -68,7 +68,7 @@ describe("createMapLoader when the module cannot load", () => {
         <Loader label="a" />
       </Boundary>,
     );
-    expect(await screen.findByText("The map isn't available right now.")).toBeInTheDocument();
+    expect(await screen.findByText("The map isn’t available right now.")).toBeInTheDocument();
     expect(container.querySelector("[data-map-fallback]")).not.toBeNull();
     expect(screen.queryByTestId("boundary")).toBeNull();
   });
@@ -83,7 +83,7 @@ describe("createMapLoader when the module cannot load", () => {
     });
     const Loader = createMapLoader<{ label: string }>(load);
     const first = render(<Loader label="a" />);
-    await screen.findByText("The map isn't available right now.");
+    await screen.findByText("The map isn’t available right now.");
     first.unmount();
 
     online = true;

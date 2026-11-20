@@ -53,9 +53,9 @@ export function ToPayPanel({
         const r = row.paid
           ? await markCostUnpaid(row.id)
           : await markCostPaid(row.id, row.paidMinor ?? row.costMinor, todayLocalISO());
-        if (!r.success) toast({ variant: "destructive", title: "Couldn't update that cost." });
+        if (!r.success) toast({ variant: "destructive", title: "Couldn’t update that cost." });
       } catch {
-        toastRejected("Couldn't update that cost.");
+        toastRejected("Couldn’t update that cost.");
       } finally {
         setPendingId(null);
       }
@@ -119,12 +119,12 @@ export function ToPayPanel({
       onDelete:
         row.ownerType === "OTHER"
           ? async () => {
-              if (!(await confirm({ title: `Delete "${row.label}"?`, description: "This can't be undone.", confirmLabel: "Delete", destructive: true }))) return;
+              if (!(await confirm({ title: `Delete “${row.label}”?`, description: "This can’t be undone.", confirmLabel: "Delete", destructive: true }))) return;
               try {
                 const r = await deleteCost(row.id);
-                if (!r.success) toastRefused(r.errors, "Couldn't delete that cost.");
+                if (!r.success) toastRefused(r.errors, "Couldn’t delete that cost.");
               } catch {
-                toastRejected("Couldn't delete that cost.");
+                toastRejected("Couldn’t delete that cost.");
               }
             }
           : undefined,

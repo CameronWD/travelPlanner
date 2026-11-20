@@ -57,10 +57,16 @@ export function TripMenuItems({ trips, currentId }: { trips: SwitcherTrip[]; cur
       })}
       <DropdownMenuSeparator />
       <DropdownMenuItem asChild>
-        <AppLink href="/trips">All trips</AppLink>
+        <AppLink href="/trips" className="flex items-center gap-2.5">
+          <span aria-hidden="true" className="size-2.5 shrink-0" />
+          All trips
+        </AppLink>
       </DropdownMenuItem>
       <DropdownMenuItem asChild>
-        <AppLink href="/trips/new">+ New trip</AppLink>
+        <AppLink href="/trips/new" className="flex items-center gap-2.5">
+          <span aria-hidden="true" className="size-2.5 shrink-0" />
+          + New trip
+        </AppLink>
       </DropdownMenuItem>
     </>
   );

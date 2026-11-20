@@ -25,7 +25,7 @@ export function SettlementChoice({ value, onChange, disabled }: SettlementChoice
       onValueChange={(v) => {
         if (v) onChange(v as CostSettlement);
       }}
-      aria-label="When it's paid"
+      aria-label="When it’s paid"
       disabled={disabled}
       className="self-start flex-wrap"
     >

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { OVERLAYS, SUBMIT_LABELS, parseName, openOverlay, type Step } from "./overlays";
+import { OVERLAYS, SUBMIT_LABELS, isSubmitLabel, normaliseApostrophes, parseName, openOverlay, type Step } from "./overlays";
 
 describe("parseName", () => {
   it("returns literals untouched", () => expect(parseName("Add Stop", {})).toBe("Add Stop"));
@@ -55,11 +55,18 @@ describe("OVERLAYS", () => {
         if (parsed instanceof RegExp) {
           for (const label of SUBMIT_LABELS) {
             expect(parsed.test(label), `${o.id}'s "${click.name}" matches SUBMIT_LABELS "${label}"`).toBe(false);
+            expect(parsed.test(label.replace(/'/g, "\u2019")), `${o.id}'s "${click.name}" matches SUBMIT_LABELS "${label}" with a curly apostrophe`).toBe(false);
           }
         } else {
-          expect(SUBMIT_LABELS, `${o.id} clicks "${click.name}"`).not.toContain(parsed);
+          expect(isSubmitLabel(parsed), `${o.id} clicks "${click.name}"`).toBe(false);
         }
       }
+  });
+  it("the never-click list matches a straight or curly apostrophe, and names the Reviews buttons", () => {
+    expect(isSubmitLabel("Doesn\u2019t need one")).toBe(true);
+    expect(isSubmitLabel("Doesn't need one")).toBe(true);
+    for (const l of ["Standard Review", "Deep Review", "Start Deep Review"]) expect(isSubmitLabel(l)).toBe(true);
+    expect(normaliseApostrophes("\u2018a\u2019")).toBe("'a'");
   });
   it("every name parses", () => {
     for (const o of OVERLAYS) {

@@ -280,7 +280,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, initialQuery, 
                 variant="outline"
                 onClick={async () => {
                   const ok = await confirm({
-                    title: `Delete "${title}"?`,
+                    title: `Delete “${title}”?`,
                     description: "This marker will be permanently removed.",
                     confirmLabel: "Delete",
                     destructive: true,

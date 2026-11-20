@@ -28,7 +28,7 @@ export function FileMoveDialog({ attachmentId, targets, onDone }: FileMoveDialog
       try {
         const result = await moveAttachment(attachmentId, option.target);
         if (result.success) onDone();
-        else setError(firstErrorMessage(result, "Couldn't move that file."));
+        else setError(firstErrorMessage(result, "Couldn’t move that file."));
       } catch {
         setError(SOMETHING_WENT_WRONG);
       }

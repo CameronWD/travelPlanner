@@ -66,11 +66,11 @@ type DraftContext = {
   tripName: string | null;
 };
 
-const EMPTY_LOG = "No feedback yet. Tell me what's annoying.";
-const OFFLINE_SAVED = "Saved. It sends when you're back online";
-const SEND_FAILED = "Couldn't send that yet. It's saved and will retry on its own.";
-const STORAGE_FAILED = "Couldn't save your note. It's still in the box. Try again.";
-const DELETE_FAILED = "Couldn't remove that note. Try again.";
+const EMPTY_LOG = "No feedback yet. Tell me what’s annoying.";
+const OFFLINE_SAVED = "Saved. It sends when you’re back online";
+const SEND_FAILED = "Couldn’t send that yet. It’s saved and will retry on its own.";
+const STORAGE_FAILED = "Couldn’t save your note. It’s still in the box. Try again.";
+const DELETE_FAILED = "Couldn’t remove that note. Try again.";
 
 /**
  * The breakpoint the docked panel changes shape at — it must stay in step with
@@ -660,7 +660,7 @@ export function FeedbackLauncher() {
             the note will actually be filed. While the box is empty there is
             no frozen context and the label tracks the route, as it should.
           */}
-          <SheetDescription>{`You're on ${draftContext?.pageLabel ?? pageLabel}`}</SheetDescription>
+          <SheetDescription>{`You’re on ${draftContext?.pageLabel ?? pageLabel}`}</SheetDescription>
         </SheetHeader>
 
         {entries.length === 0 && hiddenCount === 0 ? (
@@ -775,7 +775,7 @@ function SentEntry({
             type="button"
             size="sm"
             variant="ghost"
-            aria-label={`Delete "${note.body.slice(0, 30)}"`}
+            aria-label={`Delete “${note.body.slice(0, 30)}”`}
             onClick={() => void onDelete(note.id)}
           >
             <Trash2 aria-hidden />

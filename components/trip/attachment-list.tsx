@@ -140,7 +140,7 @@ export function AttachmentList({
 
   async function handleDelete(id: string, filename: string) {
     const confirmed = await confirm({
-      title: `Delete "${filename}"?`,
+      title: `Delete “${filename}”?`,
       description: "This attachment will be permanently removed.",
       confirmLabel: "Delete",
       destructive: true,
@@ -150,9 +150,9 @@ export function AttachmentList({
     startTransition(async () => {
       try {
         const r = await deleteAttachment(id);
-        if (!r.success) toastRefused(r, "Couldn't delete that file.");
+        if (!r.success) toastRefused(r, "Couldn’t delete that file.");
       } catch {
-        toastRejected("Couldn't delete that file.");
+        toastRejected("Couldn’t delete that file.");
       } finally {
         setDeletingId(null);
       }

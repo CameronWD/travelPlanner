@@ -365,7 +365,7 @@ describe("DigestPanel", () => {
     const user = userEvent.setup();
     vi.mocked(sendTestDigest).mockResolvedValue({
       success: false,
-      errors: { _: ["Push isn't configured on this deployment. The VAPID keys are missing."] },
+      errors: { _: ["Push isn’t configured on this deployment. The VAPID keys are missing."] },
     });
 
     render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
@@ -375,7 +375,7 @@ describe("DigestPanel", () => {
     expect(sendTestDigest).toHaveBeenCalledWith("t1");
     expect(
       await screen.findByText(
-        "Push isn't configured on this deployment. The VAPID keys are missing.",
+        "Push isn’t configured on this deployment. The VAPID keys are missing.",
       ),
     ).toBeInTheDocument();
   });
@@ -412,7 +412,7 @@ describe("DigestPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: /send me a test/i }));
 
-    expect(await screen.findByText("Sent today's digest to 2 devices.")).toBeInTheDocument();
+    expect(await screen.findByText("Sent today’s digest to 2 devices.")).toBeInTheDocument();
     // `sent` is HTTP 2xx from the push service — the exact number that read
     // "delivered" on 2026-09-17 while nothing arrived — so a success here
     // must still point at the one surface that could explain a no-show.
@@ -440,7 +440,7 @@ describe("DigestPanel", () => {
     // needs to know why it did not look like a digest.
     expect(
       await screen.findByText(
-        "Sent a test to 1 device. There's nothing to report today, so your real digest would stay silent.",
+        "Sent a test to 1 device. There’s nothing to report today, so your real digest would stay silent.",
       ),
     ).toBeInTheDocument();
     // The placeholder still arrived via the real push pipe — the same
@@ -484,7 +484,7 @@ describe("DigestPanel", () => {
     const toggle = await screen.findByLabelText(/your digest for this trip/i);
     await user.click(toggle);
 
-    expect(await screen.findByText(/couldn't save that/i)).toBeInTheDocument();
+    expect(await screen.findByText(/couldn’t save that/i)).toBeInTheDocument();
     // Rolled back: the checkbox must not claim a state the server refused.
     expect(toggle).toBeChecked();
   });

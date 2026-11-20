@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { cn } from "@/lib/cn";
 import { requireTripAccess } from "@/lib/guards";
 import { tripPath } from "@/lib/trip-path";
 import { formatDateRange } from "@/lib/dates";
@@ -165,7 +166,12 @@ export default async function TripLayout({
                     the frame itself, so at sm+ this row is the name block. */}
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
+                    <h1
+                      className={cn(
+                        "font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words",
+                        tripPhase === "sketching" && "max-md:[[data-trip-home]_&]:sr-only",
+                      )}
+                    >
                       {trip.name}
                     </h1>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -196,7 +202,7 @@ export default async function TripLayout({
                       aria-label={`Travellers (${trip.members.length})`}
                       className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
-                      <div className="flex -space-x-2">
+                      <div className="flex -space-x-1.5">
                         {trip.members.slice(0, 6).map(({ user }) => (
                           <TravellerAvatar key={user.id} traveller={user} size={32} ring />
                         ))}

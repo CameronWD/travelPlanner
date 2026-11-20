@@ -166,8 +166,8 @@ function MakeItFitDialog({
             toast({
               variant: "destructive",
               title: applied > 0
-                ? "Trimmed some stops, but one couldn't be saved. Refresh to see the current plan."
-                : "Couldn't apply the trim.",
+                ? "Trimmed some stops, but one couldn’t be saved. Refresh to see the current plan."
+                : "Couldn’t apply the trim.",
             });
             return;
           }
@@ -188,7 +188,7 @@ function MakeItFitDialog({
     try {
       const r = await deleteStop(id);
       if (!r.success) {
-        toast({ variant: "destructive", title: "Couldn't drop that stop." });
+        toast({ variant: "destructive", title: "Couldn’t drop that stop." });
         return;
       }
       onClose();
@@ -275,8 +275,8 @@ function MakeItFitDialog({
             {!initialPlan.fits && (
               <p className="text-xs text-muted-foreground">
                 {deadline?.kind === "return-leg"
-                  ? `Trimming alone won't get you to your ${deadlineNoun(deadline)}: drop a stop, unpin one, or move the booking.`
-                  : "Trimming alone won't reach your hard end date: drop a stop, unpin one, or move the date."}
+                  ? `Trimming alone won’t get you to your ${deadlineNoun(deadline)}: drop a stop, unpin one, or move the booking.`
+                  : "Trimming alone won’t reach your hard end date: drop a stop, unpin one, or move the date."}
               </p>
             )}
             <Button
@@ -372,7 +372,7 @@ function DropConfirmDialog({ stopId, stopName, onCancel, onConfirm }: DropConfir
     <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Drop &quot;{stopName}&quot;?</DialogTitle>
+          <DialogTitle>Drop “{stopName}”?</DialogTitle>
           <DialogDescription>
             This stop will be permanently removed from your trip.
             {!ready && " Loading what else this would remove…"}

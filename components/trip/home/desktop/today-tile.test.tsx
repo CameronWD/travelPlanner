@@ -60,7 +60,7 @@ describe("TodayTile", () => {
   it("shows today's plan, the next Transport and tonight's stay, in that order", () => {
     renderTile();
     const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual(["Today's plan", "Next transport", "Tonight's stay"]);
+    expect(headings).toEqual(["Today’s plan", "Next transport", "Tonight’s stay"]);
     expect(screen.getByTestId("plan-list")).toBeInTheDocument();
     expect(screen.getByText("Ferry · Sanur → Nusa Lembongan")).toBeInTheDocument();
     expect(screen.getByText("Leaves 09:40 WITA")).toBeInTheDocument();

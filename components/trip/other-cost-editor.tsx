@@ -198,7 +198,7 @@ function OtherCostDialog({
           {/* Cost */}
           <Field
             label="Cost"
-            description="Your best number: the real price if it's already booked."
+            description="Your best number: the real price if it’s already booked."
             required
             error={errors.costMinor?.[0]}
           >
@@ -346,7 +346,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
       if (result.success) onOpenChange(false);
       else setErrors(result.errors);
     } catch {
-      setErrors({ _: [failureMessage("Couldn't save that cost. Try again.")] });
+      setErrors({ _: [failureMessage("Couldn’t save that cost. Try again.")] });
     } finally {
       setSubmitting(false);
     }

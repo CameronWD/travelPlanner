@@ -132,7 +132,7 @@ describe("CoverImageField", () => {
     const user = userEvent.setup();
     vi.mocked(setTripCover).mockResolvedValueOnce({
       success: false,
-      errors: { _: ["Couldn't upload the cover photo. Nothing was saved. Try again."] },
+      errors: { _: ["Couldn’t upload the cover photo. Nothing was saved. Try again."] },
     });
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
@@ -143,7 +143,7 @@ describe("CoverImageField", () => {
 
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Couldn't upload the cover photo. Nothing was saved. Try again.",
+        title: "Couldn’t upload the cover photo. Nothing was saved. Try again.",
       }),
     );
     expect(refreshMock).not.toHaveBeenCalled();
@@ -178,7 +178,7 @@ describe("CoverImageField", () => {
     );
 
     expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Couldn't upload that. Try again." }),
+      expect.objectContaining({ title: "Couldn’t upload that. Try again." }),
     );
     expect(refreshMock).not.toHaveBeenCalled();
   });

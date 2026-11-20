@@ -19,8 +19,8 @@ import { Label } from "@/components/ui/label";
  * generic failure line. `errorCallbackURL: "/"` keeps a refused click on the
  * Landing rather than the callback page.
  */
-const SENT = "If you already have a spot, a sign-in link is on its way. If not, I've noted your request.";
-const FAILED = "Couldn't send the link just now. Try again in a minute.";
+const SENT = "If you already have a spot, a sign-in link is on its way. If not, I’ve noted your request.";
+const FAILED = "Couldn’t send the link just now. Try again in a minute.";
 
 type Status = "idle" | "sending" | "sent" | "failed";
 

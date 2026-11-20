@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useOptimistic, useState, useTransition } from "react";
+import { startTransition, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Bell, ChevronRight, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -142,10 +142,10 @@ function AddReminderForm({
           onAdded();
         } else {
           const msg = Object.values(result.errors).flat()[0];
-          setError(msg ?? "Couldn't add that reminder. Try again.");
+          setError(msg ?? "Couldn’t add that reminder. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't add that reminder. Try again."));
+        setError(failureMessage("Couldn’t add that reminder. Try again."));
       }
     });
   }
@@ -165,7 +165,7 @@ function AddReminderForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+    <form onSubmit={handleSubmit} className="flex w-full max-w-md flex-col gap-2">
       <Input
         placeholder="Reminder title"
         value={title}
@@ -251,7 +251,7 @@ function ReminderRow({
 
   return (
     <li className={reminder.past ? "flex items-start justify-between gap-3 py-2 opacity-60" : "flex items-start justify-between gap-3 py-2"}>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 [&_p]:max-w-prose">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <p className="break-words text-sm font-medium text-foreground">
             {reminder.title}
@@ -312,17 +312,33 @@ export function RemindersCard({ tripId, reminders, today, about, dismissed }: Re
   // Held here, not in the row: the row leaves at once, and its Undo comes
   // from the toast after the server's list no longer has it.
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
+  const [seenReminders, setSeenReminders] = useState(reminders);
+  if (seenReminders !== reminders) {
+    setSeenReminders(reminders);
+    setGone((prev) => {
+      const ids = new Set(reminders.map((r) => r.id));
+      const kept = [...prev].filter((id) => ids.has(id));
+      return kept.length === prev.size ? prev : new Set(kept);
+    });
+  }
   const hideId = (id: string) => setGone((prev) => new Set(prev).add(id));
   const showId = (id: string) => setGone((prev) => new Set([...prev].filter((x) => x !== id)));
+  const latest = useRef(reminders);
+  useEffect(() => {
+    latest.current = reminders;
+  }, [reminders]);
+  const hideIfListed = (id: string) => {
+    if (latest.current.some((r) => r.id === id)) hideId(id);
+  };
   const gotIt = useUndoableAction<ReminderItem>({
     apply: (r) => hideId(r.id),
     persist: (r) => updateReminder(r.id, { dismissed: true }),
     revert: (r) => showId(r.id),
     undo: (r) => updateReminder(r.id, { dismissed: false }),
     applyUndo: (r) => showId(r.id),
-    revertUndo: (r) => hideId(r.id),
+    revertUndo: (r) => hideIfListed(r.id),
     done: (r) => ({ title: "Dismissed", description: r.title }),
-    failure: "Couldn't dismiss that reminder.",
+    failure: "Couldn’t dismiss that reminder.",
   });
   const [stillDismissed, bringBack] = useOptimistic(dismissed ?? [], (state, id: string) => state.filter((r) => r.id !== id));
 
@@ -332,9 +348,9 @@ export function RemindersCard({ tripId, reminders, today, about, dismissed }: Re
       showId(id);
       try {
         const r = await updateReminder(id, { dismissed: false });
-        if (!r.success) toastRefused(r.errors, "Couldn't bring that reminder back.");
+        if (!r.success) toastRefused(r.errors, "Couldn’t bring that reminder back.");
       } catch {
-        toastRejected("Couldn't bring that reminder back.");
+        toastRejected("Couldn’t bring that reminder back.");
       }
     });
   }
@@ -387,7 +403,7 @@ export function RemindersCard({ tripId, reminders, today, about, dismissed }: Re
           <ul className="divide-y-2 divide-muted" aria-label="Dismissed reminders">
             {stillDismissed.map((r) => (
               <li key={r.id} className="flex items-center justify-between gap-3 py-2">
-                <p className="min-w-0 flex-1 break-words text-sm text-muted-foreground">
+                <p className="min-w-0 max-w-prose flex-1 break-words text-sm text-muted-foreground">
                   {r.title}
                   <span className="mx-1 opacity-50">·</span>
                   <span className="text-xs">{formatWhen(r.date, today).absolute}</span>

@@ -35,6 +35,35 @@ describe("legLabel", () => {
     expect(l.sub).toBe("Tue 22 Dec 09:00");
   });
 
+  describe("a leg within one region names it once", () => {
+    const drive = (depPlace: string, arrPlace: string) =>
+      legLabel({ mode: "CAR", depPlace, arrPlace, depAt: new Date("2026-12-15T09:00:00Z"), fromStopId: "p", toStopId: "r" }, STOPS);
+
+    it("the same name at both ends", () => {
+      const l = drive("Northvale", "Northvale");
+      expect(l.label).toBe("Drive in Northvale");
+      expect(l.accessibleName).toContain("Drive from Paris to Rome");
+      expect(legLabel({ mode: "CAR", depPlace: "Northvale", arrPlace: "northvale", depAt: new Date("2026-12-15T09:00:00Z") }, STOPS).accessibleName).toBe("Drive in Northvale, Tuesday 15 December 09:00. Edit.");
+    });
+    it("a town in brackets beside its region", () => {
+      expect(drive("Northvale", "Eastby (Northvale)").label).toBe("Drive Northvale → Eastby");
+    });
+    it("two places that end in the same region", () => {
+      expect(drive("Westby, Northvale", "Eastby, Northvale").label).toBe("Drive Westby → Eastby");
+    });
+    it("never collapses places whose short name is a three-capital code", () => {
+      const l = drive("Springfield, Illinois, USA", "St Louis, Missouri, USA");
+      expect(l.label).toBe("Drive USA → USA");
+      expect(l.accessibleName).toContain("from Paris to Rome");
+      const named = legLabel({ mode: "CAR", depPlace: "Springfield, Illinois, USA", arrPlace: "St Louis, Missouri, USA", depAt: new Date("2026-12-15T09:00:00Z") }, STOPS);
+      expect(named.accessibleName).toBe("Drive from Springfield, Illinois, USA to St Louis, Missouri, USA, Tuesday 15 December 09:00. Edit.");
+    });
+    it("leaves other places alone", () => {
+      expect(drive("Westby, Northvale", "Eastby, Southmoor").label).toBe("Drive Westby, Northvale → Eastby, Southmoor");
+      expect(legLabel({ mode: "TRAIN", depPlace: "ABC", arrPlace: "XYZ", depAt: new Date("2026-12-15T09:00:00Z") }, STOPS).label).toBe("Train ABC → XYZ");
+    });
+  });
+
   it("a car with no times reads Drive with the drive estimate", () => {
     const l = legLabel({ mode: "CAR", fromStopId: "r", toStopId: "f", driveEstimate: { minutes: 200, roadKm: 240, estimated: true } }, STOPS);
     expect(l).toMatchObject({ icon: Car, label: "Drive", sub: "~3h 20m · 240 km (estimated)" });

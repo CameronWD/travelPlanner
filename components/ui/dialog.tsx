@@ -315,7 +315,7 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
         // pl/pr, not px: an `sm:px-6` would re-set the right padding from 640px and
         // put the title back under the Close (LA-131). pr-18 = the 44px Close + its
         // 20px sm inset + 8px of air, so it holds at both tiers.
-        "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background pl-[18px] pr-18 text-left sm:-mx-6 sm:pl-6",
+        "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-12 flex-col justify-center gap-1 bg-background pl-[18px] pr-18 text-left sm:-mx-6 sm:pl-6",
         "before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-3.5 before:bg-background sm:before:h-6",
         // Scroll-aware edge (spec 2026-10-04 §G): once the body is scrolled,
         // a 2px rule in the border colour and a soft downward shadow show
@@ -323,10 +323,6 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
         // never changes height; all non-inset, so the fade interpolates.
         "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
         "group-data-[scrolled]/dialog-body:shadow-[0_2px_0_var(--color-border),0_10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
-        // Phone keyboard open (spec 2026-10-11-phone-keyboard-sheets): one
-        // slim 48px row — title and close button only (DialogDescription
-        // hides itself) — to give the visible area back to the form.
-        "group-data-[keyboard=open]/dialog:min-h-12",
         className,
       )}
       {...props}
@@ -357,7 +353,7 @@ function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
     <div
       data-slot="dialog-footer"
       className={cn(
-        "sticky bottom-0 z-10 -mx-[18px] -mb-[calc(1.375rem+env(safe-area-inset-bottom))] mt-2 bg-background px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
+        "sticky bottom-0 z-10 -mx-[18px] -mb-[calc(1.375rem+env(safe-area-inset-bottom))] mt-2 bg-background px-[18px] pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
         "shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background)]",
         "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
         "group-data-[more-below]/dialog-body:shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",

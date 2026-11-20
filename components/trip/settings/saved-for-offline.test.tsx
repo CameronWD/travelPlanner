@@ -149,7 +149,7 @@ describe("SavedForOffline", () => {
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: "destructive",
-        title: "You're offline. Plan changes need a connection.",
+        title: "You’re offline. Plan changes need a connection.",
       }),
     );
   });

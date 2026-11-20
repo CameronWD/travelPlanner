@@ -23,7 +23,7 @@ describe("failureMessage", () => {
   it("names the connection when the device is offline at the time of the failure", () => {
     setOnLine(false);
     expect(failureMessage("Something went wrong — nothing was changed. Try again.")).toBe(OFFLINE_MESSAGE);
-    expect(OFFLINE_MESSAGE).toBe("You're offline. Plan changes need a connection.");
+    expect(OFFLINE_MESSAGE).toBe("You’re offline. Plan changes need a connection.");
   });
 
   it("reads navigator at call time, not at import time", () => {

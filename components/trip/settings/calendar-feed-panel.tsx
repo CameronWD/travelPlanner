@@ -14,7 +14,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toastRejected } from "@/components/ui/action-failure";
 import { useOrigin } from "@/lib/use-origin";
 
-const FEED_FAILED = "Couldn't update the calendar feed. Try again.";
+const FEED_FAILED = "Couldn’t update the calendar feed. Try again.";
 
 export interface CalendarFeedPanelProps {
   tripId: string;
@@ -131,7 +131,7 @@ export function CalendarFeedPanel({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toastRejected("Couldn't copy the link.");
+      toastRejected("Couldn’t copy the link.");
     }
   };
 

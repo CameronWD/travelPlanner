@@ -72,7 +72,7 @@ export function InvitePanel({
     startInviteTransition(async () => {
       const result = await inviteToTrip(tripId, emailValue);
       if (!result.success) {
-        setInviteError(firstErrorMessage(result, "Couldn't send that invite."));
+        setInviteError(firstErrorMessage(result, "Couldn’t send that invite."));
       } else {
         setEmailValue("");
         setInviteSuccess(true);
@@ -91,7 +91,7 @@ export function InvitePanel({
     const label = travellerName(m.user);
     const confirmed = await confirm({
       title: `Remove ${label}?`,
-      description: `They'll lose access to this trip right away. Anything they've already added stays.`,
+      description: `They’ll lose access to this trip right away. Anything they’ve already added stays.`,
       confirmLabel: "Remove",
       destructive: true,
     });
@@ -101,14 +101,14 @@ export function InvitePanel({
     const result = await removeTripMember(tripId, m.userId);
     setRemovingUserId(null);
     if (!result.success) {
-      toast({ title: firstErrorMessage(result, "Couldn't do that."), variant: "destructive" });
+      toast({ title: firstErrorMessage(result, "Couldn’t do that."), variant: "destructive" });
     }
   }
 
   async function handleLeave() {
     const confirmed = await confirm({
       title: "Leave this trip?",
-      description: "You'll lose access right away. Anything you've already added stays on the trip.",
+      description: "You’ll lose access right away. Anything you’ve already added stays on the trip.",
       confirmLabel: "Yes, leave",
       destructive: true,
     });
@@ -119,7 +119,7 @@ export function InvitePanel({
       if (result.success) {
         router.push("/trips");
       } else {
-        toast({ title: firstErrorMessage(result, "Couldn't do that."), variant: "destructive" });
+        toast({ title: firstErrorMessage(result, "Couldn’t do that."), variant: "destructive" });
       }
     });
   }
@@ -175,7 +175,7 @@ export function InvitePanel({
                     {invite.email}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    If they don&apos;t have a spot yet, they&apos;ll wait on the waiting list until they&apos;re let in.
+                    If they don’t have a spot yet, they’ll wait on the waiting list until they’re let in.
                   </span>
                 </div>
                 <Badge variant="warning">Pending</Badge>
@@ -232,7 +232,7 @@ export function InvitePanel({
           </form>
           {inviteSuccess && (
             <p role="status" className="mt-2 text-sm text-teal-text">
-              Invite created. No email was sent. They&apos;ll join the next time they sign in, once they have a spot.
+              Invite created. No email was sent. They’ll join the next time they sign in, once they have a spot.
             </p>
           )}
         </div>
@@ -244,7 +244,7 @@ export function InvitePanel({
       <div className="border-t border-border pt-4">
         {viewerIsOwner ? (
           <p className="max-w-reading text-xs text-muted-foreground">
-            As the owner, you can&apos;t leave this trip. The owner role can&apos;t be transferred
+            As the owner, you can’t leave this trip. The owner role can’t be transferred
             to another traveller yet.
           </p>
         ) : (

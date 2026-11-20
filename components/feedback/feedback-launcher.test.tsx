@@ -374,14 +374,14 @@ describe("FeedbackLauncher", () => {
 
       await user.click(screen.getByRole("button", { name: /leave feedback/i }));
       expect(
-        await screen.findByText(/You're on Plan editor/),
+        await screen.findByText(/You’re on Plan editor/),
       ).toBeInTheDocument();
 
       pathnameMock.mockReturnValue("/trips/t1/budget");
       rerender(<FeedbackLauncher />);
 
       expect(
-        await screen.findByText(/You're on Money/),
+        await screen.findByText(/You’re on Money/),
       ).toBeInTheDocument();
     });
 
@@ -401,9 +401,9 @@ describe("FeedbackLauncher", () => {
       // panel must not say "You're on Money" — that promises the opposite of
       // what the freeze guarantees.
       expect(
-        await screen.findByText(/You're on Plan editor/),
+        await screen.findByText(/You’re on Plan editor/),
       ).toBeInTheDocument();
-      expect(screen.queryByText(/You're on Money/)).toBeNull();
+      expect(screen.queryByText(/You’re on Money/)).toBeNull();
     });
 
     it("lets the next draft pick up the route after a previous one was sent", async () => {
@@ -930,7 +930,7 @@ describe("FeedbackLauncher", () => {
 
       const boxAfter = screen.getByPlaceholderText(/what's on your mind/i);
       expect(boxAfter).toHaveValue("Started on a phone");
-      expect(screen.getByText(/You're on Plan editor/)).toBeInTheDocument();
+      expect(screen.getByText(/You’re on Plan editor/)).toBeInTheDocument();
       // The remount replaces the textarea's DOM node entirely, so this is
       // only true because onOpenAutoFocus explicitly refocuses the *new* node
       // — without it, a mid-keystroke user's cursor would land wherever
@@ -959,7 +959,7 @@ describe("FeedbackLauncher", () => {
 
       const boxAfter = screen.getByPlaceholderText(/what's on your mind/i);
       expect(boxAfter).toHaveValue("Started on a desktop");
-      expect(screen.getByText(/You're on Plan editor/)).toBeInTheDocument();
+      expect(screen.getByText(/You’re on Plan editor/)).toBeInTheDocument();
       expect(document.activeElement).toBe(boxAfter);
     });
 
@@ -1065,7 +1065,7 @@ describe("FeedbackLauncher", () => {
     expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: /delete "Budget totals look wrong"/i }),
+      screen.getByRole("button", { name: /delete “Budget totals look wrong”/i }),
     );
 
     expect(deleteMock).toHaveBeenCalledWith("n1");

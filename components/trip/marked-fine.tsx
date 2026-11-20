@@ -29,7 +29,7 @@ export interface MarkFineTarget {
 }
 
 export function MarkFineButton({ tripId, target }: { tripId: string; target: MarkFineTarget }) {
-  const [isPending, run] = useFlagAction(() => markFlagFine(tripId, target.flagId, target.fingerprint), "Couldn't mark that as fine.");
+  const [isPending, run] = useFlagAction(() => markFlagFine(tripId, target.flagId, target.fingerprint), "Couldn’t mark that as fine.");
   return (
     <button
       type="button"
@@ -50,7 +50,7 @@ export interface MarkedFineEntry {
 }
 
 function MarkedFineRow({ tripId, entry }: { tripId: string; entry: MarkedFineEntry }) {
-  const [isPending, run] = useFlagAction(() => unmarkFlagFine(tripId, entry.flagId), "Couldn't undo that.");
+  const [isPending, run] = useFlagAction(() => unmarkFlagFine(tripId, entry.flagId), "Couldn’t undo that.");
   return (
     <div className="flex items-start gap-2 text-[13px] font-medium">
       <div className="min-w-0 flex-1">

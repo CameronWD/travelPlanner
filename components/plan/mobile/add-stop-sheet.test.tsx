@@ -30,6 +30,7 @@ vi.mock("@/components/ui/range-calendar", () => ({
 
 import { AddStopSheet } from "./add-stop-sheet";
 import { createStop } from "@/server/actions/stops";
+import { PLAN_RANGE_DASH } from "@/lib/plan/plan-model";
 
 const STOPS = [
   { id: "par", name: "Paris", sortOrder: 0, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: null, pinned: false, lat: 48.85, lng: 2.35 },
@@ -74,7 +75,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(screen.queryByRole("radio", { name: "Roughly" })).toBeNull();
     expect(screen.getByTestId("range-start")).toHaveTextContent("2026-11-04");
     expect(screen.getByTestId("range-end")).toHaveTextContent("2026-11-05");
-    expect(screen.getByText("Your only Stop takes the Trip's dates. Add a second Stop to split them.")).toBeInTheDocument();
+    expect(screen.getByText("Your only Stop takes the Trip’s dates. Add a second Stop to split them.")).toBeInTheDocument();
   });
 
   it("a second Stop on a dated Trip can still be rough", () => {
@@ -101,6 +102,18 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(createStop).not.toHaveBeenCalled();
   });
 
+  it("has a Cancel before the submit button that is hidden on a phone, and it closes without creating", async () => {
+    const onOpenChange = vi.fn();
+    render(<AddStopSheet {...base} onOpenChange={onOpenChange} />);
+    const cancel = screen.getByRole("button", { name: "Cancel", hidden: true });
+    expect(cancel).toHaveClass("max-sm:hidden");
+    const submit = screen.getByRole("button", { name: /^Add a stop$/ });
+    expect(cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(cancel);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(createStop).not.toHaveBeenCalled();
+  });
+
   it("ranks results near the route's centre", () => {
     render(<AddStopSheet {...base} />);
     expect(comboCapture.props!.rankNear).toEqual({ lat: (48.85 + 41.9) / 2, lng: (2.35 + 12.5) / 2 });
@@ -114,7 +127,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(stepper.className).toContain("[&_[aria-live]]:text-[34px]");
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
-    expect(screen.getByText("Lands on Tue 22 – Sun 27 Dec. 0 nights spare after this.")).toBeInTheDocument();
+    expect(screen.getByText(`Lands on Tue 22${PLAN_RANGE_DASH}Sun 27 Dec. 0 nights spare after this.`, { normalizer: (t) => t })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
     expect(screen.getByText("Pushes you 2 nights past Sun 27 Dec.").className).toContain("text-coral-text");
@@ -256,7 +269,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     render(<AddStopSheet {...base} />);
     expect(screen.queryByText(/^Lands on/)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "pick range" }));
-    expect(screen.getByText("Lands on Tue 22 – Thu 24 Dec. 3 nights spare after this.")).toBeInTheDocument();
+    expect(screen.getByText(`Lands on Tue 22${PLAN_RANGE_DASH}Thu 24 Dec. 3 nights spare after this.`, { normalizer: (t) => t })).toBeInTheDocument();
   });
 
   it("uses no banned soft classes", () => {

@@ -190,6 +190,11 @@ export default async function TripHomePage({
   const cover = (
     <TripCoverCard className={cn("h-56 w-full sm:h-48", phonePortrait && "max-sm:hidden")}>
       <CoverArt {...coverArt} size="hero" box="band" sizesPx="100vw" />
+      {phase === "past" ? (
+        <p className="absolute bottom-3 left-3 z-10 line-clamp-2 max-w-[calc(100%-1.5rem)] break-words rounded-full border-2 border-border bg-card px-3 py-1 font-display text-lg font-extrabold leading-tight text-foreground">
+          {trip.name}
+        </p>
+      ) : null}
     </TripCoverCard>
   );
 

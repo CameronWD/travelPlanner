@@ -143,7 +143,7 @@ export function tzAbbrev(
       timeZoneName: "short",
     }).formatToParts(d);
     const name = parts.find((p) => p.type === "timeZoneName")?.value;
-    return name ?? null;
+    return name && /^GMT[+-]0(?::00)?$/.test(name) ? "GMT" : (name ?? null);
   } catch {
     return null;
   }

@@ -41,6 +41,30 @@ export function placeCode(place: string): string {
   return /\b([A-Z]{3})\b/.exec(place)?.[1] ?? place;
 }
 
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const withoutRegion = (place: string, region: string) => {
+  const m = /^(.*\S)\s*\(([^()]+)\)$/.exec(place.trim());
+  return m && same(m[2], region) ? m[1] : place;
+};
+
+function sameRegion(a: string, b: string): [string, string] | string {
+  if (same(a, b)) return a.trim();
+  const [x, y] = [withoutRegion(a, b), withoutRegion(b, a)];
+  if (same(x, y)) return x.trim();
+  if (x !== a || y !== b) return [x, y];
+  const [pa, pb] = [a.split(",").map((p) => p.trim()), b.split(",").map((p) => p.trim())];
+  let shared = 0;
+  while (
+    shared < Math.min(pa.length, pb.length) - 1 &&
+    same(pa[pa.length - 1 - shared], pb[pb.length - 1 - shared])
+  ) {
+    shared++;
+  }
+  if (shared === 0) return [a, b];
+  const [ta, tb] = [pa.slice(0, pa.length - shared).join(", "), pb.slice(0, pb.length - shared).join(", ")];
+  return same(ta, tb) ? ta : [ta, tb];
+}
+
 export function legLabel(
   t: LegTransport,
   stops: readonly LegStop[],
@@ -58,11 +82,17 @@ export function legLabel(
   const fromShort = t.depPlace ? placeCode(t.depPlace) : fromName;
   const toShort = t.arrPlace ? placeCode(t.arrPlace) : toName;
 
+  const coded = [t.depPlace, t.arrPlace].some((p) => p && placeCode(p) !== p);
+  const ends = (a: string, b: string): [string, string] | string => (coded ? [a, b] : sameRegion(a, b));
+
   let label = word;
   let sub = "";
   let spoken = "";
   if (t.depAt) {
-    if (fromShort && toShort) label = `${word} ${fromShort} → ${toShort}`;
+    if (fromShort && toShort) {
+      const e = ends(fromShort, toShort);
+      label = typeof e === "string" ? `${word} in ${e}` : `${word} ${e[0]} → ${e[1]}`;
+    }
     const { dep } = transportTimeDisplay({
       depAt: t.depAt,
       arrAt: t.arrAt ?? null,
@@ -87,7 +117,11 @@ export function legLabel(
     }
   }
 
-  const route = fromName && toName ? ` from ${fromName} to ${toName}` : "";
+  let route = "";
+  if (fromName && toName) {
+    const e = ends(fromName, toName);
+    route = typeof e === "string" ? ` in ${e}` : ` from ${e[0]} to ${e[1]}`;
+  }
   return {
     icon: meta.icon,
     label,
