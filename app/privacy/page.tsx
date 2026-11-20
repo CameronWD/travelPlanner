@@ -345,9 +345,11 @@ export default function PrivacyPage() {
           trip’s Plan, the Day view and so on) and a short, fixed list of
           things you do there, such as changing day, opening the Day map,
           tapping Directions or opening a ticket. Each record is tied to
-          your account and to the trip it was on, and says when it happened,
-          whether you were in the installed app, a phone browser or on a
-          computer, how quickly the screen appeared and whether it came from
+          your account and, when the screen belongs to a trip, to that trip
+          and the stage it was at (sketching, planning, final prep,
+          travelling or past). It also says when it happened, whether it
+          came from the main Teepee site or the beta, whether you were in
+          the installed app, a phone browser or on a computer, how quickly the screen appeared and whether it came from
           the copy saved on your device. On the Day view it also says how
           many days from today the day you opened was, unless a surprise on
           that trip is being kept from you. It never holds anything you

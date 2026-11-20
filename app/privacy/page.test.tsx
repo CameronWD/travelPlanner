@@ -272,6 +272,8 @@ describe("PrivacyPage", () => {
     render(await PrivacyPage());
     const text = document.body.textContent!.replace(/\s+/g, " ");
     expect(text).toContain("which I call Usage");
+    expect(text).toContain("when the screen belongs to a trip, to that trip and the stage it was at (sketching, planning, final prep, travelling or past)");
+    expect(text).toContain("whether it came from the main Teepee site or the beta");
     expect(text).toContain("never holds anything you typed");
     expect(text).toContain("opening a trip’s share link while you are signed in is noted, with no trip attached");
     expect(text).toContain("Inside Teepee, only an Admin can see Usage, and only as counts, never record by record");
