@@ -363,7 +363,7 @@ describe("flushing", () => {
     expect(stored()!.r).toEqual([expect.objectContaining({ action: "more-opened" })]);
   });
 
-  it.each([[400], [413], [403], [404]])("a %s drops that batch only and is not retried", async (code) => {
+  it.each([[400], [413], [404]])("a %s drops that batch only and is not retried", async (code) => {
     fetchMock.mockResolvedValueOnce(status(code));
     startUsage("it-usage-a");
     search(150);
@@ -374,16 +374,18 @@ describe("flushing", () => {
     expect(sentBatch(1)).toHaveLength(50);
   });
 
-  it("a 401 empties the key and stops recording for this document", async () => {
-    fetchMock.mockResolvedValue(status(401));
+  it.each([[401], [403]])("a %s discards that batch, keeps the rest for its owner and stops sending", async (code) => {
+    fetchMock.mockResolvedValue(status(code));
     startUsage("it-usage-a");
-    search(3);
+    search(150);
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(stored()).toBeNull();
+    expect(raw()).toMatchObject({ u: "it-usage-a" });
+    expect(raw()!.r).toHaveLength(50);
     search();
     startUsage("it-usage-a");
+    window.dispatchEvent(new Event("pagehide"));
     await vi.advanceTimersByTimeAsync(120_000);
-    expect(stored()).toBeNull();
+    expect(raw()!.r).toHaveLength(50);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -415,6 +417,57 @@ describe("flushing", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     window.dispatchEvent(new Event("pagehide"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("one account per queue", () => {
+  it("a stored queue of another account is discarded at start, never sent", async () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ u: "it-usage-a", r: [{ action: "search-opened", at: NOW.getTime(), mode: "desktop" }] }));
+    startUsage("it-usage-b");
+    recordUsageAction("more-opened");
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sentBatch()).toEqual([expect.objectContaining({ action: "more-opened" })]);
+  });
+
+  it("records in memory are cleared when the account changes", async () => {
+    startUsage("it-usage-a");
+    search(2);
+    startUsage("it-usage-b");
+    recordUsageAction("more-opened");
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(sentBatch()).toEqual([expect.objectContaining({ action: "more-opened" })]);
+    expect(raw()).toEqual({ u: "it-usage-b", r: [] });
+  });
+
+  it("when another tab signs in as someone else, this one stops and never overwrites or sends", async () => {
+    startUsage("it-usage-a");
+    search(2);
+    window.localStorage.setItem(KEY, JSON.stringify({ u: "it-usage-b", r: [] }));
+    vi.advanceTimersByTime(2_000);
+    search();
+    await vi.advanceTimersByTimeAsync(120_000);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(raw()).toEqual({ u: "it-usage-b", r: [] });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("when another tab signs out, this one stops", async () => {
+    startUsage("it-usage-a");
+    search();
+    window.localStorage.removeItem(KEY);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(raw()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a queue persisted before another tab signed in is not sent by this one", async () => {
+    startUsage("it-usage-a");
+    search(3);
+    vi.advanceTimersByTime(2_000);
+    window.localStorage.setItem(KEY, JSON.stringify({ u: "it-usage-b", r: [] }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

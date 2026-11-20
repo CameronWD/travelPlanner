@@ -129,12 +129,23 @@ function cancelPersist(): void {
   cancelScheduledPersist = null;
 }
 
+// The server files a batch under whoever is signed in when it arrives, so a
+// queue must only ever be sent by the account that recorded it. Another tab
+// signing in (or out) changes the stored owner; this document then stops
+// rather than overwrite it or send under the new cookie.
+function ownedQueue(): Stored | null {
+  const stored = load();
+  if (stored && stored.u === userId) return stored;
+  stop();
+  return null;
+}
+
 function persist(): void {
   cancelPersist();
   if (stopped || userId === null || unsaved.length === 0) return;
-  const stored = load();
-  const queued = stored && stored.u === userId ? stored.r : [];
-  save({ u: userId, r: [...queued, ...unsaved] });
+  const stored = ownedQueue();
+  if (!stored) return;
+  save({ u: stored.u, r: [...stored.r, ...unsaved] });
   unsaved = [];
 }
 
@@ -186,16 +197,15 @@ function settle(res: Response, batch: readonly UsageWireRecord[], startedAt: num
     return res.json().then(
       (body: unknown) => {
         if (typeof body === "object" && body !== null && (body as { recording?: unknown }).recording === false) {
-          const stored = load();
-          if (stored) save({ u: stored.u, r: [] });
+          if (load()?.u === userId) save({ u: userId, r: [] });
           stop();
         }
       },
       () => {},
     );
   }
-  if (res.status === 401) {
-    save(null);
+  if (res.status === 401 || res.status === 403) {
+    removeSent(batch);
     stop();
     return;
   }
@@ -212,8 +222,8 @@ function flush(): void {
     if (stopped || inFlight || userId === null) return;
     if (Date.now() < waitUntil) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    const stored = load();
-    if (!stored || stored.u !== userId || stored.r.length === 0) return;
+    const stored = ownedQueue();
+    if (!stored || stored.r.length === 0) return;
 
     const batch = stored.r.slice(0, MAX_BATCH_RECORDS);
     const startedAt = Date.now();
@@ -301,6 +311,10 @@ function recordAction(action: UsageAction, detail: UsageDetail | undefined, dayO
 export function startUsage(id: string): void {
   try {
     if (!inBrowser() || stopped) return;
+    if (userId !== null && userId !== id) {
+      unsaved = [];
+      pending = [];
+    }
     userId = id;
     const stored = load();
     const queued = stored && stored.u === id ? stored.r : [];
