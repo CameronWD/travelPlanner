@@ -6,12 +6,14 @@ import { listPeople } from "@/server/actions/people";
 import { listErrorReports } from "@/server/actions/error-reports";
 import { listFeedbackNeedingReview } from "@/server/actions/feedback";
 import { listReviewPermissions } from "@/server/actions/review-permission";
+import { listUsageOverview } from "@/server/actions/usage";
 import { CountBadge } from "@/components/ui/count-badge";
 import { AccessRequestsPanel } from "./access-requests";
 import { ErrorReportsPanel } from "./error-reports";
 import { FeedbackReviewPanel } from "./feedback-review";
 import { PeoplePanel } from "./people";
 import { ReviewPermissionsPanel } from "./review-permissions";
+import { UsagePanel } from "./usage";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -61,12 +63,13 @@ function Section({
 export default async function AdminPage() {
   const admin = await requireAdmin();
 
-  const [accessRequests, feedbackNeedingReview, people, errorReports, reviewPermissions] = await Promise.all([
+  const [accessRequests, feedbackNeedingReview, people, errorReports, reviewPermissions, usage] = await Promise.all([
     listAccessRequests(),
     listFeedbackNeedingReview(),
     listPeople(),
     listErrorReports(),
     listReviewPermissions(),
+    listUsageOverview().catch(() => null),
   ]);
 
   // One instant for the whole page, computed server-side so the client
@@ -115,6 +118,10 @@ export default async function AdminPage() {
       {/* Errors (ARCH-OBS-2) */}
       <Section id="adm-err" title="Errors" count={errorReports.length} hint="Newest first">
         <ErrorReportsPanel initial={errorReports} now={now} />
+      </Section>
+
+      <Section id="adm-usage" title="Usage" hint="Counts only, never single records">
+        <UsagePanel initial={usage} now={now} />
       </Section>
     </div>
   );
