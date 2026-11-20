@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MobileStopRow, type MobileStopRowProps } from "./mobile-stop-row";
+import { PLAN_RANGE_DASH } from "@/lib/plan/plan-model";
 
 const DATED = {
   id: "par", name: "Paris", country: "France", timezone: "Europe/Paris",
@@ -35,18 +36,18 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(screen.getByText("Paris").className).toMatch(/text-\[19px\]/);
     expect(screen.getByText(/The Hoxton · 9 plans/)).toBeInTheDocument();
     expect(container.querySelector("svg")).toBeTruthy();
-    expect(screen.getByText("10–15 Dec")).toBeInTheDocument();
+    expect(screen.getByText(`10${PLAN_RANGE_DASH}15 Dec`, { normalizer: (t) => t })).toBeInTheDocument();
     expect(screen.getByText("5n")).toBeInTheDocument();
   });
 
   it("the date column keeps a floor and a cap, so the stay line truncates first and the nights pill never leaves its column", () => {
     renderRow();
     expect(screen.getByText("Paris").parentElement!.className).toContain("flex-1");
-    const column = screen.getByText("10–15 Dec").parentElement!;
+    const column = screen.getByText(`10${PLAN_RANGE_DASH}15 Dec`, { normalizer: (t) => t }).parentElement!;
     expect(column.className).toContain("min-w-[4.5rem]");
     expect(column.className).toContain("max-w-[40%]");
     expect(column.className).not.toContain("shrink-[100]");
-    expect(screen.getByText("10–15 Dec").className).toContain("truncate");
+    expect(screen.getByText(`10${PLAN_RANGE_DASH}15 Dec`, { normalizer: (t) => t }).className).toContain("truncate");
   });
 
   it("stay.kind === 'none': coral 'No bed yet · n plans'", () => {
@@ -97,7 +98,7 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(screen.queryByText("11–11 Oct")).not.toBeInTheDocument();
     expect(screen.queryByText("0n")).not.toBeInTheDocument();
     // A normal stay is untouched.
-    expect(screen.queryByText("10–15 Dec")).not.toBeInTheDocument();
+    expect(screen.queryByText(`10${PLAN_RANGE_DASH}15 Dec`, { normalizer: (t) => t })).not.toBeInTheDocument();
   });
 });
 

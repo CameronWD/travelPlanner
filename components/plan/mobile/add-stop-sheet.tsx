@@ -13,10 +13,9 @@ import { useServerAction } from "@/components/ui/use-server-action";
 import { createStop } from "@/server/actions/stops";
 import { chapterForStop, type ChapterLike } from "@/lib/chapters";
 import { cn } from "@/lib/cn";
-import { formatDateRangeCompact } from "@/lib/dates";
 import { HUE_CLASSES } from "@/lib/hues";
 import { exactStopPlacement, storedAnchorFor } from "@/lib/plan/exact-stop-placement";
-import { addStopConsequence, routeCentroid } from "@/lib/plan/plan-model";
+import { addStopConsequence, planDateRange, routeCentroid } from "@/lib/plan/plan-model";
 import { stopHue } from "@/lib/stop-colours";
 import { UNCHOSEN_TIMEZONE } from "@/lib/tz";
 import type { StopInput } from "@/lib/validations/stop";
@@ -201,7 +200,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
                   <span className="flex items-center gap-2">
                     <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full border-2 border-border", HUE_CLASSES[stopHue(s.sortOrder)].fill)} />
                     {s.name}
-                    <span className="whitespace-nowrap text-muted-foreground">{s.arriveDate && s.departDate ? formatDateRangeCompact(s.arriveDate, s.departDate) : "rough"}</span>
+                    <span className="whitespace-nowrap text-muted-foreground">{s.arriveDate && s.departDate ? planDateRange(s.arriveDate, s.departDate) : "rough"}</span>
                   </span>
                 </SelectItem>
               ))}

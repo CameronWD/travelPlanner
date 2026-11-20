@@ -4,6 +4,8 @@ import type { PlanSummary } from "@/lib/plan-overview";
 import {
   addStopConsequence, costPaidState, fitTileModel, formatNightRuns, formatStayRange, planHeaderMeta, routeCentroid,
   stayCostLabel, stayCoverage, stayCoverageLine, stayNightsLabel, stayNightsOfStop, stayStatus, stayWindowLabel, tripEyebrow,
+  PLAN_RANGE_DASH,
+  planDateRange,
 } from "./plan-model";
 import { formatMoney } from "@/lib/money/money";
 
@@ -28,10 +30,17 @@ describe("stayStatus (PLAN.md §3 stay chip, §4.1)", () => {
   });
 });
 
+describe("planDateRange", () => {
+  it("spaces the dash like the stay range, same month or across months", () => {
+    expect(planDateRange("2026-07-10", "2026-07-13")).toBe("10\u202F–\u200913 Jul");
+    expect(planDateRange("2026-06-28", "2026-07-04")).toBe("28 Jun\u202F–\u20094 Jul");
+  });
+});
+
 describe("formatStayRange", () => {
   it("same month collapses the month; across months keeps both", () => {
-    expect(formatStayRange("2026-12-15", "2026-12-22")).toBe("Tue 15 – Tue 22 Dec");
-    expect(formatStayRange("2026-12-27", "2027-01-03")).toBe("Sun 27 Dec – Sun 3 Jan");
+    expect(formatStayRange("2026-12-15", "2026-12-22")).toBe(`Tue 15${PLAN_RANGE_DASH}Tue 22 Dec`);
+    expect(formatStayRange("2026-12-27", "2027-01-03")).toBe(`Sun 27 Dec${PLAN_RANGE_DASH}Sun 3 Jan`);
   });
 });
 
@@ -63,7 +72,7 @@ describe("stayCoverage / stayCoverageLine (spec 2026-10-04 §B coverage line)", 
       { checkIn: "2026-12-12", checkOut: "2026-12-13" },
     ]);
     expect(c).toEqual({ kind: "partial", totalNights: 5, coveredNights: 2, openNights: ["2026-12-11", "2026-12-13", "2026-12-14"] });
-    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe("2 of 5 nights, no bed Fri 11 Dec, Sun 13 – Mon 14 Dec");
+    expect(stayCoverageLine(c as Exclude<typeof c, { kind: "rough" }>)).toBe(`2 of 5 nights, no bed Fri 11 Dec, Sun 13${PLAN_RANGE_DASH}Mon 14 Dec`);
   });
   it("Accommodations entirely outside the stay are partial with 0 covered", () => {
     expect(stayCoverage(PARIS, [{ checkIn: "2026-11-01", checkOut: "2026-11-03" }])).toMatchObject({ kind: "partial", coveredNights: 0 });
@@ -73,8 +82,8 @@ describe("stayCoverage / stayCoverageLine (spec 2026-10-04 §B coverage line)", 
 describe("formatNightRuns", () => {
   it("single nights, runs, and runs across a month end", () => {
     expect(formatNightRuns(["2026-12-11"])).toBe("Fri 11 Dec");
-    expect(formatNightRuns(["2026-12-11", "2026-12-12", "2026-12-14"])).toBe("Fri 11 – Sat 12 Dec, Mon 14 Dec");
-    expect(formatNightRuns(["2026-12-31", "2027-01-01"])).toBe("Thu 31 Dec – Fri 1 Jan");
+    expect(formatNightRuns(["2026-12-11", "2026-12-12", "2026-12-14"])).toBe(`Fri 11${PLAN_RANGE_DASH}Sat 12 Dec, Mon 14 Dec`);
+    expect(formatNightRuns(["2026-12-31", "2027-01-01"])).toBe(`Thu 31 Dec${PLAN_RANGE_DASH}Fri 1 Jan`);
   });
 });
 
@@ -113,7 +122,7 @@ describe("tripEyebrow / planHeaderMeta (PLAN.md §1.1)", () => {
     expect(tripEyebrow("Someday", null)).toBe("Someday");
   });
   it("stops · rough · range, dropping empty parts", () => {
-    expect(planHeaderMeta({ stopCount: 6, roughCount: 1 }, "2026-12-04", "2027-01-08")).toBe("6 stops · 1 rough · Fri 4 Dec – Fri 8 Jan");
+    expect(planHeaderMeta({ stopCount: 6, roughCount: 1 }, "2026-12-04", "2027-01-08")).toBe(`6 stops · 1 rough · Fri 4 Dec${PLAN_RANGE_DASH}Fri 8 Jan`);
     expect(planHeaderMeta({ stopCount: 1, roughCount: 0 }, null, null)).toBe("1 stop");
   });
 });
@@ -130,20 +139,20 @@ describe("addStopConsequence (PLAN.md §7.4 live line)", () => {
   const base = { stops: [A, B], afterId: "A", startDate: "2026-12-04", hardEndDate: "2027-01-08" };
 
   it("rough: lands after the goes-after stop and counts the spare", () => {
-    expect(addStopConsequence({ ...base, mode: "rough", nights: 5 })).toEqual({ text: "Lands on Tue 22 – Sun 27 Dec. 0 nights spare after this.", over: false });
+    expect(addStopConsequence({ ...base, mode: "rough", nights: 5 })).toEqual({ text: `Lands on Tue 22${PLAN_RANGE_DASH}Sun 27 Dec. 0 nights spare after this.`, over: false });
   });
   it("pushes past the home-by date in coral", () => {
     expect(addStopConsequence({ ...base, mode: "rough", nights: 7 })).toEqual({ text: "Pushes you 2 nights past Fri 8 Jan.", over: true });
   });
   it("exact: uses the picked range", () => {
-    expect(addStopConsequence({ ...base, mode: "exact", nights: 0, range: { arrive: "2026-12-22", depart: "2026-12-24" } })).toEqual({ text: "Lands on Tue 22 – Thu 24 Dec. 3 nights spare after this.", over: false });
+    expect(addStopConsequence({ ...base, mode: "exact", nights: 0, range: { arrive: "2026-12-22", depart: "2026-12-24" } })).toEqual({ text: `Lands on Tue 22${PLAN_RANGE_DASH}Thu 24 Dec. 3 nights spare after this.`, over: false });
   });
   it("no home-by: just where it lands; nothing to say at all → null", () => {
-    expect(addStopConsequence({ ...base, hardEndDate: null, mode: "rough", nights: 2 })?.text).toBe("Lands on Tue 22 – Thu 24 Dec.");
+    expect(addStopConsequence({ ...base, hardEndDate: null, mode: "rough", nights: 2 })?.text).toBe(`Lands on Tue 22${PLAN_RANGE_DASH}Thu 24 Dec.`);
     expect(addStopConsequence({ mode: "rough", nights: 2, stops: [], afterId: null, startDate: null, hardEndDate: null })).toBeNull();
   });
   it("singular night", () => {
-    expect(addStopConsequence({ ...base, mode: "rough", nights: 4 })?.text).toBe("Lands on Tue 22 – Sat 26 Dec. 1 night spare after this.");
+    expect(addStopConsequence({ ...base, mode: "rough", nights: 4 })?.text).toBe(`Lands on Tue 22${PLAN_RANGE_DASH}Sat 26 Dec. 1 night spare after this.`);
   });
 
   // Reviewer's mid-trip repro (task-5 review): rough A(2n) → SCHEDULED B (pinned,
@@ -164,7 +173,7 @@ describe("addStopConsequence (PLAN.md §7.4 live line)", () => {
     // A(2n): Dec 1 -> Dec 3. New(5n) inserted after A: Dec 3 -> Dec 8. B is
     // pinned at Dec 10-15 regardless. C(3n) after B: Dec 15 -> Dec 18 (unmoved).
     // End stays Dec 18, 2 nights of slack before the Dec 20 hard end.
-    expect(r).toEqual({ text: "Lands on Thu 3 – Tue 8 Dec. 2 nights spare after this.", over: false });
+    expect(r).toEqual({ text: `Lands on Thu 3${PLAN_RANGE_DASH}Tue 8 Dec. 2 nights spare after this.`, over: false });
   });
 
   it("downstream of the pin is still flexible — genuinely runs over", () => {

@@ -27,7 +27,7 @@ import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION, type ItemDrop } from "@/components/plan/plan-dnd";
 import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
-import { stayStatus } from "@/lib/plan/plan-model";
+import { planDateRange, stayStatus } from "@/lib/plan/plan-model";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
 import { PlanRiseIn, RISE_IN_WINDOW_MS } from "@/components/plan/plan-rise-in";
 import { ringId, scrollToId, whenScrollSettles } from "@/lib/scroll-to";
@@ -59,7 +59,7 @@ import { scheduleItem } from "@/server/actions/items";
 import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { usePlanEditor } from "@/components/plan/use-plan-editor";
 import { suggestResultToast } from "@/lib/suggest-toast";
-import { suggestNextStopDates, formatDateRangeCompact, formatDayLabel, formatLongDate } from "@/lib/dates";
+import { suggestNextStopDates, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { effectiveLocalMode } from "@/lib/travel-times/hops";
 import { deleteAccommodation } from "@/server/actions/accommodation";
@@ -1588,7 +1588,7 @@ export function ItineraryManager({
   function chapterSummary(n: number, chapter: ItineraryChapter | null) {
     const count = `${n} stop${n === 1 ? "" : "s"}`;
     if (!chapter) return count;
-    return `${count} · ${chapter.startDate && chapter.endDate ? formatDateRangeCompact(chapter.startDate, chapter.endDate) : "rough"}`;
+    return `${count} · ${chapter.startDate && chapter.endDate ? planDateRange(chapter.startDate, chapter.endDate) : "rough"}`;
   }
 
   function firmUpChapterButton(chapterId: string) {

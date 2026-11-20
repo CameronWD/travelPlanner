@@ -30,6 +30,7 @@ vi.mock("@/components/ui/range-calendar", () => ({
 
 import { AddStopSheet } from "./add-stop-sheet";
 import { createStop } from "@/server/actions/stops";
+import { PLAN_RANGE_DASH } from "@/lib/plan/plan-model";
 
 const STOPS = [
   { id: "par", name: "Paris", sortOrder: 0, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: null, pinned: false, lat: 48.85, lng: 2.35 },
@@ -114,7 +115,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(stepper.className).toContain("[&_[aria-live]]:text-[34px]");
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
-    expect(screen.getByText("Lands on Tue 22 – Sun 27 Dec. 0 nights spare after this.")).toBeInTheDocument();
+    expect(screen.getByText(`Lands on Tue 22${PLAN_RANGE_DASH}Sun 27 Dec. 0 nights spare after this.`, { normalizer: (t) => t })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights" }));
     expect(screen.getByText("Pushes you 2 nights past Sun 27 Dec.").className).toContain("text-coral-text");
@@ -256,7 +257,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     render(<AddStopSheet {...base} />);
     expect(screen.queryByText(/^Lands on/)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "pick range" }));
-    expect(screen.getByText("Lands on Tue 22 – Thu 24 Dec. 3 nights spare after this.")).toBeInTheDocument();
+    expect(screen.getByText(`Lands on Tue 22${PLAN_RANGE_DASH}Thu 24 Dec. 3 nights spare after this.`, { normalizer: (t) => t })).toBeInTheDocument();
   });
 
   it("uses no banned soft classes", () => {

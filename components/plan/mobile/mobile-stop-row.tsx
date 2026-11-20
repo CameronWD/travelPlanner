@@ -3,10 +3,10 @@
 import * as React from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { formatDateRangeCompact, nightsBetween } from "@/lib/dates";
+import { nightsBetween } from "@/lib/dates";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
-import type { StayStatus } from "@/lib/plan/plan-model";
+import { planDateRange, type StayStatus } from "@/lib/plan/plan-model";
 import type { StopCardStop } from "@/components/plan/types";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 
@@ -66,7 +66,7 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
 
       <span className="flex min-w-[4.5rem] max-w-[40%] shrink-0 flex-col items-end gap-1">
         <span className="max-w-full truncate text-sm font-extrabold tabular-nums">
-          {rough ? "Rough" : nights === 0 ? "Same day" : formatDateRangeCompact(stop.arriveDate as string, stop.departDate as string)}
+          {rough ? "Rough" : nights === 0 ? "Same day" : planDateRange(stop.arriveDate as string, stop.departDate as string)}
         </span>
         {/* The desktop row (stop-row.tsx) hides the nights pill on a same-day stop; so does this one (LA-187). */}
         {(rough || nights > 0) && (

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // are hoisted above every import, so this being written before or after
 // them doesn't change execution order — top-of-file here for readability).
 import React from "react";
+import { PLAN_RANGE_DASH } from "@/lib/plan/plan-model";
 
 vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
 
@@ -260,7 +261,7 @@ describe("Plan overview sticky aside (LA-038)", () => {
     const div = await renderPlan();
     expect(div.querySelector("h1")!.textContent).toBe("Plan");
     expect(div.textContent).toContain("Christmas in Europe 2026");
-    expect(div.textContent).toContain("1 stop · Thu 1 – Sat 10 Jan");
+    expect(div.textContent).toContain(`1 stop · Thu 1${PLAN_RANGE_DASH}Sat 10 Jan`);
   });
   it("the rail holds the Route map button, Fit tile and Jump list, in that order, after the list", async () => {
     scenario.stops = [STOP];
@@ -339,7 +340,7 @@ describe("Plan Stops list in the side panel (spec §G, feedback cmuhvbi4h)", () 
 
     const jl = railCapture.jumpList!;
     expect((jl.stops as Array<Record<string, unknown>>).map((s) => [s.name, s.dateLabel, s.rough])).toEqual([
-      ["Rome", "1–5 Jan", false],
+      ["Rome", `1${PLAN_RANGE_DASH}5 Jan`, false],
       ["Naples", "~3 nights", true],
     ]);
     expect(jl.homeBase).toEqual({ name: "Sydney", roundTrip: true });
