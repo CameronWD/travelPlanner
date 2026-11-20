@@ -8,6 +8,6 @@ describe("MarkerFilters", () => {
     const field = screen.getByRole("textbox", { name: "Filter your markers" });
     const icon = field.previousElementSibling!;
     expect(icon.tagName.toLowerCase()).toBe("svg");
-    expect(icon.getAttribute("class")).toContain("z-10");
+    expect(icon.getAttribute("class")).toContain("z-[1]");
   });
 });
