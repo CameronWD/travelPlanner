@@ -402,12 +402,21 @@ describe("flushing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("a 200 whose body is not JSON still counts as sent", async () => {
-    fetchMock.mockResolvedValue(new Response("<html>", { status: 200 }));
+  it.each([
+    ["a body that is not JSON", () => new Response("<html>sign in</html>", { status: 200 })],
+    ["JSON that is not the endpoint's answer", () => ok({ ok: true })],
+    ["a followed redirect", () => ({ ok: true, status: 200, redirected: true, json: async () => ({ recording: true }) })],
+  ])("a 200 with %s is not counted as sent: the batch stays and the next send waits", async (_, answer) => {
+    fetchMock.mockImplementation(async () => {
+      sentAt.push(Date.now());
+      return answer();
+    });
     startUsage("it-usage-a");
     search();
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(stored()!.r).toEqual([]);
+    expect(stored()!.r).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sentAt.map((t) => Math.round((t - NOW.getTime()) / 1000))).toEqual([30, 90]);
   });
 
   it("startUsage twice installs one set of listeners", async () => {

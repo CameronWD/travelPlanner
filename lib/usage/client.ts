@@ -191,17 +191,28 @@ function backOff(startedAt: number): void {
 
 function settle(res: Response, batch: readonly UsageWireRecord[], startedAt: number): Promise<void> | void {
   if (res.ok) {
-    failures = 0;
-    waitUntil = 0;
-    removeSent(batch);
+    // Only the endpoint's own answer counts as sent: a followed redirect (a
+    // sign-in page, deployment protection) also ends in a 2xx.
+    if (res.redirected) {
+      backOff(startedAt);
+      return;
+    }
     return res.json().then(
       (body: unknown) => {
-        if (typeof body === "object" && body !== null && (body as { recording?: unknown }).recording === false) {
+        const recording = typeof body === "object" && body !== null ? (body as { recording?: unknown }).recording : undefined;
+        if (typeof recording !== "boolean") {
+          backOff(startedAt);
+          return;
+        }
+        failures = 0;
+        waitUntil = 0;
+        removeSent(batch);
+        if (!recording) {
           if (load()?.u === userId) save({ u: userId, r: [] });
           stop();
         }
       },
-      () => {},
+      () => backOff(startedAt),
     );
   }
   if (res.status === 401 || res.status === 403) {
