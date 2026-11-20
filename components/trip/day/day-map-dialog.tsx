@@ -9,6 +9,7 @@ import { createMapLoader } from "@/components/ui/map-loader";
 import { useMediaQuery } from "@/components/ui/use-media-query";
 import { cn } from "@/lib/cn";
 import { dayFromPathname } from "@/lib/day-path";
+import { recordUsageAction } from "@/lib/usage/client";
 import { DayPanelContext, useIsDayInView } from "@/components/trip/day/day-carousel";
 import type { DayMapModel } from "@/lib/day-map";
 
@@ -118,7 +119,10 @@ export function DayMapButton({ tripId, model, size, shown = true }: { tripId: st
 
   return (
     <>
-      <Button type="button" variant="secondary" size="sm" shape="pill" onClick={() => setOpen(true)}>
+      <Button type="button" variant="secondary" size="sm" shape="pill" onClick={() => {
+          recordUsageAction("day-map-opened");
+          setOpen(true);
+        }}>
         <Map aria-hidden="true" />
         Day map
       </Button>
