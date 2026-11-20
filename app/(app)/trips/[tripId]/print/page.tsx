@@ -257,7 +257,7 @@ export default async function PrintPage({
         }
       `}</style>
 
-      <div data-print-root className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 text-foreground print:max-w-none print:gap-6 print:px-0 print:py-0">
+      <div data-print-root className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-0 py-8 text-foreground print:max-w-none print:gap-6 print:px-0 print:py-0">
 
         {/* On screen this page is deliberately A4-shaped (max-w-3xl), not the
             full page-wide column — it's a preview of the printout, not a
@@ -342,16 +342,14 @@ export default async function PrintPage({
                     {transport && !isLast && (
                       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border-2 border-border-soft bg-muted/40 px-3 py-2 text-sm text-muted-foreground print:border print:bg-transparent">
                         <span className="font-medium">{modeLabel(transport.mode)}</span>
-                        {transport.depPlace && (
-                          <>
-                            <span>from {transport.depPlace}</span>
-                          </>
-                        )}
-                        {transport.arrPlace && (
-                          <>
-                            <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
-                            <span>{transport.arrPlace}</span>
-                          </>
+                        {(transport.depPlace || transport.arrPlace) && (
+                          <span className="min-w-0 break-words">
+                            {transport.depPlace && `from ${transport.depPlace}`}
+                            {transport.depPlace && transport.arrPlace && (
+                              <ArrowRight className="mx-1 inline size-3.5 align-[-2px]" aria-hidden="true" />
+                            )}
+                            {transport.arrPlace}
+                          </span>
                         )}
                         {transport.reference && (
                           /* Its own line under the route on phones; right-aligned on the row from sm (LA-150). */

@@ -82,6 +82,12 @@ describe("Print view — tokens only (Task 15)", () => {
     expect(page).toMatch(/data-print-root[^>]*\bprint:max-w-none\b/);
   });
 
+  it("takes the trip layout's gutter on a phone and its full width on desktop (U4)", () => {
+    expect(page).toMatch(/data-print-root[^>]*\bw-full\b/);
+    expect(page).toMatch(/data-print-root[^>]*\bpx-0\b/);
+    expect(page).not.toMatch(/data-print-root[^>]*(^|\s)px-4\b/);
+  });
+
   it("labels the on-screen preview, hidden from the print output itself (LA-055)", () => {
     expect(page).toMatch(/Print preview/);
     // Scoped: the label's own className carries print:hidden, not just any
@@ -313,6 +319,10 @@ describe("Print view — phone-width route rows (LA-150)", () => {
     expect(ref.className).toMatch(/\bsm:basis-auto\b/);
     expect(ref.className).toMatch(/\bsm:ml-auto\b/);
     expect(ref.className).not.toMatch(/(^|\s)ml-auto(\s|$)/);
+
+    const from = screen.getByText(/from Rome \(FCO\)/);
+    expect(from).toHaveTextContent("from Rome (FCO)Florence (FLR)");
+    expect(from.className).toMatch(/\bmin-w-0\b/);
   });
 });
 
