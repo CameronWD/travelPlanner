@@ -57,5 +57,5 @@ not stop. Say which to change. The spec is `docs/specs/2026-11-24-usage.md`.
 
 ## Questions
 
-- Is the GitHub repository private? `/privacy` says the nightly backup, a full copy of the database including Usage, is kept there.
+- Answered 20 Nov: the GitHub repository is private, so the nightly backup there (a full copy of the database, Usage included) is readable only by Cam.
 - Is Xanthia an Admin? If so she can read your Usage as counts and you hers.
