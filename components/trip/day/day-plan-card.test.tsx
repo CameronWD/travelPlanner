@@ -158,3 +158,15 @@ describe("DayPlanCard Surprise (spec 2026-11-18 D7)", () => {
     expect(screen.queryByText(/surprise/i)).not.toBeInTheDocument();
   });
 });
+
+describe("DayPlanCard empty day", () => {
+  it("says Nothing planned once, in a block with no fixed height, under a wrapping header", () => {
+    const { container } = render(<DayPlanCard data={data({ hasEntries: false, planCount: 0 })} size="phone" addButton={<button>Add</button>} />);
+    expect(screen.getAllByText(/Nothing planned/)).toHaveLength(1);
+    expect(screen.queryByText("Nothing planned yet")).toBeNull();
+    expect(container.querySelector('[data-slot="day-plan-empty"]')!.className).not.toContain("min-h-[12rem]");
+    const row = container.querySelector("section")!.firstElementChild as HTMLElement;
+    expect(row.className).toContain("flex-wrap");
+    expect(row.lastElementChild!.className).toContain("ml-auto");
+  });
+});

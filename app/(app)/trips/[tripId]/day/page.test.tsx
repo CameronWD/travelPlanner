@@ -351,9 +351,17 @@ describe("Day page", () => {
     expect(empties).toHaveLength(2); // phone + desktop trees
     for (const e of empties) {
       expect(e).toHaveTextContent("Nothing planned");
-      expect(e.className).toContain("min-h-[12rem]");
-      expect(e.className).toContain("justify-center");
+      expect(e.className).not.toContain("min-h-[12rem]");
+      expect(e.className).toContain("items-center");
+      expect(e.textContent?.match(/Nothing planned/g)).toHaveLength(1);
       expect(e.querySelector("button")).not.toBeNull();
+    }
+    expect(screen.queryByText("Nothing planned yet")).toBeNull();
+    for (const s of Array.from(shownPanel(container).querySelectorAll<HTMLElement>('section[aria-labelledby^="day-plan-heading"]'))) {
+      expect(s.textContent?.match(/Nothing planned/g)).toHaveLength(1);
+      const row = s.firstElementChild as HTMLElement;
+      expect(row.className).toContain("flex-wrap");
+      expect(row.lastElementChild?.className).toContain("ml-auto");
     }
     expect(screen.queryByText("Nothing planned yet. Add a place, an activity or a note.")).toBeNull();
     for (const s of Array.from(shownPanel(container).querySelectorAll<HTMLElement>('section[aria-labelledby^="day-plan-heading"]'))) {

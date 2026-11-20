@@ -38,7 +38,7 @@ export function JournalCard({
     <section
       data-journal
       aria-labelledby="journal-heading"
-      className={cn("flex flex-col gap-3 rounded-3xl border-2 border-border bg-card px-[22px] py-[18px] shadow-hard-3", className)}
+      className={cn("flex flex-col gap-3 rounded-[20px] border-2 border-border bg-card p-4 shadow-hard-2 md:rounded-3xl md:px-6 md:py-[22px] md:shadow-hard-3", className)}
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="journal-heading" className="font-display text-[22px] font-extrabold tracking-[-0.02em] text-foreground">

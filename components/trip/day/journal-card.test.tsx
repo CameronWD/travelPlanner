@@ -13,6 +13,12 @@ describe("JournalCard", () => {
     expect(screen.getByText("Come back on Sat 12 Dec to jot down a memory.")).toBeInTheDocument();
     expect(screen.queryByTestId("editor")).toBeNull();
   });
+  it("sizes like the Day plan card beside it", () => {
+    render(<JournalCard tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" journal={{ open: false, mine: null, others: [] }} />);
+    const card = screen.getByRole("heading", { name: "Journal" }).closest("section")!;
+    expect(card.className).toContain("p-4");
+    expect(card.className).toContain("md:px-6");
+  });
   it("on the day: the editor, and co-travellers' entries above it", () => {
     render(<JournalCard tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" journal={{ open: true, mine: { body: "", updatedAt: null, photo: null, extraPhotos: [], hiddenFromShares: false }, others: [{ authorId: "u2", body: "Snow!", updatedAt: new Date(), author: null, photos: [] }] }} />);
     expect(screen.getByTestId("editor")).toHaveTextContent("2026-12-12");

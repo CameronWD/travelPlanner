@@ -52,20 +52,20 @@ export function DayPlanCard({ data, size, addButton, shown = true }: { data: Day
         phone ? "rounded-[20px] p-4 shadow-hard-2" : "rounded-3xl px-6 py-[22px] shadow-hard-3",
       )}
     >
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 id={`day-plan-heading-${size}`} className="font-display text-[22px] font-extrabold tracking-[-0.02em] text-foreground">
           Day plan
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3">
           {data.hasEntries ? <DayMapButton tripId={data.tripId} model={data.dayMap} size={size} shown={shown} /> : null}
-          {whole && !data.hasEntries ? null : <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>}
+          {empty || (whole && !data.hasEntries) ? null : <span className="text-right text-[13px] font-semibold text-muted-foreground">{planCountLabel(data.planCount)}</span>}
         </div>
       </div>
       {whole && surprise ? <SurpriseShell view={{ plannerName: surprise.plannedByName, forNames: [], youAreSurprised: true }} /> : null}
       {whole && !data.hasEntries ? null : empty ? (
         // An empty day is a small block, not a tall empty card (spec 2026-09-29 D5):
-        // about three or four Items' worth of room, the line and the add action centred.
-        <div data-slot="day-plan-empty" className="flex min-h-[12rem] flex-col items-center justify-center gap-3.5 text-center">
+        // the line and the add action centred, sized by their own content.
+        <div data-slot="day-plan-empty" className="flex flex-col items-center gap-3.5 py-2 text-center">
           <p className="text-sm font-semibold text-muted-foreground">Nothing planned</p>
           {restSurprise}
           <div className="w-full">{addButton}</div>
