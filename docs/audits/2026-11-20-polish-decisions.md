@@ -88,6 +88,13 @@ and was built the recommended way so the work did not stop. Say which to change.
 | Leftover | Add a stop's Cancel shows from 640 px only; the phone sheet keeps one button. | Cancel on the phone too. |
 | G4 | Curly apostrophes and quotes in `app/` and `components/` copy. A few strings that are also stored or compared in shared code stay straight. | Convert those too, with the code that compares them. |
 
+### Things to know about wave 3
+
+- Not seen by anyone in a browser: Deep Review's confirmation (the demo trips hide the Review buttons, and a real click costs money), a real Surprise day without its "Add a title" control, a Book by pill with a date, a drive within one region. Each rests on tests.
+- Straight apostrophes remain where the words come from shared code: Help's section blurbs, What's new, warning sentences, a Checklists hint.
+- Print shows the trip name in the top bar as well as its own heading, so it has two headings on screen. Probably older than this work.
+- Activity can still read oddly when a thing's own name ends in its kind ("... test reminder reminder") or starts with "The" ("updated the The ..."). It is the data, not a layout fault.
+
 ### Not built in wave 3, waiting on you
 
 - **N4, repeated prefetching on an idle Day page.** Not changed. Prefetching is part of what makes swiping fast, and the fix on offer was to stop the Day strip and arrows prefetching at all. Too close to the trip to touch without a measurement on the live site.

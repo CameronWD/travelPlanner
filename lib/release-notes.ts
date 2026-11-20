@@ -27,6 +27,10 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-20T01:52:00Z",
+    text: "Deep Review asks before it starts. Trip pages hold still while they load, and small things are tidier all over.",
+  },
+  {
     publishedAt: "2026-11-19T23:50:00Z",
     text: "Dark theme reaches the side rail and tab bar. Dialogs share one footer, and the Day view keeps one pair of arrows.",
   },
