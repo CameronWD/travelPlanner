@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { reportError } from "@/lib/error-sink";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -5,6 +6,9 @@ import { MAX_BODY_BYTES } from "@/lib/usage/lists";
 import { storeUsageBatch } from "@/lib/usage/store";
 import { readUsageRecording } from "@/lib/usage/switch";
 import { parseUsageBatch } from "@/lib/usage/validate";
+
+// A cold or exhausted database must not hold a function open (pg has no connect timeout here).
+export const maxDuration = 10;
 
 const usageLimiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
 
@@ -43,9 +47,14 @@ export async function POST(req: Request): Promise<Response> {
     return recording(true);
   } catch {
     // A fixed message, never the original error: a database error can carry
-    // connection detail that does not belong in the error sink.
+    // connection detail that does not belong in the error sink. Reported after
+    // the response, because the sink writes to the database that just failed.
     try {
-      await reportError(new Error("Usage batch was not stored"), { route: "/api/usage", source: "server", userId });
+      after(async () => {
+        try {
+          await reportError(new Error("Usage batch was not stored"), { route: "/api/usage", source: "server", userId });
+        } catch {}
+      });
     } catch {}
     return status(503);
   }

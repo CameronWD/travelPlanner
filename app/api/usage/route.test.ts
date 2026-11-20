@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { authMock, storeMock, readMock, reportErrorMock } = vi.hoisted(() => ({
+const { authMock, storeMock, readMock, reportErrorMock, afterMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   storeMock: vi.fn(),
   readMock: vi.fn(),
   reportErrorMock: vi.fn(),
+  afterMock: vi.fn((task: () => Promise<void>) => {
+    void task();
+  }),
 }));
+vi.mock("next/server", () => ({ after: afterMock }));
 vi.mock("@/lib/auth/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/usage/store", () => ({ storeUsageBatch: storeMock }));
 vi.mock("@/lib/usage/switch", () => ({ readUsageRecording: readMock }));
@@ -130,6 +134,26 @@ describe("POST /api/usage", () => {
     const res = await POST(post({ records: [record()] }));
     expect(res.status).toBe(503);
     expect(reportErrorMock.mock.calls[0][1]).toEqual({ route: "/api/usage", source: "server", userId: undefined });
+  });
+
+  it("answers 503 at once when the report never settles, reporting after the response", async () => {
+    storeMock.mockRejectedValue(new Error("x"));
+    reportErrorMock.mockReturnValue(new Promise(() => {}));
+    expect((await POST(post({ records: [record()] }))).status).toBe(503);
+    expect(afterMock).toHaveBeenCalledTimes(1);
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers 503 when after() itself throws", async () => {
+    storeMock.mockRejectedValue(new Error("x"));
+    afterMock.mockImplementationOnce(() => {
+      throw new Error("outside a request scope");
+    });
+    expect((await POST(post({ records: [record()] }))).status).toBe(503);
+  });
+
+  it("caps the function's duration", async () => {
+    expect((await import("./route")).maxDuration).toBe(10);
   });
 
   it("a reportError that throws still answers 503", async () => {
