@@ -82,13 +82,16 @@ export function legLabel(
   const fromShort = t.depPlace ? placeCode(t.depPlace) : fromName;
   const toShort = t.arrPlace ? placeCode(t.arrPlace) : toName;
 
+  const coded = [t.depPlace, t.arrPlace].some((p) => p && placeCode(p) !== p);
+  const ends = (a: string, b: string): [string, string] | string => (coded ? [a, b] : sameRegion(a, b));
+
   let label = word;
   let sub = "";
   let spoken = "";
   if (t.depAt) {
     if (fromShort && toShort) {
-      const ends = sameRegion(fromShort, toShort);
-      label = typeof ends === "string" ? `${word} in ${ends}` : `${word} ${ends[0]} → ${ends[1]}`;
+      const e = ends(fromShort, toShort);
+      label = typeof e === "string" ? `${word} in ${e}` : `${word} ${e[0]} → ${e[1]}`;
     }
     const { dep } = transportTimeDisplay({
       depAt: t.depAt,
@@ -116,8 +119,8 @@ export function legLabel(
 
   let route = "";
   if (fromName && toName) {
-    const ends = sameRegion(fromName, toName);
-    route = typeof ends === "string" ? ` in ${ends}` : ` from ${ends[0]} to ${ends[1]}`;
+    const e = ends(fromName, toName);
+    route = typeof e === "string" ? ` in ${e}` : ` from ${e[0]} to ${e[1]}`;
   }
   return {
     icon: meta.icon,

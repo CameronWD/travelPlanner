@@ -51,6 +51,13 @@ describe("legLabel", () => {
     it("two places that end in the same region", () => {
       expect(drive("Westby, Northvale", "Eastby, Northvale").label).toBe("Drive Westby → Eastby");
     });
+    it("never collapses places whose short name is a three-capital code", () => {
+      const l = drive("Springfield, Illinois, USA", "St Louis, Missouri, USA");
+      expect(l.label).toBe("Drive USA → USA");
+      expect(l.accessibleName).toContain("from Paris to Rome");
+      const named = legLabel({ mode: "CAR", depPlace: "Springfield, Illinois, USA", arrPlace: "St Louis, Missouri, USA", depAt: new Date("2026-12-15T09:00:00Z") }, STOPS);
+      expect(named.accessibleName).toBe("Drive from Springfield, Illinois, USA to St Louis, Missouri, USA, Tuesday 15 December 09:00. Edit.");
+    });
     it("leaves other places alone", () => {
       expect(drive("Westby, Northvale", "Eastby, Southmoor").label).toBe("Drive Westby, Northvale → Eastby, Southmoor");
       expect(legLabel({ mode: "TRAIN", depPlace: "ABC", arrPlace: "XYZ", depAt: new Date("2026-12-15T09:00:00Z") }, STOPS).label).toBe("Train ABC → XYZ");
