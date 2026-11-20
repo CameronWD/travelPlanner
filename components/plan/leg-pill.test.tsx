@@ -165,6 +165,12 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
     render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="TO_BOOK" bookBy="2027-05-01" />);
     expect(screen.getByRole("button")).toHaveTextContent("Book by 1 May");
   });
+  it("the To book badge is text-xs, like the time beside it", () => {
+    render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="TO_BOOK" bookBy="2027-05-01" />);
+    const badge = screen.getByText("Book by 1 May");
+    expect(badge).toHaveClass("text-xs");
+    expect(badge).not.toHaveClass("text-[10px]");
+  });
   it("a To book leg with no book-by date says To book", () => {
     render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="TO_BOOK" />);
     expect(screen.getByRole("button")).toHaveTextContent("To book");

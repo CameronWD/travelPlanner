@@ -423,6 +423,13 @@ describe("DaySection Booking state (spec 2026-10-17 R2)", () => {
     expect(screen.getByText("To book")).toBeInTheDocument();
     expect(screen.getByText(/1 booked · 1 to book/)).toBeInTheDocument();
   });
+
+  it("the To book pill is as large as the cost and Booked pills beside it", () => {
+    renderDay({ items: [{ ...ITEMS[0], bookingState: "TO_BOOK" as const, bookBy: "2026-12-01" }] });
+    const pill = screen.getByText(/^Book by/);
+    expect(pill).toHaveClass("text-xs");
+    expect(pill).not.toHaveClass("text-[10px]");
+  });
 });
 
 describe("DaySection Slot time (spec 2026-10-17 R3)", () => {

@@ -122,7 +122,7 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, marker 
           {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
           <span className="min-w-0 shrink truncate">{label.label}</span>
           {label.sub ? <span className="min-w-0 shrink-[100] truncate text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
-          <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden />
+          <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden className="text-xs" />
         </>
       )}
     </button>
