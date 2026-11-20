@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, type NextFetchEvent } from "next/server";
 
 /**
  * Unit tests of `proxy()` itself for the /trips/* slug-resolution branch
@@ -29,6 +29,8 @@ const { proxy } = await import("./proxy");
 const TRIP = { id: "cmtw8sgpw0001osqh3i54rx1o", slug: "christmas-in-europe-2026" };
 const ORIGIN = "https://app.example.com";
 
+const fetchEvent = () => ({ waitUntil: vi.fn() }) as unknown as NextFetchEvent;
+
 function request(path: string, opts: { method?: string } = {}): NextRequest {
   return new NextRequest(`${ORIGIN}${path}`, { method: opts.method ?? "GET" });
 }
@@ -44,19 +46,41 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
   it("a session lookup that fails answers 503 and reports it, never taking the signed-out branch", async () => {
     const err = new Error("db down");
     viewerIdFromRequest.mockRejectedValue(err);
-    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26"));
+    const event = fetchEvent();
+    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26"), event);
 
     expect(response.status).toBe(503);
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(await response.text()).toContain("Try again");
     expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+    await vi.mocked(event.waitUntil).mock.calls[0][0];
     expect(reportError).toHaveBeenCalledWith(err, { route: "proxy.ts", source: "server" });
     expect(resolveTripRef).not.toHaveBeenCalled();
   });
 
+  it("answers 503 without waiting for a report that never settles", async () => {
+    viewerIdFromRequest.mockRejectedValue(new Error("db down"));
+    reportError.mockReturnValue(new Promise(() => {}));
+    const event = fetchEvent();
+    const response = await proxy(request("/trips/christmas-in-europe-2026/plan"), event);
+
+    expect(response.status).toBe(503);
+    expect(event.waitUntil).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failing report neither rejects the waited promise nor changes the answer", async () => {
+    viewerIdFromRequest.mockRejectedValue(new Error("db down"));
+    reportError.mockRejectedValue(new Error("sink down"));
+    const event = fetchEvent();
+    const response = await proxy(request("/trips/christmas-in-europe-2026/plan"), event);
+
+    expect(response.status).toBe(503);
+    await expect(vi.mocked(event.waitUntil).mock.calls[0][0]).resolves.toBeUndefined();
+  });
+
   it("a signed-out request passes through untouched, with no DB call", async () => {
     viewerIdFromRequest.mockResolvedValue(null);
-    const response = await proxy(request("/trips/christmas-in-europe-2026/plan"));
+    const response = await proxy(request("/trips/christmas-in-europe-2026/plan"), fetchEvent());
 
     expect(response.headers.get("x-middleware-rewrite")).toBeNull();
     expect(response.status).not.toBe(308);
@@ -69,7 +93,7 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
     resolveTripRef.mockResolvedValue(TRIP);
     viewerIsTripMember.mockResolvedValue(true);
 
-    const response = await proxy(request("/trips/xmas-2026/day/2026-12-26?plan=f1"));
+    const response = await proxy(request("/trips/xmas-2026/day/2026-12-26?plan=f1"), fetchEvent());
 
     expect(response.status).toBe(308);
     expect(response.headers.get("location")).toBe(
@@ -82,7 +106,7 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
     resolveTripRef.mockResolvedValue(TRIP);
     viewerIsTripMember.mockResolvedValue(true);
 
-    const response = await proxy(request("/trips/xmas-2026/settings", { method: "POST" }));
+    const response = await proxy(request("/trips/xmas-2026/settings", { method: "POST" }), fetchEvent());
 
     expect(response.status).not.toBe(308);
     expect(response.headers.get("x-middleware-rewrite")).toBe(
@@ -95,14 +119,14 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
     resolveTripRef.mockResolvedValue(TRIP);
     viewerIsTripMember.mockResolvedValue(true);
 
-    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26?map=1"));
+    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26?map=1"), fetchEvent());
 
     expect(response.headers.get("x-middleware-rewrite")).toBe(`${ORIGIN}/trips/${TRIP.id}/day?map=1&d=2026-12-26`);
   });
 
   it("a signed-out visitor's Day address reaches the Day page on the ref it gave, with no DB call", async () => {
     viewerIdFromRequest.mockResolvedValue(null);
-    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26"));
+    const response = await proxy(request("/trips/christmas-in-europe-2026/day/2026-12-26"), fetchEvent());
 
     expect(response.headers.get("x-middleware-rewrite")).toBe(`${ORIGIN}/trips/christmas-in-europe-2026/day?d=2026-12-26`);
     expect(resolveTripRef).not.toHaveBeenCalled();
