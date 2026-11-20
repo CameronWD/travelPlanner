@@ -39,6 +39,8 @@ export async function proxy(request: NextRequest, event: NextFetchEvent): Promis
     // Not "signed out": that branch skips the slug rewrite and the page would
     // answer "Trip not found". A non-OK answer makes the client reload this URL; the
     // service worker answers from the saved copy when it has one, otherwise this page is what shows.
+    // Synchronous so the platform log has a trace even if the deferred report below never completes.
+    console.error("proxy: session lookup failed", err);
     // The report writes to the database that just failed, so it runs after the answer is sent; its own failure is swallowed.
     event.waitUntil(
       import("@/lib/error-sink")

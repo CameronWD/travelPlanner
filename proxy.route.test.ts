@@ -68,6 +68,17 @@ describe("proxy() — /trips/* slug resolution wiring (ADR 0064)", () => {
     expect(event.waitUntil).toHaveBeenCalledTimes(1);
   });
 
+  it("logs the failure synchronously even when the deferred report never settles", async () => {
+    const err = new Error("db down");
+    viewerIdFromRequest.mockRejectedValue(err);
+    reportError.mockReturnValue(new Promise(() => {}));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await proxy(request("/trips/christmas-in-europe-2026/plan"), fetchEvent());
+
+    expect(log).toHaveBeenCalledWith("proxy: session lookup failed", err);
+    log.mockRestore();
+  });
+
   it("a failing report neither rejects the waited promise nor changes the answer", async () => {
     viewerIdFromRequest.mockRejectedValue(new Error("db down"));
     reportError.mockRejectedValue(new Error("sink down"));
