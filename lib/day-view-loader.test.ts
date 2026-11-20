@@ -602,6 +602,13 @@ describe("getDays — a day that is a Surprise for the viewer (ADR 0072)", () =>
     expect((await loadDay("2026-12-13")).surprise).toEqual({ plannedByName: "Pat", whole: false, dayStopHidden: false });
   });
 
+  it("a surprised Traveller gets no Day title owner on a Surprise day, hidden Stop or Changeover", async () => {
+    hideStrasbourg();
+    expect((await loadDay("2026-12-11")).dayTitleStopId).toBeNull();
+    expect((await loadDay("2026-12-10")).dayTitleStopId).toBeNull();
+    expect((await loadDay("2026-12-13")).dayTitleStopId).not.toBeNull();
+  });
+
   it("a day outside the hidden Stop has none", async () => {
     hideStrasbourg();
     expect((await loadDay("2026-12-08")).surprise).toBeNull();

@@ -466,6 +466,8 @@ function projectDayView(
   const isFirst = date === startDate;
   const isLast = date === endDate;
 
+  const surprise = daySurprise(rows.stops, date, dayStop?.id ?? null);
+
   return {
     tripId: shared.editorBase.tripId,
     viewerId: day.viewerId,
@@ -494,7 +496,7 @@ function projectDayView(
       : null,
     travelDay,
     dayTitle: model.dayTitle?.title ?? null,
-    dayTitleStopId: model.dayTitle?.stopId ?? dayStop?.id ?? null,
+    dayTitleStopId: model.dayTitle?.stopId ?? (surprise?.dayStopHidden ? null : dayStop?.id ?? null),
     plan: dayPlan,
     ordered,
     hasEntries,
@@ -516,7 +518,7 @@ function projectDayView(
     feasibility,
     markedFine,
     hops,
-    surprise: daySurprise(rows.stops, date, dayStop?.id ?? null),
+    surprise,
     weatherInput: dayStop?.lat != null && dayStop?.lng != null ? { lat: dayStop.lat, lng: dayStop.lng, timezone: stopTimezone } : null,
   };
 }
