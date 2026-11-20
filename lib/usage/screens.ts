@@ -1,6 +1,7 @@
 import { TRIP_SCREENS, type UsageScreen } from "@/lib/usage/lists";
 
 const APP_PATHS: Record<string, UsageScreen> = {
+  "/globe": "globe",
   "/trips": "trips",
   "/trips/new": "new-trip",
   "/account": "account",
@@ -29,7 +30,6 @@ const TRIP_SEGMENTS: Record<string, UsageScreen> = {
 
 export function screenForPath(pathname: string): UsageScreen | null {
   const path = pathname.replace(/\/+$/, "") || "/";
-  if (path === "/globe" || path.startsWith("/globe/")) return "globe";
   if (Object.hasOwn(APP_PATHS, path)) return APP_PATHS[path];
   const segments = path.split("/");
   if (segments[1] !== "trips" || !segments[2] || segments[2] === "new") return null;
