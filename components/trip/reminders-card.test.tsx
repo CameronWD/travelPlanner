@@ -485,6 +485,20 @@ describe("RemindersCard Undo and Dismissed", () => {
     expect(screen.getByText("Pack")).toBeInTheDocument();
   });
 
+  it("does not remember a Reminder as hidden when its Undo fails after the list already dropped it", async () => {
+    updateReminderMock.mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ success: false, errors: {} });
+    const a = reminderItem({ id: "ra", title: "Pack", date: "2026-11-29" });
+    const b = reminderItem({ id: "rb", title: "Print", date: "2026-11-30" });
+    const { rerender } = render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[a, b]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it.*Pack/ }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Dismissed", description: "Pack" })));
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[b]} />);
+    undoOf("Pack")();
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("ra", { dismissed: false }));
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[a, b]} />);
+    expect(screen.getByText("Pack")).toBeInTheDocument();
+  });
+
   it("lists the Trip's dismissed Reminders folded under Dismissed (n), each with Bring back", async () => {
     updateReminderMock.mockReturnValueOnce(new Promise(() => {}));
     const visa = reminderItem({ id: "d1", title: "Visa photos", date: "2026-12-02", dismissed: true });

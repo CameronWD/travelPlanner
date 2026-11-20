@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useOptimistic, useState, useTransition } from "react";
+import { startTransition, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Bell, ChevronRight, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -323,13 +323,20 @@ export function RemindersCard({ tripId, reminders, today, about, dismissed }: Re
   }
   const hideId = (id: string) => setGone((prev) => new Set(prev).add(id));
   const showId = (id: string) => setGone((prev) => new Set([...prev].filter((x) => x !== id)));
+  const latest = useRef(reminders);
+  useEffect(() => {
+    latest.current = reminders;
+  }, [reminders]);
+  const hideIfListed = (id: string) => {
+    if (latest.current.some((r) => r.id === id)) hideId(id);
+  };
   const gotIt = useUndoableAction<ReminderItem>({
     apply: (r) => hideId(r.id),
     persist: (r) => updateReminder(r.id, { dismissed: true }),
     revert: (r) => showId(r.id),
     undo: (r) => updateReminder(r.id, { dismissed: false }),
     applyUndo: (r) => showId(r.id),
-    revertUndo: (r) => hideId(r.id),
+    revertUndo: (r) => hideIfListed(r.id),
     done: (r) => ({ title: "Dismissed", description: r.title }),
     failure: "Couldn't dismiss that reminder.",
   });
