@@ -11,7 +11,6 @@ export interface UsageOverviewView {
   recording: boolean;
   total: number;
   fromOtherSites: number;
-  /** ISO. */
   lastReceivedAt: string | null;
   trips: { id: string; name: string }[];
 }

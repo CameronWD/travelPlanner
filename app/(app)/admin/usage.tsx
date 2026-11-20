@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -116,19 +117,20 @@ function TripReport({ report }: { report: UsageTripReport }) {
 
 type TripState = { status: "idle" } | { status: "loading" } | { status: "failed" } | { status: "ready"; report: UsageTripReport };
 
-/**
- * Usage (spec 2026-11-24 §5): the switch and the counts. Counts and medians
- * only, never a single record. A day is a calendar day in this device's own
- * zone, so the figures are fetched from here, not rendered on the server.
- */
-export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null; now: Date }) {
-  const [recording, setRecording] = React.useState(initial?.recording ?? true);
+export function UsagePanel({
+  initial,
+  recording: initialRecording,
+  now,
+}: {
+  initial: UsageOverviewView | null;
+  recording: boolean | null;
+  now: Date;
+}) {
+  const [recording, setRecording] = React.useState<boolean | null>(initialRecording);
   const [switching, setSwitching] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [trip, setTrip] = React.useState<TripState>({ status: "idle" });
   const latest = React.useRef(0);
-
-  if (!initial) return <p className="text-sm text-muted-foreground">Usage couldn’t be read.</p>;
 
   async function toggle(next: boolean) {
     const before = recording;
@@ -173,7 +175,18 @@ export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null
             Screens and named actions from every signed-in Traveller
           </span>
         </div>
-        <Switch aria-label="Recording" checked={recording} disabled={switching} onCheckedChange={(v) => void toggle(v)} />
+        {recording === null ? (
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <Button size="sm" variant="outline" disabled={switching} onClick={() => void toggle(false)}>
+              Turn recording off
+            </Button>
+            <Button size="sm" variant="outline" disabled={switching} onClick={() => void toggle(true)}>
+              Turn recording on
+            </Button>
+          </div>
+        ) : (
+          <Switch aria-label="Recording" checked={recording} disabled={switching} onCheckedChange={(v) => void toggle(v)} />
+        )}
       </Card>
 
       {message && (
@@ -182,9 +195,17 @@ export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null
         </p>
       )}
 
-      <p className="min-w-0 break-words text-sm text-muted-foreground">{overviewSentence(initial, now)}</p>
+      {!initial && (
+        <p role="status" className="text-sm text-destructive">
+          Couldn’t read Usage just now.
+        </p>
+      )}
 
-      {initial.trips.length === 0 ? (
+      {initial && (
+        <p className="min-w-0 break-words text-sm text-muted-foreground">{overviewSentence(initial, now)}</p>
+      )}
+
+      {!initial ? null : initial.trips.length === 0 ? (
         <p className="text-sm text-muted-foreground">You aren’t a Traveller on any Trip.</p>
       ) : (
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -209,7 +230,7 @@ export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null
       {trip.status === "loading" && <p className="text-sm text-muted-foreground">Loading…</p>}
       {trip.status === "failed" && (
         <p role="status" className="text-sm text-destructive">
-          Couldn’t read that Trip’s Usage.
+          Couldn’t read Usage just now.
         </p>
       )}
       {trip.status === "ready" && <TripReport report={trip.report} />}

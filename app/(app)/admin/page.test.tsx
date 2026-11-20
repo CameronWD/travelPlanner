@@ -186,7 +186,7 @@ describe("AdminPage", () => {
   it("still renders the rest of the page when Usage cannot be read", async () => {
     usageGroupByMock.mockRejectedValue(new Error("db down"));
     render(await AdminPage());
-    expect(usagePanelMock).toHaveBeenCalledWith(expect.objectContaining({ initial: null }));
+    expect(usagePanelMock).toHaveBeenCalledWith(expect.objectContaining({ initial: null, recording: true }));
     expect(screen.getByTestId("people-panel")).toBeInTheDocument();
     expect(screen.getByTestId("error-reports-panel")).toBeInTheDocument();
   });

@@ -81,14 +81,23 @@ beforeEach(() => {
 });
 
 describe("UsagePanel", () => {
-  it("says so when Usage could not be read", () => {
-    render(<UsagePanel initial={null} now={NOW} />);
-    expect(screen.getByText("Usage couldn’t be read.")).toBeInTheDocument();
+  it("says so when the figures could not be read, and still shows a working switch", async () => {
+    render(<UsagePanel recording={true} initial={null} now={NOW} />);
+    expect(screen.getByText("Couldn’t read Usage just now.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "Recording" }));
+    expect(setUsageRecording).toHaveBeenCalledWith(false);
+  });
+
+  it("offers both actions when the switch itself could not be read", async () => {
+    render(<UsagePanel recording={null} initial={null} now={NOW} />);
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Turn recording on" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Turn recording off" }));
+    expect(setUsageRecording).toHaveBeenCalledWith(false);
   });
 
   it("shows the switch on, the main site’s total and how many came from elsewhere", () => {
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     expect(screen.getByRole("switch", { name: "Recording" })).toHaveAttribute("aria-checked", "true");
     expect(
       screen.getByText("1204 records. The last one arrived 3h ago. 12 more came from beta and other sites."),
@@ -96,22 +105,22 @@ describe("UsagePanel", () => {
   });
 
   it("drops the other-sites sentence when there are none", () => {
-    render(<UsagePanel initial={{ ...overview, fromOtherSites: 0 }} now={NOW} />);
+    render(<UsagePanel recording={true} initial={{ ...overview, fromOtherSites: 0 }} now={NOW} />);
     expect(screen.getByText("1204 records. The last one arrived 3h ago.")).toBeInTheDocument();
   });
 
   it("says the main site has none when only other sites have records", () => {
-    render(<UsagePanel initial={{ ...overview, total: 0, lastReceivedAt: null }} now={NOW} />);
+    render(<UsagePanel recording={true} initial={{ ...overview, total: 0, lastReceivedAt: null }} now={NOW} />);
     expect(screen.getByText("No records from the main site yet. 12 came from beta and other sites.")).toBeInTheDocument();
   });
 
   it("says there are no records yet", () => {
-    render(<UsagePanel initial={{ ...overview, total: 0, fromOtherSites: 0, lastReceivedAt: null }} now={NOW} />);
+    render(<UsagePanel recording={true} initial={{ ...overview, total: 0, fromOtherSites: 0, lastReceivedAt: null }} now={NOW} />);
     expect(screen.getByText("No records yet.")).toBeInTheDocument();
   });
 
   it("flips the switch off, saves it, and keeps it off", async () => {
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.click(screen.getByRole("switch", { name: "Recording" }));
 
     expect(setUsageRecording).toHaveBeenCalledWith(false);
@@ -120,7 +129,7 @@ describe("UsagePanel", () => {
 
   it("puts the switch back and says so when the action throws", async () => {
     setUsageRecording.mockRejectedValue(new Error("db down"));
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.click(screen.getByRole("switch", { name: "Recording" }));
 
     await waitFor(() => expect(screen.getByRole("switch", { name: "Recording" })).toHaveAttribute("aria-checked", "true"));
@@ -130,7 +139,7 @@ describe("UsagePanel", () => {
   it("disables the switch while a change is pending", async () => {
     let release: (r: { success: true }) => void = () => {};
     setUsageRecording.mockReturnValue(new Promise((res) => (release = res)));
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.click(screen.getByRole("switch", { name: "Recording" }));
 
     expect(screen.getByRole("switch", { name: "Recording" })).toBeDisabled();
@@ -141,7 +150,7 @@ describe("UsagePanel", () => {
 
   it("puts the switch back and says why when the change is refused", async () => {
     setUsageRecording.mockResolvedValue({ success: false, errors: { _: ["Not allowed."] } });
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.click(screen.getByRole("switch", { name: "Recording" }));
 
     await waitFor(() => expect(screen.getByRole("switch", { name: "Recording" })).toHaveAttribute("aria-checked", "true"));
@@ -149,7 +158,7 @@ describe("UsagePanel", () => {
   });
 
   it("reads a picked Trip in the device’s zone and shows one details per day", async () => {
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
 
     expect(readUsageTrip).toHaveBeenCalledWith("t1", "Australia/Brisbane");
@@ -161,7 +170,7 @@ describe("UsagePanel", () => {
   });
 
   it("lists screens and actions as counts, with the Day view total and no hidden marker", async () => {
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
     await screen.findByRole("heading", { name: "Olive Northvale" });
 
@@ -175,7 +184,7 @@ describe("UsagePanel", () => {
   });
 
   it("shows the costs lines, with Google labelled as covering every Trip", async () => {
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
 
     expect(await screen.findByText("AI: US$0.42 across 2 runs, 1 with no price")).toBeInTheDocument();
@@ -186,13 +195,13 @@ describe("UsagePanel", () => {
 
   it("says when there were no Google calls, and shows nothing for a Trip without dates", async () => {
     readUsageTrip.mockResolvedValue({ ...report, google: { ...report.google!, calls: [] } });
-    const { unmount } = render(<UsagePanel initial={overview} now={NOW} />);
+    const { unmount } = render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
     expect(await screen.findByText("No Google calls in those dates")).toBeInTheDocument();
     unmount();
 
     readUsageTrip.mockResolvedValue({ ...report, google: null });
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t2");
     await screen.findByRole("heading", { name: "Olive Northvale" });
     expect(screen.queryByText(/Google calls/)).not.toBeInTheDocument();
@@ -201,7 +210,7 @@ describe("UsagePanel", () => {
   it("says Loading… while it reads", async () => {
     let release: (r: UsageTripReport) => void = () => {};
     readUsageTrip.mockReturnValue(new Promise<UsageTripReport>((res) => (release = res)));
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
     expect(screen.getByText("Loading…")).toBeInTheDocument();
     release(report);
@@ -214,9 +223,9 @@ describe("UsagePanel", () => {
     ["a throw", () => readUsageTrip.mockRejectedValue(new Error("down"))],
   ])("says it couldn’t read the Trip on %s", async (_, arrange) => {
     arrange();
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
-    expect(await screen.findByText("Couldn’t read that Trip’s Usage.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn’t read Usage just now.")).toBeInTheDocument();
   });
 
   it("keeps the newest pick when two reads overlap", async () => {
@@ -224,7 +233,7 @@ describe("UsagePanel", () => {
     readUsageTrip
       .mockReturnValueOnce(new Promise<UsageTripReport>((res) => (releaseFirst = res)))
       .mockResolvedValueOnce({ ...report, travellers: [{ userId: "u9", name: "Wren Westby", days: [] }] });
-    render(<UsagePanel initial={overview} now={NOW} />);
+    render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t2");
     await screen.findByRole("heading", { name: "Wren Westby" });
@@ -234,7 +243,7 @@ describe("UsagePanel", () => {
   });
 
   it("has no fixed widths or horizontal overflow classes, so it holds at 320 px", async () => {
-    const { container } = render(<UsagePanel initial={overview} now={NOW} />);
+    const { container } = render(<UsagePanel recording={true} initial={overview} now={NOW} />);
     await userEvent.selectOptions(screen.getByLabelText("Trip"), "t1");
     await screen.findByRole("heading", { name: "Olive Northvale" });
 
