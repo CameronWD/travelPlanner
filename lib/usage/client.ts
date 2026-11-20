@@ -132,15 +132,28 @@ function cancelPersist(): void {
   cancelScheduledPersist = null;
 }
 
-// The server files a batch under whoever is signed in when it arrives, so a
-// queue must only ever be sent by the account that recorded it. Another tab
-// signing in (or out) changes the stored owner; this document then stops
-// rather than overwrite it or send under the new cookie.
+// The one owner rule. The server files a batch under whoever is signed in
+// when it arrives, so a stored queue is only ever sent by the account that
+// recorded it: starting as another account discards it, and a running
+// document that finds the owner changed under it (another tab signed in or
+// out) stops rather than overwrite the queue or send under the new cookie.
+function ownedBy(stored: Stored | null, id: string | null): stored is Stored {
+  return stored !== null && stored.u === id;
+}
+
 function ownedQueue(): Stored | null {
   const stored = load();
-  if (stored && stored.u === userId) return stored;
+  if (ownedBy(stored, userId)) return stored;
   stop();
   return null;
+}
+
+// A lapsed session or an answer that is not the endpoint's: keep every record
+// for its owner (the same account signing in again sends them; another is
+// refused them by the owner rule) and send nothing more until the next load.
+function holdUntilReload(): void {
+  persist();
+  stop();
 }
 
 function persist(): void {
@@ -197,14 +210,14 @@ function settle(res: Response, batch: readonly UsageWireRecord[], startedAt: num
     // Only the endpoint's own answer counts as sent: a followed redirect (a
     // sign-in page, deployment protection) also ends in a 2xx.
     if (res.redirected) {
-      backOff(startedAt);
+      holdUntilReload();
       return;
     }
     return res.json().then(
       (body: unknown) => {
         const recording = typeof body === "object" && body !== null ? (body as { recording?: unknown }).recording : undefined;
         if (typeof recording !== "boolean") {
-          backOff(startedAt);
+          holdUntilReload();
           return;
         }
         failures = 0;
@@ -215,12 +228,11 @@ function settle(res: Response, batch: readonly UsageWireRecord[], startedAt: num
           stop();
         }
       },
-      () => backOff(startedAt),
+      () => holdUntilReload(),
     );
   }
   if (res.status === 401 || res.status === 403) {
-    removeSent(batch);
-    stop();
+    holdUntilReload();
     return;
   }
   if (res.status === 429 || res.status >= 500) {
@@ -344,7 +356,7 @@ export function startUsage(id: string): void {
     userId = id;
     openMode();
     const stored = load();
-    const queued = stored && stored.u === id ? stored.r : [];
+    const queued = ownedBy(stored, id) ? stored.r : [];
     save({ u: id, r: [...queued, ...unsaved, ...pending] });
     unsaved = [];
     pending = [];

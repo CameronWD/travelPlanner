@@ -374,18 +374,57 @@ describe("flushing", () => {
     expect(sentBatch(1)).toHaveLength(50);
   });
 
-  it.each([[401], [403]])("a %s discards that batch, keeps the rest for its owner and stops sending", async (code) => {
-    fetchMock.mockResolvedValue(status(code));
+  const holds: [string, () => unknown][] = [
+    ["a 401", () => status(401)],
+    ["a 403", () => status(403)],
+    ["a 200 whose body is not JSON", () => new Response("<html>sign in</html>", { status: 200 })],
+    ["a 200 that is not the endpoint's answer", () => ok({ ok: true })],
+    ["a followed redirect", () => ({ ok: true, status: 200, redirected: true, json: async () => ({ recording: true }) })],
+  ];
+
+  it.each(holds)("%s keeps every record and sends nothing more in this document", async (_, answer) => {
+    let reply!: () => void;
+    fetchMock.mockImplementation(() => new Promise((resolve) => (reply = () => resolve(answer()))));
     startUsage("it-usage-a");
     search(150);
     await vi.advanceTimersByTimeAsync(30_000);
+    recordUsageAction("more-opened");
+    reply();
+    await vi.advanceTimersByTimeAsync(0);
     expect(raw()).toMatchObject({ u: "it-usage-a" });
-    expect(raw()!.r).toHaveLength(50);
+    expect(raw()!.r).toHaveLength(151);
+    expect(vi.getTimerCount()).toBe(0);
     search();
     startUsage("it-usage-a");
     window.dispatchEvent(new Event("pagehide"));
-    await vi.advanceTimersByTimeAsync(120_000);
-    expect(raw()!.r).toHaveLength(50);
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(raw()!.r).toHaveLength(151);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("after a 401, the next page load sends the records for the same account", async () => {
+    fetchMock.mockResolvedValueOnce(status(401));
+    startUsage("it-usage-a");
+    search(3);
+    await vi.advanceTimersByTimeAsync(30_000);
+    resetUsageForTests();
+    startUsage("it-usage-a");
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentBatch(1)).toHaveLength(3);
+    expect(raw()!.r).toEqual([]);
+  });
+
+  it("after a 401, the next page load discards the records for another account", async () => {
+    fetchMock.mockResolvedValueOnce(status(401));
+    startUsage("it-usage-a");
+    search(3);
+    await vi.advanceTimersByTimeAsync(30_000);
+    resetUsageForTests();
+    startUsage("it-usage-b");
+    expect(raw()).toEqual({ u: "it-usage-b", r: [] });
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -400,23 +439,6 @@ describe("flushing", () => {
     await vi.advanceTimersByTimeAsync(120_000);
     expect(stored()!.r).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([
-    ["a body that is not JSON", () => new Response("<html>sign in</html>", { status: 200 })],
-    ["JSON that is not the endpoint's answer", () => ok({ ok: true })],
-    ["a followed redirect", () => ({ ok: true, status: 200, redirected: true, json: async () => ({ recording: true }) })],
-  ])("a 200 with %s is not counted as sent: the batch stays and the next send waits", async (_, answer) => {
-    fetchMock.mockImplementation(async () => {
-      sentAt.push(Date.now());
-      return answer();
-    });
-    startUsage("it-usage-a");
-    search();
-    await vi.advanceTimersByTimeAsync(30_000);
-    expect(stored()!.r).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(sentAt.map((t) => Math.round((t - NOW.getTime()) / 1000))).toEqual([30, 90]);
   });
 
   it("startUsage twice installs one set of listeners", async () => {
