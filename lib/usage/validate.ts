@@ -5,6 +5,7 @@ import {
   MAX_APPEAR_MS,
   MAX_BATCH_RECORDS,
   MAX_DAY_OFFSET,
+  MAX_ID_CHARS,
   OPEN_MODES,
   RETENTION_DAYS,
   USAGE_ACTIONS,
@@ -31,7 +32,6 @@ export type UsageInput = {
 };
 
 const DAY_MS = 86_400_000;
-const MAX_ID_CHARS = 64;
 const SCREEN_KEYS: ReadonlySet<string> = new Set(["screen", "at", "mode", "tripId", "phase", "ms", "saved", "dayOffset"]);
 const ACTION_KEYS: ReadonlySet<string> = new Set(["action", "at", "mode", "detail", "tripId", "phase", "dayOffset"]);
 

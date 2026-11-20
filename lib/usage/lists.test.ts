@@ -3,6 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ACTION_DETAILS,
+  MAX_APPEAR_MS,
+  MAX_DAY_OFFSET,
+  MAX_ID_CHARS,
   MORE_ROWS,
   MORE_ROW_BY_LABEL,
   OPEN_MODES,
@@ -21,6 +24,15 @@ function checkedValues(column: string): string[] {
   const list = constraint[1].match(new RegExp(`"${column}" IN \\(([^)]*)\\)`));
   if (!list) throw new Error(`UsageRecord_${column}_check has no IN list`);
   return [...list[1].matchAll(/'([^']*)'/g)].map((m) => m[1]);
+}
+
+function bounds(name: string, expression: string): [number, number] {
+  const constraint = SQL.match(new RegExp(`"UsageRecord_${name}_check"\\s+CHECK \\(([^;]*)\\);`));
+  if (!constraint) throw new Error(`No UsageRecord_${name}_check in the migration`);
+  const escaped = expression.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const range = constraint[1].match(new RegExp(`${escaped} BETWEEN (-?\\d+) AND (-?\\d+)`));
+  if (!range) throw new Error(`UsageRecord_${name}_check has no range for ${expression}`);
+  return [Number(range[1]), Number(range[2])];
 }
 
 const LISTS = {
@@ -45,6 +57,13 @@ describe("the Usage lists", () => {
 
   it.each(Object.entries(LISTS))("every %s value is lowercase kebab-case", (_, list) => {
     for (const value of list) expect(value).toMatch(/^[a-z][a-z-]*$/);
+  });
+
+  it("the migration's number and length limits are the constants", () => {
+    expect(bounds("numbers", '"appearMs"')).toEqual([0, MAX_APPEAR_MS]);
+    expect(bounds("numbers", '"dayOffset"')).toEqual([-MAX_DAY_OFFSET, MAX_DAY_OFFSET]);
+    expect(bounds("ids", 'char_length("userId")')).toEqual([1, MAX_ID_CHARS]);
+    expect(bounds("ids", 'char_length("tripId")')).toEqual([1, MAX_ID_CHARS]);
   });
 
   it("every action with details is an action", () => {

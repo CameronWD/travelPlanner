@@ -89,6 +89,7 @@ export const MAX_BATCH_RECORDS = 100;
 export const MAX_BODY_BYTES = 32_768;
 export const MAX_APPEAR_MS = 120_000;
 export const MAX_DAY_OFFSET = 1000;
+export const MAX_ID_CHARS = 64;
 export const RETENTION_DAYS = 180;
 export const FUTURE_SKEW_MS = 5 * 60_000;
 
