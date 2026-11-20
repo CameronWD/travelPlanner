@@ -282,6 +282,8 @@ describe("PrivacyPage", () => {
     expect(text).toContain("not sent to any analytics or advertising company");
     expect(text).not.toContain("not shared with or sent to anyone else");
     expect(text).toContain("no cookies beyond the one that keeps you signed in");
+    expect(text).toContain("records wait in your browser’s local storage with your account’s id");
+    expect(text).toContain("at most 500 are kept, and signing out clears them");
   });
 
   it("no longer claims there is no other analytics without naming Usage", async () => {
