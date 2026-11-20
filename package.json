@@ -26,6 +26,7 @@
     "feedback:pull": "tsx --conditions=react-server scripts/feedback-pull.ts",
     "feedback:resolve": "tsx --conditions=react-server scripts/feedback-resolve.ts",
     "feedback:accept": "tsx --conditions=react-server scripts/feedback-accept.ts",
+    "usage:report": "tsx --conditions=react-server scripts/usage-report.ts",
     "db:seed": "tsx --conditions=react-server prisma/seed.ts",
     "db:seed:demo": "tsx --conditions=react-server prisma/seed-demo.ts",
     "db:seed:real": "tsx --conditions=react-server prisma/seed-real.ts",
