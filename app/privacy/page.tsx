@@ -401,10 +401,13 @@ export default function PrivacyPage() {
             <span className="font-bold">
               Usage records
             </span>{" "}
-            are deleted 180 days after they were made, by a job that runs
-            every night. Deleting a trip or your account does not remove its
-            Usage records straight away: they stay, pointing at a trip or an
-            account that no longer exists, until they reach 180 days.
+            are deleted 180 days after Teepee received them, by a job that
+            runs every night. A record made while your device had no
+            connection is counted from when it arrived. A deleted record can
+            remain in a backup taken before it was deleted, until that backup
+            itself expires. Deleting a trip or your account does not remove
+            its Usage records straight away: they stay, pointing at a trip or
+            an account that no longer exists, until their 180 days are up.
           </li>
         </ul>
       </LegalSection>

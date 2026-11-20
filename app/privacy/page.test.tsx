@@ -292,7 +292,9 @@ describe("PrivacyPage", () => {
   it("says how long Usage is kept", async () => {
     render(await PrivacyPage());
     const text = document.body.textContent!.replace(/\s+/g, " ");
-    expect(text).toContain("180 days after they were made");
+    expect(text).toContain("180 days after Teepee received them");
+    expect(text).toContain("counted from when it arrived");
+    expect(text).toContain("until that backup itself expires");
     expect(text).toContain("pointing at a trip or an account that no longer exists");
   });
 });
