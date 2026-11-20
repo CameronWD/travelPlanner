@@ -196,7 +196,7 @@ export default async function TripLayout({
                       aria-label={`Travellers (${trip.members.length})`}
                       className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
-                      <div className="flex -space-x-2">
+                      <div className="flex -space-x-1.5">
                         {trip.members.slice(0, 6).map(({ user }) => (
                           <TravellerAvatar key={user.id} traveller={user} size={32} ring />
                         ))}

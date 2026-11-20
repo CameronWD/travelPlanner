@@ -72,8 +72,12 @@ describe("HomeHeader", () => {
     renderHeader();
     const people = screen.getByRole("link", { name: /^Travellers \(2\)/ });
     expect(people).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
-    expect(people.querySelector(".-space-x-2\\.5")).not.toBeNull();
+    expect(people.querySelector(".-space-x-1\\.5")).not.toBeNull();
     expect(people.querySelectorAll(".size-10")).toHaveLength(2);
+    for (const avatar of people.querySelectorAll(".size-10")) {
+      expect(avatar.className).toContain("ring-2");
+      expect(avatar.className).toContain("ring-background");
+    }
   });
 
   it("offers invites in the people label only to the Owner", () => {

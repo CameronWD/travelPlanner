@@ -320,6 +320,22 @@ describe("TripLayout", () => {
     expect(link).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
     expect(link.className).toContain("min-h-11");
   });
+
+  it("overlaps Traveller avatars by 6px and rings each one so both initials read", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({
+      ...BASE_TRIP,
+      members: [
+        { user: { id: "u1", name: "Alice", image: null } },
+        { user: { id: "u2", name: "Bob", image: null } },
+      ],
+    });
+    await renderLayout();
+    const link = screen.getByRole("link", { name: "Travellers (2)" });
+    expect(link.querySelector(".-space-x-1\\.5")).not.toBeNull();
+    const avatars = link.querySelectorAll(".size-8");
+    expect(avatars).toHaveLength(2);
+    for (const avatar of avatars) expect(avatar.className).toContain("ring-2");
+  });
 });
 
 describe("TripLayout — plan variants opt-in", () => {
