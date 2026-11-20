@@ -29,7 +29,13 @@ let sentAt: number[];
 const ok = (body: unknown = { recording: true }) => new Response(JSON.stringify(body), { status: 200 });
 const status = (code: number) => new Response(null, { status: code });
 
+function raw(): { u: string; r: Record<string, unknown>[] } | null {
+  const value = window.localStorage.getItem(KEY);
+  return value === null ? null : JSON.parse(value);
+}
+
 function stored(): { u: string; r: Record<string, unknown>[] } | null {
+  vi.advanceTimersByTime(2_000);
   const raw = window.localStorage.getItem(KEY);
   return raw === null ? null : JSON.parse(raw);
 }
@@ -151,6 +157,63 @@ describe("the queue", () => {
     forgetUsage();
     search();
     expect(stored()).toBeNull();
+  });
+});
+
+describe("persisting", () => {
+  it("recording touches no storage; one coalesced write follows", () => {
+    startUsage("it-usage-a");
+    const getItem = vi.spyOn(Storage.prototype, "getItem");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    search(50);
+    recordUsageScreen({ screen: "trips", ms: 10, saved: false, dayOffset: null, trip: null });
+    expect(getItem).not.toHaveBeenCalled();
+    expect(setItem).not.toHaveBeenCalled();
+    expect(raw()!.r).toEqual([]);
+    vi.advanceTimersByTime(2_000);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(raw()!.r).toHaveLength(51);
+  });
+
+  it("uses requestIdleCallback where it exists, once per idle period", () => {
+    const idle: (() => void)[] = [];
+    vi.stubGlobal("requestIdleCallback", (cb: () => void, opts: { timeout: number }) => {
+      expect(opts.timeout).toBe(2_000);
+      return idle.push(cb);
+    });
+    vi.stubGlobal("cancelIdleCallback", vi.fn());
+    startUsage("it-usage-a");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    search(5);
+    expect(idle).toHaveLength(1);
+    idle[0]();
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(raw()!.r).toHaveLength(5);
+    search();
+    expect(idle).toHaveLength(2);
+  });
+
+  it.each([["hide"], ["pagehide"]])("a %s writes at once", (event) => {
+    startUsage("it-usage-a");
+    online = false;
+    search(3);
+    if (event === "hide") setVisibility("hidden");
+    else window.dispatchEvent(new Event("pagehide"));
+    expect(raw()!.r).toHaveLength(3);
+  });
+
+  it("the cap holds in memory and in storage before and after a write", () => {
+    startUsage("it-usage-a");
+    search(600);
+    expect(raw()!.r).toEqual([]);
+    vi.advanceTimersByTime(2_000);
+    const r = raw()!.r;
+    expect(r).toHaveLength(500);
+    expect(r[0].at).toBe(NOW.getTime() + 100);
+    search(10);
+    vi.advanceTimersByTime(2_000);
+    expect(raw()!.r).toHaveLength(500);
+    expect(raw()!.r[0].at).toBe(NOW.getTime() + 110);
   });
 });
 

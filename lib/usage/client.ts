@@ -29,6 +29,7 @@ const ENDPOINT = "/api/usage";
 const FLUSH_MS = 30_000;
 const MAX_BACKOFF_MS = 300_000;
 const SEND_TIMEOUT_MS = 15_000;
+const PERSIST_FALLBACK_MS = 2_000;
 // Timers can land a hair after the instant a back-off ends; without this the
 // tick that should send would see "still waiting" and the wait would grow by a tick.
 const TICK_SLACK_MS = 1_000;
@@ -36,6 +37,8 @@ const TICK_SLACK_MS = 1_000;
 let userId: string | null = null;
 let stopped = false;
 let pending: UsageWireRecord[] = [];
+let unsaved: UsageWireRecord[] = [];
+let cancelScheduledPersist: (() => void) | null = null;
 let memoryOnly = false;
 let memory: Stored | null = null;
 let currentTrip: UsageTripContext | null = null;
@@ -87,20 +90,59 @@ function save(next: Stored | null): void {
   }
 }
 
+function pushCapped(list: UsageWireRecord[], record: UsageWireRecord): void {
+  list.push(record);
+  if (list.length > MAX_QUEUE) list.splice(0, list.length - MAX_QUEUE);
+}
+
+// Recording runs inside tap and swipe handlers, so it only pushes to memory;
+// the whole-queue rewrite in localStorage waits for an idle moment or a hide.
 function enqueue(record: UsageWireRecord): void {
   if (stopped) return;
   if (userId === null) {
-    pending = [...pending, record].slice(-MAX_QUEUE);
+    pushCapped(pending, record);
     return;
   }
+  pushCapped(unsaved, record);
+  schedulePersist();
+}
+
+function schedulePersist(): void {
+  if (cancelScheduledPersist) return;
+  const run = () => {
+    cancelScheduledPersist = null;
+    try {
+      persist();
+    } catch {}
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(run, { timeout: PERSIST_FALLBACK_MS });
+    cancelScheduledPersist = () => window.cancelIdleCallback?.(id);
+  } else {
+    const id = setTimeout(run, PERSIST_FALLBACK_MS);
+    cancelScheduledPersist = () => clearTimeout(id);
+  }
+}
+
+function cancelPersist(): void {
+  cancelScheduledPersist?.();
+  cancelScheduledPersist = null;
+}
+
+function persist(): void {
+  cancelPersist();
+  if (stopped || userId === null || unsaved.length === 0) return;
   const stored = load();
   const queued = stored && stored.u === userId ? stored.r : [];
-  save({ u: userId, r: [...queued, record] });
+  save({ u: userId, r: [...queued, ...unsaved] });
+  unsaved = [];
 }
 
 function stop(): void {
   stopped = true;
   pending = [];
+  unsaved = [];
+  cancelPersist();
   stopTimer();
 }
 
@@ -166,6 +208,7 @@ function settle(res: Response, batch: readonly UsageWireRecord[], startedAt: num
 
 function flush(): void {
   try {
+    persist();
     if (stopped || inFlight || userId === null) return;
     if (Date.now() < waitUntil) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
@@ -261,7 +304,8 @@ export function startUsage(id: string): void {
     userId = id;
     const stored = load();
     const queued = stored && stored.u === id ? stored.r : [];
-    save({ u: id, r: [...queued, ...pending] });
+    save({ u: id, r: [...queued, ...unsaved, ...pending] });
+    unsaved = [];
     pending = [];
     if (!detach) install();
   } catch {}
@@ -382,9 +426,11 @@ export function dayOffsetFrom(iso: string, zone: string): number | null {
 export function resetUsageForTests(): void {
   detach?.();
   detach = null;
+  cancelPersist();
   userId = null;
   stopped = false;
   pending = [];
+  unsaved = [];
   memoryOnly = false;
   memory = null;
   currentTrip = null;
