@@ -819,7 +819,7 @@ export function ItineraryManager({
   async function handleMakeRough(stopId: string) {
     const stop = stops.find((s) => s.id === stopId);
     const confirmed = await confirm({
-      title: `Make "${stop?.name ?? "this stop"}" rough again?`,
+      title: `Make “${stop?.name ?? "this stop"}” rough again?`,
       description: "Its dates will be cleared and later stops will re-flow.",
       confirmLabel: "Make rough",
       destructive: false,
@@ -977,7 +977,7 @@ export function ItineraryManager({
   async function handleDeleteChapter(chapterId: string) {
     const chapter = planChapters.find((c) => c.id === chapterId);
     const confirmed = await confirm({
-      title: `Remove "${chapter?.name ?? "this chapter"}"?`,
+      title: `Remove “${chapter?.name ?? "this chapter"}”?`,
       description: "The chapter will be removed. Any stops it contains will become ungrouped.",
       confirmLabel: "Remove",
       destructive: true,
@@ -1013,8 +1013,8 @@ export function ItineraryManager({
             : modeLabel)
       : modeLabel;
     const confirmed = await confirm({
-      title: `Delete "${routeLabel}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${routeLabel}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });
@@ -1030,8 +1030,8 @@ export function ItineraryManager({
   async function handleDeleteAccommodation(accId: string) {
     const acc = stops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
     const confirmed = await confirm({
-      title: `Delete "${acc?.name ?? "this accommodation"}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${acc?.name ?? "this accommodation"}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });

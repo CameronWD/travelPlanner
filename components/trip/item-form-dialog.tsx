@@ -724,8 +724,8 @@ function ItemForm({
   async function handleDelete() {
     if (!item) return;
     const ok = await confirm({
-      title: `Delete "${item.title}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${item.title}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });

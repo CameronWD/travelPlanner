@@ -507,7 +507,7 @@ function ChecklistRow({
   const { requestDelete, isPending: deleteIsPending, dialog: confirmDialog } = useDeleteWithConfirm({
     action: deleteChecklistItem,
     buildConfirm: () => ({
-      title: `Delete "${item.text}"?`,
+      title: `Delete “${item.text}”?`,
       description: "This item will be permanently removed from the checklist.",
       confirmLabel: "Delete",
       destructive: true,

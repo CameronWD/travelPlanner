@@ -140,7 +140,7 @@ export function AttachmentList({
 
   async function handleDelete(id: string, filename: string) {
     const confirmed = await confirm({
-      title: `Delete "${filename}"?`,
+      title: `Delete “${filename}”?`,
       description: "This attachment will be permanently removed.",
       confirmLabel: "Delete",
       destructive: true,

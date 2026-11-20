@@ -154,7 +154,7 @@ export function AiActivitySuggestions({
                     className="shrink-0"
                     disabled={added || addPending}
                     onClick={() => handleAdd(s)}
-                    title={added ? "Already added" : `Add "${s.title}" to wishlist`}
+                    title={added ? "Already added" : `Add “${s.title}” to wishlist`}
                   >
                     {added ? (
                       "Added"

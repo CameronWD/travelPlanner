@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: "What's new" };
+  return { title: "What’s new" };
 }
 
 function formatDate(iso: string): string {

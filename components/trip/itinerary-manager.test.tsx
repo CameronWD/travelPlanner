@@ -395,7 +395,7 @@ describe("delete confirmation gating", () => {
     await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
 
     // Dialog title contains the stop name in quotes
-    expect(await screen.findByText(/Make "Venice" rough again\?/)).toBeInTheDocument();
+    expect(await screen.findByText(/Make “Venice” rough again\?/)).toBeInTheDocument();
   });
 });
 

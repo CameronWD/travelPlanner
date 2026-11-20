@@ -106,7 +106,7 @@ function eyebrowFor(past: boolean, firstTrip: boolean, displayName?: string | nu
   if (past) return "Log a past trip";
   if (!firstTrip) return "New trip";
   const first = displayName?.trim().split(/\s+/)[0];
-  return first ? `Welcome, ${first}. Let's start your first trip.` : "Let's start your first trip.";
+  return first ? `Welcome, ${first}. Let’s start your first trip.` : "Let’s start your first trip.";
 }
 
 function FlowBody({ past, firstTrip, displayName, initialName, initialStep, fromShareToken }: NewTripFlowProps) {

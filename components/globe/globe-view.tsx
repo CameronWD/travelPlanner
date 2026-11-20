@@ -71,8 +71,8 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
   const handleDelete = async (id: string) => {
     const marker = byId.get(id);
     const confirmed = await confirm({
-      title: `Delete "${marker?.title ?? "this marker"}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${marker?.title ?? "this marker"}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });

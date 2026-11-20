@@ -134,8 +134,8 @@ export function WishlistBoard({
   async function handleDelete(itemId: string) {
     const item = items.find((i) => i.id === itemId);
     const confirmed = await confirm({
-      title: `Delete "${item?.title ?? "this item"}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${item?.title ?? "this item"}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });

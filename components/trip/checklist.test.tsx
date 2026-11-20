@@ -128,7 +128,7 @@ describe("Checklist", () => {
 
     // Dialog title should appear with the item text
     expect(
-      await screen.findByRole("heading", { name: /Delete "Book airport taxi"\?/i }),
+      await screen.findByRole("heading", { name: /Delete “Book airport taxi”\?/i }),
     ).toBeInTheDocument();
 
     // deleteChecklistItem must NOT have been called yet
@@ -153,7 +153,7 @@ describe("Checklist", () => {
 
     const deleteButtons = screen.getAllByRole("button", { name: /delete item/i });
     await user.click(deleteButtons[0]);
-    await screen.findByRole("heading", { name: /Delete "Book airport taxi"\?/i });
+    await screen.findByRole("heading", { name: /Delete “Book airport taxi”\?/i });
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(deleteChecklistItem).not.toHaveBeenCalled();

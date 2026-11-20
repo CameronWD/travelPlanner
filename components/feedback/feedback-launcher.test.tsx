@@ -1065,7 +1065,7 @@ describe("FeedbackLauncher", () => {
     expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: /delete "Budget totals look wrong"/i }),
+      screen.getByRole("button", { name: /delete “Budget totals look wrong”/i }),
     );
 
     expect(deleteMock).toHaveBeenCalledWith("n1");

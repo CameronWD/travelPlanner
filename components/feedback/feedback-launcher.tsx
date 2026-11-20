@@ -775,7 +775,7 @@ function SentEntry({
             type="button"
             size="sm"
             variant="ghost"
-            aria-label={`Delete "${note.body.slice(0, 30)}"`}
+            aria-label={`Delete “${note.body.slice(0, 30)}”`}
             onClick={() => void onDelete(note.id)}
           >
             <Trash2 aria-hidden />

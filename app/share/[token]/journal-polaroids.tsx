@@ -216,7 +216,7 @@ export function JournalPolaroids(p: JournalPolaroidsProps) {
   const heading = (
     <>
       <h2 id="journal-heading" className="font-display text-2xl font-extrabold tracking-[-0.03em] lg:text-[28px]">
-        {p.stage === "after" ? "How it went" : "How it's going"}
+        {p.stage === "after" ? "How it went" : "How it’s going"}
       </h2>
       <span className="hidden text-sm font-semibold text-muted-foreground lg:inline">From their journal</span>
     </>

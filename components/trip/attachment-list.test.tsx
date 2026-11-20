@@ -128,7 +128,7 @@ describe("AttachmentList", () => {
 
     // Dialog title should appear with the filename
     expect(
-      await screen.findByRole("heading", { name: /Delete "boarding-pass\.pdf"\?/i }),
+      await screen.findByRole("heading", { name: /Delete “boarding-pass\.pdf”\?/i }),
     ).toBeInTheDocument();
 
     // deleteAttachment must NOT have been called yet
@@ -218,7 +218,7 @@ describe("AttachmentList", () => {
     await user.click(
       screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }),
     );
-    await screen.findByRole("heading", { name: /Delete "boarding-pass\.pdf"\?/i });
+    await screen.findByRole("heading", { name: /Delete “boarding-pass\.pdf”\?/i });
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(deleteAttachment).not.toHaveBeenCalled();
@@ -886,7 +886,7 @@ describe("AttachmentList", () => {
     await user.click(screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /Delete "boarding-pass\.pdf"\?/i }),
+      await screen.findByRole("heading", { name: /Delete “boarding-pass\.pdf”\?/i }),
     ).toBeInTheDocument();
     expect(onRename).toHaveBeenCalledTimes(1);
     expect(onMove).toHaveBeenCalledTimes(1);

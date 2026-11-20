@@ -350,8 +350,8 @@ export function CostEditor({
   async function handleDelete(costId: string) {
     const cost = costs.find((c) => c.id === costId);
     const confirmed = await confirm({
-      title: `Delete "${cost?.label ?? "this cost"}"?`,
-      description: "This can't be undone.",
+      title: `Delete “${cost?.label ?? "this cost"}”?`,
+      description: "This can’t be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });

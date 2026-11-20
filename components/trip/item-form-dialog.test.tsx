@@ -816,7 +816,7 @@ describe("ItemFormDialog", () => {
     const onOpenChange = vi.fn();
     render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
-    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete “museum visit”\?/i });
     await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
     expect(deleteItem).toHaveBeenCalledWith("item-99");
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -826,7 +826,7 @@ describe("ItemFormDialog", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={existingItem} />);
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
-    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete “museum visit”\?/i });
     await user.click(within(confirmDialog).getByRole("button", { name: /cancel/i }));
     expect(deleteItem).not.toHaveBeenCalled();
   });
@@ -869,7 +869,7 @@ describe("ItemFormDialog", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={existingItem} />);
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
-    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete “museum visit”\?/i });
     await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
 
     await waitFor(() => {
@@ -890,7 +890,7 @@ describe("ItemFormDialog", () => {
     const onOpenChange = vi.fn();
     render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
-    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete “museum visit”\?/i });
     await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
 
     await screen.findByText(/couldn’t delete this item/i);
@@ -906,7 +906,7 @@ describe("ItemFormDialog", () => {
     const onOpenChange = vi.fn();
     render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
-    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete “museum visit”\?/i });
     await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
 
     await waitFor(() =>
@@ -1215,7 +1215,7 @@ describe("ItemFormDialog — deleting an Attachment", () => {
     await user.click(screen.getByRole("button", { name: /delete museum-tickets\.pdf/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /Delete "museum-tickets\.pdf"\?/i }),
+      await screen.findByRole("heading", { name: /Delete “museum-tickets\.pdf”\?/i }),
     ).toBeInTheDocument();
     expect(updateItem).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();

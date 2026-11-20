@@ -73,7 +73,7 @@ function ThreadBody({
     buildConfirm: (noteId: string) => {
       const excerpt = notes.find((n) => n.id === noteId)?.body ?? "";
       const title = excerpt
-        ? `Delete "${excerpt.length > 60 ? excerpt.slice(0, 60) + "…" : excerpt}"?`
+        ? `Delete “${excerpt.length > 60 ? excerpt.slice(0, 60) + "…" : excerpt}”?`
         : "Delete this note?";
       return {
         title,

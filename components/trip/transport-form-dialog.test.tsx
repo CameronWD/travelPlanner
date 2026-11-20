@@ -1475,7 +1475,7 @@ describe("TransportFormDialog — deleting an Attachment", () => {
     await user.click(screen.getByRole("button", { name: /delete eurostar-ticket\.pdf/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /Delete "eurostar-ticket\.pdf"\?/i }),
+      await screen.findByRole("heading", { name: /Delete “eurostar-ticket\.pdf”\?/i }),
     ).toBeInTheDocument();
     expect(updateTransport).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();

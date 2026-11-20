@@ -101,7 +101,7 @@ export function InvitePanel({
     const result = await removeTripMember(tripId, m.userId);
     setRemovingUserId(null);
     if (!result.success) {
-      toast({ title: firstErrorMessage(result, "Couldn't do that."), variant: "destructive" });
+      toast({ title: firstErrorMessage(result, "Couldn’t do that."), variant: "destructive" });
     }
   }
 
@@ -119,7 +119,7 @@ export function InvitePanel({
       if (result.success) {
         router.push("/trips");
       } else {
-        toast({ title: firstErrorMessage(result, "Couldn't do that."), variant: "destructive" });
+        toast({ title: firstErrorMessage(result, "Couldn’t do that."), variant: "destructive" });
       }
     });
   }

@@ -51,10 +51,10 @@ describe("NewTripFlow — shell and step 1", () => {
   });
 
   it.each<[Partial<FlowProps>, string]>([
-    [{ firstTrip: true, displayName: "Cameron" }, "Welcome, Cameron. Let's start your first trip."],
-    [{ firstTrip: true, displayName: "Cameron Williams" }, "Welcome, Cameron. Let's start your first trip."],
-    [{ firstTrip: true, displayName: null }, "Let's start your first trip."],
-    [{ firstTrip: true, displayName: "  " }, "Let's start your first trip."],
+    [{ firstTrip: true, displayName: "Cameron" }, "Welcome, Cameron. Let’s start your first trip."],
+    [{ firstTrip: true, displayName: "Cameron Williams" }, "Welcome, Cameron. Let’s start your first trip."],
+    [{ firstTrip: true, displayName: null }, "Let’s start your first trip."],
+    [{ firstTrip: true, displayName: "  " }, "Let’s start your first trip."],
     [{ past: true }, "Log a past trip"],
   ])("eyebrow for %o", async (props, text) => {
     flow(props);
