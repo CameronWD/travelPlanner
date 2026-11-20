@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setMatchMedia } from "@/test/setup";
 
 /**
  * RemindersCard — a Trip's dated notes.
@@ -22,6 +23,12 @@ vi.mock("@/server/actions/reminders", () => ({
   deleteReminder: deleteReminderMock,
   updateReminder: updateReminderMock,
 }));
+
+const { mediaQueryUnresolved } = vi.hoisted(() => ({ mediaQueryUnresolved: { value: false } }));
+vi.mock("@/components/ui/use-media-query", async (orig) => {
+  const actual = await orig<typeof import("@/components/ui/use-media-query")>();
+  return { ...actual, useMediaQuery: (q: string) => (mediaQueryUnresolved.value ? null : actual.useMediaQuery(q)) };
+});
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
@@ -560,5 +567,109 @@ describe("RemindersCard Earlier", () => {
   it("shows no Earlier heading when nothing is past", () => {
     render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "n", title: "Next up", date: "2026-12-01" })]} />);
     expect(screen.queryByRole("heading", { name: "Earlier" })).not.toBeInTheDocument();
+  });
+});
+
+describe("RemindersCard Add Reminder on a phone", () => {
+  const ABOUT = {
+    stops: [{ id: "s1", name: "Stop One" }],
+    items: [],
+    transports: [],
+  };
+  const onPhone = () => setMatchMedia((q) => q === "(max-width: 767px)");
+  const fill = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.type(screen.getByLabelText(/^Reminder title/), "Pack");
+    fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: "2026-12-01" } });
+  };
+
+  afterEach(() => {
+    mediaQueryUnresolved.value = false;
+    setMatchMedia((q) => q === "(min-width: 640px)");
+  });
+
+  it("a tap before the query has resolved still opens the dialog on a phone", async () => {
+    onPhone();
+    mediaQueryUnresolved.value = true;
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.getByRole("dialog", { name: "Add a Reminder" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reminder date")).not.toBeInTheDocument();
+  });
+
+  it("a failed save keeps the dialog open with the text and the About pick, and says so", async () => {
+    onPhone();
+    addReminderMock.mockResolvedValueOnce({ success: false, errors: { _: ["Nope, try again"] } });
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await fill(user);
+    await user.selectOptions(screen.getByLabelText("About"), "Stop One");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add Reminder" }));
+    expect(await screen.findByText("Nope, try again")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Reminder title/)).toHaveValue("Pack");
+    expect(screen.getByLabelText("About")).toHaveValue("stop:s1");
+  });
+
+  it("focus returns to Add Reminder after a save and after Cancel", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add Reminder" })).toHaveFocus());
+    (document.activeElement as HTMLElement).blur();
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await fill(user);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add Reminder" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add Reminder" })).toHaveFocus());
+  });
+
+  it("opens the Add Reminder dialog and no inline form", async () => {
+    onPhone();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.getByRole("dialog", { name: "Add a Reminder" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reminder date")).not.toBeInTheDocument();
+  });
+
+  it("saves about the Stop picked", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await fill(user);
+    await user.selectOptions(screen.getByLabelText("About"), "Stop One");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add Reminder" }));
+    await waitFor(() => expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Pack", date: "2026-12-01", stopId: "s1" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("sends no about for the whole trip", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await fill(user);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add Reminder" }));
+    await waitFor(() => expect(addReminder).toHaveBeenCalledWith("trip-1", { title: "Pack", date: "2026-12-01" }));
+  });
+
+  it("Cancel closes it without a call", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await user.click(screen.getByRole("button", { name: "Add Reminder" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(addReminder).not.toHaveBeenCalled();
+  });
+
+  it("on a desktop it unfolds the inline form and opens no dialog", async () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.getByLabelText("Reminder date")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { Field, useFieldControl } from "@/components/ui/field";
 import { Textarea, submitOnEnter } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
 import { DIALOG_DESTRUCTIVE_CLASS, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -14,7 +14,7 @@ import { useEntityForm } from "@/components/ui/use-entity-form";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 import { addReminder, deleteReminder, updateReminder } from "@/server/actions/reminders";
 import { checkReminderInput } from "@/lib/reminder-input";
-import type { ReminderAbout } from "@/lib/reminder-about";
+import { aboutFromPick, aboutPickValue, type ReminderAbout, type ReminderAboutOptions } from "@/lib/reminder-about";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,14 +33,17 @@ export type EditableReminder = { id: string; title: string; date: string; notes:
 export type AddReminderDialogProps = DialogBase &
   (
     | {
-        /** The trip this reminder belongs to. */
         tripId: string;
-        /**
-         * What this Reminder is about — the Stop, thing to do or Transport leg whose
-         * card opened the dialog (spec F8). Fixed and hidden, never a picker: the
-         * Reminders card's add form is where a Traveller picks.
-         */
+        /** Fixed and hidden: the Stop, thing to do or Transport leg whose card opened the dialog. */
         about: ReminderAbout;
+        aboutChoices?: undefined;
+        reminder?: undefined;
+      }
+    | {
+        tripId: string;
+        about?: undefined;
+        /** `undefined` is a whole-trip Reminder with no picker (Home's card). */
+        aboutChoices: ReminderAboutOptions | undefined;
         reminder?: undefined;
       }
     | {
@@ -48,22 +51,67 @@ export type AddReminderDialogProps = DialogBase &
         reminder: EditableReminder;
         tripId?: undefined;
         about?: undefined;
+        aboutChoices?: undefined;
       }
   );
+
+export function hasAbout(a: ReminderAboutOptions | undefined): a is ReminderAboutOptions {
+  return !!a && a.stops.length + a.items.length + a.transports.length > 0;
+}
+
+export function AboutSelect({
+  about,
+  value,
+  onChange,
+  disabled,
+}: {
+  about: ReminderAboutOptions;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const control = useFieldControl();
+  return (
+    <select
+      {...control}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      aria-label="About"
+      className="flex h-12 w-full rounded-md border-2 border-input bg-card px-4 text-base font-semibold text-foreground sm:text-[15px]"
+    >
+      <option value="">The whole trip</option>
+      {about.stops.length > 0 && (
+        <optgroup label="Stops">
+          {about.stops.map((s) => <option key={s.id} value={aboutPickValue({ stopId: s.id })}>{s.name}</option>)}
+        </optgroup>
+      )}
+      {about.items.length > 0 && (
+        <optgroup label="Things to do">
+          {about.items.map((i) => <option key={i.id} value={aboutPickValue({ itemId: i.id })}>{i.title}</option>)}
+        </optgroup>
+      )}
+      {about.transports.length > 0 && (
+        <optgroup label="Transport">
+          {about.transports.map((t) => <option key={t.id} value={aboutPickValue({ transportId: t.id })}>{t.label}</option>)}
+        </optgroup>
+      )}
+    </select>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Dialog wrapper
 // ---------------------------------------------------------------------------
 
 /**
- * "Add a reminder", opened from a Stop card's overflow menu or an Item's or
- * Transport leg's edit dialog. A thin
- * FormDialog wrapper, matching the shape of every other entity dialog
- * (AccommodationFormDialog, TransportFormDialog, ItemFormDialog).
+ * Add or edit a Reminder. A thin FormDialog wrapper, matching the shape of every
+ * other entity dialog (AccommodationFormDialog, TransportFormDialog, ItemFormDialog).
  */
 export function AddReminderDialog({
   tripId,
   about,
+  aboutChoices,
   reminder,
   defaultDate,
   open,
@@ -75,6 +123,7 @@ export function AddReminderDialog({
       <AddReminderForm
         tripId={tripId}
         about={about}
+        aboutChoices={aboutChoices}
         reminder={reminder}
         defaultDate={defaultDate}
         onClose={() => onOpenChange(false)}
@@ -91,6 +140,7 @@ export function AddReminderDialog({
 function AddReminderForm({
   tripId,
   about,
+  aboutChoices,
   reminder,
   defaultDate,
   onClose,
@@ -98,6 +148,7 @@ function AddReminderForm({
 }: {
   tripId?: string;
   about?: ReminderAbout;
+  aboutChoices?: ReminderAboutOptions;
   reminder?: EditableReminder;
   defaultDate?: string;
   onClose: () => void;
@@ -106,6 +157,7 @@ function AddReminderForm({
   const [title, setTitle] = React.useState(reminder?.title ?? "");
   const [date, setDate] = React.useState(reminder?.date ?? defaultDate ?? "");
   const [notes, setNotes] = React.useState(reminder?.notes ?? "");
+  const [pick, setPick] = React.useState("");
 
   const { requestDelete, isPending: isDeleting, dialog: deleteDialog } = useDeleteWithConfirm({
     action: (...[id]: [string, string]) => deleteReminder(id),
@@ -126,14 +178,12 @@ function AddReminderForm({
       // checkReminderInput mirrors reminderSchema's rules and messages
       // (lib/reminder-input.test.ts)).
       //
-      // `about` is the fixed value this dialog was opened with (the Stop's,
-      // thing to do's or leg's own id), never user input, so it isn't
-      // re-validated here — it's merged straight into the call. Blank notes
-      // are left out rather than sent empty.
+      // `about` and the picked About go to the action, which validates them.
+      // Blank notes are left out rather than sent empty.
       const checked = checkReminderInput({ title, date, ...(notes.trim() ? { notes } : {}) });
       if (!checked.success) return checked;
       if (reminder) return updateReminder(reminder.id, { ...checked.data, notes: checked.data.notes ?? null });
-      return addReminder(tripId!, { ...checked.data, ...about! });
+      return addReminder(tripId!, { ...checked.data, ...(about ?? aboutFromPick(pick)) });
     },
     onClose,
     onSaved,
@@ -171,6 +221,12 @@ function AddReminderForm({
           disabled={isPending}
         />
       </Field>
+
+      {hasAbout(aboutChoices) && (
+        <Field label="About">
+          <AboutSelect about={aboutChoices} value={pick} onChange={setPick} disabled={isPending} />
+        </Field>
+      )}
 
       <FormError>{formError(errors)}</FormError>
 

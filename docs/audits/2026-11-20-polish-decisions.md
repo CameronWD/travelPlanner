@@ -56,8 +56,8 @@ and was built the recommended way so the work did not stop. Say which to change.
 
 ### Not built in wave 2, waiting on you
 
-- **K3, weather card in the dark theme.** Its colours are the same in both themes on purpose and its scenes are drawn with dark outlines, so a dark card is a redesign, not a fix. Keep it light, or commission a dark palette?
-- **O3, keyboard.** Import a booking and Add a stop now keep their button visible. Edit Item and Transport edit already dock to the keyboard; whether they fail needs your phone. The inline Add reminder is a form on the page: make it a dialog on phones?
+- **K3, weather card in the dark theme.** Answered 20 Nov: keep it light for now.
+- **O3, keyboard.** Import a booking and Add a stop now keep their button visible. Edit Item and Transport edit already dock to the keyboard; whether they fail needs your phone. The inline Add reminder became a dialog on phones on 20 Nov (`feat/add-reminder-dialog-phone`); trip home's has no About choice, as its form never had one.
 - **K1, empty date field on an iPhone.** A desktop WebKit browser paints today's date, pale, in an empty date field. Whether your iPhone does needs a look (Settings, Hard end date, when empty). If it does, the fix is a drawn placeholder, which is a custom control, so it waits for you.
 - **S9.** Not measured yet.
 
@@ -114,3 +114,5 @@ and was built the recommended way so the work did not stop. Say which to change.
 - Inside a Review, a finding that repeats a warning still shows the stored date form (2026-12-09). Wave 1 left Reviews alone, as X4 did. Show days there too?
 - While dragging a costed thing to do to another day and back on the demo trip, a tester saw the trip's total change by one cent. Not confirmed; the suspected cause is the exchange rate being taken per date. Worth a look?
 - Going from trip home to Plan on a phone measures a layout shift of 0.133 (the page swap itself, not the loading logo). Was it there before, and does it show on your phone?
+- `driving-estimates-panel.test.tsx` fails now and then under load (typing "1.8" registers as "18"); it passes alone. A flaky test, not a fault in the app. Worth steadying after the trip.
+- Answered 20 Nov: beta follows main.
