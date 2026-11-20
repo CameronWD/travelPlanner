@@ -267,4 +267,29 @@ describe("PrivacyPage", () => {
     expect(document.body.textContent).not.toMatch(/not a legal document|just an accurate account|not a public product/i);
     expect(document.body.textContent).not.toMatch(/\bwe\b/i);
   });
+
+  it("says what Usage records, what it never holds and who reads it", async () => {
+    render(await PrivacyPage());
+    const text = document.body.textContent!.replace(/\s+/g, " ");
+    expect(text).toContain("which I call Usage");
+    expect(text).toContain("never holds anything you typed");
+    expect(text).toContain("opening a trip’s share link while you are signed in is noted, with no trip attached");
+    expect(text).toContain("Only an Admin can read it");
+    expect(text).toContain("not shared with or sent to anyone else");
+    expect(text).toContain("no cookies beyond the one that keeps you signed in");
+  });
+
+  it("no longer claims there is no other analytics without naming Usage", async () => {
+    render(await PrivacyPage());
+    const text = document.body.textContent!.replace(/\s+/g, " ");
+    expect(text).toContain("and Teepee’s own Usage record below, there is no other analytics");
+    expect(text).not.toContain("page timings, there is no other analytics");
+  });
+
+  it("says how long Usage is kept", async () => {
+    render(await PrivacyPage());
+    const text = document.body.textContent!.replace(/\s+/g, " ");
+    expect(text).toContain("180 days after they were made");
+    expect(text).toContain("pointing at a trip or an account that no longer exists");
+  });
 });

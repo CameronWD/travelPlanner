@@ -36,6 +36,9 @@ export const metadata: Metadata = {
  *     step (Anthropic — env-gated on ANTHROPIC_API_KEY, off unless the Admin
  *     sets it, flippable without a code change — so this page describes the
  *     mechanism, not a snapshot of whether it happens to be on today)
+ *   - lib/usage/lists.ts, lib/usage/validate.ts, lib/usage/rows.ts,
+ *     app/api/usage/route.ts, lib/usage/purge.ts (Usage: what a record can
+ *     hold, who reads it, 180 days)
  *   - vercel.json (the migration only runs when VERCEL_ENV=production)
  *   - lib/admin-notify.ts, lib/admin.ts (Admin push needs ADMIN_EMAILS set
  *     and only fires on a new error signature, never a repeat)
@@ -152,6 +155,14 @@ export default function PrivacyPage() {
             device, if they have one registered. A repeat of the same
             failure only bumps a count and is never pushed again. A failure
             reported by a browser is never pushed this way at all.
+          </li>
+          <li>
+            <span className="font-bold">
+              Usage.
+            </span>{" "}
+            Which screens you open and a short list of things you do, tied to
+            your account. What it holds, and what it never holds, is under
+            “Analytics, advertising and trackers” below.
           </li>
           <li>
             <span className="font-bold">
@@ -324,8 +335,30 @@ export default function PrivacyPage() {
           A trip’s id in an address like <code>/trips/…</code> is left
           in the analytics on purpose, so usage can be broken down per
           trip. A trip id is useless to anyone without an account on that
-          trip. Beyond those page views and page timings, there is no other
-          analytics.
+          trip. Beyond those page views and page timings, and Teepee’s own
+          Usage record below, there is no other analytics.
+        </p>
+        <p>
+          Teepee also keeps its own record of how it is used, which I call{" "}
+          <span className="font-bold">Usage</span>. While you are signed in,
+          it notes each time you open one of its screens (your trips, a
+          trip’s Plan, the Day view and so on) and a short, fixed list of
+          things you do there, such as changing day, opening the Day map,
+          tapping Directions or opening a ticket. Each record is tied to
+          your account and to the trip it was on, and says when it happened,
+          whether you were in the installed app, a phone browser or on a
+          computer, how quickly the screen appeared and whether it came from
+          the copy saved on your device. On the Day view it also says how
+          many days from today the day you opened was, unless a surprise on
+          that trip is being kept from you. It never holds anything you
+          typed, the name of anything in a trip, a place, an amount, a file
+          name or a page address. Nothing is recorded while you are signed
+          out, and on a public page nothing at all, except that opening a
+          trip’s share link while you are signed in is noted, with no trip
+          attached. Only an Admin can read it, and only as counts, never
+          record by record. It stays in Teepee’s own database, like your
+          trips. It is not shared with or sent to anyone else, and it uses
+          no cookies beyond the one that keeps you signed in.
         </p>
       </LegalSection>
 
@@ -358,6 +391,15 @@ export default function PrivacyPage() {
             once it is understood, and approve or dismiss an access request.
             Until then, both sit in the database (and so in the nightly
             backups above) like everything else.
+          </li>
+          <li>
+            <span className="font-bold">
+              Usage records
+            </span>{" "}
+            are deleted 180 days after they were made, by a job that runs
+            every night. Deleting a trip or your account does not remove its
+            Usage records straight away: they stay, pointing at a trip or an
+            account that no longer exists, until they reach 180 days.
           </li>
         </ul>
       </LegalSection>
