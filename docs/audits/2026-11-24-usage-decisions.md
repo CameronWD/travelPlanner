@@ -47,6 +47,10 @@ not stop. Say which to change. The spec is `docs/specs/2026-11-24-usage.md`.
 - Two accounts in one browser with a lapsed session or blocked storage: a rare window where one account's waiting records could be sent as the other.
 - Records made in another tab while recording is off are stored once it is back on.
 
+- The waiting list is saved to the phone once after each thing recorded, when the browser is idle (about 62 KB when full, measured at 0.2 ms on a laptop). Not in the tap itself, but not batched across several taps either.
+- A Booking import is recorded when a file or text is submitted to be read, not when its sheet is opened.
+- While recording is off, each page load still sends one request to learn that it is off.
+
 ## Not seen by anyone
 
 - The Admin Usage section in a browser (the local sign-in is not an Admin).
