@@ -21,6 +21,14 @@ describe("TripsLoading", () => {
     expect(screen.queryByText("Loading", { exact: true })).toBeNull();
   });
 
+  it("the header sits like the real one: items-end, no top margin on the title, a size-11 placeholder for New trip", () => {
+    const { container } = render(<TripsLoading />);
+    const header = container.querySelector("header") as HTMLElement;
+    expect(header).toHaveClass("items-end");
+    expect(screen.getByRole("heading", { name: "Your trips" })).not.toHaveClass("mt-1");
+    expect(header.querySelector(".size-11")).not.toBeNull();
+  });
+
   it("phone skeleton: cards fill the 256px track, a dots row and the tally strip are reserved", () => {
     const { container } = render(<TripsLoading />);
     expect(container.querySelector(".h-\\[256px\\]")).not.toBeNull();
