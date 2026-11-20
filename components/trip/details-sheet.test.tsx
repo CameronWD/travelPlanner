@@ -3,6 +3,8 @@ import { render, screen, within, fireEvent, cleanup } from "@testing-library/rea
 import { DetailsSheet } from "./details-sheet";
 import type { DetailsView } from "@/lib/details-view";
 import { directionsFromHereUrl } from "@/lib/map/maps";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 const full: DetailsView = {
   title: "Paris → Munich",
@@ -153,5 +155,15 @@ describe("DetailsSheet", () => {
     const dialog = renderSheet(bare, vi.fn(), false);
     expect(within(dialog).queryByRole("button", { name: "Edit" })).toBeNull();
     expect([...dialog.querySelectorAll("[data-row]")].map((el) => el.getAttribute("data-row"))).toEqual(["title"]);
+  });
+});
+
+describe("DetailsSheet Directions is recorded", () => {
+  it("tapping Directions records directions-tapped", () => {
+    vi.mocked(recordUsageAction).mockClear();
+    const dialog = renderSheet(full);
+    fireEvent.click(within(dialog).getByRole("link", { name: "Directions" }));
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("directions-tapped");
   });
 });

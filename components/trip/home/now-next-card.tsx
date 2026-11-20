@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Map, Navigation } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { UsageAnchor } from "@/components/usage/usage-anchor";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
 import { formatDayLabel } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
@@ -89,10 +90,10 @@ export function NowNextCard({
       <div className="mt-3.5 flex flex-wrap gap-2">
         {directions && (
           <Button asChild variant="primary" size="md" className="min-h-11">
-            <a href={directions} target="_blank" rel="noopener noreferrer">
+            <UsageAnchor action="directions-tapped" href={directions} target="_blank" rel="noopener noreferrer">
               <Navigation aria-hidden="true" />
               Directions
-            </a>
+            </UsageAnchor>
           </Button>
         )}
         {dayMap}

@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { UsageAnchor } from "@/components/usage/usage-anchor";
 import { CATEGORY_ICON } from "@/lib/category-icons";
 import { CategoryPill } from "./category-pill";
 import { CATEGORIES, categoryClasses, type Category } from "@/lib/categories";
@@ -248,7 +249,8 @@ function DirectionsLink({
   if (!href) return null;
 
   return (
-    <a
+    <UsageAnchor
+      action="directions-tapped"
       href={href}
       target="_blank"
       rel="noopener noreferrer"
@@ -256,7 +258,7 @@ function DirectionsLink({
       className="inline-flex size-7 pointer-coarse:size-auto pointer-coarse:min-h-11 pointer-coarse:min-w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
       <Navigation className="size-3.5 shrink-0" aria-hidden="true" />
-    </a>
+    </UsageAnchor>
   );
 }
 

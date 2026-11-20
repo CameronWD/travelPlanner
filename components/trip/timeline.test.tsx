@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
 import { Timeline, dayHasEntries } from "./timeline";
 import { HUE_CLASSES } from "@/lib/hues";
 import { dayHasEntries as itineraryDayHasEntries } from "@/lib/itinerary";
 import type { DayPlan, TransportDepartureEntry } from "@/lib/itinerary";
 import type { DayEntryEditor, DayEntryTarget } from "./day-entry-link";
+vi.mock("@/lib/usage/client", () => ({ recordUsageAction: vi.fn() }));
+import { recordUsageAction } from "@/lib/usage/client";
 
 // Timeline renders UnscheduleItemButton (a client island) on day-variant item
 // rows when showUnschedule is set. That component pulls in the server-actions
@@ -1454,5 +1456,24 @@ describe("Timeline: booking confirmation marker", () => {
   it("never marks the check-out row", () => {
     render(<Timeline day={dayPlanWithCheckout} variant="day" needsConfirmationIds={["acc-1"]} />);
     expect(screen.queryByText(MARKER)).toBeNull();
+  });
+});
+
+describe("Timeline — Directions is recorded", () => {
+  it("tapping a Directions link records directions-tapped and keeps its classes", () => {
+    vi.mocked(recordUsageAction).mockClear();
+    render(
+      <Timeline
+        day={dayPlan}
+        variant="day"
+        itemDirections={{ [ITEM_ID]: { google: GOOGLE_URL, apple: null } }}
+      />,
+    );
+    const link = screen.getByRole("link", { name: `Directions to ${ITEM_TITLE}` });
+    expect(link.className).toContain("rounded-full");
+    expect(link).toHaveAttribute("aria-label", `Directions to ${ITEM_TITLE}`);
+    fireEvent.click(link);
+    expect(recordUsageAction).toHaveBeenCalledTimes(1);
+    expect(recordUsageAction).toHaveBeenCalledWith("directions-tapped");
   });
 });
