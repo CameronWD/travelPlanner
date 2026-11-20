@@ -251,7 +251,7 @@ function recordAction(action: UsageAction, detail: UsageDetail | undefined, dayO
   let record: ActionWire = { action, at: Date.now(), mode: openMode() };
   if (detail !== undefined) record.detail = detail;
   record = withTrip(record, action === "share-link-opened" ? null : currentTrip);
-  if (action === "day-changed" && isDayOffset(dayOffset)) record.dayOffset = dayOffset;
+  if (action === "day-changed" && record.tripId !== undefined && isDayOffset(dayOffset)) record.dayOffset = dayOffset;
   enqueue(record);
 }
 
@@ -297,7 +297,7 @@ export function recordUsageScreen(input: {
       if (ms >= 0 && ms <= MAX_APPEAR_MS) record.ms = ms;
     }
     if (input.saved === true) record.saved = true;
-    if (input.screen === "day" && isDayOffset(input.dayOffset)) record.dayOffset = input.dayOffset;
+    if (input.screen === "day" && record.tripId !== undefined && isDayOffset(input.dayOffset)) record.dayOffset = input.dayOffset;
     enqueue(record);
   } catch {}
 }

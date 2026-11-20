@@ -95,6 +95,8 @@ describe("parseUsageBatch", () => {
     ["a fractional dayOffset", { ...day, dayOffset: 0.5 }],
     ["a dayOffset on another screen", { ...plan, dayOffset: 1 }],
     ["a dayOffset on another action", { ...search, tripId: TRIP, phase: "planning", dayOffset: 1 }],
+    ["a day change with an offset and no Trip", { action: "day-changed", detail: "swipe", at: NOW, mode: "phone-app", dayOffset: 2 }],
+    ["a Day screen with an offset and no Trip", { screen: "day", at: NOW, mode: "phone-app", dayOffset: 2 }],
     ["a trip screen with no tripId", { screen: "plan", at: NOW, mode: "desktop" }],
     ["an app screen with a tripId", { ...trips, tripId: TRIP, phase: "planning" }],
     ["the share link opened with a tripId", { ...share, tripId: TRIP, phase: "planning" }],
@@ -224,6 +226,7 @@ describe("free text cannot get in", () => {
       expect(row.userId).toBe("it-usage-a");
       expect(intIn(row.appearMs, 0, MAX_APPEAR_MS)).toBe(true);
       expect(intIn(row.dayOffset, -1000, 1000)).toBe(true);
+      expect(row.dayOffset === null || row.tripId !== null).toBe(true);
       expect(typeof row.savedCopy).toBe("boolean");
       expect(row.occurredAt).toBeInstanceOf(Date);
       expect(Number.isNaN(row.occurredAt.getTime())).toBe(false);

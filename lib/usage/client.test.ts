@@ -381,6 +381,18 @@ describe("what a record holds", () => {
     ]);
   });
 
+  it("never attaches a day offset to a record that lost its Trip", () => {
+    startUsage("it-usage-a");
+    const unphased = { ...TRIP, startDate: "not-a-date", endDate: null };
+    setUsageTrip(unphased);
+    recordUsageDayChange("chip", "2026-12-03");
+    recordUsageScreen({ screen: "day", ms: null, saved: false, dayOffset: 2, trip: unphased });
+    expect(stored()!.r).toEqual([
+      { action: "day-changed", detail: "chip", at: NOW.getTime(), mode: "desktop" },
+      { screen: "day", at: NOW.getTime(), mode: "desktop" },
+    ]);
+  });
+
   it("a screen carries its time to appear, saved copy and the Day's offset, omitting what it lacks", () => {
     startUsage("it-usage-a");
     recordUsageScreen({ screen: "day", ms: 412.6, saved: true, dayOffset: -2, trip: TRIP });

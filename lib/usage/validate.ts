@@ -72,6 +72,8 @@ function parseRecord(raw: unknown, now: number): UsageInput | null {
   let dayOffset: number | null = null;
   if (has("dayOffset")) {
     if (!isIntIn(raw.dayOffset, -MAX_DAY_OFFSET, MAX_DAY_OFFSET)) return null;
+    // The Surprise rule is applied per Trip, so an offset with no Trip could never be checked.
+    if (tripId === null) return null;
     dayOffset = raw.dayOffset;
   }
 

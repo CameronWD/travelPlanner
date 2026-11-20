@@ -70,3 +70,8 @@ ALTER TABLE "UsageRecord" ADD CONSTRAINT "UsageRecord_ids_check"
 
 ALTER TABLE "UsageRecord" ADD CONSTRAINT "UsageRecord_numbers_check"
   CHECK (("appearMs" IS NULL OR "appearMs" BETWEEN 0 AND 120000) AND ("dayOffset" IS NULL OR "dayOffset" BETWEEN -1000 AND 1000));
+
+-- The Surprise rule strips day offsets per Trip, so an offset with no Trip
+-- could never be checked against one.
+ALTER TABLE "UsageRecord" ADD CONSTRAINT "UsageRecord_offset_trip_check"
+  CHECK ("dayOffset" IS NULL OR "tripId" IS NOT NULL);

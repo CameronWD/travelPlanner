@@ -67,7 +67,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("POST /api/usage (real Postgres
     await clean();
   });
 
-  it("stores only what it recognises, under the session's user, with a surprised Traveller's offsets gone", async () => {
+  it("stores only what it recognises, under the session's user, with a surprised Traveller's offsets gone and no offset without a Trip", async () => {
     signIn(A);
     const at = Date.now();
     const res = await send([
@@ -77,6 +77,7 @@ describe.skipIf(process.env.INTEGRATION !== "1")("POST /api/usage (real Postgres
       { screen: "plan", at, mode: "desktop", tripId: OTHER, phase: "planning" },
       { screen: "plan", at, mode: "desktop", tripId: GONE, phase: "planning" },
       { screen: "paris", at, mode: "desktop" },
+      { action: "day-changed", detail: "arrow", at, mode: "phone-app", dayOffset: 1 },
     ]);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ recording: true });
