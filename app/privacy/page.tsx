@@ -291,8 +291,8 @@ export default function PrivacyPage() {
             backup (see “How long it is kept” below) is uploaded to
             GitHub as a GitHub Actions build artifact and stored there for
             up to 30 days. It is a complete copy of the database, with every
-            trip, note, email address, access request and error report in
-            it. Who can download a GitHub Actions artifact is exactly who
+            trip, note, email address, access request, error report and Usage
+            record in it. Who can download a GitHub Actions artifact is exactly who
             can read the repository it belongs to. That setting lives on
             GitHub, not in Teepee, and I can tell you what it is today.
           </li>
@@ -333,7 +333,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           A trip’s id in an address like <code>/trips/…</code> is left
-          in the analytics on purpose, so usage can be broken down per
+          in the analytics on purpose, so page views can be broken down per
           trip. A trip id is useless to anyone without an account on that
           trip. Beyond those page views and page timings, and Teepee’s own
           Usage record below, there is no other analytics.

@@ -63,4 +63,4 @@ What was built, which the decision above does not contradict:
   it is off.
 - The 180-day delete runs inside the existing nightly `purge-trips` job and goes by when the
   server received a record, so a device with a wrong clock can neither keep a record past
-  180 days nor lose a fresh one.
+  180 days after it arrived nor lose a fresh one.

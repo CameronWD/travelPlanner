@@ -798,8 +798,8 @@ Then check on the live site:
 
 1. `/admin` shows Usage with Recording on.
 2. After a minute of browsing a Trip, the total has grown.
-3. Turn recording off from the Usage section on `/admin`, browse for a minute, and the
-   total does not move. Turn it back on; each device picks that up at its next page
+3. Turn recording off from the Usage section on `/admin`, wait a minute (servers catch up
+   within 30 seconds), note the total, browse for a minute, and the total does not move. Turn it back on; each device picks that up at its next page
    load. Nothing needs a deploy to switch it either way.
 
 Usage records older than 180 days are deleted by the nightly `purge-trips` job (§5); a
