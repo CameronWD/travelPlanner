@@ -7,9 +7,9 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
 const { MONEY_PAGE_CLASS, MONEY_DESKTOP_GRID_CLASS, MONEY_DESKTOP_GRID_FORK_CLASS } = await import("./page");
 
 describe("Money desktop layout (MONEY.md §7, ruling R2 2026-10-12)", () => {
-  it("12 columns from lg; both rows size to their cards so Where it goes can grow", () => {
+  it("12 columns from lg; the tile row sizes to the tile and Where it goes takes the rest", () => {
     const classes = MONEY_DESKTOP_GRID_CLASS.split(/\s+/);
-    for (const c of ["grid-cols-1", "lg:grid-cols-12", "lg:gap-[18px]", "lg:grid-rows-[auto_auto]"]) expect(classes).toContain(c);
+    for (const c of ["grid-cols-1", "lg:grid-cols-12", "lg:gap-[18px]", "lg:grid-rows-[auto_1fr]"]) expect(classes).toContain(c);
     expect(classes).not.toContain("lg:grid-rows-[268px_minmax(0,1fr)]");
     expect(classes).not.toContain("lg:min-h-0");
     expect(classes).not.toContain("lg:flex-1");

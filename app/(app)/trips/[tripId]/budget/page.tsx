@@ -42,13 +42,13 @@ export const metadata: Metadata = { title: "Money" };
 // under the amount) and Where it goes grows to every category.
 export const MONEY_PAGE_CLASS = "flex flex-col gap-3.5 md:gap-5";
 const GRID_BASE = "grid grid-cols-1 gap-3.5 lg:grid-cols-12 lg:gap-[18px]";
-export const MONEY_DESKTOP_GRID_CLASS = `${GRID_BASE} lg:grid-rows-[auto_auto]`;
+export const MONEY_DESKTOP_GRID_CLASS = `${GRID_BASE} lg:grid-rows-[auto_1fr]`;
 /** Kept as an alias: a fork's tile sizes itself like every other row now. */
 export const MONEY_DESKTOP_GRID_FORK_CLASS = MONEY_DESKTOP_GRID_CLASS;
 const SPAN = {
   tile: "lg:col-span-8 lg:row-start-1",
   right: "flex flex-col gap-3.5 lg:col-span-4 lg:col-start-9 lg:row-span-2 lg:row-start-1 lg:gap-[18px]",
-  where: "lg:col-span-8 lg:row-start-2",
+  where: "lg:col-span-8 lg:row-start-2 lg:self-start",
   full: "lg:col-span-12",
 };
 
