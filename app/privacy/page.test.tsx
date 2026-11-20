@@ -283,6 +283,8 @@ describe("PrivacyPage", () => {
     expect(text).not.toContain("not shared with or sent to anyone else");
     expect(text).toContain("no cookies beyond the one that keeps you signed in");
     expect(text).toContain("records wait in your browser’s local storage with your account’s id");
+    expect(text).toContain("sent within about half a minute when you are online and later if you were offline");
+    expect(text).not.toContain("sent straight away when you are online");
     expect(text).toContain("at most 500 are kept, and signing out clears them");
   });
 

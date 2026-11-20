@@ -367,8 +367,8 @@ export default function PrivacyPage() {
           anything but seeing how Teepee is used. It uses no cookies beyond
           the one that keeps you signed in. Until they are sent, records wait
           in your browser’s local storage with your account’s id: they are
-          sent straight away when you are online and later if you were
-          offline, at most 500 are kept, and signing out clears them.
+          sent within about half a minute when you are online and later if
+          you were offline, at most 500 are kept, and signing out clears them.
         </p>
       </LegalSection>
 
