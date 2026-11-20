@@ -228,6 +228,7 @@ describe("ActivityFeed — Playground kit shape (Task 13)", () => {
     expect(container.querySelector("ul")!.className).not.toMatch(/\bmax-w-/);
     const [inline, trailing] = Array.from(container.querySelectorAll("time"));
     expect(inline.className).toMatch(/\bhidden\b/);
+    expect(inline.getAttribute("aria-hidden")).toBe("true");
     expect(inline.className).toMatch(/\bmd:inline\b/);
     expect(inline.className).toMatch(/\bwhitespace-nowrap\b/);
     expect(inline.closest("[data-slot='list-row']")).toBeTruthy();

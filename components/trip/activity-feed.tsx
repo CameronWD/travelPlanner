@@ -114,7 +114,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                         <span className="text-muted-foreground">{via}</span>
                       </>
                     )}
-                    <time {...timeProps} className="ml-2 hidden whitespace-nowrap text-xs font-semibold text-muted-foreground md:inline">
+                    <time {...timeProps} aria-hidden="true" className="ml-2 hidden whitespace-nowrap text-xs font-semibold text-muted-foreground md:inline">
                       {when}
                     </time>
                     <span className="sr-only">, {when}</span>
