@@ -105,6 +105,15 @@ describe("parseUsageBatch", () => {
     ["a numeric tripId", { ...plan, tripId: 12 }],
     ["a phase with no tripId", { ...trips, phase: "planning" }],
     ["a tripId with no phase", { ...plan, phase: undefined }],
+    ["an object screen", { ...trips, screen: {} }],
+    ["an array screen", { ...trips, screen: ["trips"] }],
+    ["an object tripId", { ...plan, tripId: {} }],
+    ["an array tripId", { ...plan, tripId: [TRIP] }],
+    ["an array detail", { ...swipe, detail: ["swipe"] }],
+    ["an object mode", { ...trips, mode: { mode: "desktop" } }],
+    ["an array at", { ...trips, at: [NOW] }],
+    ["an object ms", { ...plan, ms: {} }],
+    ["an array dayOffset", { ...day, dayOffset: [2] }],
     ["a non-object record", "trips"],
     ["a null record", null],
     ["an array record", [trips]],
@@ -167,7 +176,8 @@ describe("free text cannot get in", () => {
     if (r < 0.85) return valid();
     if (r < 0.9) return randomString();
     if (r < 0.94) return randomNumber();
-    if (r < 0.97) return null;
+    if (r < 0.96) return null;
+    if (r < 0.97) return rand() < 0.5 ? {} : [valid()];
     return undefined;
   }
 
