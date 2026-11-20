@@ -60,7 +60,7 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(screen.getByText("No bed yet · 1 plan")).toBeInTheDocument();
   });
 
-  it("a rough row: dashed, no card background/shadow, 'Drag to reorder', Rough + ~5n, dragProps spread", () => {
+  it("a rough row: dashed, no card background/shadow, no subtitle, Rough + ~5n, dragProps spread", () => {
     const { container } = renderRow({
       stop: ROUGH,
       stay: null,
@@ -72,7 +72,8 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(row.className).toContain("bg-background");
     expect(row.className).not.toMatch(/shadow-hard-3/);
     expect(row).toHaveAttribute("aria-roledescription", "sortable");
-    expect(screen.getByText("Drag to reorder")).toBeInTheDocument();
+    expect(screen.queryByText("Drag to reorder")).not.toBeInTheDocument();
+    expect(row.querySelectorAll("span.truncate.text-xs")).toHaveLength(0);
     expect(screen.getByText("Rough")).toBeInTheDocument();
     expect(screen.getByText("~5n")).toBeInTheDocument();
     expect(container).toBeTruthy();

@@ -25,6 +25,7 @@ export interface MobileStopRowProps {
 export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProps }: MobileStopRowProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const nights = !rough ? nightsBetween(stop.arriveDate as string, stop.departDate as string) : 0;
+  const summary = summaryContent(rough, stay, plansCount);
 
   return (
     <button
@@ -50,14 +51,16 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
 
       <span className="min-w-0 flex-1">
         <span className="block truncate font-display text-[19px] font-extrabold">{stop.name}</span>
-        <span
-          className={cn(
-            "block truncate text-xs font-semibold",
-            stay?.kind === "none" ? "text-coral-text" : "text-muted-foreground",
-          )}
-        >
-          {summaryContent(rough, stay, plansCount)}
-        </span>
+        {summary !== null && summary !== "" && (
+          <span
+            className={cn(
+              "block truncate text-xs font-semibold",
+              stay?.kind === "none" ? "text-coral-text" : "text-muted-foreground",
+            )}
+          >
+            {summary}
+          </span>
+        )}
         {stop.surprise && <SurpriseBadge view={stop.surprise} size="sm" className="mt-1 max-w-full truncate" />}
       </span>
 
@@ -82,7 +85,7 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
 }
 
 function summaryContent(rough: boolean, stay: StayStatus | null, plansCount: number): React.ReactNode {
-  if (rough) return "Drag to reorder";
+  if (rough) return null;
   const plans = `${plansCount} ${plansCount === 1 ? "plan" : "plans"}`;
   if (!stay) return plansCount > 0 ? plans : "";
   if (stay.kind === "none") {
