@@ -66,6 +66,18 @@ describe("TripSwitcher", () => {
     expect(within(menu).getByRole("link", { name: "+ New trip" }).getAttribute("href")).toBe("/trips/new");
   });
 
+  it("lines All trips and + New trip up with the trip names", () => {
+    render(<TripSwitcher current={CURRENT} trips={TRIPS} />);
+    const menu = screen.getByTestId("switcher-menu");
+    for (const name of ["All trips", "+ New trip"]) {
+      const link = within(menu).getByRole("link", { name });
+      expect(link.className).toContain("gap-2.5");
+      const spacer = link.firstElementChild!;
+      expect(spacer.getAttribute("aria-hidden")).toBe("true");
+      expect(spacer.className).toContain("size-2.5");
+    }
+  });
+
   it("still lists the current trip (marked) plus All trips / + New trip when it's the only trip", () => {
     render(<TripSwitcher current={CURRENT} trips={[CURRENT]} />);
     const menu = screen.getByTestId("switcher-menu");
