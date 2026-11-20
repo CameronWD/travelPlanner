@@ -1699,7 +1699,7 @@ export function ItineraryManager({
           onDragEnd={handleDragEnd}
         >
           {hasRoughStops && (
-            <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">
+            <div className="mb-3 flex min-h-14 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5 py-2">
               <CalendarClock className="size-4" aria-hidden />
               <p className="flex-1 text-[13px] font-semibold">Some stops don&apos;t have dates yet.</p>
               <Button
@@ -1839,7 +1839,7 @@ export function ItineraryManager({
                 </DragOverlay>
                 {/* Firm up survives the redesign as a slim row whenever rough stops exist. */}
                 {hasRoughStops && (
-                  <div className="mb-3 flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5">
+                  <div className="mb-3 flex min-h-14 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-sun/30 px-3.5 py-2">
                     <CalendarClock className="size-4" aria-hidden />
                     <p className="flex-1 text-[13px] font-semibold">Some stops don&apos;t have dates yet.</p>
                     <Button

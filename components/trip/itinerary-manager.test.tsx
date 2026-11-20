@@ -525,6 +525,26 @@ describe("firm-up (Firm up)", () => {
     expect(desktop().queryByRole("button", { name: /^firm up$/i })).toBeNull();
     expect(desktop().getByRole("button", { name: "Firm up all stops" })).toBeInTheDocument();
   });
+
+  it("keeps the Firm up button inside its banner, grouped or not", () => {
+    const rough = makeStop({ arriveDate: null, departDate: null });
+    const { unmount } = renderPlan(<ItineraryManager {...baseProps} initialStops={[rough]} />);
+    const banner = desktop().getByRole("button", { name: "Firm up all stops" }).parentElement as HTMLElement;
+    expect(banner).toHaveClass("min-h-14", "py-2");
+    expect(banner).not.toHaveClass("h-11");
+    unmount();
+
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[{ ...rough, chapterId: "ch-1" }]}
+        chapters={[{ id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 }]}
+      />,
+    );
+    const grouped = desktop().getByRole("button", { name: "Firm up all stops" }).parentElement as HTMLElement;
+    expect(grouped).toHaveClass("min-h-14", "py-2");
+    expect(grouped).not.toHaveClass("h-11");
+  });
 });
 
 // ---------------------------------------------------------------------------
