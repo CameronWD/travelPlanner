@@ -32,6 +32,7 @@ describe("TripsLoading", () => {
     m.pathname = p;
     const { container } = render(<TripsLoading />);
     expect(container.querySelector("[data-trips-shell]")).toBeNull();
+    expect(container.firstElementChild).toHaveAttribute("data-trip-shell");
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Loading");
     expect(screen.getByRole("img", { name: "Teepee" }).parentElement).toHaveClass("animate-spin", "motion-reduce:animate-none");
