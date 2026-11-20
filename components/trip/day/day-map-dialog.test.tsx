@@ -57,7 +57,7 @@ describe("DayMapButton", () => {
     setMatchMedia(wide);
     render(<DayMapButton tripId="t1" model={model} size="desktop" />);
     await userEvent.click(screen.getByRole("button", { name: "Day map" }));
-    expect(await screen.findByRole("list", { name: "Today's places" })).toHaveClass("p-1.5");
+    expect(await screen.findByRole("list", { name: "Today’s places" })).toHaveClass("p-1.5");
   });
 
   it("clicking a place in the list highlights its pin", async () => {

@@ -66,7 +66,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
     setFocal({ x, y });
     startTransition(async () => {
       const r = await setCoverFocal(tripId, x, y);
-      if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't update the focal point.") });
+      if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn’t update the focal point.") });
     });
   }
 
@@ -87,11 +87,11 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
       if (small) fd.set("fileSmall", small);
       try {
         const r = await setTripCover(fd);
-        if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't upload that cover.") });
+        if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn’t upload that cover.") });
       } catch {
         // The action reports its own failures; reaching here means the request
         // itself died (network, platform limit) — don't invent a size excuse.
-        toast({ variant: "destructive", title: "Couldn't upload that. Try again." });
+        toast({ variant: "destructive", title: "Couldn’t upload that. Try again." });
       }
     });
   }
@@ -99,14 +99,14 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
   function onRemove() {
     startTransition(async () => {
       const r = await removeTripCover(tripId);
-      if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn't remove the cover.") });
+      if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn’t remove the cover.") });
     });
   }
 
   return (
     <Field
       label="Cover photo"
-      description="Shown on your trips list and the trip's home. Leave empty to use the auto route render."
+      description="Shown on your trips list and the trip’s home. Leave empty to use the auto route render."
     >
       {/* LA-141: the native control is hidden (its "Choose File No file chosen"
           label clipped mid-word on phones); a house-style button opens it and
@@ -131,11 +131,11 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
       {hasCover && (
         <div className="mt-3">
           <p className="mb-1.5 text-xs font-semibold text-muted-foreground">
-            Tap the part of the photo to keep in view when it&apos;s cropped.
+            Tap the part of the photo to keep in view when it’s cropped.
           </p>
           <button
             type="button"
-            aria-label="Choose the cover photo's focal point"
+            aria-label="Choose the cover photo’s focal point"
             onClick={onPickFocal}
             disabled={isPending}
             className="relative block w-full max-w-xs cursor-crosshair overflow-hidden rounded-md border-2 border-border disabled:cursor-wait"

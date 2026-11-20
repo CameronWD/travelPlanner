@@ -21,8 +21,8 @@ export default function TermsPage() {
       <LegalSection title="What this is">
         <p>
           I built Teepee and run it myself, as a personal project, for a
-          small group of friends and family. There&apos;s no
-          company or support team behind it, and it isn&apos;t sold as a
+          small group of friends and family. There’s no
+          company or support team behind it, and it isn’t sold as a
           service.
         </p>
       </LegalSection>
@@ -32,14 +32,14 @@ export default function TermsPage() {
           Teepee is provided as-is, without warranty of any kind. I build
           it carefully and it is backed up nightly, but nothing about it is
           guaranteed. That includes uptime, features continuing to work the
-          way they do today, and your data never being lost. Don&apos;t rely on it as
+          way they do today, and your data never being lost. Don’t rely on it as
           the only copy of anything that matters to you.
         </p>
       </LegalSection>
 
       <LegalSection title="Access can be revoked">
         <p>
-          Being invited to Teepee doesn&apos;t entitle you to keep using
+          Being invited to Teepee doesn’t entitle you to keep using
           it. I can revoke access at any time, for any reason or no reason,
           without notice.
         </p>
@@ -47,7 +47,7 @@ export default function TermsPage() {
 
       <LegalSection title="What you upload">
         <p>
-          Don&apos;t upload anything you don&apos;t have the right to, whether
+          Don’t upload anything you don’t have the right to, whether
           files, images or anything else. You are responsible for what you
           put into your trips.
         </p>

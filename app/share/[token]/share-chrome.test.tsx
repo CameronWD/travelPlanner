@@ -12,14 +12,14 @@ describe("ShareTopBar (SHARE.md §2)", () => {
     render(<ShareTopBar requestAccessHref={hrefs.requestAccess} />);
     expect(screen.getByRole("link", { name: "Plan your own trip" })).toHaveAttribute("href", hrefs.requestAccess);
     expect(screen.getByRole("link", { name: "Plan your own" })).toHaveAttribute("href", hrefs.requestAccess);
-    expect(screen.getByText("You're viewing a shared trip")).toBeInTheDocument();
+    expect(screen.getByText("You’re viewing a shared trip")).toBeInTheDocument();
   });
 });
 
 describe("ShareCta (spec §E.2)", () => {
   it.each(["before", "during"] as const)("%s: waiting-list copy and Join the waiting list", (stage) => {
     render(<ShareCta stage={stage} stopCount={6} hrefs={hrefs} />);
-    expect(screen.getByText(/It's full right now, but there's a waiting list\./)).toBeInTheDocument();
+    expect(screen.getByText(/It’s full right now, but there’s a waiting list\./)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Join the waiting list" })).toHaveAttribute("href", hrefs.requestAccess);
     expect(screen.queryByText(/free to start/i)).not.toBeInTheDocument();
   });

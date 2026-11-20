@@ -96,7 +96,7 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
   // ---------------------------------------------------------------------------
   const wrapHeading = (
     <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
-      That&apos;s a wrap
+      That’s a wrap
     </h2>
   );
 

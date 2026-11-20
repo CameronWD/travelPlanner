@@ -85,7 +85,7 @@ export function buildStopActions(
       key: "surprise",
       label: "Make it a surprise",
       icon: icon(Gift),
-      hint: "hide what's inside from someone",
+      hint: "hide what’s inside from someone",
       onSelect: h.onMakeSurprise,
       disabled: isPending,
     });

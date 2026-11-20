@@ -54,7 +54,7 @@ export function SurpriseDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Surprise for…</DialogTitle>
-          <DialogDescription>Who shouldn&apos;t see inside {label}? You can always see it.</DialogDescription>
+          <DialogDescription>Who shouldn’t see inside {label}? You can always see it.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col">
           {others.map((m) => (

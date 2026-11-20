@@ -24,7 +24,7 @@ describe("ShareNotFound", () => {
   it("renders the neutral 'This link isn't working' heading", () => {
     render(<ShareNotFound />);
     expect(
-      screen.getByRole("heading", { name: /this link isn't working/i }),
+      screen.getByRole("heading", { name: /this link isn’t working/i }),
     ).toBeInTheDocument();
   });
 

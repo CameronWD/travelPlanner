@@ -278,7 +278,7 @@ describe("AccountPage", () => {
       render(jsx);
       const region = screen.getByRole("region", { name: "Phone shortcuts" });
       expect(within(region).getByRole("link", { name: /how to use teepee/i }).getAttribute("href")).toBe("/help");
-      expect(within(region).getByRole("link", { name: /what's new/i }).getAttribute("href")).toBe("/whats-new");
+      expect(within(region).getByRole("link", { name: /what’s new/i }).getAttribute("href")).toBe("/whats-new");
       expect(within(region).queryByRole("button", { name: /theme/i })).toBeNull();
       expect(within(region).queryByText("Theme")).toBeNull();
       expect(within(region).getByRole("button", { name: "Sign out" })).toBeInTheDocument();

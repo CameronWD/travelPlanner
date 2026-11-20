@@ -19,7 +19,7 @@ export default function ShareNotFound() {
       <ErrorPanel
         kind="not-found"
         className="flex-1"
-        title="This link isn't working"
+        title="This link isn’t working"
         description="It may have been turned off or replaced. Ask the trip organiser for a fresh one."
         actions={
           <Button asChild variant="secondary">

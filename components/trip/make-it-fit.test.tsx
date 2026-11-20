@@ -68,7 +68,7 @@ describe("MakeItFit", () => {
     await user.click(dropRome);
 
     // Confirm dialog must appear with stop name
-    expect(await screen.findByText(/Drop "Rome"\?/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Drop “Rome”\?/i)).toBeInTheDocument();
     expect(previewStopDeletion).toHaveBeenCalledWith("a");
 
     // deleteStop must NOT have been called yet
@@ -87,7 +87,7 @@ describe("MakeItFit", () => {
     const dropRome = await screen.findByRole("button", { name: /drop rome/i });
     await user.click(dropRome);
 
-    await screen.findByText(/Drop "Rome"\?/i);
+    await screen.findByText(/Drop “Rome”\?/i);
 
     expect(screen.getByRole("button", { name: /cancel/i }).className).not.toContain("border-transparent");
     await user.click(screen.getByRole("button", { name: /cancel/i }));

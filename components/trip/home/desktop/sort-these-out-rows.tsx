@@ -51,7 +51,7 @@ export function SortTheseOutRows({ rows, total }: { rows: SortRow[]; total: numb
     applyUndo: (r) => showId(r.reminderId),
     revertUndo: (r) => hideId(r.reminderId),
     done: (r) => ({ title: "Dismissed", description: r.title }),
-    failure: "Couldn't dismiss that reminder.",
+    failure: "Couldn’t dismiss that reminder.",
   });
   const shown = rows.filter((r) => !r.reminderId || !gone.has(r.reminderId));
   const shownTotal = total - (rows.length - shown.length);

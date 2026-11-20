@@ -52,10 +52,10 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
       setNotice(
         result.mailed
           ? `Approved and emailed ${request.email}.`
-          : "Approved. Couldn't email them, so tell them yourself.",
+          : "Approved. Couldn’t email them, so tell them yourself.",
       );
     } else {
-      setMessage(formError(result) ?? "Couldn't approve that request.");
+      setMessage(formError(result) ?? "Couldn’t approve that request.");
     }
   }
 
@@ -68,7 +68,7 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
     if (result.success) {
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
     } else {
-      setMessage(formError(result) ?? "Couldn't dismiss that request.");
+      setMessage(formError(result) ?? "Couldn’t dismiss that request.");
     }
   }
 

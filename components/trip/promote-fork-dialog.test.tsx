@@ -238,7 +238,7 @@ describe("PromoteForkDialog", () => {
 
     await waitFor(() => {
       expect(toast).toHaveBeenCalledWith({
-        title: "Couldn't make this the real plan.",
+        title: "Couldn’t make this the real plan.",
         description: "What-if plans are only available before the trip starts.",
         variant: "destructive",
       });
@@ -429,7 +429,7 @@ describe("PromoteForkDialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/couldn't load the preview/i),
+        screen.getByText(/couldn’t load the preview/i),
       ).toBeInTheDocument();
     });
   });

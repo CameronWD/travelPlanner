@@ -200,7 +200,7 @@ export default async function SettingsPage({
 
           <Card>
             <CardHeader className="p-5 pb-0">
-              <CardTitle className="font-display text-base font-bold tracking-tight">What&apos;s around</CardTitle>
+              <CardTitle className="font-display text-base font-bold tracking-tight">What’s around</CardTitle>
             </CardHeader>
             <CardContent className="p-5 pt-3">
               <WhatsAroundSwitch tripId={tripId} enabled={trip.whatsAroundEnabled} />

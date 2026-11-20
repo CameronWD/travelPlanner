@@ -12,7 +12,7 @@ import { nextReviewLabel, type RunPanelState } from "@/lib/review/run-panel";
 import type { ReviewKind } from "@/lib/review/types";
 import { watchReview } from "./watched-reviews";
 
-export const START_FAILED = "Couldn't start the Review. Try again.";
+export const START_FAILED = "Couldn’t start the Review. Try again.";
 
 export const DEEP_REVIEW_CONFIRM: ConfirmOptions = {
   title: "Start a Deep Review?",

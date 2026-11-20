@@ -90,9 +90,9 @@ describe("the trip's More page", () => {
       "What happened, day by day",
       "Things to tick off before and during",
       "Tickets, bookings and documents",
-      "What everyone's changed",
+      "What everyone’s changed",
       "Travellers, sharing, digests and details",
-      "Claude's check of the plan, and what it found",
+      "Claude’s check of the plan, and what it found",
     ]) {
       expect(screen.getByText(line)).toBeInTheDocument();
     }

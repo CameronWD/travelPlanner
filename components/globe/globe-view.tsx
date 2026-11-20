@@ -80,11 +80,11 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
     try {
       const r = await deleteMarker(id);
       if (!r.success) {
-        toastRefused(r.errors, "Couldn't delete that marker.");
+        toastRefused(r.errors, "Couldn’t delete that marker.");
         return;
       }
     } catch {
-      toastRejected("Couldn't delete that marker.");
+      toastRejected("Couldn’t delete that marker.");
       return;
     }
   };

@@ -31,9 +31,9 @@ export function HopModeChooser({ fromItemId, toItemId, mode, modeSetByHand }: Ho
     startTransition(async () => {
       try {
         const r = await setHopMode(fromItemId, toItemId, next);
-        if (!r.success) toastRefused(r, "Couldn't change how that hop is travelled.");
+        if (!r.success) toastRefused(r, "Couldn’t change how that hop is travelled.");
       } catch {
-        toastRejected("Couldn't change how that hop is travelled.");
+        toastRejected("Couldn’t change how that hop is travelled.");
       }
     });
   }

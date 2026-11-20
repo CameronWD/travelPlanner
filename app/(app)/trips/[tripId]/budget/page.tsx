@@ -103,7 +103,7 @@ export default async function BudgetPage({
           icon={Wallet}
           tone="teal"
           title="No dates yet"
-          description="Set your trip's start and end dates to see where the money goes."
+          description="Set your trip’s start and end dates to see where the money goes."
           action={
             <Button asChild>
               <Link href={tripPath(slug, "/settings")}>Set dates</Link>

@@ -40,7 +40,7 @@ export function DangerZone({ tripId, tripName }: DangerZoneProps) {
       const result = await deleteTrip(tripId);
       // If deleteTrip succeeds it redirects (throws), so we only land here on error.
       if (!result.success) {
-        setError(firstErrorMessage(result, "Couldn't delete the trip."));
+        setError(firstErrorMessage(result, "Couldn’t delete the trip."));
         setOpen(false);
       }
     });
@@ -83,7 +83,7 @@ export function DangerZone({ tripId, tripName }: DangerZoneProps) {
                 Type <strong>{tripName}</strong> to confirm
               </>
             }
-            error={confirmValue && !confirmed ? "Name doesn't match" : undefined}
+            error={confirmValue && !confirmed ? "Name doesn’t match" : undefined}
           >
             <Input
               placeholder={tripName}

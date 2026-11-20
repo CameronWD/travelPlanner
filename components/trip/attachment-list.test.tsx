@@ -441,7 +441,7 @@ describe("AttachmentList", () => {
         await waitFor(() =>
           expect(toast).toHaveBeenCalledWith({
             variant: "destructive",
-            title: "Couldn't add Flight",
+            title: "Couldn’t add Flight",
             description: "This trip is out of space.",
           }),
         );
@@ -482,7 +482,7 @@ describe("AttachmentList", () => {
         await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "success", title: "Added 2 files" }));
         expect(toast).toHaveBeenCalledWith({
           variant: "destructive",
-          title: "Couldn't add b.pdf",
+          title: "Couldn’t add b.pdf",
           description: "This trip is out of space.",
         });
         expect(sentNames()).toEqual(["a.pdf", "b.pdf", "c.pdf"]);
@@ -511,7 +511,7 @@ describe("AttachmentList", () => {
         prepared.resolve(new File([new Uint8Array(5 * 1024 * 1024)], "a.webp", { type: "image/webp" }));
         await waitFor(() =>
           expect(toast).toHaveBeenCalledWith(
-            expect.objectContaining({ variant: "destructive", title: "Couldn't add a.webp" }),
+            expect.objectContaining({ variant: "destructive", title: "Couldn’t add a.webp" }),
           ),
         );
         expect(uploadAttachment).not.toHaveBeenCalled();
@@ -533,7 +533,7 @@ describe("AttachmentList", () => {
           await waitFor(() =>
             expect(toast).toHaveBeenCalledWith({
               variant: "destructive",
-              title: "Couldn't add a.pdf",
+              title: "Couldn’t add a.pdf",
               description: OFFLINE_MESSAGE,
             }),
           );
@@ -549,8 +549,8 @@ describe("AttachmentList", () => {
           await waitFor(() =>
             expect(toast).toHaveBeenCalledWith({
               variant: "destructive",
-              title: "Couldn't add a.pdf",
-              description: "Couldn't upload that file.",
+              title: "Couldn’t add a.pdf",
+              description: "Couldn’t upload that file.",
             }),
           );
         });
@@ -569,7 +569,7 @@ describe("AttachmentList", () => {
           await waitFor(() =>
             expect(toast).toHaveBeenCalledWith({
               variant: "destructive",
-              title: "Couldn't add a.pdf",
+              title: "Couldn’t add a.pdf",
               description: "This trip is out of space.",
             }),
           );
@@ -582,7 +582,7 @@ describe("AttachmentList", () => {
           await user.upload(fileInput(container), pdf("a.pdf"));
           setOnline(false);
           await user.click(await screen.findByRole("button", { name: "Add 1 file" }));
-          expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload that file.");
+          expect(await screen.findByRole("alert")).toHaveTextContent("Couldn’t upload that file.");
           expect(toast).not.toHaveBeenCalled();
         });
 
@@ -599,7 +599,7 @@ describe("AttachmentList", () => {
           await waitFor(() =>
             expect(toast).toHaveBeenCalledWith({
               variant: "destructive",
-              title: "Couldn't add clip.mp4",
+              title: "Couldn’t add clip.mp4",
               description: "Only PDFs, photos or text files can be added.",
             }),
           );
@@ -900,14 +900,14 @@ describe("AttachmentList", () => {
   it("toasts the server's reason when deleteAttachment refuses (spec 2026-10-06 §E)", async () => {
     vi.mocked(deleteAttachment).mockResolvedValueOnce({
       success: false,
-      errors: { _: ["You can't delete someone else's file."] },
+      errors: { _: ["You can’t delete someone else's file."] },
     });
     const user = userEvent.setup();
     render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />);
     await user.click(screen.getByRole("button", { name: /delete boarding-pass\.pdf/i }));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You can't delete someone else's file." }),
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You can’t delete someone else's file." }),
     );
   });
 });

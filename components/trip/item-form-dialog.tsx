@@ -257,7 +257,7 @@ function ItemPhotoField({
     const files = Array.from(event.dataTransfer.files ?? []);
     const file = files.find((f) => f.type.startsWith("image/"));
     if (!file) {
-      if (files.length > 0) setError("That isn't an image. Drop a photo instead.");
+      if (files.length > 0) setError("That isn’t an image. Drop a photo instead.");
       return;
     }
     await uploadFile(file);
@@ -279,7 +279,7 @@ function ItemPhotoField({
       const result = await setItemPhoto(formData);
       if (!result.success) {
         const firstError = Object.values(result.errors)[0]?.[0];
-        setError(firstError ?? "Couldn't upload that photo. Try again.");
+        setError(firstError ?? "Couldn’t upload that photo. Try again.");
         return;
       }
       // The server holds the real Attachment; its url is deterministic
@@ -298,7 +298,7 @@ function ItemPhotoField({
     try {
       const result = await removeItemPhoto(itemId);
       if (!result.success) {
-        setError("Couldn't remove that photo. Try again.");
+        setError("Couldn’t remove that photo. Try again.");
         return;
       }
       setPhotoUrl(null);
@@ -719,7 +719,7 @@ function ItemForm({
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
-  const DELETE_FAILED = "Couldn't delete this Item. Try again.";
+  const DELETE_FAILED = "Couldn’t delete this Item. Try again.";
 
   async function handleDelete() {
     if (!item) return;

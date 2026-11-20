@@ -332,7 +332,7 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
   it.each([
     ["2000-01-01", "2999-01-10", true],
     ["2026-01-01", "2026-01-10", false],
-  ])("passes allowNearMe = isWithinTrip to What's around (%s..%s -> %s)", async (startDate, endDate, within) => {
+  ])("passes allowNearMe = isWithinTrip to What’s around (%s..%s -> %s)", async (startDate, endDate, within) => {
     tripFindUniqueMock.mockResolvedValue({ startDate, endDate, homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: true });
     vi.mocked((await import("@/lib/itinerary")).effectiveTodayISO).mockReturnValue("2026-01-05");
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
@@ -345,7 +345,7 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
   it.each([
     ["2026-01-01", "2026-01-10", false],
     ["2000-01-01", "2999-01-10", true],
-  ])("with no located start point, renders What's around only when Near me is possible (%s..%s -> %s)", async (startDate, endDate, shown) => {
+  ])("with no located start point, renders What’s around only when Near me is possible (%s..%s -> %s)", async (startDate, endDate, shown) => {
     tripFindUniqueMock.mockResolvedValue({ startDate, endDate, homeCurrency: "GBP", chaptersEnabled: true, whatsAroundEnabled: true });
     vi.mocked((await import("@/lib/itinerary")).effectiveTodayISO).mockReturnValue("2026-01-05");
     stopFindManyMock.mockResolvedValue([
@@ -640,9 +640,9 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
 
     const headings = [...dom.querySelectorAll("h2, h3")].map((h) => h.textContent?.trim());
-    expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today's plan", "Tonight's stay", "Where you are"]);
+    expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today’s plan", "Tonight's stay", "Where you are"]);
 
-    for (const text of ["Today's plan", "Where you are"]) {
+    for (const text of ["Today’s plan", "Where you are"]) {
       const h = [...dom.querySelectorAll("h3")].find((el) => el.textContent?.trim() === text)!;
       expect(closestKitCard(h), `${text} sits in a kit Card`).not.toBeNull();
     }
@@ -1124,7 +1124,7 @@ describe("PhaseTravelling — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const phone = renderToStaticMarkup((await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer" })) as React.ReactElement);
     expect(phone).toContain("Reveal the surprise in Paris?");
-    expect(phone.indexOf("Reveal the surprise in Paris?")).toBeLessThan(phone.indexOf("Today&#x27;s plan"));
+    expect(phone.indexOf("Reveal the surprise in Paris?")).toBeLessThan(phone.indexOf("Today’s plan"));
     const desktop = renderToStaticMarkup(
       (await PhaseTravelling({ tripId: "trip-1", userId: "u-viewer", layout: "desktop" })) as React.ReactElement,
     );

@@ -143,9 +143,9 @@ export function WishlistBoard({
     setPendingId(itemId);
     try {
       const r = await deleteItem(itemId);
-      if (!r.success) toastRefused(r.errors, "Couldn't delete that idea.");
+      if (!r.success) toastRefused(r.errors, "Couldn’t delete that idea.");
     } catch {
-      toastRejected("Couldn't delete that idea.");
+      toastRejected("Couldn’t delete that idea.");
     } finally {
       setPendingId(null);
     }

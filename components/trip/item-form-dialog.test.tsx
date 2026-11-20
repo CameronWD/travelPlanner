@@ -893,7 +893,7 @@ describe("ItemFormDialog", () => {
     const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
     await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
 
-    await screen.findByText(/couldn't delete this item/i);
+    await screen.findByText(/couldn’t delete this item/i);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
@@ -1161,7 +1161,7 @@ describe("Photo field", () => {
       render(<ItemFormDialog {...baseProps} item={existingItem} />);
       const file = new File(["%PDF"], "ticket.pdf", { type: "application/pdf" });
       fireEvent.drop(dropzone(), { dataTransfer: { files: [file] } });
-      expect(await screen.findByText("That isn't an image. Drop a photo instead.")).toBeInTheDocument();
+      expect(await screen.findByText("That isn’t an image. Drop a photo instead.")).toBeInTheDocument();
       expect(setItemPhoto).not.toHaveBeenCalled();
     });
 

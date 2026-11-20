@@ -31,7 +31,7 @@ interface UploadTarget {
 }
 
 const DISALLOWED_TYPE = "Only PDFs, photos or text files can be added.";
-const UPLOAD_FAILED = "Couldn't upload that file.";
+const UPLOAD_FAILED = "Couldn’t upload that file.";
 
 interface Outcome {
   added: number;
@@ -165,7 +165,7 @@ export function useStagedUploads(target: UploadTarget) {
       toast({ variant: "success", title: `Added ${outcome.added} file${outcome.added === 1 ? "" : "s"}` });
     }
     for (const { name, reason } of outcome.failures) {
-      toast({ variant: "destructive", title: `Couldn't add ${name}`, description: reason });
+      toast({ variant: "destructive", title: `Couldn’t add ${name}`, description: reason });
     }
   }
 

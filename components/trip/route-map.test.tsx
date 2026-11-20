@@ -68,7 +68,7 @@ describe("RouteMap on Google", () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "");
     const { container } = render(<RouteMap stops={STOPS} />);
-    expect(screen.getByText("The map isn't available right now.")).toBeInTheDocument();
+    expect(screen.getByText("The map isn’t available right now.")).toBeInTheDocument();
     expect(container.querySelector("[data-map-fallback]")).not.toBeNull();
     expect(screen.getByText("Tokyo")).toBeInTheDocument();
     expect(screen.getByText("Kyoto")).toBeInTheDocument();

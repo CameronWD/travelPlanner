@@ -31,8 +31,8 @@ function RestoreButton({ trip }: { trip: RecentlyDeletedTrip }) {
         router.push(tripPath(result.slug ?? trip.id));
       } else {
         toast({
-          title: "Couldn't restore.",
-          description: firstErrorMessage(result, "Couldn't restore."),
+          title: "Couldn’t restore.",
+          description: firstErrorMessage(result, "Couldn’t restore."),
           variant: "destructive",
         });
       }

@@ -45,7 +45,7 @@ export default async function WhatsNewPage() {
     <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,38rem)_14rem] lg:justify-center lg:gap-x-12 lg:gap-y-[18px]">
       <div className="flex flex-col gap-1.5 lg:col-start-1">
         <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
-          What&apos;s new
+          What’s new
         </h1>
         <p className="text-[13px] font-medium text-muted-foreground">
           Changes to Teepee, newest first.

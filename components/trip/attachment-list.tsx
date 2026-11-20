@@ -150,9 +150,9 @@ export function AttachmentList({
     startTransition(async () => {
       try {
         const r = await deleteAttachment(id);
-        if (!r.success) toastRefused(r, "Couldn't delete that file.");
+        if (!r.success) toastRefused(r, "Couldn’t delete that file.");
       } catch {
-        toastRejected("Couldn't delete that file.");
+        toastRejected("Couldn’t delete that file.");
       } finally {
         setDeletingId(null);
       }

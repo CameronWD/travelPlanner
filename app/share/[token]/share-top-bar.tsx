@@ -20,7 +20,7 @@ export function ShareTopBar({ requestAccessHref }: { requestAccessHref: Route })
       <Logo size={30} className="hidden lg:inline-flex" />
       <div className="flex items-center gap-4">
         <span className="hidden text-sm font-semibold text-on-accent-muted lg:inline">
-          You&apos;re viewing a shared trip
+          You’re viewing a shared trip
         </span>
         <Button asChild variant="outline" size="md" className="pressable h-11 lg:hidden">
           <Link href={requestAccessHref}>Plan your own</Link>

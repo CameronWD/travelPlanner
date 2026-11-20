@@ -103,12 +103,12 @@ export function NearbyWishlist({
                             const firstError = Object.values(result.errors)[0]?.[0];
                             toast({
                               variant: "destructive",
-                              title: "Couldn't add item.",
+                              title: "Couldn’t add item.",
                               description: firstError,
                             });
                           }
                         } catch {
-                          toastRejected("Couldn't add item.");
+                          toastRejected("Couldn’t add item.");
                         } finally {
                           setPendingId(null);
                         }

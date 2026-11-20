@@ -96,10 +96,10 @@ function ThreadBody({
         if (result.success) {
           setBody("");
         } else {
-          setError(result.errors.body?.[0] ?? "Couldn't add that note. Try again.");
+          setError(result.errors.body?.[0] ?? "Couldn’t add that note. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't add that note. Try again."));
+        setError(failureMessage("Couldn’t add that note. Try again."));
       }
     });
   }

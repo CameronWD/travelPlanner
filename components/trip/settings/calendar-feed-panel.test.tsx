@@ -213,7 +213,7 @@ describe("CalendarFeedPanel", () => {
     const transport = screen.getByRole("checkbox", { name: "Transport" });
     await user.click(transport);
     await vi.waitFor(() =>
-      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update the calendar feed. Try again." }),
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t update the calendar feed. Try again." }),
     );
     expect(transport).toBeChecked();
   });

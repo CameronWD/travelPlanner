@@ -95,7 +95,7 @@ describe("BookingStateField (CONTEXT.md Booking state)", () => {
 
   it("says booking is not paying", () => {
     render(<Harness kind="ITEM" onPayload={() => {}} />);
-    expect(screen.getByText(/booked doesn't mean paid/i)).toBeInTheDocument();
+    expect(screen.getByText(/booked doesn’t mean paid/i)).toBeInTheDocument();
   });
 
   it("the control is wired to its Field: labelled, described, and pointed at the error when there is one", () => {
@@ -105,7 +105,7 @@ describe("BookingStateField (CONTEXT.md Booking state)", () => {
     }
     const { unmount } = render(<Harness kind="TRANSPORT" onPayload={() => {}} />);
     const group = screen.getByRole("radiogroup", { name: "Booking" });
-    expect(group).toHaveAccessibleDescription(/booked doesn't mean paid/i);
+    expect(group).toHaveAccessibleDescription(/booked doesn’t mean paid/i);
     expect(group).not.toHaveAttribute("aria-invalid");
     unmount();
     render(<WithError />);

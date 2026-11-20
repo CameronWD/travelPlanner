@@ -17,11 +17,11 @@ export function WhatsAroundSwitch({ tripId, enabled }: { tripId: string; enabled
         const result = await setWhatsAroundEnabled(tripId, next);
         if (!result.success) {
           setChecked(!next);
-          toast({ variant: "destructive", title: "Couldn't update What's around. Try again." });
+          toast({ variant: "destructive", title: "Couldn’t update What’s around. Try again." });
         }
       } catch {
         setChecked(!next);
-        toast({ variant: "destructive", title: "Couldn't update What's around. Try again." });
+        toast({ variant: "destructive", title: "Couldn’t update What’s around. Try again." });
       }
     });
   }
@@ -30,9 +30,9 @@ export function WhatsAroundSwitch({ tripId, enabled }: { tripId: string; enabled
     <div className="flex items-start justify-between gap-4">
       <div>
         <label htmlFor="whats-around-enabled" className="text-sm font-bold text-foreground">
-          Show What&apos;s around
+          Show What’s around
         </label>
-        <p className="text-[13px] text-muted-foreground">Show places near where you&apos;re staying, from Google Maps.</p>
+        <p className="text-[13px] text-muted-foreground">Show places near where you’re staying, from Google Maps.</p>
       </div>
       <Switch id="whats-around-enabled" checked={checked} onCheckedChange={handleToggle} disabled={isPending} />
     </div>

@@ -113,7 +113,7 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     // happened when nothing was added (already there, or only marked Need to
     // buy); otherwise a row fix "applies" and a checklist fix "adds".
     done: (_i, r) => ({ title: r.message ?? (card.fix?.kind === "row" ? "Fix applied" : "Added"), description: card.title }),
-    failure: "Couldn't apply that fix. Nothing changed.",
+    failure: "Couldn’t apply that fix. Nothing changed.",
   });
   const dismiss = useUndoableAction({
     apply: () => setLocal("DISMISSED"),
@@ -124,7 +124,7 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     // Same reasoning as apply's revertUndo above.
     revertUndo: () => setLocal(null),
     done: () => ({ title: "Dismissed", description: card.title }),
-    failure: "Couldn't dismiss that. Try again.",
+    failure: "Couldn’t dismiss that. Try again.",
   });
   // The lasting button on an Applied or Dismissed card (decision 4): a plain
   // undo, with no undo of its own. `state` here is read at click time (the

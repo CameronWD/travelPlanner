@@ -50,7 +50,7 @@ export function ShareCta({
         <p className="mt-2 max-w-[560px] break-words text-[15px] font-semibold leading-[1.45] lg:text-[17px]">
           {showUseThisRoute
             ? `Start a trip with the same ${stopCount} stop${stopCount === 1 ? "" : "s"}. You pick the dates.`
-            : "Teepee keeps the route, the days and the money in one place, for everyone who's going. It's full right now, but there's a waiting list."}
+            : "Teepee keeps the route, the days and the money in one place, for everyone who’s going. It’s full right now, but there’s a waiting list."}
         </p>
       </div>
       {showUseThisRoute ? (

@@ -35,7 +35,7 @@ describe("StepFrom", () => {
   it("asks where you're leaving from, with the search focused", () => {
     render(<StepHarness Step={StepFrom} />);
     expect(screen.getByRole("heading", { level: 2, name: "Leaving from?" })).toBeInTheDocument();
-    expect(screen.getByText("Your home base. It's where the trip starts and ends.")).toBeInTheDocument();
+    expect(screen.getByText("Your home base. It’s where the trip starts and ends.")).toBeInTheDocument();
     expect(combo()).toHaveFocus();
   });
 

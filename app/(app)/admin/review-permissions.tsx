@@ -45,7 +45,7 @@ export function ReviewPermissionsPanel({ initial }: { initial: ReviewPermissionV
     setPending(row.userId, false);
     if (!result.success) {
       put(row.userId, before);
-      setMessage(`${row.name}: ${formError(result) ?? "Couldn't change that."}`);
+      setMessage(`${row.name}: ${formError(result) ?? "Couldn’t change that."}`);
     }
   }
 

@@ -63,13 +63,13 @@ describe("WhatsNewCard", () => {
 
   it("dismisses the whole release, not just the notes it showed", async () => {
     render(<WhatsNewCard notes={NOTES} totalUnread={7} />);
-    fireEvent.click(screen.getByRole("button", { name: /dismiss what's new/i }));
+    fireEvent.click(screen.getByRole("button", { name: /dismiss what’s new/i }));
     await waitFor(() => expect(dismissWhatsNew).toHaveBeenCalledTimes(1));
   });
 
   it("hides immediately on dismiss, without waiting for the server", async () => {
     render(<WhatsNewCard notes={NOTES} totalUnread={3} />);
-    fireEvent.click(screen.getByRole("button", { name: /dismiss what's new/i }));
+    fireEvent.click(screen.getByRole("button", { name: /dismiss what’s new/i }));
     await waitFor(() => expect(screen.queryByText("Alpha")).toBeNull());
   });
 
@@ -87,7 +87,7 @@ describe("WhatsNewCard", () => {
     );
 
     render(<WhatsNewCard notes={NOTES} totalUnread={3} />);
-    fireEvent.click(screen.getByRole("button", { name: /dismiss what's new/i }));
+    fireEvent.click(screen.getByRole("button", { name: /dismiss what’s new/i }));
 
     // Hidden the instant it is clicked, before the server has answered.
     expect(screen.queryByText("Alpha")).toBeNull();

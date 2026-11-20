@@ -97,7 +97,7 @@ describe("ShareLinksPanel", () => {
     render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
 
     await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
-    expect(screen.getByText("Each day's notes and photos, by first name")).toBeInTheDocument();
+    expect(screen.getByText("Each day’s notes and photos, by first name")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/label/i), "Nana");
     await userEvent.click(screen.getByRole("switch", { name: /include journal/i }));
     await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
@@ -117,7 +117,7 @@ describe("ShareLinksPanel", () => {
     createShareLink.mockResolvedValue({ success: true, link: link({ id: "new", label: "Nana", showTravellers: true }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
     await userEvent.click(screen.getByRole("button", { name: /new share link/i }));
-    const sw = screen.getByRole("switch", { name: /show who's going/i });
+    const sw = screen.getByRole("switch", { name: /show who’s going/i });
     expect(sw).toHaveAttribute("aria-checked", "false");
     expect(screen.getByText("Names and photos of everyone on the trip")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/label/i), "Nana");
@@ -133,8 +133,8 @@ describe("ShareLinksPanel", () => {
     const contacts = screen.getByRole("switch", { name: /contact details/i });
     expect(contacts).toHaveAttribute("aria-checked", "false");
     expect(contacts).toBeDisabled();
-    expect(screen.getByText('Each traveller\'s phone numbers under their name, only with "Show who\'s going" on.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
+    expect(screen.getByText('Each traveller’s phone numbers under their name, only with “Show who’s going” on.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: /show who’s going/i }));
     expect(contacts).toBeEnabled();
     await userEvent.type(screen.getByLabelText(/label/i), "Nana");
     await userEvent.click(contacts);
@@ -146,7 +146,7 @@ describe("ShareLinksPanel", () => {
     updateShareLink.mockResolvedValue({ success: true, link: link({ showTravellers: true, includeContacts: true }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
-    await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /show who’s going/i }));
     await userEvent.click(screen.getByRole("switch", { name: /contact details/i }));
     await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
     expect(updateShareLink).toHaveBeenCalledWith("t", "l1", expect.objectContaining({ showTravellers: true, includeContacts: true }));
@@ -156,7 +156,7 @@ describe("ShareLinksPanel", () => {
     updateShareLink.mockResolvedValue({ success: true, link: link({ showTravellers: true }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
-    await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /show who’s going/i }));
     await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
     expect(updateShareLink).toHaveBeenCalledWith("t", "l1", expect.objectContaining({ showTravellers: true }));
   });
@@ -165,13 +165,13 @@ describe("ShareLinksPanel", () => {
     updateShareLink.mockRejectedValueOnce(new Error("network"));
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
-    await userEvent.click(screen.getByRole("switch", { name: /show who's going/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /show who’s going/i }));
     await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Couldn't do that. Nothing changed. Try again.",
+        title: "Couldn’t do that. Nothing changed. Try again.",
       });
     });
     // Nothing was changed: the edit form is still open, the row's caption is
@@ -190,7 +190,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Couldn't do that. Nothing changed. Try again.",
+        title: "Couldn’t do that. Nothing changed. Try again.",
       });
     });
     // Nothing was changed: the create form is still open with what was typed,
@@ -242,7 +242,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Couldn't do that. Nothing changed. Try again.",
+        title: "Couldn’t do that. Nothing changed. Try again.",
       });
     });
     // Nothing changed: the row and its token stay, and neither button is stuck.
@@ -315,7 +315,7 @@ describe("ShareLinksPanel failures (spec 2026-10-06 §E)", () => {
     render(<ShareLinksPanel tripId="trip-1" initialLinks={[link()]} />);
     await userEvent.click(screen.getByRole("button", { name: /^copy$/i }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't copy the link." }),
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t copy the link." }),
     );
   });
 
@@ -327,7 +327,7 @@ describe("ShareLinksPanel failures (spec 2026-10-06 §E)", () => {
     await userEvent.type(screen.getByLabelText("Label"), "Mum & Dad");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You're offline. Plan changes need a connection." }),
+      expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "You’re offline. Plan changes need a connection." }),
     );
     Object.defineProperty(navigator, "onLine", { value: true, writable: true, configurable: true });
   });

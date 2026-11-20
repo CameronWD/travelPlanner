@@ -83,7 +83,7 @@ describe("GlobeMap pins and theme", () => {
   it("falls back to the unavailable notice without a key", () => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "");
     const { container } = render(globeElement());
-    expect(container.querySelector("[data-map-fallback]")).toHaveTextContent("The map isn't available right now.");
+    expect(container.querySelector("[data-map-fallback]")).toHaveTextContent("The map isn’t available right now.");
     expect(screen.queryByTestId("gmap")).toBeNull();
   });
 });

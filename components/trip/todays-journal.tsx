@@ -77,7 +77,7 @@ export function TodaysJournal({ tripId, date, mine, minePhoto, others, headingLe
       <div className="flex items-center gap-2">
         <BookOpen className="size-[18px] text-foreground" strokeWidth={2.5} aria-hidden />
         <Heading className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
-          Today&apos;s journal
+          Today’s journal
         </Heading>
       </div>
 

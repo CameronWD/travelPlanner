@@ -8,7 +8,7 @@ vi.mock("@/lib/auth/client", () => ({
   authClient: { signIn: { magicLink: magicLinkMock } },
 }));
 
-const SENT = "If you already have a spot, a sign-in link is on its way. If not, I've noted your request.";
+const SENT = "If you already have a spot, a sign-in link is on its way. If not, I’ve noted your request.";
 
 beforeEach(() => {
   magicLinkMock.mockReset();
@@ -54,7 +54,7 @@ describe("EmailSignInForm (spec 2026-10-01 §B3)", () => {
     render(<EmailSignInForm callbackUrl="/trips" />);
     await submit("stranger@example.com");
     expect(await screen.findByText(SENT)).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/not on the list|isn't on the list|refused|denied/i);
+    expect(document.body.textContent).not.toMatch(/not on the list|isn’t on the list|refused|denied/i);
   });
 
   it("'Use a different address' returns to an empty field", async () => {
@@ -78,7 +78,7 @@ describe("EmailSignInForm (spec 2026-10-01 §B3)", () => {
     magicLinkMock.mockResolvedValue({ data: null, error: { code: "INTERNAL_SERVER_ERROR", message: "boom" } });
     render(<EmailSignInForm callbackUrl="/trips" />);
     await submit();
-    expect(await screen.findByText("Couldn't send the link just now. Try again in a minute.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn’t send the link just now. Try again in a minute.")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("cam@example.com");
     expect(screen.queryByText(SENT)).toBeNull();
   });
@@ -87,7 +87,7 @@ describe("EmailSignInForm (spec 2026-10-01 §B3)", () => {
     magicLinkMock.mockRejectedValue(new Error("Failed to fetch"));
     render(<EmailSignInForm callbackUrl="/trips" />);
     await submit();
-    expect(await screen.findByText("Couldn't send the link just now. Try again in a minute.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn’t send the link just now. Try again in a minute.")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("cam@example.com");
     expect(screen.queryByText(SENT)).toBeNull();
   });

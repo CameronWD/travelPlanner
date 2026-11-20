@@ -41,7 +41,7 @@ function confirmOfflineSignOut(): Promise<boolean> {
         }}
         onConfirm={() => finish(true)}
         title="Sign out while offline?"
-        description="You're offline. Signing out removes the saved copy of your trips from this phone."
+        description="You’re offline. Signing out removes the saved copy of your trips from this phone."
         confirmLabel="Sign out"
         destructive
       />,

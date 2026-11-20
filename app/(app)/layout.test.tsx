@@ -412,7 +412,7 @@ describe("AppLayout", () => {
     mockUsePathname.mockReturnValue("/trips/t1");
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    const link = within(header()).getByRole("link", { name: /what's new/i });
+    const link = within(header()).getByRole("link", { name: /what’s new/i });
     expect(link.getAttribute("href")).toBe("/whats-new");
   });
 

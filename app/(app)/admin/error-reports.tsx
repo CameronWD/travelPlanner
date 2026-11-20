@@ -53,10 +53,10 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
       if (result.success) {
         setReports((prev) => prev.filter((r) => r.id !== report.id));
       } else {
-        setMessage(formError(result) ?? "Couldn't clear that error.");
+        setMessage(formError(result) ?? "Couldn’t clear that error.");
       }
     } catch {
-      setMessage("Couldn't clear that error.");
+      setMessage("Couldn’t clear that error.");
     } finally {
       setPendingId(null);
     }
@@ -83,10 +83,10 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
       if (result.success) {
         setReports([]);
       } else {
-        setMessage(formError(result) ?? "Couldn't clear all errors.");
+        setMessage(formError(result) ?? "Couldn’t clear all errors.");
       }
     } catch {
-      setMessage("Couldn't clear all errors.");
+      setMessage("Couldn’t clear all errors.");
     } finally {
       setClearingAll(false);
     }

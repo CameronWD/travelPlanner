@@ -223,10 +223,10 @@ function AddItemForm({
           setAssignedToId("");
         } else {
           const firstError = Object.values(result.errors)[0]?.[0];
-          setError(firstError ?? "Couldn't add that item. Try again.");
+          setError(firstError ?? "Couldn’t add that item. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't add that item. Try again."));
+        setError(failureMessage("Couldn’t add that item. Try again."));
       }
     });
   }
@@ -362,10 +362,10 @@ function EditItemForm({
           onClose();
         } else {
           const firstError = Object.values(result.errors)[0]?.[0];
-          setError(firstError ?? "Couldn't save that item. Try again.");
+          setError(firstError ?? "Couldn’t save that item. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't save that item. Try again."));
+        setError(failureMessage("Couldn’t save that item. Try again."));
       }
     });
   }
@@ -521,7 +521,7 @@ function ChecklistRow({
       try {
         await setBuyState(item.id, "NEEDED");
       } catch {
-        toastRejected("Couldn't update that item.");
+        toastRejected("Couldn’t update that item.");
       }
     });
   }
@@ -531,7 +531,7 @@ function ChecklistRow({
       try {
         await reorderChecklistItem(item.id, direction);
       } catch {
-        toastRejected("Couldn't move that item.");
+        toastRejected("Couldn’t move that item.");
       }
     });
   }
@@ -540,9 +540,9 @@ function ChecklistRow({
     startTransition(async () => {
       try {
         const r = await movePackingItem(item.id, to);
-        if (!r.success) toastRefused(r.errors, "Couldn't move that item.");
+        if (!r.success) toastRefused(r.errors, "Couldn’t move that item.");
       } catch {
-        toastRejected("Couldn't move that item.");
+        toastRejected("Couldn’t move that item.");
       }
     });
   }
@@ -789,9 +789,9 @@ export function Checklist({
       setShownDone({ id: item.id, done: !item.done });
       try {
         const r = await toggleChecklistItem(item.id, !item.done);
-        if (!r.success) toastRefused(r.errors, "Couldn't update that item.");
+        if (!r.success) toastRefused(r.errors, "Couldn’t update that item.");
       } catch {
-        toastRejected("Couldn't update that item.");
+        toastRejected("Couldn’t update that item.");
       }
     });
   }

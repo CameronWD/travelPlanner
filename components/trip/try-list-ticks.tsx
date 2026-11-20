@@ -23,9 +23,9 @@ export function TryListTicks({ itemId, itemTitle, list }: { itemId: string; item
       setShown({ id, tried });
       try {
         const r = await tickTryEntry(itemId, id, tried);
-        if (!r.success) toastRefused(r.errors, "Couldn't tick that.");
+        if (!r.success) toastRefused(r.errors, "Couldn’t tick that.");
       } catch {
-        toastRejected("Couldn't tick that.");
+        toastRejected("Couldn’t tick that.");
       }
     });
   }

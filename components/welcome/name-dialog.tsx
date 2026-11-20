@@ -19,7 +19,7 @@ export const NAME_DIALOG_COPY = {
   label: "Display name",
   button: "Save",
   blank: "Enter a name to carry on.",
-  failed: "Couldn't save your name. Try again.",
+  failed: "Couldn’t save your name. Try again.",
 } as const;
 
 /** Same ceiling as setDisplayName (server/actions/profile.ts DISPLAY_NAME_MAX). */

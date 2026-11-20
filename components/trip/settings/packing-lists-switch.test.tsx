@@ -65,7 +65,7 @@ describe("PackingListsSwitch", () => {
     await user.click(toggle);
 
     await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
-    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update packing lists. Try again." });
+    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t update packing lists. Try again." });
   });
 
   it("rolls back and toasts when the action throws", async () => {
@@ -77,6 +77,6 @@ describe("PackingListsSwitch", () => {
     await user.click(toggle);
 
     await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
-    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update packing lists. Try again." });
+    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t update packing lists. Try again." });
   });
 });

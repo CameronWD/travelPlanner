@@ -380,7 +380,7 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
 
   it("leads with the 'That's a wrap' heading and the kit Summary stat row (teal nights · sun cost · lilac paid)", async () => {
     const div = await dom();
-    expect(div.querySelector("h2")?.textContent).toBe("That's a wrap");
+    expect(div.querySelector("h2")?.textContent).toBe("That’s a wrap");
     const statCard = (label: string) =>
       [...div.querySelectorAll(".text-label")].find((el) => el.textContent === label)!.parentElement!;
     expect(statCard("Nights").className).toMatch(/\bbg-teal\b/);
@@ -589,7 +589,7 @@ describe("PhasePast desktop layout (spec D)", () => {
 
   it("ends the wrap card where its content ends", async () => {
     const div = await desktopDom();
-    const card = [...div.querySelectorAll("h2")].find((h) => h.textContent === "That's a wrap")!.closest(".gap-4") as HTMLElement;
+    const card = [...div.querySelectorAll("h2")].find((h) => h.textContent === "That’s a wrap")!.closest(".gap-4") as HTMLElement;
     expect(card.className).not.toMatch(/\bh-full\b/);
     expect(card.querySelector(".mt-auto")).toBeNull();
   });
@@ -602,7 +602,7 @@ describe("PhasePast desktop layout (spec D)", () => {
     for (const label of ["Nights", "Trip cost", "Paid so far"]) {
       expect([...div.querySelectorAll(".text-label")].some((el) => el.textContent === label)).toBe(true);
     }
-    expect([...div.querySelectorAll("h2")].map((h) => h.textContent)).toContain("That's a wrap");
+    expect([...div.querySelectorAll("h2")].map((h) => h.textContent)).toContain("That’s a wrap");
     expect(div.textContent).toContain("£1000.00");
     // Every direct cell of the grid spans columns.
     for (const cell of grid.children) expect(cell.className).toMatch(/col-span-\d+/);

@@ -56,7 +56,7 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
     try {
       const result = await deleteChapter(chapter.id);
       if (!result.success) {
-        setError("Couldn't delete that chapter. Try again.");
+        setError("Couldn’t delete that chapter. Try again.");
       }
     } finally {
       setPendingId(null);

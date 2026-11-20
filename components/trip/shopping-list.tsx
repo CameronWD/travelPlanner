@@ -50,10 +50,10 @@ function AddShoppingItemForm({ tripId }: { tripId: string }) {
           setText("");
         } else {
           const firstError = Object.values(result.errors)[0]?.[0];
-          setError(firstError ?? "Couldn't add that item. Try again.");
+          setError(firstError ?? "Couldn’t add that item. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't add that item. Try again."));
+        setError(failureMessage("Couldn’t add that item. Try again."));
       }
     });
   }
@@ -108,7 +108,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
           await toggleChecklistItem(entry.id, !entry.bought);
         }
       } catch {
-        toastRejected("Couldn't update that item.");
+        toastRejected("Couldn’t update that item.");
       }
     });
   }
@@ -118,7 +118,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
       try {
         await setBuyState(entry.id, null);
       } catch {
-        toastRejected("Couldn't update that item.");
+        toastRejected("Couldn’t update that item.");
       }
     });
   }

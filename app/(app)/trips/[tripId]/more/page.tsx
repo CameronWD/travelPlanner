@@ -23,11 +23,11 @@ export const metadata: Metadata = {
 const SECTIONS = [
   { segment: "calendar", label: "Calendar", description: "Every day at once, as a month or a list" },
   { segment: "summary", label: "Summary", description: "The whole trip at a glance" },
-  { segment: "reviews", label: "Reviews", description: "Claude's check of the plan, and what it found" },
+  { segment: "reviews", label: "Reviews", description: "Claude’s check of the plan, and what it found" },
   { segment: "journal", label: "Journal", description: "What happened, day by day" },
   { segment: "checklists", label: "Checklists", description: "Things to tick off before and during" },
   { segment: "files", label: "Files", description: "Tickets, bookings and documents" },
-  { segment: "activity", label: "Activity", description: "What everyone's changed" },
+  { segment: "activity", label: "Activity", description: "What everyone’s changed" },
   { segment: "settings", label: "Settings", description: "Travellers, sharing, digests and details" },
   { segment: "help", label: "Help", description: "How to use Teepee" },
 ] as const;

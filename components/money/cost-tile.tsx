@@ -106,7 +106,7 @@ export function CostTile({
               <PaidBar paidMinor={paidSoFarMinor} totalMinor={total} currency={homeCurrency} tripId={tripId} />
             ) : (
               <p className="text-sm font-semibold text-on-accent-muted">
-                Paid tracking lives on the real plan. This shows the variant&apos;s costs only.
+                Paid tracking lives on the real plan. This shows the variant’s costs only.
               </p>
             )}
           </div>

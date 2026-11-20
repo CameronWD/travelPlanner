@@ -62,7 +62,7 @@ export function WhatsNewCard({
       <button
         type="button"
         onClick={handleDismiss}
-        aria-label="Dismiss What's new"
+        aria-label="Dismiss What’s new"
         className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-4" aria-hidden="true" />
@@ -71,7 +71,7 @@ export function WhatsNewCard({
       <div className="flex items-center gap-2 pr-10">
         <Megaphone className="size-4 shrink-0 text-primary" aria-hidden="true" />
         <h2 className="font-display text-base font-semibold tracking-tight">
-          What&apos;s new
+          What’s new
         </h2>
         <span
           aria-hidden="true"

@@ -132,7 +132,7 @@ function PromoteForkDialogInner({
         const result = await getPromotionPreview(forkId);
         setPreview(result);
       } catch {
-        setFetchError("Couldn't load the preview. Try again.");
+        setFetchError("Couldn’t load the preview. Try again.");
       }
     })();
   }, [forkId, initialPreview]);
@@ -155,8 +155,8 @@ function PromoteForkDialogInner({
         onClose();
       } else {
         toast({
-          title: "Couldn't make this the real plan.",
-          description: firstErrorMessage(result, "Couldn't make this the real plan."),
+          title: "Couldn’t make this the real plan.",
+          description: firstErrorMessage(result, "Couldn’t make this the real plan."),
           variant: "destructive",
         });
         onClose();
@@ -242,7 +242,7 @@ function PromoteForkDialogInner({
               Type <strong>{forkName}</strong> to confirm
             </>
           }
-          error={confirmValue && !confirmed ? "Name doesn't match" : undefined}
+          error={confirmValue && !confirmed ? "Name doesn’t match" : undefined}
         >
           <Input
             placeholder={forkName}

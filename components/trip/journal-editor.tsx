@@ -84,7 +84,7 @@ function PhotoSlot({
         if (photo) {
           const confirmed = await confirm({
             title: "Replace your photo for this day?",
-            description: "This swaps out your existing photo for this day. It can't be undone.",
+            description: "This swaps out your existing photo for this day. It can’t be undone.",
             confirmLabel: "Replace",
             destructive: true,
           });
@@ -99,10 +99,10 @@ function PhotoSlot({
         if (photo) fd.set("replace", "1");
         const result = await uploadAttachment(fd);
         if (!result.success) {
-          setUploadError(firstErrorMessage(result, "Couldn't upload that photo."));
+          setUploadError(firstErrorMessage(result, "Couldn’t upload that photo."));
         }
       } catch {
-        setUploadError(failureMessage("Couldn't upload that photo. Try again."));
+        setUploadError(failureMessage("Couldn’t upload that photo. Try again."));
       } finally {
         resetInput();
       }
@@ -116,7 +116,7 @@ function PhotoSlot({
       try {
         await deleteAttachment(photo.id);
       } catch {
-        toastRejected("Couldn't remove that photo.");
+        toastRejected("Couldn’t remove that photo.");
       } finally {
         setIsDeleting(false);
       }
@@ -265,7 +265,7 @@ export function JournalEditor({
         const result = await saveJournalEntry(tripId, date, body);
         if (!result.success) {
           const firstError = Object.values(result.errors)[0]?.[0];
-          setSaveError(firstError ?? "Couldn't save that. Try again.");
+          setSaveError(firstError ?? "Couldn’t save that. Try again.");
           setSaveStatus(null);
         } else {
           setBaseline(body);
@@ -274,7 +274,7 @@ export function JournalEditor({
           saveTimerRef.current = setTimeout(() => setSaveStatus(null), 2000);
         }
       } catch {
-        setSaveError(failureMessage("Couldn't save that. Try again."));
+        setSaveError(failureMessage("Couldn’t save that. Try again."));
         setSaveStatus(null);
       } finally {
         markDone();
@@ -315,7 +315,7 @@ export function JournalEditor({
     const confirmed = await confirm({
       title: "Remove your journal entry?",
       description:
-        "This removes only your own entry for this day. It can't be undone.",
+        "This removes only your own entry for this day. It can’t be undone.",
       confirmLabel: "Remove",
       destructive: true,
     });
@@ -342,7 +342,7 @@ export function JournalEditor({
           setSaveError(null);
         }
       } catch {
-        toastRejected("Couldn't remove that entry.");
+        toastRejected("Couldn’t remove that entry.");
       }
     });
   }
@@ -361,11 +361,11 @@ export function JournalEditor({
         if (!result.success) {
           setHiddenFromShares(previous);
           const firstError = Object.values(result.errors)[0]?.[0];
-          setHiddenError(firstError ?? "Couldn't update that. Try again.");
+          setHiddenError(firstError ?? "Couldn’t update that. Try again.");
         }
       } catch {
         setHiddenFromShares(previous);
-        setHiddenError(failureMessage("Couldn't update that. Try again."));
+        setHiddenError(failureMessage("Couldn’t update that. Try again."));
       }
     });
   }

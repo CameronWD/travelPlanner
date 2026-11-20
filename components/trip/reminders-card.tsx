@@ -142,10 +142,10 @@ function AddReminderForm({
           onAdded();
         } else {
           const msg = Object.values(result.errors).flat()[0];
-          setError(msg ?? "Couldn't add that reminder. Try again.");
+          setError(msg ?? "Couldn’t add that reminder. Try again.");
         }
       } catch {
-        setError(failureMessage("Couldn't add that reminder. Try again."));
+        setError(failureMessage("Couldn’t add that reminder. Try again."));
       }
     });
   }
@@ -338,7 +338,7 @@ export function RemindersCard({ tripId, reminders, today, about, dismissed }: Re
     applyUndo: (r) => showId(r.id),
     revertUndo: (r) => hideIfListed(r.id),
     done: (r) => ({ title: "Dismissed", description: r.title }),
-    failure: "Couldn't dismiss that reminder.",
+    failure: "Couldn’t dismiss that reminder.",
   });
   const [stillDismissed, bringBack] = useOptimistic(dismissed ?? [], (state, id: string) => state.filter((r) => r.id !== id));
 
@@ -348,9 +348,9 @@ export function RemindersCard({ tripId, reminders, today, about, dismissed }: Re
       showId(id);
       try {
         const r = await updateReminder(id, { dismissed: false });
-        if (!r.success) toastRefused(r.errors, "Couldn't bring that reminder back.");
+        if (!r.success) toastRefused(r.errors, "Couldn’t bring that reminder back.");
       } catch {
-        toastRejected("Couldn't bring that reminder back.");
+        toastRejected("Couldn’t bring that reminder back.");
       }
     });
   }

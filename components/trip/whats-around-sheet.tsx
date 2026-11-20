@@ -90,7 +90,7 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
   function nearMe() {
     setLocationMessage(null);
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocationMessage("Location isn't available here.");
+      setLocationMessage("Location isn’t available here.");
       return;
     }
     setLocating(true);
@@ -103,7 +103,7 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
       },
       (err) => {
         setLocating(false);
-        setLocationMessage(err.code === 1 ? "Location is off for this site." : "Couldn't get your location. Try again.");
+        setLocationMessage(err.code === 1 ? "Location is off for this site." : "Couldn’t get your location. Try again.");
       },
       { timeout: 10_000, maximumAge: 0 },
     );
@@ -132,9 +132,9 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
         if (r.success) {
           setAdded((a) => new Set(a).add(`${place.placeId}|${to}`));
           toast({ title: to === "day" ? `Added to ${dateLabel}` : "Saved to the Wishlist", description: place.name });
-        } else toast({ variant: "destructive", title: "Couldn't add it.", description: r.errors ? Object.values(r.errors)[0]?.[0] : undefined });
+        } else toast({ variant: "destructive", title: "Couldn’t add it.", description: r.errors ? Object.values(r.errors)[0]?.[0] : undefined });
       } catch {
-        toast({ variant: "destructive", title: "Couldn't add it." });
+        toast({ variant: "destructive", title: "Couldn’t add it." });
       } finally {
         setPending(null);
       }
@@ -147,11 +147,11 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
   return (
     <Sheet open={open} onOpenChange={changeOpen}>
       <SheetTrigger asChild>
-        <Chip tone="white" size="l" touch>What&apos;s around</Chip>
+        <Chip tone="white" size="l" touch>What’s around</Chip>
       </SheetTrigger>
       <SheetContent side="docked">
         <SheetHeader>
-          <SheetTitle>What&apos;s around</SheetTitle>
+          <SheetTitle>What’s around</SheetTitle>
           <SheetDescription>{dateLabel}</SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-col gap-3">
@@ -175,9 +175,9 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
             ) : loaded === null ? (
               <p role="status" className="text-[13px] font-semibold text-muted-foreground">Looking around…</p>
             ) : loaded.status === "over-cap" ? (
-              <p role="status" className="text-[13px] font-semibold text-muted-foreground">That&apos;s all the looking around for today. Try again tomorrow.</p>
+              <p role="status" className="text-[13px] font-semibold text-muted-foreground">That’s all the looking around for today. Try again tomorrow.</p>
             ) : loaded.status === "failed" ? (
-              <p role="status" className="text-[13px] font-semibold text-muted-foreground">Couldn&apos;t look around right now. Try again.</p>
+              <p role="status" className="text-[13px] font-semibold text-muted-foreground">Couldn’t look around right now. Try again.</p>
             ) : loaded.places.length === 0 ? (
               <p role="status" className="text-[13px] font-semibold text-muted-foreground">Nothing like that nearby.</p>
             ) : (

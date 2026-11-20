@@ -5,7 +5,7 @@ import { failureMessage } from "@/components/ui/failure-message";
 import type { ActionFailure, FieldErrors } from "@/lib/action-result";
 
 /** The one wording for a rejected change (network drop, thrown server error). */
-export const SOMETHING_WENT_WRONG = "Couldn't do that. Nothing changed. Try again.";
+export const SOMETHING_WENT_WRONG = "Couldn’t do that. Nothing changed. Try again.";
 
 /** Unwraps either shape down to the field-error dict (ADR 0074). */
 function errorsOf(x: ActionFailure | FieldErrors | undefined): FieldErrors | undefined {

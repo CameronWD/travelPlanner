@@ -26,7 +26,7 @@ export function PhoneExtras({ isAdmin }: { isAdmin: boolean }) {
           How to use Teepee
         </Link>
         <Link href="/whats-new" className={ROW}>
-          What&apos;s new
+          What’s new
         </Link>
         {isAdmin ? (
           <Link href="/admin" className={ROW}>

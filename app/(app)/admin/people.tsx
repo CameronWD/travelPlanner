@@ -48,7 +48,7 @@ export function PeoplePanel({ initial, now, viewerEmail }: PeoplePanelProps) {
     const confirmed = await confirm({
       title: `Revoke ${person.email}?`,
       description:
-        "They'll lose the ability to sign in to Teepee the next time their session ends. Anything they've already added stays.",
+        "They’ll lose the ability to sign in to Teepee the next time their session ends. Anything they’ve already added stays.",
       confirmLabel: "Revoke",
       destructive: true,
     });
@@ -65,7 +65,7 @@ export function PeoplePanel({ initial, now, viewerEmail }: PeoplePanelProps) {
           : prev.filter((p) => p.email !== person.email),
       );
     } else {
-      setMessage(formError(result) ?? "Couldn't revoke that address.");
+      setMessage(formError(result) ?? "Couldn’t revoke that address.");
     }
   }
 

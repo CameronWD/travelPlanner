@@ -50,7 +50,7 @@ export function createResilientLoader<P extends object>(
   };
 }
 
-const OPEN_FAILED = "Couldn't open that. Try again.";
+const OPEN_FAILED = "Couldn’t open that. Try again.";
 
 export type LazyDialog<P extends object> = React.ComponentType<P> & { preload(): void };
 

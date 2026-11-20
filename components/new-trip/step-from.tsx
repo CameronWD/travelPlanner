@@ -21,7 +21,7 @@ export function StepFrom({ draft, dispatch, errors, attempt, formRef, onNext, on
         <h2 id={headingId} tabIndex={-1} className="font-display text-[44px] font-extrabold leading-[.95] tracking-[-0.04em] outline-none md:text-[64px]">
           Leaving from?
         </h2>
-        <p className="mt-2 text-[15px] font-medium text-muted-foreground">Your home base. It&apos;s where the trip starts and ends.</p>
+        <p className="mt-2 text-[15px] font-medium text-muted-foreground">Your home base. It’s where the trip starts and ends.</p>
 
         <div className="mt-6">
           <PlaceCombobox

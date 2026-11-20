@@ -15,7 +15,7 @@ import { requestAttention } from "@/lib/attention";
 /** Spec 2026-10-01 §G, verbatim. */
 export const WELCOME_COPY = {
   title: "Welcome to Teepee.",
-  body: "It's early days and I need as much feedback as I can get. The speech-bubble button in the bottom corner opens a Feedback note from any page. Big or small, I want to hear it all.",
+  body: "It’s early days and I need as much feedback as I can get. The speech-bubble button in the bottom corner opens a Feedback note from any page. Big or small, I want to hear it all.",
   button: "Got it",
 } as const;
 

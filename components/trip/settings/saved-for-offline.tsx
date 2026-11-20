@@ -10,7 +10,7 @@ import { failureMessage } from "@/components/ui/failure-message";
 // Its own literal so the help guide's drift guard (lib/help-guide.ts,
 // GUIDE_UI_STRINGS) finds the quoted phrase whole, not mid-template.
 const SAVED_LABEL = "Saved for offline";
-const SAVE_FAILED = "Couldn't save for offline. Try again.";
+const SAVE_FAILED = "Couldn’t save for offline. Try again.";
 
 /**
  * The Settings row for Saved for offline (CONTEXT.md): what the warmer last

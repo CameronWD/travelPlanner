@@ -404,15 +404,15 @@ describe("CostEditor", () => {
   it("toasts when deleteCost refuses, and when it rejects (spec 2026-10-06 §E)", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} costs={[labeledCost]} />);
-    vi.mocked(deleteCost).mockResolvedValueOnce({ success: false, errors: { _: ["Paid costs can't be deleted here."] } });
+    vi.mocked(deleteCost).mockResolvedValueOnce({ success: false, errors: { _: ["Paid costs can’t be deleted here."] } });
     await user.click(screen.getByRole("button", { name: /delete cost/i }));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Paid costs can't be deleted here." }));
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Paid costs can’t be deleted here." }));
 
     vi.mocked(deleteCost).mockRejectedValueOnce(new Error("network"));
     await user.click(screen.getByRole("button", { name: /delete cost/i }));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
-    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't delete that cost." }));
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn’t delete that cost." }));
     // labeledCost's label isn't rendered by CostSummary; its amount is — assert
     // the row survived the rejection instead (drift from the brief's literal text).
     expect(screen.getByText("$35.00")).toBeInTheDocument();

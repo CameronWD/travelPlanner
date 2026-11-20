@@ -107,7 +107,7 @@ describe("DeleteStopDialog", () => {
     render(<DeleteStopDialog {...DEFAULT_PROPS} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Delete "Rome"\?/)).toBeInTheDocument();
+      expect(screen.getByText(/Delete “Rome”\?/)).toBeInTheDocument();
     });
   });
 
@@ -273,7 +273,7 @@ describe("DeleteStopDialog", () => {
 
   it("renders nothing when closed", () => {
     render(<DeleteStopDialog {...DEFAULT_PROPS} open={false} />);
-    expect(screen.queryByText(/Delete "Rome"/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Delete “Rome”/)).not.toBeInTheDocument();
     expect(previewStopDeletion).not.toHaveBeenCalled();
   });
 });

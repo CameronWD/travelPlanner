@@ -75,7 +75,7 @@ describe("AddStopSheet (PLAN.md §7.4)", () => {
     expect(screen.queryByRole("radio", { name: "Roughly" })).toBeNull();
     expect(screen.getByTestId("range-start")).toHaveTextContent("2026-11-04");
     expect(screen.getByTestId("range-end")).toHaveTextContent("2026-11-05");
-    expect(screen.getByText("Your only Stop takes the Trip's dates. Add a second Stop to split them.")).toBeInTheDocument();
+    expect(screen.getByText("Your only Stop takes the Trip’s dates. Add a second Stop to split them.")).toBeInTheDocument();
   });
 
   it("a second Stop on a dated Trip can still be rough", () => {

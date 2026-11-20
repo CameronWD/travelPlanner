@@ -60,13 +60,13 @@ export function PaidConfirm({
           setError(fieldError);
           setDateError(dateFieldError);
         } else {
-          toast({ variant: "destructive", title: "Couldn't mark that paid." });
+          toast({ variant: "destructive", title: "Couldn’t mark that paid." });
         }
         return;
       }
       onDone();
     } catch {
-      toast({ variant: "destructive", title: "Couldn't mark that paid." });
+      toast({ variant: "destructive", title: "Couldn’t mark that paid." });
     } finally {
       setSubmitting(false);
     }

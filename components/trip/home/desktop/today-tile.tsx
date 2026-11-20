@@ -66,7 +66,7 @@ export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nex
       ))}
 
       <section className="mt-4 min-h-0">
-        <h3 className={SECTION_HEADING}>Today&apos;s plan</h3>
+        <h3 className={SECTION_HEADING}>Today’s plan</h3>
         <div className="mt-2">
           {plan ?? (
             <p className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
@@ -93,7 +93,7 @@ export function TodayTile({ dayHref, dateISO, dayTitle, holidays = [], plan, nex
           )}
         </section>
         <section className="min-w-0">
-          <h3 className={SECTION_HEADING}>Tonight&apos;s stay</h3>
+          <h3 className={SECTION_HEADING}>Tonight’s stay</h3>
           {tonight ? (
             <div className="mt-1.5 flex items-start gap-2">
               <Bed className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

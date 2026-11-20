@@ -166,7 +166,7 @@ describe("MapUnavailable", () => {
         </ol>
       </MapUnavailable>,
     );
-    const box = screen.getByText("The map isn't available right now.").closest("[data-map-fallback]");
+    const box = screen.getByText("The map isn’t available right now.").closest("[data-map-fallback]");
     expect(box).toContainElement(screen.getByRole("list"));
   });
 });

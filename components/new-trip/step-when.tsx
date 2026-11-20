@@ -135,7 +135,7 @@ export function StepWhen({ draft, dispatch, errors, attempt, formRef, onNext, on
                     })}
                   </ul>
                 ) : (
-                  <p className="text-[17px] font-semibold text-foreground/80">No problem. Add dates when you&apos;ve picked your stops.</p>
+                  <p className="text-[17px] font-semibold text-foreground/80">No problem. Add dates when you’ve picked your stops.</p>
                 )}
               </m.div>
             </AnimatePresence>

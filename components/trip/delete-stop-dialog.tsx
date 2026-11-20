@@ -48,7 +48,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
         // to a role change. Surface the server's own message.
         toast({
           variant: "destructive",
-          title: firstErrorMessage(result.errors, "Couldn't delete this stop."),
+          title: firstErrorMessage(result.errors, "Couldn’t delete this stop."),
         });
       }
       onClose();
@@ -60,7 +60,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
     return (
       <>
         <DialogHeader key="header">
-          <DialogTitle>Delete &quot;{stopName}&quot;?</DialogTitle>
+          <DialogTitle>Delete “{stopName}”?</DialogTitle>
           <DialogDescription>Loading preview…</DialogDescription>
         </DialogHeader>
         <DialogFooter key="footer">
@@ -78,7 +78,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
     return (
       <>
         <DialogHeader key="header">
-          <DialogTitle>Delete &quot;{stopName}&quot;?</DialogTitle>
+          <DialogTitle>Delete “{stopName}”?</DialogTitle>
           <DialogDescription>This can&rsquo;t be undone.</DialogDescription>
         </DialogHeader>
         <p className="text-sm text-destructive">{fetchError}</p>
@@ -99,7 +99,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
   return (
     <>
       <DialogHeader key="header">
-        <DialogTitle>Delete &quot;{stopName}&quot;?</DialogTitle>
+        <DialogTitle>Delete “{stopName}”?</DialogTitle>
         <DialogDescription>This can&rsquo;t be undone.</DialogDescription>
       </DialogHeader>
 

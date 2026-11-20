@@ -7,7 +7,7 @@
  * Read at call time: `navigator.onLine` is whatever it is when the action
  * fails, not when the module loaded.
  */
-export const OFFLINE_MESSAGE = "You're offline. Plan changes need a connection.";
+export const OFFLINE_MESSAGE = "You’re offline. Plan changes need a connection.";
 
 export function failureMessage(fallback: string): string {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return OFFLINE_MESSAGE;

@@ -13,6 +13,6 @@ describe("DayMapDialog offline", () => {
     setMatchMedia(true);
     const model = { points: [{ kind: "item" as const, id: "i1", lat: 1, lng: 2, label: "Castle", order: 1 }], routePoints: [], perItemPrev: {} };
     render(<DayMapDialog open onOpenChange={() => {}} tripId="t1" model={model} />);
-    expect(await screen.findByText("The map isn't available right now.")).toBeInTheDocument();
+    expect(await screen.findByText("The map isn’t available right now.")).toBeInTheDocument();
   });
 });

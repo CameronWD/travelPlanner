@@ -73,7 +73,7 @@ export async function PhaseTravelling({
           icon={CalendarDays}
           tone="sun"
           title="No dates yet."
-          description="Set your trip's start date to see a day-by-day view of today."
+          description="Set your trip’s start date to see a day-by-day view of today."
         />
         {layout === "phone" ? reminders : null}
       </div>
@@ -161,7 +161,7 @@ export async function PhaseTravelling({
         {/* Out-of-trip notice */}
         {isBeforeTrip && (
           <p className="mt-1 text-sm font-medium text-muted-foreground">
-            Your trip starts on {formatLongDate(startDate)}. Here&apos;s day one.
+            Your trip starts on {formatLongDate(startDate)}. Here’s day one.
           </p>
         )}
         {isAfterTrip && (
@@ -185,7 +185,7 @@ export async function PhaseTravelling({
 
       <Card className="p-3.5 lg:p-5" data-testid="todays-plan">
         <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
-          Today&apos;s plan
+          Today’s plan
         </h3>
         <div className="mt-2.5">
           {dayPlan && hasEntries ? (

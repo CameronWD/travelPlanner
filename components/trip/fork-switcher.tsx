@@ -89,7 +89,7 @@ function RenameDialogForm({
         onRenamed();
         onClose();
       } else {
-        setError(firstErrorMessage(result, "Couldn't rename that plan."));
+        setError(firstErrorMessage(result, "Couldn’t rename that plan."));
       }
     });
   }
@@ -166,7 +166,7 @@ function CreateVariantForm({
     startTransition(async () => {
       const result = await createFork(tripId, name.trim() || undefined, sourceForkId);
       if (result.success) { onCreated(result.forkId); onClose(); }
-      else setError(firstErrorMessage(result, "Couldn't create that plan."));
+      else setError(firstErrorMessage(result, "Couldn’t create that plan."));
     });
   }
 

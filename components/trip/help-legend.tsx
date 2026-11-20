@@ -75,7 +75,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
         <Pencil className="size-4" />
       </IconSpecimen>
     ),
-    meaning: "Edit what's there",
+    meaning: "Edit what’s there",
   },
   {
     group: "button",
@@ -92,7 +92,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
     // Deleting is never undoable: every delete opens a confirm dialog whose own
     // copy says "This can't be undone." The undo toast belongs to two other
     // actions entirely, so promising an undo here would be dangerous.
-    meaning: "Delete it. You'll be asked to confirm first",
+    meaning: "Delete it. You’ll be asked to confirm first",
   },
   {
     group: "marker",

@@ -93,7 +93,7 @@ export function InstallNudge({ className }: { className?: string }) {
             Put Teepee on your Home Screen
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            It opens like an app, keeps your trips with you offline, and on iPhone it&apos;s the only way the Digest can reach you.
+            It opens like an app, keeps your trips with you offline, and on iPhone it’s the only way the Digest can reach you.
           </p>
           {android ? (
             <div className="mt-3 flex gap-2">
@@ -106,7 +106,7 @@ export function InstallNudge({ className }: { className?: string }) {
             </div>
           ) : (
             <>
-              <p className="mt-2 text-sm font-semibold">Tap Share, then &quot;Add to Home Screen&quot;, then open Teepee from there.</p>
+              <p className="mt-2 text-sm font-semibold">Tap Share, then “Add to Home Screen”, then open Teepee from there.</p>
               <Button type="button" variant="outline" size="md" className="mt-3" onClick={dismiss}>
                 Got it
               </Button>

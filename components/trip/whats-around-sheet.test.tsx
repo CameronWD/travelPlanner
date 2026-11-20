@@ -16,13 +16,13 @@ const place = {
 };
 const ok = (places = [place]) => ({ status: "ok", places, origin: { lat: 48.5839, lng: 7.7455 } });
 const startPoints = [
-  { key: "acc", label: "Tonight's stay", from: { kind: "accommodation" as const, id: "a1" } },
+  { key: "acc", label: "Tonight’s stay", from: { kind: "accommodation" as const, id: "a1" } },
   { key: "stop", label: "Strasbourg", from: { kind: "stop" as const, id: "s1" } },
 ];
 
 function setup(props: Partial<React.ComponentProps<typeof WhatsAroundSheet>> = {}) {
   render(<WhatsAroundSheet tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" stopId="s1" startPoints={startPoints} allowNearMe={false} {...props} />);
-  fireEvent.click(screen.getByRole("button", { name: "What's around" }));
+  fireEvent.click(screen.getByRole("button", { name: "What’s around" }));
 }
 
 beforeEach(() => {
@@ -88,7 +88,7 @@ describe("WhatsAroundSheet", () => {
   it("shows the over-cap copy", async () => {
     whatsAround.mockResolvedValue({ status: "over-cap" });
     setup();
-    expect(await screen.findByText("That's all the looking around for today. Try again tomorrow.")).toBeInTheDocument();
+    expect(await screen.findByText("That’s all the looking around for today. Try again tomorrow.")).toBeInTheDocument();
   });
   it("shows the empty copy", async () => {
     whatsAround.mockResolvedValue(ok([]));
@@ -107,7 +107,7 @@ describe("WhatsAroundSheet", () => {
     await screen.findByText("Cathédrale");
     fireEvent.click(screen.getByRole("button", { name: "Near me" }));
     expect(await screen.findByText("Location is off for this site.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tonight's stay" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tonight’s stay" })).toBeInTheDocument();
   });
   it("Near me: sends the device point only after the tap", async () => {
     const getCurrentPosition = vi.fn((ok) => ok({ coords: { latitude: 1.5, longitude: 2.5 } }));
@@ -123,7 +123,7 @@ describe("WhatsAroundSheet", () => {
     setup({ allowNearMe: true });
     await screen.findByText("Cathédrale");
     fireEvent.click(screen.getByRole("button", { name: "Near me" }));
-    expect(await screen.findByText("Couldn't get your location. Try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn’t get your location. Try again.")).toBeInTheDocument();
   });
   it("a late Food response does not replace Sights, and +Day keeps SIGHTSEEING", async () => {
     let resolveFood: (v: unknown) => void = () => {};
@@ -151,7 +151,7 @@ describe("WhatsAroundSheet follow-ups", () => {
   it("retries a failed search when the same kind is tapped again", async () => {
     whatsAround.mockResolvedValueOnce({ status: "unavailable" });
     setup();
-    expect(await screen.findByText("Couldn't look around right now. Try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn’t look around right now. Try again.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sights" }));
     expect(await screen.findByText("Cathédrale")).toBeInTheDocument();
     expect(whatsAround).toHaveBeenCalledTimes(2);
@@ -171,7 +171,7 @@ describe("WhatsAroundSheet follow-ups", () => {
     await screen.findByText("Cathédrale");
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "What's around" }));
+    fireEvent.click(screen.getByRole("button", { name: "What’s around" }));
     await screen.findByText("Cathédrale");
     expect(deviceCalls()).toBe(1);
     fireEvent.click(screen.getByRole("button", { name: "Near me" }));

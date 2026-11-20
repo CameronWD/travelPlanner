@@ -9,7 +9,7 @@ export type PlaceKind = "area" | "venue" | "any";
 export type PlaceSuggestion = { id: string; mainText: string; secondaryText: string };
 type SuggestionStatus = "idle" | "loading" | "ok" | "empty" | "error";
 
-export const PLACE_FIELD_HINT = "Suggestions aren't available. The place is looked up when you save.";
+export const PLACE_FIELD_HINT = "Suggestions aren’t available. The place is looked up when you save.";
 
 const DEBOUNCE_MS = 350;
 const MIN_CHARS = 3;

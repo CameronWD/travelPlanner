@@ -87,9 +87,9 @@ export function VoteControl({
       setShownLevel(next);
       try {
         const r = next === null ? await clearVote(tripId, itemId) : await setVote(tripId, itemId, next);
-        if (!r.success) toastRefused(r.errors, "Couldn't save your vote.");
+        if (!r.success) toastRefused(r.errors, "Couldn’t save your vote.");
       } catch {
-        toastRejected("Couldn't save your vote.");
+        toastRejected("Couldn’t save your vote.");
       }
     });
   }

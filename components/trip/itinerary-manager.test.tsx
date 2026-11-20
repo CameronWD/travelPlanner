@@ -373,7 +373,7 @@ describe("delete confirmation gating", () => {
     await user.click(await screen.findByRole("menuitem", { name: /^Delete Rome/ }));
 
     // Dialog title contains the stop name in quotes
-    expect(await screen.findByText(/Delete "Rome"\?/)).toBeInTheDocument();
+    expect(await screen.findByText(/Delete “Rome”\?/)).toBeInTheDocument();
   });
 
   it("shows the stop name in the make-rough dialog title", async () => {
@@ -1305,7 +1305,7 @@ describe("empty chapter remove control", () => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
         expect.objectContaining({
           variant: "destructive",
-          title: "Couldn't remove that chapter.",
+          title: "Couldn’t remove that chapter.",
         }),
       ),
     );
@@ -1558,7 +1558,7 @@ describe("Task 10: summariseReorder (Undo toast copy)", () => {
     const { description } = summariseReorder(
       "Rome",
       [{ id: "a", arriveDate: "2026-07-10", departDate: "2026-07-13" }],
-      [{ stopId: "p", message: "pin can't fit" }],
+      [{ stopId: "p", message: "pin can’t fit" }],
     );
     expect(description).toMatch(/pinned stop no longer fits/i);
     expect(description).toMatch(/flags/i);
@@ -2564,7 +2564,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
         over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
       });
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it." });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t move it." });
     expect(toastWithUndo).not.toHaveBeenCalled();
   });
 
@@ -2581,7 +2581,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       await dndCapture.onDragEnd!(MOVE);
     });
-    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move it." });
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t move it." });
     expect(toastWithUndo).not.toHaveBeenCalled();
     expect(screen.getByTestId("plan-desktop-list").querySelector("[data-flash]")).toBeNull();
   });
@@ -2907,7 +2907,7 @@ describe("Plan motion", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pick a day for Orsay" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Sat 12 Dec" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't schedule it." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn’t schedule it." })),
     );
     expect(desktop().getByRole("region", { name: "SAT 12 DEC" })).not.toHaveAttribute("data-flash");
   });
@@ -3047,7 +3047,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
         expect(vi.mocked(toast)).toHaveBeenCalledWith(
           expect.objectContaining({
             variant: "destructive",
-            title: "You're offline. Plan changes need a connection.",
+            title: "You’re offline. Plan changes need a connection.",
           }),
         ),
       );
@@ -3151,7 +3151,7 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
   });
 
   it("toasts the server's reason when deleteChapter refuses", async () => {
-    vi.mocked(deleteChapter).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that chapter."] } });
+    vi.mocked(deleteChapter).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn’t find that chapter."] } });
     const user = userEvent.setup();
     renderPlan(
       <ItineraryManager {...baseProps} initialStops={[]}
@@ -3160,7 +3160,7 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
     await user.click(await screen.findByRole("button", { name: "Remove" }));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't find that chapter." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn’t find that chapter." })),
     );
   });
 
@@ -3179,14 +3179,14 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
 
   // Card 2.H: these three ignored a `success: false` answer and said nothing.
   it("a refused pin toggle says so (it was silent)", async () => {
-    vi.mocked(toggleStopPin).mockResolvedValueOnce({ success: false, errors: { _: ["Can't pin a rough stop."] } });
+    vi.mocked(toggleStopPin).mockResolvedValueOnce({ success: false, errors: { _: ["Can’t pin a rough stop."] } });
     const user = userEvent.setup();
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
     await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
     await user.click(await screen.findByRole("menuitem", { name: /^Pin dates/ }));
     await waitFor(() => expect(toggleStopPin).toHaveBeenCalledWith("par"));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Can't pin a rough stop." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Can’t pin a rough stop." })),
     );
   });
 
@@ -3205,7 +3205,7 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
   });
 
   it("a refused make-rough says so (it was silent)", async () => {
-    vi.mocked(makeStopRough).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn't find that stop."] } });
+    vi.mocked(makeStopRough).mockResolvedValueOnce({ success: false, errors: { _: ["Couldn’t find that stop."] } });
     const user = userEvent.setup();
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
     await user.click(desktop().getByRole("button", { name: "More actions for Paris" }));
@@ -3213,7 +3213,7 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     await user.click(await screen.findByRole("button", { name: "Make rough" }));
     await waitFor(() => expect(makeStopRough).toHaveBeenCalledWith("par"));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn't find that stop." })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Couldn’t find that stop." })),
     );
   });
 

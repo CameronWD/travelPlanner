@@ -95,7 +95,7 @@ describe("AccessRequestsPanel", () => {
     approveAccessRequest.mockResolvedValue({ success: true, mailed: false });
     render(<AccessRequestsPanel initial={requests} now={NOW} />);
     await userEvent.click(screen.getByRole("button", { name: "Approve Friend Person" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Approved. Couldn't email them, so tell them yourself.");
+    expect(await screen.findByRole("status")).toHaveTextContent("Approved. Couldn’t email them, so tell them yourself.");
   });
 
   it("Dismiss calls dismissAccessRequest with the request id and removes the row on success", async () => {

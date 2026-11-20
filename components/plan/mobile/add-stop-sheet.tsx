@@ -164,7 +164,7 @@ function AddStopForm({ tripId, forkId, stops, hardEndDate, chapters = [], tripSt
 
       <p className={LABEL}>HOW LONG</p>
       {loneOnDatedTrip ? (
-        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip&apos;s dates. Add a second Stop to split them.</p>
+        <p className="text-[13px] font-semibold text-muted-foreground">Your only Stop takes the Trip’s dates. Add a second Stop to split them.</p>
       ) : (
         <Segmented type="single" tone="ink" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="How long" className="grid grid-cols-2">
           <SegmentedItem value="exact">Exact dates</SegmentedItem>

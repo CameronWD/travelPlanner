@@ -267,7 +267,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Couldn't unschedule.", variant: "destructive" }),
+        expect.objectContaining({ title: "Couldn’t unschedule.", variant: "destructive" }),
       );
     });
     expect(toastWithUndoMock).not.toHaveBeenCalled();

@@ -118,7 +118,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
       // a log.
       console.error("[DevicesPanel] failed to refresh the device list after enabling:", err);
       setMessage(
-        "Enabled on this device, but the list didn't refresh. Reload the page to see it.",
+        "Enabled on this device, but the list didn’t refresh. Reload the page to see it.",
       );
     }
   }
@@ -157,7 +157,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
         // ADR 0048's orphan bug inverted. Say so plainly instead.
         if (!local?.endpoint) {
           setMessage(
-            "Couldn't find this browser's subscription yet. Reload the page and try again.",
+            "Couldn’t find this browser’s subscription yet. Reload the page and try again.",
           );
           return;
         }
@@ -185,7 +185,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
       // instead of returning {ok:false}, a dropped connection) must not
       // leave this the one control that silently does nothing — this panel
       // exists so a traveller can recover a broken Device.
-      setMessage("Couldn't remove that device. Try again.");
+      setMessage("Couldn’t remove that device. Try again.");
     } finally {
       setRemovingId(null);
     }

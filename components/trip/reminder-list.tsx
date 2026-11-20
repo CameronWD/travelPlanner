@@ -22,7 +22,7 @@ export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; 
   const [editing, setEditing] = useState<ReminderItem | null>(null);
   const dismissal = useServerAction(
     (...[id, dismissed]: [string, boolean]) => updateReminder(id, { dismissed }),
-    { onError: (errors) => toastRefused(errors, "Couldn't bring that reminder back.") },
+    { onError: (errors) => toastRefused(errors, "Couldn’t bring that reminder back.") },
   );
 
   const upcoming = reminders.filter((r) => !r.past);

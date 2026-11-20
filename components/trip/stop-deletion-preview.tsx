@@ -42,10 +42,10 @@ export function useStopDeletionPreview(stopId: string): {
         if (result.success) {
           setPreview(result.preview);
         } else {
-          setError(firstErrorMessage(result.errors, "Couldn't load preview."));
+          setError(firstErrorMessage(result.errors, "Couldn’t load preview."));
         }
       } catch {
-        setError("Couldn't load preview. Try again.");
+        setError("Couldn’t load preview. Try again.");
       }
     })();
   }, [stopId]);

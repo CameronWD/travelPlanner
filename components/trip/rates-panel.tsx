@@ -132,7 +132,7 @@ function RateRow({
       await setManualRate(tripId, entry.currency, homeCurrency, toStore);
       setEditing(false);
     } catch {
-      setError("Couldn't save that rate. Try again.");
+      setError("Couldn’t save that rate. Try again.");
     } finally {
       setSaving(false);
     }
