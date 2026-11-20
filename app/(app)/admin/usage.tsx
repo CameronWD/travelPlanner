@@ -24,6 +24,17 @@ function daySummary(day: UsageDayFigures): string {
   return parts.join(" · ");
 }
 
+function overviewSentence(o: UsageOverviewView, now: Date): string {
+  const others = o.fromOtherSites;
+  if (o.total > 0) {
+    const last = o.lastReceivedAt ? ` The last one arrived ${relativeTime(new Date(o.lastReceivedAt), now)}.` : "";
+    const more = others > 0 ? ` ${others} more came from beta and other sites.` : "";
+    return `${plural(o.total, "record")}.${last}${more}`;
+  }
+  if (others > 0) return `No records from the main site yet. ${others} came from beta and other sites.`;
+  return "No records yet.";
+}
+
 function costsLine(report: UsageTripReport): string {
   const { microUsd, runs, unpriced } = report.ai;
   if (runs === 0) return "AI: no runs";
@@ -81,6 +92,7 @@ function TripReport({ report }: { report: UsageTripReport }) {
       <div className="flex min-w-0 flex-col gap-1 text-sm text-muted-foreground">
         <p className="min-w-0 break-words">{costsLine(report)}</p>
         {report.google && <p className="min-w-0 break-words">{googleLine(report.google)}</p>}
+        <p className="min-w-0 break-words text-xs">The AI and Google counts include beta, which they can’t tell apart.</p>
         {report.fromOtherSites > 0 && (
           <p className="min-w-0 break-words">
             {plural(report.fromOtherSites, "more record")} for this Trip came from beta or other sites.
@@ -111,6 +123,7 @@ type TripState = { status: "idle" } | { status: "loading" } | { status: "failed"
  */
 export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null; now: Date }) {
   const [recording, setRecording] = React.useState(initial?.recording ?? true);
+  const [switching, setSwitching] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [trip, setTrip] = React.useState<TripState>({ status: "idle" });
   const latest = React.useRef(0);
@@ -121,10 +134,18 @@ export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null
     const before = recording;
     setRecording(next);
     setMessage(null);
-    const result = await setUsageRecording(next);
-    if (!result.success) {
+    setSwitching(true);
+    try {
+      const result = await setUsageRecording(next);
+      if (!result.success) {
+        setRecording(before);
+        setMessage(formError(result) ?? "Couldn’t change that.");
+      }
+    } catch {
       setRecording(before);
-      setMessage(formError(result) ?? "Couldn’t change that.");
+      setMessage("Couldn’t change that. Try again.");
+    } finally {
+      setSwitching(false);
     }
   }
 
@@ -141,8 +162,6 @@ export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null
     if (ticket === latest.current) setTrip(next);
   }
 
-  const otherSites = initial.fromOtherSites;
-
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <Card radius="md" shadow={1} className="flex items-center justify-between gap-3 p-3.5">
@@ -154,7 +173,7 @@ export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null
             Screens and named actions from every signed-in Traveller
           </span>
         </div>
-        <Switch aria-label="Recording" checked={recording} onCheckedChange={(v) => void toggle(v)} />
+        <Switch aria-label="Recording" checked={recording} disabled={switching} onCheckedChange={(v) => void toggle(v)} />
       </Card>
 
       {message && (
@@ -163,12 +182,7 @@ export function UsagePanel({ initial, now }: { initial: UsageOverviewView | null
         </p>
       )}
 
-      <p className="min-w-0 break-words text-sm text-muted-foreground">
-        {initial.lastReceivedAt
-          ? `${plural(initial.total, "record")} from the main site, the last ${relativeTime(new Date(initial.lastReceivedAt), now)}`
-          : "No records yet"}
-        {otherSites > 0 && `. ${plural(otherSites, "more record")} came from beta or other sites.`}
-      </p>
+      <p className="min-w-0 break-words text-sm text-muted-foreground">{overviewSentence(initial, now)}</p>
 
       {initial.trips.length === 0 ? (
         <p className="text-sm text-muted-foreground">You aren’t a Traveller on any Trip.</p>

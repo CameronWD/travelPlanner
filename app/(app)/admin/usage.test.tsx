@@ -90,13 +90,24 @@ describe("UsagePanel", () => {
   it("shows the switch on, the main site’s total and how many came from elsewhere", () => {
     render(<UsagePanel initial={overview} now={NOW} />);
     expect(screen.getByRole("switch", { name: "Recording" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText(/1204 records from the main site, the last 3h ago/)).toBeInTheDocument();
-    expect(screen.getByText(/12 more records came from beta or other sites/)).toBeInTheDocument();
+    expect(
+      screen.getByText("1204 records. The last one arrived 3h ago. 12 more came from beta and other sites."),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the other-sites sentence when there are none", () => {
+    render(<UsagePanel initial={{ ...overview, fromOtherSites: 0 }} now={NOW} />);
+    expect(screen.getByText("1204 records. The last one arrived 3h ago.")).toBeInTheDocument();
+  });
+
+  it("says the main site has none when only other sites have records", () => {
+    render(<UsagePanel initial={{ ...overview, total: 0, lastReceivedAt: null }} now={NOW} />);
+    expect(screen.getByText("No records from the main site yet. 12 came from beta and other sites.")).toBeInTheDocument();
   });
 
   it("says there are no records yet", () => {
     render(<UsagePanel initial={{ ...overview, total: 0, fromOtherSites: 0, lastReceivedAt: null }} now={NOW} />);
-    expect(screen.getByText("No records yet")).toBeInTheDocument();
+    expect(screen.getByText("No records yet.")).toBeInTheDocument();
   });
 
   it("flips the switch off, saves it, and keeps it off", async () => {
@@ -105,6 +116,27 @@ describe("UsagePanel", () => {
 
     expect(setUsageRecording).toHaveBeenCalledWith(false);
     expect(screen.getByRole("switch", { name: "Recording" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("puts the switch back and says so when the action throws", async () => {
+    setUsageRecording.mockRejectedValue(new Error("db down"));
+    render(<UsagePanel initial={overview} now={NOW} />);
+    await userEvent.click(screen.getByRole("switch", { name: "Recording" }));
+
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Recording" })).toHaveAttribute("aria-checked", "true"));
+    expect(screen.getByText("Couldn’t change that. Try again.")).toBeInTheDocument();
+  });
+
+  it("disables the switch while a change is pending", async () => {
+    let release: (r: { success: true }) => void = () => {};
+    setUsageRecording.mockReturnValue(new Promise((res) => (release = res)));
+    render(<UsagePanel initial={overview} now={NOW} />);
+    await userEvent.click(screen.getByRole("switch", { name: "Recording" }));
+
+    expect(screen.getByRole("switch", { name: "Recording" })).toBeDisabled();
+    release({ success: true });
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Recording" })).toBeEnabled());
+    expect(setUsageRecording).toHaveBeenCalledTimes(1);
   });
 
   it("puts the switch back and says why when the change is refused", async () => {
@@ -149,6 +181,7 @@ describe("UsagePanel", () => {
     expect(await screen.findByText("AI: US$0.42 across 2 runs, 1 with no price")).toBeInTheDocument();
     expect(screen.getByText("Google calls on every Trip, 1 Dec to 9 Jan: routes 120, static maps 40")).toBeInTheDocument();
     expect(screen.getByText(/2 more records for this Trip came from beta or other sites/)).toBeInTheDocument();
+    expect(screen.getByText("The AI and Google counts include beta, which they can’t tell apart.")).toBeInTheDocument();
   });
 
   it("says when there were no Google calls, and shows nothing for a Trip without dates", async () => {
