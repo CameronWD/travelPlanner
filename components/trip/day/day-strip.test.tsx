@@ -211,6 +211,16 @@ describe("DayStrip", () => {
     fireEvent.click(links[3]);
     expect(usage.recordUsageDayChange.mock.calls).toEqual([["chip", "2026-12-13"]]);
   });
+  it("a second chip tap during the glide records nothing", () => {
+    usage.recordUsageDayChange.mockClear();
+    let moving = false;
+    const api = fakeCarousel({ goTo: () => { moving = true; return true; }, isMoving: () => moving });
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    fireEvent.click(links[4]);
+    fireEvent.click(links[4]);
+    expect(usage.recordUsageDayChange.mock.calls).toEqual([["chip", "2026-12-13"]]);
+  });
   it("a later mount glides from where the strip was, with snapping off until it arrives", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] });
     const rect = (left: number, width: number) => ({ left, width, top: 0, right: left + width, bottom: 58, height: 58, x: left, y: 0, toJSON() {} }) as DOMRect;
