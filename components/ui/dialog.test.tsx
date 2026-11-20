@@ -945,7 +945,6 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
     const handle = content.querySelector('[aria-hidden="true"].rounded-full') as HTMLElement;
 
     expect(handle.className).toContain("group-data-[keyboard=open]/dialog:hidden");
-    expect(header.className).toContain("group-data-[keyboard=open]/dialog:min-h-12");
     expect(screen.getByText("Day 3 of the trip.").className).toContain("max-sm:group-data-[keyboard=open]/dialog:hidden");
     // The keyboard covers the home indicator: footer and body drop the safe-area inset in step.
     expect(body.className).toContain("group-data-[keyboard=open]/dialog:pb-[1.375rem]");

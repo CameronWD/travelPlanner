@@ -323,10 +323,6 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
         // never changes height; all non-inset, so the fade interpolates.
         "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
         "group-data-[scrolled]/dialog-body:shadow-[0_2px_0_var(--color-border),0_10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
-        // Phone keyboard open (spec 2026-10-11-phone-keyboard-sheets): one
-        // slim 48px row — title and close button only (DialogDescription
-        // hides itself) — to give the visible area back to the form.
-        "group-data-[keyboard=open]/dialog:min-h-12",
         className,
       )}
       {...props}
