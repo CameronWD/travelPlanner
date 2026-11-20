@@ -132,6 +132,19 @@ describe("MobileTabBar", () => {
     ]);
   });
 
+  it("is a dialog named More with Close in its header row and 48px rows", async () => {
+    const user = userEvent.setup();
+    render(<MobileTabBar tripId="t1" phase="travelling" />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const dialog = screen.getByRole("dialog", { name: "More" });
+    const close = within(dialog).getByRole("button", { name: "Close" });
+    expect(close.parentElement).toContainElement(within(dialog).getByText("More"));
+    const group = within(dialog).getByRole("group", { name: "Trip sections" });
+    for (const row of [...within(group).getAllByRole("link"), within(group).getByRole("button", { name: "Share" })]) {
+      expect(row.className).toContain("min-h-12");
+    }
+  });
+
   it("Share opens the Trip's share chooser and closes the sheet", async () => {
     const user = userEvent.setup();
     const opened = vi.fn();
