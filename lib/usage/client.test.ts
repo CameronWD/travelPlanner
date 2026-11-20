@@ -351,6 +351,24 @@ describe("flushing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("a 200 whose body read is aborted keeps the batch, backs off and keeps recording", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      redirected: false,
+      json: () => Promise.reject(new DOMException("The operation was aborted.", "AbortError")),
+    });
+    startUsage("it-usage-a");
+    search();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(stored()!.r).toHaveLength(1);
+    search();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentBatch(1)).toHaveLength(2);
+  });
+
   it("a 200 removes only the records it sent", async () => {
     let answer!: (res: Response) => void;
     fetchMock.mockImplementation(() => new Promise<Response>((resolve) => (answer = resolve)));

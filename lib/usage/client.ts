@@ -242,7 +242,7 @@ function settle(res: Response, batch: readonly UsageWireRecord[], startedAt: num
           stop();
         }
       },
-      () => holdUntilReload(),
+      (err: unknown) => (err instanceof SyntaxError ? holdUntilReload() : backOff(startedAt)),
     );
   }
   if (res.status === 401 || res.status === 403) {
