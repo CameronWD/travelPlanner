@@ -312,6 +312,15 @@ export function RemindersCard({ tripId, reminders, today, about, dismissed }: Re
   // Held here, not in the row: the row leaves at once, and its Undo comes
   // from the toast after the server's list no longer has it.
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
+  const [seenReminders, setSeenReminders] = useState(reminders);
+  if (seenReminders !== reminders) {
+    setSeenReminders(reminders);
+    setGone((prev) => {
+      const ids = new Set(reminders.map((r) => r.id));
+      const kept = [...prev].filter((id) => ids.has(id));
+      return kept.length === prev.size ? prev : new Set(kept);
+    });
+  }
   const hideId = (id: string) => setGone((prev) => new Set(prev).add(id));
   const showId = (id: string) => setGone((prev) => new Set([...prev].filter((x) => x !== id)));
   const gotIt = useUndoableAction<ReminderItem>({

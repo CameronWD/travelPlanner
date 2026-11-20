@@ -457,6 +457,21 @@ describe("RemindersCard Undo and Dismissed", () => {
     expect(await screen.findByText("Pack")).toBeInTheDocument();
   });
 
+  it("forgets a dismissed Reminder once the list drops it, so one brought back elsewhere reappears", async () => {
+    updateReminderMock.mockResolvedValue({ success: true });
+    const a = reminderItem({ id: "ra", title: "Pack", date: "2026-11-29" });
+    const b = reminderItem({ id: "rb", title: "Print", date: "2026-11-30" });
+    const { rerender } = render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[a, b]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Got it.*Pack/ }));
+    await waitFor(() => expect(updateReminderMock).toHaveBeenCalledWith("ra", { dismissed: true }));
+    expect(screen.queryByText("Pack")).not.toBeInTheDocument();
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[a, b]} />);
+    expect(screen.queryByText("Pack")).not.toBeInTheDocument();
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[b]} />);
+    rerender(<RemindersCard tripId="trip-1" today={TODAY} reminders={[a, b]} />);
+    expect(screen.getByText("Pack")).toBeInTheDocument();
+  });
+
   it("lists the Trip's dismissed Reminders folded under Dismissed (n), each with Bring back", async () => {
     updateReminderMock.mockReturnValueOnce(new Promise(() => {}));
     const visa = reminderItem({ id: "d1", title: "Visa photos", date: "2026-12-02", dismissed: true });
