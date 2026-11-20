@@ -127,6 +127,7 @@ export const SUBMIT_LABELS = [
   "Add note",
   "Standard Review",
   "Deep Review",
+  "Start Deep Review",
   "Apply",
   "Dismiss",
   "Undo",
@@ -139,6 +140,13 @@ export const SUBMIT_LABELS = [
   "Sign out",
   "Revoke",
 ] as const;
+
+export const normaliseApostrophes = (s: string): string => s.replace(/[\u2018\u2019]/g, "'");
+
+export const isSubmitLabel = (label: string): boolean => {
+  const l = normaliseApostrophes(label);
+  return SUBMIT_LABELS.some((s) => normaliseApostrophes(s) === l);
+};
 
 // --------------------------------------------------------------------------
 // parseName — turns a recipe's name text into what getByRole expects
@@ -232,7 +240,7 @@ export const OVERLAYS: OverlayRecipe[] = [
     only: "phone",
     form: false,
     steps: [{ click: { role: "button", name: "/^More( trip sections.*)?$/" } }],
-    expect: { role: "dialog", name: "More navigation" },
+    expect: { role: "dialog", name: "More" },
   },
   {
     id: "feedback",
@@ -394,7 +402,7 @@ export const OVERLAYS: OverlayRecipe[] = [
       { click: { role: "button", name: "More actions for {stop}", exact: true } },
       { click: { role: "menuitem", name: "Delete {stop}" } },
     ],
-    expect: { role: "dialog", name: '/^Delete "/i' },
+    expect: { role: "dialog", name: '/^Delete [“"]/i' },
   },
   {
     id: "item-add",
@@ -789,7 +797,7 @@ export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ 
         const target = await inView(page, page.locator(step.css));
         if (!target) return { ok: false, reason: `trigger not found: ${step.css}` };
         const label = ((await target.innerText()) ?? "").trim();
-        if ((SUBMIT_LABELS as readonly string[]).includes(label)) {
+        if (isSubmitLabel(label)) {
           return { ok: false, reason: `refused: ${step.css} resolved to the submit control "${label}"` };
         }
         await target.click({ timeout: 5000 });
