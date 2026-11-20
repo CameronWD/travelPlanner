@@ -121,7 +121,7 @@ export function AddReminderDialog({
   onSaved,
 }: AddReminderDialogProps) {
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title={reminder ? "Edit Reminder" : about ? "Add a Reminder" : "Add Reminder"}>
+    <FormDialog open={open} onOpenChange={onOpenChange} title={reminder ? "Edit Reminder" : "Add a Reminder"}>
       <AddReminderForm
         tripId={tripId}
         about={about}

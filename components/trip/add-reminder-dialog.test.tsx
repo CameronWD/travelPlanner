@@ -130,7 +130,7 @@ describe("AddReminderDialog: About choice", () => {
   it("shows the About select only when given choices", () => {
     const { unmount } = render(<AddReminderDialog tripId="trip-1" aboutChoices={choices} open onOpenChange={vi.fn()} />);
     expect(screen.getByLabelText("About")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Add Reminder" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add a Reminder" })).toBeInTheDocument();
     unmount();
     render(<AddReminderDialog {...baseProps} />);
     expect(screen.queryByLabelText("About")).not.toBeInTheDocument();

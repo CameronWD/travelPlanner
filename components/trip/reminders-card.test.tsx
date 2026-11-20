@@ -582,7 +582,7 @@ describe("RemindersCard Add Reminder on a phone", () => {
     onPhone();
     render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} about={ABOUT} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
-    expect(screen.getByRole("dialog", { name: "Add Reminder" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Add a Reminder" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Reminder date")).not.toBeInTheDocument();
   });
 
