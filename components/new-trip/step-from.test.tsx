@@ -27,6 +27,11 @@ describe("StepFrom", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  it("Continue sits under the field on desktop, not at the foot of the card", () => {
+    render(<StepHarness Step={StepFrom} />);
+    expect(screen.getByRole("button", { name: /continue/i }).parentElement).toHaveClass("md:mt-0");
+  });
+
   it("asks where you're leaving from, with the search focused", () => {
     render(<StepHarness Step={StepFrom} />);
     expect(screen.getByRole("heading", { level: 2, name: "Leaving from?" })).toBeInTheDocument();
