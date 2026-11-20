@@ -6,6 +6,8 @@ import { DayArrow } from "@/components/trip/day/day-arrow";
 import { DayCarouselContext, type DayCarouselApi } from "@/components/trip/day/day-carousel";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 
+const usage = vi.hoisted(() => ({ recordUsageDayChange: vi.fn() }));
+vi.mock("@/lib/usage/client", () => usage);
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/trips/t1/day/2026-12-04", useSearchParams: () => new URLSearchParams() }));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,7 +18,10 @@ function carousel(goTo: (href: string) => boolean, step: (by: -1 | 1) => boolean
 }
 
 describe("DayKeyboardNav", () => {
-  beforeEach(() => push.mockClear());
+  beforeEach(() => {
+    push.mockClear();
+    usage.recordUsageDayChange.mockClear();
+  });
   it("← and → navigate, keeping the vertical position, when there is no carousel", () => {
     render(<DayKeyboardNav prevHref={"/p" as Route} nextHref={"/n" as Route} />);
     fireEvent.keyDown(window, { key: "ArrowRight" });
@@ -30,6 +35,12 @@ describe("DayKeyboardNav", () => {
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(step.mock.calls).toEqual([[1], [-1]]);
     expect(push).not.toHaveBeenCalled();
+  });
+  it("records a keyboard day change for the day it goes to, and nothing at the end of the Trip", () => {
+    render(<DayCarouselContext.Provider value={carousel(() => false, () => true)}><DayKeyboardNav prevHref={"/trips/t1/day/2026-12-03" as Route} nextHref={null} /></DayCarouselContext.Provider>);
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(usage.recordUsageDayChange.mock.calls).toEqual([["keyboard", "2026-12-03"]]);
   });
   it("does nothing while typing or at the boundary", () => {
     render(<><DayKeyboardNav prevHref={null} nextHref={"/n" as Route} /><textarea aria-label="j" /></>);
@@ -46,6 +57,12 @@ describe("DayKeyboardNav", () => {
 });
 
 describe("DayArrow", () => {
+  it("records an arrow day change for the day it leads to", () => {
+    usage.recordUsageDayChange.mockClear();
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={carousel(() => true)}><DayArrow href={"/trips/t1/day/2026-12-05" as Route} label="Next day: Sat" dir="next" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    fireEvent.click(screen.getByRole("link", { name: "Next day: Sat" }));
+    expect(usage.recordUsageDayChange.mock.calls).toEqual([["arrow", "2026-12-05"]]);
+  });
   it("is a link typed by direction that keeps the vertical position; a missing day is a disabled span", () => {
     render(<><DayArrow href={"/n" as Route} label="Next day: Sun" dir="next" /><DayArrow href={null} label={null} dir="prev" /></>);
     const next = screen.getByRole("link", { name: "Next day: Sun" });

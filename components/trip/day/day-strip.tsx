@@ -9,6 +9,7 @@ import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scr
 import { LG_UP } from "@/components/ui/use-media-query";
 import { cn } from "@/lib/cn";
 import { dayFromPathname } from "@/lib/day-path";
+import { recordUsageDayChange } from "@/lib/usage/client";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type StopLine } from "@/lib/day-view-model";
@@ -240,6 +241,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
               transitionTypes={[inView ? dayTransitionType(inView, d.iso) : DAY_FORWARD]}
               // The carousel brings any day into view: a glide below lg, a crossfade from lg.
               onNavigate={(e) => {
+                if (d.iso !== inView) recordUsageDayChange("chip", d.iso);
                 if (carousel?.goTo(href)) e.preventDefault();
               }}
               className={cn(

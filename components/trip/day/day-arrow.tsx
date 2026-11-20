@@ -4,6 +4,8 @@ import type { Route } from "next";
 import { AppLink } from "@/components/navigation/app-link";
 import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
 import { useDayCarousel } from "@/components/trip/day/day-carousel";
+import { dayFromPathname } from "@/lib/day-path";
+import { recordUsageDayChange } from "@/lib/usage/client";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const ARROW =
@@ -37,6 +39,7 @@ export function DayArrow({ href, label, dir }: { href: Route | null; label: stri
       // Lit the moment it is tapped: the page holds until the next day is ready (ADR 0063).
       pendingClassName="translate-y-px bg-coral shadow-none"
       onNavigate={(e) => {
+        recordUsageDayChange("arrow", dayFromPathname(href));
         if (carousel?.goTo(href)) e.preventDefault();
       }}
     >

@@ -9,6 +9,8 @@ import { LG_UP } from "@/components/ui/use-media-query";
 import { DayCarousel, DayChromeRegistryContext, SETTLE_QUIET_MS, useDayCarousel, useIsDayInView, type DayCarouselApi, type DayPanel } from "@/components/trip/day/day-carousel";
 import { DAY_BODY_TRANSITION_WIDE } from "@/components/trip/day/day-transition";
 
+const usage = vi.hoisted(() => ({ recordUsageSwipe: vi.fn() }));
+vi.mock("@/lib/usage/client", () => usage);
 const push = vi.fn();
 const prefetch = vi.fn();
 // One router object, as Next's useRouter() returns across renders (use-app-router.test.tsx).
@@ -371,6 +373,18 @@ describe("DayCarousel", () => {
     expect(heading()).toBe(`fallback ${WEEK[6]}`);
     expect(push.mock.calls).toEqual([[href(WEEK[6]), { scroll: false }]]);
     expect(pendingPath).toBeNull();
+  });
+
+  it("a settled drag onto another day records one swipe with the day it settled on and the day it left; a glide records none", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    usage.recordUsageSwipe.mockClear();
+    const { scroller } = mount();
+    dragTo(scroller, 4);
+    expect(usage.recordUsageSwipe.mock.calls).toEqual([["2026-12-13", WEEK[SHOWN]]]);
+    usage.recordUsageSwipe.mockClear();
+    act(() => { api!.goTo(href(WEEK[6])); });
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(usage.recordUsageSwipe.mock.calls.every(([settled]) => settled === null)).toBe(true);
   });
 
   it("goTo a day that is not a Trip day is false", () => {
