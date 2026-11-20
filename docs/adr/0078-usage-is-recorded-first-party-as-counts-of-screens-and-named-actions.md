@@ -4,7 +4,7 @@ Date: 2026-11-20
 
 ## Status
 
-Accepted.
+Accepted. Amended 2026-11-20 (below).
 
 ## Context
 
@@ -42,6 +42,25 @@ time and switchable off without a deploy.
 
 ## Consequences
 
-- Adding something to record is a code change to two lists, on purpose.
+- Adding something to record is a change to `lib/usage/lists.ts` and a migration that widens
+  the table's CHECK constraints, on purpose: the database itself refuses a name it was not
+  told about.
 - Usage cannot answer how long anyone spent anywhere.
 - A device that is offline for a long stretch loses its oldest records past the cap.
+
+## Amended 2026-11-20
+
+What was built, which the decision above does not contradict:
+
+- Each record carries a `site` column (`main`, `beta`, `preview` or `local`), set by the
+  server from the same detection the Feedback note's site uses, never taken from the
+  browser. Admin shows `main` by default and says how many records came from the others.
+- The closed lists are held twice: in `lib/usage/lists.ts` and by CHECK constraints on the
+  table (screen, action, detail, phase, mode, site, and the shape of the ids and numbers).
+  Widening a list is therefore a migration as well as a code change.
+- The Admin switch is one row, `UsageSwitch`, and no row means recording is on. The server
+  reads it on every batch (at most 30 seconds stale per instance) and stores nothing while
+  it is off.
+- The 180-day delete runs inside the existing nightly `purge-trips` job and goes by when the
+  server received a record, so a device with a wrong clock can neither keep a record past
+  180 days nor lose a fresh one.
