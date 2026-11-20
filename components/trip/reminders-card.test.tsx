@@ -411,6 +411,19 @@ describe("RemindersCard Digest opt-in", () => {
   });
 });
 
+describe("RemindersCard readable widths", () => {
+  it("keeps the open add form to max-w-md", async () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add Reminder" }));
+    expect(screen.getByRole("textbox", { name: "Reminder title" }).closest("form")!.className).toContain("max-w-md");
+  });
+
+  it("keeps a Reminder's text column to a readable width", () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
+    expect(screen.getByText("Pack").closest("li")!.firstElementChild!.className).toContain("[&_p]:max-w-prose");
+  });
+});
+
 describe("RemindersCard Got it", () => {
   it("has Got it and Edit on each row and no Delete", () => {
     render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
