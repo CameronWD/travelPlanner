@@ -11,14 +11,14 @@
 import "./load-env";
 
 import { db } from "../lib/db";
-import { readUsageOverview, readUsageTripReport, isValidTimeZone } from "../lib/usage/report";
-import { renderUsageReport } from "../lib/usage/report-text";
+import { readUsageOverview, readUsageTripReport } from "../lib/usage/report";
+import { renderUsageReport, resolveReportZone } from "../lib/usage/report-text";
 
 function parseArgs(argv: string[]): { ref: string | null; tz: string | null } {
   let ref: string | null = null;
   let tz: string | null = null;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--tz") tz = argv[++i] ?? null;
+    if (argv[i] === "--tz") tz = argv[++i] ?? "";
     else if (!ref) ref = argv[i];
   }
   return { ref, tz };
@@ -42,6 +42,14 @@ async function main() {
     process.exit(1);
   }
 
+  const resolved = resolveReportZone(tz, Intl.DateTimeFormat().resolvedOptions().timeZone);
+  if ("error" in resolved) {
+    console.error(resolved.error);
+    await db.$disconnect();
+    process.exit(1);
+  }
+  const timeZone = resolved.zone;
+
   const trip = await findTrip(ref);
   if (!trip) {
     console.error(`No Trip matches ${ref}.`);
@@ -49,7 +57,6 @@ async function main() {
     process.exit(1);
   }
 
-  const timeZone = tz && isValidTimeZone(tz) ? tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [overview, report] = await Promise.all([readUsageOverview(), readUsageTripReport(trip.id, timeZone)]);
   console.log(renderUsageReport(trip, overview, report, timeZone));
 

@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { TRAVELLER_SELECT, travellerName } from "@/lib/traveller";
 import type { UsageAction, UsageDetail, UsageScreen } from "./lists";
+import { isValidTimeZone } from "./report-text";
 import { readUsageRecording } from "./switch";
 
 const MAIN_SITE = "main";
@@ -42,15 +43,6 @@ type FigureRow = {
 };
 
 type MedianRow = { userId: string; day: string; median: number };
-
-export function isValidTimeZone(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export async function readUsageOverview(): Promise<UsageOverview> {
   const [recording, bySite, last] = await Promise.all([
@@ -94,7 +86,7 @@ export async function readUsageTripReport(tripId: string, timeZone: string): Pro
         AND "screen" IS NOT NULL AND "appearMs" IS NOT NULL
       GROUP BY 1, 2
     `,
-    db.tripMember.findMany({ where: { tripId }, select: { user: { select: TRAVELLER_SELECT } } }),
+    db.tripMember.findMany({ where: { tripId }, select: { user: { select: { ...TRAVELLER_SELECT, email: true } } } }),
     db.usageRecord.count({ where: { tripId, site: { not: MAIN_SITE } } }),
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.aiUsage.aggregate({

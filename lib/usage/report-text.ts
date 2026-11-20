@@ -4,6 +4,24 @@ import { SCREEN_LABELS, actionLabel, formatMicroUsd } from "./labels";
 import type { UsageScreen } from "./lists";
 import type { UsageOverview, UsageTripReport } from "./report";
 
+const ZONE_SHAPE = /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)+$/;
+
+export function isValidTimeZone(tz: string): boolean {
+  if (tz === "UTC") return true;
+  if (!ZONE_SHAPE.test(tz)) return false;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveReportZone(requested: string | null, machineZone: string): { zone: string } | { error: string } {
+  if (requested === null) return { zone: machineZone };
+  return isValidTimeZone(requested) ? { zone: requested } : { error: `Unknown zone ${requested}. Use UTC or a name like Australia/Brisbane.` };
+}
+
 export function renderUsageReport(
   trip: { name: string },
   overview: UsageOverview,
@@ -36,6 +54,7 @@ export function renderUsageReport(
         : `Google calls, app-wide, ${range}: ${report.google.calls.map((c) => `${c.sku} ${c.count}`).join(", ")}`,
     );
   }
+  lines.push("The AI and Google counts include beta, which they can’t tell apart.");
 
   if (report.travellers.length === 0) {
     lines.push("", "No Usage for this Trip yet.");

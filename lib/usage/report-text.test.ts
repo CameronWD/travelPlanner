@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderUsageReport } from "./report-text";
+import { isValidTimeZone, renderUsageReport, resolveReportZone } from "./report-text";
 import type { UsageOverview, UsageTripReport } from "./report";
 
 const overview: UsageOverview = {
@@ -60,6 +60,7 @@ describe("renderUsageReport", () => {
   it("gives the AI and Google lines, Google labelled app-wide", () => {
     expect(text).toContain("AI: US$0.42 across 2 runs, 1 with no price");
     expect(text).toContain("Google calls, app-wide, 1 Dec to 9 Jan: routes 120");
+    expect(text).toContain("The AI and Google counts include beta, which they can’t tell apart.");
   });
 
   it("says there is no Usage for an empty Trip", () => {
@@ -73,5 +74,25 @@ describe("renderUsageReport", () => {
     expect(empty).toContain("Recording: off");
     expect(empty).toContain("Last arrived: never");
     expect(empty).toContain("AI: no runs");
+  });
+});
+
+describe("zones", () => {
+  it("accepts UTC and Area/Location names only", () => {
+    for (const ok of ["UTC", "Australia/Brisbane", "Europe/London", "America/Argentina/Buenos_Aires"]) {
+      expect(isValidTimeZone(ok)).toBe(true);
+    }
+    for (const bad of ["+10:00", "-05:00", "UTC+10", "10", "", "Europe/Londn", "Nowhere/Land", "EST5EDT"]) {
+      expect(isValidTimeZone(bad)).toBe(false);
+    }
+  });
+
+  it("uses the machine zone when none is asked for, and refuses a bad one instead of swapping it", () => {
+    expect(resolveReportZone(null, "Australia/Brisbane")).toEqual({ zone: "Australia/Brisbane" });
+    expect(resolveReportZone("UTC", "Australia/Brisbane")).toEqual({ zone: "UTC" });
+    expect(resolveReportZone("+10:00", "Australia/Brisbane")).toEqual({
+      error: "Unknown zone +10:00. Use UTC or a name like Australia/Brisbane.",
+    });
+    expect(resolveReportZone("", "Australia/Brisbane")).toHaveProperty("error");
   });
 });
