@@ -626,18 +626,16 @@
 @utility tp-stamp-thunk { animation: tp-stamp-thunk 360ms var(--ease-bounce) both; }
 @utility tp-band-fill { animation: tp-band-fill var(--dur-base) var(--ease-pop) both; }
 
-/* Feedback launcher nudge (spec 2026-10-01 §G): the Welcome's close points at
-   the speech bubble. Two beats, then rest. Nothing under reduced motion — the
-   base rule already collapses it, but this is a pointer, not information, so
-   say so outright. */
 /* The loading mark builds itself (LogoLoader). Dash values are unitless because the
    drawn paths set pathLength="1". Static styles are the finished lockup, so reduced
-   motion only has to switch the animations off. */
-@keyframes tp-build-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+   motion only has to switch the animations off. The word and dot sit inside the
+   wordmark viewBox, which renders at 0.4 px per user unit (40px font size), so
+   their offsets are the wanted pixels divided by 0.4: 6px rise = 15, 14px drop = 35. */
+@keyframes tp-build-draw { from { stroke-dasharray: 1 2; stroke-dashoffset: 1; } to { stroke-dasharray: 1 2; stroke-dashoffset: 0; } }
 @keyframes tp-build-fill { from { fill-opacity: 0; } to { fill-opacity: 1; } }
 @keyframes tp-build-door { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-@keyframes tp-build-word { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes tp-build-dot { 0% { opacity: 0; transform: translateY(-14px); } 40% { opacity: 1; transform: translateY(0); } 65% { transform: translateY(-4px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes tp-build-word { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: none; } }
+@keyframes tp-build-dot { 0% { opacity: 0; transform: translateY(-35px); } 40% { opacity: 1; transform: translateY(0); } 65% { transform: translateY(-10px); } 100% { opacity: 1; transform: translateY(0); } }
 @keyframes tp-build-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 .tp-build-outline { animation: tp-build-draw 450ms ease-out both, tp-build-fill 300ms ease-out 300ms both; }
 .tp-build-door { transform-box: fill-box; transform-origin: bottom; animation: tp-build-door 300ms var(--ease-pop) 450ms both; }
@@ -648,6 +646,10 @@
 @media (prefers-reduced-motion: reduce) {
   .tp-build-outline, .tp-build-door, .tp-build-poles, .tp-build-word, .tp-build-dot, .tp-build-idle { animation: none; }
 }
+/* Feedback launcher nudge (spec 2026-10-01 §G): the Welcome's close points at
+   the speech bubble. Two beats, then rest. Nothing under reduced motion — the
+   base rule already collapses it, but this is a pointer, not information, so
+   say so outright. */
 @keyframes tp-attention { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 @utility tp-attention { animation: tp-attention 360ms var(--ease-bounce) 2; }
 @media (prefers-reduced-motion: reduce) {

@@ -13,6 +13,8 @@ describe("LogoLoader", () => {
     for (const c of ["tp-build-outline", "tp-build-door", "tp-build-poles", "tp-build-word", "tp-build-dot"]) {
       expect(container.querySelectorAll(`path.${c}`)).toHaveLength(1);
     }
+    expect(container.querySelector("path.tp-build-outline")).toHaveAttribute("pathlength", "1");
+    expect(container.querySelector("path.tp-build-poles")).toHaveAttribute("pathlength", "1");
     expect(container.querySelector(".tp-build-idle svg path.tp-build-outline")).not.toBeNull();
   });
 
