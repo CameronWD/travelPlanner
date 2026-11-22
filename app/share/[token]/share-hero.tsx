@@ -41,7 +41,7 @@ const TITLE_SIZE: Record<ShareStage, string> = {
 };
 
 /** SHARE.md §3 — the coral hero card: stage-specific pill, title, sub line,
- * countdown/progress, Travellers and the cover polaroid (route sketch or
+ * countdown/progress, Travellers and the cover polaroid (route snapshot or
  * passport stamp only — never the uploaded photo; see the orchestrator
  * note, no public photo route). */
 export function ShareHero({
@@ -214,7 +214,7 @@ export function ShareHero({
             startDate={startDate}
             canEdit={false}
             size="hero"
-            sketchSolid={stage === "after"}
+            snapshot="direct"
           />
         </div>
       </PlayOnce>
