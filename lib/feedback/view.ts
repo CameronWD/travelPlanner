@@ -19,6 +19,7 @@
 import type { FeedbackStatus } from "@/lib/enum-values";
 import { MONTH_SHORT } from "@/lib/dates";
 import { siteLabel, siteOf } from "@/lib/feedback/site";
+import { feedbackPictureUrl } from "@/lib/feedback/pictures";
 
 /** A Feedback note as the Feedback panel sees it. Dates are ISO strings. */
 export type FeedbackNoteView = {
@@ -49,6 +50,8 @@ export type FeedbackNoteView = {
   resolution: string | null;
   /** ISO; when the note was closed as Done / Won't fix. Null while open. */
   resolvedAt: string | null;
+  /** The note's pictures, in the order the author added them. */
+  pictures: Array<{ id: string; url: string }>;
 };
 
 /** The columns `VIEW_SELECT` reads, as Prisma returns them. */
@@ -65,6 +68,7 @@ export type FeedbackNoteQueryRow = {
   site: string | null;
   resolution: string | null;
   resolvedAt: Date | null;
+  pictures: Array<{ id: string }>;
 };
 
 /** The Prisma selection every action backing the Feedback panel reads. */
@@ -81,6 +85,7 @@ export const VIEW_SELECT = {
   site: true,
   resolution: true,
   resolvedAt: true,
+  pictures: { select: { id: true }, orderBy: { position: "asc" } },
 } as const;
 
 export function toView(
@@ -105,6 +110,7 @@ export function toView(
     siteChip: site === currentSite ? null : siteLabel(site),
     resolution: row.resolution?.trim() ? row.resolution : null,
     resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null,
+    pictures: row.pictures.map((p) => ({ id: p.id, url: feedbackPictureUrl(p.id) })),
   };
 }
 

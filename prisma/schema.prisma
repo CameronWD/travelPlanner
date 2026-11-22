@@ -1352,8 +1352,25 @@ model FeedbackNote {
   /// When it reached the server.
   createdAt  DateTime @default(now())
 
+  pictures FeedbackPicture[]
+
   @@index([status, authoredAt])
   @@index([authorId])
+}
+
+/// A picture attached to a Feedback note. Deliberately NOT an Attachment: an
+/// Attachment dies with its Trip, a Feedback note outlives it (ADR 0040).
+model FeedbackPicture {
+  id         String   @id @default(cuid())
+  noteId     String
+  storageKey String
+  mime       String
+  size       Int
+  position   Int
+  createdAt  DateTime @default(now())
+  note       FeedbackNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
 }
 
 /// One Traveller's Digest opt-in for one Trip (ADR 0047). Absent row means

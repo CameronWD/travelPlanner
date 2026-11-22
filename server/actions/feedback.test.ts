@@ -78,6 +78,7 @@ const row = {
   site: "local",
   resolution: null,
   resolvedAt: null,
+  pictures: [],
 };
 
 const otherRow = {
@@ -93,6 +94,7 @@ const otherRow = {
   site: "local",
   resolution: null,
   resolvedAt: null,
+  pictures: [],
 };
 
 afterEach(() => {
@@ -122,6 +124,7 @@ describe("createFeedbackNote", () => {
       siteChip: null,
       resolution: null,
       resolvedAt: null,
+      pictures: [],
     });
   });
 
@@ -358,6 +361,7 @@ describe("toView", () => {
         site: "local",
         resolution: null,
         resolvedAt: null,
+        pictures: [],
       },
       "someone-else",
       "local",
@@ -371,7 +375,7 @@ describe("toView", () => {
 describe("deleteFeedbackNote", () => {
   it("deletes the caller's own note", async () => {
     requireUserMock.mockResolvedValue(author);
-    feedbackNoteFindUniqueMock.mockResolvedValue({ id: "n1", authorId: "u1" });
+    feedbackNoteFindUniqueMock.mockResolvedValue({ id: "n1", authorId: "u1", pictures: [] });
 
     const result = await deleteFeedbackNote("n1");
 

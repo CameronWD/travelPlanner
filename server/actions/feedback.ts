@@ -1,9 +1,17 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
 import { feedbackSite } from "@/lib/feedback/site";
+import {
+  FEEDBACK_PICTURE_MIMES,
+  MAX_FEEDBACK_PICTURES,
+  feedbackPictureUrl,
+} from "@/lib/feedback/pictures";
+import { getStorage, MAX_BYTES } from "@/lib/storage";
+import { reportError } from "@/lib/error-sink";
 import { TRAVELLER_SELECT, travellerName } from "@/lib/traveller";
 import {
   createFeedbackNoteSchema,
@@ -122,7 +130,7 @@ export async function deleteFeedbackNote(id: string): Promise<ActionResult> {
 
   const note = await db.feedbackNote.findUnique({
     where: { id },
-    select: { id: true, authorId: true },
+    select: { id: true, authorId: true, pictures: { select: { storageKey: true } } },
   });
   if (!note) {
     return formFail("That feedback has already been removed.");
@@ -132,7 +140,81 @@ export async function deleteFeedbackNote(id: string): Promise<ActionResult> {
   }
 
   await db.feedbackNote.delete({ where: { id } });
+  // The rows cascade; the blobs do not. Deleted at once rather than parked in
+  // the 35-day retention (lib/blob-retention.ts): the author retracted these
+  // themselves, and a retracted picture should not outlive the retraction.
+  await Promise.all(
+    note.pictures.map((p) =>
+      getStorage()
+        .delete(p.storageKey)
+        .catch((err) => reportError(err, { route: "server/actions/feedback.ts#deleteFeedbackNote", source: "server" })),
+    ),
+  );
   return ok();
+}
+
+/**
+ * Attach a picture to a Feedback note. Only the note's author may: an Admin
+ * reads other people's pictures but never adds to their notes.
+ */
+export async function addFeedbackPicture(
+  formData: FormData,
+): Promise<ActionResult<{ id: string; url: string }>> {
+  const user = await requireUser();
+
+  const noteId = formData.get("noteId");
+  const file = formData.get("file");
+  if (typeof noteId !== "string" || !(file instanceof File)) {
+    return formFail("Pick a picture to attach.");
+  }
+
+  const note = await db.feedbackNote.findUnique({
+    where: { id: noteId },
+    select: { authorId: true, pictures: { select: { position: true } } },
+  });
+  if (!note) return formFail("That feedback has been removed.");
+  if (note.authorId !== user.id) return formFail("You can only add pictures to feedback you wrote.");
+
+  if (note.pictures.length >= MAX_FEEDBACK_PICTURES) {
+    return formFail(`A note can hold ${MAX_FEEDBACK_PICTURES} pictures.`);
+  }
+  if (!(FEEDBACK_PICTURE_MIMES as readonly string[]).includes(file.type)) {
+    return formFail("Pictures must be JPEG, PNG or WebP.");
+  }
+  if (file.size > MAX_BYTES) {
+    return formFail(`That picture is too large. The limit is ${MAX_BYTES / 1024 / 1024} MB.`);
+  }
+
+  const id = randomUUID();
+  const storageKey = `feedback/${noteId}/${id}`;
+  const route = "server/actions/feedback.ts#addFeedbackPicture";
+  const storage = getStorage();
+
+  try {
+    await storage.save(storageKey, Buffer.from(await file.arrayBuffer()), file.type);
+  } catch (err) {
+    await reportError(err, { route, source: "server" });
+    return formFail("Couldn't upload the picture. Nothing was saved. Try again.");
+  }
+
+  try {
+    await db.feedbackPicture.create({
+      data: {
+        id,
+        noteId,
+        storageKey,
+        mime: file.type,
+        size: file.size,
+        position: note.pictures.reduce((next, p) => Math.max(next, p.position + 1), 0),
+      },
+    });
+  } catch (err) {
+    await storage.delete(storageKey).catch(() => {});
+    await reportError(err, { route, source: "server" });
+    return formFail("Couldn't attach the picture. Nothing was saved. Try again.");
+  }
+
+  return ok({ id, url: feedbackPictureUrl(id) });
 }
 
 /**
