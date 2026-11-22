@@ -23,9 +23,20 @@ it("shows a titled file by its title", () => {
   expect(screen.getByRole("link", { name: /Boarding pass/ })).toBeInTheDocument();
 });
 
-it("gives each link a thumb-sized hit area", () => {
-  render(<AttachmentLinks attachments={[att]} />);
-  const link = screen.getByRole("link", { name: /boarding\.pdf/i });
-  expect(link.className).toMatch(/min-h-11/);
-  expect(link.className).toMatch(/min-w-11/);
+it("stacks attachments one per line with no gap between them", () => {
+  render(<AttachmentLinks attachments={[att, { ...att, id: "a2", filename: "tickets.pdf", url: "/api/attachments/a2" }]} />);
+  const wrapper = screen.getByRole("link", { name: /boarding\.pdf/i }).parentElement!;
+  expect(wrapper.className).toMatch(/flex-col/);
+  expect(wrapper.className).not.toMatch(/gap-/);
+});
+
+it("gives each link a 32-point touch height across the full line", () => {
+  render(<AttachmentLinks attachments={[att, { ...att, id: "a2", filename: "tickets.pdf", url: "/api/attachments/a2" }]} />);
+  for (const name of [/boarding\.pdf/i, /tickets\.pdf/i]) {
+    const link = screen.getByRole("link", { name });
+    expect(link.className).toMatch(/pointer-coarse:min-h-8/);
+    expect(link.className).toMatch(/w-full/);
+    expect(link.className).not.toMatch(/pointer-coarse:min-h-11/);
+    expect(link.className).not.toMatch(/pointer-coarse:min-w-11/);
+  }
 });
